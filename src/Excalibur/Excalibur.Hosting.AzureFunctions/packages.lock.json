@@ -632,7 +632,6 @@
       "excalibur.dispatch.hosting.serverless.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch": "[1.0.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
@@ -707,7 +706,8 @@
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.Options": "[10.0.10, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.10, )",
-          "Microsoft.Extensions.Options.DataAnnotations": "[10.0.10, )"
+          "Microsoft.Extensions.Options.DataAnnotations": "[10.0.10, )",
+          "Polly": "[8.6.6, )"
         }
       },
       "Azure.Identity": {

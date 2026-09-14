@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Reflection;
+
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Handlers;
@@ -8,6 +10,8 @@ using Excalibur.Saga.Orchestration;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+using Polly.Timeout;
 
 namespace Excalibur.Saga.Tests.Orchestration;
 
@@ -697,6 +701,157 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
 		}
+	}
+
+	#endregion
+
+	// Characterization arms for RunWithTimeoutAndRetryAsync (private -- invoked via reflection since the
+	// coordinator's dispatch entry point needs a registered saga type + generic method resolution that
+	// would obscure what these arms actually test). Locks the three behaviors the Polly migration
+	// (Excalibur_Dispatch-9b1v2h) must preserve: transient retry, per-attempt-timeout retry, and
+	// ambient-shutdown propagating unretried.
+	#region RunWithTimeoutAndRetryAsync Characterization Tests
+
+	private static Task InvokeRunWithTimeoutAndRetryAsync(
+		SagaCoordinator coordinator, Func<CancellationToken, Task> action, CancellationToken cancellationToken)
+	{
+		var method = typeof(SagaCoordinator).GetMethod(
+			"RunWithTimeoutAndRetryAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+		method.ShouldNotBeNull("SagaCoordinator.RunWithTimeoutAndRetryAsync must exist for this lock to test anything.");
+		return (Task)method!.Invoke(coordinator, [action, "TestEvent", cancellationToken])!;
+	}
+
+	private static SagaCoordinator CreateCoordinator(SagaOptions options)
+	{
+		var sagaStore = A.Fake<ISagaStore>();
+		var services = new ServiceCollection();
+		services.AddSingleton(sagaStore);
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
+		var serviceProvider = services.BuildServiceProvider();
+		return new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(options), new FakeLogger<SagaCoordinator>());
+	}
+
+	[Fact]
+	public async Task RunWithTimeoutAndRetryAsync_RetriesTransientFailure_ThenSucceeds()
+	{
+		using var coordinator = CreateCoordinator(new SagaOptions
+		{
+			MaxAttempts = 3,
+			RetryDelay = TimeSpan.Zero,
+			DefaultTimeout = TimeSpan.FromSeconds(30),
+		});
+
+		var attempts = 0;
+		await InvokeRunWithTimeoutAndRetryAsync(
+			coordinator,
+			_ =>
+			{
+				attempts++;
+				if (attempts < 2)
+				{
+					throw new InvalidOperationException("transient");
+				}
+
+				return Task.CompletedTask;
+			},
+			CancellationToken.None);
+
+		attempts.ShouldBe(2, "the first failure must be retried, not surfaced.");
+	}
+
+	[Fact]
+	public async Task RunWithTimeoutAndRetryAsync_RetriesPerAttemptTimeout_ThenSucceeds()
+	{
+		using var coordinator = CreateCoordinator(new SagaOptions
+		{
+			MaxAttempts = 3,
+			RetryDelay = TimeSpan.Zero,
+			DefaultTimeout = TimeSpan.FromMilliseconds(50),
+		});
+
+		var attempts = 0;
+		await InvokeRunWithTimeoutAndRetryAsync(
+			coordinator,
+			async ct =>
+			{
+				attempts++;
+				if (attempts < 2)
+				{
+					// Outlives the per-attempt timeout without observing cancellation itself, so the
+					// TIMEOUT strategy is what ends the attempt, not the action noticing its own token.
+					await Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None).WaitAsync(ct).ConfigureAwait(false);
+					return;
+				}
+
+				await Task.CompletedTask;
+			},
+			CancellationToken.None);
+
+		attempts.ShouldBe(2, "a per-attempt timeout must be retried (a new attempt gets a fresh timeout), not surfaced as a final failure.");
+	}
+
+	[Fact]
+	public async Task RunWithTimeoutAndRetryAsync_PropagatesAmbientCancellation_Unretried()
+	{
+		using var coordinator = CreateCoordinator(new SagaOptions
+		{
+			MaxAttempts = 5,
+			RetryDelay = TimeSpan.Zero,
+			DefaultTimeout = TimeSpan.FromSeconds(30),
+		});
+
+		using var cts = new CancellationTokenSource();
+		var attempts = 0;
+
+		_ = await Should.ThrowAsync<OperationCanceledException>(() =>
+			InvokeRunWithTimeoutAndRetryAsync(
+				coordinator,
+				_ =>
+				{
+					attempts++;
+					cts.Cancel();
+					throw new OperationCanceledException(cts.Token);
+				},
+				cts.Token));
+
+		attempts.ShouldBe(1, "caller-driven (ambient) cancellation is shutdown, not a retryable saga failure -- it must propagate on the FIRST occurrence, never be retried.");
+	}
+
+	[Fact]
+	public async Task RunWithTimeoutAndRetryAsync_ExhaustsRetryBudget_ThrowsTimeoutRejectedException()
+	{
+		// BREAKING (pre-RC, deliberate -- see CHANGELOG): the prior hand-rolled loop's per-attempt
+		// CancellationTokenSource fired its OWN token on timeout, so a timeout that survived every retry
+		// escaped as OperationCanceledException -- indistinguishable, to a catch clause, from ambient
+		// (caller-driven) shutdown. Polly's Timeout strategy raises Polly.Timeout.TimeoutRejectedException
+		// instead, tied to the strategy's own inner token, never the ambient one -- so "the operation timed
+		// out" and "you cancelled it" are now two different, distinguishable exception types. Chosen
+		// deliberately: the two events ARE different, and conflating them was the old behavior's own defect,
+		// not a contract worth preserving.
+		using var coordinator = CreateCoordinator(new SagaOptions
+		{
+			MaxAttempts = 2,
+			RetryDelay = TimeSpan.Zero,
+			DefaultTimeout = TimeSpan.FromMilliseconds(50),
+		});
+
+		var attempts = 0;
+
+		var ex = await Should.ThrowAsync<TimeoutRejectedException>(() =>
+			InvokeRunWithTimeoutAndRetryAsync(
+				coordinator,
+				async ct =>
+				{
+					attempts++;
+					// Every attempt outlives the timeout -- this exhausts the WHOLE retry budget, unlike
+					// the earlier "retries per-attempt timeout THEN succeeds" arm, which never reaches here.
+					await Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None).WaitAsync(ct).ConfigureAwait(false);
+				},
+				CancellationToken.None));
+
+		ex.ShouldNotBeNull();
+		attempts.ShouldBe(2, "MaxAttempts=2 permits exactly 2 total attempts before the budget is exhausted.");
 	}
 
 	#endregion

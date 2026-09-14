@@ -155,6 +155,24 @@ public interface IChangeFeedSubscription<TDocument> : IAsyncDisposable
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>An async enumerable of change feed events.</returns>
 	IAsyncEnumerable<IChangeFeedEvent<TDocument>> ReadChangesAsync(CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Gets a value indicating whether checkpoint persistence has degraded: event delivery continues, but
+	/// the redelivery window on a future restart can grow while this is <see langword="true"/>.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> when checkpoint saves have failed enough consecutive times to cross the
+	/// configured bound; otherwise <see langword="false"/>. Defaults to <see langword="false"/> for a
+	/// subscription that does not track checkpoint health.
+	/// </value>
+	bool IsCheckpointDegraded => false;
+
+	/// <summary>
+	/// Gets how long checkpoint persistence has been degraded, or <see langword="null"/> when it is not.
+	/// </summary>
+	/// <value>The elapsed time since <see cref="IsCheckpointDegraded"/> became <see langword="true"/>, or
+	/// <see langword="null"/> when it is <see langword="false"/> or not tracked.</value>
+	TimeSpan? CheckpointLag => null;
 }
 
 /// <summary>
@@ -191,6 +209,13 @@ public interface IChangeFeedOptions
 	/// Gets the partition key to filter changes (null for all partitions).
 	/// </summary>
 	IPartitionKey? PartitionKeyFilter { get; }
+
+	/// <summary>
+	/// Gets the number of consecutive checkpoint-save failures after which a subscription reports
+	/// itself degraded rather than continuing silently. Must be positive.
+	/// </summary>
+	/// <value>Defaults to 10.</value>
+	int MaxConsecutiveCheckpointFailures => 10;
 }
 
 /// <summary>
@@ -225,6 +250,9 @@ public sealed class ChangeFeedOptions : IChangeFeedOptions
 
 	/// <inheritdoc/>
 	public IPartitionKey? PartitionKeyFilter { get; init; }
+
+	/// <inheritdoc/>
+	public int MaxConsecutiveCheckpointFailures { get; init; } = 10;
 
 	/// <summary>
 	/// Creates options to resume from a continuation token.

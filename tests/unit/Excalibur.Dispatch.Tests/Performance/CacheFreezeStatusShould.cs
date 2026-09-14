@@ -20,7 +20,6 @@ public sealed class CacheFreezeStatusShould
 			HandlerRegistryFrozen: true,
 			HandlerActivatorFrozen: true,
 			ResultFactoryFrozen: true,
-			ProfileSelectionFrozen: true,
 			FrozenAt: DateTimeOffset.UtcNow);
 
 		sut.AllFrozen.ShouldBeTrue();
@@ -34,7 +33,6 @@ public sealed class CacheFreezeStatusShould
 			HandlerRegistryFrozen: false,
 			HandlerActivatorFrozen: true,
 			ResultFactoryFrozen: true,
-			ProfileSelectionFrozen: true,
 			FrozenAt: DateTimeOffset.UtcNow);
 
 		sut.AllFrozen.ShouldBeFalse();
@@ -49,7 +47,6 @@ public sealed class CacheFreezeStatusShould
 		unfrozen.HandlerRegistryFrozen.ShouldBeFalse();
 		unfrozen.HandlerActivatorFrozen.ShouldBeFalse();
 		unfrozen.ResultFactoryFrozen.ShouldBeFalse();
-		unfrozen.ProfileSelectionFrozen.ShouldBeFalse();
 		unfrozen.FrozenAt.ShouldBeNull();
 		unfrozen.AllFrozen.ShouldBeFalse();
 	}
@@ -58,7 +55,7 @@ public sealed class CacheFreezeStatusShould
 	public void SupportValueEquality()
 	{
 		var a = CacheFreezeStatus.Unfrozen;
-		var b = new CacheFreezeStatus(false, false, false, false, false, null);
+		var b = new CacheFreezeStatus(false, false, false, false, null);
 
 		a.ShouldBe(b);
 	}
@@ -67,7 +64,7 @@ public sealed class CacheFreezeStatusShould
 	public void TrackFrozenAtTimestamp()
 	{
 		var frozenAt = new DateTimeOffset(2026, 2, 13, 10, 0, 0, TimeSpan.Zero);
-		var sut = new CacheFreezeStatus(true, true, true, true, true, frozenAt);
+		var sut = new CacheFreezeStatus(true, true, true, true, frozenAt);
 
 		sut.FrozenAt.ShouldBe(frozenAt);
 	}

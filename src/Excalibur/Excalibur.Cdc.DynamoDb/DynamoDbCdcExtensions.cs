@@ -46,7 +46,6 @@ public static class DynamoDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds DynamoDB CDC processor services to the service collection using configuration.
 	/// </summary>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
@@ -76,7 +75,6 @@ public static class DynamoDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds DynamoDB CDC processor services to the service collection using a named configuration section.
 	/// </summary>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",

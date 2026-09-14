@@ -191,7 +191,7 @@ public sealed class AuditStoreDurabilityGateShould
 			CancellationToken cancellationToken) =>
 			throw new NotSupportedException("Not exercised by the durability gate.");
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken) =>
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken) =>
 			Task.FromResult<AuditEvent?>(null);
 	}
 
@@ -222,7 +222,7 @@ public sealed class AuditStoreDurabilityGateShould
 			CancellationToken cancellationToken) =>
 			throw new NotSupportedException("Not exercised by the durability gate.");
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken) =>
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken) =>
 			Task.FromResult<AuditEvent?>(null);
 	}
 }

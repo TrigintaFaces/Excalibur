@@ -68,6 +68,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	private readonly OutboxStagingStrategy _outboxStagingStrategy;
 	private readonly SnapshotVersionManager? _snapshotVersionManager;
 	private readonly bool _enableAutoUpcast;
+	private readonly bool _verifyStreamReachesSnapshot;
 	private readonly bool _enableAutoSnapshotUpgrade;
 	private readonly int _targetSnapshotVersion;
 	private readonly Func<TKey, TAggregate> _aggregateFactory;
@@ -214,6 +215,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		_outboxStagingStrategy = options.Value.OutboxStagingStrategy;
 		_snapshotVersionManager = snapshotVersionManager;
 		_enableAutoUpcast = options.Value.EnableAutoUpcast;
+		_verifyStreamReachesSnapshot = options.Value.VerifyStreamReachesSnapshot;
 		_enableAutoSnapshotUpgrade = options.Value.EnableAutoSnapshotUpgrade;
 		_targetSnapshotVersion = options.Value.TargetSnapshotVersion;
 		_eventNotificationBroker = eventNotificationBroker;
@@ -265,6 +267,48 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		{
 			// Aggregate doesn't exist
 			return null;
+		}
+
+		// The empty tail is the one case the version-hole guard below cannot see. Zero rows here is
+		// genuinely ambiguous: either the snapshot sits at the head of the stream -- the normal, common
+		// case -- or the stream stops BELOW the snapshot and the events that would account for the
+		// snapshot's state are gone. The guard below needs a first event to compare against and has none,
+		// so without this the second case rehydrates from the snapshot alone and returns an aggregate at a
+		// version its own stream never reached.
+		//
+		// OPT-IN, off by default. The empty tail is also the ordinary state of a snapshot that is already
+		// current, so verifying it costs a query on a healthy path -- and this framework never removes
+		// events below a snapshot, so it cannot itself produce the damage. Hosts whose event store is
+		// trimmed by something else opt in. Only a store that can answer cheaply is asked, and only here.
+		// A store that does not provide the capability resolves to null here and behaves exactly as it did
+		// before this probe existed.
+		if (_verifyStreamReachesSnapshot
+			&& storedEvents.Count == 0
+			&& snapshotVersion > 0
+			&& _eventStore.GetService(typeof(IEventStoreVersionProbe)) is IEventStoreVersionProbe versionProbe)
+		{
+			var maxVersion = await versionProbe
+				.GetMaxVersionAsync(stringId, aggregateType, cancellationToken)
+				.ConfigureAwait(false);
+
+			// snapshotVersion is an event COUNT, stream versions are zero-based, so a snapshot at count N is
+			// accounted for by events through version N-1. A maximum below that is a truncated stream.
+			if (maxVersion < snapshotVersion - 1)
+			{
+				_logger?.LogError(
+					"Version hole detected for aggregate '{AggregateId}' ({AggregateType}): " +
+					"snapshot at version {SnapshotVersion}, highest stored event version {MaxVersion}. " +
+					"Refusing to reconstitute an aggregate with a version hole.",
+					stringId, aggregateType, snapshotVersion, maxVersion);
+
+				throw new InvalidOperationException(
+					$"Version hole detected while rehydrating aggregate '{stringId}' ({aggregateType}): the snapshot " +
+					$"is at version {snapshotVersion}, so the stream should reach version {snapshotVersion - 1}, but the " +
+					$"highest stored event version is {maxVersion}. The events that account for the snapshot's state are " +
+					$"missing, so rehydrating from the snapshot alone would produce an aggregate at a version its own " +
+					$"stream never reached (a state that never legitimately existed). Refusing to return a corrupt " +
+					$"aggregate; restore the missing events or rebuild the snapshot.");
+			}
 		}
 
 		// Detect a version hole between the snapshot and the events that follow it and FAIL LOUD.
@@ -801,7 +845,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		// Auto: select best available strategy
 		if (_transactionalOutboxWriter is not null
-			&& _eventStore.GetService(typeof(ITransactionalEventStore)) is not null)
+			&& _eventStore.GetService(typeof(ITransactionalEventStore)) is ITransactionalEventStore)
 		{
 			return OutboxStagingStrategy.Transactional;
 		}

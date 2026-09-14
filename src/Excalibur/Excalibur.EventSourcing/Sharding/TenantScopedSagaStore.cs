@@ -4,6 +4,8 @@
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing.Sharding;
 
 /// <summary>
@@ -50,6 +52,8 @@ public sealed class TenantScopedSagaStore : ISagaStore
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Delegates to a saga store whose serializer may require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("Delegates to a saga store that serializes with a reflection-based serializer generating converters at run time.")]
 	public Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState
 	{

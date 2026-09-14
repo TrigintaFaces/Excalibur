@@ -91,6 +91,11 @@ public sealed class TenantContextResolvedWithoutSeamShould
 		// Reads the ambient tenant to validate options consistency; does not construct a store.
 		"src/Dispatch/Excalibur.Dispatch.Abstractions/ContextValues/TenantContextConsistencyValidator.cs",
 
+		// Probes whether an ITenantContext is registered at all, so start-up can say so instead of letting
+		// every request fail closed on an unresolvable tenant. It resolves the context to test for its
+		// PRESENCE and reads no tenant from it; it constructs no store.
+		"src/Excalibur/Excalibur.A3.AspNetCore/GrantAuthorizationBridgeStartupValidator.cs",
+
 		// Reads ITenantContext.TenantId to populate the dispatch message context; does not construct a store.
 		"src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/DispatcherWebExtensions.cs",
 

@@ -35,7 +35,7 @@ public sealed class CacheResilienceOptionsShould : UnitTestBase
 		options.Enabled.ShouldBeTrue();
 		options.FailureThreshold.ShouldBe(5);
 		options.FailureWindow.ShouldBe(TimeSpan.FromMinutes(1));
-		options.OpenDuration.ShouldBe(TimeSpan.FromSeconds(30));
+		options.BreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
 		options.HalfOpenTestLimit.ShouldBe(3);
 		options.HalfOpenSuccessThreshold.ShouldBe(2);
 	}
@@ -80,7 +80,7 @@ public sealed class CacheResilienceOptionsShould : UnitTestBase
 			Enabled = false,
 			FailureThreshold = 10,
 			FailureWindow = TimeSpan.FromMinutes(5),
-			OpenDuration = TimeSpan.FromMinutes(1),
+			BreakDuration = TimeSpan.FromMinutes(1),
 			HalfOpenTestLimit = 5,
 			HalfOpenSuccessThreshold = 3,
 		};
@@ -89,7 +89,7 @@ public sealed class CacheResilienceOptionsShould : UnitTestBase
 		options.Enabled.ShouldBeFalse();
 		options.FailureThreshold.ShouldBe(10);
 		options.FailureWindow.ShouldBe(TimeSpan.FromMinutes(5));
-		options.OpenDuration.ShouldBe(TimeSpan.FromMinutes(1));
+		options.BreakDuration.ShouldBe(TimeSpan.FromMinutes(1));
 		options.HalfOpenTestLimit.ShouldBe(5);
 		options.HalfOpenSuccessThreshold.ShouldBe(3);
 	}

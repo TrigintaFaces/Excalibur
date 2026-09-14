@@ -395,7 +395,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 		// The store is scoped to tenant-1 by construction, so this returns tenant-1's latest and NOT
 		// evt-last-3 (tenant-2's), even though evt-last-3 is the newest row in the table. The tenant
 		// argument is not what selects the tenant — the ambient context is.
-		var tenantLast = await store.GetLastEventAsync("tenant-1", TestCancellationToken);
+		var tenantLast = await store.GetLastEventAsync(TestCancellationToken);
 
 		tenantLast.ShouldNotBeNull();
 		tenantLast!.EventId.ShouldBe("evt-last-2");
@@ -403,7 +403,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 		// Liveness arm: the scoping is not vacuously excluding everything — a tenant-2 store sees
 		// tenant-2's row, and neither store can reach the other's.
 		using var tenant2Store = CreateStore(tenantId: "tenant-2");
-		var tenant2Last = await tenant2Store.GetLastEventAsync(null, TestCancellationToken);
+		var tenant2Last = await tenant2Store.GetLastEventAsync(TestCancellationToken);
 
 		tenant2Last.ShouldNotBeNull();
 		tenant2Last!.EventId.ShouldBe("evt-last-3");

@@ -74,6 +74,31 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 		ArgumentNullException.ThrowIfNull(options);
 		cancellationToken.ThrowIfCancellationRequested();
 
+		// Refuse what this adapter cannot honour, rather than accepting a configuration object and reading
+		// none of it. A consumer who asks for behaviour they do not get has no way to discover that from a
+		// call which succeeded.
+		if (options.EnableRetries)
+		{
+			throw new ArgumentException(
+				"The in-memory message bus does not implement transport-level retry, so EnableRetries would have "
+				+ "no effect. Retry for in-process delivery is a pipeline concern: configure it with "
+				+ "UseResilience() instead, or use a transport whose adapter implements retry.",
+				nameof(options));
+		}
+
+		if (options.TargetUri is not null)
+		{
+			throw new ArgumentException(
+				"The in-memory message bus delivers within the current process and has no endpoint to address, "
+				+ "so TargetUri would have no effect. Remove it, or use a network transport.",
+				nameof(options));
+		}
+
+		// Everything else on MessageBusOptions is either satisfied vacuously here or tunes the retry that was
+		// refused above: Name is bus metadata (this adapter's own Name is its fixed identity, and the
+		// multi-transport adapter keys its lookup table on it), and EnableTelemetry has no adapter-level
+		// telemetry to gate -- this type emits none.
+
 		LogInitializing(_logger);
 
 		// IsConnected is deliberately NOT set here. It means "connected and ready for

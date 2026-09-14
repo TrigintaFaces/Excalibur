@@ -590,4 +590,7 @@ internal static class TransportAbstractionsEventId
 
 	/// <summary>A transport subscriber faulted on its receive/stream loop and is reconnecting after backoff.</summary>
 	public const int SubscriberReconnecting = 21000;
+
+	/// <summary>A reconnect backoff schedule returned a delay below the enforced floor, so the floor was used.</summary>
+	public const int SubscriberBackoffFloorApplied = 21001;
 }

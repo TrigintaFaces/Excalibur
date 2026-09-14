@@ -94,7 +94,7 @@ public sealed class DomainEventShould
 		// Act
 		var eventWithCorrelation = domainEvent.WithCorrelationId(correlationId);
 
-		// Assert -- T.21: CorrelationId is now a first-class property
+		// Assert -- CorrelationId is computed from Metadata
 		eventWithCorrelation.CorrelationId.ShouldBe(correlationId.ToString());
 	}
 
@@ -108,7 +108,7 @@ public sealed class DomainEventShould
 		// Act
 		var eventWithCausation = domainEvent.WithCausationId(causationId);
 
-		// Assert -- T.21: CausationId is now a first-class property
+		// Assert -- CausationId is computed from Metadata
 		eventWithCausation.CausationId.ShouldBe(causationId);
 	}
 
@@ -171,12 +171,33 @@ public sealed class DomainEventShould
 			.WithCausationId("cause-123")
 			.WithMetadata("extra", 99);
 
-		// Assert -- T.21: CorrelationId/CausationId are first-class properties, not in Metadata
-		evt.Metadata!.Count.ShouldBe(2);
+		// Assert -- CorrelationId/CausationId are computed FROM Metadata under the framework's declared
+		// key (OutboxHeaderNames.CorrelationId/.CausationId -- see Excalibur_Dispatch-ffswqv), the one
+		// authoritative carrier every real consumer (EventSourcedRepository, all six event-store
+		// implementations) reads, so WithCorrelationId/WithCausationId land in Metadata alongside
+		// source/extra, not beside it.
+		evt.Metadata!.Count.ShouldBe(4);
 		evt.Metadata["source"].ShouldBe("test");
 		evt.Metadata["extra"].ShouldBe(99);
+		evt.Metadata[OutboxHeaderNames.CorrelationId].ShouldBe(correlationId.ToString());
+		evt.Metadata[OutboxHeaderNames.CausationId].ShouldBe("cause-123");
 		evt.CorrelationId.ShouldBe(correlationId.ToString());
 		evt.CausationId.ShouldBe("cause-123");
+	}
+
+	[Fact]
+	public void CorrelationId_FallsBackToLegacySpellings_ForEventsWrittenBeforeTheKeyWasUnified()
+	{
+		// Safety: the canonical key wins when present.
+		var canonical = new TestDomainEvent().WithMetadata(OutboxHeaderNames.CorrelationId, "canonical");
+		canonical.CorrelationId.ShouldBe("canonical");
+
+		// Liveness: historical rows written under either legacy spelling are still readable.
+		var pascalCase = new TestDomainEvent().WithMetadata("CorrelationId", "pascal");
+		pascalCase.CorrelationId.ShouldBe("pascal");
+
+		var camelCase = new TestDomainEvent().WithMetadata("correlationId", "camel");
+		camelCase.CorrelationId.ShouldBe("camel");
 	}
 
 	[Fact]

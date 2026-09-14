@@ -16,22 +16,6 @@ namespace Excalibur.Dispatch.Caching.Tests;
 [Trait("Component", "Core")]
 public sealed class CachingMiddlewareReflectionCacheShould
 {
-	[Fact]
-	public void HaveStaticCacheableInterfaceCache()
-	{
-		var field = typeof(CachingMiddleware)
-			.GetField("_cacheableInterfaceCache", BindingFlags.NonPublic | BindingFlags.Static);
-
-		field.ShouldNotBeNull("CachingMiddleware should have _cacheableInterfaceCache static field");
-		field.IsStatic.ShouldBeTrue();
-
-		// Should be ConcurrentDictionary<Type, Type?>
-		field.FieldType.IsGenericType.ShouldBeTrue();
-		field.FieldType.GetGenericTypeDefinition().ShouldBe(typeof(ConcurrentDictionary<,>));
-
-		var genericArgs = field.FieldType.GetGenericArguments();
-		genericArgs[0].ShouldBe(typeof(Type));
-	}
 
 	[Fact]
 	public void HaveStaticActionInterfaceCache()
@@ -48,19 +32,17 @@ public sealed class CachingMiddlewareReflectionCacheShould
 		var genericArgs = field.FieldType.GetGenericArguments();
 		genericArgs[0].ShouldBe(typeof(Type));
 	}
-
 	[Fact]
-	public void HaveReadOnlyCaches()
+	public void KeepTheActionInterfaceCacheReadOnly()
 	{
-		var cacheableField = typeof(CachingMiddleware)
-			.GetField("_cacheableInterfaceCache", BindingFlags.NonPublic | BindingFlags.Static);
+		// The cacheable-interface cache that used to sit beside this one is gone: cacheability is now a
+		// type test, so there is no reflection result left to memoize. This one remains because
+		// resolving IDispatchAction<T> for the result type is still a reflective lookup.
 		var actionField = typeof(CachingMiddleware)
 			.GetField("_actionInterfaceCache", BindingFlags.NonPublic | BindingFlags.Static);
 
-		cacheableField.ShouldNotBeNull();
 		actionField.ShouldNotBeNull();
-
-		cacheableField.IsInitOnly.ShouldBeTrue("_cacheableInterfaceCache should be readonly");
 		actionField.IsInitOnly.ShouldBeTrue("_actionInterfaceCache should be readonly");
 	}
+
 }

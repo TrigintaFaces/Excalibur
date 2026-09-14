@@ -334,14 +334,52 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 				}
 				catch (Exception ex) when (ex is not OperationCanceledException)
 				{
+					// HALT at the failed event. Do NOT advance past it.
+					//
+					// Swallowing here used to let the checkpoint move past an event the view never applied,
+					// which leaves a permanent gap: the view reads as healthy and is wrong, and nothing
+					// reports it. Every other replay loop in this package already halts for exactly this
+					// reason, and treats the erasure tombstone (handled structurally above) as the only
+					// skip -- a deserialization failure is never read as "assume erased", because that
+					// masks genuine corruption as erasure.
+					//
+					// An event that RESOLVES but has no registered builder is not affected: it misses the
+					// routing map below and is passed over harmlessly. Only the un-interpretable event --
+					// the one case where the framework cannot know whether it mattered -- stops the replay.
 					LogEventProcessingError(storedEvent.EventId, storedEvent.EventType, ex);
-					// Continue processing remaining events
+
+					throw new MaterializedViewPoisonEventException(
+						viewNameFilter,
+						storedEvent.EventId,
+						storedEvent.EventType,
+						storedEvent.GlobalPosition,
+						ex);
 				}
 			}
 
-			// Advance position past the last event in the batch
+			// Advance position past the last event in the batch.
+			//
+			// This MUST be GlobalPosition, not Version. The global stream is ordered and filtered by the
+			// store's identity column, and Version is the per-aggregate version -- a small number that
+			// restarts at 1 for every aggregate. Checkpointing a Version against a query that reads
+			// `Position >= checkpoint` resumes from an unrelated offset: the same batch is re-read
+			// indefinitely (no progress, one log line per event per pass, forever) or already-applied
+			// events are replayed into an accumulating view and counted twice.
 			var lastEvent = storedEvents[storedEvents.Count - 1];
-			var newPosition = lastEvent.Version + 1;
+
+			if (lastEvent.GlobalPosition <= 0)
+			{
+				// 0 is the documented unset sentinel. A store that does not stamp it cannot support
+				// resumable replay, and continuing would checkpoint a position that reads back as
+				// "start from the beginning" on every restart. Stop with something the operator can act
+				// on rather than spin.
+				throw new InvalidOperationException(
+					$"The global stream returned event '{lastEvent.EventId}' with no global position, so materialized "
+					+ "view replay cannot record where it got to and would restart from the beginning every time. "
+					+ "The event store's global stream query must stamp each event's global position.");
+			}
+
+			var newPosition = lastEvent.GlobalPosition + 1;
 			currentPosition = new GlobalStreamPosition(newPosition, lastEvent.Timestamp);
 
 			// Save position checkpoint after each batch
@@ -349,13 +387,13 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			{
 				foreach (var (viewName, _) in _viewNameRoutes)
 				{
-					await _viewStore.SavePositionAsync(viewName, lastEvent.Version, cancellationToken)
+					await _viewStore.SavePositionAsync(viewName, lastEvent.GlobalPosition, cancellationToken)
 						.ConfigureAwait(false);
 				}
 			}
 			else if (viewNameFilter is not null)
 			{
-				await _viewStore.SavePositionAsync(viewNameFilter, lastEvent.Version, cancellationToken)
+				await _viewStore.SavePositionAsync(viewNameFilter, lastEvent.GlobalPosition, cancellationToken)
 					.ConfigureAwait(false);
 			}
 

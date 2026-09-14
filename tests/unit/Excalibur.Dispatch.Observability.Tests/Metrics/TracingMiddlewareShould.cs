@@ -75,7 +75,7 @@ public sealed class TracingMiddlewareShould : IDisposable
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
-		A.CallTo(() => expectedResult.IsSuccess).Returns(true);
+		A.CallTo(() => expectedResult.Succeeded).Returns(true);
 
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(expectedResult);
 

@@ -148,7 +148,7 @@ public static class DispatchTestingShouldlyExtensions
 	public static void ShouldHaveCompleted(this IMessageResult result)
 	{
 		ArgumentNullException.ThrowIfNull(result);
-		result.IsSuccess.ShouldBeTrue("Expected message result to indicate success, but it was a failure.");
+		result.Succeeded.ShouldBeTrue("Expected message result to indicate success, but it was a failure.");
 	}
 
 	/// <summary>
@@ -158,7 +158,7 @@ public static class DispatchTestingShouldlyExtensions
 	public static void ShouldHaveFailed(this IMessageResult result)
 	{
 		ArgumentNullException.ThrowIfNull(result);
-		result.IsSuccess.ShouldBeFalse("Expected message result to indicate failure, but it was successful.");
+		result.Succeeded.ShouldBeFalse("Expected message result to indicate failure, but it was successful.");
 	}
 
 	/// <summary>
@@ -169,7 +169,7 @@ public static class DispatchTestingShouldlyExtensions
 	public static void ShouldHaveFailedWithError(this IMessageResult result, string? expectedSubstring = null)
 	{
 		ArgumentNullException.ThrowIfNull(result);
-		result.IsSuccess.ShouldBeFalse("Expected message result to indicate failure, but it was successful.");
+		result.Succeeded.ShouldBeFalse("Expected message result to indicate failure, but it was successful.");
 		result.ErrorMessage.ShouldNotBeNullOrWhiteSpace("Expected failure to have an error message.");
 
 		if (expectedSubstring is not null)

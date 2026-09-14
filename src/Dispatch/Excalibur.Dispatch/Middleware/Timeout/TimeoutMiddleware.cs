@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Middleware.Timeout;
 [AppliesTo(MessageKinds.Action | MessageKinds.Event)]
 public sealed partial class TimeoutMiddleware(
 	ILogger<TimeoutMiddleware> logger,
-	IOptions<TimeoutOptions> options) : IDispatchMiddleware, IAsyncDisposable
+	IOptions<TimeoutOptions> options) : IDispatchMiddleware
 {
 	private readonly ILogger<TimeoutMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly TimeoutOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -104,17 +104,23 @@ public sealed partial class TimeoutMiddleware(
 			_ = (activity?.SetStatus(ActivityStatusCode.Error, "Operation timed out"));
 			activity?.RecordException(ex);
 
+			// A diagnostic label on an in-memory exception, not a stored identity, so it must degrade
+			// rather than fail when the message declares no [MessageName]: MessageNameHelper.GetName
+			// throws there, which would turn an ordinary timeout into a different, more confusing one.
+			var declaredMessageType = MessageNameHelper.GetDeclaredName(message.GetType());
+			var messageTypeName = declaredMessageType ?? message.GetType().Name;
+
 			var timeoutException = new MessageTimeoutException(
 				$"Message processing timed out after {timeout.TotalMilliseconds}ms for message {context.MessageId}",
 				ex)
 			{
 				MessageId = context.MessageId,
-				MessageType = message.GetType().Name,
+				MessageType = messageTypeName,
 				TimeoutDuration = timeout,
 				ElapsedTime = stopwatch.Elapsed,
 			};
 
-			LogMessageTimedOut(_logger, context.MessageId ?? string.Empty, message.GetType().Name, stopwatch.Elapsed.TotalMilliseconds,
+			LogMessageTimedOut(_logger, context.MessageId ?? string.Empty, messageTypeName, stopwatch.Elapsed.TotalMilliseconds,
 				timeout.TotalMilliseconds, timeoutException);
 
 			// Store timeout information in context for downstream handlers
@@ -143,15 +149,11 @@ public sealed partial class TimeoutMiddleware(
 		}
 	}
 
-	/// <summary>
-	/// Disposes resources used by the middleware.
-	/// </summary>
-	/// <inheritdoc />
-	public ValueTask DisposeAsync()
-	{
-		// Static ActivitySource is process-lifetime; no disposal needed.
-		return ValueTask.CompletedTask;
-	}
+	// No IAsyncDisposable. This type holds nothing that needs releasing — its ActivitySource is static
+	// and process-lifetime — and implementing the interface is a CONTRACT saying otherwise. The cost of
+	// that empty contract is paid by the consumer: a container holding an async-only disposable refuses
+	// synchronous disposal, so a plain `using var provider = services.BuildServiceProvider();` throws
+	// InvalidOperationException. Do not re-add it without a resource to actually release.
 
 	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.TimeoutMiddlewareExecuting, LogLevel.Debug,

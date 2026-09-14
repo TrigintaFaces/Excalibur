@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Extensions;
 
@@ -30,16 +31,15 @@ public sealed class ExceptionExtensionsShould
 	}
 
 	[Fact]
-	public void GetErrorCode_WithExceptionWithErrorCodeProperty_ReturnsErrorCode()
+	public void GetErrorCode_WithForeignExceptionExposingErrorCodeProperty_ReturnsNull()
 	{
-		// Arrange
+		// A foreign (non-framework) exception exposing a conventionally-named ErrorCode property is no
+		// longer duck-typed -- that job belongs to the registered IExceptionMapper, not a property probe.
 		var exception = new ExceptionWithErrorCode(123);
 
-		// Act
 		var result = exception.GetErrorCode();
 
-		// Assert
-		result.ShouldBe("123");
+		result.ShouldBeNull();
 	}
 
 	[Fact]
@@ -73,14 +73,14 @@ public sealed class ExceptionExtensionsShould
 	public void GetErrorCode_WithInnerExceptionHavingErrorCode_ReturnsInnerErrorCode()
 	{
 		// Arrange
-		var innerException = new ExceptionWithErrorCode(789);
+		var innerException = new MessagingException(ErrorCodes.MessageRoutingFailed, "inner");
 		var exception = new InvalidOperationException("Outer", innerException);
 
 		// Act
 		var result = exception.GetErrorCode();
 
 		// Assert
-		result.ShouldBe("789");
+		result.ShouldBe(ErrorCodes.MessageRoutingFailed);
 	}
 
 	[Fact]
@@ -88,14 +88,14 @@ public sealed class ExceptionExtensionsShould
 	{
 		// Arrange
 		var inner1 = new InvalidOperationException("No code");
-		var inner2 = new ExceptionWithErrorCode(111);
+		var inner2 = new MessagingException(ErrorCodes.MessageDuplicate, "duplicate");
 		var aggEx = new AggregateException(inner1, inner2);
 
 		// Act
 		var result = aggEx.GetErrorCode();
 
 		// Assert
-		result.ShouldBe("111");
+		result.ShouldBe(ErrorCodes.MessageDuplicate);
 	}
 
 	[Fact]
@@ -128,16 +128,39 @@ public sealed class ExceptionExtensionsShould
 	}
 
 	[Fact]
-	public void GetStatusCode_WithExceptionWithStatusCodeProperty_ReturnsStatusCode()
+	public void GetStatusCode_WithForeignExceptionExposingStatusCodeProperty_ReturnsNull()
 	{
-		// Arrange
+		// A foreign (non-framework) exception exposing a conventionally-named StatusCode property is no
+		// longer duck-typed -- that job belongs to the registered IExceptionMapper, not a property probe.
 		var exception = new ExceptionWithStatusCode(404);
 
-		// Act
 		var result = exception.GetStatusCode();
 
-		// Assert
-		result.ShouldBe(404);
+		result.ShouldBeNull();
+	}
+
+	[Fact]
+	public void GetStatusCode_WithApiException_ReturnsStatusCode()
+	{
+		// ApiException.StatusCode is reached by a direct type check, covering every ApiException that is
+		// not more specifically a DispatchException, with zero reflection.
+		var exception = new ApiException(403, "forbidden", innerException: null);
+
+		var result = exception.GetStatusCode();
+
+		result.ShouldBe(403);
+	}
+
+	[Fact]
+	public void GetStatusCode_WithDispatchExceptionWithoutDispatchStatusCode_FallsBackToApiExceptionStatusCode()
+	{
+		// A DispatchException that never set DispatchStatusCode still resolves through the ApiException
+		// type check (the inherited default), rather than returning null.
+		var exception = new MessagingException(ErrorCodes.MessageRoutingFailed, "routing failed");
+
+		var result = exception.GetStatusCode();
+
+		result.ShouldBe(exception.StatusCode);
 	}
 
 	[Fact]
@@ -171,7 +194,7 @@ public sealed class ExceptionExtensionsShould
 	public void GetStatusCode_WithInnerExceptionHavingStatusCode_ReturnsInnerStatusCode()
 	{
 		// Arrange
-		var innerException = new ExceptionWithStatusCode(401);
+		var innerException = new ApiException(401, "unauthorized", innerException: null);
 		var exception = new InvalidOperationException("Outer", innerException);
 
 		// Act
@@ -199,7 +222,7 @@ public sealed class ExceptionExtensionsShould
 	public void GetStatusCodeOrDefault_WithStatusCode_ReturnsStatusCode()
 	{
 		// Arrange
-		var exception = new ExceptionWithStatusCode(403);
+		var exception = new ApiException(403, "forbidden", innerException: null);
 
 		// Act
 		var result = exception.GetStatusCodeOrDefault();
@@ -271,13 +294,13 @@ public sealed class ExceptionExtensionsShould
 	public void GetErrorCodeOrDefault_WithErrorCode_ReturnsErrorCode()
 	{
 		// Arrange
-		var exception = new ExceptionWithErrorCode(999);
+		var exception = new MessagingException(ErrorCodes.MessageDuplicate, "duplicate");
 
 		// Act
 		var result = exception.GetErrorCodeOrDefault("none");
 
 		// Assert
-		result.ShouldBe("999");
+		result.ShouldBe(ErrorCodes.MessageDuplicate);
 	}
 
 	[Fact]
@@ -324,7 +347,7 @@ public sealed class ExceptionExtensionsShould
 	public void HasErrorCode_WithErrorCode_ReturnsTrue()
 	{
 		// Arrange
-		var exception = new ExceptionWithErrorCode(123);
+		var exception = new MessagingException(ErrorCodes.MessageRoutingFailed, "routing failed");
 
 		// Act
 		var result = exception.HasErrorCode();
@@ -364,7 +387,7 @@ public sealed class ExceptionExtensionsShould
 	public void HasStatusCode_WithStatusCode_ReturnsTrue()
 	{
 		// Arrange
-		var exception = new ExceptionWithStatusCode(500);
+		var exception = new ApiException(500, "error", innerException: null);
 
 		// Act
 		var result = exception.HasStatusCode();
@@ -388,71 +411,33 @@ public sealed class ExceptionExtensionsShould
 
 	#endregion
 
-	#region Caching Tests
+	#region Precedence Tests
 
 	[Fact]
-	public void GetErrorCode_CalledMultipleTimes_UsesCache()
+	public void GetErrorCode_WithBothDispatchExceptionAndData_PrefersTheTypeCheck()
 	{
 		// Arrange
-		var exception = new ExceptionWithErrorCode(123);
-
-		// Act - Call multiple times
-		var result1 = exception.GetErrorCode();
-		var result2 = exception.GetErrorCode();
-		var result3 = exception.GetErrorCode();
-
-		// Assert - All should return same value (cache is used)
-		result1.ShouldBe("123");
-		result2.ShouldBe("123");
-		result3.ShouldBe("123");
-	}
-
-	[Fact]
-	public void GetStatusCode_CalledMultipleTimes_UsesCache()
-	{
-		// Arrange
-		var exception = new ExceptionWithStatusCode(404);
-
-		// Act - Call multiple times
-		var result1 = exception.GetStatusCode();
-		var result2 = exception.GetStatusCode();
-		var result3 = exception.GetStatusCode();
-
-		// Assert - All should return same value (cache is used)
-		result1.ShouldBe(404);
-		result2.ShouldBe(404);
-		result3.ShouldBe(404);
-	}
-
-	#endregion
-
-	#region Data Dictionary Priority Tests
-
-	[Fact]
-	public void GetErrorCode_WithBothPropertyAndData_PreferencesProperty()
-	{
-		// Arrange
-		var exception = new ExceptionWithErrorCode(100);
-		exception.Data["ErrorCode"] = 200;
+		var exception = new MessagingException(ErrorCodes.MessageRoutingFailed, "routing failed");
+		exception.Data["ErrorCode"] = "FromData";
 
 		// Act
 		var result = exception.GetErrorCode();
 
-		// Assert - Property takes precedence
-		result.ShouldBe("100");
+		// Assert - the direct type check outranks the Data dictionary
+		result.ShouldBe(ErrorCodes.MessageRoutingFailed);
 	}
 
 	[Fact]
-	public void GetStatusCode_WithBothPropertyAndData_PreferencesProperty()
+	public void GetStatusCode_WithBothApiExceptionAndData_PrefersTheTypeCheck()
 	{
 		// Arrange
-		var exception = new ExceptionWithStatusCode(400);
+		var exception = new ApiException(400, "bad request", innerException: null);
 		exception.Data["StatusCode"] = 500;
 
 		// Act
 		var result = exception.GetStatusCode();
 
-		// Assert - Property takes precedence
+		// Assert - the direct type check outranks the Data dictionary
 		result.ShouldBe(400);
 	}
 

@@ -13,7 +13,8 @@ namespace Excalibur.Workflows;
 /// The framework owns and source-generates these envelope and projection types unconditionally. Arbitrary
 /// consumer activity/workflow payload types are not owned by the framework and cannot be source-generated
 /// here — for a fully trim/AOT-safe payload path a consumer supplies their own source-generated resolver via
-/// <see cref="WorkflowOptions.PayloadTypeInfoResolver"/>, which is composed ahead of this context.
+/// <see cref="WorkflowOptions.PayloadTypeInfoResolver"/>, which is composed after this context: a payload
+/// type this context covers resolves here, and every other type falls through to the consumer resolver.
 /// </remarks>
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
 [JsonSerializable(typeof(WorkflowState))]

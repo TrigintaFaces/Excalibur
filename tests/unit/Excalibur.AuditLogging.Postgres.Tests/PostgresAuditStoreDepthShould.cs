@@ -29,8 +29,8 @@ public sealed class PostgresAuditStoreDepthShould
 		options.SchemaName.ShouldBe("audit");
 		options.TableName.ShouldBe("audit_events");
 		options.BatchSize.ShouldBe(1000);
-		options.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
-		options.RetentionCleanupBatchSize.ShouldBe(10000);
+		options.Retention.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
+		options.Retention.CleanupBatchSize.ShouldBe(10000);
 		options.CommandTimeoutSeconds.ShouldBe(30);
 		options.EnableHashChain.ShouldBeTrue();
 	}
@@ -134,7 +134,7 @@ public sealed class PostgresAuditStoreDepthShould
 		var options = Microsoft.Extensions.Options.Options.Create(new PostgresAuditOptions
 		{
 			ConnectionString = "Host=localhost;Database=audit",
-			RetentionPeriod = TimeSpan.FromDays(365)
+			Retention = new PostgresAuditRetentionOptions { RetentionPeriod = TimeSpan.FromDays(365) }
 		});
 
 		// Act

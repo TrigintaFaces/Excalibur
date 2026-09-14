@@ -382,7 +382,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 				var grant = GrantItem.FromItem(item);
 				if (grant is not null)
 				{
-					var key = $"{grant.TenantId}:{grant.GrantType}:{grant.Qualifier}";
+					var key = GrantKeyFormat.ComposeScope(grant.TenantId, grant.GrantType, grant.Qualifier);
 					result[key] = grant;
 				}
 			}

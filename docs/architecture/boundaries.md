@@ -12,7 +12,7 @@ This document defines the **architectural boundaries** for the Dispatch / Excali
 
 All boundaries are **automatically enforced** through:
 
-- **NetArchTest** architecture tests (`tests/ArchitectureTests/Phase8_3_BoundaryTests.cs`)
+- **NetArchTest** architecture tests (`tests/architecture/Boundary.Tests/Phase8_3_BoundaryTests.cs`)
 - **PowerShell validation script** (`eng/validate-architecture-boundaries.ps1`)
 - **CI gates** (fail build on violations)
 
@@ -54,7 +54,7 @@ All boundaries are **automatically enforced** through:
 **Enforcement**:
 
 ```csharp
-// NetArchTest (tests/ArchitectureTests/Phase8_3_BoundaryTests.cs)
+// NetArchTest (tests/architecture/Boundary.Tests/Phase8_3_BoundaryTests.cs)
 Types.InCurrentDomain()
     .That().ResideInNamespace("Dispatch")
     .ShouldNot().HaveDependencyOn("Excalibur")
@@ -387,7 +387,7 @@ If `Excalibur.Dispatch` references `System.Text.Json`:
 
 ### NetArchTest (Compile-Time)
 
-**Location**: `tests/ArchitectureTests/Phase8_3_BoundaryTests.cs`
+**Location**: `tests/architecture/Boundary.Tests/Phase8_3_BoundaryTests.cs`
 
 **Tests**:
 
@@ -399,8 +399,8 @@ If `Excalibur.Dispatch` references `System.Text.Json`:
 **Run Tests**:
 
 ```bash
-cd tests/ArchitectureTests
-dotnet test --filter "FullyQualifiedName~Phase8_3_BoundaryTests"
+cd tests/architecture/Boundary.Tests
+dotnet test --filter "FullyQualifiedName~Phase8_3_BoundaryTests" --blame-hang-timeout 10m
 ```
 
 **CI Integration**: Tests run on every PR and fail build if violations detected.
@@ -517,10 +517,7 @@ public static IServiceCollection AddDispatchCore(this IServiceCollection service
 ## See Also
 
 - [Architecture Boundary Enforcement](../../management/architecture/ADR-041-Architecture-Boundary-Enforcement.md)
-- [Phase 8.3 Remediation Report](../../management/reports/2025-11-13_phase8-3-architecture-boundaries_v1.0.0.md)
-- [Architecture Tests README](../../tests/ArchitectureTests/README.md)
 - [Dispatch Requirements Volume 01](../../management/specs/Dispatch.Requirements.01-Architecture-And-Messaging.md)
-- [Pay-for-Play Provider Model](./provider-model.md)
 
 ---
 

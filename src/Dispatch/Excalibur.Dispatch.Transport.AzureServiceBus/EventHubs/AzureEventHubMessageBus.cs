@@ -6,9 +6,12 @@ using Azure.Messaging.EventHubs;
 using Azure.Messaging.EventHubs.Producer;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.AzureServiceBus;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 
 using Microsoft.Extensions.Logging;
 
@@ -20,6 +23,8 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <param name="producer"> The Azure Event Hub producer client for sending messages. </param>
 /// <param name="serializer"> Payload serializer for message body serialization with pluggable format support. </param>
 /// <param name="logger"> The logger instance for diagnostic information. </param>
+/// <param name="cloudEventBridge"> Optional envelope-to-CloudEvent bridge; when supplied with <paramref name="cloudEventEncoder"/>, every publish is emitted as a CloudEvent instead of the native envelope format. </param>
+/// <param name="cloudEventEncoder"> Optional CloudEvents encoder for <see cref="EventData"/>. </param>
 /// <remarks>
 /// <para>
 /// This message bus uses <see cref="IPayloadSerializer"/> for message body serialization,
@@ -35,9 +40,11 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </para>
 /// </remarks>
 internal sealed partial class AzureEventHubMessageBus(
-	EventHubProducerClient producer,
+	IEventHubProducer producer,
 	IPayloadSerializer serializer,
-	ILogger<AzureEventHubMessageBus> logger) : IMessageBus, IAsyncDisposable
+	ILogger<AzureEventHubMessageBus> logger,
+	IEnvelopeCloudEventBridge? cloudEventBridge = null,
+	ICloudEventEncoder<EventData>? cloudEventEncoder = null) : IMessageBus, IAsyncDisposable
 {
 
 	/// <summary>
@@ -52,6 +59,11 @@ internal sealed partial class AzureEventHubMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
+
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
+		{
+			return PublishWithCloudEventsAsync(action, context, LogSendingAction, cancellationToken);
+		}
 
 		LogSendingAction(action.GetType().Name);
 
@@ -71,6 +83,11 @@ internal sealed partial class AzureEventHubMessageBus(
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
 
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
+		{
+			return PublishWithCloudEventsAsync(evt, context, LogPublishingEvent, cancellationToken);
+		}
+
 		LogPublishingEvent(evt.GetType().Name);
 
 		return SendCoreAsync(evt, context, cancellationToken);
@@ -88,6 +105,11 @@ internal sealed partial class AzureEventHubMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
+		{
+			return PublishWithCloudEventsAsync(doc, context, LogSendingDocument, cancellationToken);
+		}
 
 		LogSendingDocument(doc.GetType().Name);
 
@@ -119,8 +141,84 @@ internal sealed partial class AzureEventHubMessageBus(
 			evt.Properties["traceparent"] = traceParent;
 		}
 
-		_ = batch.TryAdd(evt);
+		// The result is load-bearing: a rejected event leaves the batch EMPTY, so sending it would
+		// report success while publishing nothing. Discarding this is silent message loss. The
+		// CloudEvent path below refuses the same condition, and the two must not disagree.
+		if (!batch.TryAdd(evt))
+		{
+			throw new InvalidOperationException(
+				$"A message of type '{messageObj.GetType().Name}' exceeds the Event Hubs batch size limit "
+				+ "and cannot be published. Reduce the payload, or publish it through a transport without "
+				+ "this limit.");
+		}
+
 		await producer.SendAsync(batch, cancellationToken).ConfigureAwait(false);
+	}
+
+	private static MessageEnvelope CreateEnvelope(IDispatchMessage message, IMessageContext context)
+	{
+		// The declared name, not the CLR FullName -- mirrors the other transports' CreateEnvelope for
+		// the same reason (it becomes the outgoing CloudEvent type attribute).
+		var messageClrType = message.GetType();
+
+		var envelope = new MessageEnvelope(message)
+		{
+			MessageId = context.MessageId ?? Uuid7Extensions.GenerateString(),
+			ExternalId = context.GetExternalId(),
+			UserId = context.GetUserId(),
+			CorrelationId = context.CorrelationId,
+			CausationId = context.CausationId,
+			TraceParent = context.GetTraceParent(),
+			TenantId = context.GetTenantId(),
+			MessageType = context.GetMessageType()
+				?? MessageNameHelper.GetDeclaredName(messageClrType)
+				?? messageClrType.FullName,
+			ContentType = context.GetContentType() ?? "application/json",
+			DeliveryCount = context.GetDeliveryCount(),
+			ReceivedTimestampUtc = context.GetReceivedTimestampUtc() ?? DateTimeOffset.UtcNow,
+			SentTimestampUtc = context.GetSentTimestampUtc(),
+		};
+
+		foreach (var item in context.Items)
+		{
+			envelope.SetItem(item.Key, item.Value);
+		}
+
+		return envelope;
+	}
+
+	private async Task PublishWithCloudEventsAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		Action<string> logAction,
+		CancellationToken cancellationToken)
+	{
+		var envelope = CreateEnvelope(message, context);
+		EventData eventData;
+		try
+		{
+			eventData = await cloudEventBridge!
+				.ToTransportAsync<EventData>(envelope, cloudEventEncoder!.Options.DefaultMode, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		finally
+		{
+			envelope.Dispose();
+		}
+
+		using var batch = await producer.CreateBatchAsync(cancellationToken).ConfigureAwait(false);
+		if (!batch.TryAdd(eventData))
+		{
+			throw new InvalidOperationException(
+				$"CloudEvent for '{message.GetType().Name}' exceeds the Event Hubs batch size limit.");
+		}
+
+		await producer.SendAsync(batch, cancellationToken).ConfigureAwait(false);
+
+		if (logger.IsEnabled(LogLevel.Information))
+		{
+			logAction(message.GetType().Name);
+		}
 	}
 
 	// Source-generated logging methods

@@ -380,7 +380,9 @@ public sealed class OracleTenantNarrowingMigrationShould : IClassFixture<OracleN
 		{
 			var trimmed = line.Trim();
 
-			if (!trimmed.StartsWith("--", StringComparison.Ordinal))
+			// WHENEVER is a SQL*Plus directive, not SQL: the shipped scripts open with it so a
+			// hand-applied migration rolls back, and ODP.NET gets ORA-00900 for it.
+			if (!trimmed.StartsWith("--", StringComparison.Ordinal) && !trimmed.StartsWith("WHENEVER ", StringComparison.OrdinalIgnoreCase))
 			{
 				_ = stripped.Append(trimmed).Append('\n');
 			}

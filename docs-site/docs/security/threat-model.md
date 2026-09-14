@@ -70,9 +70,9 @@ fully control.
 
 | STRIDE | Threat | Control | Residual risk (yours) |
 |---|---|---|---|
-| Tampering | A message is altered in transit or at rest in the broker | Message signing — HMAC-SHA256 / HMAC-SHA512 (symmetric) or ECDSA P-256 / RSA (RSASSA-PKCS1-v1_5 and RSA-PSS, SHA-256) asymmetric; a signing middleware signs on send and verifies on receive with a constant-time comparison, and a tampered payload fails verification and is rejected. | Protect the signing key (B5) and enable signing — it is opt-in. |
+| Tampering | A message is altered in transit or at rest in the broker | Message signing — HMAC-SHA256 / HMAC-SHA512 (symmetric) or ECDSA (P-256 or stronger, enforced minimum) / RSA (RSASSA-PKCS1-v1_5 and RSA-PSS, SHA-256) asymmetric; a signing middleware signs on send and verifies on receive with a constant-time comparison, and a tampered payload fails verification and is rejected. | Protect the signing key (B5) and enable signing — it is opt-in. |
 | Information disclosure | A payload (or its PII) is read by a broker operator or network observer | Payload encryption — AES-256-GCM envelope encryption via a key manager; decryption requires the key version, not just broker access. | Enable encryption for sensitive payloads; transport TLS is your deployment's job. |
-| Spoofing | A forged message claims to be from a trusted sender | Asymmetric signing (ECDSA P-256) gives non-repudiation: only the private-key holder can produce a valid signature. | Key distribution and rotation of asymmetric keys is your operational responsibility. |
+| Spoofing | A forged message claims to be from a trusted sender | Asymmetric signing (ECDSA, P-256 or stronger) gives non-repudiation: only the private-key holder can produce a valid signature. | Key distribution and rotation of asymmetric keys is your operational responsibility. |
 | Repudiation | A sender denies having sent a message | Signature plus audit trail record the signed origin. | — |
 | Denial of service | Retry storms, poison messages, or queue lag exhaust the system | Outbox with retry caps, exponential backoff, a circuit breaker (a transient short-circuit does not consume attempts), and dead-letter routing for exhausted messages; a missing dead-letter capability fails startup rather than silently dropping. | Broker capacity, autoscaling, and rate limits are your deployment's job. |
 

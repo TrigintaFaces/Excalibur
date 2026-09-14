@@ -8,17 +8,27 @@ namespace Excalibur.Dispatch.Tests.Middleware.Ordering;
 
 /// <summary>
 /// Author≠impl regression lock (TestsDeveloper) for wtezay — the <see cref="OrderingValidationMiddleware"/>
-/// safety-critical fail-closed contract. Once ordering enforcement is active it MUST reject, never silently
-/// pass: a message with no stamped sequence (advertised-but-unfed misconfiguration) and a non-strictly-
-/// increasing sequence per key are both rejected with <see cref="OutOfOrderMessageException"/>; strictly
-/// increasing sequences pass and advance the per-key high-water mark, and distinct ordering keys are tracked
-/// independently.
+/// safety-critical fail-closed contract, and the SCOPE that contract applies within.
+/// <para>
+/// For a message that entered a receive path where ordering is enforced, the middleware MUST reject and
+/// never silently pass: both a missing sequence and a non-strictly-increasing one raise
+/// <see cref="OutOfOrderMessageException"/>. Strictly increasing sequences pass and advance the per-key
+/// high-water mark, and distinct ordering keys are tracked independently.
+/// </para>
+/// <para>
+/// For a message that never entered such a path there is nothing to check, and it passes through. That
+/// half is not a relaxation of fail-closed — it is what keeps it addressable. The middleware is registered
+/// once for the whole process and sees every dispatch, so without the scope an outbound send or an
+/// in-process command would be rejected for lacking a sequence nothing was ever going to stamp.
+/// </para>
 /// </summary>
 /// <remarks>
-/// <b>RED mutants:</b> drop the unstamped-sequence throw ⇒ (a) RED (silent bypass re-opens the degrade);
-/// weaken <c>sequence &lt;= last</c> to <c>sequence &lt; last</c> ⇒ (b) RED on the equal-sequence replay;
-/// advance the watermark before the ordered check ⇒ (c)/(d) drift. Fail-closed means a reject path exists
-/// for every non-conforming input — never a pass.
+/// <b>RED mutants:</b> drop the unstamped-sequence throw ⇒ RED on the MARKED unstamped case only;
+/// drop the <c>IsOrderingEnforced</c> guard ⇒ RED on the pass-through case, which is the mutant that
+/// re-creates the defect where registering the middleware rejected every message in the application;
+/// weaken <c>sequence &lt;= last</c> to <c>sequence &lt; last</c> ⇒ RED on the equal-sequence replay;
+/// advance the watermark before the ordered check ⇒ drift. Both unstamped arms must be read as the pair
+/// they are: marked ⇒ reject, unmarked ⇒ pass.
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -31,13 +41,38 @@ public sealed class OrderingValidationMiddlewareShould
 		var middleware = new OrderingValidationMiddleware();
 		var nextCalled = false;
 
+		// The context is MARKED but unstamped: it entered an ordered receive path and arrived with no
+		// sequence, which is the fault this arm is about. Without the mark it is merely an ordinary
+		// message and passing through is correct -- so dropping the mark here would silently turn this
+		// lock into a test of the pass-through path while still reading as a fail-closed test.
 		_ = await Should.ThrowAsync<OutOfOrderMessageException>(async () => await middleware.InvokeAsync(
 			A.Fake<IDispatchMessage>(),
-			UnstampedContext(),
+			EnforcedUnstampedContext(),
 			(_, _, _) => { nextCalled = true; return new ValueTask<IMessageResult>(A.Fake<IMessageResult>()); },
 			CancellationToken.None));
 
 		nextCalled.ShouldBeFalse("an unstamped message on an active ordering middleware must be rejected, never passed downstream.");
+	}
+
+	[Fact]
+	public async Task PassesThrough_WhenMessageNeverEnteredAnOrderedReceivePath()
+	{
+		// This middleware is registered once for the whole process and declares no applicable-kinds
+		// narrowing, so it sees EVERY dispatch: outbound sends and plain in-process commands included.
+		// Those carry no ordering sequence and never will. Before this arm existed, registering the
+		// middleware threw on all of them -- the feature did not merely fail on its own transports, it
+		// made the application unusable.
+		var middleware = new OrderingValidationMiddleware();
+		var nextCalled = false;
+
+		var result = await middleware.InvokeAsync(
+			A.Fake<IDispatchMessage>(),
+			UnstampedContext(),
+			(_, _, _) => { nextCalled = true; return new ValueTask<IMessageResult>(A.Fake<IMessageResult>()); },
+			CancellationToken.None);
+
+		nextCalled.ShouldBeTrue("a message that never entered an ordered receive path has no sequence to check and must pass through.");
+		result.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -135,6 +170,14 @@ public sealed class OrderingValidationMiddlewareShould
 	{
 		var context = A.Fake<IMessageContext>();
 		_ = A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		return context;
+	}
+
+	/// <summary>Unstamped, but marked as having entered a receive path where ordering is enforced.</summary>
+	private static IMessageContext EnforcedUnstampedContext()
+	{
+		var context = UnstampedContext();
+		context.MarkOrderingEnforced();
 		return context;
 	}
 

@@ -6,7 +6,10 @@ using Excalibur.A3.Audit;
 using Excalibur.A3.Exceptions;
 using Excalibur.Dispatch.Delivery;
 
+using Excalibur.Dispatch.Caching;
+
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.A3.Authorization.Grants;
 
@@ -17,7 +20,7 @@ namespace Excalibur.A3.Authorization.Grants;
 /// This handler is responsible for revoking a specific grant from a user. It performs the necessary checks, interacts with the
 /// <see cref="IGrantRepository" /> to modify grant data, and invalidates the cache to ensure up-to-date authorization data.
 /// </remarks>
-internal sealed class RevokeGrantCommandHandler(IGrantRepository grantRepository, IDistributedCache cache)
+internal sealed class RevokeGrantCommandHandler(IGrantRepository grantRepository, [FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache)
 	: IActionHandler<RevokeGrantCommand, AuditableResult<bool>>
 {
 	/// <inheritdoc />

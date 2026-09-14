@@ -13,9 +13,6 @@ public sealed class DispatchTelemetryOptionsShould
 
 		options.EnableTracing.ShouldBeTrue();
 		options.EnableMetrics.ShouldBeTrue();
-		options.EnableEnhancedStoreObservability.ShouldBeTrue();
-		options.EnablePipelineObservability.ShouldBeTrue();
-		options.EnableHotPathMetrics.ShouldBeFalse();
 		options.ServiceName.ShouldBe("Excalibur.Dispatch");
 		options.ServiceVersion.ShouldBe("1.0.0");
 		options.SlowOperationThreshold.ShouldBe(TimeSpan.FromSeconds(2));
@@ -116,8 +113,6 @@ public sealed class DispatchTelemetryOptionsShould
 
 		options.EnableTracing.ShouldBeTrue();
 		options.EnableMetrics.ShouldBeTrue();
-		options.EnablePipelineObservability.ShouldBeFalse();
-		options.EnableHotPathMetrics.ShouldBeFalse();
 		options.Export.SamplingRatio.ShouldBe(0.01);
 		options.Export.MetricBatchSize.ShouldBe(1000);
 	}
@@ -128,8 +123,6 @@ public sealed class DispatchTelemetryOptionsShould
 		var options = DispatchTelemetryOptions.CreateDevelopmentProfile();
 
 		options.EnableTracing.ShouldBeTrue();
-		options.EnablePipelineObservability.ShouldBeTrue();
-		options.EnableHotPathMetrics.ShouldBeTrue();
 		options.Export.SamplingRatio.ShouldBe(1.0);
 	}
 
@@ -140,7 +133,6 @@ public sealed class DispatchTelemetryOptionsShould
 
 		options.EnableTracing.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeTrue();
-		options.EnableEnhancedStoreObservability.ShouldBeFalse();
 		options.Export.SamplingRatio.ShouldBe(0.001);
 		options.Export.MetricBatchSize.ShouldBe(2000);
 	}
@@ -152,9 +144,6 @@ public sealed class DispatchTelemetryOptionsShould
 		{
 			EnableTracing = false,
 			EnableMetrics = false,
-			EnableEnhancedStoreObservability = false,
-			EnablePipelineObservability = false,
-			EnableHotPathMetrics = true,
 			ServiceName = "TestService",
 			ServiceVersion = "2.0.0",
 			SlowOperationThreshold = TimeSpan.FromSeconds(10),
@@ -173,9 +162,6 @@ public sealed class DispatchTelemetryOptionsShould
 
 		target.EnableTracing.ShouldBeFalse();
 		target.EnableMetrics.ShouldBeFalse();
-		target.EnableEnhancedStoreObservability.ShouldBeFalse();
-		target.EnablePipelineObservability.ShouldBeFalse();
-		target.EnableHotPathMetrics.ShouldBeTrue();
 		target.ServiceName.ShouldBe("TestService");
 		target.ServiceVersion.ShouldBe("2.0.0");
 		target.SlowOperationThreshold.ShouldBe(TimeSpan.FromSeconds(10));

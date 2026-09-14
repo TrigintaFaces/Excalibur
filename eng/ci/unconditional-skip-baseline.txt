@@ -1,3 +1,18 @@
+# unconditional-skip-baseline.txt — accepted unconditional Assert.Skip counts, per file.
+#
+# FORMAT: <count> <path-relative-to-tests> [justification]
+#
+# The third field is free text and is the reason this file may never shrink to a bare count again.
+# A row with a count and no reason records that a skip was ACCEPTED while discarding WHY, which
+# makes a declared capability-not-applicable exemption indistinguishable from someone silencing an
+# inconvenient test. Both look like "1". Whoever reads this file in six weeks cannot tell them apart.
+#
+# Rows below with no justification predate this field. Their reasons were never written down and are
+# NOT reconstructed here — guessing them would manufacture exactly the false confidence the field
+# exists to prevent. Add one when you next touch a row and can state its reason truthfully.
+#
+# The count is re-measurable by scanning; the reason is not. --regenerate therefore re-measures the
+# counts and carries each existing justification forward by path.
 1 Shared/Tests.Shared/Conformance/Outbox/OutboxStoreConformanceTestBase.cs
 1 conformance/Excalibur.Dispatch.Tests.Conformance/Snapshot/SnapshotConformanceTestBase.cs
 15 conformance/Excalibur.Dispatch.Tests.Conformance/Transport/TransportConformanceTestBase.cs
@@ -5,3 +20,4 @@
 4 integration/Excalibur.Integration.Tests/Sharding/TenantShardIntegrationShould.cs
 6 integration/Excalibur.Integration.Tests/TieredStorage/AwsS3ColdEventStoreIntegrationShould.cs
 6 integration/Excalibur.Integration.Tests/TieredStorage/AzureBlobColdEventStoreIntegrationShould.cs
+1 integration/Excalibur.Integration.Tests/Data/Inbox/FirestoreInboxStoreConformanceShould.cs capability-not-applicable, not an unrun test: the durability-fault arm cannot be driven against Firestore. The .NET client authenticates as emulator admin and bypasses security rules, Firestore exposes no rename or permission-revoke primitive at collection or document level, and killing the emulator container was measured not to restore a reachable gRPC channel within a workable timeout. The gap is recorded as UNVERIFIED in the D0 row of src/Excalibur/Excalibur.Inbox/ARCHITECTURE.md, which carries the full argument and the next approach. A guarded skip would be the wrong fix here: the infrastructure is present, so guarding on its absence would assert something untrue.

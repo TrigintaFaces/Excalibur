@@ -25,7 +25,7 @@ namespace Excalibur.Outbox.Tests;
 // This is the discriminating (anti-vacuity) lock: without it, a vacuous "schedule backoff on EVERY failed
 // message" implementation passes all the other R2/R3 facts (enforce-invariants-structurally). The discriminator
 // lives in OutboxProcessor.PerformBatchDatabaseOperationsAsync, which routes applyBackoff ?
-// MarkFailedWithBackoffOrFallbackAsync(...) : MarkFailedAsync(...). RED pre-fix: the failedToRetry tuple had no
+// MarkFailedForClaimAsync(...) : MarkFailedAsync(...). RED pre-fix: the failedToRetry tuple had no
 // ApplyBackoff element and MarkFailedWithBackoffAsync / IBackoffSchedulableOutboxStore did not exist.
 [Trait("Category", "Unit")]
 [Trait("Component", "Outbox")]
@@ -57,7 +57,7 @@ public sealed class OutboxProcessorBackoffExclusionShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string>(),
-			new List<(string, int, bool)> { ("genuine-fail", 2, true), ("cb-open-transient", 2, false) },
+			new List<(string, string?, int, bool)> { ("genuine-fail", null, 2, true), ("cb-open-transient", null, 2, false) },
 			new List<(string, int)>(),
 			CancellationToken.None);
 

@@ -6,7 +6,9 @@ using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.AwsSqs;
 using Excalibur.Dispatch.Transport.Diagnostics;
@@ -22,6 +24,8 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <param name="serializer"> Payload serializer for message body serialization with pluggable format support. </param>
 /// <param name="options"> The SNS specific configuration options. </param>
 /// <param name="logger"> The logger instance for diagnostic information. </param>
+/// <param name="cloudEventBridge"> Optional envelope-to-CloudEvent bridge; when supplied with <paramref name="cloudEventEncoder"/>, every publish is emitted as a CloudEvent instead of the native envelope format. </param>
+/// <param name="cloudEventEncoder"> Optional CloudEvents encoder for SNS <see cref="PublishRequest"/> messages. </param>
 /// <remarks>
 /// <para>
 /// This message bus uses <see cref="IPayloadSerializer"/> for message body serialization,
@@ -40,7 +44,9 @@ internal sealed partial class AwsSnsMessageBus(
 	IAmazonSimpleNotificationService client,
 	IPayloadSerializer serializer,
 	AwsSnsOptions options,
-	ILogger<AwsSnsMessageBus> logger) : IMessageBus, IAsyncDisposable
+	ILogger<AwsSnsMessageBus> logger,
+	IEnvelopeCloudEventBridge? cloudEventBridge = null,
+	ICloudEventEncoder<PublishRequest>? cloudEventEncoder = null) : IMessageBus, IAsyncDisposable
 {
 	private string TopicArn => options.TopicArn;
 
@@ -51,6 +57,12 @@ internal sealed partial class AwsSnsMessageBus(
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
 			TransportTelemetryConstants.MessagingConventions.Systems.AwsSns, TopicArn, context.MessageId);
+
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
+		{
+			await PublishWithCloudEventsAsync(action, context, LogSentAction, cancellationToken).ConfigureAwait(false);
+			return;
+		}
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(action, action.GetType());
@@ -76,6 +88,12 @@ internal sealed partial class AwsSnsMessageBus(
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
 			TransportTelemetryConstants.MessagingConventions.Systems.AwsSns, TopicArn, context.MessageId);
 
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
+		{
+			await PublishWithCloudEventsAsync(evt, context, LogPublishedEvent, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(evt, evt.GetType());
 		var body = Convert.ToBase64String(payload);
@@ -100,6 +118,12 @@ internal sealed partial class AwsSnsMessageBus(
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
 			TransportTelemetryConstants.MessagingConventions.Systems.AwsSns, TopicArn, context.MessageId);
 
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
+		{
+			await PublishWithCloudEventsAsync(doc, context, LogSentDocument, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(doc, doc.GetType());
 		var body = Convert.ToBase64String(payload);
@@ -120,6 +144,66 @@ internal sealed partial class AwsSnsMessageBus(
 	{
 		client.Dispose();
 		return ValueTask.CompletedTask;
+	}
+
+	private static MessageEnvelope CreateEnvelope(IDispatchMessage message, IMessageContext context)
+	{
+		// The declared name, not the CLR FullName -- mirrors the other transports' CreateEnvelope for
+		// the same reason (it becomes the outgoing CloudEvent type attribute).
+		var messageClrType = message.GetType();
+
+		var envelope = new MessageEnvelope(message)
+		{
+			MessageId = context.MessageId ?? Uuid7Extensions.GenerateString(),
+			ExternalId = context.GetExternalId(),
+			UserId = context.GetUserId(),
+			CorrelationId = context.CorrelationId,
+			CausationId = context.CausationId,
+			TraceParent = context.GetTraceParent(),
+			TenantId = context.GetTenantId(),
+			MessageType = context.GetMessageType()
+				?? MessageNameHelper.GetDeclaredName(messageClrType)
+				?? messageClrType.FullName,
+			ContentType = context.GetContentType() ?? "application/json",
+			DeliveryCount = context.GetDeliveryCount(),
+			ReceivedTimestampUtc = context.GetReceivedTimestampUtc() ?? DateTimeOffset.UtcNow,
+			SentTimestampUtc = context.GetSentTimestampUtc(),
+		};
+
+		foreach (var item in context.Items)
+		{
+			envelope.SetItem(item.Key, item.Value);
+		}
+
+		return envelope;
+	}
+
+	private async Task PublishWithCloudEventsAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		Action<string> logAction,
+		CancellationToken cancellationToken)
+	{
+		var envelope = CreateEnvelope(message, context);
+		try
+		{
+			var request = await cloudEventBridge!
+				.ToTransportAsync<PublishRequest>(envelope, cloudEventEncoder!.Options.DefaultMode, cancellationToken)
+				.ConfigureAwait(false);
+
+			request.TopicArn = TopicArn;
+
+			_ = await client.PublishAsync(request, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			envelope.Dispose();
+		}
+
+		if (logger.IsEnabled(LogLevel.Information))
+		{
+			logAction(message.GetType().Name);
+		}
 	}
 
 	// Source-generated logging methods

@@ -65,7 +65,7 @@ internal sealed class ElasticsearchResiliencePipeline
 
 			_ = builder.AddCircuitBreaker(new CircuitBreakerStrategyOptions
 			{
-				FailureRatio = settings.CircuitBreaker.FailureRateThreshold,
+				FailureRatio = settings.CircuitBreaker.FailureRatio,
 				MinimumThroughput = settings.CircuitBreaker.MinimumThroughput,
 				SamplingDuration = settings.CircuitBreaker.SamplingDuration,
 				BreakDuration = settings.CircuitBreaker.BreakDuration,

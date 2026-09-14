@@ -66,6 +66,7 @@ What are you building?
 │   ├── AWS Lambda               → 05-serverless/AwsLambda
 │   └── Google Cloud Functions   → 05-serverless/GoogleCloudFunctions
 ├── Reliability
+│   ├── Ordering validation      → 04-reliability/OrderingValidation
 │   ├── Outbox pattern           → 04-reliability/OutboxPattern
 │   ├── Retry + circuit breaker  → 04-reliability/RetryAndCircuitBreaker
 │   └── Saga orchestration       → 04-reliability/SagaOrchestration
@@ -114,6 +115,7 @@ Each transport sample includes Docker Compose for local development.
 
 | Sample | Pattern | Infrastructure |
 |--------|---------|----------------|
+| [OrderingValidation](04-reliability/OrderingValidation/) | Strictly-increasing per-key ordering, fail-closed | None (in-memory) |
 | [OutboxPattern](04-reliability/OutboxPattern/) | Transactional outbox, guaranteed delivery | None (in-memory) |
 | [RetryAndCircuitBreaker](04-reliability/RetryAndCircuitBreaker/) | Polly: retry, circuit breaker, timeout, bulkhead | None |
 | [SagaOrchestration](04-reliability/SagaOrchestration/) | Distributed coordination, compensation, timeout scheduling | None (in-memory) |
@@ -135,6 +137,7 @@ Each transport sample includes Docker Compose for local development.
 | [AzureKeyVault](06-security/AzureKeyVault/) | `ICredentialStore`, managed identity, secret caching | Azure account |
 | [AwsSecretsManager](06-security/AwsSecretsManager/) | Secret retrieval, IAM auth, rotation | LocalStack |
 | [StandaloneA3](06-security/StandaloneA3/) | Access control kernel (A3) outside Dispatch | None |
+| [GrantAuthorizedApi](06-security/GrantAuthorizedApi/) | Grant authorization on controller and minimal API endpoints, scoped to the route resource | None |
 | [AccessReviews](06-security/AccessReviews/) | Periodic access reviews | None |
 | [SeparationOfDuties](06-security/SeparationOfDuties/) | SoD policies for sensitive operations | None |
 | [ProvisioningWorkflow](06-security/ProvisioningWorkflow/) | Identity lifecycle provisioning | None |

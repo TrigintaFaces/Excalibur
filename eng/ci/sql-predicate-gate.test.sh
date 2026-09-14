@@ -98,8 +98,8 @@ rc="$(run_gate "$CD")"
 DEFECT_SHA="927677fc0"; FIX_SHA="9cabce4db"
 DEFECT_PATH="src/Excalibur/Excalibur.EventSourcing.Oracle/Requests/DeleteSnapshotsOlderThanRequest.cs"
 DD="$WORK/d"; mkdir -p "$DD"
-if git -C "$PWD" cat-file -e "$DEFECT_SHA:$DEFECT_PATH" 2>/dev/null; then
-    git -C "$PWD" show "$DEFECT_SHA:$DEFECT_PATH" > "$DD/DeleteSnapshotsOlderThanRequest.cs" 2>/dev/null
+if git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "$DEFECT_SHA:$DEFECT_PATH" 2>/dev/null; then
+    git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" show "$DEFECT_SHA:$DEFECT_PATH" > "$DD/DeleteSnapshotsOlderThanRequest.cs" 2>/dev/null
     rc="$(run_gate "$DD")"
     [ "$rc" -eq 1 ] && pass "D: the real commit that shipped the cross-tenant DELETE -> FAIL(1)" \
                     || fail "D: the real historical defect did NOT FAIL (got $rc, expected 1) — gate is vacuous"
@@ -107,8 +107,8 @@ else
     skip "D: historical defect blob unreachable (shallow clone / mirror) — hermetic arm A covers the class"
 fi
 ED="$WORK/e"; mkdir -p "$ED"
-if git -C "$PWD" cat-file -e "HEAD:$DEFECT_PATH" 2>/dev/null; then
-    git -C "$PWD" show "HEAD:$DEFECT_PATH" > "$ED/DeleteSnapshotsOlderThanRequest.cs" 2>/dev/null
+if git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "HEAD:$DEFECT_PATH" 2>/dev/null; then
+    git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" show "HEAD:$DEFECT_PATH" > "$ED/DeleteSnapshotsOlderThanRequest.cs" 2>/dev/null
     rc="$(run_gate "$ED")"
     [ "$rc" -eq 0 ] && pass "E: the fixed current source of that file -> PASS(0)" \
                     || fail "E: the fixed source did NOT PASS (got $rc, expected 0) — a false positive on real code"

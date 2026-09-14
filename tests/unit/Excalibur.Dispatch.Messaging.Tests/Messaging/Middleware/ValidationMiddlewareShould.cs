@@ -188,7 +188,7 @@ public sealed class ValidationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => _validationService.ValidateAsync(
 			A<IDispatchMessage>._,
 			A<MessageValidationContext>._,
@@ -222,7 +222,7 @@ public sealed class ValidationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		_ = A.CallTo(() => _validationService.ValidateAsync(
 			A<IDispatchMessage>._,
 			A<MessageValidationContext>._,
@@ -246,7 +246,7 @@ public sealed class ValidationMiddlewareShould
 			A<IDispatchMessage>._,
 			A<MessageValidationContext>._,
 			A<CancellationToken>._))
-			.Returns(MessageValidationResult.Failure(new ValidationError("PropertyName", "Validation failed")));
+			.Returns(MessageValidationResult.Failure(new MessageValidationError("PropertyName", "Validation failed")));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ValidationException>(
@@ -270,7 +270,7 @@ public sealed class ValidationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => _validationService.ValidateAsync(
 			A<IDispatchMessage>._,
 			A<MessageValidationContext>._,
@@ -298,7 +298,7 @@ public sealed class ValidationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -346,7 +346,7 @@ public sealed class ValidationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		_ = A.CallTo(() => _validationService.ValidateAsync(
 			A<IDispatchMessage>._,
 			A<MessageValidationContext>._,
@@ -376,8 +376,8 @@ public sealed class ValidationMiddlewareShould
 			A<MessageValidationContext>._,
 			A<CancellationToken>._))
 			.Returns(MessageValidationResult.Failure(
-				new ValidationError("Property1", "Error 1"),
-				new ValidationError("Property2", "Error 2")));
+				new MessageValidationError("Property1", "Error 1"),
+				new MessageValidationError("Property2", "Error 2")));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ValidationException>(

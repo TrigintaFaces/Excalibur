@@ -65,6 +65,7 @@ public static class ExcaliburAwsLambdaServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
 	[RequiresUnreferencedCode("IConfiguration binding uses reflection. AOT consumers should use the Action<ServerlessHostOptions> overload instead.")]
+	[RequiresDynamicCode("Configuration binding and options validation use reflection, which requires runtime code generation. Use source-generated registration when targeting Native AOT.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "AOT-safe: IConfiguration.Bind() requires reflection -- see Action<T> overload as AOT alternative")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",

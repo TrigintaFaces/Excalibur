@@ -328,7 +328,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 			foreach (var doc in response)
 			{
 				var grant = doc.ToGrant();
-				var key = $"{grant.TenantId}:{grant.GrantType}:{grant.Qualifier}";
+				var key = GrantKeyFormat.ComposeScope(grant.TenantId, grant.GrantType, grant.Qualifier);
 				result[key] = grant;
 			}
 		}

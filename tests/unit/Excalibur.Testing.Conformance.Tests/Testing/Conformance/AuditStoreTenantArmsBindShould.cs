@@ -204,12 +204,10 @@ public sealed class AuditStoreTenantArmsBindShould
 					: AuditIntegrityResult.Verified(verified, startDate, endDate, isHashChained: true));
 		}
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken)
 		{
-			var partition = tenantId ?? UntenantedPartitionKey;
-
 			return Task.FromResult(_eventsById.Values
-				.Where(e => string.Equals(PartitionOf(e), partition, StringComparison.Ordinal))
+				.Where(e => string.Equals(PartitionOf(e), AmbientPartition, StringComparison.Ordinal))
 				.OrderBy(e => e.Timestamp)
 				.LastOrDefault());
 		}

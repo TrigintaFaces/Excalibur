@@ -76,6 +76,34 @@ public sealed class CloudEventEnvelopeConverter(CloudEventOptions options) : ICl
 	}
 
 	/// <summary>
+	/// Resolves the CloudEvent <c>type</c> attribute, distinguishing a foreign identity that must be
+	/// preserved verbatim from a routing name the dispatcher defaulted in from the CLR type.
+	/// </summary>
+	/// <remarks>
+	/// Two provenances share <see cref="MessageEnvelope.MessageType"/>: a CloudEvent identity received
+	/// from another organisation (stamped by <c>CreateBaseEnvelope</c> on a receive-then-re-emit round
+	/// trip), or a routing name the dispatcher defaulted in because nothing else set one (marked via
+	/// <see cref="MessageContextExtensions.MarkMessageTypeAsRoutingDefault"/>). Only the
+	/// first must survive unchanged — rewriting it would silently break interop preservation. The
+	/// second is not an identity at all, so the message's own <see cref="MessageNameHelper"/>-declared
+	/// name is used where one exists, falling back to the routing name only when the message declares
+	/// none.
+	/// </remarks>
+	private static string? ResolveCloudEventType(MessageEnvelope? context, object? message)
+	{
+		if (context is not null && context.MessageType is not null && context.IsMessageTypeRoutingDefault())
+		{
+			var declaredName = message is not null ? MessageNameHelper.GetDeclaredName(message.GetType()) : null;
+			return declaredName ?? context.MessageType;
+		}
+
+		// Either nothing was ever set (a fresh local dispatch with no context.MessageType at all), or
+		// the value is a foreign identity received from elsewhere and preserved verbatim.
+		return context?.MessageType
+			?? (message is not null ? MessageNameHelper.GetName(message.GetType()) : null);
+	}
+
+	/// <summary>
 	/// Creates the base CloudEvent with core properties.
 	/// </summary>
 	private CloudEvent CreateBaseCloudEvent(MessageEnvelope? context, object? message)
@@ -83,12 +111,7 @@ public sealed class CloudEventEnvelopeConverter(CloudEventOptions options) : ICl
 		var ce = new CloudEvent
 		{
 			Id = context?.MessageId ?? Guid.NewGuid().ToString(),
-			// context.MessageType DELIBERATELY wins. On a receive-then-re-emit round trip it holds the
-			// type string of the ORIGINATING publisher -- CreateBaseEnvelope copies it off the received
-			// CloudEvent -- and replacing that with our own declared name would rewrite another
-			// organisation's event identity. Only when there is no inbound type do we state our own.
-			Type = context?.MessageType
-				?? (message is not null ? MessageNameHelper.GetName(message.GetType()) : null),
+			Type = ResolveCloudEventType(context, message),
 			Source = _options.DefaultSource,
 			Subject = context?.Subject ?? context?.ExternalId,
 			Time = context?.SentTimestampUtc ?? context?.ReceivedTimestampUtc,

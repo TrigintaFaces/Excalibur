@@ -6,6 +6,9 @@ using System.Transactions;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Transaction;
+using Excalibur.Dispatch.Middleware.Outbox;
+using Excalibur.Dispatch.Options.Middleware;
+using Excalibur.Dispatch.Serialization;
 using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -108,6 +111,42 @@ public sealed class TransactionMiddlewareShould
 		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
 	}
 
+	/// <summary>
+	/// The Action-only boundary is deliberate, and this states it WHOLE: transactions do not span event
+	/// handlers (safety), AND events still have an atomicity story via outbox staging (liveness).
+	/// Without the liveness arm the suite reads as "transactions skip events" and a reader concludes
+	/// events have no atomicity guarantee at all. Both arms read ApplicableMessageKinds -- the property
+	/// the pipeline itself evaluates -- never reflection over [AppliesTo], so a change to the shipped
+	/// behaviour cannot pass by leaving the attribute untouched. Widening the boundary must therefore be
+	/// a deliberate, visible edit to this test, not a silent property change.
+	/// </summary>
+	[Fact]
+	public void ExcludeEventsFromTransactions_WhileOutboxStagingStillCoversThem()
+	{
+		// Arrange
+		var transaction = CreateMiddleware(new DispatchTransactionOptions());
+		var outboxStaging = new OutboxStagingMiddleware(
+			MsOptions.Create(new OutboxStagingOptions { Enabled = false }),
+			outboxStore: null,
+			new DispatchJsonSerializer(),
+			NullLogger<OutboxStagingMiddleware>.Instance);
+
+		// Assert -- safety: an Event never enrols in the producer's transaction.
+		transaction.ApplicableMessageKinds.HasFlag(MessageKinds.Event).ShouldBeFalse(
+			"TransactionMiddleware must not apply to Events: enrolling event handlers in the producer's " +
+			"transaction would extend it across handler execution and let a subscriber's failure roll back " +
+			"the producer's command.");
+
+		transaction.ApplicableMessageKinds.HasFlag(MessageKinds.Action).ShouldBeTrue(
+			"TransactionMiddleware must still apply to Actions -- that is the scope the boundary keeps.");
+
+		// Assert -- liveness: the atomicity an Event does need is provided, by outbox staging.
+		outboxStaging.ApplicableMessageKinds.HasFlag(MessageKinds.Event).ShouldBeTrue(
+			"OutboxStagingMiddleware must apply to Events: an Event becomes durable if and only if the " +
+			"producer's state change committed, because it is staged inside that transaction and delivered " +
+			"after commit. This is what makes the Action-only transaction boundary correct rather than a gap.");
+	}
+
 	#endregion
 
 	#region InvokeAsync Parameter Validation Tests
@@ -173,7 +212,7 @@ public sealed class TransactionMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => _transactionService.BeginTransactionAsync(A<object>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
@@ -249,7 +288,7 @@ public sealed class TransactionMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => _fakeTransaction.CommitAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _fakeTransaction.RollbackAsync(A<CancellationToken>._))
@@ -279,7 +318,7 @@ public sealed class TransactionMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		A.CallTo(() => _fakeTransaction.RollbackAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _fakeTransaction.CommitAsync(A<CancellationToken>._))

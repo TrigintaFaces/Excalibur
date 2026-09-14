@@ -69,7 +69,7 @@ need onto the packages that supply it.
 ### Security and compliance
 
 - **Message encryption** — AES-256-GCM envelope encryption with pluggable key providers (Azure Key Vault, AWS KMS, HashiCorp Vault).
-- **Asymmetric message signing** — ECDSA P-256 for verifiable message integrity.
+- **Asymmetric message signing** — ECDSA (P-256 or stronger, enforced minimum) for verifiable message integrity.
 - **PII-safe telemetry** — sanitization with hashed or keyed fingerprints, so identifiers do not leak into traces and metrics.
 - **GDPR** — right-to-erasure with a coverage gate, per-subject crypto-shredding, legal hold, and a data inventory.
 - **Compliance mapping** — FedRAMP, SOC 2, HIPAA, and GDPR checklists mapped to framework capabilities, plus SBOM generation and regulatory key escrow.

@@ -615,7 +615,7 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 
 	/// <summary>
 	/// Loads the server-side quorum commitment(s) persisted for the escrow's token batch(es). These are the
-	/// values <see cref="QuorumRecoverySeam.RecoverAndVerifyQuorumSecret"/> verifies the reconstructed secret
+	/// values <see cref="QuorumRecoverySeam.RecoverAndVerifyQuorumSecretForBatch"/> verifies the reconstructed secret
 	/// against — closing the fabricated-share bypass, since the commitment lives in the store, not the token.
 	/// </summary>
 	private async Task<IReadOnlyCollection<byte[]>> LoadStoredCommitmentsAsync(

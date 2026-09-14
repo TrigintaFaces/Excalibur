@@ -99,7 +99,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		var lowerBound = DateTimeOffset.UtcNow;
 
@@ -142,7 +142,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		var options = new MasterKeyExportOptions { ExpiresIn = TimeSpan.FromDays(30) };
 		var minExpectedExpiry = DateTimeOffset.UtcNow.AddDays(29);
@@ -162,7 +162,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		var options = new MasterKeyExportOptions { WrappingAlgorithm = EncryptionAlgorithm.Aes256Gcm };
 
@@ -182,7 +182,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		var backup = await _sut.ExportMasterKeyAsync(keyId, null, CancellationToken.None);
@@ -216,7 +216,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		var backup = await _sut.ExportMasterKeyAsync(keyId, null, CancellationToken.None);
 
@@ -243,7 +243,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		var backup = await _sut.ExportMasterKeyAsync(keyId, null, CancellationToken.None);
 
@@ -263,7 +263,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		// Arrange
 		const string originalKeyId = "test-key-1";
 		const string newKeyId = "imported-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(originalKeyId, keyMaterial);
 		var backup = await _sut.ExportMasterKeyAsync(originalKeyId, null, CancellationToken.None);
 
@@ -288,7 +288,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		// Act
@@ -303,7 +303,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		// Act
@@ -325,7 +325,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		// Act
@@ -352,7 +352,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		// Act & Assert
@@ -365,7 +365,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		// Act & Assert
@@ -378,7 +378,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		// Act & Assert
@@ -391,7 +391,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		var custodians = new List<string> { "Alice", "Bob", "Charlie", "Dave", "Eve" };
 		var options = new BackupShareOptions { CustodianIds = custodians };
@@ -412,7 +412,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		var options = new BackupShareOptions { CustodianIds = ["Alice", "Bob"] }; // Only 2 for 5 shares
 
@@ -430,7 +430,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		var shares = await _sut.GenerateRecoverySplitAsync(keyId, 5, 3, null, CancellationToken.None);
@@ -466,7 +466,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		var shares = await _sut.GenerateRecoverySplitAsync(keyId, 5, 3, null, CancellationToken.None);
@@ -484,7 +484,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		var shares = await _sut.GenerateRecoverySplitAsync(keyId, 5, 3, null, CancellationToken.None);
@@ -502,7 +502,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		var shares = await _sut.GenerateRecoverySplitAsync(keyId, 5, 3, null, CancellationToken.None);
@@ -521,7 +521,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		// Arrange
 		const string keyId1 = "test-key-1";
 		const string keyId2 = "test-key-2";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		_sut.RegisterKeyMaterial(keyId1, keyMaterial);
 		_sut.RegisterKeyMaterial(keyId2, keyMaterial);
 
@@ -547,7 +547,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		var backup = await _sut.ExportMasterKeyAsync(keyId, null, CancellationToken.None);
 
@@ -575,7 +575,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 
 		var backup = new MasterKeyBackup
@@ -608,7 +608,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		_ = await _sut.ExportMasterKeyAsync(keyId, null, CancellationToken.None);
 
@@ -637,7 +637,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 		RegisterKey(keyId, keyMaterial);
 		_ = await _sut.GenerateRecoverySplitAsync(keyId, 5, 3, null, CancellationToken.None);
 
@@ -667,7 +667,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	{
 		// Arrange
 		const string keyId = "test-key-1";
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 
 		// Act
 		RegisterKey(keyId, keyMaterial);
@@ -680,7 +680,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 	public void RegisterKeyMaterial_ThrowsException_WhenKeyIdEmpty()
 	{
 		// Arrange
-		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>

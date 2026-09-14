@@ -244,7 +244,7 @@ public sealed class MockPipelineContext
 		/// <summary>
 		/// Gets whether this invocation returned a successful result.
 		/// </summary>
-		public bool WasSuccessful => Result?.IsSuccess == true;
+		public bool WasSuccessful => Result?.Succeeded == true;
 
 		internal PipelineInvocation(
 			int invocationNumber,

@@ -258,7 +258,7 @@ public static class GrantManagementEndpoints
                 EventId = Guid.NewGuid().ToString(),
                 EventType = AuditEventType.Authorization,
                 Action = "GrantPermission",
-                Outcome = result.IsSuccess ? AuditOutcome.Success : AuditOutcome.Failure,
+                Outcome = result.Succeeded ? AuditOutcome.Success : AuditOutcome.Failure,
                 Timestamp = DateTimeOffset.UtcNow,
                 ActorId = "admin",
                 ActorType = "User",
@@ -272,7 +272,7 @@ public static class GrantManagementEndpoints
                 },
             }, ct);
 
-            return result.IsSuccess
+            return result.Succeeded
                 ? Results.Created()
                 : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
         });
@@ -298,7 +298,7 @@ public static class GrantManagementEndpoints
                 EventId = Guid.NewGuid().ToString(),
                 EventType = AuditEventType.Authorization,
                 Action = "RevokePermission",
-                Outcome = result.IsSuccess ? AuditOutcome.Success : AuditOutcome.Failure,
+                Outcome = result.Succeeded ? AuditOutcome.Success : AuditOutcome.Failure,
                 Timestamp = DateTimeOffset.UtcNow,
                 ActorId = "admin",
                 ActorType = "User",
@@ -307,7 +307,7 @@ public static class GrantManagementEndpoints
                 TenantId = req.TenantId,
             }, ct);
 
-            return result.IsSuccess
+            return result.Succeeded
                 ? Results.NoContent()
                 : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
         });
@@ -371,6 +371,23 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 builder.Services.AddSqlServerProjectionStore<OrderSummary>(opts => opts.ConnectionString = connectionString);
 
 // 3. A3 Grant-Based Authorization
+//
+// A3's authorization cache needs an application-scoped distributed cache, and that is TWO
+// registrations, not one: the keyed wrapper wraps whichever unkeyed cache the container holds,
+// so registering the wrapper alone leaves it nothing to wrap. Requires the
+// Excalibur.Dispatch.Caching package.
+//
+// The Scope string is what stops two applications sharing a cache from reading each other's
+// grants — give each application its own. A real host points the unkeyed registration at Redis
+// or SQL Server; the in-memory one here is what makes this tutorial self-contained.
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddApplicationScopedDistributedCache(o => o.Scope = "secure-order-tutorial");
+
+// A3 resolves the caller's identity through IAuthenticationToken. The HTTP bridge that supplies
+// it ships in the Excalibur.A3.AspNetCore package; without it the container cannot construct
+// A3's authorization services.
+builder.Services.AddHttpGrantAuthorization();
+
 builder.Services.AddExcaliburA3();
 
 // 4. Audit Logging (in-memory for demo; use a persistent store in production)

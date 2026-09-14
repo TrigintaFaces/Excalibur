@@ -13,7 +13,16 @@ namespace Excalibur.A3;
 /// <summary>
 /// Extension methods for <see cref="IActivityContext" /> to provide convenient access to common context values.
 /// </summary>
-public static class ActivityContextExtensions
+/// <remarks>
+/// Deliberately <see langword="internal"/>. These accessors are consumed only by this package, and an
+/// identically-named public holder in Excalibur.Data declares four of the same extension signatures
+/// (ApplicationName, ClientAddress, CorrelationId, TenantId). Two public holders of the same extension
+/// methods on the same type is a binding hazard for any consumer importing both namespaces: the call is
+/// resolved by using-directive order, and these two do NOT agree -- this package's ApplicationName reads
+/// IConfiguration while the other reads the context value directly, so a wrong bind returns a different
+/// answer rather than failing. Internal makes that unreachable for a consumer instead of merely unlikely.
+/// </remarks>
+internal static class ActivityContextExtensions
 {
 	/// <summary>
 	/// The context key under which the caller's <see cref="IAccessToken" /> is stored. Shared by the

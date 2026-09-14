@@ -206,7 +206,7 @@ public sealed class SagaHandlingMiddlewareShould
 
 		// Assert
 		result.ShouldBe(failedResult);
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	#endregion

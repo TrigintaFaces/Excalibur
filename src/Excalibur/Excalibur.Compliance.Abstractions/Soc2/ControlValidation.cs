@@ -89,14 +89,25 @@ public record ControlTestResult
 	public required ControlTestParameters Parameters { get; init; }
 
 	/// <summary>
-	/// Items tested.
+	/// How many items were actually examined.
 	/// </summary>
+	/// <remarks>
+	/// <b>Zero is a true statement and the type needs no other state</b>: no items were examined.
+	/// This must never be populated from the sample size that was REQUESTED — that number is in
+	/// <see cref="Parameters"/>, and echoing it here reports a sample that was never drawn.
+	/// </remarks>
 	public required int ItemsTested { get; init; }
 
 	/// <summary>
-	/// Exceptions found.
+	/// How many exceptions the test found, or <see langword="null"/> when no test ran.
 	/// </summary>
-	public required int ExceptionsFound { get; init; }
+	/// <remarks>
+	/// <b>Zero here is not the same kind of statement as zero items tested.</b> A count of findings
+	/// asserts that a search happened and returned nothing, which is the most favourable reading
+	/// available and the one an auditor is most likely to act on. Where no test ran there is no
+	/// such number, and the honest value is absent rather than zero.
+	/// </remarks>
+	public int? ExceptionsFound { get; init; }
 
 	/// <summary>
 	/// Exception details.
@@ -107,6 +118,15 @@ public record ControlTestResult
 	/// Overall test outcome.
 	/// </summary>
 	public required TestOutcome Outcome { get; init; }
+
+	/// <summary>
+	/// Why the test produced this outcome, when the outcome alone does not say.
+	/// </summary>
+	/// <value>
+	/// Required reading for <see cref="TestOutcome.NotTested"/>, which states that no test ran but
+	/// not why; <see langword="null"/> when the outcome is self-explanatory.
+	/// </value>
+	public string? Notes { get; init; }
 
 	/// <summary>
 	/// Evidence collected during testing.

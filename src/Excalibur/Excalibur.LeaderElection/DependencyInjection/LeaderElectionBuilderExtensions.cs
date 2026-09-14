@@ -6,9 +6,6 @@ using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.DependencyInjection;
 
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -53,14 +50,11 @@ public static class LeaderElectionBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		builder.Services.TryAddSingleton<FencingTokenMiddleware>();
-
 		// Fail loud at host startup if WithFencingTokens() was called without a registered provider
-		// (Decision 3). TryAddEnumerable keeps this idempotent across repeated calls.
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IHostedService, FencingTokenPrerequisiteValidator>());
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, FencingTokenPrerequisiteValidator>());
+		// (Decision 3). Shared with the on-by-default auto-registration path (FencingTokenDefaultRegistration);
+		// idempotent via TryAdd/TryAddEnumerable, so this composes with a built-in provider's own
+		// auto-registration.
+		builder.Services.RegisterFencingSupportServices();
 
 		return builder;
 	}

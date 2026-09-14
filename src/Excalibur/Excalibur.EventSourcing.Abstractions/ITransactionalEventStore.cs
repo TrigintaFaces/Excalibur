@@ -38,6 +38,7 @@ public interface ITransactionalEventStore : IEventStore
 	/// Appends events and stages outbox messages within a single atomic database transaction.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// The store opens one connection and one transaction, performs the optimistic-concurrency
 	/// version check, appends the events, invokes <paramref name="stageOutbox"/> on the same
 	/// transaction, then commits. On a concurrency conflict the store rolls back and does
@@ -45,6 +46,18 @@ public interface ITransactionalEventStore : IEventStore
 	/// <paramref name="stageOutbox"/>) the entire transaction is rolled back, so neither the events
 	/// nor the outbox rows persist. The store owns the connection and transaction lifetime
 	/// (begin/commit/rollback/dispose).
+	/// </para>
+	/// <para>
+	/// <b>A concurrency conflict is classified the same way whether it is caught by the in-transaction
+	/// version pre-check or lost to a genuine race that slips past it</b> (two callers both pass the
+	/// pre-check, then race at insert/commit — the database's own uniqueness constraint on the stream
+	/// key decides the loser). Either shape yields
+	/// <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/>, matching
+	/// <see cref="IEventStore.AppendAsync"/>'s contract on the same provider. A failure that is
+	/// <em>not</em> a lost race — including a throw from <paramref name="stageOutbox"/> — propagates
+	/// as a thrown exception rather than a returned failure result, so the caller sees the original
+	/// cause instead of a generic wrapper.
+	/// </para>
 	/// </remarks>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="aggregateType">The aggregate type name.</param>

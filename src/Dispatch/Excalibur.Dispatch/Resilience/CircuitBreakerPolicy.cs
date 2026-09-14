@@ -17,7 +17,18 @@ namespace Excalibur.Dispatch.Resilience;
 /// </summary>
 internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuitBreakerDiagnostics, ICircuitBreakerEvents
 {
-	private readonly CircuitBreakerOptions _options;
+	// SNAPSHOTTED at construction, deliberately, rather than read from the caller's options instance on
+	// every call. CircuitBreakerOptions has settable properties, so a consumer holding the instance can
+	// mutate it after the policy exists -- and the Polly-backed provider copies its values into a
+	// pipeline at construction, so the same mutation silently retuned this breaker mid-flight and did
+	// nothing at all to that one. Two providers of one contract disagreed about whether the options are a
+	// snapshot or a live reference, and nothing in the abstraction said which.
+	//
+	// IOptions<T> delivers a configured snapshot; a consumer who needs live reconfiguration is expected
+	// to ask for IOptionsMonitor<T> and say so. Reading live here was neither, and it made the two
+	// providers non-substitutable on an axis no contract mentioned.
+	private readonly int _consecutiveFailureThreshold;
+	private readonly TimeSpan _breakDuration;
 	private readonly ILogger? _logger;
 	private readonly string _name;
 	private readonly Func<Exception, bool>? _shouldHandle;
@@ -48,7 +59,9 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 		Func<Exception, bool>? shouldHandle = null,
 		TimeProvider? timeProvider = null)
 	{
-		_options = options ?? throw new ArgumentNullException(nameof(options));
+		ArgumentNullException.ThrowIfNull(options);
+		_consecutiveFailureThreshold = options.ConsecutiveFailureThreshold;
+		_breakDuration = options.BreakDuration;
 		_name = name ?? throw new ArgumentNullException(nameof(name));
 		_logger = logger;
 		_shouldHandle = shouldHandle;
@@ -218,7 +231,7 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 				_ = Interlocked.Exchange(ref _halfOpenProbeInFlight, 0);
 				TransitionTo(CircuitState.Open, exception);
 			}
-			else if (_state == CircuitState.Closed && _consecutiveFailures >= _options.FailureThreshold)
+			else if (_state == CircuitState.Closed && _consecutiveFailures >= _consecutiveFailureThreshold)
 			{
 				TransitionTo(CircuitState.Open, exception);
 			}
@@ -226,8 +239,10 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 	}
 
 	/// <inheritdoc />
-	public void Reset()
+	public Task ResetAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		lock (_lock)
 		{
 			_consecutiveFailures = 0;
@@ -244,6 +259,11 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 				LogCircuitBreakerManuallyReset(_logger, _name);
 			}
 		}
+
+		// This close is entirely in-memory, so the postcondition the interface promises -- State is
+		// Closed when the returned task completes -- is already met by the time we return. A cached
+		// completed Task rather than an async state machine keeps that free of an allocation.
+		return Task.CompletedTask;
 	}
 
 	private void EnsureCircuitAllowsExecution()
@@ -255,14 +275,14 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 		{
 			// A probe is already running. Everyone else waits rather than piling onto a dependency
 			// that has not yet shown it recovered.
-			throw new CircuitBreakerOpenException(_name, _options.OpenDuration);
+			throw new CircuitBreakerOpenException(_name, _breakDuration);
 		}
 
 		if (currentState == CircuitState.Open)
 		{
 			var retryAfter = _lastOpenedAt.HasValue
-				? _options.OpenDuration - (_timeProvider.GetUtcNow() - _lastOpenedAt.Value)
-				: _options.OpenDuration;
+				? _breakDuration - (_timeProvider.GetUtcNow() - _lastOpenedAt.Value)
+				: _breakDuration;
 
 			if (retryAfter < TimeSpan.Zero)
 			{
@@ -281,7 +301,7 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 		}
 
 		var elapsed = _timeProvider.GetUtcNow() - _lastOpenedAt.Value;
-		return elapsed >= _options.OpenDuration;
+		return elapsed >= _breakDuration;
 	}
 
 	private bool ShouldHandleException(Exception exception)

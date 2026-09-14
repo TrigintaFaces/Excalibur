@@ -41,7 +41,7 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ReturnIServiceCollection_WhenAddDispatchCalledWithNoParameters()
+	public void ReturnTheDispatchBuilder_WhenAddDispatchCalledWithNoParameters()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -51,7 +51,7 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 		var result = services.AddDispatch();
 
 		// Assert
-		result.ShouldBeSameAs(services);
+		result.Services.ShouldBeSameAs(services);
 	}
 
 	[Fact]
@@ -62,8 +62,11 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 		_ = services.AddLogging();
 
 		// Act - verify chaining works
+		// AddDispatch returns the dispatch builder, so a chain onto an IServiceCollection extension
+		// continues from Services rather than from the builder.
 		var result = services
 			.AddDispatch()
+			.Services
 			.AddSingleton<ITestService, TestService>();
 
 		// Assert
@@ -126,7 +129,7 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ReturnIServiceCollection_WhenAddDispatchCalledWithConfiguration()
+	public void ReturnTheDispatchBuilder_WhenAddDispatchCalledWithConfiguration()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -136,7 +139,7 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 		var result = services.AddDispatch(dispatch => { });
 
 		// Assert
-		result.ShouldBeSameAs(services);
+		result.Services.ShouldBeSameAs(services);
 	}
 
 	[Fact]
@@ -152,6 +155,7 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 			{
 				_ = dispatch.AddHandlersFromAssembly(typeof(DispatchRegistrationApiShould).Assembly);
 			})
+			.Services
 			.AddSingleton<ITestService, TestService>();
 
 		// Assert
@@ -226,7 +230,7 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ReturnIServiceCollection_WhenAddDispatchCalledWithAssemblies()
+	public void ReturnTheDispatchBuilder_WhenAddDispatchCalledWithAssemblies()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -236,7 +240,7 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 		var result = services.AddDispatch(typeof(DispatchRegistrationApiShould).Assembly);
 
 		// Assert
-		result.ShouldBeSameAs(services);
+		result.Services.ShouldBeSameAs(services);
 	}
 
 	[Fact]

@@ -216,13 +216,36 @@ public sealed class OutboxFencingDefaultFlipShould
 	// Fencing-capable store — implements IFencedOutboxStore DIRECTLY (no base supplies the fenced member).
 	// The default GetService resolves IFencedOutboxStore to this instance, so the processor's capability seam
 	// discovers fencing honestly.
-	private sealed class RecordingFencedOutboxStore : IFencedOutboxStore
+	private sealed class RecordingFencedOutboxStore
+		: IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore
 	{
 		public bool FencedClaimCalled { get; private set; }
 
 		public bool UnfencedClaimCalled { get; private set; }
 
 		public long? ObservedToken { get; private set; }
+
+		// COMPLETION-PATH members. This double exists to lock the CLAIM path -- which overload the drain
+		// reaches when a leader gate is present -- and these two are never exercised by that arm. They are
+		// implemented rather than omitted because the startup fencing invariant now requires a store under a
+		// leader election to fence the completion path as well, and a double that could not would be refused
+		// before the arm under test ever ran. They return Applied so an accidental future caller gets a
+		// definite answer rather than a throw from a member the interface says exists.
+		public ValueTask<OutboxCompletionOutcome> MarkFailedAsync(
+			string messageId,
+			string errorMessage,
+			int retryCount,
+			DateTimeOffset? nextAttemptAt,
+			OutboxWriteAuthority authority,
+			CancellationToken cancellationToken) =>
+			new(OutboxCompletionOutcome.Applied);
+
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
+			string messageId,
+			string reason,
+			long fencingToken,
+			CancellationToken cancellationToken) =>
+			new(OutboxCompletionOutcome.Applied);
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 			int batchSize, long fencingToken, CancellationToken cancellationToken)

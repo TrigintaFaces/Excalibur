@@ -450,7 +450,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 					var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 					// Step 4: Complete inbox processing
-					if (result.IsSuccess)
+					if (result.Succeeded)
 					{
 						await inbox.MarkProcessedAsync(messageId, DefaultHandlerType, CancellationToken.None);
 					}

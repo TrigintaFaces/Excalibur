@@ -80,7 +80,7 @@ Results indicate success or failure without exceptions:
 ```csharp
 var result = await dispatcher.DispatchAsync(action, cancellationToken);
 
-if (result.IsSuccess)
+if (result.Succeeded)
 {
     // Handle success
 }

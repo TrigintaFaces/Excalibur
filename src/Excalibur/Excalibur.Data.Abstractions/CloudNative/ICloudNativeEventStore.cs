@@ -136,7 +136,19 @@ public interface ICloudNativeEventStore
 	/// </summary>
 	/// <param name="serviceType">The type of the requested service.</param>
 	/// <returns>The service instance, or <see langword="null"/> if not supported.</returns>
-	object? GetService(Type serviceType) => null;
+	/// <remarks>
+	/// The default implementation answers for any capability this instance itself implements. A leaf store
+	/// need not override it. A store whose capability is conditional on its configuration -- a change feed
+	/// that needs a stream client, for example -- overrides it to answer null while that condition is
+	/// unmet, and a decorator overrides it to defer unknown capabilities to the store it wraps.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="serviceType"/> is null. </exception>
+	object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
 }
 
 /// <summary>
@@ -301,7 +313,8 @@ public sealed class CloudAppendResult
 		double requestCharge,
 		string? sessionToken = null,
 		string? errorMessage = null,
-		bool isConcurrencyConflict = false)
+		bool isConcurrencyConflict = false,
+		MessageFailureKind? failureKind = null)
 	{
 		Success = success;
 		NextExpectedVersion = nextExpectedVersion;
@@ -309,6 +322,7 @@ public sealed class CloudAppendResult
 		SessionToken = sessionToken;
 		ErrorMessage = errorMessage;
 		_isConcurrencyConflict = isConcurrencyConflict;
+		FailureKind = failureKind;
 	}
 
 	/// <summary>
@@ -357,6 +371,18 @@ public sealed class CloudAppendResult
 	/// </summary>
 	public bool IsConcurrencyConflict => _isConcurrencyConflict;
 
+	/// <summary>
+	/// Gets the failure's classification (transient vs. permanent vs. poison), or <see langword="null"/>
+	/// when this result is not a <see cref="CreateFailure"/> outcome (success, or a concurrency conflict,
+	/// which is classified by <see cref="IsConcurrencyConflict"/> instead).
+	/// </summary>
+	/// <remarks>
+	/// Required on every <see cref="CreateFailure"/> call so an unclassified failure is a compile error,
+	/// not a silently-defaulted retry-forever or a silently-discarded piece of recoverable work — the
+	/// resilience pipeline consuming this result needs to know which one it is looking at.
+	/// </remarks>
+	public MessageFailureKind? FailureKind { get; }
+
 
 	/// <summary>
 	/// Creates a successful append result.
@@ -394,12 +420,21 @@ public sealed class CloudAppendResult
 	/// </summary>
 	/// <param name="errorMessage">The error message.</param>
 	/// <param name="requestCharge">The request charge consumed.</param>
+	/// <param name="failureKind">
+	/// The failure's classification (transient vs. permanent vs. poison), from
+	/// <see cref="IMessageFailureClassifier.Classify"/> (narrowed first against the provider's own
+	/// known-transient signals, e.g. Cosmos 429, DynamoDB ProvisionedThroughputExceeded, Firestore
+	/// RESOURCE_EXHAUSTED, since the shared classifier does not itself recognise provider-specific SDK
+	/// exceptions). Required, not optional: an unclassified failure must be a compile error, not a
+	/// silently-invented default — defaulting to transient invents infinite retry, defaulting to fatal
+	/// discards recoverable work.
+	/// </param>
 	/// <returns>A failed append result, reporting no version.</returns>
 	/// <remarks>
 	/// Nothing was appended, so the result states no version: <see cref="NextExpectedVersion"/> is
 	/// <see langword="null"/>. Use <see cref="CreateConcurrencyConflict"/> for the one failure that has a
 	/// version to report.
 	/// </remarks>
-	public static CloudAppendResult CreateFailure(string errorMessage, double requestCharge) =>
-		new(success: false, nextExpectedVersion: null, requestCharge, errorMessage: errorMessage);
+	public static CloudAppendResult CreateFailure(string errorMessage, double requestCharge, MessageFailureKind failureKind) =>
+		new(success: false, nextExpectedVersion: null, requestCharge, errorMessage: errorMessage, failureKind: failureKind);
 }

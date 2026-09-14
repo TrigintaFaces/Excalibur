@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.ZeroAlloc;
 /// Rents contexts from the pool instead of allocating new ones.
 /// </summary>
 /// <remarks>
-/// This factory should be used when <see cref="ZeroAllocConfigurationExtensions.UseZeroAllocation"/> is enabled.
+/// This is the default <see cref="IMessageContextFactory"/> registered by the dispatch pipeline.
 /// Contexts obtained from this factory should be returned to the pool after use via
 /// <see cref="IMessageContextPool.ReturnToPool"/> for optimal memory efficiency.
 /// </remarks>

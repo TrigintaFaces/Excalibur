@@ -3,13 +3,18 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Elastic.Clients.Elasticsearch;
+
 using Excalibur.AuditLogging;
+using Excalibur.Compliance;
+using Excalibur.Data.ElasticSearch.Internal;
 using Excalibur.Data.ElasticSearch.Security;
 using Excalibur.Data.ElasticSearch.Security.Auditing;
 using Excalibur.Dispatch.Telemetry;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -90,8 +95,49 @@ public static class SecurityServiceCollectionExtensions
 		// refresh in the framework's hands.
 		_ = services.AddHttpClient();
 
+		// The connection-credential store backing the authentication provider's OAuth tokens, service-account
+		// secrets, passwords, and API keys. TryAdd: a consumer registering their own IElasticsearchKeyStorage
+		// (e.g. an Azure Key Vault-backed one) before this call keeps it; otherwise the in-memory development
+		// default applies. This is a distinct concern from field-encryption key management -- see
+		// AddKeyManagement below.
+		services.TryAddSingleton<IElasticsearchKeyStorage, LocalKeyProvider>();
+
 		// Register authentication provider
 		services.TryAddSingleton<IElasticsearchAuthenticationProvider, SecureElasticsearchAuthenticationProvider>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Configures Azure Key Vault as the connection-credential store: OAuth tokens, service-account secrets,
+	/// passwords, and API keys used to authenticate to Elasticsearch itself.
+	/// </summary>
+	/// <remarks>
+	/// This is not encryption-key custody -- call it BEFORE <see cref="AddAuthentication"/> (or
+	/// <see cref="AddElasticsearchSecurity"/>, which calls it) so the registration below wins over the
+	/// in-memory development default via <c>TryAdd</c>. For cloud-backed field-encryption keys, see
+	/// <see cref="AddKeyManagement"/> instead.
+	/// </remarks>
+	/// <param name="services"> The service collection to add the credential store to. </param>
+	/// <param name="configuration"> The configuration to bind Azure Key Vault settings from. </param>
+	/// <returns> The service collection for method chaining. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
+	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
+	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	public static IServiceCollection AddAzureKeyVaultCredentialStorage(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Nested under the same parent section AddKeyManagement reads its own settings from, so that a
+		// consumer who puts their key-management configuration in one place has all of it bound.
+		_ = services.AddOptions<AzureKeyVaultOptions>()
+			.Bind(configuration.GetSection("Elasticsearch:Security:Encryption:KeyManagement:AzureKeyVault"))
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IElasticsearchKeyStorage, AzureKeyVaultProvider>();
 
 		return services;
 	}
@@ -115,8 +161,19 @@ public static class SecurityServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds key management services with configurable providers.
+	/// Adds field-encryption key management: the <see cref="Excalibur.Compliance.IKeyManagementProvider"/> and
+	/// <see cref="Excalibur.Compliance.IEncryptionProviderRegistry"/> that <see cref="FieldEncryptor"/> resolves
+	/// keys and performs cryptographic operations through.
 	/// </summary>
+	/// <remarks>
+	/// This package never implements cloud-backed key custody itself -- that is <c>Excalibur.Compliance.Azure</c>
+	/// / <c>.Aws</c> / <c>.Vault</c>'s job, following the exact pattern every other Compliance-backed subsystem
+	/// (SqlServer encryption, event-store encryption) already uses. A consumer wanting a cloud-backed provider
+	/// registers the corresponding Compliance package's key-management extension (e.g.
+	/// <c>services.AddEncryption(e =&gt; e.UseKeyManagement&lt;AzureKeyVaultProvider&gt;())</c>) BEFORE calling
+	/// <see cref="AddElasticsearchSecurity"/>, and names that provider in configuration; this method only
+	/// verifies the registration exists (or supplies the in-process development default).
+	/// </remarks>
 	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
 	/// <param name="configuration"> The configuration to bind key management settings from. </param>
 	/// <returns> The service collection for method chaining. </returns>
@@ -134,8 +191,6 @@ public static class SecurityServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<KeyManagementOptions>, KeyManagementOptionsValidator>());
 
-		// Register the key provider NAMED by configuration.
-		//
 		// The in-process development provider holds key material in memory only, so field data
 		// encrypted under it is permanently unreadable after the next restart -- and nothing reports
 		// the loss at the point it happens, because encryption itself keeps appearing to work. It is
@@ -161,126 +216,43 @@ public static class SecurityServiceCollectionExtensions
 				"only, loses them on restart, and must not be used in production.");
 		}
 
-		_ = provider switch
+		return provider == KeyManagementProvider.Local
+			? services.AddDevEncryption()
+			: services.RequireExternallySuppliedKeyManagement(provider.ToString());
+	}
+
+	/// <summary>
+	/// Completes registration for a cloud key-management provider that this package does not implement.
+	/// </summary>
+	/// <remarks>
+	/// Fails closed by design. A cloud key service and the in-process development provider have entirely
+	/// different durability and custody properties, so substituting one for the other silently would leave a
+	/// host believing its keys were held in a managed key service when they were held in memory. There is
+	/// deliberately no code path here that binds the development provider; the only ways forward are a
+	/// caller-supplied <see cref="Excalibur.Compliance.IKeyManagementProvider"/> (registered by, for example,
+	/// <c>Excalibur.Compliance.Azure</c>) or an explicit configured choice of the local provider.
+	/// </remarks>
+	private static IServiceCollection RequireExternallySuppliedKeyManagement(
+		this IServiceCollection services,
+		string? providerName)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		var hasKeyManagement = services.Any(static d => d.ServiceType == typeof(IKeyManagementProvider));
+		var hasRegistry = services.Any(static d => d.ServiceType == typeof(IEncryptionProviderRegistry));
+
+		if (!hasKeyManagement || !hasRegistry)
 		{
-			KeyManagementProvider.AzureKeyVault => services.AddAzureKeyVault(configuration),
-			KeyManagementProvider.AwsKms => services.AddAwsKms(configuration),
-			KeyManagementProvider.GoogleCloudKms => services.AddGoogleCloudKms(configuration),
-			KeyManagementProvider.HashiCorpVault => services.AddHashiCorpVault(configuration),
-			KeyManagementProvider.Local => services.AddLocalKeyProvider(),
-			_ => services.RequireExternallySuppliedKeyProvider(provider.ToString()),
-		};
-		return services;
-	}
+			throw new NotSupportedException(
+				$"{providerName} key management is not implemented inside Excalibur.Data.ElasticSearch. Register " +
+				$"the corresponding Excalibur.Compliance key-management package (e.g. Excalibur.Compliance.Azure's " +
+				$"AzureKeyVaultProvider via services.AddEncryption(e => e.UseKeyManagement<AzureKeyVaultProvider>())) " +
+				"before configuring Elasticsearch security, or set 'Elasticsearch:Security:Encryption:KeyManagement:" +
+				$"Provider' to '{nameof(KeyManagementProvider.Local)}' to choose the in-process development provider " +
+				"explicitly. The development provider keeps keys in memory only, loses them on restart, and must " +
+				"not be used in production.");
+		}
 
-	/// <summary>
-	/// Adds Azure Key Vault integration.
-	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
-	/// <param name="configuration"> The configuration to bind Azure Key Vault settings from. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
-	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
-	public static IServiceCollection AddAzureKeyVault(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		// Nested under the same parent section AddKeyManagement reads its own settings from, so that a
-		// consumer who puts their key-management configuration in one place has all of it bound.
-		_ = services.AddOptions<AzureKeyVaultOptions>()
-			.Bind(configuration.GetSection("Elasticsearch:Security:Encryption:KeyManagement:AzureKeyVault"))
-			.ValidateOnStart();
-
-		services.TryAddSingleton<IElasticsearchKeyProvider, AzureKeyVaultProvider>();
-		_ = services.AddKeyProviderSubInterfaceForwarding();
-
-		return services;
-	}
-
-	/// <summary>
-	/// Configures AWS KMS as the key-management provider for Elasticsearch field encryption.
-	/// </summary>
-	/// <remarks>
-	/// This package does not ship an AWS KMS-backed <see cref="IElasticsearchKeyProvider"/>. Supply your own
-	/// implementation before calling this method and it will be used; otherwise the call is refused so that a
-	/// development key provider can never stand in for a cloud key service.
-	/// </remarks>
-	/// <param name="services"> The service collection to add the key provider to. </param>
-	/// <param name="configuration"> The configuration to bind AWS KMS settings from. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
-	/// <exception cref="NotSupportedException">
-	/// Thrown when no <see cref="IElasticsearchKeyProvider"/> has been registered, because this package cannot
-	/// provide AWS KMS key custody itself.
-	/// </exception>
-	public static IServiceCollection AddAwsKms(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		return services.RequireExternallySuppliedKeyProvider("AWS KMS");
-	}
-
-	/// <summary>
-	/// Configures Google Cloud KMS as the key-management provider for Elasticsearch field encryption.
-	/// </summary>
-	/// <remarks>
-	/// This package does not ship a Google Cloud KMS-backed <see cref="IElasticsearchKeyProvider"/>. Supply your own
-	/// implementation before calling this method and it will be used; otherwise the call is refused so that a
-	/// development key provider can never stand in for a cloud key service.
-	/// </remarks>
-	/// <param name="services"> The service collection to add the key provider to. </param>
-	/// <param name="configuration"> The configuration to bind Google Cloud KMS settings from. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
-	/// <exception cref="NotSupportedException">
-	/// Thrown when no <see cref="IElasticsearchKeyProvider"/> has been registered, because this package cannot
-	/// provide Google Cloud KMS key custody itself.
-	/// </exception>
-	public static IServiceCollection AddGoogleCloudKms(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		return services.RequireExternallySuppliedKeyProvider("Google Cloud KMS");
-	}
-
-	/// <summary>
-	/// Configures HashiCorp Vault as the key-management provider for Elasticsearch field encryption.
-	/// </summary>
-	/// <remarks>
-	/// This package does not ship a HashiCorp Vault-backed <see cref="IElasticsearchKeyProvider"/>. Supply your own
-	/// implementation before calling this method and it will be used; otherwise the call is refused so that a
-	/// development key provider can never stand in for a cloud key service.
-	/// </remarks>
-	/// <param name="services"> The service collection to add the key provider to. </param>
-	/// <param name="configuration"> The configuration to bind HashiCorp Vault settings from. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
-	/// <exception cref="NotSupportedException">
-	/// Thrown when no <see cref="IElasticsearchKeyProvider"/> has been registered, because this package cannot
-	/// provide HashiCorp Vault key custody itself.
-	/// </exception>
-	public static IServiceCollection AddHashiCorpVault(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		return services.RequireExternallySuppliedKeyProvider("HashiCorp Vault");
-	}
-
-	/// <summary>
-	/// Adds local key provider for development and testing.
-	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	public static IServiceCollection AddLocalKeyProvider(this IServiceCollection services)
-	{
-		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
-		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -309,8 +281,34 @@ public static class SecurityServiceCollectionExtensions
 		// non-Try registration before this call.
 		services.TryAddSingleton<ITelemetrySanitizer, DefaultAuditTelemetrySanitizer>();
 
+		// The auditor drives its compliance-report and audit-queue-drain schedules from TimeProvider, so the
+		// wall clock is a registered dependency a test or a consumer can substitute rather than an ambient one.
+		services.TryAddSingleton(TimeProvider.System);
+
+		// The flush target, registered so it is a dependency rather than something the auditor derives
+		// for itself. The default is the same adapter over the same client the auditor would have built,
+		// so nothing changes for a consumer who supplies nothing; what changes is that the seam the
+		// drain-flush locks drive is now reachable through this registration instead of only through the
+		// constructor that takes it.
+		services.TryAddSingleton<ISecurityAuditStore>(static sp =>
+			new SecurityAuditStoreAdapter(sp.GetRequiredService<ElasticsearchClient>()));
+
+		// Registered as an explicit factory rather than by type. Container construction considers only
+		// PUBLIC constructors, and every public SecurityAuditor constructor derives its own audit store
+		// from the client -- so a type registration silently ignores the ISecurityAuditStore above and
+		// the store is substitutable in tests that construct the auditor directly and nowhere else.
+		// Naming the constructor is what makes the registered flush target the one that actually runs.
+		services.TryAddSingleton(static sp => new SecurityAuditor(
+			sp.GetRequiredService<ElasticsearchClient>(),
+			sp.GetRequiredService<ISecurityAuditStore>(),
+			sp.GetRequiredService<IOptions<AuditOptions>>(),
+			sp.GetRequiredService<IOptions<SecurityMonitoringOptions>>(),
+			sp.GetRequiredService<IAuditIntegrityStrategy>(),
+			sp.GetService<ITelemetrySanitizer>(),
+			sp.GetRequiredService<TimeProvider>(),
+			sp.GetRequiredService<ILogger<SecurityAuditor>>()));
+
 		// Register auditing service (core + parent + sub-interfaces forwarded to the same singleton)
-		services.TryAddSingleton<SecurityAuditor>();
 		services.TryAddSingleton<IElasticsearchSecurityAuditor>(static sp => sp.GetRequiredService<SecurityAuditor>());
 		services.TryAddSingleton<IElasticsearchSecurityAuditorCore>(static sp => sp.GetRequiredService<SecurityAuditor>());
 		services.TryAddSingleton<IElasticsearchSecurityAuditorRecording>(static sp => sp.GetRequiredService<SecurityAuditor>());
@@ -320,10 +318,13 @@ public static class SecurityServiceCollectionExtensions
 
 		// Fail the host fast at startup when EnsureLogIntegrity=true but the signing-key provider
 		// cannot produce a key — provider-agnostic (default or KMS-backed), so the misconfiguration surfaces
-		// before the first audit write rather than failing closed silently at runtime.
-		_ = services.AddHostedService(static sp => new AuditSigningKeyStartupProbe(
-			sp.GetRequiredService<IOptions<AuditOptions>>(),
-			sp.GetRequiredService<IAuditSigningKeyProvider>()));
+		// before the first audit write rather than failing closed silently at runtime. Same shape as
+		// SecurityMonitoringOptions above: IValidateOptions + ValidateOnStart(), not a hand-rolled
+		// IHostedService -- AuditOptions is declared only in this package, so there is no separate
+		// host-less-composition placement question to answer.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditOptions>, AuditSigningKeyStartupProbe>());
+		_ = services.AddOptions<AuditOptions>().ValidateOnStart();
 
 		return services;
 	}
@@ -402,48 +403,6 @@ public static class SecurityServiceCollectionExtensions
 		// Register the security provider consumers depend on. TryAdd, so a host that registers its own
 		// IElasticsearchSecurityProvider before calling this keeps it.
 		services.TryAddSingleton<IElasticsearchSecurityProvider, DefaultElasticsearchSecurityProvider>();
-
-		return services;
-	}
-
-	/// <summary>
-	/// Completes registration for a cloud key-management provider that this package does not implement.
-	/// </summary>
-	/// <remarks>
-	/// Fails closed by design. A cloud key service and the in-process development provider have entirely
-	/// different durability and custody properties, so substituting one for the other silently would leave a
-	/// host believing its keys were held in a managed key service when they were held in a dictionary. There is
-	/// deliberately no code path here that binds the development provider; the only ways forward are a
-	/// caller-supplied provider or an explicit call to <see cref="AddLocalKeyProvider"/>.
-	/// </remarks>
-	private static IServiceCollection RequireExternallySuppliedKeyProvider(
-		this IServiceCollection services,
-		string providerName)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		if (!services.Any(static d => d.ServiceType == typeof(IElasticsearchKeyProvider)))
-		{
-			throw new NotSupportedException(
-				$"{providerName} key management is not implemented for Elasticsearch field encryption. Register your " +
-				$"own {nameof(IElasticsearchKeyProvider)} implementation backed by {providerName} before configuring " +
-				"Elasticsearch security, or call AddLocalKeyProvider() to choose the in-process development provider " +
-				"explicitly. The development provider keeps keys in memory only, loses them on restart, and must not " +
-				"be used in production.");
-		}
-
-		return services.AddKeyProviderSubInterfaceForwarding();
-	}
-
-	/// <summary>
-	/// Registers sub-interface forwarding for <see cref="IElasticsearchKeyProvider"/> so that
-	/// consumers can depend on individual sub-interfaces.
-	/// </summary>
-	private static IServiceCollection AddKeyProviderSubInterfaceForwarding(this IServiceCollection services)
-	{
-		services.TryAddSingleton<IElasticsearchKeyStorage>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
-		services.TryAddSingleton<IElasticsearchKeyManagement>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
-		services.TryAddSingleton<IElasticsearchKeyProviderEvents>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
 
 		return services;
 	}

@@ -56,12 +56,6 @@ public sealed class TimePolicyOptions
 	public TimePolicyOverrideOptions Overrides { get; set; } = new();
 
 	/// <summary>
-	/// Gets or sets the timeout observability configuration.
-	/// </summary>
-	/// <value> The timeout observability settings. </value>
-	public TimePolicyObservabilityOptions Observability { get; set; } = new();
-
-	/// <summary>
 	/// Validates the configuration options.
 	/// </summary>
 	/// <returns> A collection of validation results. </returns>
@@ -250,17 +244,4 @@ public sealed class TimePolicyOverrideOptions
 	/// </summary>
 	/// <value> The custom timeout overrides by handler type. </value>
 	public IDictionary<string, TimeSpan> HandlerTypeTimeouts { get; init; } = new Dictionary<string, TimeSpan>(StringComparer.Ordinal);
-}
-
-/// <summary>
-/// Configuration options for timeout observability (logging and metrics).
-/// </summary>
-public sealed class TimePolicyObservabilityOptions
-{
-	/// <summary>
-	/// Gets or sets a value indicating whether to log timeout events for monitoring.
-	/// Default: true.
-	/// </summary>
-	/// <value> True to log timeout events; otherwise, false. </value>
-	public bool LogTimeoutEvents { get; set; } = true;
 }

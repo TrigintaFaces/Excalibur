@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Compliance;
 using Excalibur.Data.ElasticSearch.Security;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Security.KeyManagement;
@@ -35,7 +36,7 @@ public sealed class KeyManagementConfigurationBindingShould
 			services.AddKeyManagement(Configuration((FieldEncryptionKey, "true"))));
 
 		ex.Message.ShouldContain($"{KeyManagementSection}:Provider");
-		services.ShouldNotContain(d => d.ServiceType == typeof(IElasticsearchKeyProvider));
+		services.ShouldNotContain(d => d.ServiceType == typeof(IKeyManagementProvider));
 	}
 
 	// SAFETY: a provider this package has no implementation for is refused too, rather than
@@ -51,28 +52,32 @@ public sealed class KeyManagementConfigurationBindingShould
 			($"{KeyManagementSection}:Provider", nameof(KeyManagementProvider.Hsm)))));
 
 		ex.Message.ShouldContain(nameof(KeyManagementProvider.Hsm));
-		services.ShouldNotContain(d => d.ServiceType == typeof(IElasticsearchKeyProvider));
+		services.ShouldNotContain(d => d.ServiceType == typeof(IKeyManagementProvider));
 	}
 
 	// LIVENESS: naming the development provider explicitly still yields a provider that WORKS.
 	// Asserting only that the development provider is not selected would be satisfied by a
-	// provider that refuses everything, so this stores and reads a secret back through the real
-	// resolved instance rather than asserting a registration exists.
+	// provider that refuses everything, so this rotates a key through the real resolved instance
+	// rather than asserting a registration exists.
 	[Fact]
 	public async Task StillResolveAWorkingProviderWhenTheDevelopmentProviderIsNamed()
 	{
 		var services = new ServiceCollection();
+		_ = services.AddLogging();
 
 		_ = services.AddKeyManagement(Configuration(
 			(FieldEncryptionKey, "true"),
 			($"{KeyManagementSection}:Provider", nameof(KeyManagementProvider.Local))));
 
 		await using var sp = services.BuildServiceProvider();
-		var keyProvider = sp.GetRequiredService<IElasticsearchKeyProvider>();
+		var keyProvider = sp.GetRequiredService<IKeyManagementProvider>();
 
-		var stored = await keyProvider.SetSecretAsync("field-key", "s3cret", null, TestContext.Current.CancellationToken);
-		stored.ShouldBeTrue();
-		(await keyProvider.GetSecretAsync("field-key", TestContext.Current.CancellationToken)).ShouldBe("s3cret");
+		var rotation = await keyProvider.RotateKeyAsync(
+			"field-key", EncryptionAlgorithm.Aes256Gcm, purpose: null, expiresAt: null,
+			TestContext.Current.CancellationToken);
+
+		rotation.Success.ShouldBeTrue();
+		(await keyProvider.GetKeyAsync("field-key", TestContext.Current.CancellationToken)).ShouldNotBeNull();
 	}
 
 	// LIVENESS: the refusal is scoped to hosts that actually encrypt fields. AddElasticsearchSecurity
@@ -86,31 +91,27 @@ public sealed class KeyManagementConfigurationBindingShould
 
 		_ = services.AddKeyManagement(Configuration());
 
-		services.ShouldContain(d => d.ServiceType == typeof(IElasticsearchKeyProvider));
+		services.ShouldContain(d => d.ServiceType == typeof(IKeyManagementProvider));
+		services.ShouldContain(d => d.ServiceType == typeof(IEncryptionProviderRegistry));
 	}
 
-	// LIVENESS for the section fix: Azure Key Vault settings nested under the parent section the
-	// feature documents and reads must arrive POPULATED. Binding was previously rooted at
-	// Elasticsearch:Security:KeyManagement:AzureKeyVault -- the same path with the Encryption
-	// segment missing -- so a consumer keeping all key-management configuration in one place got an
-	// AzureKeyVaultProvider built from defaults. Constructing the options type directly cannot see
-	// this; only binding a real configuration object can.
+	// LIVENESS: Azure Key Vault CONNECTION-CREDENTIAL settings, nested under the parent section the
+	// feature documents and reads, bind POPULATED. This is the connection-credential store
+	// (AddAzureKeyVaultCredentialStorage), a distinct capability from field-encryption key management
+	// (AddKeyManagement) -- see the 6zlc1i convergence.
 	[Fact]
 	public void BindAzureKeyVaultOptionsFromTheSectionTheFeatureReads()
 	{
 		var services = new ServiceCollection();
 
-		_ = services.AddKeyManagement(Configuration(
-			($"{KeyManagementSection}:Provider", nameof(KeyManagementProvider.AzureKeyVault)),
+		_ = services.AddAzureKeyVaultCredentialStorage(Configuration(
 			($"{KeyManagementSection}:AzureKeyVault:VaultUri", "https://contoso.vault.azure.net/"),
-			($"{KeyManagementSection}:AzureKeyVault:TenantId", "tenant-7"),
-			($"{KeyManagementSection}:AzureKeyVault:UseHsm", "true")));
+			($"{KeyManagementSection}:AzureKeyVault:TenantId", "tenant-7")));
 
 		using var sp = services.BuildServiceProvider();
 		var options = sp.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
 
 		options.VaultUri.ShouldBe("https://contoso.vault.azure.net/");
 		options.TenantId.ShouldBe("tenant-7");
-		options.UseHsm.ShouldBeTrue();
 	}
 }

@@ -187,9 +187,14 @@ public sealed record KeyReference
 	public required EncryptionKeyScope KeyScope { get; init; }
 
 	/// <summary>
-	/// Gets the number of records encrypted with this key.
+	/// Gets the number of encrypted field values this key protects.
 	/// </summary>
-	public int RecordCount { get; init; }
+	/// <remarks>
+	/// This counts <b>occurrences</b>, not records: one unit is one (table, field, record) triple, so a
+	/// key protecting three encrypted fields of a single record counts three. That is the quantity
+	/// re-encryption planning needs. It is not a count of distinct data subjects or of rows.
+	/// </remarks>
+	public int EncryptedFieldValueCount { get; init; }
 }
 
 /// <summary>
@@ -303,9 +308,22 @@ public sealed record DataMapEntry
 	public bool IsAutoDiscovered { get; init; }
 
 	/// <summary>
-	/// Gets the total record count.
+	/// Gets the number of records holding this field, or <see langword="null"/> when the store did not
+	/// count them.
 	/// </summary>
-	public long RecordCount { get; init; }
+	/// <remarks>
+	/// <para>
+	/// <see langword="null"/> means <b>not counted</b>, and is the only honest answer for a store that
+	/// cannot count. A value means counted, as of the moment the entry was produced. <b>A store that can
+	/// count must count</b>: substituting a placeholder number is prohibited, because this value is
+	/// reported in records of processing activity, where a reader takes it for a measurement.
+	/// </para>
+	/// <para>
+	/// Consumers rendering a report must distinguish the two: an absent count is not zero, and totalling
+	/// a column of counts across stores is only meaningful where every entry carries one.
+	/// </para>
+	/// </remarks>
+	public long? RecordCount { get; init; }
 
 	/// <summary>
 	/// Gets the description.

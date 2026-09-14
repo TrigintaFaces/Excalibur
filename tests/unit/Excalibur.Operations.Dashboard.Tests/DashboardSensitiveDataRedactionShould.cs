@@ -89,6 +89,39 @@ public sealed class DashboardSensitiveDataRedactionShould
 	}
 
 	[Fact]
+	public async Task RedactDlqTenantIdByDefault()
+	{
+		await using var app = await BuildHostAsync(exposeSensitive: false).ConfigureAwait(false);
+		using var client = app.GetTestClient();
+
+		var body = await client.GetStringAsync(
+			new Uri("/dashboard/api/dlq/entries", UriKind.Relative)).ConfigureAwait(false);
+
+		body.ShouldNotContain(SecretTenant);
+		using var doc = JsonDocument.Parse(body);
+		doc.RootElement[0].TryGetProperty("tenantId", out _).ShouldBeFalse(
+			"a dead-lettered message's tenant names a customer, so an unauthenticated read must not "
+			+ "carry it -- the saga endpoint already redacts the same value on the same terms");
+	}
+
+	[Fact]
+	public async Task ExposeDlqTenantIdWhenOptedIn()
+	{
+		await using var app = await BuildHostAsync(exposeSensitive: true).ConfigureAwait(false);
+		using var client = app.GetTestClient();
+
+		var entries = await client.GetFromJsonAsync<JsonElement[]>(
+			new Uri("/dashboard/api/dlq/entries", UriKind.Relative), JsonOptions).ConfigureAwait(false);
+
+		entries.ShouldNotBeNull();
+		entries[0].GetProperty("tenantId").GetString().ShouldBe(
+			SecretTenant,
+			"the store carries the tenant all the way to the dashboard's read model, and the projection "
+			+ "is the last hop -- an operator who opted in must be able to tell which tenant a "
+			+ "dead-lettered message belonged to");
+	}
+
+	[Fact]
 	public async Task ExposeDlqSensitiveFieldsWhenOptedIn()
 	{
 		await using var app = await BuildHostAsync(exposeSensitive: true).ConfigureAwait(false);
@@ -141,6 +174,7 @@ public sealed class DashboardSensitiveDataRedactionShould
 					CorrelationId = SecretCorrelation,
 					EnqueuedAt = DateTimeOffset.UtcNow,
 					OriginalAttempts = 3,
+					TenantId = SecretTenant,
 				},
 			];
 			return Task.FromResult(entries);

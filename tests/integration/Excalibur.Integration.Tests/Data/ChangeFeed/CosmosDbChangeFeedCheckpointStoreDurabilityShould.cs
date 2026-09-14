@@ -72,8 +72,7 @@ public sealed class CosmosDbChangeFeedCheckpointStoreDurabilityShould
 	[Fact]
 	public async Task PersistContinuationTokenAcrossAFreshStoreInstance()
 	{
-		_fixture.IsInitialized.ShouldBeTrue(
-			"Cosmos emulator must be available — real-Cosmos durable-continuation proof (NFR-1)");
+		_fixture.EnsureAvailable();
 
 		var container = await CreateCheckpointsContainerAsync().ConfigureAwait(false);
 		var subscriptionId = $"sub-egwtku-{Guid.NewGuid():N}";
@@ -94,8 +93,7 @@ public sealed class CosmosDbChangeFeedCheckpointStoreDurabilityShould
 	[Fact]
 	public async Task ReturnNullWhenNoCheckpointHasBeenPersisted()
 	{
-		_fixture.IsInitialized.ShouldBeTrue(
-			"Cosmos emulator must be available — real-Cosmos durable-continuation proof (NFR-1)");
+		_fixture.EnsureAvailable();
 
 		var container = await CreateCheckpointsContainerAsync().ConfigureAwait(false);
 		IChangeFeedCheckpointStore store = new CosmosDbChangeFeedCheckpointStore(container);

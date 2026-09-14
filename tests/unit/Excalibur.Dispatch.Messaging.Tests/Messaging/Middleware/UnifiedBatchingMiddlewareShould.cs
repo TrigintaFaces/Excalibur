@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
 using Tests.Shared.TestFakes;
@@ -65,8 +66,46 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		wasProcessed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task SurfaceAMissingHandlerRegistrationAsTheConfigurationFaultItIs()
+	{
+		// A missing handler registration is a configuration fault about the message TYPE, not an outcome of
+		// one caller's request. Returning a 500-shaped failed result tells the caller their request failed,
+		// which is false and un-actionable -- nothing they do fixes it. Retry, exception mapping and the
+		// circuit breaker were already corrected to let it pass through; batching was left out because it
+		// aggregates independent callers. It is settled here: every item of the batch is failed WITH the
+		// fault, because the registration is missing for the type and no sibling would have succeeded.
+		_options.BatchFilter = _ => true;
+
+		static ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
+			=> throw new HandlerNotRegisteredException("No handler registered for the batched message type.");
+
+		var act = async () => await _middleware.InvokeAsync(
+			new FakeDispatchMessage(), new FakeMessageContext(), NextDelegate, CancellationToken.None);
+
+		_ = await Should.ThrowAsync<HandlerNotRegisteredException>(act);
+	}
+
+	[Fact]
+	public async Task StillReturnAFailedResultForAnOrdinaryHandlerFailure()
+	{
+		// LIVENESS. A genuine processing failure IS a request outcome and must keep arriving as one; without
+		// this arm, letting every exception escape would satisfy the arm above and turn ordinary handler
+		// faults into unhandled exceptions for every batched caller.
+		_options.BatchFilter = _ => true;
+
+		static ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
+			=> throw new InvalidOperationException("the handler itself failed");
+
+		var result = await _middleware.InvokeAsync(
+			new FakeDispatchMessage(), new FakeMessageContext(), NextDelegate, CancellationToken.None);
+
+		_ = result.ShouldNotBeNull();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -92,8 +131,8 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 		var results = await Task.WhenAll(task1.AsTask(), task2.AsTask()).ConfigureAwait(false);
 
 		// Assert
-		results[0].IsSuccess.ShouldBeTrue();
-		results[1].IsSuccess.ShouldBeTrue();
+		results[0].Succeeded.ShouldBeTrue();
+		results[1].Succeeded.ShouldBeTrue();
 		processedMessages.Count.ShouldBeGreaterThanOrEqualTo(1);
 	}
 
@@ -121,7 +160,7 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 
 		// Assert
 		processedCount.ShouldBeGreaterThan(0);
-		taskResults.All(t => t.IsSuccess).ShouldBeTrue();
+		taskResults.All(t => t.Succeeded).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -148,8 +187,8 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 		var results = await Task.WhenAll(task1.AsTask(), task2.AsTask()).ConfigureAwait(false);
 
 		// Assert
-		results[0].IsSuccess.ShouldBeTrue();
-		results[1].IsSuccess.ShouldBeTrue();
+		results[0].Succeeded.ShouldBeTrue();
+		results[1].Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -169,7 +208,7 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -238,7 +277,7 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 		var result = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -262,7 +301,7 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 		var result = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		wasProcessedDirectly.ShouldBeTrue();
 	}
 
@@ -349,7 +388,7 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 		var result = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		activityCreated.ShouldBeTrue();
 	}
 

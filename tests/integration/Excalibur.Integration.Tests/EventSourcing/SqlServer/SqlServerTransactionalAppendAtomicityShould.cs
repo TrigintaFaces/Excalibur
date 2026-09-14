@@ -157,6 +157,65 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
         (await CountOutboxAsync(staleOutboxId).ConfigureAwait(false)).ShouldBe(0, "no outbox row on conflict");
     }
 
+    // -------------------------------------------------------------------------------------------------
+    // k44na4 — TRUE concurrent race, unlike the test above: every writer presents the SAME (correct at
+    // the time it reads) expectedVersion, so ALL of them pass the deterministic pre-check inside their
+    // own transaction — the race is decided by SQL Server's own key locking at INSERT/COMMIT, not by a
+    // stale precondition an app-level check could catch early. No delay hook is needed: N writers all
+    // insert the identical (AggregateId, Version) row; SQL Server serialises them on that key, exactly
+    // one commits, and every other transaction's INSERT then fails on the unique constraint once it
+    // unblocks. The property under test is what happens to the losers.
+    // -------------------------------------------------------------------------------------------------
+    [Fact]
+    public async Task ClassifyATrueConcurrentRace_AsConcurrencyConflict_NotARawException()
+    {
+        _requiredContainer.Require();
+
+        var store = (ITransactionalEventStore)CreateEventStore();
+        var aggId = "agg-" + Guid.NewGuid().ToString("N");
+        const string type = "TestAggregate";
+        const int concurrency = 8;
+
+        var tasks = Enumerable.Range(0, concurrency).Select(async i =>
+        {
+            var outboxId = $"ob-{i}-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                var result = await store.AppendWithOutboxStagingAsync(
+                    aggId, type, [new TestDomainEvent(aggId, 0)], expectedVersion: -1,
+                    async (txn, ct) => await InsertOutboxRowAsync(txn, outboxId, ct).ConfigureAwait(false),
+                    CancellationToken.None).ConfigureAwait(false);
+                return (Result: (AppendResult?)result, Exception: (Exception?)null);
+            }
+            catch (Exception ex)
+            {
+                return (Result: (AppendResult?)null, Exception: ex);
+            }
+        }).ToArray();
+
+        var outcomes = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        var successes = outcomes.Where(o => o.Result is { IsConcurrencyConflict: false }).ToList();
+        var conflicts = outcomes.Where(o => o.Result is { IsConcurrencyConflict: true }).ToList();
+        var rawExceptions = outcomes.Where(o => o.Exception is not null).ToList();
+
+        successes.Count.ShouldBe(1,
+            "exactly one of the concurrent writers must win the race and commit version 0");
+        (conflicts.Count + rawExceptions.Count).ShouldBe(concurrency - 1,
+            "every losing writer must be accounted for as either a classified conflict or a raw exception");
+
+        // THE ASSERTION k44na4 EXISTS FOR: a loser of a TRUE race (past the pre-check, decided by the
+        // database's own locking) must be classified via IsLostRace exactly like the plain AppendAsync
+        // path, not surfaced to the caller as a raw, unclassified SqlException.
+        rawExceptions.ShouldBeEmpty(
+            "a true concurrent race must classify as AppendResult.CreateConcurrencyConflict, matching the " +
+            "plain-append contract — not surface as a raw exception. Raw exception types seen: " +
+            string.Join(", ", rawExceptions.Select(o => o.Exception!.GetType().Name)));
+
+        (await CountEventsAsync(aggId).ConfigureAwait(false)).ShouldBe(1,
+            "only the single winning writer's event must persist at version 0");
+    }
+
     // AC-K.4 / EC-K.4 marker-contract assertions are container-independent (pure type checks) and live in
     // the fixture-less SqlServerEventStoreMarkerContractShould below — bd-2iva37: a pure type-assertion must
     // not be collateral damage of a TestContainers start cascade under full-suite load.

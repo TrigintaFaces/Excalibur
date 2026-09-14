@@ -1,0 +1,55 @@
+#!/usr/bin/env sh
+# --- BEGIN GRAPHIFY INTEGRATION v1 ---
+# This section keeps the local knowledge graph current. Do not remove these markers.
+#
+# WHY IT EXISTS. The graph is what answers "what calls this?" and "where does this
+# live?" without a grep, and a grep piped through head has already reported a type
+# as absent when it was present. A stale graph is worse than none, because it
+# answers confidently. Left to memory it went 57 commits out of date.
+#
+# IT IS FREE UNLESS YOU HAVE OPTED IN. It does nothing at all unless graphify is
+# installed AND this working tree already holds a graph. A contributor with
+# neither -- which is everyone who has not run graphify here -- gets an immediate
+# exit 0. The graph directory is gitignored, so opting in is per-machine and
+# nothing about it is shared.
+#
+# IT NEVER BLOCKS A COMMIT. A rebuild takes minutes, so it is detached and its
+# output goes to a log rather than your terminal. This hook always exits 0: a
+# knowledge-graph refresh must never be able to fail a commit or hold one open.
+#
+# IT NEVER RUNS TWICE AT ONCE. Two overlapping extractions write the same files,
+# so a second is skipped while the first holds the lock. A lock older than an hour
+# is treated as abandoned rather than trusted, so a killed run cannot wedge this
+# off permanently.
+# A HOOK THAT CAN FAIL SILENTLY IS NOT A GUARD. The first version of this hook was detached and
+# log-only, so when the update started failing nothing said so and the graph silently went stale
+# again -- the exact defect the hook exists to prevent, reintroduced by the hook. It now leaves a
+# marker on failure and reports it on the NEXT commit, where git shows hook output.
+if command -v graphify >/dev/null 2>&1 && [ -d graphify-out ]; then
+	if [ -f graphify-out/.graphify_hook.failed ]; then
+		echo "graphify: the previous graph update FAILED. See graphify-out/.graphify_hook.log"
+		rm -f graphify-out/.graphify_hook.failed 2>/dev/null
+	fi
+
+	# This repository indexes ~17,400 source files into a graph larger than the tool ships as its
+	# default ceiling, so an unset limit makes every update a no-op that reports only to a log.
+	# Raised deliberately rather than by shrinking scope: the index carries no build artifacts
+	# (measured: 0 of 17,412 indexed paths are under bin, obj, node_modules or docs-site/build),
+	# so there is nothing to trim and the size is simply what this codebase is.
+	GRAPHIFY_MAX_GRAPH_BYTES="${GRAPHIFY_MAX_GRAPH_BYTES:-2GB}"
+	export GRAPHIFY_MAX_GRAPH_BYTES
+	_gf_lock="graphify-out/.graphify_hook.lock"
+	if [ -f "$_gf_lock" ] && [ -z "$(find "$_gf_lock" -mmin +60 2>/dev/null)" ]; then
+		: # a run is already in flight and is not stale -- leave it alone
+	else
+		( : >"$_gf_lock" 2>/dev/null
+		  if graphify update >graphify-out/.graphify_hook.log 2>&1; then
+			  rm -f graphify-out/.graphify_hook.failed 2>/dev/null
+		  else
+			  : >graphify-out/.graphify_hook.failed 2>/dev/null
+		  fi
+		  rm -f "$_gf_lock" 2>/dev/null ) >/dev/null 2>&1 &
+	fi
+fi
+exit 0
+# --- END GRAPHIFY INTEGRATION v1 ---

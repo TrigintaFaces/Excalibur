@@ -331,6 +331,57 @@ public sealed class Soc2ReportGeneratorShould
 		report.System.Name.ShouldBe("Test System");
 	}
 
+	[Fact]
+	public async Task Report_an_unassessed_criterion_as_NotAssessed_rather_than_NotMet()
+	{
+		// Arrange -- no validator registered for anything, which is the ORDINARY case: validators are
+		// opt-in, so a consumer who has not registered one for every criterion is not in an error path.
+		A.CallTo(() => _controlValidation.ValidateCriterionAsync(A<TrustServicesCriterion>._, A<CancellationToken>._))
+			.Returns(new List<ControlValidationResult>());
+		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
+			.Returns(new List<string>());
+
+		var sut = CreateGenerator();
+
+		// Act
+		var report = await sut.GenerateTypeIReportAsync(
+			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
+
+		// Assert -- "nobody looked" and "we looked and it failed" must not be the same output. Every
+		// section here was unassessed, so none may be reported NotMet.
+		report.ControlSections.ShouldNotBeEmpty();
+		report.ControlSections.ShouldAllBe(s => s.Outcome == CriterionOutcome.NotAssessed);
+
+		// And it must not read as a deficiency in the consumer's controls: the entry has to attribute
+		// the gap to this framework, not to them.
+		report.Exceptions.ShouldNotBeEmpty();
+		report.Exceptions.ShouldAllBe(e => e.Description.Contains("NOT ASSESSED", StringComparison.Ordinal));
+		report.Exceptions.ShouldAllBe(e =>
+			!e.Description.Contains("not suitably designed", StringComparison.Ordinal));
+
+		// And it must not move the percentage on evidence that does not exist. With nothing assessed
+		// the denominator is zero, so the level cannot be driven down by absent findings.
+		report.Opinion.ShouldNotBe(AuditorOpinion.Adverse);
+	}
+
+	[Fact]
+	public async Task Report_an_assessed_effective_criterion_as_Met_and_never_as_NotAssessed()
+	{
+		// The inverse arm. An implementation that satisfies only the unassessed direction above -- by
+		// reporting NotAssessed for everything -- does not satisfy the criterion, and without this arm
+		// the pair would be passed by exactly that.
+		SetupControlValidation("CC1.1", CreatePassingResult("CC1.1"));
+
+		var sut = CreateGenerator();
+
+		var report = await sut.GenerateTypeIReportAsync(
+			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
+
+		report.ControlSections.ShouldNotBeEmpty();
+		report.ControlSections.ShouldAllBe(s => s.Outcome == CriterionOutcome.Met);
+		report.ControlSections.ShouldAllBe(s => s.Outcome != CriterionOutcome.NotAssessed);
+	}
+
 	private static ControlValidationResult CreatePassingResult(string controlId, int score = 95) =>
 		new()
 		{

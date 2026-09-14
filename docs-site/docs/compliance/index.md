@@ -24,8 +24,8 @@ Step-by-step guides for achieving compliance certification:
 
 | Framework | When to Use | Checklist | Certification Time |
 |-----------|-------------|-----------|-------------------|
-| **[FedRAMP](checklists/fedramp.md)** | Selling to US federal government | NIST 800-53 (14/14 controls) | 6-12 months |
-| **[GDPR](checklists/gdpr.md)** | Processing EU resident data | Articles 17, 30, 32 | 3-6 months |
+| **[FedRAMP](checklists/fedramp.md)** | Selling to US federal government | NIST 800-53 (12 of 14 controls) | 6-12 months |
+| **[GDPR](checklists/gdpr.md)** | Processing EU resident data | Articles 17, 17(3), 25, 30, 32 | 3-6 months |
 | **[SOC 2](checklists/soc2.md)** | SaaS, cloud, MSP businesses | Trust Services Criteria | 3-18 months |
 | **[HIPAA](checklists/hipaa.md)** | Healthcare data (PHI) | Security + Privacy Rules | 6-12 months |
 
@@ -45,11 +45,11 @@ Core compliance capabilities provided by Excalibur.Dispatch:
 
 ### 📊 FedRAMP Epic Closure
 
-**Status:** ✅ 14/14 NIST 800-53 controls SATISFIED (100% complete)
+**Status:** 12 of 14 NIST 800-53 controls satisfied by the framework; SI-7 partial (packages ship unsigned) and PM-11 is a business process the consumer owns
 
 The FedRAMP compliance epic has been successfully completed:
 
-- [FedRAMP Overview](fedramp/README.md) - Complete 14/14 control implementation
+- [FedRAMP Overview](fedramp/README.md) - Per-control status and the evidence package
 - [CM-8 SBOM](fedramp/CM-8-SBOM.md) - Software Bill of Materials (CycloneDX)
 
 ## Compliance Overview
@@ -157,7 +157,8 @@ public class Patient
 {
     public Guid Id { get; set; }
 
-    [PersonalData]  // Automatically encrypted at rest
+    [PersonalData]  // encrypted ONLY on a record that also carries [DataSubjectId],
+                    // and only once crypto-shredding is registered
     public string FirstName { get; set; }
 
     [PersonalData]
@@ -196,7 +197,7 @@ public class PatientService
 ### What Excalibur Provides ✅
 
 - **Technical Controls:** Encryption, audit logging, access control, erasure
-- **Conformance Tests:** 80 automated tests (Audit, Erasure, LegalHold, DataInventory)
+- **Conformance Kits:** four provider kits (Audit, Erasure, LegalHold, DataInventory). Every arm is `virtual` and carries no test attribute, so nothing runs until you declare an attributed wrapper — wrap the arms your controls need, and your own run is the evidence. See [Quick Start](quick-start.md).
 - **Evidence Collection:** Automated scripts for CI/CD artifacts
 - **SBOM Generation:** CycloneDX format with 90-day retention
 - **Security Scanning:** SAST, DAST, container, secrets scanning
@@ -225,12 +226,12 @@ Automated scripts for collecting compliance evidence from CI/CD pipelines:
 | `export-audit-samples.sh` | Export audit logs | Bash/Linux/macOS |
 | `generate-ropa-template.sh` | Generate RoPA template | Bash/Linux/macOS |
 
-**Location:** `eng/compliance/` in repository root
+**Location:** `eng/compliance/` in the [framework repository](https://github.com/TrigintaFaces/Excalibur)
 
 ### Evidence Types Collected
 
-- **Test Results:** JUnit XML, code coverage (≥60% enforced)
-- **Security Scans:** SAST (CodeQL), DAST (OWASP ZAP), container (Trivy), secrets (Gitleaks)
+- **Test Results:** JUnit XML, code coverage (enforced regression floor of 44%; CI fails below it)
+- **Security Scans:** SAST (CodeQL), secrets (Gitleaks), dependency vulnerability scanning. **No DAST and no container scanning run in this pipeline.**
 - **SBOM:** CycloneDX JSON/XML (90-day retention)
 - **Audit Logs:** Sample templates (anonymized)
 - **Requirements Traceability:** RTM validation results
@@ -305,7 +306,7 @@ For new implementations, use the comprehensive compliance capabilities described
 
 1. **Choose Your Framework:** Review the [Quick Start Guide](quick-start.md) decision tree
 2. **Follow the Checklist:** Select from [FedRAMP](checklists/fedramp.md), [GDPR](checklists/gdpr.md), [SOC 2](checklists/soc2.md), or [HIPAA](checklists/hipaa.md)
-3. **Collect Evidence:** Use automated scripts in `eng/compliance/`
+3. **Collect Evidence:** Use the [evidence automation scripts](#evidence-automation) in the [framework repository](https://github.com/TrigintaFaces/Excalibur)
 4. **Engage Auditor:** 3PAO (FedRAMP), CPA (SOC 2), DPO (GDPR), or HIPAA specialist
 
 ## Support
@@ -333,6 +334,6 @@ For new implementations, use the comprehensive compliance capabilities described
 
 ---
 
-**Framework Version:** Excalibur 1.0.0
-**Last Updated:** 2026-02-09
+**Framework Version:** Excalibur 10.0.0 prerelease
+**Last Updated:** 2026-09-12
 **Status:** Technical controls implemented for FedRAMP, GDPR, SOC 2, HIPAA. Full certification requires organizational policies, processes, and external audit.

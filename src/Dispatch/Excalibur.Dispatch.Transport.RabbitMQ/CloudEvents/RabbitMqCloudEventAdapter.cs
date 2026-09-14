@@ -20,15 +20,39 @@ using Microsoft.Extensions.Options;
 
 using RabbitMQ.Client;
 
+using RabbitMqBasicProperties = RabbitMQ.Client.BasicProperties;
+
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
 /// <summary>
 /// Default implementation of RabbitMQ CloudEvent adapter.
 /// </summary>
+/// <remarks>
+/// Builds the SDK's own <see cref="RabbitMqBasicProperties"/> (aliasing <c>RabbitMQ.Client.BasicProperties</c>),
+/// not a hand-rolled <see cref="IBasicProperties"/> implementation. RabbitMQ.Client 7.x's
+/// <c>IChannel.BasicPublishAsync&lt;TProperties&gt;</c> is generic, constrained to
+/// <c>IReadOnlyBasicProperties, IAmqpHeader</c> -- and <see cref="IBasicProperties"/> extends only
+/// <c>IReadOnlyBasicProperties</c>, not <c>IAmqpHeader</c> (verified via reflection against
+/// RabbitMQ.Client 7.2.1). A type that implements <see cref="IBasicProperties"/> alone can never satisfy
+/// that constraint, so a hand-rolled <see cref="IBasicProperties"/> here was never publishable, regardless
+/// of what <c>RabbitMqMessageBus</c> demanded on the other end. The SDK already
+/// ships a public, mutable, fully-featured concrete type with every property this adapter needs
+/// (<c>Headers</c>, <c>ContentType</c>, <c>DeliveryMode</c>, <c>CorrelationId</c>, etc.) and real
+/// <c>IAmqpHeader</c>/<c>IAmqpWriteable</c> wire serialization -- building it directly, instead of a
+/// parallel type that promised an insufficient interface, is both the fix and the correct default.
+/// </remarks>
 internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 {
 	private const string StructuredContentType = "application/cloudevents+json";
 	private const string ContentTypeHeader = "Content-Type";
+	// The CloudEvents binary-mode prefix is assigned PER PROTOCOL BINDING, not globally: HTTP uses
+	// "ce-", Kafka "ce_", and MQTT none at all. The spec's AMQP binding assigns "cloudEvents_" and
+	// scopes itself to AMQP 1.0; this transport speaks AMQP 0-9-1, which that binding does not cover.
+	// So "ce-" here is a DELIBERATE house convention for an unbound protocol, matching what the
+	// Knative AMQP 0-9-1 consumers in the wild expect -- it is not drift from the AMQP binding, and it
+	// must NOT be "corrected" to "cloudEvents_" or aligned with a sibling transport on the theory that
+	// one prefix should hold across all of them. A sweep that made every adapter agree would break
+	// conformance on the three that are already right.
 	private const string CePrefix = "ce-";
 	private const string CeSpecVersionHeader = "ce-specversion";
 	private const string CeTypeHeader = "ce-type";
@@ -119,7 +143,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 			? mode
 			: Options.DefaultMode;
 
-		var properties = new CloudEventBasicProperties
+		var properties = new RabbitMqBasicProperties
 		{
 			Headers = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
 			DeliveryMode = (DeliveryModes)(RabbitMqOptions.Exchange.Persistence == RabbitMqPersistence.Persistent ? (byte)2 : (byte)1),
@@ -285,7 +309,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 		attributeName.Equals(CeSubjectHeader, StringComparison.OrdinalIgnoreCase) ||
 		attributeName.Equals(CeDataSchemaHeader, StringComparison.OrdinalIgnoreCase);
 
-	private static void ApplyStandardProperties(CloudEventBasicProperties properties, CloudEvent cloudEvent)
+	private static void ApplyStandardProperties(RabbitMqBasicProperties properties, CloudEvent cloudEvent)
 	{
 		properties.MessageId = cloudEvent.Id ?? Uuid7Extensions.GenerateString();
 		properties.Timestamp = new AmqpTimestamp((cloudEvent.Time ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds());
@@ -316,7 +340,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 		}
 	}
 
-	private ReadOnlyMemory<byte> EncodeStructuredMessage(CloudEvent cloudEvent, CloudEventBasicProperties properties)
+	private ReadOnlyMemory<byte> EncodeStructuredMessage(CloudEvent cloudEvent, RabbitMqBasicProperties properties)
 	{
 		var encoded = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
 		var payload = encoded.ToArray();
@@ -327,7 +351,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 
 	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Transport.RabbitMQ.CloudEvents.RabbitMqCloudEventAdapter.EncodeBody(Object, String)")]
 	[RequiresDynamicCode("Calls Excalibur.Dispatch.Transport.RabbitMQ.CloudEvents.RabbitMqCloudEventAdapter.EncodeBody(Object, String)")]
-	private ReadOnlyMemory<byte> EncodeBinaryMessage(CloudEvent cloudEvent, CloudEventBasicProperties properties)
+	private ReadOnlyMemory<byte> EncodeBinaryMessage(CloudEvent cloudEvent, RabbitMqBasicProperties properties)
 	{
 		var headers = properties.Headers!;
 
@@ -492,7 +516,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 		return cloudEvent;
 	}
 
-	private void ApplyDispatchEnvelopeHeaders(CloudEventBasicProperties properties, CloudEvent cloudEvent)
+	private void ApplyDispatchEnvelopeHeaders(RabbitMqBasicProperties properties, CloudEvent cloudEvent)
 	{
 		var headers = properties.Headers ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 

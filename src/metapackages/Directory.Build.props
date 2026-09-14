@@ -20,4 +20,19 @@
   <PropertyGroup>
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
+
+  <!--
+    The opt-out above only survives because the central package management file guards its own setter
+    with a condition on the property being unset. That file is imported after this one, so removing the
+    condition there would overwrite the opt-out while leaving it looking applied: the property is still
+    written here, the file still reads correctly, and every metapackage silently regains the promoted
+    union of its referenced projects' transitive graphs.
+
+    Reading the property back at build time is the only check that cannot be fooled by that, because it
+    reads the value the build actually used rather than the text of either file.
+  -->
+  <Target Name="VerifyMetapackageTransitivePinningIsOff" BeforeTargets="Build;Pack">
+    <Error Condition="'$(CentralPackageTransitivePinningEnabled)' != 'false'"
+           Text="Metapackage $(MSBuildProjectName) built with CentralPackageTransitivePinningEnabled='$(CentralPackageTransitivePinningEnabled)', expected 'false'. Something imported after this file overwrote the opt-out, and packing now would list the union of every referenced project's transitive dependencies as direct dependencies of this bundle. Restore the condition on the setter in the central package management file." />
+  </Target>
 </Project>

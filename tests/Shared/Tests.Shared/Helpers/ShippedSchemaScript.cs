@@ -104,9 +104,27 @@ public static class ShippedSchemaScript
 	/// <exception cref="ArgumentException">Thrown when <paramref name="repoRelativePath"/> is null or blank.</exception>
 	/// <exception cref="FileNotFoundException">Thrown when no such script exists above the test binary.</exception>
 	public static IReadOnlyList<string> ReadStatements(string repoRelativePath) =>
-		[.. Read(repoRelativePath)
+		[.. StripNonSql(Read(repoRelativePath))
 			.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
 			.Where(static statement => statement.Length > 0)];
+
+	/// <summary>
+	/// Drops the lines a driver cannot execute: whole-line comments and SQL*Plus directives.
+	/// </summary>
+	/// <remarks>
+	/// Both are correct in the file and wrong on the wire. A whole-line <c>--</c> comment survives the
+	/// split, is prepended to the next statement and comments it out. A SQL*Plus directive is not SQL at
+	/// all: every shipped Oracle script opens with <c>WHENEVER SQLERROR EXIT FAILURE ROLLBACK</c>, which
+	/// is what makes a hand-applied migration roll back instead of continuing against a half-built
+	/// schema, and which the server answers with ORA-00900: invalid SQL statement.
+	/// </remarks>
+	private static string StripNonSql(string sql) =>
+		string.Join(
+			Environment.NewLine,
+			sql.Split('\n')
+				.Select(static line => line.Trim())
+				.Where(static line => !line.StartsWith("--", StringComparison.Ordinal))
+				.Where(static line => !line.StartsWith("WHENEVER ", StringComparison.OrdinalIgnoreCase)));
 
 	/// <summary>
 	/// Reads a shipped Oracle script and returns its executable units, ready for a plain connection.

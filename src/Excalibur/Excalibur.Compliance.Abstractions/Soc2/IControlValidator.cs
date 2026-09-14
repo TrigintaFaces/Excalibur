@@ -26,6 +26,26 @@ public interface IControlValidator
 	/// <param name="controlId">The control identifier to validate.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The validation result.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This operation is total: it has no precondition on <paramref name="controlId"/>.</b> An
+	/// identifier outside <see cref="SupportedControls"/> is an ordinary input, not a caller error,
+	/// and MUST produce a result saying the control was not assessed here -- never a thrown
+	/// exception, and never a verdict about a control this validator did not examine.
+	/// </para>
+	/// <para>
+	/// This was already the contract every implementation and caller depended on, and it was written
+	/// down nowhere. An implementor reading only the signature would have been entitled to throw
+	/// <see cref="ArgumentException"/>, which breaks the dispatching service -- it forwards whatever
+	/// identifier it is given -- and the shipped conformance kit, which calls this method with an
+	/// unsupported identifier and requires a result.
+	/// </para>
+	/// <para>
+	/// The only exception an implementation may propagate is
+	/// <see cref="OperationCanceledException"/>, when <paramref name="cancellationToken"/> is
+	/// signalled.
+	/// </para>
+	/// </remarks>
 	Task<ControlValidationResult> ValidateAsync(
 		string controlId,
 		CancellationToken cancellationToken);

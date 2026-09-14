@@ -96,10 +96,6 @@ public static class SqlServerErasureStoreServiceCollectionExtensions
 	/// </code>
 	/// </para>
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSqlServerErasureStoreFromConfiguration(
 		this IServiceCollection services,
 		string connectionStringName,

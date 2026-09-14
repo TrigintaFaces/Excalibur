@@ -4,6 +4,9 @@
 using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch.Resilience;
+using Excalibur.Dispatch.Resilience.Polly;
+
+using MsOptions = Microsoft.Extensions.Options.Options;
 using Excalibur.Dispatch.Options.Resilience;
 
 using Microsoft.Extensions.Logging;
@@ -32,39 +35,52 @@ public class RetryPolicyMicroBenchmarks
 	[GlobalSetup]
 	public void GlobalSetup()
 	{
-		var options = new RetryPolicyOptions
+		var options = new RetryOptions
 		{
 			MaxRetryAttempts = 3,
-			Backoff = new RetryBackoffOptions
-			{
-				BaseDelay = TimeSpan.FromMilliseconds(1),
-				MaxDelay = TimeSpan.FromMilliseconds(1),
-				EnableJitter = false,
-			},
+			BaseDelay = TimeSpan.FromMilliseconds(1),
+			MaxDelay = TimeSpan.FromMilliseconds(1),
+			UseJitter = false,
 		};
+
+		// RetryOptions ships a non-empty default deny-list (including InvalidOperationException, the
+		// exception this benchmark throws) so the FilterMode cases below can isolate exactly the code
+		// path each one names -- starting from RetryPolicyOptions' empty-by-default lists.
+		options.NonRetryableExceptions.Clear();
 
 		switch (FilterMode)
 		{
 			case RetryFilterMode.RetriableOnly:
-				_ = options.RetriableExceptions.Add(typeof(InvalidOperationException));
+				_ = options.RetryableExceptions.Add(typeof(InvalidOperationException));
 				break;
 			case RetryFilterMode.NonRetriableSet:
-				_ = options.NonRetriableExceptions.Add(typeof(NotSupportedException));
+				_ = options.NonRetryableExceptions.Add(typeof(NotSupportedException));
 				break;
 		}
 
-		var backoff = DelayMode switch
+		var delay = DelayMode switch
 		{
-			RetryDelayMode.ZeroDelay => new FixedBackoffCalculator(TimeSpan.Zero),
-			RetryDelayMode.FixedDelay1Ms => new FixedBackoffCalculator(TimeSpan.FromMilliseconds(1)),
+			RetryDelayMode.ZeroDelay => TimeSpan.Zero,
+			RetryDelayMode.FixedDelay1Ms => TimeSpan.FromMilliseconds(1),
 			_ => throw new ArgumentOutOfRangeException(nameof(DelayMode), DelayMode, "Unsupported retry delay mode."),
 		};
 
+		// The in-box duplicate retry policy was deleted; Polly is the framework's retry implementation,
+		// so this measures what a consumer actually runs. Polly owns the delay, so the parameterised delay
+		// mode is expressed through the options rather than through a backoff calculator.
 		var logger = LoggingMode == RetryLoggingMode.Enabled
-			? (ILogger<DefaultRetryPolicy>)new EnabledNoOpLogger<DefaultRetryPolicy>()
-			: NullLogger<DefaultRetryPolicy>.Instance;
+			? (ILogger<PollyRetryPolicyAdapter>)new EnabledNoOpLogger<PollyRetryPolicyAdapter>()
+			: NullLogger<PollyRetryPolicyAdapter>.Instance;
 
-		_policy = new DefaultRetryPolicy(options, backoff, logger);
+		_policy = new PollyRetryPolicyAdapter(
+			MsOptions.Create(new PollyRetryOptions
+			{
+				MaxRetryAttempts = options.MaxRetryAttempts,
+				BaseDelay = delay,
+				MaxDelay = delay,
+				UseJitter = false,
+			}),
+			logger);
 	}
 
 	[Benchmark(Baseline = true, Description = "Retry success after transient failures")]

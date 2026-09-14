@@ -506,6 +506,21 @@ public static class CachingServiceCollectionExtensions
 			return;
 		}
 
+		// When the original registration names a concrete TYPE (Add{X}Cache(...) extensions --
+		// including AddStackExchangeRedisCache, which registers ServiceDescriptor.Singleton<IDistributedCache,
+		// RedisCacheImpl>() -- register that type as ITSELF, at the SAME lifetime, so the container builds and
+		// owns the instance ResolveOriginalDistributedCache below resolves. Without this, that method's
+		// ActivatorUtilities.CreateInstance call constructs an instance the container never tracks: RedisCache
+		// is IDisposable (it owns the ConnectionMultiplexer), so every backend created this way leaked its
+		// connection for the container's entire lifetime. Instance- and factory-based original registrations
+		// are unaffected -- disposal ownership for those was already the consumer's or the container's,
+		// exactly as before.
+		var implementationType = original.GetImplementationType();
+		if (implementationType is not null)
+		{
+			services.Add(ServiceDescriptor.Describe(implementationType, implementationType, original.Lifetime));
+		}
+
 		services[index] = ServiceDescriptor.Describe(
 			typeof(IDistributedCache),
 			sp =>
@@ -526,9 +541,13 @@ public static class CachingServiceCollectionExtensions
 				// and the breaker stays closed forever against a backend that is failing every request.
 				var circuitBreaker = sp.GetService<ICircuitBreakerPolicy>();
 
+				// Honour a consumer-registered TimeProvider so the deadline runs on the same clock as the
+				// rest of their application; TimeProvider.System when they have registered none.
+				var timeProvider = sp.GetService<TimeProvider>();
+
 				return inner is IBufferDistributedCache buffered
-					? new BufferTimeoutDistributedCache(buffered, options, meterFactory, logger, circuitBreaker)
-					: new TimeoutDistributedCache(inner, options, meterFactory, logger, circuitBreaker);
+					? new BufferTimeoutDistributedCache(buffered, options, meterFactory, logger, circuitBreaker, timeProvider)
+					: new TimeoutDistributedCache(inner, options, meterFactory, logger, circuitBreaker, timeProvider);
 			},
 			original.Lifetime);
 
@@ -542,10 +561,20 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="services">The service provider resolving the registration.</param>
 	/// <returns>The undecorated distributed cache.</returns>
 	/// <remarks>
+	/// <para>
 	/// The keyed-safe accessors are used deliberately. ServiceDescriptor.ImplementationType,
 	/// .ImplementationInstance and .ImplementationFactory THROW on a keyed descriptor, so reading them
 	/// directly would turn a consumer registering IDistributedCache as a keyed service into an exception at
 	/// container build. A boundary guard enforces this repo-wide.
+	/// </para>
+	/// <para>
+	/// The type-based case resolves the implementation type AS A SERVICE
+	/// (<c>services.GetRequiredService(type)</c>), not via <c>ActivatorUtilities.CreateInstance</c>.
+	/// <see cref="BoundDistributedCacheLatency"/> registers that type at the original registration's own
+	/// lifetime immediately before replacing the <see cref="IDistributedCache"/> entry, so this resolves
+	/// through the container's normal tracked-instance path -- a disposable backend (<c>RedisCache</c>) is
+	/// then disposed with the container instead of leaking for its entire lifetime.
+	/// </para>
 	/// </remarks>
 	private static IDistributedCache ResolveOriginalDistributedCache(ServiceDescriptor original, IServiceProvider services)
 	{
@@ -560,7 +589,7 @@ public static class CachingServiceCollectionExtensions
 			return (IDistributedCache)factory(services);
 		}
 
-		return (IDistributedCache)ActivatorUtilities.CreateInstance(services, original.GetImplementationType()!);
+		return (IDistributedCache)services.GetRequiredService(original.GetImplementationType()!);
 	}
 
 	/// <summary>
@@ -580,48 +609,24 @@ public static class CachingServiceCollectionExtensions
 		// Bound the distributed backend so a slow L2 degrades to a miss rather than stalling the request.
 		BoundDistributedCacheLatency(services);
 
-		// Register tag tracker: auto-selects DistributedCacheTagTracker for Distributed/Hybrid
-		// modes with a real distributed cache, or InMemoryCacheTagTracker otherwise.
+		// Register tag tracker: DistributedCacheTagTracker for Distributed/Hybrid modes with a real
+		// distributed cache, InMemoryCacheTagTracker otherwise. A tag's current state is a single
+		// version stamp under one key, so every IDistributedCache backend resolves and invalidates it
+		// with a single atomic Get/Set -- there is no multi-key read-modify-write left to lose a
+		// concurrent write, so no backend needs a specialized tracker of its own.
 		services.TryAddSingleton<ICacheTagTracker>(sp =>
 		{
 			var opts = sp.GetRequiredService<IOptions<CacheOptions>>().Value;
 			if (opts.CacheMode is CacheMode.Distributed or CacheMode.Hybrid)
 			{
-				// Prefer the Redis-native tracker (atomic SADD/SMEMBERS/SREM — no lost-update race) whenever a
-				// real Redis connection is registered. This is the correct multi-instance tracker; the generic
-				// DistributedCacheTagTracker below is a best-effort fallback for non-Redis IDistributedCache
-				// backends (e.g. SQL Server) whose abstraction lacks an atomic set primitive.
-				var multiplexer = sp.GetService<StackExchange.Redis.IConnectionMultiplexer>();
-				if (multiplexer is not null)
-				{
-					return new RedisCacheTagTracker(
-						multiplexer,
-						sp.GetRequiredService<IOptions<CacheOptions>>());
-				}
-
 				var distributedCache = sp.GetService<IDistributedCache>();
 				if (distributedCache is not null
 					&& !string.Equals(distributedCache.GetType().Name, "MemoryDistributedCache", StringComparison.Ordinal))
 				{
-					// Tell the consumer what they are getting. This tracker maintains its tag-to-keys set with a
-					// read-modify-write, because IDistributedCache exposes no atomic set-add and no compare-and-swap
-					// to build one on. Two instances registering different keys under one tag concurrently can lose
-					// the earlier write, and a key dropped from the set is never invalidated when its tag is, so that
-					// entry serves stale data until its own expiry. Redis does not have this problem and is selected
-					// above when present. Saying so at startup is the difference between a known limitation and a
-					// silent one.
-					sp.GetService<ILoggerFactory>()
-						?.CreateLogger("Excalibur.Dispatch.Caching")
-						?.LogWarning(
-							"Cache tag invalidation is running on a best-effort tracker over {CacheType}. Concurrent "
-							+ "registrations under one tag can drop a key, and a dropped key is not invalidated with its "
-							+ "tag, so that entry serves stale data until it expires. Register a Redis connection for "
-							+ "atomic tag tracking, or keep entry lifetimes short enough that staleness is acceptable.",
-							distributedCache.GetType().Name);
-
 					return new DistributedCacheTagTracker(
 						distributedCache,
-						sp.GetRequiredService<IOptions<CacheOptions>>());
+						sp.GetRequiredService<IOptions<CacheOptions>>(),
+						sp.GetService<TimeProvider>());
 				}
 			}
 
@@ -635,6 +640,13 @@ public static class CachingServiceCollectionExtensions
 		// Register conditional wrapper middleware concrete types for pipeline resolution
 		services.TryAddSingleton<CachingMiddlewareWrapper>();
 		services.TryAddSingleton<CacheInvalidationMiddlewareWrapper>();
+
+		// Union in as IDispatchMiddleware -- without this the wrappers were only reachable via
+		// UseCaching()'s explicit UseMiddleware<T>() calls, so the bare AddDispatchCaching() form (and
+		// its Memory/Redis/Hybrid/Distributed siblings, which all funnel through this method) registered
+		// the types but never ran them.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, CachingMiddlewareWrapper>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, CacheInvalidationMiddlewareWrapper>());
 
 		// DefaultCacheKeyBuilder takes the concrete serializer, so caching composed on its own must seat it
 		// rather than rely on the consumer also having called AddDispatchPipeline/AddDispatchSerializer.

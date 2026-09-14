@@ -30,7 +30,7 @@ public sealed class ExcaliburSqlServerOptionsShould : UnitTestBase
     public void HaveUseInboxTrueByDefault()
     {
         var sut = new ExcaliburSqlServerOptions();
-        sut.UseInbox.ShouldBeTrue();
+        sut.UseInboxStore.ShouldBeTrue();
     }
 
     [Fact]

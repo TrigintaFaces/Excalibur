@@ -118,9 +118,9 @@ public sealed class FirestoreCdcStateStoreContainerFixture : ContainerFixtureBas
 [Trait("Component", "CDC")]
 [Trait("Database", "Firestore")]
 [Trait("SubComponent", "StateStoreOptimisticConcurrency")]
+[Collection(FirestoreCdcStateStoreTestCollection.CollectionName)]
 #pragma warning disable CA1812 // Instantiated by the xUnit test runner.
 public sealed class FirestoreCdcStateStoreOptimisticConcurrencyIntegrationShould
-	: IClassFixture<FirestoreCdcStateStoreContainerFixture>
 {
 	private const string CollectionPath = "users/orders";
 

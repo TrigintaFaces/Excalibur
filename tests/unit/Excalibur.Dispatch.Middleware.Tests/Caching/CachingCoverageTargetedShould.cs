@@ -93,7 +93,7 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 		options.CircuitBreaker.Enabled.ShouldBeTrue();
 		options.CircuitBreaker.FailureThreshold.ShouldBe(5);
 		options.CircuitBreaker.FailureWindow.ShouldBe(TimeSpan.FromMinutes(1));
-		options.CircuitBreaker.OpenDuration.ShouldBe(TimeSpan.FromSeconds(30));
+		options.CircuitBreaker.BreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
 		options.CircuitBreaker.HalfOpenTestLimit.ShouldBe(3);
 		options.CircuitBreaker.HalfOpenSuccessThreshold.ShouldBe(2);
 		options.TypeNameCache.MaxCacheSize.ShouldBe(10_000);
@@ -112,7 +112,7 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 		options.CircuitBreaker.Enabled = false;
 		options.CircuitBreaker.FailureThreshold = 10;
 		options.CircuitBreaker.FailureWindow = TimeSpan.FromMinutes(5);
-		options.CircuitBreaker.OpenDuration = TimeSpan.FromSeconds(60);
+		options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(60);
 		options.CircuitBreaker.HalfOpenTestLimit = 5;
 		options.CircuitBreaker.HalfOpenSuccessThreshold = 4;
 		options.TypeNameCache.MaxCacheSize = 50_000;
@@ -124,7 +124,7 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 		options.CircuitBreaker.Enabled.ShouldBeFalse();
 		options.CircuitBreaker.FailureThreshold.ShouldBe(10);
 		options.CircuitBreaker.FailureWindow.ShouldBe(TimeSpan.FromMinutes(5));
-		options.CircuitBreaker.OpenDuration.ShouldBe(TimeSpan.FromSeconds(60));
+		options.CircuitBreaker.BreakDuration.ShouldBe(TimeSpan.FromSeconds(60));
 		options.CircuitBreaker.HalfOpenTestLimit.ShouldBe(5);
 		options.CircuitBreaker.HalfOpenSuccessThreshold.ShouldBe(4);
 		options.TypeNameCache.MaxCacheSize.ShouldBe(50_000);

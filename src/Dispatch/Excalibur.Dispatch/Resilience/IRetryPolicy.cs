@@ -5,18 +5,17 @@
 namespace Excalibur.Dispatch.Resilience;
 
 /// <summary>
-/// Zero-dependency retry policy interface for executing operations with retry logic.
+/// Retry policy interface for executing operations with retry logic, carrying no third-party types.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This interface provides a minimal abstraction for retry policies that does not depend
-/// on any external libraries like Polly. It allows the core Dispatch package to remain
-/// dependency-free while still supporting advanced retry implementations via optional packages.
+/// on any external libraries like Polly. It keeps Polly off the core Dispatch package's dependency
+/// list while still supporting advanced retry implementations via optional packages.
 /// </para>
 /// <para>
 /// Default implementations include:
 /// <list type="bullet">
-///   <item><see cref="DefaultRetryPolicy"/> - Uses <see cref="IBackoffCalculator"/> for retry delays</item>
 ///   <item><see cref="NoOpRetryPolicy"/> - Pass-through policy that doesn't retry</item>
 /// </list>
 /// </para>

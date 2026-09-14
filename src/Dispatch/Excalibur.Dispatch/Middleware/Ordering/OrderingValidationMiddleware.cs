@@ -13,12 +13,19 @@ namespace Excalibur.Dispatch.Middleware.Ordering;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This middleware is <strong>opt-in and fail-closed</strong>. Ordering enforcement is opted into by
-/// registering it (<c>AddOrderingValidation()</c>); once active it requires <em>every</em> message it
-/// sees to carry an ordering sequence — stamped automatically at a first-party transport receive
-/// boundary (Kafka offset, Azure Service Bus <c>SequenceNumber</c>) or explicitly by the consumer via
-/// <see cref="OrderingContextExtensions.SetOrderingSequence(IMessageContext, long, string?)"/> (the
-/// opt-in arm for transports without a native monotonic sequence, e.g. Pub/Sub).
+/// This middleware is <strong>opt-in and fail-closed</strong>, and it enforces only on messages that
+/// arrived through a receive path where ordering applies. It is registered once for the whole process
+/// and sees every dispatch, so an outbound send or an in-process command — neither of which has an
+/// ordering sequence, or any reason to — passes through untouched.
+/// </para>
+/// <para>
+/// A message enters that scope when the bridge from receiving to dispatching calls
+/// <c>TransportOrderingMetadata.TryStampOrdering</c>, which marks the context and lifts the transport's
+/// native sequence (a Kafka offset, an Azure Service Bus <c>SequenceNumber</c>) onto it. Where the
+/// transport has no native monotonic sequence — Pub/Sub among them — the consumer stamps it with
+/// <see cref="OrderingContextExtensions.SetOrderingSequence(IMessageContext, long, string?)"/> and marks
+/// the context with <see cref="OrderingContextExtensions.MarkOrderingEnforced(IMessageContext)"/>.
+/// Nothing stamps this automatically: the framework has no receive-to-dispatch boundary of its own.
 /// </para>
 /// <para>
 /// <strong>Fail-closed completeness:</strong> a message reaching this active middleware with <em>no</em>
@@ -51,16 +58,27 @@ internal sealed partial class OrderingValidationMiddleware : DispatchMiddlewareB
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(nextDelegate);
 
-		// Fail-closed completeness: this middleware is active, so a message MUST carry a resolvable
-		// ordering sequence (auto-stamped by a native-sequence transport or consumer-stamped). A missing
-		// sequence is an advertised-but-unfed misconfiguration — reject it rather than silently pass
-		// (a silent pass would re-open the original non-enforcing degrade).
+		// Fail-closed, but only within scope. A message that entered a receive path where ordering is
+		// enforced MUST carry a resolvable sequence; arriving without one means the transport did not
+		// supply it and nothing stamped it, so reject rather than pass silently. A message outside that
+		// scope has no sequence to check and is none of this middleware's business.
 		if (!context.TryGetOrderingSequence(out var sequence, out var orderingKey))
 		{
+			if (!context.IsOrderingEnforced())
+			{
+				// This message never entered an ordered receive path, so there is no sequence it was
+				// ever going to carry. This middleware is registered once for the whole process and
+				// sees every dispatch -- outbound sends and plain in-process commands included -- so
+				// without this check, registering it would reject every message in the application.
+				return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+			}
+
 			throw new OutOfOrderMessageException(
-				"Ordering validation is active but the message carries no ordering sequence. Stamp one via "
-				+ "SetOrderingSequence (auto-stamped for Kafka/Azure Service Bus; consumer-stamped otherwise) "
-				+ "or do not register AddOrderingValidation for this pipeline.");
+				"This message arrived through a receive path where ordering is enforced, but carries no "
+				+ "ordering sequence. The transport did not supply one and none was stamped. Stamp it in "
+				+ "the bridge that turns a received message into a dispatch, by calling "
+				+ "TransportOrderingMetadata.TryStampOrdering for a transport with a native sequence, or "
+				+ "SetOrderingSequence directly for one without.");
 		}
 
 		// verify order BEFORE processing, but advance the watermark only AFTER the handler

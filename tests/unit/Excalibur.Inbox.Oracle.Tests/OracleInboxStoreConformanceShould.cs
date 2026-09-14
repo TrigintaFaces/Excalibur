@@ -13,6 +13,7 @@ using Tests.Shared.Conformance.Inbox;
 using Xunit;
 
 #pragma warning disable CA1812 // Internal class is never instantiated
+#pragma warning disable CA2100 // SQL strings are safe - schema/table names are fixture constants
 
 namespace Excalibur.Inbox.Oracle.Tests;
 
@@ -66,5 +67,32 @@ public sealed class OracleInboxStoreConformanceShould : InboxStoreConformanceTes
 	protected override async Task CleanupAsync()
 	{
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+	}
+
+	// 47ruyr (2mek4x follow-up): a real, provider-side persistence rejection -- never a mocked client.
+	// Oracle's RENAME makes every statement referencing the table fail with a genuine ORA-00942
+	// ("table or view does not exist"), then renames it back.
+	private const string FaultTableName = "INBOX_MESSAGES_2MEK4X_FAULT";
+
+	/// <inheritdoc/>
+	protected override async Task InjectPersistenceFaultAsync()
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		await using var command = connection.CreateCommand();
+		command.CommandText = $"RENAME {_fixture.TableName} TO {FaultTableName}";
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	protected override async Task RemovePersistenceFaultAsync()
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		await using var command = connection.CreateCommand();
+		command.CommandText = $"RENAME {FaultTableName} TO {_fixture.TableName}";
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 }

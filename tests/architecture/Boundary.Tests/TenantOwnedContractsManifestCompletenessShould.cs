@@ -131,6 +131,17 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         ["IBackoffSchedulableOutboxStore"] =
             "Segregated capability facet of the manifested IOutboxStore: backoff scheduling over the same " +
             "outbox rows. Not a distinct store.",
+        ["IClaimScopedOutboxStore"] =
+            "Segregated capability facet of the manifested IOutboxStore (composition, not inheritance): " +
+            "the claim-scoped variants of mark-failed and backoff scheduling over the same outbox rows " +
+            "already gated via IOutboxStore. Not a distinct store. The exclusion is a statement about the " +
+            "CONTRACT -- it needs no separate tenancy manifestation because its rows are reached through " +
+            "IOutboxStore's gate -- and is NOT a clearance for any provider's implementation of it, which " +
+            "this contract-level guard structurally cannot see. Do not \"strengthen\" these statements with " +
+            "a tenant predicate: both members are keyed on message id, and per ADR-345 a tenant term on a " +
+            "statement already addressed by a primary key is a defect rather than defence-in-depth, because " +
+            "it selects a subset of an at-most-one-row result and so can only turn the correct row into " +
+            "zero rows -- the mechanism that once stopped the outbox marking messages it had claimed.",
         ["IClaimableInboxStore"] =
             "Segregated capability facet of the manifested IInboxStore (explicitly composition, not " +
             "inheritance — see its remarks): atomic claim-before-execute over the same inbox rows. Not a " +
@@ -182,6 +193,15 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         ["IDataInventoryQueryStore"] =
             "AMBIGUOUS (flagged for review). Query facet of IDataInventoryStore on the same instance; same " +
             "reasoning, and it inherits whatever classification that contract is given.",
+        ["IFencedClaimScopedOutboxStore"] =
+            "Segregated fencing facet of the manifested IOutboxStore, on the same store instance: one " +
+            "member, MarkFailedAsync, addressed by messageId plus the caller's tenure and claim. The " +
+            "message is selected by primary key, so a tenant term there could not admit a foreign row and " +
+            "its only reachable effect would be turning the correct row into zero. Not a distinct store.",
+        ["IFencedDeadLetterableOutboxStore"] =
+            "Segregated fencing facet of the manifested IOutboxStore, on the same store instance: one " +
+            "member, MarkDeadLetteredAsync, addressed by messageId plus the caller's tenure. Same " +
+            "primary-key reasoning as IFencedClaimScopedOutboxStore. Not a distinct store.",
         ["IDurableAuditStore"] =
             "Segregated capability facet of the manifested IAuditStore: durable-write guarantees over the " +
             "same audit rows. Not a distinct store.",

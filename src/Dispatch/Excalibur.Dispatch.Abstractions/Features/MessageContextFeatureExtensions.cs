@@ -153,6 +153,18 @@ public static class MessageContextFeatureExtensions
 	public static IMessageTransactionFeature GetOrCreateTransactionFeature(this IMessageContext context) =>
 		context.GetOrCreateFeature<IMessageTransactionFeature, MessageTransactionFeature>();
 
+	/// <summary>
+	/// Gets the inbox lease feature, or <see langword="null"/> if not set.
+	/// </summary>
+	public static IInboxLeaseFeature? GetInboxLeaseFeature(this IMessageContext context) =>
+		context.GetFeature<IInboxLeaseFeature>();
+
+	/// <summary>
+	/// Gets or creates the inbox lease feature with default implementation.
+	/// </summary>
+	public static IInboxLeaseFeature GetOrCreateInboxLeaseFeature(this IMessageContext context) =>
+		context.GetOrCreateFeature<IInboxLeaseFeature, InboxLeaseFeature>();
+
 	// ===== Convenience property accessors (backward-compat friendly) =====
 
 	/// <summary>

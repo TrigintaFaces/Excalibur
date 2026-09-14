@@ -22,6 +22,9 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 		IOptions<Soc2Options> options,
 		IControlValidationService controlValidation)
 	{
+		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(controlValidation);
+
 		_options = options.Value;
 		_controlValidation = controlValidation;
 	}
@@ -63,7 +66,12 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 						GapId = $"{criterion}-{Guid.NewGuid():N}",
 						Criterion = criterion,
 						Description = gap,
-						Severity = DetermineGapSeverity(criterionStatus.EffectivenessScore),
+						// No score means the criterion was never assessed, so there is nothing to grade the
+						// gap against. Critical is the safe reading: an unassessed criterion is the one a
+						// reader most needs to look at, and understating it would bury it.
+						Severity = criterionStatus.EffectivenessScore is { } score
+							? DetermineGapSeverity(score)
+							: GapSeverity.Critical,
 						Remediation = $"Review and remediate: {gap}",
 						IdentifiedAt = DateTimeOffset.UtcNow
 					});
@@ -105,7 +113,11 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 					Description = criterion.GetDisplayName(),
 					Controls = controls,
 					TestResults = null, // Type I doesn't include test results
-					IsMet = status.CriterionStatuses.TryGetValue(criterion, out var cs) && cs.IsMet
+					// The section now carries the same three states as the criterion it reports, so the
+					// distinction no longer stops at CriterionStatus and fails to reach the report.
+					Outcome = status.CriterionStatuses.TryGetValue(criterion, out var cs)
+						? cs.Outcome
+						: CriterionOutcome.NotAssessed
 				});
 			}
 		}
@@ -155,7 +167,11 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 					Description = criterion.GetDisplayName(),
 					Controls = controls,
 					TestResults = testResults,
-					IsMet = status.CriterionStatuses.TryGetValue(criterion, out var cs) && cs.IsMet
+					// The section now carries the same three states as the criterion it reports, so the
+					// distinction no longer stops at CriterionStatus and fails to reach the report.
+					Outcome = status.CriterionStatuses.TryGetValue(criterion, out var cs)
+						? cs.Outcome
+						: CriterionOutcome.NotAssessed
 				});
 			}
 		}
@@ -178,26 +194,10 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 	}
 
 	/// <inheritdoc />
-	public async Task<ControlValidationResult> ValidateControlAsync(
+	public Task<IReadOnlyList<ControlValidationResult>> ValidateCriterionAsync(
 		TrustServicesCriterion criterion,
-		CancellationToken cancellationToken)
-	{
-		var controlIds = _controlValidation.GetControlsForCriterion(criterion);
-		if (controlIds.Count == 0)
-		{
-			return new ControlValidationResult
-			{
-				ControlId = criterion.ToString(),
-				IsConfigured = false,
-				IsEffective = false,
-				EffectivenessScore = 0,
-				ConfigurationIssues = [$"No controls registered for criterion {criterion}"]
-			};
-		}
-
-		// Validate the first control for this criterion
-		return await _controlValidation.ValidateControlAsync(controlIds[0], cancellationToken).ConfigureAwait(false);
-	}
+		CancellationToken cancellationToken) =>
+		_controlValidation.ValidateCriterionAsync(criterion, cancellationToken);
 
 	/// <inheritdoc />
 	public Task<AuditEvidence> GetEvidenceAsync(
@@ -206,25 +206,20 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 		DateTimeOffset periodEnd,
 		CancellationToken cancellationToken)
 	{
-		// In a real implementation, this would query the evidence store
-		var evidence = new AuditEvidence
-		{
-			Criterion = criterion,
-			PeriodStart = periodStart,
-			PeriodEnd = periodEnd,
-			Items = [],
-			Summary = new EvidenceSummary
-			{
-				TotalItems = 0,
-				ByType = new Dictionary<EvidenceType, int>(),
-				AuditLogEntries = 0,
-				ConfigurationSnapshots = 0,
-				TestResults = 0
-			},
-			ChainOfCustodyHash = ComputeChainOfCustodyHash([])
-		};
+		// This build collects no SOC 2 evidence: there is no evidence store behind this member, and
+		// returning an empty AuditEvidence was worse than returning nothing. It carried a real SHA-256
+		// chain-of-custody hash over the empty set, so an auditor received a well-formed, cryptographically
+		// signed artifact attesting to evidence that was never collected -- and nothing in it said so.
+		// Failing is the only answer that cannot be mistaken for evidence.
+		_ = criterion;
+		_ = periodStart;
+		_ = periodEnd;
+		_ = cancellationToken;
 
-		return Task.FromResult(evidence);
+		throw new NotSupportedException(
+			"No audit-evidence store is configured, so no evidence can be produced for this criterion. "
+			+ "Collecting and retaining SOC 2 evidence is the deploying organisation's responsibility; this "
+			+ "framework does not gather it. Obtain evidence from the system that retains it.");
 	}
 
 	/// <inheritdoc />
@@ -234,9 +229,16 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 		DateTimeOffset periodEnd,
 		CancellationToken cancellationToken)
 	{
-		// In a real implementation, this would generate the actual export
-		// For now, return an empty array - the report export service handles this
-		return Task.FromResult(Array.Empty<byte>());
+		// An empty byte[] is indistinguishable from a successful export of an empty period, which is why
+		// this cannot stay: the caller is handing the result to an auditor. See GetEvidenceAsync above.
+		_ = format;
+		_ = periodStart;
+		_ = periodEnd;
+		_ = cancellationToken;
+
+		throw new NotSupportedException(
+			"No audit-evidence store is configured, so there is nothing to export. Produce the auditor "
+			+ "package from the system that retains the evidence.");
 	}
 
 	/// <inheritdoc />
@@ -256,41 +258,47 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 	{
 		if (results.Count == 0)
 		{
-			return new CriterionStatus
-			{
-				Criterion = criterion,
-				IsMet = false,
-				EffectivenessScore = 0,
-				LastValidated = DateTimeOffset.UtcNow,
-				EvidenceCount = 0,
-				Gaps = ["No controls configured for this criterion"]
-			};
+			// Nothing supporting this criterion was assessed. The previous shape had no way to say that:
+			// it reported met=false with LastValidated = UtcNow, so "never checked" reached the auditor as
+			// "checked just now, and failed".
+			return CriterionStatus.NotAssessed(criterion, "No controls configured for this criterion");
 		}
 
-		var avgScore = (int)results.Average(r => r.EffectivenessScore);
+		// The WORST band established, not a mean. A mean over control bands is monotone in the wrong
+		// direction: the bands deliberately place a proven violation BELOW a control nobody could
+		// verify -- right at the control level, because a finding is knowledge and an open question is
+		// not -- and averaging inverts that. Measured: two violating controls score 20 (Critical),
+		// while replacing one of them with an unverified control scores 30 (High). Examining less
+		// produced the friendlier number and the softer gap severity beside it.
+		//
+		// A criterion is no stronger than its weakest control, so Min says what the mean could not.
+		var worstScore = results.Min(r => r.EffectivenessScore);
 		var allEffective = results.All(r => r.IsEffective);
 		var gaps = results
 			.SelectMany(r => r.ConfigurationIssues)
 			.ToList();
 
-		return new CriterionStatus
-		{
-			Criterion = criterion,
-			IsMet = allEffective && avgScore >= 80,
-			EffectivenessScore = avgScore,
-			LastValidated = results.Max(r => r.ValidatedAt),
-			EvidenceCount = results.Sum(r => r.Evidence.Count),
-			Gaps = gaps
-		};
+		return CriterionStatus.Assessed(
+			criterion,
+			met: allEffective && worstScore >= 80,
+			effectivenessScore: worstScore,
+			lastValidated: results.Max(r => r.ValidatedAt),
+			controlsAssessed: results.Count,
+			evidenceCount: results.Sum(r => r.Evidence.Count),
+			gaps: gaps);
 	}
 
 	private static CategoryStatus BuildCategoryStatus(
 		TrustServicesCategory category,
 		List<CriterionStatus> criterionStatuses)
 	{
-		var metCount = criterionStatuses.Count(c => c.IsMet);
-		var percentage = criterionStatuses.Count > 0
-			? metCount * 100 / criterionStatuses.Count
+		// Unassessed criteria leave the percentage entirely. Counting them as failures understated
+		// compliance; dropping them silently would overstate it, so the count of what was actually
+		// assessed travels in the result rather than being implied by the denominator.
+		var assessed = criterionStatuses.Where(c => c.Outcome != CriterionOutcome.NotAssessed).ToList();
+		var metCount = assessed.Count(c => c.Outcome == CriterionOutcome.Met);
+		var percentage = assessed.Count > 0
+			? metCount * 100 / assessed.Count
 			: 0;
 
 		return new CategoryStatus
@@ -301,8 +309,11 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 				: percentage >= 50 ? ComplianceLevel.PartiallyCompliant
 				: ComplianceLevel.NonCompliant,
 			CompliancePercentage = percentage,
-			ActiveControls = criterionStatuses.Count,
-			ControlsWithIssues = criterionStatuses.Count - metCount
+			// Both counts are over what was ASSESSED. Subtracting metCount from the full list would put
+			// every unassessed criterion in the with-issues column, which is the old conflation moved.
+			CriteriaAssessed = assessed.Count,
+			CriteriaEnabled = criterionStatuses.Count,
+			CriteriaWithIssues = assessed.Count - metCount
 		};
 	}
 
@@ -356,7 +367,8 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 		{
 			ExceptionId = g.GapId,
 			Criterion = g.Criterion,
-			ControlId = "N/A",
+			// A gap is raised against the criterion; it names a control only when one is at fault.
+			ControlId = null,
 			Description = g.Description,
 			ManagementResponse = null,
 			RemediationPlan = g.Remediation
@@ -371,15 +383,6 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 			Infrastructure = ["Cloud-agnostic", "Pluggable providers"],
 			DataTypes = ["Domain Events", "Commands", "Queries"]
 		};
-
-	private static string ComputeChainOfCustodyHash(IReadOnlyList<EvidenceItem> items)
-	{
-		// In a real implementation, this would compute a cryptographic hash
-		return Convert.ToBase64String(
-			System.Security.Cryptography.SHA256.HashData(
-				System.Text.Encoding.UTF8.GetBytes(
-					string.Join("|", items.Select(i => i.EvidenceId)))));
-	}
 
 	private Task<IReadOnlyList<ControlDescription>> GetControlDescriptionsAsync(
 		TrustServicesCriterion criterion,

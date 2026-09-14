@@ -1,0 +1,17 @@
+#nullable enable
+Excalibur.A3.AspNetCore.GrantAuthorizationHttpOptions
+Excalibur.A3.AspNetCore.GrantAuthorizationHttpOptions.DefaultTenantId.get -> string?
+Excalibur.A3.AspNetCore.GrantAuthorizationHttpOptions.DefaultTenantId.set -> void
+Excalibur.A3.AspNetCore.GrantAuthorizationHttpOptions.GrantAuthorizationHttpOptions() -> void
+Excalibur.A3.AspNetCore.GrantAuthorizationHttpOptions.TenantIdClaimTypes.get -> System.Collections.Generic.IList<string!>!
+Excalibur.A3.AspNetCore.GrantAuthorizationHttpOptions.UserIdClaimTypes.get -> System.Collections.Generic.IList<string!>!
+Excalibur.A3.AspNetCore.GrantPolicyName
+Excalibur.A3.AspNetCore.RequireGrantAttribute
+Excalibur.A3.AspNetCore.RequireGrantAttribute.RequireGrantAttribute(string! activityName, string! resourceType) -> void
+Excalibur.A3.AspNetCore.RequireGrantAttribute.RequireGrantAttribute(string! activityName, string! resourceType, string! resourceIdRouteValue) -> void
+Microsoft.Extensions.DependencyInjection.GrantAuthorizationHttpServiceCollectionExtensions
+const Excalibur.A3.AspNetCore.GrantPolicyName.Prefix = "grant:" -> string!
+static Excalibur.A3.AspNetCore.GrantPolicyName.For(string! activityName, string! resourceType) -> string!
+static Excalibur.A3.AspNetCore.GrantPolicyName.ForResource(string! activityName, string! resourceType, string! resourceId) -> string!
+static Excalibur.A3.AspNetCore.GrantPolicyName.ForRouteValue(string! activityName, string! resourceType, string! routeValueName) -> string!
+static Microsoft.Extensions.DependencyInjection.GrantAuthorizationHttpServiceCollectionExtensions.AddHttpGrantAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.A3.AspNetCore.GrantAuthorizationHttpOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

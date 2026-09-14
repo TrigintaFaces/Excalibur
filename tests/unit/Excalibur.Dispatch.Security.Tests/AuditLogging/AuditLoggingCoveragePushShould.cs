@@ -672,7 +672,7 @@ public sealed class AuditLoggingCoveragePushShould
 		}, CancellationToken.None);
 
 		// Act
-		var lastEvent = await store.GetLastEventAsync(null, CancellationToken.None);
+		var lastEvent = await store.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		lastEvent.ShouldNotBeNull();
@@ -1244,7 +1244,7 @@ public sealed class AuditLoggingCoveragePushShould
 			DateTimeOffset startDate, DateTimeOffset endDate, CancellationToken cancellationToken = default)
 			=> Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId = null, CancellationToken cancellationToken = default)
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken = default)
 			=> Task.FromResult<AuditEvent?>(null);
 	}
 

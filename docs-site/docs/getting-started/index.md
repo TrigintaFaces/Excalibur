@@ -102,7 +102,7 @@ var app = builder.Build();
 Dispatching an action with no registered handler is a configuration fault, not a request outcome, so it
 throws a `HandlerNotRegisteredException` naming the action's full type name and both ways to register it —
 the same way `IServiceProvider.GetRequiredService` behaves for an unregistered service. It never arrives
-as a failed `IMessageResult`, so branching on `IsSuccess` cannot mistake your missing registration for a
+as a failed `IMessageResult`, so branching on `Succeeded` cannot mistake your missing registration for a
 bad request from your caller. Let it reach your error handler: unhandled, it surfaces as a 500 in
 development with the fix in the message.
 
@@ -145,7 +145,7 @@ public class OrderController : ControllerBase
         // No context needed - Dispatch creates one automatically
         var result = await _dispatcher.DispatchAsync(action, cancellationToken);
 
-        if (result.IsSuccess)
+        if (result.Succeeded)
             return Ok();
 
         // A failed result means the handler ran and reported a failure. Do not map it to 400 by
@@ -163,7 +163,7 @@ public class OrderController : ControllerBase
         // TResponse (Order) is inferred from IDispatchAction<Order>
         var result = await _dispatcher.DispatchAsync(action, cancellationToken);
 
-        if (result.IsSuccess)
+        if (result.Succeeded)
             return Ok(result.ReturnValue);
 
         return Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
@@ -173,7 +173,7 @@ public class OrderController : ControllerBase
 
 ## Complete Example
 
-Here's a complete minimal example. The one-line `DispatchPostAction` maps your action straight to an HTTP endpoint and converts the `IMessageResult` to the correct HTTP status for you — **200** on success, **400/403/500** on failure — so there is no manual `IsSuccess` branching:
+Here's a complete minimal example. The one-line `DispatchPostAction` maps your action straight to an HTTP endpoint and converts the `IMessageResult` to the correct HTTP status for you — **200** on success, **400/403/500** on failure — so there is no manual `Succeeded` branching:
 
 ```bash
 dotnet add package Excalibur.Dispatch.Hosting.AspNetCore
@@ -374,6 +374,8 @@ dotnet add package Excalibur.Dispatch.Transport.RabbitMQ
 ```
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
+
 // Register the transport with destination mapping
 services.AddRabbitMQTransport("rabbitmq", rmq =>
 {

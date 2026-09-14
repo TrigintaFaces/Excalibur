@@ -570,6 +570,81 @@ builder.Services.Configure<VaultOptions>(options =>
 
 ---
 
+## Password Hashing
+
+Excalibur.Security ships an Argon2id password hasher behind `IPasswordHasher`. Argon2id is the
+OWASP-recommended choice for credential storage: it resists both the side-channel attacks Argon2d is
+exposed to and the GPU attacks Argon2i is exposed to.
+
+### Registration
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+builder.Services.AddPasswordHasher();
+
+// or configure the work factors explicitly
+builder.Services.AddPasswordHasher(options =>
+{
+    options.MemorySize = 65536;   // KiB
+    options.Iterations = 4;
+    options.Parallelism = 4;
+});
+```
+
+`AddPasswordHasher` registers `Argon2idPasswordHasher` as a singleton `IPasswordHasher` via
+`TryAddSingleton`, so your own implementation registered first is kept.
+
+### Hashing and verifying
+
+```csharp
+public sealed class CredentialService(IPasswordHasher hasher)
+{
+    public async Task<PasswordHashResult> RegisterAsync(string password, CancellationToken ct)
+        => await hasher.HashPasswordAsync(password, ct);
+
+    public async Task<bool> SignInAsync(
+        string password,
+        PasswordHashResult stored,
+        CancellationToken ct)
+    {
+        var result = await hasher.VerifyPasswordAsync(password, stored, ct);
+
+        return result switch
+        {
+            PasswordVerificationResult.Success => true,
+
+            // Correct password, but the stored hash predates your current work factors.
+            // Re-hash and persist before returning.
+            PasswordVerificationResult.SuccessRehashNeeded => true,
+
+            _ => false,
+        };
+    }
+}
+```
+
+`PasswordHashResult` carries `Hash`, `Salt`, `Algorithm`, `Version`, and the `Parameters` the hash was
+produced with — persist the whole record, not just the hash, so a later parameter change is detectable.
+`SuccessRehashNeeded` is what makes that migration gradual: raise the work factors, and each user's hash
+is upgraded on their next successful sign-in without a password reset.
+
+### Options
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `MemorySize` | `65536` | Memory cost in KiB |
+| `Iterations` | `4` | Time cost (passes) |
+| `Parallelism` | `4` | Degree of parallelism |
+| `HashLength` | `32` | Output length in bytes |
+| `SaltLength` | `16` | Salt length in bytes |
+| `Version` | `1` | Your parameter-set version, used to detect rehash-needed |
+
+Bind them from configuration under the `Argon2` section, or pass an `Action<Argon2Options>`. The
+configuration-binding overload uses reflection; on Native AOT use the `Action<Argon2Options>` overload.
+
+---
+
 ## Input Validation
 
 ### FluentValidation Integration

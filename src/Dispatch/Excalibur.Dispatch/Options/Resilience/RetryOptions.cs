@@ -18,16 +18,16 @@ namespace Excalibur.Dispatch.Options.Resilience;
 /// <para>
 /// For Polly-specific retry options with advanced features like <c>JitterStrategy</c>,
 /// <c>OperationTimeout</c>, and custom <c>ShouldRetry</c> predicates, use
-/// <c>Excalibur.Dispatch.Resilience.Polly.RetryOptions</c> instead.
+/// <c>Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions</c> instead.
 /// </para>
 /// </remarks>
 public sealed class RetryOptions
 {
 	/// <summary>
-	/// Gets or sets the maximum number of retry attempts.
+	/// Gets or sets the maximum number of retry attempts after the initial attempt fails.
 	/// </summary>
-	/// <value>Default is 3.</value>
-	public int MaxAttempts { get; set; } = 3;
+	/// <value>Default is 3 (1 initial attempt + 3 retries = 4 total attempts).</value>
+	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the base delay between retry attempts.

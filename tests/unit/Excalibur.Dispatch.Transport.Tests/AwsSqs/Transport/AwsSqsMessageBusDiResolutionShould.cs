@@ -48,8 +48,9 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport;
 /// <see cref="IPayloadSerializer"/> — it is supplied by the consumer's serialization registration
 /// (<c>AddPluggableSerialization()</c>). The bus ctor depends on it, so the public minimal-valid
 /// config must include serialization (and logging) alongside the transport. This is documented and
-/// asserted by <see cref="AddAwsSqsTransport_DoesNotRegister_IPayloadSerializer_ConsumerSuppliesIt"/>
-/// so the seam is explicit; it is a separate concern from the rlskyu <see cref="AwsSqsOptions"/> gap.
+/// asserted for all four transports at once by
+/// <c>TransportsLeaveSerializationToTheConsumerShould</c>, which also binds the start-up diagnostic a
+/// bare host gets; it is a separate concern from the rlskyu <see cref="AwsSqsOptions"/> gap.
 /// </para>
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -97,18 +98,5 @@ public sealed class AwsSqsMessageBusDiResolutionShould : UnitTestBase
 		AwsSqsMessageBus? bus = null;
 		Should.NotThrow(() => bus = provider.GetRequiredService<AwsSqsMessageBus>());
 		_ = bus.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AddAwsSqsTransport_DoesNotRegister_IPayloadSerializer_ConsumerSuppliesIt()
-	{
-		// Documents the SA finding: serialization is a consumer concern, NOT registered by the
-		// transport extension. AddAwsSqsTransport alone must not contribute an IPayloadSerializer
-		// descriptor — the consumer supplies it (e.g. AddPluggableSerialization()).
-		var services = new ServiceCollection();
-		_ = services.AddAwsSqsTransport(sqs => sqs.UseRegion(ValidRegion));
-
-		services.Any(d => d.ServiceType == typeof(IPayloadSerializer)).ShouldBeFalse(
-			"AddAwsSqsTransport must not register IPayloadSerializer; serialization is a consumer concern");
 	}
 }

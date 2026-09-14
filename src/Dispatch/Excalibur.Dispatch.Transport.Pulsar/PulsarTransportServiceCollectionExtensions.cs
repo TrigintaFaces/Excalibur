@@ -119,7 +119,7 @@ public static class PulsarTransportServiceCollectionExtensions
 				MaxPendingMessages = DefaultMaxPendingMessages,
 			});
 			var logger = sp.GetRequiredService<ILogger<PulsarTransportSender>>();
-			return new PulsarTransportSender(producer, options.Topic, logger);
+			return new PulsarTransportSender(producer, options.Topic, logger).WithCloudEventEncoding();
 		});
 
 		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
@@ -138,7 +138,7 @@ public static class PulsarTransportServiceCollectionExtensions
 			};
 			var consumer = client.CreateConsumer(consumerOptions);
 			var logger = sp.GetRequiredService<ILogger<PulsarTransportReceiver>>();
-			return new PulsarTransportReceiver(consumer, options.SubscriptionName, logger, options.Receive.MaxPayloadBytes, options.Receive.MaxBatchSize);
+			return new PulsarTransportReceiver(consumer, options.SubscriptionName, logger, options.Receive.MaxPayloadBytes, options.Receive.MaxBatchSize).WithCloudEventDecoding(CloudEventBinding.StructuredOnly);
 		});
 
 		// The full IMessageBus publisher for the dispatch pipeline, keyed by transport name so it

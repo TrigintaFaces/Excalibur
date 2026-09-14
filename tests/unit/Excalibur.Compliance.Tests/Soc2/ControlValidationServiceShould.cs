@@ -113,8 +113,11 @@ public sealed class ControlValidationServiceShould
 		var result = await sut.RunControlTestAsync("unknown", parameters, CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("unknown");
-		result.Outcome.ShouldBe(TestOutcome.ControlFailure);
-		result.Exceptions.ShouldNotBeEmpty();
+		result.Outcome.ShouldBe(
+			TestOutcome.NotTested,
+			"no validator ran, so neither effectiveness nor failure was observed");
+		result.Notes.ShouldNotBeNullOrWhiteSpace();
+		result.Exceptions.ShouldBeEmpty("a test that never ran cannot have found an exception");
 	}
 
 	[Fact]

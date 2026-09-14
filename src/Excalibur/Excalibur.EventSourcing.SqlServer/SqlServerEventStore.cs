@@ -40,7 +40,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore, IEventStoreArchive
+public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore, IEventStoreArchive, IEventStoreVersionProbe
 {
 	// Format markers for envelope detection
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -211,6 +211,29 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		return await LoadAsync(aggregateId, aggregateType, -1, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Reuses the same indexed <c>MAX(Version)</c> read the append path uses to resolve a concurrency
+	/// conflict, which already returns <c>-1</c> for a stream with no events -- the value this capability
+	/// is specified to return. Runs on its own connection, outside any append transaction.
+	/// </remarks>
+	public async ValueTask<long> GetMaxVersionAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+				new GetCurrentVersionRequest(
+					aggregateId, aggregateType, transaction: null, CurrentTenantScope, cancellationToken, _schema, _table))
+			.ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -813,17 +836,14 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
+		// Delegates to IDomainEvent.CorrelationId (checks OutboxHeaderNames.CorrelationId, the
+		// framework declared key, then the legacy PascalCase/camelCase spellings) rather than
+		// re-implementing the key-priority chain here.
 		foreach (var @event in events)
 		{
-			if (@event.Metadata == null)
+			if (@event.CorrelationId is { } correlationId)
 			{
-				continue;
-			}
-
-			if (@event.Metadata.TryGetValue("CorrelationId", out var correlationId) ||
-				@event.Metadata.TryGetValue("correlationId", out correlationId))
-			{
-				return correlationId?.ToString();
+				return correlationId;
 			}
 		}
 

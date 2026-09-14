@@ -87,6 +87,7 @@ public sealed class OutboxRequestParameterBindingShould : UnitTestBase
 		["CleanupTransportDeliveries"] = () => new CleanupTransportDeliveriesRequest(OutboxTable, TransportsTable, DateTimeOffset.UtcNow, 100, null, Timeout, CancellationToken.None).Command,
 		["EnforceOutboxFence"] = () => new EnforceOutboxFenceRequest(FenceTable, OutboxTable, 7L, Timeout, null, CancellationToken.None).Command,
 		["GetFailedMessages"] = () => new GetFailedMessagesRequest(OutboxTable, 5, DateTimeOffset.UtcNow, 100, Timeout, CancellationToken.None).Command,
+		["GetOutboxFenceHighWater"] = () => new GetOutboxFenceHighWaterRequest(FenceTable, OutboxTable, Timeout, CancellationToken.None).Command,
 		["GetOutboxStatistics"] = () => new GetOutboxStatisticsRequest(OutboxTable, Timeout, CancellationToken.None).Command,
 		["GetScheduledMessages"] = () => new GetScheduledMessagesRequest(OutboxTable, DateTimeOffset.UtcNow, 100, Timeout, CancellationToken.None).Command,
 		["GetTransportDeliveries"] = () => new GetTransportDeliveriesRequest(TransportsTable, MessageId, Timeout, CancellationToken.None).Command,
@@ -97,10 +98,13 @@ public sealed class OutboxRequestParameterBindingShould : UnitTestBase
 		["MarkMessageDeadLettered"] = () => new MarkMessageDeadLetteredRequest(OutboxTable, MessageId, "reason", Timeout, CancellationToken.None).Command,
 		["MarkBatchFailed"] = () => new MarkBatchFailedRequest(OutboxTable, [MessageId], "boom", 1, "proc-1", 30, Timeout, CancellationToken.None).Command,
 		["MarkMessageFailed"] = () => new MarkMessageFailedRequest(OutboxTable, MessageId, "boom", 1, "proc-1", Timeout, CancellationToken.None).Command,
+		["FencedMarkMessageFailed"] = () => new FencedMarkMessageFailedRequest(OutboxTable, FenceTable, MessageId, "boom", 1, null, 30, 7L, "proc-1:claim-a", Timeout, CancellationToken.None).Command,
+		["FencedMarkMessageDeadLettered"] = () => new FencedMarkMessageDeadLetteredRequest(OutboxTable, FenceTable, MessageId, "reason", 7L, Timeout, CancellationToken.None).Command,
 		["MarkMessageSent"] = () => new MarkMessageSentRequest(OutboxTable, MessageId, Timeout, null, FenceTable, OutboxTable, CancellationToken.None).Command,
 		["MarkTransportFailed"] = () => new MarkTransportFailedRequest(TransportsTable, MessageId, TransportName, "boom", Timeout, CancellationToken.None).Command,
 		["MarkTransportSent"] = () => new MarkTransportSentRequest(TransportsTable, MessageId, TransportName, Timeout, CancellationToken.None).Command,
 		["MarkTransportSkipped"] = () => new MarkTransportSkippedRequest(TransportsTable, MessageId, TransportName, "skip", Timeout, CancellationToken.None).Command,
+		["ResetOutboxFenceHighWater"] = () => new ResetOutboxFenceHighWaterRequest(FenceTable, OutboxTable, 7L, false, Timeout, CancellationToken.None).Command,
 		["UpdateAggregateStatus"] = () => new UpdateAggregateStatusRequest(OutboxTable, TransportsTable, MessageId, Timeout, CancellationToken.None).Command,
 	};
 

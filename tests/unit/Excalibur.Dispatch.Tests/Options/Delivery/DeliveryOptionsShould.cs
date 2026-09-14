@@ -162,18 +162,6 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void InMemoryInboxOptions_HaveDefaults()
-	{
-		var opts = new InMemoryInboxOptions();
-
-		opts.MaxEntries.ShouldBe(10_000);
-		opts.EnableAutomaticCleanup.ShouldBeTrue();
-		opts.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(5));
-		opts.RetentionPeriod.ShouldBe(TimeSpan.FromHours(1));
-		opts.CleanupBatchSize.ShouldBe(100);
-	}
-
-	[Fact]
 	public void OutboxDeliveryGuarantee_HaveExpectedValues()
 	{
 		OutboxDeliveryGuarantee.AtLeastOnce.ShouldBe((OutboxDeliveryGuarantee)0);

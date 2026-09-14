@@ -123,11 +123,35 @@ internal sealed class GetSagaSummaryRequest : DataRequestBase<IDbConnection, Sag
 /// <summary>Computes aggregate saga counts (running / completed / total).</summary>
 internal sealed class GetSagaStatisticsRequest : DataRequestBase<IDbConnection, SagaStoreStatistics>
 {
-	public GetSagaStatisticsRequest(
+	/// <summary>Counts only <paramref name="scope"/>'s sagas, emitting a tenant discriminator.</summary>
+	/// <param name="options">The Postgres saga store options.</param>
+	/// <param name="scope">The tenant partition to count.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>A request that emits a tenant discriminator.</returns>
+	public static GetSagaStatisticsRequest ForTenant(
 		PostgresSagaOptions options,
 		TenantScope scope,
-		CancellationToken cancellationToken,
-		bool allTenants = false)
+		CancellationToken cancellationToken)
+		=> new(options, scope, allTenants: false, cancellationToken);
+
+	/// <summary>
+	/// Counts every tenant's sagas, emitting no tenant discriminator. Estate-wide is a NAMED verb, never a
+	/// flag: this factory takes no <see cref="TenantScope"/>, so the state where a scope is supplied and
+	/// silently ignored cannot be constructed.
+	/// </summary>
+	/// <param name="options">The Postgres saga store options.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>A request that emits no tenant discriminator.</returns>
+	public static GetSagaStatisticsRequest ForAllTenants(
+		PostgresSagaOptions options,
+		CancellationToken cancellationToken)
+		=> new(options, scope: default, allTenants: true, cancellationToken);
+
+	private GetSagaStatisticsRequest(
+		PostgresSagaOptions options,
+		TenantScope scope,
+		bool allTenants,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		SagaSqlValidator.ThrowIfInvalidQualifiedName(options.QualifiedTableName);

@@ -3,6 +3,7 @@
 
 
 using System.Text.Json.Serialization;
+using Excalibur.Data;
 
 namespace Excalibur.Saga.CosmosDb;
 
@@ -140,5 +141,5 @@ internal sealed class CosmosDbSagaDocument
 	/// <param name="tenantId">The owning tenant term, as resolved from the store's scope.</param>
 	/// <param name="sagaId">The saga identifier.</param>
 	/// <returns>The document ID string.</returns>
-	public static string CreateId(string tenantId, Guid sagaId) => $"{TenantKeyPrefix}{tenantId}:{sagaId}";
+	public static string CreateId(string tenantId, Guid sagaId) => TenantScopedKey.Compose(tenantId, sagaId.ToString());
 }

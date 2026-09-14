@@ -28,6 +28,11 @@ public interface ISoc2AuditExporter
 	/// <param name="periodEnd">The end of the export period.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The exported data as a byte array.</returns>
+	/// <exception cref="System.NotSupportedException">
+	/// The implementation has no evidence to export. An empty array must not be returned in that case: it
+	/// is indistinguishable from a successful export of a period with no activity, and the result of this
+	/// call is handed to an auditor.
+	/// </exception>
 	Task<byte[]> ExportForAuditorAsync(
 		ExportFormat format,
 		DateTimeOffset periodStart,

@@ -82,6 +82,8 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 	private async Task<ControlValidationResult> ValidateAuditLoggingAsync(CancellationToken cancellationToken)
 	{
 		var issues = new List<string>();
+		// Set when the integrity check did not run, did not interpret, or had nothing to examine.
+		var unverified = false;
 		var evidence = new List<EvidenceItem>();
 
 		if (_auditLogger == null)
@@ -149,11 +151,18 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 				integrityEvidence,
 				nameof(AuditLogControlValidator)));
 
-			// Only a detected violation is a control failure. An unexercised window is reported honestly
-			// above but is not itself evidence that the control is broken.
+			// Only a detected violation is a control FAILURE -- that reasoning was already here and is
+			// kept. What it missed is that "not a failure" is not "a pass". An unexercised window left
+			// the issue list empty and fell through to the success branch below, which reports the
+			// control effective at a score of 100 with "Audit logging validation passed" -- directly
+			// contradicting the evidence line above it, which says the period provides no evidence.
 			if (integrityResult.Outcome == AuditIntegrityOutcome.ViolationsDetected)
 			{
 				issues.Add($"Audit log integrity check failed: {integrityResult.ViolationDescription}");
+			}
+			else if (integrityResult.Outcome != AuditIntegrityOutcome.Verified)
+			{
+				unverified = true;
 			}
 		}
 		catch (Exception ex)
@@ -162,6 +171,10 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 				EvidenceType.TestResult,
 				$"Audit log integrity check: {ex.Message}",
 				nameof(AuditLogControlValidator)));
+
+			// A check that threw recorded its message as evidence and added no issue, so it also
+			// reached the pass below. The integrity of the trail is unknown here, not intact.
+			unverified = true;
 		}
 
 		evidence.Add(CreateEvidence(
@@ -169,18 +182,41 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 			"Hash-chained audit logging configured with IAuditLogger",
 			nameof(AuditLogControlValidator)));
 
+		if (issues.Count == 0 && unverified)
+		{
+			// Not a failure and not a pass. The configured mechanism may well be intact; this run did
+			// not establish that it is, and an auditor must be able to tell the two apart.
+			//
+			// This was hand-built rather than routed through the shared helper, because the helper set
+			// IsConfigured from the complaint count and so turned any reason given here into a claim that
+			// the audit logger is absent -- which it demonstrably is not, the null check above having
+			// returned long ago. The helper now takes that fact from the score band instead, so the
+			// workaround is gone and this site says the same three things through the ordinary path.
+			return CreateFailureResult(
+				ControlSec004,
+				[
+					"Audit log integrity was not verified in this window, so this period evidences that audit "
+					+ "logging is configured but not that the trail is intact."
+				],
+				effectivenessScore: Soc2EffectivenessScore.Unverified,
+				evidence,
+				isConfigured: true);
+		}
+
 		if (issues.Count == 0)
 		{
 			evidence.Add(CreateEvidence(
 				EvidenceType.TestResult,
-				"Audit logging validation passed",
+				"Audit log integrity was verified over the reporting window and the hash chain was intact",
 				nameof(AuditLogControlValidator)));
 
 			return CreateSuccessResult(ControlSec004, evidence);
 		}
 
-		var score = Math.Max(0, 100 - (issues.Count * 25));
-		return CreateFailureResult(ControlSec004, issues, score, evidence);
+		// The only issue reachable here is a DETECTED integrity violation -- the trail was examined and
+		// found tampered. Counting the remark gave that 75, which outranked a control nobody could check.
+		return CreateFailureResult(
+			ControlSec004, issues, Soc2EffectivenessScore.ViolationDetected, evidence, isConfigured: true);
 	}
 
 	private ControlValidationResult ValidateSecurityMonitoring()
@@ -212,15 +248,29 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 
 		if (issues.Count == 0)
 		{
+			// The only thing established above is that a logger or a store is non-null. "Security
+			// monitoring validation passed" claimed an exercise that never ran -- no alert was raised, no
+			// query was issued, nothing was monitored. Presence of the seam is not operation of it.
 			evidence.Add(CreateEvidence(
-				EvidenceType.TestResult,
-				"Security monitoring validation passed",
+				EvidenceType.Configuration,
+				"Audit infrastructure is present for security monitoring; no monitoring activity was "
+				+ "exercised in this period",
 				nameof(AuditLogControlValidator)));
 
-			return CreateSuccessResult(ControlSec005, evidence);
+			return CreateFailureResult(
+				ControlSec005,
+				[
+					"Audit infrastructure is present, but no security-monitoring activity was exercised in "
+					+ "this period, so this control is unverified and requires independent attestation."
+				],
+				effectivenessScore: Soc2EffectivenessScore.Unverified,
+				evidence,
+				isConfigured: true);
 		}
 
-		var score = Math.Max(0, 100 - (issues.Count * 33));
-		return CreateFailureResult(ControlSec005, issues, score, evidence);
+		// The sole issue reachable here is that NO audit infrastructure is configured. That is an absent
+		// mechanism, not a partial one, and it was scoring 67 of 100.
+		return CreateFailureResult(
+			ControlSec005, issues, Soc2EffectivenessScore.MechanismAbsent, evidence);
 	}
 }

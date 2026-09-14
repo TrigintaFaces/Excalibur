@@ -51,10 +51,8 @@ public static class AzurePatternsServiceCollectionExtensions
 	/// This registers <see cref="AzureBlobClaimCheckProvider"/> as the implementation of <see cref="IClaimCheckProvider"/>.
 	/// Requires Azure.Storage.Blobs package and valid Azure Blob Storage connection string in options.
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static IServiceCollection AddAzureBlobClaimCheck(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -110,6 +108,8 @@ public static class AzurePatternsServiceCollectionExtensions
 	/// This registers <see cref="AzureBlobClaimCheckProvider"/> as the implementation of <see cref="IClaimCheckProvider"/>
 	/// and optionally adds a background service for automatic cleanup of expired payloads.
 	/// </remarks>
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static IServiceCollection AddAzureBlobClaimCheck(
 		this IServiceCollection services,
 		IConfiguration configuration,

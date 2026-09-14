@@ -590,21 +590,20 @@ public sealed class ComplianceMonitoringServiceShould
 					Category = TrustServicesCategory.Security,
 					Level = ComplianceLevel.FullyCompliant,
 					CompliancePercentage = 100,
-					ActiveControls = 5,
-					ControlsWithIssues = 0
+					CriteriaAssessed = 5,
+					CriteriaEnabled = 5,
+					CriteriaWithIssues = 0
 				}
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
-				[TrustServicesCriterion.CC6_LogicalAccess] = new()
-				{
-					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-					IsMet = true,
-					EffectivenessScore = 100,
-					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 5,
-					Gaps = []
-				}
+				[TrustServicesCriterion.CC6_LogicalAccess] = CriterionStatus.Assessed(
+					TrustServicesCriterion.CC6_LogicalAccess,
+					met: true,
+					effectivenessScore: 100,
+					lastValidated: DateTimeOffset.UtcNow,
+					controlsAssessed: 1,
+					evidenceCount: 5)
 			},
 			ActiveGaps = [],
 			EvaluatedAt = DateTimeOffset.UtcNow
@@ -623,21 +622,21 @@ public sealed class ComplianceMonitoringServiceShould
 					Category = TrustServicesCategory.Security,
 					Level = ComplianceLevel.NonCompliant,
 					CompliancePercentage = 30,
-					ActiveControls = 5,
-					ControlsWithIssues = 4
+					CriteriaAssessed = 5,
+					CriteriaEnabled = 5,
+					CriteriaWithIssues = 4
 				}
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
-				[TrustServicesCriterion.CC6_LogicalAccess] = new()
-				{
-					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-					IsMet = false,
-					EffectivenessScore = 30,
-					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 2,
-					Gaps = ["Missing encryption"]
-				}
+				[TrustServicesCriterion.CC6_LogicalAccess] = CriterionStatus.Assessed(
+					TrustServicesCriterion.CC6_LogicalAccess,
+					met: false,
+					effectivenessScore: 30,
+					lastValidated: DateTimeOffset.UtcNow,
+					controlsAssessed: 1,
+					evidenceCount: 2,
+					gaps: ["Missing encryption"])
 			},
 			ActiveGaps =
 			[
@@ -700,21 +699,21 @@ public sealed class ComplianceMonitoringServiceShould
 					Category = TrustServicesCategory.Security,
 					Level = ComplianceLevel.PartiallyCompliant,
 					CompliancePercentage = 60,
-					ActiveControls = 5,
-					ControlsWithIssues = 2
+					CriteriaAssessed = 5,
+					CriteriaEnabled = 5,
+					CriteriaWithIssues = 2
 				}
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
-				[TrustServicesCriterion.CC6_LogicalAccess] = new()
-				{
-					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-					IsMet = false,
-					EffectivenessScore = 60,
-					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 3,
-					Gaps = ["Gap description"]
-				}
+				[TrustServicesCriterion.CC6_LogicalAccess] = CriterionStatus.Assessed(
+					TrustServicesCriterion.CC6_LogicalAccess,
+					met: false,
+					effectivenessScore: 60,
+					lastValidated: DateTimeOffset.UtcNow,
+					controlsAssessed: 1,
+					evidenceCount: 3,
+					gaps: ["Gap description"])
 			},
 			ActiveGaps =
 			[

@@ -29,6 +29,7 @@ Excalibur.A3 provides a unified **Authentication, Authorization, and Audit** (A3
 | `Excalibur.A3.Core` | A3.Abstractions, Domain, Dispatch.Abstractions | Lightweight core: in-memory stores, grant management, authorization evaluation |
 | `Excalibur.A3` | A3.Core + Application, EventSourcing, Dispatch, ... | Full-stack: CQRS commands, Dispatch middleware, authentication HTTP services, audit pipeline |
 | `Excalibur.A3.Abstractions` | -- | Provider-neutral interfaces: `IGrantStore`, `IActivityGroupStore`, `IA3Builder`, `Grant` |
+| `Excalibur.A3.AspNetCore` | A3 | ASP.NET Core integration: bridges the authenticated request principal into grant evaluation and adds per-request resource scope for controller and minimal API endpoints |
 
 :::tip Choose the Right Package
 
@@ -69,6 +70,27 @@ services.AddExcaliburA3Core()
 ### Full-Stack Setup (A3)
 
 Register full A3 services using the builder pattern. `AddExcaliburA3()` internally calls `AddExcaliburA3Core()`, then adds CQRS, Dispatch pipeline, and authentication:
+
+:::caution Two prerequisites, or the container will not build
+
+`AddExcaliburA3()` composes services that depend on two things it does not register itself. Supply
+both **before** it, or building the provider throws — and in the Development environment
+`WebApplicationBuilder` turns on `ValidateOnBuild`, so this is what you hit on the machine you are
+developing on.
+
+```csharp
+// 1. An application-scoped distributed cache — TWO registrations, not one. The keyed wrapper wraps
+//    whichever unkeyed cache the container holds, so the wrapper alone has nothing to wrap.
+//    Requires the Excalibur.Dispatch.Caching package.
+services.AddDistributedMemoryCache();                      // or Redis / SQL Server in production
+services.AddApplicationScopedDistributedCache(o => o.Scope = "my-application");
+
+// 2. An IAuthenticationToken to resolve the caller. The HTTP bridge ships in Excalibur.A3.AspNetCore.
+services.AddHttpGrantAuthorization();
+```
+
+The `Scope` string is what keeps two applications sharing one cache from reading each other's grants.
+:::
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -232,6 +254,133 @@ bool hasTypedGrant = policy.HasGrant<CreateOrderActivity>();
 // Resource-scoped grant check
 bool hasResourceGrant = policy.HasGrant("Order", orderId.ToString());
 ```
+
+### ASP.NET Core Endpoints
+
+Grant authorization also works on ordinary ASP.NET Core endpoints — MVC controller actions and minimal
+API endpoints — for requests that never go through Dispatch.
+
+```bash
+dotnet add package Excalibur.A3.AspNetCore
+```
+
+Two pieces are needed that the framework-agnostic grant evaluator cannot supply on its own: the
+identity and tenant have to come from the request, and a policy has to be able to name the resource
+the request is about. One call registers both:
+
+```csharp
+builder.Services
+    .AddExcaliburA3()
+    .Services
+    .AddHttpGrantAuthorization();
+
+var app = builder.Build();
+
+app.UseAuthentication();   // must run before UseAuthorization
+app.UseAuthorization();
+```
+
+`AddHttpGrantAuthorization` performs no authentication of its own. It reads the `ClaimsPrincipal` that
+your existing authentication scheme — JWT bearer, cookies, OpenID Connect — already established for the
+request. Configure that scheme exactly as you would in any other ASP.NET Core application.
+
+#### Applying a grant to an endpoint
+
+Use `[RequireGrant]`. It is strongly typed, so a mistake is a compile error rather than a request that
+fails at runtime, and it works on both hosting styles — a controller action carries it as an attribute,
+and a minimal API endpoint passes an instance to `RequireAuthorization`:
+
+```csharp
+using Excalibur.A3.AspNetCore;
+
+// Controller action
+[HttpGet("/orders/{id}")]
+[RequireGrant("Read", "Order", "id")]
+public IActionResult GetById(string id) => Ok(id);
+
+// Minimal API endpoint
+app.MapGet("/orders/{id}", (string id) => Results.Ok(id))
+   .RequireAuthorization(new RequireGrantAttribute("Read", "Order", "id"));
+```
+
+The third argument names a **route parameter**, not a resource identifier: it is read from the matched
+endpoint's route values at request time, so one attribute covers every order. Drop it to require the
+activity against the resource type without narrowing to a single resource.
+
+#### Policy names
+
+`[RequireGrant]` sets an equivalent policy name, and that name can also be written directly wherever a
+seam accepts only a string. A grant policy name says which activity is required, on which resource type,
+and optionally which resource:
+
+| Name | Meaning |
+|------|---------|
+| `grant:Read:Order` | The caller holds `Read` for the `Order` resource type. |
+| `grant:Read:Order:{id}` | The caller holds `Read` for the specific order named by route parameter `id`. |
+| `grant:Read:Order:order-42` | The caller holds `Read` for the fixed resource `order-42`. |
+
+The braced form is what expresses *may read **this** order*: the identifier is read from the matched
+endpoint's route values at request time, so a single policy covers every order.
+
+Build the name with `GrantPolicyName` rather than composing the string by hand:
+
+```csharp
+var policyName = GrantPolicyName.ForRouteValue("Read", "Order", "id");
+```
+
+Prefer `[RequireGrant]` where you can. Reach for the name when a seam accepts only a string, or when you
+need `[Authorize(Policy = "grant:Read:Order:{id}")]` on a member where a constant is the only option.
+
+A policy name that does not begin with `grant:` is left alone, so policies you register by name —
+including those from `AddGrantAuthorization` — continue to resolve normally, as does a bare
+`RequireAuthorization()` with no policy at all.
+
+#### Claim mapping
+
+The user and tenant are read from the first matching claim in an ordered candidate list, because
+identity providers disagree about which claim carries them. The defaults cover OpenID Connect,
+JWT-bearer and WS-Federation shaped principals; add your own at the front when they differ:
+
+```csharp
+builder.Services.AddHttpGrantAuthorization(options =>
+{
+    options.UserIdClaimTypes.Insert(0, "urn:my-idp:subject");
+    options.TenantIdClaimTypes.Insert(0, "org");
+
+    // A single-tenant host whose identity provider issues no tenant claim.
+    options.DefaultTenantId = "default";
+});
+```
+
+When the principal carries no tenant claim, the ambient tenant established by your own middleware is
+used, and then `DefaultTenantId`. If none of the three yields a tenant, the request is denied — a
+tenant is never assumed.
+
+#### What a denial means
+
+Authorization fails closed, and every denial that is not simply a missing grant is logged with its
+cause, so a `403` is never left ambiguous:
+
+- An **unauthenticated** caller receives a `401` challenge rather than a `403`.
+- A caller whose **user or tenant cannot be resolved** is denied, and a warning names the cause.
+- A **resource-scoped policy on an endpoint whose route declares no such parameter** is denied, and a
+  warning names the parameter. It is never downgraded to the unscoped check, which would grant more
+  than the policy asked for.
+- A **missing registration** fails at host start with the call that fixes it, rather than turning
+  every request into a `403`.
+
+:::tip Two interfaces share a name
+
+`Excalibur.A3.Authorization.IAuthorizationPolicyProvider` supplies the caller's **grants**;
+`Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider` supplies ASP.NET Core **policies**.
+They are different contracts. Alias the A3 one when both namespaces are in scope:
+
+```csharp
+using A3PolicyProvider = Excalibur.A3.Authorization.IAuthorizationPolicyProvider;
+```
+:::
+
+A runnable example covering both hosting styles is in `samples/06-security/GrantAuthorizedApi`.
 
 ### Authorization Service
 
@@ -503,8 +652,12 @@ storage is pluggable by implementing `IAuditStore`:
 using Excalibur.Compliance;
 using Microsoft.Extensions.DependencyInjection;
 
-// SqlAuditStore : IAuditStore
-services.AddAuditLogging<SqlAuditStore>();
+// A shipped store is registered by its own extension method, alongside AddAuditLogging():
+services.AddAuditLogging();
+services.AddSqlServerAuditStore(options =>
+{
+    options.ConnectionString = configuration.GetConnectionString("Audit")!;
+});
 
 // Anywhere in the application:
 public sealed class OrderService(IAuditLogger auditLogger)
@@ -514,8 +667,19 @@ public sealed class OrderService(IAuditLogger auditLogger)
 }
 ```
 
-`AddAuditLogging()` without a type argument registers an in-memory store, which is suitable for
-development and tests but not for production retention.
+`AddAuditLogging()` on its own registers an in-memory store, which is suitable for development and tests
+but not for production retention. Add a provider package — `Excalibur.AuditLogging.SqlServer` or
+`Excalibur.AuditLogging.Postgres` — and call its registration method for durable storage.
+
+**The generic overload is for a store you wrote**, not for a shipped one:
+
+```csharp
+// Your own IAuditStore implementation:
+services.AddAuditLogging<MyAuditStore>();
+```
+
+The shipped provider stores are `internal`, so they cannot be named as the type argument — register them
+through `AddSqlServerAuditStore(...)` or `AddPostgresAuditStore(...)` instead.
 
 ### Audit Message Publisher
 

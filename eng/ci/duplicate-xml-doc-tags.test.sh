@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # duplicate-xml-doc-tags.test.sh — non-vacuous self-test for duplicate-xml-doc-tags.sh
 #
-# HOME: .claude/harness/ (S883). Bead: qcizyz.
+# Self-test for eng/ci/duplicate-xml-doc-tags.sh.
 #
 # Every arm runs the REAL script as a subprocess against throwaway .cs fixtures. Each SAFETY arm
 # (a duplicate tag is REFUSED) is paired with a LIVENESS arm (a clean block, and two DISTINCT

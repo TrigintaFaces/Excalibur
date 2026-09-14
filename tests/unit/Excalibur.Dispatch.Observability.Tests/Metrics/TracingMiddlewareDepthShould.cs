@@ -84,7 +84,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId, correlationId: "corr-1");
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		var activity = await InvokeAndCaptureActivity(
@@ -106,7 +106,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId);
 
 		var failedResult = A.Fake<IMessageResult>();
-		A.CallTo(() => failedResult.IsSuccess).Returns(false);
+		A.CallTo(() => failedResult.Succeeded).Returns(false);
 		var pd = A.Fake<IMessageProblemDetails>();
 		A.CallTo(() => pd.Detail).Returns("Something went wrong");
 		A.CallTo(() => pd.Type).Returns("validation_error");
@@ -134,7 +134,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId);
 
 		var failedResult = A.Fake<IMessageResult>();
-		A.CallTo(() => failedResult.IsSuccess).Returns(false);
+		A.CallTo(() => failedResult.Succeeded).Returns(false);
 		A.CallTo(() => failedResult.ProblemDetails).Returns(null);
 
 		// Act
@@ -186,7 +186,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		var activity = await InvokeAndCaptureActivity(
@@ -212,7 +212,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId, items: items);
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		var activity = await InvokeAndCaptureActivity(
@@ -233,7 +233,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		var activity = await InvokeAndCaptureActivity(
@@ -254,7 +254,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		var activity = await InvokeAndCaptureActivity(
@@ -275,7 +275,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		var activity = await InvokeAndCaptureActivity(
@@ -296,7 +296,7 @@ public sealed class TracingMiddlewareDepthShould
 		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		var activity = await InvokeAndCaptureActivity(

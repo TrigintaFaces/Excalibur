@@ -25,7 +25,7 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 /// <para>
 /// The transition under test releases the lease (<c>LeasedAt</c>/<c>LeasedBy</c> cleared) on failure, in
 /// parity with the sent/dead-lettered terminals, and guards the update on ownership
-/// (<c>WHERE Id = @MessageId AND (LeasedBy IS NULL OR LeasedBy = @LeasedBy)</c>) so a stale peer cannot
+/// (<c>WHERE Id = @MessageId AND (LeasedBy IS NULL OR LeasedBy = @LeasedBy OR LEFT(LeasedBy, @LeasedByPrefixLength) = @LeasedByPrefix)</c>) so a stale peer cannot
 /// mark-failed a row another processor holds.
 /// </para>
 /// <para>
@@ -62,7 +62,7 @@ public sealed class SqlServerOutboxMarkFailedLeaseClearShould : IClassFixture<Sq
 		var claimed = (await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false)).ToList();
 		claimed.ShouldContain(m => m.Id == message.Id, "the staged message must be claimable.");
 		var afterClaim = await ReadRowAsync(message.Id).ConfigureAwait(false);
-		afterClaim.LeasedBy.ShouldBe("proc-1", "claiming must set the lease to the claiming processor.");
+		afterClaim.LeasedBy.ShouldStartWith("proc-1:", Case.Sensitive, "claiming must set the lease to the claiming processor.");
 
 		// Act.
 		await store.MarkFailedAsync(message.Id, "boom", 1, CancellationToken.None).ConfigureAwait(false);
@@ -115,7 +115,7 @@ public sealed class SqlServerOutboxMarkFailedLeaseClearShould : IClassFixture<Sq
 
 		// proc-1 claims -> the row is leased by proc-1.
 		_ = (await proc1.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false)).ToList();
-		(await ReadRowAsync(message.Id).ConfigureAwait(false)).LeasedBy.ShouldBe("proc-1");
+		(await ReadRowAsync(message.Id).ConfigureAwait(false)).LeasedBy.ShouldStartWith("proc-1:");
 
 		// proc-2 attempts to mark proc-1's leased row failed. The ownership guard matches zero rows, so
 		// the call completes without error but changes nothing.
@@ -123,7 +123,7 @@ public sealed class SqlServerOutboxMarkFailedLeaseClearShould : IClassFixture<Sq
 
 		// Safety: the row is untouched — still leased by proc-1, not marked failed by the foreign processor.
 		var afterForeign = await ReadRowAsync(message.Id).ConfigureAwait(false);
-		afterForeign.LeasedBy.ShouldBe("proc-1", "a foreign processor must not steal/clear another's lease.");
+		afterForeign.LeasedBy.ShouldStartWith("proc-1:", Case.Sensitive, "a foreign processor must not steal/clear another's lease.");
 		afterForeign.Status.ShouldNotBe(StatusFailed, "a foreign processor must not mark another's row failed.");
 	}
 

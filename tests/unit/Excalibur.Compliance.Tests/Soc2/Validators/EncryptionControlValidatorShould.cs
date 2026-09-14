@@ -66,8 +66,10 @@ public sealed class EncryptionControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-002", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-002");
-		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		result.IsConfigured.ShouldBeFalse();
+		result.IsEffective.ShouldBeFalse();
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("unverified", StringComparison.Ordinal));
 	}
 
 	[Fact]
@@ -212,9 +214,14 @@ public sealed class EncryptionControlValidatorShould
 		var result = await sut.RunTestAsync("SEC-001", parameters, CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-001");
-		result.Outcome.ShouldBe(TestOutcome.NoExceptions);
-		result.ItemsTested.ShouldBe(10);
-		result.ExceptionsFound.ShouldBe(0);
+		// The verdict, not NotTested: a validator ran. What did not happen is SAMPLING, which the
+		// item count and the null finding count below carry.
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
+		// Zero, not the requested 10: RunTestAsync forwards a verdict and samples nothing. The
+		// requested size stays available on Parameters, where it is a request rather than a measurement.
+		result.ItemsTested.ShouldBe(0);
+		// Null, not 0: no search ran, so there is no finding count. Zero would assert we looked.
+		result.ExceptionsFound.ShouldBeNull();
 	}
 
 	[Fact]
@@ -230,7 +237,10 @@ public sealed class EncryptionControlValidatorShould
 		// Should still pass — FIPS failure is logged as evidence but doesn't block
 		result.ControlId.ShouldBe("SEC-001");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		// The check THREW. It used to be caught, recorded as evidence, and then scored 100 --
+		// a perfect score for a verification that failed to run. "Gracefully" meant "silently".
+		result.IsEffective.ShouldBeFalse();
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("did not complete", StringComparison.Ordinal));
 		result.Evidence.ShouldNotBeEmpty();
 	}
 }

@@ -5,6 +5,8 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Middleware.Outbox;
 
@@ -43,6 +45,15 @@ public static class OutboxPipelineExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
+		// The DELIBERATE call is the signal. A host that reaches UseOutbox() has asked for staging, so a
+		// missing store is a misconfiguration and startup must refuse. A host that merely took the default
+		// pipeline never asked, and for it an absent store means "no outbox", handled by the middleware
+		// staying inert. One constructor could not separate those populations; this registration site can,
+		// because only one of them runs this line.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<OutboxStagingOptions>, OutboxStagingWiringValidator>());
+		_ = builder.Services.AddOptions<OutboxStagingOptions>().ValidateOnStart();
+
 		// Cascade runs at DispatchMiddlewareStage.Cascade (inside outbox staging); stage-sorting places it
 		// correctly regardless of registration order, and it is a no-op unless a handler returns ICascade.
 		return builder
@@ -62,6 +73,15 @@ public static class OutboxPipelineExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		builder.Services.Configure(configure);
+		// The DELIBERATE call is the signal. A host that reaches UseOutbox() has asked for staging, so a
+		// missing store is a misconfiguration and startup must refuse. A host that merely took the default
+		// pipeline never asked, and for it an absent store means "no outbox", handled by the middleware
+		// staying inert. One constructor could not separate those populations; this registration site can,
+		// because only one of them runs this line.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<OutboxStagingOptions>, OutboxStagingWiringValidator>());
+		_ = builder.Services.AddOptions<OutboxStagingOptions>().ValidateOnStart();
+
 		return builder
 			.UseMiddleware<OutboxStagingMiddleware>()
 			.UseMiddleware<CascadeMiddleware>();

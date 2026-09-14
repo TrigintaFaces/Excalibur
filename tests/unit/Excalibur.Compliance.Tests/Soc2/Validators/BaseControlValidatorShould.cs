@@ -11,7 +11,11 @@ namespace Excalibur.Compliance.Tests.Soc2.Validators;
 public sealed class BaseControlValidatorShould
 {
 	[Fact]
-	public async Task RunTestAsyncReturnNoExceptionsWhenValidationPasses()
+	// Renamed: both arms assert TestOutcome.NotTested, because the base forwards a verdict without
+	// testing and the enum has no member for that yet. The old names promised an Outcome DISTINCTION
+	// the code does not make, so a reader comparing the two would have concluded the pair was
+	// broken. What they genuinely discriminate is the EXCEPTION LIST, and they now say so.
+	public async Task RunTestAsyncReportNoExceptionListWhenValidationPasses()
 	{
 		// Arrange
 		var validator = new PassingValidator();
@@ -23,15 +27,19 @@ public sealed class BaseControlValidatorShould
 		// Assert
 		result.ControlId.ShouldBe("CTRL-001");
 		result.Parameters.ShouldBe(parameters);
-		result.ItemsTested.ShouldBe(10);
-		result.ExceptionsFound.ShouldBe(0);
-		result.Outcome.ShouldBe(TestOutcome.NoExceptions);
+		// RunTestAsync forwards a ValidateAsync verdict; it samples nothing. It used to report
+		// ItemsTested = the REQUESTED sample size (10 here) as though those items had been examined,
+		// and a finding count derived from a bool. Zero items examined is true and needs no other
+		// state; a finding count has none, because no search ran.
+		result.ItemsTested.ShouldBe(0);
+		result.ExceptionsFound.ShouldBeNull();
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
 		result.Exceptions.ShouldBeEmpty();
 		result.Evidence.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public async Task RunTestAsyncReturnSignificantExceptionsWhenValidationFails()
+	public async Task RunTestAsyncReportTheValidationIssuesAsExceptionsWhenValidationFails()
 	{
 		// Arrange
 		var validator = new FailingValidator("Issue A", "Issue B");
@@ -43,9 +51,13 @@ public sealed class BaseControlValidatorShould
 		// Assert
 		result.ControlId.ShouldBe("CTRL-002");
 		result.Parameters.ShouldBe(parameters);
-		result.ItemsTested.ShouldBe(50);
-		result.ExceptionsFound.ShouldBe(1);
-		result.Outcome.ShouldBe(TestOutcome.SignificantExceptions);
+		// RunTestAsync forwards a ValidateAsync verdict; it samples nothing. It used to report
+		// ItemsTested = the REQUESTED sample size (50 here) as though those items had been examined,
+		// and a finding count derived from a bool. Zero items examined is true and needs no other
+		// state; a finding count has none, because no search ran.
+		result.ItemsTested.ShouldBe(0);
+		result.ExceptionsFound.ShouldBeNull();
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
 		result.Exceptions.Count.ShouldBe(1);
 		result.Exceptions[0].ItemId.ShouldBe("CTRL-002");
 		result.Exceptions[0].Description.ShouldBe("Issue A; Issue B");
@@ -123,7 +135,9 @@ public sealed class BaseControlValidatorShould
 
 		// Assert
 		result.ControlId.ShouldBe("CTRL-006");
-		result.IsConfigured.ShouldBeFalse(); // issues.Count > 0
+		// Not "because there are issues" any more -- the caller did not claim the mechanism is
+		// present, so it is not reported as present. The complaint count no longer decides it.
+		result.IsConfigured.ShouldBeFalse();
 		result.IsEffective.ShouldBeFalse();
 		result.EffectivenessScore.ShouldBe(30);
 		result.ConfigurationIssues.Count.ShouldBe(2);
@@ -131,7 +145,7 @@ public sealed class BaseControlValidatorShould
 	}
 
 	[Fact]
-	public void CreateFailureResultWithEmptyIssuesShouldMarkConfigured()
+	public void CreateFailureResultShouldNotInferConfigurationFromAnEmptyIssueList()
 	{
 		// Arrange
 		var validator = new TestableValidator();
@@ -141,7 +155,10 @@ public sealed class BaseControlValidatorShould
 		var result = validator.InvokeCreateFailureResult("CTRL-007", issues);
 
 		// Assert
-		result.IsConfigured.ShouldBeTrue(); // issues.Count == 0
+		// This arm encoded the defect in its own name and comment: an empty issue list was read as
+		// evidence that the mechanism is configured. Those are unrelated facts -- a caller can have
+		// nothing to complain about and still be looking at a component that is not there.
+		result.IsConfigured.ShouldBeFalse();
 		result.IsEffective.ShouldBeFalse();
 		result.EffectivenessScore.ShouldBe(0);
 	}

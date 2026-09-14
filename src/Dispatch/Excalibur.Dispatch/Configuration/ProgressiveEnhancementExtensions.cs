@@ -50,8 +50,12 @@ public static class ProgressiveEnhancementExtensions
 	/// <list type="bullet">
 	///   <item>Full <see cref="Excalibur.Dispatch.IMessageContext"/> with Items dictionary</item>
 	///   <item>Correlation ID propagation across message flows</item>
-	///   <item>AsyncLocal context flow via <see cref="IMessageContextAccessor"/></item>
 	/// </list>
+	/// <para>
+	/// AsyncLocal context flow via <see cref="IMessageContextAccessor"/> is NOT gated behind this call --
+	/// the base pipeline (<c>AddDispatch()</c>) already registers it unconditionally, so every consumer
+	/// has ambient context flow whether or not <see cref="UseContextEnrichment"/> is called.
+	/// </para>
 	/// <para>
 	/// This is distinct from <c>UseContextObservability()</c> which focuses on telemetry
 	/// (OpenTelemetry spans, metrics, and logging). Use both for complete context support.
@@ -71,7 +75,9 @@ public static class ProgressiveEnhancementExtensions
 			options.Features.EnableCorrelation = true;
 		});
 
-		// Ensure AsyncLocal context accessor is registered
+		// Defensive no-op for consumers who composed the pipeline without AddDispatch()/AddDispatchPipeline():
+		// the base pipeline already TryAdds this accessor unconditionally (DispatchServiceCollectionExtensions.cs:57),
+		// so this call never takes effect on the normal registration path and does not gate ambient context flow.
 		builder.Services.TryAddSingleton<IMessageContextAccessor, MessageContextAccessor>();
 
 		return builder;

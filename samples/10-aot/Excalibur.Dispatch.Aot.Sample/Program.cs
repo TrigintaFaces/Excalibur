@@ -24,6 +24,7 @@ using Excalibur.Dispatch.Aot.Sample.Messages;
 using Excalibur.Dispatch.Aot.Sample.Serialization;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Options.Serialization;
 using Excalibur.EventSourcing;
 using Excalibur.Compliance;
 
@@ -197,6 +198,32 @@ var match = deserialized is not null
 			&& deserialized.Items.Count == originalCommand.Items.Count
 			&& deserialized.Items[0].Sku == originalCommand.Items[0].Sku;
 Console.WriteLine($"Round-trip match: {match}");
+Console.WriteLine();
+
+// The framework's shared JSON defaults are usable from an ahead-of-time published app. This matters
+// because a consumer reaching for DispatchJsonSerializerOptions.Web gets camelCase naming, null
+// omission and indentation without hand-configuring them -- and if that convenience required runtime
+// code generation, taking it would cost them their AOT publish. Web deliberately carries no string-enum
+// converter for exactly that reason: enums serialize as numbers here, and the opt-in that writes them
+// as names (ApplyDefaultsWithStringEnums) is annotated so the trimmer can tell you the cost BEFORE you
+// publish, rather than at run time.
+// ApplyDefaults is taken onto an instance whose resolver is the generated context -- the shared
+// conventions and source-generated metadata compose, which is the combination an AOT consumer needs and
+// the one that would break if either half required runtime code generation.
+var sharedDefaults = DispatchJsonSerializerOptions.ApplyDefaults(new JsonSerializerOptions());
+sharedDefaults.TypeInfoResolver = AppJsonSerializerContext.Default;
+
+// Serialized through the GENERATED type info, not through a Type argument. The untyped
+// Serialize(object, Type, options) overload is itself annotated RequiresUnreferencedCode /
+// RequiresDynamicCode, so using it here would raise IL2026 + IL3050 against this sample and make the
+// warning count say nothing about whether the framework's own defaults are AOT-clean.
+var typeInfo = (System.Text.Json.Serialization.Metadata.JsonTypeInfo<CreateOrderCommand>)
+	sharedDefaults.GetTypeInfo(typeof(CreateOrderCommand));
+Console.WriteLine($"Shared defaults (AOT-safe): {JsonSerializer.Serialize(originalCommand, typeInfo)}");
+
+// Reading DispatchJsonSerializerOptions.Web is itself part of what this demo proves: touching the
+// cached shared instance must not drag in a reflection-based converter.
+Console.WriteLine($"Web writes indented: {DispatchJsonSerializerOptions.Web.WriteIndented}");
 Console.WriteLine();
 
 // ============================================================================

@@ -78,5 +78,16 @@ public interface IPersistenceProvider : IAsyncDisposable, IDisposable
 	/// </summary>
 	/// <param name="serviceType">The type of the requested service.</param>
 	/// <returns>The service instance, or <see langword="null"/> if not supported.</returns>
-	object? GetService(Type serviceType) => null;
+	/// <remarks>
+	/// The default implementation answers for any capability this instance itself implements. Leaf
+	/// providers need not override it. Decorators MUST override it to defer unknown capabilities to the
+	/// provider they wrap; a decorator that does not forward silently disables the capability beneath it.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="serviceType"/> is null. </exception>
+	object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
 }

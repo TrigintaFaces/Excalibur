@@ -36,8 +36,10 @@ internal sealed class PostgresPersistenceInitializer(
 		{
 			_logger.LogError(ex, "Failed to initialize Postgres persistence provider");
 
-			// Don't throw - let the application start even if the database is temporarily unavailable The provider will retry when
-			// operations are attempted
+			// Deliberately not rethrown: a database that is briefly unreachable at startup must not stop the
+			// application from starting. This warm-up is the only thing that was skipped -- the provider is
+			// usable as constructed, so operations attempted later open their own connections and succeed once
+			// the database is reachable again.
 		}
 	}
 

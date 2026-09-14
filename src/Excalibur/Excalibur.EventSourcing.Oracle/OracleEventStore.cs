@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
-using System.Security.Cryptography;
 
 using Excalibur.Data;
 using Excalibur.Data.Observability;
@@ -26,8 +25,16 @@ namespace Excalibur.EventSourcing.Oracle;
 /// <para>
 /// Provides atomic event appends with optimistic concurrency control. Because Oracle has no rowversion,
 /// concurrency is enforced by reading the current stream version and comparing it inside a
-/// <see cref="IsolationLevel.Serializable"/> transaction before the append (per the persistence seam
-/// ruling). A mismatch yields <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/>.
+/// <see cref="IsolationLevel.ReadCommitted"/> transaction before the append; a mismatch yields
+/// <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/> directly. The pre-check narrows the race
+/// window but is not itself atomic under ReadCommitted, so the shipped <c>UNIQUE(AGGREGATEID,
+/// AGGREGATETYPE, VERSION, TENANTID)</c> constraint (per aggregate stream) is the actual backstop: a loser
+/// that slips past the pre-check hits ORA-00001 on INSERT, which <see cref="IsStreamUniqueViolation"/> /
+/// <see cref="IsLostRace"/> classify as the same <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/>.
+/// Converges Oracle onto the same ReadCommitted + UNIQUE-constraint pattern Postgres and SQL Server already
+/// use, retiring the SERIALIZABLE isolation and its ORA-08177 bounded-retry loop this store carried
+/// previously — atomicity of a multi-row append comes from the transaction boundary, not the isolation
+/// level, so neither depended on SERIALIZABLE in the first place.
 /// </para>
 /// <para>
 /// Supports pluggable serialization via <see cref="IPayloadSerializer"/> for event payloads, with a
@@ -62,20 +69,6 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 	private TenantScope CurrentTenantScope =>
 		TenantScope.FromContext(_tenantContext);
 
-
-	// Oracle SERIALIZABLE transactions can fail with ORA-08177 ("can't serialize access for this
-	// transaction") when concurrent transactions touch the same table and the database cannot serialize
-	// them — even for writes to *different* aggregates. The append is retried a bounded number of times:
-	// each retry re-runs the whole read-version → check → insert unit in a fresh SERIALIZABLE transaction,
-	// so a genuine competing writer surfaces as a ConcurrencyConflict (the re-read sees the advanced
-	// version) while a non-conflicting serialization artifact simply succeeds. A batch of concurrent
-	// writers is de-correlated with full-jitter exponential backoff so it drains rather than retrying in
-	// lockstep.
-	private const int MaxSerializableRetries = 10;
-
-	// Base backoff (ms) for the first serialization retry; doubles per attempt (capped) with full jitter.
-	private const int SerializableRetryBaseDelayMs = 5;
-	private const int SerializableRetryMaxDelayMs = 250;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OracleEventStore"/> class.
@@ -208,10 +201,8 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 
 		try
 		{
-			var appendResult = await ExecuteWithSerializableRetryAsync(
-					ct => ExecuteAppendTransactionAsync(
-						aggregateId, aggregateType, eventList, expectedVersion, activity, ct),
-					cancellationToken)
+			var appendResult = await ExecuteAppendTransactionAsync(
+					aggregateId, aggregateType, eventList, expectedVersion, activity, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (appendResult.IsConcurrencyConflict)
@@ -232,6 +223,22 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		// succeed if you try again" and none of those can.
 		catch (Exception ex) when (ex is OracleException or OperationFailedException)
 		{
+			// Nothing was written: the append's transaction and connection are scoped to the method that
+			// raised, so both are disposed -- and an uncommitted transaction rolled back -- while the
+			// exception unwinds, before this body runs. The only question left is whether this append lost
+			// its version precondition to another writer, which is a concurrency conflict, or failed for its
+			// own reasons, which is not.
+			var currentVersion = await ReadCurrentVersionAfterFailedAppendAsync(
+				aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
+
+			if (IsLostRace(ex, currentVersion, expectedVersion))
+			{
+				result = WriteStoreTelemetry.Results.Conflict;
+				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+			}
+
 			result = WriteStoreTelemetry.Results.Failure;
 			LogAppendFailure(ex, aggregateId, aggregateType);
 			activity.RecordException(ex);
@@ -270,10 +277,8 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 
 		try
 		{
-			var appendResult = await ExecuteWithSerializableRetryAsync(
-					ct => ExecuteAppendWithOutboxTransactionAsync(
-						aggregateId, aggregateType, eventList, expectedVersion, stageOutbox, activity, ct),
-					cancellationToken)
+			var appendResult = await ExecuteAppendWithOutboxTransactionAsync(
+					aggregateId, aggregateType, eventList, expectedVersion, stageOutbox, activity, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (appendResult.IsConcurrencyConflict)
@@ -313,7 +318,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		await using var transaction = (OracleTransaction)await connection.BeginTransactionAsync(
-				IsolationLevel.Serializable, cancellationToken)
+				IsolationLevel.ReadCommitted, cancellationToken)
 			.ConfigureAwait(false);
 
 		try
@@ -345,6 +350,36 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			activity.SetOperationResult(EventSourcingTagValues.Success);
 			return AppendResult.CreateSuccess(version, firstPosition);
 		}
+		// Mirrors ExecuteAppendTransactionAsync's classification (surfaced through AppendAsync's
+		// outer catch) and SqlServerEventStore.ExecuteAppendWithOutboxTransactionAsync. Before this, EVERY
+		// exception here -- including a genuine concurrent race lost past the pre-check above -- rethrew
+		// raw, so AppendWithOutboxStagingAsync could never report CreateConcurrencyConflict the way the
+		// plain append does; a caller expecting the same contract on both paths got an unclassified
+		// OracleException instead. A non-race failure still rethrows raw (deliberately, unchanged): the
+		// transactional path surfaces the real failure to the caller rather than converting it to
+		// AppendResult.CreateFailure, so the repository sees the original exception.
+		catch (Exception ex) when (ex is OracleException or OperationFailedException)
+		{
+			try
+			{
+				await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			catch
+			{
+				// A rollback failure must not mask the original exception.
+			}
+
+			var currentVersion = await ReadCurrentVersionAfterFailedAppendAsync(
+				aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
+
+			if (IsLostRace(ex, currentVersion, expectedVersion))
+			{
+				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+			}
+
+			throw;
+		}
 		catch
 		{
 			try
@@ -372,7 +407,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		await using var transaction = (OracleTransaction)await connection.BeginTransactionAsync(
-				IsolationLevel.Serializable, cancellationToken)
+				IsolationLevel.ReadCommitted, cancellationToken)
 			.ConfigureAwait(false);
 
 		var currentVersion = await connection.ResolveAsync(
@@ -400,56 +435,146 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		return AppendResult.CreateSuccess(version, firstPosition);
 	}
 
-	/// <summary>
-	/// Executes an append unit of work with a bounded retry on Oracle ORA-08177 ("can't serialize
-	/// access"). Each attempt runs the entire read-version → concurrency-check → insert sequence inside a
-	/// fresh <see cref="IsolationLevel.Serializable"/> transaction, so isolation is preserved and a genuine
-	/// concurrency conflict is surfaced as a <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/>
-	/// by the re-read (never a lost update). ORA-08177 caused by a non-conflicting concurrent writer (e.g.
-	/// a different aggregate on the same table) is resolved by simply re-attempting.
-	/// </summary>
-	private static async ValueTask<AppendResult> ExecuteWithSerializableRetryAsync(
-		Func<CancellationToken, ValueTask<AppendResult>> execute,
-		CancellationToken cancellationToken)
-	{
-		for (var attempt = 0; ; attempt++)
-		{
-			try
-			{
-				return await execute(cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception ex) when (IsSerializationFailure(ex) && attempt < MaxSerializableRetries)
-			{
-				// Full-jitter exponential backoff before re-running the whole SERIALIZABLE unit of work. The
-				// re-read of the current version on the next attempt either surfaces a genuine
-				// ConcurrencyConflict (a competing writer advanced the stream) or succeeds (a non-conflicting
-				// serialization artifact). SERIALIZABLE isolation is preserved on every attempt. Full jitter
-				// de-correlates a batch of concurrent writers so they drain instead of colliding in lockstep.
-				var ceilingMs = Math.Min(
-					SerializableRetryMaxDelayMs, SerializableRetryBaseDelayMs << Math.Min(attempt, 6));
-				var delayMs = RandomNumberGenerator.GetInt32(ceilingMs + 1);
-				await Task.Delay(TimeSpan.FromMilliseconds(delayMs), cancellationToken).ConfigureAwait(false);
-			}
-		}
-	}
 
 	/// <summary>
-	/// Determines whether an exception (or any exception it wraps) is an Oracle ORA-08177 serialization
-	/// failure ("can't serialize access for this transaction"), which is retryable under SERIALIZABLE
-	/// isolation. The data-access layer wraps provider exceptions (e.g. in an
-	/// <see cref="Excalibur.Data.OperationFailedException"/>), so the whole inner-exception chain is walked.
+	/// Determines whether an exception (or any exception it wraps) is an Oracle ORA-00001 unique-constraint
+	/// violation, which on the event table can only be the stream key: a second writer claiming a version
+	/// this stream already holds.
 	/// </summary>
-	private static bool IsSerializationFailure(Exception? ex)
+	private static bool IsStreamUniqueViolation(Exception? ex) => ContainsOracleErrorCode(ex, 1);
+
+	/// <summary>
+	/// Determines whether an exception (or any exception it wraps, or bundles) carries the given Oracle
+	/// error number.
+	/// </summary>
+	/// <remarks>
+	/// Walks the <see cref="Exception.InnerException"/> chain as before, but an array-bound INSERT
+	/// (<see cref="Requests.InsertEventsBatchRequest"/>'s <c>ArrayBindCount</c> execution) reports a
+	/// per-element failure differently: ODP.NET raises ONE <see cref="OracleException"/> numbered 24381
+	/// ("error(s) in array DML") whose <see cref="OracleException.Errors"/> collection carries the actual
+	/// per-row <see cref="OracleError"/> instances — an ORA-00001 unique-key collision on row K of an N-row
+	/// array bind surfaces there, not as this exception's own <see cref="OracleException.Number"/> and not
+	/// as an <see cref="Exception.InnerException"/>. Without unwrapping this, a genuine lost race inside an
+	/// array-bound batch would not classify as a concurrency conflict (missed by
+	/// <see cref="IsStreamUniqueViolation"/>/<see cref="IsLostRace"/>) — it would surface as an opaque
+	/// ORA-24381 failure instead.
+	/// </remarks>
+	private static bool ContainsOracleErrorCode(Exception? ex, int code)
 	{
 		for (var current = ex; current is not null; current = current.InnerException)
 		{
-			if (current is OracleException { Number: 8177 })
+			if (current is not OracleException oracleEx)
+			{
+				continue;
+			}
+
+			if (oracleEx.Number == code)
 			{
 				return true;
+			}
+
+			if (oracleEx.Number == 24381)
+			{
+				foreach (var error in oracleEx.Errors)
+				{
+					if (error is OracleError { Number: var errorNumber } && errorNumber == code)
+					{
+						return true;
+					}
+				}
 			}
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// Determines whether a failed append lost an optimistic-concurrency race, rather than failing on its
+	/// own account.
+	/// </summary>
+	/// <param name="ex"> The exception that ended the append. </param>
+	/// <param name="currentVersion"> The stream version re-read after rollback, or <see langword="null"/> if it could not be read. </param>
+	/// <param name="expectedVersion"> The version the append required the stream to be at. </param>
+	/// <returns> <see langword="true"/> when the append is a concurrency conflict; otherwise <see langword="false"/>. </returns>
+	/// <remarks>
+	/// <para>
+	/// Under ReadCommitted the version pre-check narrows the race window but is not itself atomic, so a
+	/// loser can slip past it and fail at INSERT instead -- typically ORA-00001 on the stream's UNIQUE
+	/// constraint, but the shape a lost race takes on failure is not a closed set (a unique-constraint
+	/// violation, a deadlock victim, a session cancelled while waiting on the winner's locks all read the
+	/// same way: this writer's transaction rolled back and the stream moved). Classifying on a single error
+	/// code would report most losers correctly and mislabel the rest, and a caller whose retry policy keys
+	/// on the conflict flag does not reload and retry the ones it mislabels -- it surfaces an opaque failure
+	/// for an ordinary, expected outcome.
+	/// </para>
+	/// <para>
+	/// So the primary test is structural rather than a list of codes: the append's transaction has been
+	/// rolled back, so this writer wrote nothing; if the stream is no longer at the version this append
+	/// required, the precondition was lost to another writer, whatever surfaced. That test needs no
+	/// maintenance as engines and versions change, and it cannot over-report -- a stream still sitting at
+	/// the expected version proves nothing else claimed it, so the failure is the append's own and is
+	/// reported as one.
+	/// </para>
+	/// <para>
+	/// The unique-constraint code is kept as a first branch because a violation of the stream key is a
+	/// conflict on the error alone, and it stays decisive on the run where the re-read itself cannot be
+	/// performed.
+	/// </para>
+	/// </remarks>
+	private static bool IsLostRace(Exception ex, long? currentVersion, long expectedVersion) =>
+		IsStreamUniqueViolation(ex) || (currentVersion is { } version && version != expectedVersion);
+
+	/// <summary>
+	/// Re-reads the stream's committed version on a fresh connection after an append failed.
+	/// </summary>
+	/// <param name="aggregateId"> The aggregate whose append failed. </param>
+	/// <param name="aggregateType"> The aggregate type whose append failed. </param>
+	/// <param name="cancellationToken"> Cancellation token. </param>
+	/// <returns> The current persisted version, or <see langword="null"/> if it cannot be read. </returns>
+	/// <remarks>
+	/// <para>
+	/// A fresh connection is required: the appending connection is scoped to the method that raised and has
+	/// already been disposed, and reading through it before that point would have returned this writer's own
+	/// uncommitted state. Runs only on the failure path, so it costs a round trip precisely when the caller
+	/// has to reload anyway. Reporting the winner's version rather than echoing the expected one back is
+	/// what makes the conflict actionable.
+	/// </para>
+	/// <para>
+	/// Returns <see langword="null"/> rather than a substitute when the read fails, because the caller uses
+	/// this value to decide whether the stream moved. Supplying the expected version there would read as
+	/// "the stream did not move" and the classifier would conclude "no conflict" from a measurement that
+	/// never happened; supplying an estimate would read as "the stream moved" and conclude the opposite from
+	/// the same non-measurement.
+	/// </para>
+	/// <para>
+	/// The seam's wrapper is caught alongside the driver exception because this read goes through the
+	/// data-request seam, which wraps whatever the driver raised. Catching the driver type alone would leave
+	/// the wrapper to escape the failure path entirely and replace an append's own diagnosis with the
+	/// re-read's.
+	/// </para>
+	/// </remarks>
+	private async Task<long?> ReadCurrentVersionAfterFailedAppendAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			await using var connection = _connectionFactory();
+			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+			return await connection.ResolveAsync(
+					new GetCurrentVersionRequest(
+						aggregateId, aggregateType, transaction: null, CurrentTenantScope, cancellationToken, _schema, _table))
+				.ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is OracleException or OperationFailedException)
+		{
+			_logger.LogDebug(ex,
+				"Could not re-read current version after a failed append for {AggregateType}/{AggregateId}",
+				aggregateType, aggregateId);
+			return null;
+		}
 	}
 
 	private async ValueTask<(long Version, long FirstPosition)> InsertEventsAsync(

@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Jobs.Diagnostics;
 
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -26,7 +27,7 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>(
 	ISchedulerFactory schedulerFactory,
 	IOptionsMonitor<TOptions> configMonitor,
-	ILogger<JobOptionsHostedWatcherService<TJob, TOptions>> logger) : IJobOptionsHostedWatcherService
+	ILogger<JobOptionsHostedWatcherService<TJob, TOptions>> logger) : IHostedService, IDisposable
 	where TJob : IConfigurableJob<TOptions>
 	where TOptions : class, IJobOptions
 {

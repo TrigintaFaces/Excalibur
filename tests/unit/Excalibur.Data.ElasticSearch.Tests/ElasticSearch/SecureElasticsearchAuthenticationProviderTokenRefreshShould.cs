@@ -24,7 +24,7 @@ namespace Excalibur.Data.Tests.ElasticSearch.Security.Authentication;
 [Trait("Sprint", "398")]
 public sealed class SecureElasticsearchAuthenticationProviderTokenRefreshShould : IDisposable
 {
-	private readonly IElasticsearchKeyProvider _mockKeyProvider;
+	private readonly IElasticsearchKeyStorage _mockKeyProvider;
 	private readonly IHttpClientFactory _mockHttpClientFactory;
 	private readonly ILogger<SecureElasticsearchAuthenticationProvider> _logger;
 	private readonly MockHttpMessageHandler _mockHttpHandler;
@@ -33,7 +33,7 @@ public sealed class SecureElasticsearchAuthenticationProviderTokenRefreshShould 
 
 	public SecureElasticsearchAuthenticationProviderTokenRefreshShould()
 	{
-		_mockKeyProvider = A.Fake<IElasticsearchKeyProvider>();
+		_mockKeyProvider = A.Fake<IElasticsearchKeyStorage>();
 		_mockHttpClientFactory = A.Fake<IHttpClientFactory>();
 		_logger = NullLogger<SecureElasticsearchAuthenticationProvider>.Instance;
 		_mockHttpHandler = new MockHttpMessageHandler();

@@ -3,8 +3,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Collections.Frozen;
-using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Routing;
 
@@ -21,11 +19,15 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 
 	/// <summary>
 	/// Per-message-type profile selection cache. Avoids re-iterating all profiles on every dispatch.
-	/// Uses three-phase freeze pattern: ConcurrentDictionary during warmup → FrozenDictionary after freeze.
 	/// </summary>
-	private ConcurrentDictionary<Type, IPipelineProfile?>? _profileSelectionCache = new();
-	private FrozenDictionary<Type, IPipelineProfile?>? _frozenProfileSelectionCache;
-	private volatile bool _profileSelectionFrozen;
+	/// <remarks>
+	/// Deliberately never frozen. A prior freeze-to-<see cref="System.Collections.Frozen.FrozenDictionary{TKey,TValue}"/>
+	/// design measured slower than this plain dictionary at every message-type count tested,
+	/// and it disabled the fall-through for a message type first seen after the freeze, forcing that type to
+	/// re-run the full profile scan on every subsequent dispatch forever. <see cref="ConcurrentDictionary{TKey,TValue}"/>
+	/// gives O(1) lookups on the fast path with no such cliff.
+	/// </remarks>
+	private readonly ConcurrentDictionary<Type, IPipelineProfile?> _profileSelectionCache = new();
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PipelineProfileRegistry"/> class.
@@ -38,11 +40,6 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 		// Register default profiles
 		RegisterDefaultProfiles();
 	}
-
-	/// <summary>
-	/// Gets a value indicating whether the profile selection cache has been frozen.
-	/// </summary>
-	public bool IsProfileSelectionCacheFrozen => _profileSelectionFrozen;
 
 	/// <inheritdoc />
 	public void RegisterProfile(IPipelineProfile profile)
@@ -84,14 +81,7 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 
 		var messageType = message.GetType();
 
-		// Fast path: check frozen cache first (O(1), zero synchronization)
-		if (_profileSelectionFrozen && _frozenProfileSelectionCache!.TryGetValue(messageType, out var cachedProfile))
-		{
-			return cachedProfile;
-		}
-
-		// Warm path: check mutable cache
-		if (_profileSelectionCache is { } cache && cache.TryGetValue(messageType, out cachedProfile))
+		if (_profileSelectionCache.TryGetValue(messageType, out var cachedProfile))
 		{
 			return cachedProfile;
 		}
@@ -100,7 +90,7 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 		var selected = SelectProfileCore(message);
 
 		// Cache the result (including null for message types with no matching profile)
-		_profileSelectionCache?.TryAdd(messageType, selected);
+		_ = _profileSelectionCache.TryAdd(messageType, selected);
 
 		return selected;
 	}
@@ -166,29 +156,6 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	/// </summary>
 	private static bool IsProfileCompatible(IPipelineProfile profile, IDispatchMessage message) =>
 		profile is IPipelineProfileMatcher matcher && matcher.IsCompatible(message);
-
-	/// <summary>
-	/// Freezes the profile selection cache for maximum hot-path performance.
-	/// After freezing, profile lookups use a <see cref="FrozenDictionary{TKey, TValue}"/>
-	/// for O(1) zero-synchronization reads.
-	/// </summary>
-	public void FreezeProfileSelectionCache()
-	{
-		if (_profileSelectionFrozen)
-		{
-			return;
-		}
-
-		var cache = _profileSelectionCache;
-		if (cache is null)
-		{
-			return;
-		}
-
-		_frozenProfileSelectionCache = cache.ToFrozenDictionary();
-		_profileSelectionFrozen = true;
-		_profileSelectionCache = null; // Allow GC of mutable dictionary
-	}
 
 	/// <inheritdoc />
 	public void SetDefaultProfile(string profileName)

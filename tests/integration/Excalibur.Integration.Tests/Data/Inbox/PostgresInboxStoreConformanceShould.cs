@@ -8,11 +8,14 @@ using Excalibur.Inbox.Postgres;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Npgsql;
+
 using Shouldly;
 
 using Tests.Shared.Conformance.Inbox;
 
 #pragma warning disable CA1812 // Internal class is never instantiated
+#pragma warning disable CA2100 // SQL strings are safe - schema/table names are fixture constants
 
 namespace Excalibur.Integration.Tests.Data.Inbox;
 
@@ -101,5 +104,36 @@ public sealed class PostgresInboxStoreConformanceShould : InboxStoreConformanceT
 	protected override async Task CleanupAsync()
 	{
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+	}
+
+	// 2mek4x: a real, provider-side persistence rejection -- never a mocked client. Renaming the backing
+	// table out from under the store makes every statement referencing it fail with a genuine
+	// "relation does not exist" from the server, then renames it back. Portable across SQL engines
+	// without depending on the connecting role's privilege level (the container's default role is the
+	// database owner, so a permission-revoke fault would not actually block its own writes).
+	private const string FaultTableName = "inbox_messages__2mek4x_fault";
+
+	/// <inheritdoc/>
+	protected override async Task InjectPersistenceFaultAsync()
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		await using var command = new NpgsqlCommand(
+			$"ALTER TABLE \"{_fixture.SchemaName}\".\"{_fixture.TableName}\" RENAME TO \"{FaultTableName}\";",
+			connection);
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	protected override async Task RemovePersistenceFaultAsync()
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		await using var command = new NpgsqlCommand(
+			$"ALTER TABLE \"{_fixture.SchemaName}\".\"{FaultTableName}\" RENAME TO \"{_fixture.TableName}\";",
+			connection);
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 }

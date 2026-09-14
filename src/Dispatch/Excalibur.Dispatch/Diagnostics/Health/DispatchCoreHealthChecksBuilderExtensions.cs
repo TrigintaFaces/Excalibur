@@ -33,27 +33,6 @@ public static class DispatchCoreHealthChecksBuilderExtensions
 			tags));
 	}
 
-	/// <summary>Adds the pipeline integrity health check.</summary>
-	/// <param name="builder">The health checks builder.</param>
-	/// <param name="name">The health check name.</param>
-	/// <param name="failureStatus">Optional failure status.</param>
-	/// <param name="tags">Optional tags for filtering.</param>
-	/// <returns>The health checks builder for chaining.</returns>
-	public static IHealthChecksBuilder AddPipelineIntegrityHealthCheck(
-		this IHealthChecksBuilder builder,
-		string name = "pipeline-integrity",
-		HealthStatus? failureStatus = null,
-		IEnumerable<string>? tags = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		tags ??= DefaultTags;
-		return builder.Add(new HealthCheckRegistration(
-			name,
-			sp => ActivatorUtilities.CreateInstance<PipelineIntegrityHealthCheck>(sp),
-			failureStatus,
-			tags));
-	}
-
 	/// <summary>Adds the streaming handler health check.</summary>
 	/// <param name="builder">The health checks builder.</param>
 	/// <param name="name">The health check name.</param>
@@ -88,7 +67,6 @@ public static class DispatchCoreHealthChecksBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		return builder
 			.AddSerializationHealthCheck(failureStatus: failureStatus, tags: tags)
-			.AddPipelineIntegrityHealthCheck(failureStatus: failureStatus, tags: tags)
 			.AddStreamingHandlerHealthCheck(failureStatus: failureStatus, tags: tags);
 	}
 

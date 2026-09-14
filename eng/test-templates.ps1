@@ -171,17 +171,18 @@ function Test-TemplateInstallation {
         Write-TestResult "Install $shortName from local source" $installed $output
     }
 
-    # Verify all 7 show in list
+    # Derived from $Templates -- the one list this suite iterates -- so a template added
+    # there cannot be silently absent from this check. The hand-written list this
+    # replaced enumerated seven of the eight and omitted dispatch-minimal-api, so that
+    # template could have vanished from 'dotnet new list' with this check still green.
+    # One result per template, so a failure names which one is missing rather than
+    # collapsing all of them into a single boolean.
     $listOutput = dotnet new list 2>&1 | Out-String
-    $allListed = ($listOutput -match "dispatch-api") -and
-                 ($listOutput -match "dispatch-worker") -and
-                 ($listOutput -match "excalibur-ddd") -and
-                 ($listOutput -match "excalibur-cqrs") -and
-                 ($listOutput -match "dispatch-serverless") -and
-                 ($listOutput -match "excalibur-saga") -and
-                 ($listOutput -match "excalibur-outbox")
-
-    Write-TestResult "All 7 templates visible in 'dotnet new list'" $allListed
+    foreach ($template in $Templates) {
+        $shortName = $template.ShortName
+        $isListed = $listOutput -match [regex]::Escape($shortName)
+        Write-TestResult "  $shortName visible in 'dotnet new list'" $isListed
+    }
 }
 
 function Test-DefaultInstantiation {
@@ -488,8 +489,9 @@ function Test-TemplatePack {
         $noBuildOutput = $content -match "<IncludeBuildOutput>false</IncludeBuildOutput>"
         Write-TestResult "  .csproj excludes build output" $noBuildOutput
 
-        # Verify all 7 templates are included as Content items
-        foreach ($tmpl in @("dispatch-api", "dispatch-worker", "excalibur-ddd", "excalibur-cqrs", "dispatch-serverless", "dispatch-minimal-api", "excalibur-saga", "excalibur-outbox")) {
+        # Derived from $Templates for the same reason as the visibility check above: a
+        # hand-written copy of the template list drifts out of date silently.
+        foreach ($tmpl in $Templates.ShortName) {
             $included = $content -match "Content Include=`"$tmpl"
             Write-TestResult "  .csproj includes $tmpl content" $included
         }
@@ -667,6 +669,133 @@ function Invoke-Cleanup {
     }
 }
 
+# A template default is a PROMISE about which build a consumer gets from `dotnet new`. The build check
+# above proves the default RESOLVES; it cannot prove the default is still the RIGHT one, because a
+# prerelease-pinned default keeps resolving and keeps building long after a stable release exists. That
+# is the gap this check closes, and it is why the character-class gate that once guarded it was deleted
+# rather than kept: "contains a hyphen" is a property of the FILE, and the requirement is a question
+# about the FEED.
+#
+# Split deliberately into a pure decision and a network fetch, so the decision is provable without the
+# network and the arms below can plant the very condition that makes a prerelease pin wrong.
+function Test-DefaultIsStaleAgainstFeed {
+    param(
+        [Parameter(Mandatory = $true)][string]   $DefaultRange,
+        [Parameter(Mandatory = $true)][string[]] $PublishedVersions
+    )
+
+    # Only a prerelease-pinned default can go stale this way; a stable float already tracks releases.
+    if ($DefaultRange -notmatch '-') { return $false }
+
+    $major = ($DefaultRange -split '\.')[0]
+    if ($major -notmatch '^\d+$') { return $false }
+
+    # A stable release is one carrying no prerelease label. If any exists in the same major line, the
+    # template is still handing consumers a prerelease when a release is available.
+    foreach ($v in $PublishedVersions) {
+        if ($v -notmatch '-' -and ($v -split '\.')[0] -eq $major) { return $true }
+    }
+    return $false
+}
+
+function Get-PublishedVersions {
+    param([Parameter(Mandatory = $true)][string] $PackageId)
+    try {
+        $uri = "https://api.nuget.org/v3-flatcontainer/$($PackageId.ToLowerInvariant())/index.json"
+        return (Invoke-RestMethod -Uri $uri -TimeoutSec 30 -ErrorAction Stop).versions
+    }
+    catch {
+        return $null
+    }
+}
+
+function Test-TemplateDefaultsTrackTheFeed {
+    Write-Host "`n=== Template Defaults vs the Published Feed ===" -ForegroundColor Cyan
+
+    # Both arms of the decision, on synthetic inputs, so this check is never merely green-because-true-today.
+    # The second arm plants the condition the requirement is about -- a stable release existing -- which is
+    # the only thing that makes a prerelease pin wrong, and cannot be planted by editing a template.
+    $syntheticNoStable = @("10.0.0-alpha.9", "10.0.0-alpha.10")
+    $syntheticWithStable = @("10.0.0-alpha.10", "10.0.0")
+    Write-TestResult "decision: prerelease pin is correct while no stable exists" `
+        (-not (Test-DefaultIsStaleAgainstFeed -DefaultRange "10.0.0-*" -PublishedVersions $syntheticNoStable))
+    Write-TestResult "decision: prerelease pin is STALE once a stable ships (planted)" `
+        (Test-DefaultIsStaleAgainstFeed -DefaultRange "10.0.0-*" -PublishedVersions $syntheticWithStable)
+    Write-TestResult "decision: a stable float is never reported stale" `
+        (-not (Test-DefaultIsStaleAgainstFeed -DefaultRange "10.*" -PublishedVersions $syntheticWithStable))
+
+    $published = Get-PublishedVersions -PackageId "Excalibur.Dispatch"
+    if ($null -eq $published -or $published.Count -eq 0) {
+        # Fail closed. A check that could not reach the feed has not established that the defaults are
+        # current, and reporting that as a pass is how a gate earns a green it did not earn.
+        Write-TestResult "feed reachable to judge template defaults" $false `
+            "could not read the published version list; the defaults were NOT evaluated"
+        return
+    }
+
+    $stable = @($published | Where-Object { $_ -notmatch '-' })
+    Write-Host "  Published: $($published.Count) version(s), $($stable.Count) stable" -ForegroundColor Gray
+
+    foreach ($file in (Get-ChildItem -Path $TemplatesDir -Recurse -Filter "*.csproj")) {
+        $content = Get-Content $file.FullName -Raw
+        foreach ($m in [regex]::Matches($content, '<ExcaliburDispatchVersion[^>]*>([^<]+)</ExcaliburDispatchVersion>')) {
+            $range = $m.Groups[1].Value.Trim()
+            $stale = Test-DefaultIsStaleAgainstFeed -DefaultRange $range -PublishedVersions $published
+            Write-TestResult "  $($file.Name) default '$range' still matches the feed" (-not $stale) `
+                $(if ($stale) { "a stable release exists in this major line, so scaffolds still hand consumers a prerelease" } else { "" })
+        }
+    }
+}
+function Test-ScaffoldBuilds {
+    Write-Host "`n=== Scaffold Restore + Build (against the feed a consumer uses) ===" -ForegroundColor Cyan
+
+    # THIS IS THE CHECK WHOSE ABSENCE MADE EVERYTHING ELSE MEANINGLESS. The rest of
+    # this suite verifies STRUCTURE: files exist, package references are present as
+    # TEXT, sourceName was substituted. None of that compiles anything, so a version
+    # range resolving to nothing, a renamed package, or an API break all pass. This
+    # suite once reported 396 passed while every scaffold was unrestorable, and later
+    # while all eight scaffolds failed to compile against the published packages.
+    #
+    # BUILT OUTSIDE THE REPOSITORY, DELIBERATELY. The other tests scaffold into
+    # artifacts/ under the repo root, where Directory.Build.props applies -- repo-wide
+    # analyzers, warning levels and properties that no consumer has. A build that
+    # passes under those is not evidence a consumer's build passes, and could just as
+    # easily fail on rules a consumer never sees. A temp directory outside the tree is
+    # the only place this measures what a consumer actually gets.
+    #
+    # dotnet build restores implicitly, so an unresolvable version range fails here
+    # too -- restore and compile are both covered by the one check.
+    $buildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("xlb-tmpl-" + [Guid]::NewGuid().ToString("N").Substring(0,8))
+    New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
+    Write-Host "  Build sandbox: $buildRoot" -ForegroundColor Gray
+
+    try {
+        foreach ($template in $Templates) {
+            $shortName = $template.ShortName
+            $projectName = "Build_${shortName}" -replace '-', '_'
+            $outputDir = Join-Path $buildRoot $projectName
+
+            $newOut = dotnet new $shortName -n $projectName -o $outputDir 2>&1 | Out-String
+            if ($newOut -notmatch "was created successfully") {
+                Write-TestResult "$shortName scaffolds for the build check" $false $newOut
+                continue
+            }
+
+            $buildOut = dotnet build $outputDir -c Release --nologo 2>&1 | Out-String
+            $errorLines = @($buildOut -split "`r?`n" | Where-Object { $_ -match "error [A-Z]+\d+" } | Select-Object -Unique)
+            $built = ($errorLines.Count -eq 0)
+            $detail = if ($built) { "" } else { (($errorLines | Select-Object -First 3) -join " | ") }
+
+            Write-TestResult "$shortName scaffold builds against the published feed" $built $detail
+        }
+    }
+    finally {
+        if (Test-Path $buildRoot) {
+            Remove-Item -Recurse -Force $buildRoot -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 # ============================================================
 # Main Execution
 # ============================================================
@@ -687,6 +816,8 @@ if (-not (Test-Path $TestOutputDir)) {
 try {
     Test-TemplateInstallation
     Test-DefaultInstantiation
+    Test-ScaffoldBuilds
+    Test-TemplateDefaultsTrackTheFeed
     Test-TransportOptions
     Test-DatabaseOptions
     Test-IncludeTestsOption

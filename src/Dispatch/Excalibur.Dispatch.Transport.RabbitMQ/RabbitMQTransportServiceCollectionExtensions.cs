@@ -142,10 +142,13 @@ public static class RabbitMQTransportServiceCollectionExtensions
 
 		ApplyTopologyPrefixes(transportOptions.Topology);
 
-		// RabbitMqMessageBus takes IPayloadSerializer, whose only registration is AddPluggableSerialization.
-		// Seat it here (all TryAdd) so the documented AddDispatch() + AddRabbitMQTransport() composition can
-		// construct the bus; a consumer registering their own serializer still wins.
-		_ = services.AddPluggableSerialization();
+		// Serialization is the application's choice, so no transport registers a serializer -- but every
+		// transport message bus requires one. State the requirement here so a host missing it stops at
+		// start-up naming the call that fixes it, rather than failing to activate the bus.
+		// Serialization is the application's choice, so no transport registers a serializer -- but every
+		// transport message bus requires one. State the requirement here so a host missing it stops at
+		// start-up naming the call that fixes it, rather than failing to activate the bus.
+		_ = services.RequirePayloadSerializer();
 
 		// Register core RabbitMQ services
 		RegisterRabbitMQServices(services, transportOptions);
@@ -555,7 +558,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		// instead of the shared channel whose confirms are off-by-default (advertised-but-inert). The
 		// receiver/bus stay on the shared channel; this keyed channel is owned/disposed by the container.
 		var senderChannelKey = $"{name}:sender-confirms";
-		services.AddKeyedSingleton<IChannel>(senderChannelKey, (sp, _) =>
+		services.TryAddKeyedSingleton<IChannel>(senderChannelKey, (sp, _) =>
 		{
 			var connection = sp.GetRequiredService<IConnection>();
 			var createOptions = new CreateChannelOptions(
@@ -578,7 +581,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 			var channel = sp.GetRequiredService<IChannel>();
 			var logger = sp.GetRequiredService<ILogger<RabbitMqTransportReceiver>>();
 			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<RabbitMqOptions>>().Get(name).Consumption.MaxPayloadBytes;
-			return new RabbitMqTransportReceiver(channel, queueName, queueName, logger, maxPayloadBytes);
+			return new RabbitMqTransportReceiver(channel, queueName, queueName, logger, maxPayloadBytes).WithCloudEventDecoding(CloudEventBinding.HouseConvention);
 		});
 	}
 

@@ -79,9 +79,10 @@ internal sealed class HandlerRegistry : IHandlerRegistry
 	/// <param name="messageType"> The type of message the handler processes. </param>
 	/// <param name="handlerType"> The type of the handler. </param>
 	/// <param name="expectsResponse"> Whether the handler is expected to return a response. </param>
-	public void Register([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType, bool expectsResponse)
+	/// <param name="responseType"> The handler's response type, when known up front; otherwise <see langword="null" />. </param>
+	public void Register(Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType, bool expectsResponse, Type? responseType = null)
 	{
-		var entry = new HandlerRegistryEntry(messageType, handlerType, expectsResponse);
+		var entry = new HandlerRegistryEntry(messageType, handlerType, expectsResponse, responseType);
 		HandlerRegistryEntry[]? snapshot = null;
 
 		_ = _handlers.AddOrUpdate(

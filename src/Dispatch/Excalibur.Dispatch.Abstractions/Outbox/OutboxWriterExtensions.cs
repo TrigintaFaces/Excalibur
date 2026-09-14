@@ -32,11 +32,20 @@ public static class OutboxWriterExtensions
 		ArgumentNullException.ThrowIfNull(writer);
 		ArgumentNullException.ThrowIfNull(message);
 
-		// The framework's own deferred writer takes the time as a parameter. Anything else gets the plain
-		// write -- which is what it got before too, since the ambient this replaced was internal and no
-		// other writer read it.
-		return writer is IScheduledOutboxWriter scheduled
-			? scheduled.WriteScheduledAsync(message, destination, scheduledAt, cancellationToken)
-			: writer.WriteAsync(message, destination, cancellationToken);
+		if (writer is IScheduledOutboxWriter scheduled)
+		{
+			return scheduled.WriteScheduledAsync(message, destination, scheduledAt, cancellationToken);
+		}
+
+		// REFUSE rather than fall back to an immediate write. Falling back looks harmless -- the message is
+		// still delivered at least once -- but it delivers at the wrong TIME, which is the one thing the
+		// caller used this overload to ask for, and it did so with no error and nothing logged. A consumer
+		// scheduling a reminder, a retry, or a delayed compensation got it sent immediately and had no way
+		// to find out. Refusing turns a silent wrong-time delivery into a startup-visible wiring mistake.
+		throw new NotSupportedException(
+			$"The registered outbox writer '{writer.GetType().Name}' cannot schedule a message for later "
+			+ "delivery, so this call would have written it for immediate delivery instead. Register a writer "
+			+ $"implementing {nameof(IScheduledOutboxWriter)}, or call WriteAsync if immediate delivery is "
+			+ "what you intended.");
 	}
 }

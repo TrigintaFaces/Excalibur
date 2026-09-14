@@ -5,7 +5,12 @@
     <PackageId>Excalibur.Hosting.Jobs</PackageId>
     <Description>Job hosting infrastructure for Excalibur applications with .NET Worker Service and Web hosting support.</Description>
     <PublishAot>true</PublishAot>
-    <IsTrimmable>true</IsTrimmable>
+    <!-- IsTrimmable is NOT asserted here. It emits an assembly attribute telling a consumer's trimmer
+         this package is safe to trim, and this project declares IsAotCompatible=false three lines below
+         while carrying reflective paths the trimmer cannot see. Claiming both said "trim me freely" to
+         a consumer who had been told, in the same file, that we could not vouch for it. Trimmability is
+         derived from IsAotCompatible=true by the SDK when the evidence supports it. See the policy in
+         src/Directory.Build.props. -->
     <WarningsNotAsErrors>NU1608</WarningsNotAsErrors>
     <PackageTags>excalibur;hosting;jobs;background;scheduling;aot</PackageTags>
     <IsAotCompatible>false</IsAotCompatible>

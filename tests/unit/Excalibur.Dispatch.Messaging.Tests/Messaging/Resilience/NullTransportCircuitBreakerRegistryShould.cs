@@ -62,9 +62,9 @@ public sealed class NullTransportCircuitBreakerRegistryShould
 	}
 
 	[Fact]
-	public void NotThrowOnResetAll()
+	public async Task NotThrowOnResetAll()
 	{
-		Should.NotThrow(() => NullTransportCircuitBreakerRegistry.Instance.ResetAll());
+		await Should.NotThrowAsync(async () => await NullTransportCircuitBreakerRegistry.Instance.ResetAllAsync(CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 	}
 
 	[Fact]

@@ -28,7 +28,6 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 {
 	// CDC position is internal framework cursor state (not an event, not a consumer-queried read-model), so it
 	// sources the canonical serialization contract for uniform, well-defaulted checkpoint serialization.
-	private static readonly JsonSerializerOptions JsonOptions = EventSerializationDefaults.Canonical;
 
 	/// <summary>
 	/// Gets the Stream ARN for validation.
@@ -137,10 +136,6 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this DynamoDB position instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this DynamoDB position instead.")]
 	public override string ToToken() => ToBase64();
 
 	/// <inheritdoc/>
@@ -168,8 +163,6 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// Serializes this position to a base64 string for storage.
 	/// </summary>
 	/// <returns>A base64-encoded string representation.</returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public string ToBase64()
 	{
 		// Deliberately NOT including Timestamp. A position's token must be a function of the position: two
@@ -184,7 +177,7 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 			ShardPositions = ShardPositions.ToDictionary(x => x.Key, x => x.Value),
 		};
 
-		var json = JsonSerializer.Serialize(data, JsonOptions);
+		var json = JsonSerializer.Serialize(data, DynamoDbCdcPositionSerializerContext.Default.PositionData);
 		return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
 
 	}
@@ -193,8 +186,6 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// Serializes this position to a byte array for storage.
 	/// </summary>
 	/// <returns>A UTF-8 encoded byte array representation.</returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public byte[] ToBytes()
 	{
 		var data = new PositionData
@@ -204,7 +195,7 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 			Timestamp = Timestamp,
 		};
 
-		var json = JsonSerializer.Serialize(data, JsonOptions);
+		var json = JsonSerializer.Serialize(data, DynamoDbCdcPositionSerializerContext.Default.PositionData);
 		return Encoding.UTF8.GetBytes(json);
 	}
 
@@ -214,8 +205,6 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// <param name="base64">The base64-encoded string.</param>
 	/// <returns>The deserialized position.</returns>
 	/// <exception cref="FormatException">Thrown if the string format is invalid.</exception>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static DynamoDbCdcPosition FromBase64(string base64)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(base64);
@@ -223,7 +212,7 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 		try
 		{
 			var json = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
-			var data = JsonSerializer.Deserialize<PositionData>(json, JsonOptions);
+			var data = JsonSerializer.Deserialize(json, DynamoDbCdcPositionSerializerContext.Default.PositionData);
 
 			ArgumentNullException.ThrowIfNull(data, nameof(base64));
 
@@ -249,8 +238,6 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// <param name="base64">The base64-encoded string.</param>
 	/// <param name="position">The deserialized position if successful.</param>
 	/// <returns><see langword="true"/> if parsing succeeded; otherwise, <see langword="false"/>.</returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static bool TryFromBase64(string? base64, out DynamoDbCdcPosition? position)
 	{
 		if (string.IsNullOrWhiteSpace(base64))
@@ -323,7 +310,7 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// <summary>
 	/// Internal data structure for JSON serialization.
 	/// </summary>
-	private sealed class PositionData
+	internal sealed class PositionData
 	{
 		[JsonPropertyName("streamArn")]
 		public string? StreamArn { get; set; }
@@ -335,3 +322,25 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 		public DateTimeOffset? Timestamp { get; set; }
 	}
 }
+
+/// <summary>
+/// Source-generated serializer for the DynamoDB position's persisted token.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Source-generated rather than reflection-based so the token can be written and read under trimming and
+/// ahead-of-time compilation without the position type advertising a reflection requirement. The base
+/// <c>ChangePosition.ToToken</c> carries no such requirement, and provider positions that never reflect
+/// must not be made to; removing the reflection is what lets the override match the base honestly.
+/// </para>
+/// <para>
+/// <b>The ignore condition is load-bearing, not style.</b> Omitting nulls is what keeps the emitted token
+/// byte-identical to the one this position has always produced. The sibling Firestore position writes
+/// its nulls, so the two configurations are deliberately different and must not be shared.
+/// </para>
+/// </remarks>
+[JsonSourceGenerationOptions(
+	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+	DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(DynamoDbCdcPosition.PositionData))]
+internal sealed partial class DynamoDbCdcPositionSerializerContext : JsonSerializerContext;

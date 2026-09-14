@@ -23,10 +23,6 @@ internal sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
 	private volatile bool _disposed;
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	public Task<FirestoreCdcPosition?> GetPositionAsync(
 		string processorName,
 		CancellationToken cancellationToken)
@@ -48,10 +44,6 @@ internal sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	public Task SavePositionAsync(
 		string processorName,
 		FirestoreCdcPosition position,
@@ -74,15 +66,17 @@ internal sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	public Task DeletePositionAsync(
-		string processorName,
+	public Task<bool> DeletePositionAsync(
+		string consumerId,
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrWhiteSpace(processorName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
 
-		_ = _positions.TryRemove(processorName, out _);
-		return Task.CompletedTask;
+		// Report whether a checkpoint was actually removed. The shared contract uses this bool to
+		// distinguish "removed one" from "there was none", and a caller branching on it gets a wrong
+		// answer from any provider that hardcodes true.
+		return Task.FromResult(_positions.TryRemove(consumerId, out _));
 	}
 
 	/// <summary>
@@ -103,18 +97,10 @@ internal sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	async Task<ChangePosition?> ICdcStateStore.GetPositionAsync(string consumerId, CancellationToken cancellationToken) =>
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
@@ -128,23 +114,7 @@ internal sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
-
-		// Report whether a checkpoint was actually removed. Delegating to the Firestore-shaped overload
-		// and returning a hardcoded true said "deleted" for a consumer that never had a checkpoint --
-		// the shared contract uses this bool to distinguish those two cases, and every other provider
-		// does. TryRemove already answers the question; the void-returning overload discards it.
-		return Task.FromResult(_positions.TryRemove(consumerId, out _));
-	}
-
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	async IAsyncEnumerable<(string ConsumerId, ChangePosition Position)> ICdcStateStore.GetAllPositionsAsync(
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{

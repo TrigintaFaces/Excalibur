@@ -178,18 +178,46 @@ public static class SqlServerAuditServiceCollectionExtensions
 		// SqlServerAuditStore depends on IAuditIntegrityStrategy to tag/verify records.
 		_ = services.AddAuditIntegrity();
 
-		// The retention opt-out a consumer actually sets lives on SqlServerAuditRetentionOptions, but the
-		// service that enforces it reads AuditRetentionOptions. The two types are unrelated — both sealed,
-		// no inheritance — so without this projection the provider-facing switch is wired to nothing: a
+		// The retention settings a consumer actually sets live on SqlServerAuditRetentionOptions, but the
+		// service that enforces them reads AuditRetentionOptions. The two types are unrelated — both sealed,
+		// no inheritance — so without this projection the provider-facing block is wired to nothing: a
 		// consumer sets EnableRetentionEnforcement = false, the enforcing service still reads its own
-		// default of true, and their audit data is deleted anyway.
+		// default of true, and their audit data is deleted anyway; a consumer sets RetentionPeriod = 90 days
+		// and every event is kept for the core default of seven years. All three properties are projected,
+		// because a block where one knob works and two are inert is worse than one that is wholly inert —
+		// the working knob is the evidence a consumer uses to conclude the others work too.
 		//
 		// Placed in the shared core rather than in one overload deliberately: all three AddSqlServerAuditStore
 		// overloads funnel through here, so the projection cannot be present on one registration path and
 		// missing from another.
+		//
+		// A DEFAULT IS NOT A CHOICE. Each property is projected only when it differs from this type's own
+		// shipped default, so registering the store never overwrites a window the host already set on the
+		// core options. Projecting unconditionally would make the outcome depend on whether
+		// AddSqlServerAuditStore or AddAuditRetention was called last, and the failing direction — a
+		// provider default of seven years landing on top of a host's ninety days — over-retains audit data
+		// silently. The defaults are identical on both types, so "explicitly set to the default" and "left
+		// alone" are the same outcome and nothing observable is lost by not distinguishing them.
 		_ = services.AddOptions<AuditRetentionOptions>()
 			.Configure<IOptions<SqlServerAuditOptions>>(static (core, sqlServer) =>
-				core.EnableRetentionEnforcement = sqlServer.Value.Retention.EnableRetentionEnforcement);
+			{
+				var provider = sqlServer.Value.Retention;
+
+				if (provider.EnableRetentionEnforcement != SqlServerAuditRetentionOptions.DefaultEnableRetentionEnforcement)
+				{
+					core.EnableRetentionEnforcement = provider.EnableRetentionEnforcement;
+				}
+
+				if (provider.RetentionPeriod != SqlServerAuditRetentionOptions.DefaultRetentionPeriod)
+				{
+					core.RetentionPeriod = provider.RetentionPeriod;
+				}
+
+				if (provider.CleanupInterval != SqlServerAuditRetentionOptions.DefaultCleanupInterval)
+				{
+					core.CleanupInterval = provider.CleanupInterval;
+				}
+			});
 
 		// Idempotent single-tenant default: SqlServerAuditStore takes ITenantContext positionally, so without
 		// a registration the store cannot be constructed at all — it would throw at resolve while every unit

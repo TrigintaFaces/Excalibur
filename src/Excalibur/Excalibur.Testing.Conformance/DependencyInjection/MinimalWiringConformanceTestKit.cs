@@ -259,6 +259,24 @@ public abstract class MinimalWiringConformanceTestKit<TBuilderExtension>
 							$"or ValidateOnStart time when the required sibling is missing, but no exception was thrown.");
 					}
 
+					// The fragment check below cannot tell OUR fail-fast from the CONTAINER falling over:
+					// .NET's unresolved-service message names the missing type, so a fragment that is a
+					// type name is satisfied by the platform's own failure and the arm certifies a
+					// fail-fast that may never have been written. Reject the platform's message by its
+					// own signature, whatever the fragment says.
+					if (captured.Message is string platformMsg
+						&& (platformMsg.Contains("Unable to resolve service for type", StringComparison.Ordinal)
+							|| platformMsg.Contains("has been registered", StringComparison.Ordinal)))
+					{
+						throw new TestFixtureAssertionException(
+							$"Bucket B extension {typeof(TBuilderExtension).Name} did not reject the missing "
+							+ "sibling itself — the DI container did, when something tried to resolve it. "
+							+ "That is the platform failing, not this framework validating, and an arm that "
+							+ "accepts it certifies a fail-fast that does not exist. Add the validation, or "
+							+ "if the contract is genuinely 'the container will complain', this is not a "
+							+ $"Bucket B extension. Captured: {platformMsg}");
+					}
+
 					if (captured.Message is not string msg ||
 						!msg.Contains(fragment, StringComparison.OrdinalIgnoreCase))
 					{

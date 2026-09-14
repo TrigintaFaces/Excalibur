@@ -47,6 +47,7 @@ internal class TimeoutDistributedCache : IDistributedCache
 	private readonly Counter<long>? _timeoutCounter;
 	private readonly ICircuitBreakerPolicy? _circuitBreaker;
 	private readonly IOptions<CacheOptions> _breakerOptions;
+	private readonly TimeProvider _timeProvider;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="TimeoutDistributedCache"/> class.
@@ -65,6 +66,11 @@ internal class TimeoutDistributedCache : IDistributedCache
 	/// middleware sees an ordinary cache miss. Reporting here is what allows a chronically slow backend to
 	/// open the breaker and stop every request paying the deadline twice.
 	/// </param>
+	/// <param name="timeProvider">
+	/// The time source the deadline runs on, or <see langword="null"/> to use
+	/// <see cref="TimeProvider.System"/>. Injected so a test can reach the timeout path by advancing a
+	/// fake clock instead of spending the deadline in wall-clock time.
+	/// </param>
 	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
 		Justification = "The meter is owned by the IMeterFactory, which disposes it with the container.")]
 	public TimeoutDistributedCache(
@@ -72,7 +78,8 @@ internal class TimeoutDistributedCache : IDistributedCache
 		IOptions<CacheOptions> options,
 		IMeterFactory? meterFactory,
 		ILogger<TimeoutDistributedCache> logger,
-		ICircuitBreakerPolicy? circuitBreaker = null)
+		ICircuitBreakerPolicy? circuitBreaker = null,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(inner);
 		ArgumentNullException.ThrowIfNull(options);
@@ -83,6 +90,7 @@ internal class TimeoutDistributedCache : IDistributedCache
 		_breakerOptions = options;
 		_logger = logger;
 		_circuitBreaker = circuitBreaker;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_timeoutCounter = meterFactory?
 			.Create(DispatchCachingTelemetryConstants.MeterName)
 			.CreateCounter<long>("dispatch.cache.timeouts", description: "Number of cache operation timeouts");
@@ -151,8 +159,12 @@ internal class TimeoutDistributedCache : IDistributedCache
 			return await operation(cache, key, token).ConfigureAwait(false);
 		}
 
-		using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-		cts.CancelAfter(timeout);
+		// The deadline is driven by TimeProvider rather than CancellationTokenSource.CancelAfter, which has
+		// no TimeProvider overload. Two sources rather than one: the inner source carries the deadline on
+		// the injected clock, and the linked source still cancels the operation when EITHER the caller
+		// cancels or the deadline elapses -- preserving both properties the original single source had.
+		using var deadline = new CancellationTokenSource(timeout, _timeProvider);
+		using var cts = CancellationTokenSource.CreateLinkedTokenSource(token, deadline.Token);
 
 		var breaker = BreakerIfEnabled();
 
@@ -163,11 +175,26 @@ internal class TimeoutDistributedCache : IDistributedCache
 			// strategy never reads, so the circuit could not open however badly the backend behaved.
 			// A backend that fails FAST is as unhealthy as one that fails slow, and both reach the
 			// breaker here because both leave this delegate as an exception.
+			//
+			// WaitAsync(cts.Token), not a bare await: this bound must not depend on the backend observing
+			// its own CancellationToken. The one distributed-cache backend this framework ships,
+			// Microsoft.Extensions.Caching.StackExchangeRedis's RedisCache, only checks the token BEFORE
+			// dispatching the command -- once the Redis call is in flight, cancelling the token does not
+			// abort it (StackExchange.Redis's IDatabase async methods take no CancellationToken at all).
+			// A bare `await` on that task would therefore never observe the deadline and hang exactly as
+			// long as the stuck backend does, which is the failure this decorator exists to prevent.
+			// WaitAsync ABANDONS the inner task at the deadline instead of cancelling it -- matching how
+			// HybridCache bounds its own waits (WhenAny, abandon rather than cancel) -- so the caller is
+			// released on time regardless of backend cooperation. The abandoned task keeps running in the
+			// background (its result is discarded here) and still reports its real outcome to the breaker
+			// above once it completes, so breaker health tracking is unaffected by the abandonment. Safe
+			// only for this byte[]-returning path: see BufferTimeoutDistributedCache below for why the
+			// buffer path must not use the same pattern.
 			return breaker is null
-				? await RunOnceAsync(operation, cache, key, cts.Token).ConfigureAwait(false)
+				? await RunOnceAsync(operation, cache, key, cts.Token).WaitAsync(cts.Token).ConfigureAwait(false)
 				: await breaker.ExecuteAsync(
 					ct => RunOnceAsync(operation, cache, key, ct),
-					cts.Token).ConfigureAwait(false);
+					cts.Token).WaitAsync(cts.Token).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) when (!token.IsCancellationRequested)
 		{
@@ -217,6 +244,12 @@ internal class TimeoutDistributedCache : IDistributedCache
 	/// </summary>
 	/// <returns>The configured <see cref="CacheBehaviorOptions.CacheTimeout"/>.</returns>
 	protected TimeSpan GetTimeout() => _options.Value.Behavior.CacheTimeout;
+
+	/// <summary>
+	/// Gets the time source driving the deadline, so a test can advance it without spending wall-clock.
+	/// </summary>
+	/// <value>The injected provider, or <see cref="TimeProvider.System"/> when none was supplied.</value>
+	protected TimeProvider TimeProvider => _timeProvider;
 }
 
 /// <summary>
@@ -224,6 +257,16 @@ internal class TimeoutDistributedCache : IDistributedCache
 /// backend does not cost the allocation-free read and write path the hybrid cache prefers when the backend
 /// supports it.
 /// </summary>
+/// <remarks>
+/// <b>Deliberately does NOT use the base class's abandon-via-<c>WaitAsync</c> pattern.</b>
+/// <see cref="TryGetAsync"/> writes directly into an <see cref="IBufferWriter{T}"/> that HybridCache owns
+/// and may recycle once this call returns control to it. Abandoning a still-running
+/// <c>TryGetAsync</c> after handing control back would let the backend keep writing into a buffer the
+/// caller now believes is free (and may already be reusing) -- a race that corrupts whatever HybridCache
+/// writes there next, which is worse than the hang this decorator exists to prevent. This path stays a
+/// bare <c>await</c>: bounded only when the backend genuinely honors cancellation, unbounded otherwise. See
+/// the byte[] path in the base class for the case where abandonment is safe.
+/// </remarks>
 internal sealed class BufferTimeoutDistributedCache : TimeoutDistributedCache, IBufferDistributedCache
 {
 	private readonly IBufferDistributedCache _inner;
@@ -239,13 +282,18 @@ internal sealed class BufferTimeoutDistributedCache : TimeoutDistributedCache, I
 	/// Optional breaker guarding the backend, forwarded to the base decorator so a bounded buffer read or
 	/// write reports backend health exactly as the byte-array path does.
 	/// </param>
+	/// <param name="timeProvider">
+	/// The time source the deadline runs on, forwarded to the base decorator, or <see langword="null"/>
+	/// to use <see cref="TimeProvider.System"/>.
+	/// </param>
 	public BufferTimeoutDistributedCache(
 		IBufferDistributedCache inner,
 		IOptions<CacheOptions> options,
 		IMeterFactory? meterFactory,
 		ILogger<TimeoutDistributedCache> logger,
-		ICircuitBreakerPolicy? circuitBreaker = null)
-		: base(inner, options, meterFactory, logger, circuitBreaker) => _inner = inner;
+		ICircuitBreakerPolicy? circuitBreaker = null,
+		TimeProvider? timeProvider = null)
+		: base(inner, options, meterFactory, logger, circuitBreaker, timeProvider) => _inner = inner;
 
 	/// <inheritdoc />
 	public bool TryGet(string key, IBufferWriter<byte> destination) => _inner.TryGet(key, destination);
@@ -262,8 +310,12 @@ internal sealed class BufferTimeoutDistributedCache : TimeoutDistributedCache, I
 			return await _inner.TryGetAsync(key, destination, token).ConfigureAwait(false);
 		}
 
-		using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-		cts.CancelAfter(timeout);
+		// The deadline is driven by TimeProvider rather than CancellationTokenSource.CancelAfter, which has
+		// no TimeProvider overload. Two sources rather than one: the inner source carries the deadline on
+		// the injected clock, and the linked source still cancels the operation when EITHER the caller
+		// cancels or the deadline elapses -- preserving both properties the original single source had.
+		using var deadline = new CancellationTokenSource(timeout, TimeProvider);
+		using var cts = CancellationTokenSource.CreateLinkedTokenSource(token, deadline.Token);
 
 		try
 		{
@@ -286,8 +338,12 @@ internal sealed class BufferTimeoutDistributedCache : TimeoutDistributedCache, I
 			return;
 		}
 
-		using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-		cts.CancelAfter(timeout);
+		// The deadline is driven by TimeProvider rather than CancellationTokenSource.CancelAfter, which has
+		// no TimeProvider overload. Two sources rather than one: the inner source carries the deadline on
+		// the injected clock, and the linked source still cancels the operation when EITHER the caller
+		// cancels or the deadline elapses -- preserving both properties the original single source had.
+		using var deadline = new CancellationTokenSource(timeout, TimeProvider);
+		using var cts = CancellationTokenSource.CreateLinkedTokenSource(token, deadline.Token);
 
 		try
 		{

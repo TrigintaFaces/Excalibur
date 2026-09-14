@@ -21,13 +21,21 @@ public static class ActivityContextExtensions
 	/// Retrieves the application name from the activity context.
 	/// </summary>
 	/// <param name="context"> The activity context. </param>
-	/// <returns> The application name. </returns>
+	/// <returns>
+	/// The application name carried by the context, or an empty string when the context does not carry one. The context is
+	/// the only source consulted: an ambient process-wide value is not substituted, because a caller cannot tell a value the
+	/// context supplied from one it did not.
+	/// </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="context" /> is <c> null </c>. </exception>
-	public static string ApplicationName(this IActivityContext context)
+	public static string? ApplicationName(this IActivityContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		return context.GetValue(nameof(ApplicationName), ApplicationContext.ApplicationName);
+		// Returns null when the context does not carry an application name, rather than the empty string
+		// it used to fabricate. An empty string made "absent" indistinguishable from "present and empty",
+		// so a caller could not tell a context that had never been populated from one deliberately
+		// carrying no name.
+		return context.GetValue<string?>(nameof(ApplicationName), defaultValue: null);
 	}
 
 	/// <summary>
@@ -53,7 +61,14 @@ public static class ActivityContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		return context.Get<IConfiguration>(nameof(IConfiguration));
+		// Stays non-nullable: unlike the accessors above, a missing configuration is not a legitimate
+		// state a caller should branch on, it is a context that was never populated. So this follows
+		// GetRequiredService rather than widening to IConfiguration? -- and it now says so, where before
+		// Get<T>'s null-forgiving operator handed back a null that failed later, somewhere else.
+		return context.Get<IConfiguration>(nameof(IConfiguration))
+			?? throw new InvalidOperationException(
+				"The activity context carries no IConfiguration. It is populated when the context is "
+				+ "created for a request scope; a context built outside one has no configuration to read.");
 	}
 
 	/// <summary>
@@ -62,11 +77,14 @@ public static class ActivityContextExtensions
 	/// <param name="context"> The activity context. </param>
 	/// <returns> The correlation ID, or <see cref="Guid.Empty" /> if not set. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="context" /> is <c> null </c>. </exception>
-	public static Guid CorrelationId(this IActivityContext context)
+	public static Guid? CorrelationId(this IActivityContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		return context.Get<ICorrelationId>(nameof(CorrelationId))?.Value ?? Guid.Empty;
+		// Returns null when the context carries no correlation id, rather than Guid.Empty. The sentinel
+		// was ambiguous three ways: absent, present-but-unset, and a genuinely stored Guid.Empty all read
+		// identically, and a correlation id is exactly the value a caller wants to know it does not have.
+		return context.Get<ICorrelationId>(nameof(CorrelationId))?.Value;
 	}
 
 	/// <summary>
@@ -110,7 +128,7 @@ public static class ActivityContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		var etag = (IETag?)context.Get<IETag>(nameof(ETag));
+		var etag = context.Get<IETag>(nameof(ETag));
 
 		if (etag is null)
 		{
@@ -133,11 +151,16 @@ public static class ActivityContextExtensions
 	/// <param name="key"> The key associated with the value. </param>
 	/// <returns> The value associated with the key, or <c> null </c> if not found. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="context" /> is <c> null </c>. </exception>
-	public static T Get<T>(this IActivityContext context, string key)
+	public static T? Get<T>(this IActivityContext context, string key)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		return context.GetValue(key, default(T))!;
+		// The null-forgiving operator used to sit on the end of this line. It told the compiler that a
+		// lookup into an optional key-value bag always produces a value, which is the one thing the bag
+		// cannot promise: a missing key yields default(T), and for a reference type that is null. The
+		// signature said T, the summary above said "or null if not found", and the documentation was the
+		// half telling the truth. Consumers got a non-nullable contract that returned null.
+		return context.GetValue(key, default(T));
 	}
 
 	/// <summary>
@@ -150,7 +173,12 @@ public static class ActivityContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		return context.Get<IServiceProvider>(nameof(IServiceProvider));
+		// Non-nullable for the same reason as Configuration above, and load-bearing for DomainDb below,
+		// which resolves through it. Failing here names the missing thing; failing later named nothing.
+		return context.Get<IServiceProvider>(nameof(IServiceProvider))
+			?? throw new InvalidOperationException(
+				"The activity context carries no IServiceProvider. It is populated when the context is "
+				+ "created for a request scope; a context built outside one cannot resolve services.");
 	}
 
 	/// <summary>
@@ -172,10 +200,14 @@ public static class ActivityContextExtensions
 	/// <param name="context"> The activity context. </param>
 	/// <returns> The tenant ID. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="context" /> is <c> null </c>. </exception>
-	public static string TenantId(this IActivityContext context)
+	public static string? TenantId(this IActivityContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
+		// This was typed string and returned null whenever the key was absent, because Get<T> forced
+		// non-null on a bag lookup. A tenant id that silently reads as non-null when it is missing is the
+		// worst member of this set to get wrong: a caller that trusts the contract carries a null into a
+		// tenant predicate instead of failing where the value should have been supplied.
 		return context.Get<string>(nameof(TenantId));
 	}
 }

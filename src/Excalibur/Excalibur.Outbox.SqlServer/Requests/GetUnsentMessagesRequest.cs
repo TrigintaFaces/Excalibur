@@ -108,13 +108,19 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 				INSERTED.Status, INSERTED.RetryCount, INSERTED.LastError, INSERTED.LastAttemptAt,
 				INSERTED.CorrelationId, INSERTED.CausationId, INSERTED.TenantId, INSERTED.Priority,
 				INSERTED.TargetTransports, INSERTED.IsMultiTransport,
-				INSERTED.PartitionKey, INSERTED.GroupKey, INSERTED.SequenceNumber
+				INSERTED.PartitionKey, INSERTED.GroupKey, INSERTED.SequenceNumber,
+				INSERTED.LeasedBy AS DispatcherId
 			""";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@BatchSize", batchSize);
 		parameters.Add("@LeaseTimeoutSeconds", leaseTimeoutSeconds);
-		parameters.Add("@ProcessorId", processorId);
+		// Per-call CLAIM identity: {processorId}:{claimId}. The processor half answers WHICH PROCESS holds
+		// the row; the claim half answers WHICH CLAIM, and only the second can distinguish two cycles of the
+		// same process -- a claim whose lease lapsed while a dispatch hung, then re-taken by the next cycle.
+		// Consumers match this by PREFIX for bulk operations, never by splitting on the separator: the
+		// processor half may itself contain colons.
+		parameters.Add("@ProcessorId", FormattableString.Invariant($"{processorId}:{Guid.NewGuid():N}"));
 		parameters.Add("@FencingToken", fencingToken);
 		parameters.Add("@FenceScope", fenceScope);
 
@@ -192,4 +198,9 @@ public sealed class OutboxMessageRow
 
 	/// <summary>The monotonically increasing sequence number for ordering guarantees.</summary>
 	public long SequenceNumber { get; set; }
+
+	/// <summary>
+	/// Gets or sets the claim identity stamped on this row by the claim that returned it.
+	/// </summary>
+	public string? DispatcherId { get; set; }
 }

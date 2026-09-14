@@ -201,7 +201,7 @@ public sealed class EncryptingAuditEventStoreRoundTripShould : IDisposable
             IpAddress = "172.16.0.1"
         }, CancellationToken.None);
 
-        var result = await sut.GetLastEventAsync(null, CancellationToken.None);
+        var result = await sut.GetLastEventAsync(CancellationToken.None);
 
         result.ShouldNotBeNull();
         result.ActorId.ShouldBe("last-actor@company.com");

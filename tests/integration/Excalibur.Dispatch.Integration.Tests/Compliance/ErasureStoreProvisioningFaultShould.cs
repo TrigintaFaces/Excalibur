@@ -167,7 +167,12 @@ public sealed class PostgresErasureProvisioningFaultShould
 		// hash, so a pepper is part of the minimum real composition — same as any consumer's.
 		_ = services.Configure<DataSubjectHashingOptions>(
 			o => o.Pepper = "erasure-provisioning-lock-pepper-0123456789ab");
-		_ = services.AddPostgresErasureStore(options =>
+				// Erasure now REQUIRES a legal-hold service: it is irreversible and consults holds before it
+		// proceeds, so an optional resolution let an unfinished deployment skip the check silently. A
+		// deployment that operates no holds says so explicitly. This fixture is one of those.
+		_ = services.AddNoLegalHolds();
+
+_ = services.AddPostgresErasureStore(options =>
 		{
 			options.ConnectionString = _fixture.ConnectionString;
 			options.SchemaName = "compliance";
@@ -301,7 +306,12 @@ public sealed class SqlServerErasureProvisioningFaultShould
 		// hash, so a pepper is part of the minimum real composition — same as any consumer's.
 		_ = services.Configure<DataSubjectHashingOptions>(
 			o => o.Pepper = "erasure-provisioning-lock-pepper-0123456789ab");
-		_ = services.AddSqlServerErasureStore(options =>
+				// Erasure now REQUIRES a legal-hold service: it is irreversible and consults holds before it
+		// proceeds, so an optional resolution let an unfinished deployment skip the check silently. A
+		// deployment that operates no holds says so explicitly. This fixture is one of those.
+		_ = services.AddNoLegalHolds();
+
+_ = services.AddSqlServerErasureStore(options =>
 		{
 			options.ConnectionString = _fixture.ConnectionString;
 			options.SchemaName = "compliance";

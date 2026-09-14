@@ -24,6 +24,11 @@ public interface IHandlerRegistry
 	/// <param name="messageType"> The type of message that the handler can process. </param>
 	/// <param name="handlerType"> The type of the handler implementation that will process the message. </param>
 	/// <param name="expectsResponse"> Indicates whether the handler returns a response after processing. </param>
+	/// <param name="responseType">
+	/// The response type the handler produces when <paramref name="expectsResponse" /> is <see langword="true" />.
+	/// Optional; a caller that knows the response type up front (a DI descriptor's generic argument, a source
+	/// generator's symbol) should supply it so consumers can read it directly instead of recovering it by reflection.
+	/// </param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="messageType" /> or <paramref name="handlerType" /> is null.
 	/// </exception>
@@ -36,7 +41,7 @@ public interface IHandlerRegistry
 	/// handler replacement or modification during application lifecycle. Handler types should implement appropriate interfaces
 	/// (IActionHandler, IEventHandler, etc.) to be compatible with the processing pipeline.
 	/// </remarks>
-	void Register([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType, bool expectsResponse);
+	void Register(Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType, bool expectsResponse, Type? responseType = null);
 
 	/// <summary>
 	/// Attempts to retrieve the handler registration information for the specified message type. This method provides efficient handler

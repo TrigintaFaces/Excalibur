@@ -269,9 +269,9 @@ public class ValidationMiddlewareShould
     {
         // Arrange
         A.CallTo(() => _validationService.ValidateAsync(
-            A<object>._, A<MessageValidationContext>._, A<CancellationToken>._))
-            .Returns(ValidationResult.Failure(
-                new ValidationError("Amount", "Amount must be positive")));
+            A<IDispatchMessage>._, A<MessageValidationContext>._, A<CancellationToken>._))
+            .Returns(MessageValidationResult.Failure(
+                new MessageValidationError("Amount", "Amount must be positive")));
 
         var options = Microsoft.Extensions.Options.Options.Create(
             new ValidationOptions { Enabled = true, UseCustomValidation = true });
@@ -293,8 +293,8 @@ public class ValidationMiddlewareShould
     {
         // Arrange
         A.CallTo(() => _validationService.ValidateAsync(
-            A<object>._, A<MessageValidationContext>._, A<CancellationToken>._))
-            .Returns(ValidationResult.Success());
+            A<IDispatchMessage>._, A<MessageValidationContext>._, A<CancellationToken>._))
+            .Returns(MessageValidationResult.Success());
 
         var options = Microsoft.Extensions.Options.Options.Create(
             new ValidationOptions { Enabled = true, UseCustomValidation = true });
@@ -309,7 +309,7 @@ public class ValidationMiddlewareShould
 
         // Assert
         _handlerCalled.ShouldBeTrue();
-        result.IsSuccess.ShouldBeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 }
 ```

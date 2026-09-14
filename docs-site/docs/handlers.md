@@ -176,7 +176,7 @@ public class OrderService
         // TResponse inferred from IDispatchAction<Order> - no type args needed
         var result = await _dispatcher.DispatchAsync(action, ct);
 
-        if (result.IsSuccess)
+        if (result.Succeeded)
             return result.ReturnValue;
 
         throw new OrderNotFoundException(orderId);
@@ -189,7 +189,7 @@ public class OrderService
         // Simple dispatch without explicit context
         var result = await _dispatcher.DispatchAsync(action, ct);
 
-        if (!result.IsSuccess)
+        if (!result.Succeeded)
             throw new OrderCreationException(result.ErrorMessage);
     }
 }
@@ -234,7 +234,7 @@ public class OrderController : ControllerBase
         var result = await _dispatcher.DispatchAsync(
             new CreateOrderAction(request.CustomerId, request.Items), ct);
 
-        return result.IsSuccess
+        return result.Succeeded
             ? Ok()
             : Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
     }

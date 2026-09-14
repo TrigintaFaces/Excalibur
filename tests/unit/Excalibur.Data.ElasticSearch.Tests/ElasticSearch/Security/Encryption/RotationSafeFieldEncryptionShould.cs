@@ -80,23 +80,17 @@ public sealed class RotationSafeFieldEncryptionShould
         // throw ArgumentOutOfRangeException. RED on pre-fix (unclamped Timer overflow on enable).
         Should.NotThrow(() =>
         {
-            using var encryptor = new FieldEncryptor(
-                new LocalKeyProvider(),
-                Options.Create(new EncryptionOptions
-                {
-                    KeyManagement = new KeyManagementOptions { KeyRotationInterval = TimeSpan.FromDays(90) },
-                }),
-                NullLogger<FieldEncryptor>.Instance);
+            using var encryptor = FieldEncryptorTestFactory.Create(new EncryptionOptions
+            {
+                KeyManagement = new KeyManagementOptions { KeyRotationInterval = TimeSpan.FromDays(90) },
+            });
         });
     }
 
     private static FieldEncryptor CreateEncryptor() =>
-        new(
-            new LocalKeyProvider(),
-            Options.Create(new EncryptionOptions
-            {
-                // Disable the scheduled rotation timer; these tests drive rotation manually.
-                KeyManagement = new KeyManagementOptions { KeyRotationInterval = TimeSpan.Zero },
-            }),
-            NullLogger<FieldEncryptor>.Instance);
+        FieldEncryptorTestFactory.Create(new EncryptionOptions
+        {
+            // Disable the scheduled rotation timer; these tests drive rotation manually.
+            KeyManagement = new KeyManagementOptions { KeyRotationInterval = TimeSpan.Zero },
+        });
 }

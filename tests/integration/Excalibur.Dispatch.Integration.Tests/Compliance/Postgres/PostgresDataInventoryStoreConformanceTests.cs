@@ -219,6 +219,14 @@ public sealed class PostgresDataInventoryStoreConformanceTests : DataInventorySt
 	public Task GetDataMapEntriesAsync_ShouldCalculateRecordCount_Test() =>
 		GetDataMapEntriesAsync_ShouldCalculateRecordCount();
 
+	[Fact]
+	public Task GetDataMapEntriesAsync_ShouldNotFabricateRecordCountForDiscoveredOnlyEntries_Test() =>
+		GetDataMapEntriesAsync_ShouldNotFabricateRecordCountForDiscoveredOnlyEntries();
+
+	[Fact]
+	public Task SaveRegistrationAsync_ShouldAcceptNamesAtTheDeclaredColumnWidths_Test() =>
+		SaveRegistrationAsync_ShouldAcceptNamesAtTheDeclaredColumnWidths();
+
 	#endregion Data Map Tests
 
 	#region Multi-Tenant Tests

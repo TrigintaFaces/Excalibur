@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.Postgres;
 
@@ -95,7 +96,10 @@ public static class PostgresHealthBasedLeaderElectionExtensions
 			var healthOptions = sp.GetRequiredService<IOptions<PostgresHealthBasedLeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresHealthBasedLeaderElection>>();
 			var innerLogger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
-			return new PostgresHealthBasedLeaderElection(pgOptions, electionOptions, healthOptions, logger, innerLogger);
+			// Forwarded to the inner PostgresLeaderElection for fail-closed fencing-token issuance on
+			// acquisition — the same auto-registered provider the non-health-based path uses below.
+			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			return new PostgresHealthBasedLeaderElection(pgOptions, electionOptions, healthOptions, logger, innerLogger, fencingTokenProvider);
 		});
 
 		services.TryAddSingleton<IHealthBasedLeaderElection>(sp =>
@@ -126,6 +130,13 @@ public static class PostgresHealthBasedLeaderElectionExtensions
 		// to provide, silently absent. Idempotent via TryAdd, so an explicit outbox.WithLeaderElection()
 		// composes with it. A single-active-writer topology opts the outbox out with AsSingleWriter().
 		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
+
+		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
+		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
+		// provider rather than requiring a second, easily-forgotten AddPostgresFencingTokenProvider() +
+		// WithFencingTokens() call. WithoutFencingTokens() opts out.
+		services.TryAddDefaultFencingTokenProvider(sp =>
+			new PostgresFencingTokenProvider(sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>().Value.ConnectionString));
 
 		return services;
 	}

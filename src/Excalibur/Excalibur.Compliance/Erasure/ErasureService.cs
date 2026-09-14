@@ -72,8 +72,9 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  CompositeFormat.Parse(Resources.ErasureService_CannotGenerateCertificate);
 
 	private readonly IErasureStore _store;
-	private readonly ILegalHoldService? _legalHoldService;
+	private readonly ILegalHoldService _legalHoldService;
 	private readonly IDataInventoryService? _dataInventoryService;
+	private readonly IKeyEscrowService? _keyEscrowService;
 	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<ErasureOptions> _options;
 	private readonly ILogger<ErasureService> _logger;
@@ -89,8 +90,14 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 	/// <param name="options">The erasure options (includes signing configuration via <see cref="ErasureRetentionOptions.SigningKey"/>).</param>
 	/// <param name="logger">The logger.</param>
 	/// <param name="dataSubjectHasher">The keyed hasher used to pseudonymize data-subject identifiers.</param>
-	/// <param name="legalHoldService">Optional legal hold service for Article 17(3) checks. Pass <see langword="null"/> if not available.</param>
+	/// <param name="legalHoldService">Legal hold service for Article 17(3) checks. Required: the constructor rejects <see langword="null"/>. A deployment that operates no legal holds registers the explicit no-op via <c>AddNoLegalHolds()</c> rather than passing <see langword="null"/>, so "we hold nothing" is a stated position rather than an omission that reads the same as a forgotten registration.</param>
 	/// <param name="dataInventoryService">Optional data inventory service for discovery. Pass <see langword="null"/> if not available.</param>
+	/// <param name="keyEscrowService">
+	/// Optional key escrow service. Pass <see langword="null"/> if not available. When present,
+	/// a subject's escrowed key copy is revoked before the working key is destroyed, so a consumer who
+	/// escrowed a subject key for disaster recovery cannot silently defeat erasure — the escrowed spare
+	/// no longer outlives the key it was a backup of.
+	/// </param>
 	/// <param name="contributors">Optional erasure contributors for additional store erasure (event stores, snapshot stores, etc.).</param>
 	public ErasureService(
  IErasureStore store,
@@ -98,11 +105,12 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  IOptions<ErasureOptions> options,
  ILogger<ErasureService> logger,
  IDataSubjectHasher dataSubjectHasher,
- ILegalHoldService? legalHoldService,
+ ILegalHoldService legalHoldService,
  IDataInventoryService? dataInventoryService,
+ IKeyEscrowService? keyEscrowService,
  IEnumerable<IErasureContributor>? contributors = null)
 : this(store, keyAdmin, options, logger, dataSubjectHasher, legalHoldService, dataInventoryService,
- IPersonalDataAnnotationSource.CreateDefault(), contributors)
+ keyEscrowService, IPersonalDataAnnotationSource.CreateDefault(), contributors)
 	{
 	}
 
@@ -116,8 +124,9 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  IOptions<ErasureOptions> options,
  ILogger<ErasureService> logger,
  IDataSubjectHasher dataSubjectHasher,
- ILegalHoldService? legalHoldService,
+ ILegalHoldService legalHoldService,
  IDataInventoryService? dataInventoryService,
+ IKeyEscrowService? keyEscrowService,
  IPersonalDataAnnotationSource annotationSource,
  IEnumerable<IErasureContributor>? contributors = null)
 	{
@@ -126,8 +135,9 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  _options = options ?? throw new ArgumentNullException(nameof(options));
  _logger = logger ?? throw new ArgumentNullException(nameof(logger));
  _dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
- _legalHoldService = legalHoldService;
+ _legalHoldService = legalHoldService ?? throw new ArgumentNullException(nameof(legalHoldService));
  _dataInventoryService = dataInventoryService;
+ _keyEscrowService = keyEscrowService;
  _annotationSource = annotationSource ?? throw new ArgumentNullException(nameof(annotationSource));
  // materialize once — the injected IEnumerable is enumerated in both ExecuteAsync and
 		// EvaluateCoverage, so a lazy/once-only sequence would yield inconsistent results (or re-run
@@ -153,9 +163,9 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  // Validate request
  ValidateRequest(request);
 
- // Check for legal holds if service is available
- if (_legalHoldService is not null)
- {
+ // Legal holds are checked unconditionally. The dependency is required, so a deployment that
+ // operates none supplies the declared no-holds service rather than leaving this null -- which is
+ // what makes the absence of a check impossible to reach by omission.
  var holdCheck = await _legalHoldService.CheckHoldsAsync(
  request.DataSubjectId,
  request.IdType,
@@ -182,7 +192,6 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  CaseReference = "unknown",
  CreatedAt = DateTimeOffset.UtcNow
  });
- }
  }
 
  // Discover data inventory if service is available
@@ -393,8 +402,6 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  // Re-check legal holds AFTER the atomic InProgress transition (TOCTOU fix: tightens the window
  // by ensuring we own the request exclusively before checking holds, and check holds immediately
  // before executing erasure operations)
- if (_legalHoldService is not null)
- {
  var holdCheck = await _legalHoldService.CheckHoldsAsync(
  status.DataSubjectIdHash, DataSubjectIdType.Hash, status.TenantId, cancellationToken)
 .ConfigureAwait(false);
@@ -404,7 +411,6 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  _ = await _store.UpdateStatusAsync(requestId, ErasureRequestStatus.BlockedByLegalHold,
  "Legal hold active", cancellationToken).ConfigureAwait(false);
  return ErasureExecutionResult.Failed("Erasure blocked by active legal hold");
- }
  }
 
  try
@@ -574,6 +580,29 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 		{
 			try
 			{
+				// Revoke BEFORE destroy, never the reverse. A crash between the two steps must
+				// leave the SAFER partial state -- escrow revoked with the active key still live is
+				// recoverable and visible; the active key destroyed with escrow silently unrevoked is a
+				// subject who believes their data is gone while a recoverable copy remains. On a revoke
+				// failure, skip the destroy this pass (folds into the tri-state gate below via `errors`,
+				// so Completed stays unreachable) -- a retry re-attempts revoke-then-destroy in order.
+				if (_keyEscrowService is not null)
+				{
+					try
+					{
+						_ = await _keyEscrowService.RevokeEscrowAsync(
+							keyId, "GDPR erasure: subject key destroyed", cancellationToken).ConfigureAwait(false);
+					}
+					catch (Exception ex)
+					{
+						errors.Add(
+							$"Failed to revoke escrow for key '{keyId}': {ex.Message} -- the key was NOT "
+							+ "destroyed this pass, because destroying it now would leave an escrowed spare "
+							+ "recoverable after the subject's data is attested erased.");
+						continue;
+					}
+				}
+
 				var outcome = await _keyAdmin.DeleteKeyAsync(keyId, 0, cancellationToken).ConfigureAwait(false);
 				switch (outcome.State)
 				{

@@ -3,7 +3,6 @@
 
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Caching;
-using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Observability.Context;
 using Excalibur.Dispatch.Resilience.Polly;
 using Excalibur.Dispatch.Transport.RabbitMQ;

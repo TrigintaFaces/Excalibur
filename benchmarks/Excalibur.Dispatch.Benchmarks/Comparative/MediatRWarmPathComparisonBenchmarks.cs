@@ -18,26 +18,34 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 
 #pragma warning disable SA1402 // File may only contain a single type - WarmPath variants are trivial one-line subclasses
 
+[MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
 public class MediatRWarmPathComparisonBenchmarks : MediatRComparisonBenchmarks;
 
+[MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
 public class WolverineWarmPathComparisonBenchmarks : WolverineComparisonBenchmarks;
 
+[MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
 public class WolverineInProcessWarmPathComparisonBenchmarks : WolverineInProcessComparisonBenchmarks;
 
+[MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
 public class MassTransitWarmPathComparisonBenchmarks : MassTransitComparisonBenchmarks;
 
+[MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
 public class MassTransitMediatorWarmPathComparisonBenchmarks : MassTransitMediatorComparisonBenchmarks;
 
+[MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
 public class PipelineWarmPathComparisonBenchmarks : PipelineComparisonBenchmarks;
 
+[MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
 public class TransportQueueParityWarmPathComparisonBenchmarks : TransportQueueParityComparisonBenchmarks;
 
+[MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
 public class RoutingFirstParityWarmPathBenchmarks : RoutingFirstParityBenchmarks;

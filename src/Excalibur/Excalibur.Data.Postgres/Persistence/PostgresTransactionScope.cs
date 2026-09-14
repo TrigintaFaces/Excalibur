@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -450,6 +450,18 @@ public class PostgresTransactionScope : ITransactionScope, ITransactionScopeCall
 				transaction.Dispose();
 			}
 
+			// The scope OWNS these connections -- see the note on the async path. Ownership ends here or a
+			// pooled connection is leaked on every scope.
+			foreach (var connection in _enlistedConnections)
+			{
+				if (connection?.State == ConnectionState.Open)
+				{
+					connection.Close();
+				}
+
+				connection?.Dispose();
+			}
+
 			_transactions.Clear();
 			_enlistedProviders.Clear();
 			_enlistedConnections.Clear();
@@ -489,6 +501,21 @@ public class PostgresTransactionScope : ITransactionScope, ITransactionScopeCall
 		foreach (var transaction in _transactions.Values)
 		{
 			await transaction.DisposeAsync().ConfigureAwait(false);
+		}
+
+		// The scope OWNS these connections. It began a transaction on each one at enlistment, so the
+		// provider that created it deliberately does not dispose it -- doing so would complete the
+		// transaction under the caller and discard uncommitted work. Ownership therefore has to end HERE,
+		// or a pooled connection is leaked on every scope. SqlServerTransactionScope has always closed and
+		// disposed its enlisted connections at this point; this is that model, not a new one.
+		foreach (var connection in _enlistedConnections)
+		{
+			if (connection?.State == ConnectionState.Open)
+			{
+				connection.Close();
+			}
+
+			connection?.Dispose();
 		}
 
 		_transactions.Clear();

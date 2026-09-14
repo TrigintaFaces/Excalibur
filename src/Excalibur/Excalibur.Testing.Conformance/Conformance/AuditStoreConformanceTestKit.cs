@@ -989,11 +989,12 @@ public abstract class AuditStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetLastEventAsync_WithTenant_ShouldReturnLastForTenant()
 	{
 		// Tenant-aware store and an AMBIENT scope, because the stores resolve tenancy from ambient
-		// context alone and deliberately ignore the tenantId argument -- "scope, not filter", so that
-		// passing null cannot widen a read across every tenant. Against the ambient-less store the other
-		// arms use, this arm asserted something unreachable: no tenant resolves, so the read is scoped to
-		// the untenanted sentinel and never sees these events. The tenantId argument below is retained
-		// only because it is still on the interface; the scope is what does the work.
+		// context alone -- "scope, not filter", so that a widened read across every tenant is
+		// unreachable. GetLastEventAsync no longer accepts a tenantId argument at all:
+		// the parameter used to be accepted and silently ignored, which let a caller form a false
+		// belief that the call was scoped by it. Against the ambient-less store the other arms use, this
+		// arm asserted something unreachable: no tenant resolves, so the read is scoped to the untenanted
+		// sentinel and never sees these events.
 		var store = await CreateTenantAwareStoreForArmAsync().ConfigureAwait(false);
 		var tenantId = $"tenant-{GenerateEventId()}";
 
@@ -1015,7 +1016,7 @@ public abstract class AuditStoreConformanceTestKit : ConformanceTestKit
 		AuditEvent? lastEvent;
 		using (TenantContextHolder.BeginScope(tenantId))
 		{
-			lastEvent = await store.GetLastEventAsync(tenantId, CancellationToken.None).ConfigureAwait(false);
+			lastEvent = await store.GetLastEventAsync(CancellationToken.None).ConfigureAwait(false);
 		}
 
 		if (lastEvent is null)
@@ -1053,7 +1054,7 @@ public abstract class AuditStoreConformanceTestKit : ConformanceTestKit
 		_ = await store.StoreAsync(evt1, CancellationToken.None).ConfigureAwait(false);
 		_ = await store.StoreAsync(evt2, CancellationToken.None).ConfigureAwait(false);
 
-		var lastEvent = await store.GetLastEventAsync(null, CancellationToken.None).ConfigureAwait(false);
+		var lastEvent = await store.GetLastEventAsync(CancellationToken.None).ConfigureAwait(false);
 
 		if (lastEvent is null)
 		{

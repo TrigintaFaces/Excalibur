@@ -116,7 +116,7 @@ public sealed class MultiTransportIntegrationShould
 		var result = await multiAdapter.PublishAsync(message, context, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]

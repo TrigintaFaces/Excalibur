@@ -18,26 +18,30 @@ public static class AotCompatibilityExtensions
 	/// Configures the handler invoker to use AOT-compatible implementations when publishing for AOT.
 	/// </summary>
 	/// <remarks>
-	/// Uses <see cref="System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported"/> to select
-	/// the appropriate invoker at runtime: <see cref="HandlerInvokerAot"/> for AOT environments,
-	/// <see cref="HandlerInvoker"/> for JIT environments.
+	/// Selects the source-generated <see cref="HandlerInvokerAot"/> unless the application both supports
+	/// dynamic code and has left the reflective invoker enabled, in which case <see cref="HandlerInvoker"/>
+	/// is used. An application that trims without compiling ahead-of-time can disable the reflective
+	/// invoker to have it removed rather than trimmed around.
 	/// </remarks>
 	[UnconditionalSuppressMessage(
-		"AOT",
+		"Trimming",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
-			"HandlerInvoker is only registered when RuntimeFeature.IsDynamicCodeSupported is true (JIT environments).")]
+			"The reflective invoker is reached only when DispatchFeatureSwitches.UseReflectionInvoker is true. "
+			+ "That property is a declared feature switch, so a trimmed application that disables it has this "
+			+ "branch removed by the trimmer rather than analysed. An application that leaves it enabled has "
+			+ "chosen reflective handler resolution and must root its handler types.")]
 	public static IServiceCollection ConfigureHandlerInvoker(this IServiceCollection services)
 	{
-		if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+		if (DispatchFeatureSwitches.UseReflectionInvoker)
 		{
-			// AOT path: Use source-generated invoker (no reflection/expression compilation)
-			services.TryAddSingleton<IHandlerInvoker, HandlerInvokerAot>();
+			// Reflective invoker: resolves handlers and builds typed invokers at run time.
+			services.TryAddSingleton<IHandlerInvoker, HandlerInvoker>();
 		}
 		else
 		{
-			// JIT path: Use compiled invoker for dynamic handler discovery
-			services.TryAddSingleton<IHandlerInvoker, HandlerInvoker>();
+			// Source-generated invoker: no reflection, no expression compilation.
+			services.TryAddSingleton<IHandlerInvoker, HandlerInvokerAot>();
 		}
 
 		return services;

@@ -367,8 +367,14 @@ public abstract class ControlValidationServiceConformanceTestKit : ConformanceTe
 	}
 
 	/// <summary>
-	/// Verifies that <see cref="IControlValidationService.RunControlTestAsync"/> returns failure for unregistered controls.
+	/// Verifies that <see cref="IControlValidationService.RunControlTestAsync"/> reports an unregistered
+	/// control as never tested, rather than as a control that was tested and failed.
 	/// </summary>
+	/// <remarks>
+	/// An assessor reads this outcome as evidence. A control nobody exercised has produced no evidence
+	/// either way, so reporting a failure attests to something that did not happen; the result must say
+	/// only that no test ran, and say why.
+	/// </remarks>
 	public virtual async Task RunControlTestAsync_UnregisteredControl_ShouldReturnFailure()
 	{
 		// Arrange
@@ -385,10 +391,25 @@ public abstract class ControlValidationServiceConformanceTestKit : ConformanceTe
 				"Expected RunControlTestAsync to return non-null result for unregistered control.");
 		}
 
-		if (result.Outcome != TestOutcome.ControlFailure)
+		if (result.Outcome != TestOutcome.NotTested)
 		{
 			throw new TestFixtureAssertionException(
-				$"Expected Outcome to be ControlFailure for unregistered control, but got {result.Outcome}.");
+				$"Expected Outcome to be NotTested for an unregistered control - no test ran, so neither "
+				+ $"effectiveness nor failure was observed - but got {result.Outcome}.");
+		}
+
+		if (string.IsNullOrWhiteSpace(result.Notes))
+		{
+			throw new TestFixtureAssertionException(
+				"Expected Notes to state why no test ran. A NotTested outcome with no reason tells an "
+				+ "assessor nothing they can act on.");
+		}
+
+		if (result.Exceptions.Count != 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected no exceptions for an unregistered control, but got {result.Exceptions.Count}. "
+				+ "A test that never ran cannot have found an exception.");
 		}
 	}
 

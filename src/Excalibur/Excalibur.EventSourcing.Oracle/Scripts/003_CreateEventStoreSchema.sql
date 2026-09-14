@@ -29,6 +29,16 @@
 -- Events
 -- ---------------------------------------------------------------------------
 -- Every column below is written or read by the store's SQL.
+-- This script creates schema. Without the directive below SQL*Plus exits 0 even when a statement
+-- fails -- ORA-00955 on an object that already exists, or an insufficient-privilege error -- so an
+-- unattended runner records the schema as created and proceeds to the next script against a database
+-- that does not have it. This is the FIRST script a consumer runs, so nothing downstream is safe if
+-- it is wrong. The refusal-exit-code gate does not cover this script: its predicate is a raised
+-- refusal, and there is none here -- the exposure is ordinary statement failure.
+-- An operator running this inside an interactive session is ended by that non-zero exit;
+-- to keep the session, issue WHENEVER SQLERROR CONTINUE before @-ing the file.
+WHENEVER SQLERROR EXIT FAILURE ROLLBACK
+
 CREATE TABLE EVENTSTOREEVENTS (
     -- The global append position, read back by the INSERT itself via RETURNING POSITION INTO.
     -- It MUST be an identity column: the store does not supply a value, and it raises an

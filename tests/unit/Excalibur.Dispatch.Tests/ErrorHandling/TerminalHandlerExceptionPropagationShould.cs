@@ -190,7 +190,7 @@ public sealed class TerminalHandlerExceptionPropagationShould
 
 		var result = await dispatcher.DispatchAsync(new ProbeAction(), TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue(
+		result.Succeeded.ShouldBeTrue(
 			"only the consumer's typed handler can turn this fault into a success, so a success proves it ran");
 		var sentinel = (result as IMessageResult<string>)?.ReturnValue;
 		sentinel.ShouldBe(
@@ -297,7 +297,7 @@ public sealed class TerminalHandlerExceptionPropagationShould
 		_ = services.AddSingleton(counter);
 		_ = services.Configure<RetryOptions>(options =>
 		{
-			options.MaxAttempts = 3;
+			options.MaxRetryAttempts = 3;
 			options.BaseDelay = TimeSpan.FromMilliseconds(1);
 		});
 		_ = services.AddExceptionMapping();
@@ -537,7 +537,7 @@ public sealed class TerminalHandlerExceptionPropagationShould
 		var result = await provider.GetRequiredService<IDispatcher>()
 			.DispatchAsync(new ProbeEvent(), TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue(
+		result.Succeeded.ShouldBeTrue(
 			"only the consumer's typed handler can turn this fault into a success, so a success proves it ran");
 		var sentinel = (result as IMessageResult<string>)?.ReturnValue;
 		sentinel.ShouldBe(

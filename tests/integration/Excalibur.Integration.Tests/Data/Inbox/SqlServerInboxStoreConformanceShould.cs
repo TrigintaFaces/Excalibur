@@ -5,6 +5,7 @@ using Excalibur.Dispatch;
 
 using Excalibur.Inbox.SqlServer;
 
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -13,6 +14,7 @@ using Shouldly;
 using Tests.Shared.Conformance.Inbox;
 
 #pragma warning disable CA1812 // Internal class is never instantiated
+#pragma warning disable CA2100 // SQL strings are safe - schema/table names are fixture constants
 
 namespace Excalibur.Integration.Tests.Data.Inbox;
 
@@ -99,5 +101,37 @@ public sealed class SqlServerInboxStoreConformanceShould : InboxStoreConformance
 	protected override async Task CleanupAsync()
 	{
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+	}
+
+	// 2mek4x: a real, provider-side persistence rejection -- never a mocked client. Renaming the backing
+	// table out from under the store makes every statement referencing it fail with a genuine "Invalid
+	// object name" from the server, then renames it back -- the same shape of failure a consumer would
+	// see from an out-of-band schema change or a botched migration, and portable across SQL engines
+	// without depending on the connecting user's privilege level (the container's default user is
+	// typically sysadmin, so a permission-revoke fault would not actually block a sysadmin's own writes).
+	private const string FaultTableName = "inbox_messages__2mek4x_fault";
+
+	/// <inheritdoc/>
+	protected override async Task InjectPersistenceFaultAsync()
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		await using var command = new SqlCommand(
+			$"EXEC sp_rename '[{_fixture.SchemaName}].[{_fixture.TableName}]', '{FaultTableName}';",
+			connection);
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	protected override async Task RemovePersistenceFaultAsync()
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		await using var command = new SqlCommand(
+			$"EXEC sp_rename '[{_fixture.SchemaName}].[{FaultTableName}]', '{_fixture.TableName}';",
+			connection);
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 }

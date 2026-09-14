@@ -103,7 +103,11 @@ public sealed class DeferredOutboxWriterShould : UnitTestBase
 		// Act & Assert
 		var ex = await Should.ThrowAsync<InvalidOperationException>(
 			() => _sut.WriteAsync(message, "dest", CancellationToken.None).AsTask());
-		ex.Message.ShouldContain("OutboxContext not found");
+		// Asserts the message names IOutboxStore -- the registration the consumer is missing -- rather than
+		// the old text, which named OutboxStagingMiddleware. A consumer reading that could not act on it:
+		// the middleware is a composition detail they never chose and cannot find in their own code, whereas
+		// the store registration is theirs to add. The assertion is on the actionable noun for that reason.
+		ex.Message.ShouldContain("IOutboxStore");
 	}
 
 	[Fact]

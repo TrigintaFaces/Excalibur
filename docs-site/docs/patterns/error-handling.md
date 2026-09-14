@@ -74,11 +74,8 @@ The first line of defense. When a handler throws, the retry policy determines wh
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.UseResilience(options =>
-    {
-        options.EnableRetry = true;
-        options.EnableCircuitBreaker = true;
-    });
+    dispatch.UseRetry()
+            .UseCircuitBreaker();
 });
 
 // Named retry policies for specific operations
@@ -167,7 +164,7 @@ After retries are exhausted, the `PoisonMessageMiddleware` evaluates whether the
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.UsePoisonMessageDetection(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.MaxRetryAttempts = 5;
         options.MaxProcessingTime = TimeSpan.FromMinutes(5);
@@ -518,10 +515,7 @@ Is the message from an external system (broker redelivery possible)?
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.UseResilience(options =>
-    {
-        options.EnableRetry = true;
-    });
+    dispatch.UseRetry();
 });
 ```
 
@@ -530,11 +524,8 @@ services.AddDispatch(dispatch =>
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.UseResilience(options =>
-    {
-        options.EnableRetry = true;
-        options.EnableCircuitBreaker = true;
-    });
+    dispatch.UseRetry()
+            .UseCircuitBreaker();
 
     dispatch.UsePoisonMessageHandling(options =>
     {
@@ -552,27 +543,24 @@ services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-    // Resilience: retry + circuit breaker
-    dispatch.UseResilience(options =>
-    {
-        options.EnableRetry = true;
-        options.EnableCircuitBreaker = true;
-    });
+    // Resilience: timeout + retry + circuit breaker.
+    // UseResilienceStack() composes the three in the core package; UseResilience()
+    // (Excalibur.Dispatch.Resilience.Polly) takes no arguments - configure the
+    // individual middleware through their own options.
+    dispatch.UseResilienceStack();
 
-    // Poison message detection
-    dispatch.UsePoisonMessageDetection(options =>
-    {
-        options.MaxRetryAttempts = 5;
-        options.MaxAge = TimeSpan.FromHours(24);
-        options.PoisonExceptionTypes.Add(typeof(JsonException));
-    });
-
-    // Dead letter queue with alerting
+    // Poison message detection AND its dead-letter behaviour are one feature with one
+    // options type. Detection thresholds sit on the options; retention and alerting sit
+    // on the nested Cleanup and Alerting objects.
     dispatch.UsePoisonMessageHandling(options =>
     {
-        options.DeadLetterRetentionPeriod = TimeSpan.FromDays(90);
-        options.EnableAlerting = true;
-        options.AlertThreshold = 5;
+        options.MaxRetryAttempts = 5;
+        options.MaxProcessingTime = TimeSpan.FromMinutes(5);
+        options.PoisonExceptionTypes.Add(typeof(JsonException));
+
+        options.Cleanup.DeadLetterRetentionPeriod = TimeSpan.FromDays(90);
+        options.Alerting.EnableAlerting = true;
+        options.Alerting.AlertThreshold = 5;
     });
 });
 

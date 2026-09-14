@@ -116,7 +116,7 @@ public sealed class TypedExceptionHandlerWiringShould
 
 		var result = await dispatcher.DispatchAsync(new ProbeAction(), TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue(
+		result.Succeeded.ShouldBeTrue(
 			"UseTypedExceptionHandling() places the middleware in the pipeline, so the registered "
 			+ "ITypedExceptionHandler<InvalidOperationException> must convert the fault into its own result");
 	}
@@ -153,7 +153,7 @@ public sealed class TypedExceptionHandlerWiringShould
 
 		var result = await dispatcher.DispatchAsync(new ProbeAction(), TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue(
+		result.Succeeded.ShouldBeTrue(
 			"the terminal dispatch handler propagates the handler's exception, so the registered "
 			+ "ITypedExceptionHandler<InvalidOperationException> converts it exactly as it does a pipeline fault");
 	}

@@ -1011,6 +1011,7 @@ internal sealed class Dispatcher(
 		{
 			var messageType = message.GetType();
 			context.SetMessageType(MessageTypeCache.GetTypeName(messageType));
+			context.MarkMessageTypeAsRoutingDefault();
 		}
 	}
 
@@ -1040,6 +1041,7 @@ internal sealed class Dispatcher(
 		if (context.GetMessageType() is null)
 		{
 			context.SetMessageType(MessageTypeCache.GetTypeName(message.GetType()));
+			context.MarkMessageTypeAsRoutingDefault();
 		}
 	}
 

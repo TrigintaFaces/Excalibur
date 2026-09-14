@@ -29,13 +29,13 @@
 
 set -uo pipefail
 
-# ── Git-env isolation (xy3hze) — MUST precede the first git call ────────────────────────────────
+# ── Git-env isolation — MUST precede the first git call ────────────────────────────────
 # git EXPORTS GIT_INDEX_FILE / GIT_DIR / GIT_WORK_TREE into every hook and every child process.
 # This script `git init`s its own throwaway fixture repos — but an inherited GIT_INDEX_FILE is an
 # ABSOLUTE PATH and WINS over the repo you are standing in, so `git add` inside the fixture writes
 # the CALLER'S index instead. `git init` does not rescue you; neither does `cd`.
 #
-# Measured consequence, S890: run from a normal shell this script passed; run from pre-commit (where
+# Measured consequence: run from a normal shell this script passed; run from pre-commit (where
 # git had exported GIT_INDEX_FILE) every arm failed AND it staged its own fixtures — including an
 # AWS-shaped token and an RSA private-key header — into the real repo's index, one arm at a time.
 # The standalone GREEN is the disguise: the only environment that reproduces it is the one the gate
@@ -143,7 +143,7 @@ d="$(mkrepo breach-nofix 'BUG' 'BUG and some churn')" && \
     expect_exit 3 "$(run_impl "$d" "$IMPL")" 'arm 3: real at V0, touched post-stop, still reproduces -> TERMINAL 3'
 
 # ---------------------------------------------------------------------------
-# SAFETY. The unsound close is unreachable. This is the shape of 5pdhaw:
+# SAFETY. The unsound close is unreachable. This is the shape it exists for:
 # real at V0, silently repaired by a post-stop commit, absent at HEAD.
 # ---------------------------------------------------------------------------
 printf 'SAFETY -- the unsound close is unreachable\n'
@@ -160,10 +160,10 @@ d="$(mkrepo ec1 'BUG' 'clean')"
 # --stop-epoch 1: no commit at or before it. `git log --until=@1` silently ignores the filter and
 # returns the newest commit -- a filter that does not filter, reporting success. Must be a hard error.
 got="$( ( cd "$d" && bash "$IMPL" --stop-epoch 1 --subject subject.txt --predicate "$PRED" ) >/dev/null 2>&1; printf '%s' "$?" )"
-expect_exit 65 "$got" 'arm 5: EC-1 no commit at/before stop epoch -> hard error, not a guessed baseline'
+expect_exit 65 "$got" 'arm 5: error case 1 — no commit at/before stop epoch -> hard error, not a guessed baseline'
 [ "$got" -eq 1 ] && red 'arm 5: emitted CLOSE with no admissible baseline'
 
-# EC-2: a subject that does not exist at V0 cannot be evaluated there. "never real" is not supported.
+# error case 2: a subject that does not exist at V0 cannot be evaluated there. "never real" is not supported.
 d="$TMPROOT/ec2"
 mkdir -p "$d"
 (
@@ -178,7 +178,7 @@ mkdir -p "$d"
     GIT_AUTHOR_DATE="@$((STOP + 100)) +0000" GIT_COMMITTER_DATE="@$((STOP + 100)) +0000" git commit --quiet -m 'post-stop: subject born'
 ) >/dev/null 2>&1
 got="$(run_impl "$d" "$IMPL")"
-expect_exit 4 "$got" 'arm 6: EC-2 subject absent at V0 -> ESCALATE, never CLOSE'
+expect_exit 4 "$got" 'arm 6: error case 2 — subject absent at V0 -> ESCALATE, never CLOSE'
 [ "$got" -eq 1 ] && red 'arm 6: CLOSED on a subject it could not evaluate at V0'
 
 # Usage: a missing --predicate must be a usage error, not a silent default that judges every premise absent.
@@ -209,7 +209,7 @@ if cmp -s "$IMPL" "$MUTANT"; then
 elif ! bash -n "$MUTANT" 2>/dev/null; then
     red 'arm 8: the mutant is a SYNTAX ERROR, not a behavioural mutant -- it never runs, so it proves NOTHING.'
 else
-    d="$(mkrepo mutant-check 'BUG' 'clean')"          # the 5pdhaw shape: real at V0, absent at HEAD
+    d="$(mkrepo mutant-check 'BUG' 'clean')"          # the shape that matters: real at V0, absent at HEAD
     real_exit="$(run_impl "$d" "$IMPL")"
     mut_exit="$(run_impl "$d" "$MUTANT")"
     if [ "$real_exit" -eq 4 ] && [ "$mut_exit" -eq 1 ]; then
@@ -220,17 +220,18 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# INTEGRATION. The real bead, against this repo's real history. 5pdhaw is the fixture and
+# INTEGRATION. The real bead, against this repo's real history. 5pdhaw is the fixture and  # pragma: allowlist internal-ref
 # 449897ac9 -- a POST-STOP commit that armed the docs gate -- is the answer key.
 # Skipped only if the anchor commit is absent (shallow clone), and it says so.
 # ---------------------------------------------------------------------------
 printf 'INTEGRATION -- the real bead, the real history\n'
-if git -C "$REPO_ROOT" cat-file -e 449897ac9^{commit} 2>/dev/null; then
-    got="$( ( cd "$REPO_ROOT" && bash "$IMPL" --bead 5pdhaw \
+if git -C "${REPO_ROOT:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e 449897ac9^{commit} 2>/dev/null; then
+    bead_fixture='5pdhaw'  # pragma: allowlist internal-ref
+    got="$( ( cd "$REPO_ROOT" && bash "$IMPL" --bead "$bead_fixture" \
                 --subject .github/workflows/ci.yml \
                 --predicate '! grep -q "this step enforces zero" .github/workflows/ci.yml' ) >/dev/null 2>&1; printf '%s' "$?" )"
-    expect_exit 4 "$got" 'arm 9: 5pdhaw -> ESCALATE (FIXED-BY 449897ac9, post-stop), never CLOSE'
-    [ "$got" -eq 1 ] && red 'arm 9: would have CLOSED 5pdhaw -- a defect real for months, repaired 1h49m after a stop order'
+    expect_exit 4 "$got" 'arm 9: 5pdhaw -> ESCALATE (FIXED-BY 449897ac9, post-stop), never CLOSE'  # pragma: allowlist internal-ref
+    [ "$got" -eq 1 ] && red 'arm 9: would have CLOSED 5pdhaw -- a defect real for months, repaired 1h49m after a stop order'  # pragma: allowlist internal-ref
 else
     printf '  SKIP: 449897ac9 not present (shallow clone) -- integration arm did not run\n'
     printf '        This is NOT a pass. The unit arms above still bind the terminals.\n'

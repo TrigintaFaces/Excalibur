@@ -133,10 +133,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      # BuildExamplesAndTests is required here. Without it, everything under tests/ and
+      # benchmarks/ is compile-skipped, so this whole-solution warnings-as-errors build
+      # reports green over code it never compiled. This is the authoritative -warnaserror
+      # build, so the skip must not apply to it.
       - name: Restore and build with warning-as-error
         run: |
           dotnet restore --verbosity quiet
-          dotnet build --configuration Release --no-restore --verbosity quiet -warnaserror /p:TreatWarningsAsErrors=true
+          dotnet build --configuration Release --no-restore --verbosity quiet -warnaserror -p:TreatWarningsAsErrors=true -p:BuildExamplesAndTests=true
 
       # ADVISORY — surfaces candidate hand-rolled reinventions of BCL/first-party primitives on the diff so
       # the "What Would Microsoft Do?" / BCL-first presumption is visible in CI. Heuristic (expected false
@@ -380,16 +384,6 @@ jobs:
             dotnet build tests/architecture/Boundary.Tests/Boundary.Tests.csproj --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
           fi
 
-      - name: Run architecture tests
-        run: |
-          if [ -d "tests/ArchitectureTests" ]; then
-            dotnet restore tests/ArchitectureTests --verbosity quiet
-            dotnet build tests/ArchitectureTests --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
-            dotnet test tests/ArchitectureTests --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet" -- RunConfiguration.TestSessionTimeout=420000
-          else
-            echo "Architecture test project not found, skipping..."
-          fi
-
       - name: Run boundary tests
         # ARCH_ENFORCE=true makes the architecture boundary gate ENFORCING:
         # a real boundary violation (banned provider/framework in abstractions/core, etc.) FAILS the
@@ -397,11 +391,16 @@ jobs:
         env:
           ARCH_ENFORCE: "true"
         run: |
-          if [ -d "tests/architecture/Boundary.Tests" ]; then
-            dotnet test tests/architecture/Boundary.Tests/ --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet" -- RunConfiguration.TestSessionTimeout=420000
-          else
-            echo "Boundary.Tests project not yet created, skipping..."
+          # The project is committed, so a missing directory means a broken checkout or a rename that
+          # did not update this file -- not a project that "does not exist yet". Refusing is the only
+          # honest outcome: a skip here reports the same green as a run in which every boundary
+          # assertion passed, and a guard whose subject has silently moved is indistinguishable from
+          # one that found nothing to complain about.
+          if [ ! -d "tests/architecture/Boundary.Tests" ]; then
+            echo "::error::Boundary tests not found at tests/architecture/Boundary.Tests. This gate cannot report a verdict, so it refuses rather than skipping."
+            exit 1
           fi
+          dotnet test tests/architecture/Boundary.Tests/ --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet" -- RunConfiguration.TestSessionTimeout=420000
 
   # API compatibility gate
   harness-gates:

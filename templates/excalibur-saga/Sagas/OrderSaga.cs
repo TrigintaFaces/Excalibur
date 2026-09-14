@@ -6,6 +6,7 @@ using Excalibur.Saga.Orchestration;
 using Company.ExcaliburSaga.Messages;
 
 using Microsoft.Extensions.Logging;
+using Excalibur.Saga.Abstractions;
 
 namespace Company.ExcaliburSaga.Sagas;
 

@@ -40,17 +40,17 @@ public sealed class SagaOptionsValidatorShould
 	}
 
 	[Fact]
-	public void FailWhenMaxRetryAttemptsIsNegative()
+	public void FailWhenMaxAttemptsIsNegative()
 	{
 		// Arrange
-		var options = new SagaOptions { MaxRetryAttempts = -1 };
+		var options = new SagaOptions { MaxAttempts = -1 };
 
 		// Act
 		var result = _validator.Validate(null, options);
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(SagaOptions.MaxRetryAttempts));
+		result.FailureMessage.ShouldContain(nameof(SagaOptions.MaxAttempts));
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class SagaOptionsValidatorShould
 		// Arrange
 		var options = new SagaOptions
 		{
-			MaxRetryAttempts = 3,
+			MaxAttempts = 3,
 			RetryDelay = TimeSpan.FromMinutes(60),
 			DefaultTimeout = TimeSpan.FromMinutes(30),
 		};
@@ -118,10 +118,10 @@ public sealed class SagaOptionsValidatorShould
 	[Fact]
 	public void SucceedWhenRetryDelayEqualsTimeout_ButRetriesDisabled()
 	{
-		// Arrange - when MaxRetryAttempts is 0, cross-property check is skipped
+		// Arrange - when MaxAttempts is 0, cross-property check is skipped
 		var options = new SagaOptions
 		{
-			MaxRetryAttempts = 0,
+			MaxAttempts = 0,
 			RetryDelay = TimeSpan.FromMinutes(60),
 			DefaultTimeout = TimeSpan.FromMinutes(30),
 		};

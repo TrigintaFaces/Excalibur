@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -16,10 +17,15 @@ namespace Excalibur.LeaderElection.InMemory;
 /// <param name="options"> The leader election options. </param>
 /// <param name="loggerFactory"> The logger factory. </param>
 /// <param name="sharedState"> Optional shared state for test isolation. Uses <see cref="InMemoryLeaderElectionSharedState.Default"/> if not provided. </param>
+/// <param name="fencingTokenProvider">
+/// Optional fencing-token provider, passed through to every election this factory creates. Null runs
+/// created elections in non-fencing mode; <c>Add{Store}LeaderElection()</c> registers one by default.
+/// </param>
 public sealed class InMemoryLeaderElectionFactory(
 	IOptions<LeaderElectionOptions> options,
 	ILoggerFactory? loggerFactory = null,
-	InMemoryLeaderElectionSharedState? sharedState = null) : ILeaderElectionFactory
+	InMemoryLeaderElectionSharedState? sharedState = null,
+	IFencingTokenProvider? fencingTokenProvider = null) : ILeaderElectionFactory
 {
 	private readonly IOptions<LeaderElectionOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
 	private readonly InMemoryLeaderElectionSharedState _sharedState = sharedState ?? InMemoryLeaderElectionSharedState.Default;
@@ -48,7 +54,8 @@ public sealed class InMemoryLeaderElectionFactory(
 			resourceName,
 			optionsCopy,
 			loggerFactory?.CreateLogger<InMemoryLeaderElection>(),
-			_sharedState);
+			_sharedState,
+			fencingTokenProvider: fencingTokenProvider);
 	}
 
 	/// <inheritdoc />
@@ -77,6 +84,7 @@ public sealed class InMemoryLeaderElectionFactory(
 			resourceName,
 			optionsCopy,
 			loggerFactory?.CreateLogger<InMemoryLeaderElection>(),
-			_sharedState);
+			_sharedState,
+			fencingTokenProvider: fencingTokenProvider);
 	}
 }

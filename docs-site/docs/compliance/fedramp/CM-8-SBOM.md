@@ -2,6 +2,7 @@
 
 **Control:** NIST 800-53 Rev 5 CM-8 - Information System Component Inventory
 **Framework:** Excalibur
+**Last Updated:** 2026-09-12
 **Status:** IMPLEMENTED
 **Implementation Date:** 2026-01-01
 
@@ -26,7 +27,7 @@ Excalibur satisfies CM-8 through **automated Software Bill of Materials (SBOM) g
 
 **Key Implementation Details:**
 - **SBOM Format:** CycloneDX (OWASP standard)
-- **Scope:** All NuGet packages (Dispatch.*, Excalibur.*)
+- **Scope:** All NuGet packages (Excalibur.*)
 - **Generation:** Automated via GitHub Actions CI/CD pipeline
 - **Retention:** 90 days artifact retention
 - **Validation:** Automated completeness checks
@@ -38,7 +39,7 @@ Excalibur satisfies CM-8 through **automated Software Bill of Materials (SBOM) g
 
 ### Automation
 
-SBOM generation is automated in `.github/workflows/ci.yml`:
+SBOM generation is automated in the framework's GitHub Actions CI workflow, in the [framework repository](https://github.com/TrigintaFaces/Excalibur):
 
 ```yaml
 sbom-generation:
@@ -61,7 +62,7 @@ sbom-generation:
 
     - name: Generate CycloneDX SBOM for all packages
       run: |
-        dotnet tool install --global CycloneDX
+        dotnet tool restore   # the generator is version-pinned in .config/dotnet-tools.json
         dotnet CycloneDX ./src -o ./src -F Json -t
 
     - name: Upload SBOM artifacts
@@ -121,11 +122,13 @@ The CI pipeline validates SBOM completeness:
     find . -name "bom.json" -o -name "bom.xml"
 ```
 
-**Validation Criteria:**
-- At least one SBOM file generated per package
-- SBOM files are valid CycloneDX JSON/XML
-- All project dependencies are included
-- License information is present where available
+**Validation Criteria (what CI actually enforces):**
+- At least one SBOM file is produced; a run that produces none fails the job.
+
+The check counts SBOM files across the whole run, not per package, so it cannot distinguish
+complete coverage from a single package emitting a document. Per-package coverage, CycloneDX
+schema validity, dependency completeness and license presence are **not** asserted by the
+pipeline — verify those from the artifact before submitting it.
 
 ---
 
@@ -135,14 +138,14 @@ The CI pipeline validates SBOM completeness:
 |------------------|-----------------------------------|
 | **Inventory Development** | Automated SBOM generation via CycloneDX |
 | **Current System Reflection** | SBOM generated on every CI build (reflects latest state) |
-| **Authorization Boundary Components** | All NuGet packages in `src/` directory |
+| **Authorization Boundary Components** | Every NuGet package the framework publishes |
 | **Appropriate Granularity** | Package-level granularity with dependency graph |
 | **Component Description** | Package name, version, description included |
 | **Component Type** | Library/framework type metadata |
 | **Location** | Source repository reference in SBOM metadata |
 | **Manufacturer** | Publisher/author metadata |
 | **Supplier** | NuGet package source |
-| **Owner** | Repository owner (Anthropic/Excalibur) |
+| **Owner** | Repository owner (TrigintaFaces) |
 | **Responsible Individual** | Tracked via Git commit metadata |
 | **Unique Identifier** | Package ID + version + hash (SHA-256) |
 
@@ -167,9 +170,9 @@ The CI pipeline validates SBOM completeness:
 ### Evidence Artifacts
 
 **Primary Evidence:**
-1. `.github/workflows/ci.yml` - SBOM generation job configuration
+1. The CI workflow's SBOM generation job, in the [framework repository](https://github.com/TrigintaFaces/Excalibur)
 2. GitHub Actions workflow runs - SBOM artifacts (90-day retention)
-3. `docs/compliance/fedramp/CM-8-SBOM.md` - This control documentation
+3. This control documentation
 
 **Supporting Evidence:**
 1. CycloneDX specification conformance (OWASP standard)
@@ -213,9 +216,9 @@ CycloneDX SBOMs integrate with GitHub's dependency graph:
 - Dependency review (pull request checks)
 - Security advisories (CVE matching)
 
-### Trivy Container Scanning
+### Container Scanning
 
-SBOM data complements container scanning (see `container-scan` job):
+SBOM data would complement container scanning. **No container-scan job exists in this pipeline**; if your assessment requires one, add it — do not cite it as inherited:
 - Runtime dependency validation
 - OS package vulnerability scanning
 - Combined SBOM + container scan provides comprehensive inventory
@@ -224,11 +227,11 @@ SBOM data complements container scanning (see `container-scan` job):
 
 ## FedRAMP Impact
 
-**Status:** 14/14 controls satisfied (100% complete)
+**Status:** 12 of 14 controls satisfied; 2 partial (SI-7, PM-11)
 
 **CM-8 Closure:**
-- CM-8 was the final gap in the FedRAMP compliance work
-- With SBOM implementation, all 14 NIST 800-53 controls are satisfied
+- CM-8 was the last of the twelve controls the framework satisfies outright
+- SI-7 remains partial (packages ship unsigned) and PM-11 is a business process the consumer owns
 
 **Related Controls:**
 - **SA-4:** Acquisition Process (SBOM provided to consumers)
@@ -262,12 +265,11 @@ SBOM data complements container scanning (see `container-scan` job):
 
 **Available Formats:**
 - `bom.json` - CycloneDX JSON (machine-readable)
-- `bom.xml` - CycloneDX XML (legacy compatibility)
 
 **Tools Compatible:**
 - OWASP Dependency-Track
 - GitHub Security tab
-- Trivy SBOM scanner
+- an SBOM scanner of your choice (none ships here)
 - Any CycloneDX 1.4+ compatible tool
 
 ---
@@ -275,7 +277,6 @@ SBOM data complements container scanning (see `container-scan` job):
 ## Review and Updates
 
 **Last Review:** 2026-01-01
-**Next Review:** 2026-04-01 (quarterly)
 
 **Change Log:**
 - 2026-01-01: Initial CM-8 implementation
@@ -295,9 +296,8 @@ SBOM data complements container scanning (see `container-scan` job):
 - [GitHub Actions Artifacts](https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts)
 
 **Related Documentation:**
-- `docs/compliance/fedramp/README.md` - FedRAMP overview
-- `docs/security/supply-chain.md` - Supply chain security
-- `.github/workflows/ci.yml` - CI/CD implementation
+- [FedRAMP overview](README.md) - Control status, evidence package, and inheritance model
+- [Development process (SA-15)](README.md#development-process-sa-15) - CI/CD pipeline and quality gates
 
 ---
 
@@ -309,5 +309,6 @@ SBOM data complements container scanning (see `container-scan` job):
 
 ---
 
+**Last Updated:** 2026-09-12
 **Status:** IMPLEMENTED
 **Compliance:** CM-8 SATISFIED

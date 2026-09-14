@@ -19,8 +19,8 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 /// <remarks>
 /// Mirrors the Firestore inbox/event-store fixtures' emulator setup. Exposes the emulator's raw
 /// endpoint as <see cref="EmulatorHost"/> (fed straight into <c>FirestoreOutboxOptions.EmulatorHost</c>,
-/// which the store itself turns into the process-wide <c>FIRESTORE_EMULATOR_HOST</c> variable via
-/// <c>FirestoreEmulatorHelper</c>) AND a directly-connected <see cref="Db"/> client for tests that need
+/// which the store points its own client at directly) AND a directly-connected <see cref="Db"/> client
+/// for tests that need
 /// to write documents bypassing the store (the legacy-row read-tolerance arm).
 /// </remarks>
 public sealed class FirestoreOutboxStoreContainerFixture : ContainerFixtureBase

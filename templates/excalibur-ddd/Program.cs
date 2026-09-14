@@ -1,3 +1,10 @@
+#if (UseSqlServer)
+using Excalibur.EventSourcing.SqlServer;
+#elif (UsePostgreSql)
+using Excalibur.EventSourcing.Postgres;
+#endif
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Observability.Metrics;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -13,11 +20,9 @@ builder.Services.AddExcalibur(excalibur =>
     excalibur.AddEventSourcing(es =>
     {
 #if (UseSqlServer)
-        es.UseSqlServer(builder.Configuration.GetConnectionString("EventStore")
-            ?? throw new InvalidOperationException("ConnectionStrings:EventStore is required."));
+        es.UseSqlServer(sql => sql.ConnectionStringName("EventStore"));
 #elif (UsePostgreSql)
-        es.UsePostgres(builder.Configuration.GetConnectionString("EventStore")
-            ?? throw new InvalidOperationException("ConnectionStrings:EventStore is required."));
+        es.UsePostgres(pg => pg.ConnectionStringName("EventStore"));
 #elif (UseInMemoryDatabase)
         es.UseInMemory();
 #endif

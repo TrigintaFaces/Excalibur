@@ -271,7 +271,10 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing());
 // Configure serialization via DI
 services.AddJsonSerialization(options =>
 {
-    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.ConfigureSerializer = json =>
+    {
+        json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    };
 });
 ```
 

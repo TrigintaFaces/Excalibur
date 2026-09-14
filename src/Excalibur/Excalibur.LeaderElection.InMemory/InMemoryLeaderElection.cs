@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 
 using Excalibur.LeaderElection.Diagnostics;
 
@@ -27,14 +28,18 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	private readonly ILogger<InMemoryLeaderElection> _logger;
 	private readonly ITimer _leaseRenewalTimer;
 	private readonly CancellationTokenSource _cancellationTokenSource = new();
+	private readonly IFencingTokenProvider? _fencingTokenProvider;
 	private volatile int _state; // 0 = stopped, 1 = running
 	private volatile bool _disposed;
 	// UTC ticks of the instant this candidate most recently acquired leadership, accessed via
-	// Interlocked lock-free. No fencing-token provider exists for this single-process implementation, so
-	// CurrentLeadership always carries a null fencing token (fencing is genuinely unavailable here — there
-	// is no distributed store to mint a monotonic token against). null, never an in-band 0: a 0 would read
-	// as a valid low token and could be presented to a fencing store, defeating split-brain.
+	// Interlocked lock-free.
 	private long _leadershipAcquiredAtTicks;
+
+	// Sentinel distinguishing "no fencing token provider configured" from a real token, so CurrentLeadership
+	// reports null (never an in-band 0) when fencing is unavailable — an in-band 0 would read to a consumer
+	// as a valid low token and could be presented to a fencing store, defeating split-brain protection.
+	private const long NoFencingToken = long.MinValue;
+	private long _currentFencingToken = NoFencingToken;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryLeaderElection" /> class.
@@ -47,17 +52,24 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
 	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
 	/// </param>
+	/// <param name="fencingTokenProvider">
+	/// Optional fencing-token provider. When absent this election runs in non-fencing mode (see
+	/// <see cref="TryMintFencingTokenAsync"/>) — <c>Add{Store}LeaderElection()</c> registers one by default;
+	/// <c>WithoutFencingTokens()</c> opts out.
+	/// </param>
 	public InMemoryLeaderElection(
 		string resourceName,
 		IOptions<LeaderElectionOptions> options,
 		ILogger<InMemoryLeaderElection>? logger,
 		InMemoryLeaderElectionSharedState? sharedState = null,
-		TimeProvider? timeProvider = null)
+		TimeProvider? timeProvider = null,
+		IFencingTokenProvider? fencingTokenProvider = null)
 	{
 		_resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger<InMemoryLeaderElection>.Instance;
 		_timeProvider = timeProvider ?? TimeProvider.System;
+		_fencingTokenProvider = fencingTokenProvider;
 		var state = sharedState ?? InMemoryLeaderElectionSharedState.Default;
 		_leaders = state.Leaders;
 		_candidates = state.Candidates;
@@ -99,7 +111,8 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 			}
 
 			var acquiredAtTicks = Interlocked.Read(ref _leadershipAcquiredAtTicks);
-			return new Leadership(FencingToken: null, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
+			var token = Interlocked.Read(ref _currentFencingToken);
+			return new Leadership(token == NoFencingToken ? null : token, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
 		}
 	}
 
@@ -320,8 +333,16 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	/// resource is free for a third candidate to acquire. This provider has no lease expiry, so nothing
 	/// downstream would ever correct that.
 	/// </remarks>
-	private bool ReleaseLeadershipIfHeld() =>
-		_leaders.TryRemove(new KeyValuePair<string, string?>(_resourceName, CandidateId));
+	private bool ReleaseLeadershipIfHeld()
+	{
+		var released = _leaders.TryRemove(new KeyValuePair<string, string?>(_resourceName, CandidateId));
+		if (released)
+		{
+			_ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
+		}
+
+		return released;
+	}
 
 	/// <summary>
 	/// Attempts to take the resource for this candidate, and gives it straight back if this candidate
@@ -349,7 +370,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	/// both full fences, so neither pair can be reordered.
 	/// </para>
 	/// </remarks>
-	private Task TryAcquireLeadershipAsync()
+	private async Task TryAcquireLeadershipAsync()
 	{
 		var wasLeader = IsLeader;
 		var currentLeader = CurrentLeaderId;
@@ -364,11 +385,20 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 			// it keeps it, and say nothing: a tenure that never legitimately began has no loss to
 			// announce.
 			_ = ReleaseLeadershipIfHeld();
-			return Task.CompletedTask;
+			return;
 		}
 
 		if (acquired && !wasLeader)
 		{
+			// Mint the fencing token BEFORE announcing leadership so the fence is always advanced first.
+			// On token-domain exhaustion, give the resource back rather than lead — fail-closed.
+			if (!await TryMintFencingTokenAsync().ConfigureAwait(false))
+			{
+				_ = ReleaseLeadershipIfHeld();
+				RaiseAcquisitionFailed("fencing token domain exhausted", exception: null);
+				return;
+			}
+
 			Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
 			LogAcquiredLeadership(_resourceName);
 			BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
@@ -379,8 +409,40 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 			// Another candidate already holds leadership for this resource — lost the race.
 			RaiseAcquisitionFailed("lost the acquisition race", exception: null);
 		}
+	}
 
-		return Task.CompletedTask;
+	/// <summary>
+	/// Mints a monotonic fencing token on acquisition (when a provider is configured), returning
+	/// <see langword="true"/> if leadership may proceed. Returns <see langword="false"/> only when the token
+	/// domain is exhausted (<see cref="FencingTokenExhaustedException"/>) — the fail-closed relinquish path.
+	/// </summary>
+	private async Task<bool> TryMintFencingTokenAsync()
+	{
+		if (_fencingTokenProvider is null)
+		{
+			// No provider configured => this election runs in NON-FENCING mode by design, not "minted
+			// nothing, proceed anyway". A consumer who needs fencing must configure a provider (or accept
+			// the default one Add{Store}LeaderElection() registers); the fenced-resource seam
+			// (GuardActiveGateHasFencingToken) is what guards against a fenced store being used without
+			// one, not this method.
+			return true;
+		}
+
+		try
+		{
+			// No single cancellation token spans every caller here (StartAsync's token is not carried
+			// through, and the renewal timer callback has none at all) — mirrors the rest of this
+			// acquisition path, which is already synchronous/uncancellable end to end.
+			var token = await _fencingTokenProvider.IssueTokenAsync(_resourceName, CancellationToken.None).ConfigureAwait(false);
+			_ = Interlocked.Exchange(ref _currentFencingToken, token);
+			LogFencingTokenIssued(CandidateId, token, _resourceName);
+			return true;
+		}
+		catch (FencingTokenExhaustedException ex)
+		{
+			LogFencingTokenExhausted(ex, CandidateId, _resourceName);
+			return false;
+		}
 	}
 
 	/// <summary>
@@ -454,4 +516,10 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 
 	[LoggerMessage(LeaderElectionEventId.InMemoryRenewalError, LogLevel.Error, "Error during lease renewal for resource '{ResourceName}'")]
 	partial void LogRenewalError(Exception ex, string resourceName);
+
+	[LoggerMessage(LeaderElectionEventId.InMemoryFencingTokenIssued, LogLevel.Information, "Fencing token {Token} issued to candidate '{CandidateId}' for resource '{ResourceName}'")]
+	partial void LogFencingTokenIssued(string candidateId, long token, string resourceName);
+
+	[LoggerMessage(LeaderElectionEventId.InMemoryFencingTokenExhausted, LogLevel.Critical, "Fencing token domain exhausted for candidate '{CandidateId}' on resource '{ResourceName}'; leadership relinquished")]
+	partial void LogFencingTokenExhausted(Exception exception, string candidateId, string resourceName);
 }

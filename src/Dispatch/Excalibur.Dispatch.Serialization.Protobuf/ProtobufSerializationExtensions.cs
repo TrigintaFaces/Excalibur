@@ -39,9 +39,9 @@ public static class ProtobufSerializationExtensions
 	/// </para>
 	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "ProtobufSerializer uses reflection (GetProperty) to read the static Parser and Descriptor properties on Google.Protobuf generated types. No configuration or options binding is involved. AOT consumers should supply a source-generated serializer instead.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "ProtobufSerializer uses reflection (GetProperty) to read the static Parser and Descriptor properties on Google.Protobuf generated types. No configuration or options binding is involved. AOT consumers should supply a source-generated serializer instead.")]
 	public static IServiceCollection AddProtobufSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -58,9 +58,9 @@ public static class ProtobufSerializationExtensions
 	/// <param name="configure"> Configuration delegate for Protobuf serialization options. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "ProtobufSerializer uses reflection (GetProperty) to read the static Parser and Descriptor properties on Google.Protobuf generated types. No configuration or options binding is involved. AOT consumers should supply a source-generated serializer instead.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "ProtobufSerializer uses reflection (GetProperty) to read the static Parser and Descriptor properties on Google.Protobuf generated types. No configuration or options binding is involved. AOT consumers should supply a source-generated serializer instead.")]
 	public static IServiceCollection AddProtobufSerializer(
 		this IServiceCollection services,
 		Action<ProtobufSerializationOptions> configure)

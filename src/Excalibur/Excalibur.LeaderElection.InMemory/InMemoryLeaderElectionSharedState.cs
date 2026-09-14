@@ -35,4 +35,10 @@ public sealed class InMemoryLeaderElectionSharedState
 	/// Gets the dictionary of candidate health data per resource name.
 	/// </summary>
 	internal ConcurrentDictionary<string, ConcurrentDictionary<string, CandidateHealth>> Candidates { get; } = new(StringComparer.Ordinal);
+
+	/// <summary>
+	/// Gets the monotonic fencing-token counter per resource name, minted by
+	/// <see cref="InMemoryFencingTokenProvider"/>.
+	/// </summary>
+	internal ConcurrentDictionary<string, long> FencingTokens { get; } = new(StringComparer.Ordinal);
 }

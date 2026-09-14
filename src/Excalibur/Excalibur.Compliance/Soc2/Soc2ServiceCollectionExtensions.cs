@@ -233,6 +233,12 @@ public static class Soc2ServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<Soc2Options>, Soc2OptionsValidator>());
 
+		// A category enabled here that no registered validator can assess is reported honestly in the
+		// finished attestation and nowhere the person configuring it will look. This says it at the
+		// configuration site instead.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<Soc2Options>, Soc2CoverageOptionsValidator>());
+
 		// Register core services
 		services.TryAddScoped<ISoc2ComplianceService, Soc2ComplianceService>();
 		services.TryAddScoped<IControlValidationService, ControlValidationService>();
@@ -246,10 +252,15 @@ public static class Soc2ServiceCollectionExtensions
 
 	private static void RegisterBuiltInValidators(IServiceCollection services)
 	{
-		_ = services.AddSingleton<IControlValidator, EncryptionControlValidator>();
-		_ = services.AddSingleton<IControlValidator, AuditLogControlValidator>();
-		_ = services.AddSingleton<IControlValidator, AvailabilityControlValidator>();
-		_ = services.AddSingleton<IControlValidator, ProcessingIntegrityControlValidator>();
-		_ = services.AddSingleton<IControlValidator, ConfidentialityControlValidator>();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IControlValidator, EncryptionControlValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IControlValidator, AuditLogControlValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IControlValidator, AvailabilityControlValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IControlValidator, ProcessingIntegrityControlValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IControlValidator, ConfidentialityControlValidator>());
 	}
 }

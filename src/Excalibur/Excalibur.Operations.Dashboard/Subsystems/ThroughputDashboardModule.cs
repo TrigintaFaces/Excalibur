@@ -50,12 +50,12 @@ internal sealed class ThroughputDashboardModule : IDashboardEndpointModule
 		ArgumentNullException.ThrowIfNull(group);
 		ArgumentNullException.ThrowIfNull(options);
 
-		group.MapGet("/{subsystem}/throughput", static (string subsystem, ThroughputCollector? collector) =>
+		group.MapGet("/{subsystem}/throughput", static (string subsystem, ThroughputCollector? collector, TimeProvider timeProvider) =>
 		{
 			if (collector is null || !ThroughputCollector.IsKnownSubsystem(subsystem))
 			{
 				return Results.Json(
-					new ThroughputView { Subsystem = subsystem, Configured = false, CapturedAt = DateTimeOffset.UtcNow },
+					new ThroughputView { Subsystem = subsystem, Configured = false, CapturedAt = timeProvider.GetUtcNow() },
 					ThroughputJsonContext.Default.ThroughputView);
 			}
 
@@ -67,7 +67,7 @@ internal sealed class ThroughputDashboardModule : IDashboardEndpointModule
 					Configured = true,
 					RatePerSecond = reading.RatePerSecond,
 					WindowSeconds = reading.WindowSeconds,
-					CapturedAt = DateTimeOffset.UtcNow,
+					CapturedAt = timeProvider.GetUtcNow(),
 				},
 				ThroughputJsonContext.Default.ThroughputView);
 		});

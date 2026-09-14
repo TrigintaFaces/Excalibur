@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 using Excalibur.Domain;
 
 namespace Excalibur.Data.Tests.Core;
@@ -88,12 +89,38 @@ public sealed class ActivityContextExtensionsShould
 	}
 
 	[Fact]
-	public void CorrelationId_ReturnsEmptyWhenNotSet()
+	public void CorrelationId_ReturnsNullWhenTheContextCarriesNone()
 	{
+		// This arm used to be named ...ReturnsEmptyWhenNotSet and assert Guid.Empty. It passed, and it
+		// passed for a reason that had nothing to do with the accessor: A.Fake<IActivityContext>()
+		// auto-fakes the ICorrelationId the accessor asks for, so the context DID carry one, and its
+		// Value was default(Guid) — which is Guid.Empty. The name said "not set"; the fixture said
+		// "set, to the default". Both the old sentinel contract and the new null contract satisfy it.
+		//
+		// Configured explicitly so the premise in the name is the premise under test.
 		var context = A.Fake<IActivityContext>();
+		_ = A.CallTo(() => context.GetValue(nameof(ActivityContextExtensions.CorrelationId), default(ICorrelationId)))
+			.Returns(null);
 
 		var result = context.CorrelationId();
-		result.ShouldBe(Guid.Empty);
+
+		result.ShouldBeNull();
+	}
+
+	[Fact]
+	public void CorrelationId_ReturnsTheValueWhenTheContextCarriesOne()
+	{
+		// LIVENESS partner: without it, an accessor that returned null unconditionally would satisfy the
+		// arm above, and "absent reads as absent" would be indistinguishable from "nothing works".
+		var expected = Guid.NewGuid();
+		var correlationId = A.Fake<ICorrelationId>();
+		_ = A.CallTo(() => correlationId.Value).Returns(expected);
+
+		var context = A.Fake<IActivityContext>();
+		_ = A.CallTo(() => context.GetValue(nameof(ActivityContextExtensions.CorrelationId), default(ICorrelationId)))
+			.Returns(correlationId);
+
+		context.CorrelationId().ShouldBe(expected);
 	}
 
 	[Fact]

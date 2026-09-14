@@ -125,7 +125,7 @@ public record CreateOrderAction(
 ```csharp
 var result = await dispatcher.DispatchAsync(action, ct);
 
-if (!result.IsSuccess && result.ValidationResult is ValidationResult validationResult)
+if (!result.Succeeded && result.ValidationResult is ValidationResult validationResult)
 {
     foreach (var error in validationResult.Errors)
     {
@@ -436,7 +436,7 @@ services.AddDispatch(dispatch =>
 
 services.Configure<RetryOptions>(options =>
 {
-    options.MaxAttempts = 3;
+    options.MaxRetryAttempts = 3;
     options.BaseDelay = TimeSpan.FromMilliseconds(100);
     options.MaxDelay = TimeSpan.FromSeconds(30);
     options.BackoffMultiplier = 2.0;
@@ -482,7 +482,7 @@ The computed backoff delay is always clamped to `MaxDelay` before the wait `Time
 ### Per-Message Retry Policy
 
 ```csharp
-[Retry(MaxAttempts = 5, BaseDelayMs = 500)]
+[Retry(MaxRetryAttempts = 5, BaseDelayMs = 500)]
 public record ImportDataAction(...) : IDispatchAction;
 ```
 
@@ -572,7 +572,7 @@ Stores outgoing messages in an outbox for reliable at-least-once delivery:
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.UseOutbox(); // Registers OutboxMiddleware
+    dispatch.UseOutbox(); // Registers OutboxStagingMiddleware and CascadeMiddleware
 });
 ```
 
@@ -641,6 +641,21 @@ dispatch.UseCloudEvents()
         .UseValidation();
 ```
 :::
+
+### The `type` Attribute
+
+The CloudEvents `type` attribute is the identifier external subscribers filter on -- an AWS EventBridge
+rule or an Azure Event Grid subscription matches against it. For a message your own dispatcher sends,
+`type` is the message's **declared name** (`[MessageName("...")]`), never the CLR type's `FullName`: a
+declared name is stable across namespace, assembly, and assembly-version changes, while a name derived
+from the CLR type breaks the moment any of those change. Renaming a message type later is done by
+keeping the old name reachable with `[MessageNameAlias("...")]`, not by re-deriving `type` from the new
+CLR name.
+
+When a message is a **re-emitted foreign CloudEvent** (received from another organisation and forwarded
+rather than originated here), `type` instead preserves that event's original identity verbatim --
+overwriting it with your own declared name would corrupt provenance for anyone consuming the
+re-emitted event.
 
 ## Tenant Identity Middleware
 
@@ -741,16 +756,29 @@ services.AddDispatch(dispatch =>
 });
 ```
 
-## Low-Allocation Validation Middleware
+## Ordering Validation Middleware
 
-Validates messages using a low-allocation path for high-throughput scenarios:
+Enforces strictly-increasing per-key ordering for messages that arrived through a receive path where
+ordering is enforced -- fail-closed on an out-of-order or unstamped message on that path:
 
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.UseZeroAllocMiddleware(); // Registers ZeroAllocationValidationMiddleware
-});
+services.AddDispatch(typeof(Program).Assembly); // assembly-scanning overload -- see warning below
+services.AddOrderingValidation(); // Registers OrderingValidationMiddleware
 ```
+
+Unlike the other middleware on this page, this is a **service collection** extension, not a dispatch
+builder one -- call it alongside `AddDispatch(...)`, not inside its lambda. It also needs one more
+thing before it does anything: your receive-to-dispatch bridge must call
+`TransportOrderingMetadata.TryStampOrdering(received, context)`, because the framework has no seam that
+holds both a received transport message and a dispatch context.
+
+:::warning Not yet wired through the `AddDispatch(configure)` builder-lambda form
+`AddOrderingValidation()` only activates when paired with the assembly-scanning `AddDispatch(...)`
+overload shown above. Paired with `AddDispatch(dispatch => { ... })` instead, it registers without
+error but never runs -- no exception, no log, out-of-order messages pass silently. See
+[Ordering Validation](./ordering-validation.md) for the full stamping walkthrough, the per-transport
+native-sequence table, and this limitation in detail.
+:::
 
 ## CloudEvents Sub-Extensions
 
@@ -884,19 +912,18 @@ All middleware classes listed below are **internal** -- register them using the 
 | `UseAuditLogging()` | `AuditLoggingMiddleware` | Observability |
 | `UseValidation()` | `ValidationMiddleware` | Validation |
 | `UseInputSanitization()` | `InputSanitizationMiddleware` | Validation |
-| `UseZeroAllocMiddleware()` | `ZeroAllocationValidationMiddleware` | Validation |
 | `UseContractVersioning()` | `ContractVersionCheckMiddleware` | Validation |
 | `UseRetry()` | `RetryMiddleware` | Resilience |
 | `UseCircuitBreaker()` | `CircuitBreakerMiddleware` | Resilience |
 | `UseTimeout()` | `TimeoutMiddleware` | Resilience |
-| `UseBulkhead()` | `BulkheadMiddleware` | Resilience |
 | `UseThrottling()` | `ThrottlingMiddleware` | Resilience |
 | `UseExceptionMapping()` | `ExceptionMappingMiddleware` | Error Handling |
 | `UseTransaction()` | `TransactionMiddleware` | Reliability |
-| `UseOutbox()` | `OutboxMiddleware` | Reliability |
+| `UseOutbox()` | `OutboxStagingMiddleware` + `CascadeMiddleware` | Reliability |
 | `UseInbox()` | `InboxMiddleware` | Reliability |
 | `UseIdempotency()` | `InboxMiddleware` (alias) | Reliability |
 | `UseCloudEvents()` | `CloudEventMiddleware` | Messaging |
+| `AddOrderingValidation()` | `OrderingValidationMiddleware` | Reliability |
 | `UseTenantIdentity()` | `TenantIdentityMiddleware` | Security |
 | `UseBackgroundExecution()` | `BackgroundExecutionMiddleware` | Threading |
 | `UseBatching()` | `UnifiedBatchingMiddleware` | Throughput |

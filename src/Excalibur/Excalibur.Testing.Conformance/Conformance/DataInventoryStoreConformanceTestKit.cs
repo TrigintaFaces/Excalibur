@@ -846,10 +846,129 @@ public abstract class DataInventoryStoreConformanceTestKit : ConformanceTestKit
 					"GetDataMapEntriesAsync should include entries for the table/field");
 			}
 
-			if (entry.RecordCount < 3)
+			// A store that cannot count says so with null, which is allowed here. What is not allowed is a
+			// NUMBER that is too small -- and the earlier form of this check compared the nullable directly
+			// against 3, which a null silently passes because every comparison with null is false.
+			if (entry.RecordCount is { } countedRecords && countedRecords < 3)
 			{
 				throw new TestFixtureAssertionException(
-					$"GetDataMapEntriesAsync should calculate record count from discovered locations. Expected at least 3 but got {entry.RecordCount}");
+					$"GetDataMapEntriesAsync should calculate record count from discovered locations. Expected at least 3 but got {countedRecords}");
+			}
+		}
+		finally
+		{
+			await CleanupAsync().ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Verifies that an entry the store discovered but nobody registered carries a real count or an explicit
+	/// absence, never a placeholder.
+	/// </summary>
+	/// <remarks>
+	/// This value is reported in records of processing activity, where a reader takes it for a measurement,
+	/// so a placeholder is worse than no answer. The arm fails BOTH ways: a store returning a number other
+	/// than the true one fails, and a store that counts the registered entry while returning
+	/// <see langword="null"/> for the discovered one fails, because that is a count it could have taken.
+	/// </remarks>
+	public virtual async Task GetDataMapEntriesAsync_ShouldNotFabricateRecordCountForDiscoveredOnlyEntries()
+	{
+		// Arrange -- one registered field and one that only discovery knows about, three records each, so
+		// the two are comparable and the registered one establishes whether this store counts at all.
+		var store = CreateStore();
+		var dataSubjectId1 = GenerateDataSubjectId();
+		var dataSubjectId2 = GenerateDataSubjectId();
+
+		var registration = CreateRegistration("RegisteredCountTable", "RegisteredCountField");
+		await store.SaveRegistrationAsync(registration, CancellationToken.None).ConfigureAwait(false);
+
+		try
+		{
+			foreach (var (table, field) in new[]
+				{
+					("RegisteredCountTable", "RegisteredCountField"),
+					("DiscoveredOnlyTable", "DiscoveredOnlyField"),
+				})
+			{
+				await store.RecordDiscoveredLocationAsync(
+					CreateLocation(table, field, recordId: "record-1"), dataSubjectId1, CancellationToken.None).ConfigureAwait(false);
+				await store.RecordDiscoveredLocationAsync(
+					CreateLocation(table, field, recordId: "record-2"), dataSubjectId1, CancellationToken.None).ConfigureAwait(false);
+				await store.RecordDiscoveredLocationAsync(
+					CreateLocation(table, field, recordId: "record-3"), dataSubjectId2, CancellationToken.None).ConfigureAwait(false);
+			}
+
+			// Act
+			var entries = await GetQueryStore(store).GetDataMapEntriesAsync(null, CancellationToken.None).ConfigureAwait(false);
+			var registered = entries.FirstOrDefault(e => e.TableName == "RegisteredCountTable");
+			var discovered = entries.FirstOrDefault(e => e.TableName == "DiscoveredOnlyTable");
+
+			// Assert
+			if (registered is null)
+			{
+				throw new TestFixtureAssertionException(
+					"GetDataMapEntriesAsync should include an entry for a registered table/field");
+			}
+
+			// A store that reports only registered fields emits nothing here, and cannot fabricate a count for
+			// a row it never produced. That is a legitimate shape, so it is not a failure.
+			if (discovered is null)
+			{
+				return;
+			}
+
+			if (discovered.RecordCount is { } discoveredCount && discoveredCount != 3)
+			{
+				throw new TestFixtureAssertionException(
+					"GetDataMapEntriesAsync must not substitute a placeholder for an uncounted entry. Three records "
+					+ $"were discovered for this field and the entry reports {discoveredCount}. Report the real count, "
+					+ "or null if this store does not count.");
+			}
+
+			if (registered.RecordCount.HasValue != discovered.RecordCount.HasValue)
+			{
+				throw new TestFixtureAssertionException(
+					"GetDataMapEntriesAsync reports a count for one entry and not the other, so this store can count "
+					+ "and declined to for the discovered-only entry. A store that can count must count.");
+			}
+		}
+		finally
+		{
+			await CleanupAsync().ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a registration whose table and field names use the full declared column widths round
+	/// trips, rather than failing at insert time on a storage-engine key limit.
+	/// </summary>
+	/// <remarks>
+	/// A store whose natural key is also its physical index key can exceed its engine's index-key limit
+	/// while still provisioning successfully -- the failure is a property of the DATA, not the schema, so it
+	/// survives provisioning and every short-named smoke test and arrives on a real registration. This arm
+	/// uses names at the declared widths precisely because the short defaults everywhere else cannot reach
+	/// it.
+	/// </remarks>
+	public virtual async Task SaveRegistrationAsync_ShouldAcceptNamesAtTheDeclaredColumnWidths()
+	{
+		// Arrange -- 256 characters each, the declared width of TableName and FieldName.
+		var store = CreateStore();
+		var longTable = new string('T', 256);
+		var longField = new string('F', 256);
+		var registration = CreateRegistration(longTable, longField);
+
+		try
+		{
+			// Act
+			await store.SaveRegistrationAsync(registration, CancellationToken.None).ConfigureAwait(false);
+
+			// Assert -- it must be readable back, not merely accepted.
+			var all = await store.GetAllRegistrationsAsync(CancellationToken.None).ConfigureAwait(false);
+			if (!all.Any(r => r.TableName == longTable && r.FieldName == longField))
+			{
+				throw new TestFixtureAssertionException(
+					"A registration using the full declared column widths was accepted but did not read back. "
+					+ "Names at the declared width are inside the contract and must round trip.");
 			}
 		}
 		finally

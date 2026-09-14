@@ -193,6 +193,17 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 | `EnableAutoUpcast` | `false` | Apply upcasting pipeline during event replay |
 | `EnableAutoSnapshotUpgrade` | `false` | Upgrade snapshots on load via `SnapshotVersionManager` |
 | `TargetSnapshotVersion` | `1` | Target version for automatic snapshot upgrades |
+| `VerifyStreamReachesSnapshot` | `false` | Verify on load that the event stream still reaches the version of the snapshot being rehydrated from |
+
+#### Verifying a stream still reaches its snapshot
+
+A snapshot at version 50 over a stream whose events stop at version 40 loads zero events after the snapshot -- the same result as the ordinary case where the snapshot is simply current. The aggregate is then rehydrated from the snapshot alone, at a version its own stream never reached. Setting `VerifyStreamReachesSnapshot` to `true` makes that load throw instead, naming the aggregate, the snapshot version, and the highest version actually stored.
+
+It is off by default because the framework never removes events below a snapshot, so it cannot itself produce this: a stream that stops short of its snapshot comes from outside -- a manual deletion, a partial restore, or an external retention job trimming the event table. **Turn it on if anything other than this framework deletes from your event store.**
+
+**Cost when enabled: one indexed maximum-version query per load whose snapshot is already current** -- which is the ordinary state of a snapshotted aggregate, so this is a real per-load cost, not a rare one. Loads that return events cost nothing extra.
+
+Verification requires the store to support a cheap version probe. SQL Server, PostgreSQL and the in-memory store do. A store that does not is never queried and never verified, whatever this setting says. A tiered store does not report a version for a stream whose older events have been archived, so archiving is never mistaken for truncation.
 
 ### String-Keyed Aggregates
 
@@ -219,7 +230,10 @@ services.AddJsonSerialization();
 // Or with options
 services.AddJsonSerialization(options =>
 {
-    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.ConfigureSerializer = json =>
+    {
+        json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    };
 });
 ```
 

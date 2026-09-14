@@ -40,24 +40,6 @@ public sealed class DispatchTelemetryOptions
 	public bool EnableMetrics { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether enhanced store observability is enabled.
-	/// </summary>
-	/// <value> True to enable detailed metrics from enhanced stores; false for basic metrics only. Default is true. </value>
-	public bool EnableEnhancedStoreObservability { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether pipeline observability is enabled.
-	/// </summary>
-	/// <value> True to enable pipeline stage metrics and tracing; false to disable. Default is true. </value>
-	public bool EnablePipelineObservability { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether hot-path performance metrics are enabled.
-	/// </summary>
-	/// <value> True to enable high-frequency performance counters; false to disable. Default is false. </value>
-	public bool EnableHotPathMetrics { get; set; }
-
-	/// <summary>
 	/// Gets or sets the service name for telemetry data.
 	/// </summary>
 	/// <value> The service name used in OpenTelemetry resource attributes. Default is "Excalibur.Dispatch". </value>
@@ -98,9 +80,6 @@ public sealed class DispatchTelemetryOptions
 		{
 			EnableTracing = true,
 			EnableMetrics = true,
-			EnableEnhancedStoreObservability = true,
-			EnablePipelineObservability = false, // Reduced overhead
-			EnableHotPathMetrics = false, // Disabled for performance
 			SlowOperationThreshold = TimeSpan.FromSeconds(5),
 			Export = new TelemetryExportOptions
 			{
@@ -119,9 +98,6 @@ public sealed class DispatchTelemetryOptions
 		{
 			EnableTracing = true,
 			EnableMetrics = true,
-			EnableEnhancedStoreObservability = true,
-			EnablePipelineObservability = true,
-			EnableHotPathMetrics = true, // Enabled for debugging
 			SlowOperationThreshold = TimeSpan.FromSeconds(1),
 			Export = new TelemetryExportOptions
 			{
@@ -140,9 +116,6 @@ public sealed class DispatchTelemetryOptions
 		{
 			EnableTracing = false, // Disabled for performance
 			EnableMetrics = true,
-			EnableEnhancedStoreObservability = false, // Disabled for performance
-			EnablePipelineObservability = false, // Disabled for performance
-			EnableHotPathMetrics = false, // Disabled for performance
 			SlowOperationThreshold = TimeSpan.FromSeconds(10),
 			Export = new TelemetryExportOptions
 			{
@@ -203,9 +176,6 @@ public sealed class DispatchTelemetryOptions
 
 		target.EnableTracing = EnableTracing;
 		target.EnableMetrics = EnableMetrics;
-		target.EnableEnhancedStoreObservability = EnableEnhancedStoreObservability;
-		target.EnablePipelineObservability = EnablePipelineObservability;
-		target.EnableHotPathMetrics = EnableHotPathMetrics;
 		target.ServiceName = ServiceName;
 		target.ServiceVersion = ServiceVersion;
 		target.SlowOperationThreshold = SlowOperationThreshold;

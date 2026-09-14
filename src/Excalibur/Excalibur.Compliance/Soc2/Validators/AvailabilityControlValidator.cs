@@ -106,12 +106,17 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 			"Health monitoring check - ASP.NET Core Health Checks recommended",
 			nameof(AvailabilityControlValidator)));
 
-		evidence.Add(CreateEvidence(
-			EvidenceType.TestResult,
-			"Health monitoring validation passed (manual verification recommended)",
-			nameof(AvailabilityControlValidator)));
-
-		return CreateSuccessResult(ControlAvl001, evidence);
+		// The Configuration evidence above is true: the capability is shipped. What is NOT
+		// established is that this deployment operates it, and a TestResult item saying the
+		// control was "verified" asserted a check that never ran. Offering a capability is not
+		// operating a control.
+		return CreateFailureResult(
+			ControlAvl001,
+			[
+				"Health monitoring is performed by the host, typically ASP.NET Core health checks, and is not observable from this framework, so it is unverified here."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence);
 	}
 
 	private ControlValidationResult ValidatePerformanceMetrics()
@@ -121,13 +126,22 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 
 		if (_complianceMetrics == null)
 		{
-			// Metrics are optional - can use external monitoring
+			// "using external monitoring" was an assumption recorded as evidence — nothing here observes
+			// such a system. Same shape as AVL-003 above: the declared control is absent, so the honest
+			// signal is an unverified control with the gap named, not a pass.
+			issues.Add(
+				"Compliance metrics provider (IComplianceMetrics) not registered — availability monitoring is "
+				+ "unverified; monitoring performed by an external system requires independent attestation.");
+
 			evidence.Add(CreateEvidence(
 				EvidenceType.Configuration,
-				"IComplianceMetrics not configured - using external monitoring",
+				"IComplianceMetrics not configured - availability monitoring cannot be observed from this framework",
 				nameof(AvailabilityControlValidator)));
+
+			// Partial score, matching AVL-003: external monitoring MAY exist and cannot be confirmed here.
+			return CreateFailureResult(ControlAvl002, issues, effectivenessScore: Soc2EffectivenessScore.Unverified, evidence);
 		}
-		else
+
 		{
 			evidence.Add(CreateEvidence(
 				EvidenceType.Configuration,
@@ -137,20 +151,33 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 
 		evidence.Add(CreateEvidence(
 			EvidenceType.TestResult,
-			"Performance metrics validation passed (manual verification recommended)",
+			"Compliance-metrics provider is registered and available for availability monitoring — this "
+				+ "evidences that the monitoring seam is configured, not that any availability target was met.",
 			nameof(AvailabilityControlValidator)));
 
-		return CreateSuccessResult(ControlAvl002, evidence);
+		// The evidence above is true and stays: the seam is configured. What does NOT follow is that
+		// the CONTROL operated. Presence of a component is not operation of a control, and this
+		// returned effective at a score of 100 to an external assessor.
+		return CreateFailureResult(
+			ControlAvl002,
+			[
+				"A compliance-metrics provider is registered, but no availability target was observed to be "
+				+ "met in this period, so availability is unverified here and requires independent "
+				+ "attestation."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence,
+			isConfigured: true);
 	}
 
 	private ControlValidationResult ValidateBackupVerification()
 	{
+		var issues = new List<string>();
 		var evidence = new List<EvidenceItem>();
 
 		// Check if backup infrastructure is configured via DI (Option C: configuration verification only)
 		if (_backupConfigProvider == null || !_backupConfigProvider.IsBackupConfigured)
 		{
-			// Backup infrastructure not configured - still return success but with recommendation
 			evidence.Add(CreateEvidence(
 				EvidenceType.Configuration,
 				_backupConfigProvider == null
@@ -165,9 +192,22 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 				"For traditional databases, configure database backup agents or cloud backup services.",
 				nameof(AvailabilityControlValidator)));
 
-			// Return success as backup verification can still be done externally,
-			// but evidence shows the configuration gap
-			return CreateSuccessResult(ControlAvl003, evidence);
+			// AVL-003's DECLARED control is verified backup. A null IBackupConfigurationProvider, or one
+			// reporting no configuration, means that declared mechanism is ABSENT here. Returning PASS on
+			// unverifiable "backups may be taken externally" would launder a false-green into an auditor's
+			// evidence pack. Surface the gap instead, so an assessor sees an unverified control rather than
+			// a green that hides one.
+			issues.Add(
+				_backupConfigProvider == null
+					? "Backup configuration provider (IBackupConfigurationProvider) not registered — the declared "
+						+ "backup-verification control is unverified; external backup arrangements require "
+						+ "independent attestation."
+					: "Backup infrastructure reports itself not configured — the declared backup-verification "
+						+ "control is unverified; external backup arrangements require independent attestation.");
+
+			// Partial score: a compensating external backup arrangement MAY exist, but the declared control
+			// is absent and unverifiable here — not a full failure, not a pass.
+			return CreateFailureResult(ControlAvl003, issues, effectivenessScore: Soc2EffectivenessScore.Unverified, evidence);
 		}
 
 		// Backup infrastructure is configured - report positive evidence
@@ -186,10 +226,21 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 
 		evidence.Add(CreateEvidence(
 			EvidenceType.TestResult,
-			$"Backup verification infrastructure present ({providerName}). " +
-			"Runtime backup enumeration deferred to future implementation.",
+			$"Backup verification infrastructure present ({providerName}). No backup was enumerated or "
+			+ "restored, so this evidences the mechanism and not the control.",
 			nameof(AvailabilityControlValidator)));
 
-		return CreateSuccessResult(ControlAvl003, evidence);
+		// The evidence above is true and stays: the seam is configured. What does NOT follow is that
+		// the CONTROL operated. Presence of a component is not operation of a control, and this
+		// returned effective at a score of 100 to an external assessor.
+		return CreateFailureResult(
+			ControlAvl003,
+			[
+				"Backup infrastructure is configured, but no backup was enumerated or restored in this "
+				+ "period, so the backup control is unverified here and requires independent attestation."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence,
+			isConfigured: true);
 	}
 }

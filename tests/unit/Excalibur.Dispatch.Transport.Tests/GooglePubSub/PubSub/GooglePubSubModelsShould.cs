@@ -10,38 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.PubSub;
 [Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GooglePubSubModelsShould
 {
-	[Fact]
-	public void CreateAckError()
-	{
-		// Arrange & Act
-		var error = new AckError("ack-123", "Failed to ack");
-
-		// Assert
-		error.AckId.ShouldBe("ack-123");
-		error.Message.ShouldBe("Failed to ack");
-		error.Exception!.ShouldBeNull();
-	}
-
-	[Fact]
-	public void CreateAckErrorWithException()
-	{
-		// Arrange
-		var ex = new InvalidOperationException("test error");
-
-		// Act
-		var error = new AckError("ack-456", "Error", ex);
-
-		// Assert
-		error.Exception!.ShouldBe(ex);
-	}
-
-	[Fact]
-	public void SupportAckErrorRecordEquality()
-	{
-		var e1 = new AckError("a", "msg");
-		var e2 = new AckError("a", "msg");
-		e1.ShouldBe(e2);
-	}
 
 	[Fact]
 	public void CreateSchemaDefinition()

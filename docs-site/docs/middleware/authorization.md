@@ -294,7 +294,7 @@ When authorization fails, the middleware returns a 403 result:
 ```csharp
 var result = await dispatcher.DispatchAsync(action, ct);
 
-if (!result.IsSuccess && result.ProblemDetails is { Status: 403 } problem)
+if (!result.Succeeded && result.ProblemDetails is { Status: 403 } problem)
 {
     // problem.Title == "Authorization Failed"
     // problem.Detail contains failure reason

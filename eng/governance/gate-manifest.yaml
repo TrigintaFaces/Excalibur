@@ -1,0 +1,897 @@
+# Gate Membership Manifest
+#
+# WHY THIS FILE EXISTS
+#   Gate membership was not data anywhere. It was a property you reconstructed by parsing two
+#   dispatchers, and every reconstruction was instrument-dependent: two people measuring the
+#   same overlap got 2% and 8.5%, and neither was wrong. Four separate findings were each
+#   stuck on the same missing fact -- which gates run where. This turns that parsing problem
+#   into a lookup.
+#
+# WHAT IS MEASURED HERE, AND WHAT IS DELIBERATELY NOT
+#   MEASURED   path, whether the file exists, whether a DISPATCHER INVOKES it, whether it has
+#              a paired .test.sh / .harness-lock.sh, and whether it sits on the published
+#              (mirrored) tree or the unpublished one.
+#   NOT ASSERTED  `kind`. Gate-versus-reporter is NOT mechanically derivable: a refusal exit
+#              and a finding exit share the non-zero space, and which is which lives in the
+#              script header prose. Three successive exit-code proxies gave three different
+#              answers and the best of them still misread a reporter whose `exit 3` means
+#              "tracker unreadable" as a failure. So `kind` ships UNREVIEWED with the proxy
+#              and its evidence beside it, to be replaced by a human verdict one entry at a
+#              time. A manifest that asserted an inferred kind would encode the very counting
+#              error it exists to resolve.
+#
+# HOW MEMBERSHIP WAS MEASURED, and the trap that governs it
+#   Dispatcher COMMENT LINES ARE STRIPPED before matching. A dispatcher's own prose names the
+#   gates it deliberately EXCLUDES -- the CI aggregator carries a block listing six locks it
+#   does not run and explaining why -- so a raw substring match counts that explanation as a
+#   caller and inverts the answer. Measured: four scripts flipped from "CI-referenced" to
+#   "referenced nowhere" once comments were removed, and one gate reported as reachable is
+#   named only inside a comment. A census that counts mentions is biased toward reporting an
+#   unwired gate as wired -- it errs in the direction that HIDES the defect.
+#
+# runs_in VALUES
+#   pre-commit      dispatched by the git pre-commit hook
+#   ci              dispatched by a workflow or by the CI gate aggregator
+#   pre-commit+ci   both
+#   nowhere         invoked by no dispatcher. For a GATE this is an unenforced check. For a
+#                   REPORTER it means unused, which is a different and much smaller problem.
+#   local-only      DECLARED as deliberately local: its subject lives on the unpublished tree,
+#                   so CI cannot see it by design. This value must be authored, never inferred
+#                   from absence -- without it, mesh tooling reads as permanently unwired and
+#                   inflates the very gate count that is under question.
+#
+# ENTRIES ARE KEYED BY PATH, never by basename: two scripts in this repo share a stem.
+#
+version: "1.0"
+measured_at_commit: "37369d889e"
+measured_by: "eng/ci/gate-manifest-gate.py --census"
+
+gates:
+  - path: ".claude/harness/announced-but-unretrievable-guard.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: pre-commit
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/bd-comment-cadence-check.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_DRIFT=1"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/bd-status-tokens.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 64"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/bd-verified-write.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_FALSE=1"
+    runs_in: pre-commit
+    published: false
+    has_test: true
+    has_lock: true
+  - path: ".claude/harness/blocking-bead-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: pre-commit
+    published: false
+    has_test: false
+    has_lock: true
+  - path: ".claude/harness/decomposition-coverage-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: pre-commit
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/fabricated-utc-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_FOUND=1"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/freeze-guard.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 1"
+    runs_in: pre-commit
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/orphan-poller-reap.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 3"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/p0-denominator.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 3"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/release-strike-requires-executed-result.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: nowhere
+    published: false
+    has_test: false
+    has_lock: false
+  - path: ".claude/harness/rewake-discriminator-guard.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: pre-commit
+    published: false
+    has_test: false
+    has_lock: false
+  - path: ".claude/harness/ring-repair.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 10"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/session-collision-guard.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 65"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: true
+  - path: ".claude/harness/session-liveness-probe.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 11"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/tracker-export-staleness-guard.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: pre-commit
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/unpushed-commits-check.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_FAIL=1"
+    runs_in: nowhere
+    published: false
+    has_test: true
+    has_lock: false
+  - path: ".claude/harness/validate-sprint-plan.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: false
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/actionlint-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/aot-acceptance-arms.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/aot-annotation-inventory-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/aot-promise-coherence-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/aot-suppression-classification-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/architecture-evidence-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/assert-binary-matches-source.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/assert-compiled-not-skipped.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_SKIPPED=1"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/assert-packages-signed.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/assert-tests-executed.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/build-lock.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/capture-container-logs.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/changed-code-coverage.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/ci-sli-report.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/committed-sha-build-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_FAIL=1"
+    runs_in: pre-commit+ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/config-binder-completeness-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/config-binder-completeness-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/conformance-arm-census.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/conformance-arm-skip-census.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/conformance-arm-skip-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/conformance-arm-wiring.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/conformance-backend-coverage-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/conformance-fork-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/container-image-pinning-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/cosmos-census.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/cosmos-fixture-pattern-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/cosmos-liveness-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/cosmos-readiness-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/coverage-shard-reports-complete.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 1"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/ddl-migration-completeness.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/ddl-pack-completeness.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/docs-csharp-extract.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/docs-csharp-member-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/docs-csharp-phantom-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/duplicate-xml-doc-tags.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: pre-commit+ci
+    published: true
+    has_test: true
+    has_lock: true
+  - path: "eng/ci/f5-sweep.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/flake-report.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/full-ci-shard-completeness.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: pre-commit+ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/gate-denominator-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/gate-denominator.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/gate-manifest-gate.py"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "returns 1 on a finding; 2 is a separate refusal-to-evaluate state"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/gate-wiring.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 1"
+    runs_in: pre-commit+ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/generate-workflow-inventory.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/harness-gates-ci.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/ide0052-ratchet-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 3"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/inbox-decorator-seam-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/integration-serial-runner-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/integration-shard-partition-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/job-summary.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/lockfile-drift-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/message-identity-single-source-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/mutable-image-tag-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 3"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/no-internal-refs-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: pre-commit+ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/npm-audit.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/oracle-refusal-exit-code-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 1"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/orphan-test-project-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_ORPHAN=1"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/orphaned-constant-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/p0-classify.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/package-metadata-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/persistence-health-deriver-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/policy-consistency-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/pre-commit-dispatch-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/premise-triage.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 4"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/prepull-test-images.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/promotion-contract-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/real-infra-tenant-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/receipt-without-work-census.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/receipt-without-work-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/release-receipt.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/release-test-verdict-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_RED=1"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/required-contexts-satisfiable.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/run-filtered-tests.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_ZERO_EXECUTED=3"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/shard-coverage-gate.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/shard-hang-timeout-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_FOUND=1"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/shipped-ddl-sweep-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 3"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/shipped-ddl-sweep.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: true
+  - path: "eng/ci/spa-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/sql-predicate-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/sqlserver-ddl-hygiene.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/staged-secret-scan.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 1"
+    runs_in: pre-commit+ci
+    published: true
+    has_test: false
+    has_lock: true
+  - path: "eng/ci/staged-snapshot-coherence.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit $E_FAIL=1"
+    runs_in: pre-commit
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/task-delay-syncwait-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/tenant-range-op-coverage-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/tracked-artifact-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/unconditional-skip-ratchet.sh"
+    kind: UNREVIEWED
+    kind_proxy: gate
+    kind_evidence: "exit 2"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/wallclock-deadline-sweep.py"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/workflow-hygiene-gate.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/wwmd-reinvention-smells.sh"
+    kind: UNREVIEWED
+    kind_proxy: reporter
+    kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: pre-commit+ci
+    published: true
+    has_test: false
+    has_lock: false

@@ -93,7 +93,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 		var context = CreateFakeContext(messageId: uniqueId, correlationId: "corr-456");
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
@@ -113,7 +113,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
@@ -131,7 +131,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(false);
+		A.CallTo(() => result.Succeeded).Returns(false);
 		var problemDetails = A.Fake<IMessageProblemDetails>();
 		A.CallTo(() => problemDetails.Detail).Returns("Validation failed");
 		A.CallTo(() => problemDetails.Type).Returns("validation_error");
@@ -176,7 +176,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 		};
 		var context = CreateFakeContext(messageId: uniqueId, items: items);
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
@@ -193,7 +193,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
@@ -210,7 +210,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
@@ -227,7 +227,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);

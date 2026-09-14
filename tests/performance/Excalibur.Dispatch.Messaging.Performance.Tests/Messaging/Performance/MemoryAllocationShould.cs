@@ -385,7 +385,7 @@ public sealed class MemoryAllocationShould : IDisposable
 			$"Allocated {totalAllocations:N0} bytes total, {allocationsPerMessage:F2} bytes per message");
 
 		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
-		tasks.All(t => t.IsCompletedSuccessfully && t.Result.IsSuccess).ShouldBeTrue();
+		tasks.All(t => t.IsCompletedSuccessfully && t.Result.Succeeded).ShouldBeTrue();
 		#pragma warning restore RS0030
 	}
 

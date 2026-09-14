@@ -148,14 +148,25 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		version.ShouldBe(-1);
 	}
 
+	/// <summary>
+	/// A lost race reports the version the WINNER committed, so the caller reloads against a version that
+	/// exists.
+	/// </summary>
+	/// <remarks>
+	/// Both conflict paths used to return this writer's own intended version -- expectedVersion plus the
+	/// events it was trying to write -- which is a guess about a stream it just failed to write to. A
+	/// caller that reloads at that number reloads at a version nobody has committed. Every other provider
+	/// re-reads the tail; the two stubbed reads below are the pre-check (the tail this writer saw) and the
+	/// re-read after the collision (the tail the winner left).
+	/// </remarks>
 	[Fact]
-	public async Task IEventStoreAppendAsync_MapCloudConflictToAppendResultConflict()
+	public async Task IEventStoreAppendAsync_ReportTheWinnersCommittedVersion_OnTheSequentialPath()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
-		// Contiguity pre-check (1gnr3d): stub the tail-version read to match expectedVersion (4) so the code
-		// reaches the PutItem path whose ConditionalCheckFailed → AppendResult conflict mapping is under test.
-		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-tail", 4)] }));
+		A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
+			.ReturnsNextFromSequence(
+				Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-tail", 4)] }),
+				Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-winner", 9)] }));
 		_ = A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
 			.ThrowsAsync(new ConditionalCheckFailedException("conflict"));
 
@@ -167,7 +178,67 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeTrue();
-		result.NextExpectedVersion.ShouldBe(5);
+		result.NextExpectedVersion.ShouldBe(
+			9,
+			"the reload point is the stream's committed tail, not expectedVersion + this batch's size (5).");
+	}
+
+	/// <summary>
+	/// The transactional path reports the winner's committed version too.
+	/// </summary>
+	/// <remarks>
+	/// Separate from the sequential arm because the two paths build their conflict result in different
+	/// methods, and the defect was present in both. A fix applied to one leaves this one red.
+	/// </remarks>
+	[Fact]
+	public async Task AppendAsync_ReportTheWinnersCommittedVersion_OnTheTransactionalPath()
+	{
+		var client = A.Fake<IAmazonDynamoDB>();
+		A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
+			.ReturnsNextFromSequence(
+				Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-tail", 4)] }),
+				Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-winner", 11)] }));
+		_ = A.CallTo(() => client.TransactWriteItemsAsync(A<TransactWriteItemsRequest>._, A<CancellationToken>._))
+			.ThrowsAsync(new TransactionCanceledException("conflict")
+			{
+				CancellationReasons = [new CancellationReason { Code = "ConditionalCheckFailed" }]
+			});
+
+		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
+		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
+
+		var result = await sut.AppendAsync(
+			"agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 4, CancellationToken.None);
+
+		result.IsConcurrencyConflict.ShouldBeTrue();
+		result.NextExpectedVersion.ShouldBe(
+			11,
+			"the reload point is the stream's committed tail, not expectedVersion + this batch's size (6).");
+	}
+
+	/// <summary>
+	/// LIVENESS: a clean append still reports the version this writer committed, not a re-read.
+	/// </summary>
+	/// <remarks>
+	/// The two arms above are both satisfied by a store that reports the tail read for every outcome,
+	/// including success -- which would tell a winning caller to reload rather than continue. Only the
+	/// conflict paths re-read.
+	/// </remarks>
+	[Fact]
+	public async Task AppendAsync_ReportTheVersionItCommitted_WhenTheAppendSucceeds()
+	{
+		var client = A.Fake<IAmazonDynamoDB>();
+		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-tail", 4)] }));
+
+		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
+		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
+
+		var result = await sut.AppendAsync(
+			"agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 4, CancellationToken.None);
+
+		result.Success.ShouldBeTrue();
+		result.NextExpectedVersion.ShouldBe(6);
 	}
 
 	[Fact]

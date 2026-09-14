@@ -80,7 +80,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		nextCalled.ShouldBeTrue();
 
 		// Verify activities were created
@@ -126,7 +126,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 
 		// Verify child activities are linked to parent
 		var childActivities = _otelFixture.GetRecordedActivities()
@@ -251,7 +251,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 
 		// Verify activities were created and metrics infrastructure is operational
 		var batchingActivities = _otelFixture.GetRecordedActivities()
@@ -318,7 +318,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 
 		// Verify activities were still created and completed properly
 		var activities = _otelFixture.GetRecordedActivities()
@@ -434,7 +434,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			timeout: TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 
 		var invokeActivity = _otelFixture.GetRecordedActivities()
 			.FirstOrDefault(a => a.DisplayName == "UnifiedBatchingMiddleware.Invoke");
@@ -572,7 +572,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - basic result check
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 
 		// Wait for activities with deterministic polling instead of fixed delay
 		IReadOnlyList<Activity> activities;
@@ -667,7 +667,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 			// Assert
 			_ = result.ShouldNotBeNull($"Result should not be null for scenario {scenario.Name}");
-			result.IsSuccess.ShouldBeFalse($"Result should indicate failure for scenario {scenario.Name}");
+			result.Succeeded.ShouldBeFalse($"Result should indicate failure for scenario {scenario.Name}");
 
 			// Verify activities captured the error information
 			var errorActivities = _otelFixture.GetRecordedActivities()
@@ -788,7 +788,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 
 		// Verify structured logging captured correlation information
 		var logEntriesList = logEntries.ToList();

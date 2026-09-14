@@ -16,12 +16,6 @@ public sealed class EncryptionOptions
 	public bool FieldLevelEncryption { get; init; }
 
 	/// <summary>
-	/// Gets the encryption algorithm for field-level encryption.
-	/// </summary>
-	/// <value> The encryption algorithm to use. Defaults to AES-256-GCM. </value>
-	public string EncryptionAlgorithm { get; init; } = "AES-256-GCM";
-
-	/// <summary>
 	/// Gets the key management provider configuration.
 	/// </summary>
 	/// <value> Settings for external key management system integration. </value>

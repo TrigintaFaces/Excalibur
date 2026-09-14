@@ -22,4 +22,15 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription
 	[LoggerMessage(OutboxEventId.CosmosDbChangeFeedBatchReceived, LogLevel.Debug,
 		"Outbox change feed '{SubscriptionId}' received batch of {Count} messages")]
 	private partial void LogReceivedBatch(string subscriptionId, int count);
+
+	[LoggerMessage(OutboxEventId.CosmosDbChangeFeedCheckpointError, LogLevel.Warning,
+		"Outbox change feed '{SubscriptionId}' failed to save its checkpoint. Event delivery continues; the "
+		+ "redelivery window on a future restart widens until a checkpoint save succeeds again.")]
+	private partial void LogCheckpointSaveFailed(string subscriptionId, Exception exception);
+
+	[LoggerMessage(OutboxEventId.CosmosDbChangeFeedCheckpointDegraded, LogLevel.Critical,
+		"Outbox change feed '{SubscriptionId}' has failed to save its checkpoint {ConsecutiveFailures} "
+		+ "consecutive times and is now reporting checkpoint-degraded. Event delivery continues; the "
+		+ "redelivery window on a future restart is growing.")]
+	private partial void LogCheckpointDegraded(string subscriptionId, int consecutiveFailures);
 }

@@ -38,11 +38,23 @@ namespace Excalibur.EventSourcing;
 /// rather than claiming it.
 /// </para>
 /// <para>
-/// <b>Tenant confinement.</b> As a capability of <see cref="IEventStore"/>, this interface is confined the
-/// same way its host store is: <see cref="EraseEventsAsync"/> tombstones only the caller's own tenant's
-/// stream for the given aggregate, never another tenant's, and <see cref="IsErasedAsync"/> answers for the
-/// caller's own tenant only. See <see cref="IEventStore"/> for the full confinement statement and which
-/// capability marker governs it.
+/// <b>Tenant confinement.</b> Both operations are confined to the ambient tenant established for this store
+/// instance: <see cref="EraseEventsAsync"/> tombstones only that tenant's stream for the given aggregate, and
+/// <see cref="IsErasedAsync"/> answers only for it. The confinement is structural, not conventional, and the
+/// mechanism differs by provider family. The relational stores bind an unconditional tenant term on every
+/// erase and existence check, routed through a partition type that has no empty inhabitant, so a tenant-less
+/// erase is unconstructable rather than merely unwritten; the document and in-memory stores address a key
+/// whose leading segment is the owning tenant, so another tenant's stream is unaddressable rather than
+/// filtered out. Under ambient multi-tenancy the composition additionally refuses an erase that never
+/// resolved a tenant, before any row is mutated.
+/// </para>
+/// <para>
+/// <b>Where a provider composes the tenant into a key, the composition is injective.</b> Erasure is
+/// destructive and irreversible — a confinement failure here destroys another tenant's history rather than
+/// disclosing it — so the tenant and the record identifier are encoded, not concatenated: no pair of
+/// identifiers can compose to another pair's key, whatever characters they contain. Identifiers
+/// containing the separator are supported and need no special handling by the caller. A store presenting
+/// no tenant capability marker is not confined by the framework.
 /// </para>
 /// </remarks>
 [TenantOwned]

@@ -62,7 +62,60 @@ public sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, int>
 		ArgumentException.ThrowIfNullOrWhiteSpace(fenceTableName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(fenceScope);
 
+		// THE FENCE STEP WRITES, AND THE MUTATION IS CONDITIONED ON THAT WRITE ACCEPTING THE TOKEN.
+		//
+		// The guard used to be a scalar subquery over the fence table inside the UPDATE's own WHERE. That
+		// takes no lock and advances nothing, so under snapshot-based read-committed -- the default on some
+		// hosted SQL Server offerings -- it resolves against a version taken at statement start and an
+		// advance committing during the statement is invisible by construction. A leader superseded DURING
+		// its own mark-sent therefore still applied the write: its predicate had already been satisfied
+		// against a high-water that no longer held.
+		//
+		// A read cannot close that window however it is written, because reading is the problem. The fence
+		// must CLAIM: the MERGE advances the durable high-water monotonically under UPDLOCK + HOLDLOCK and
+		// yields the resulting value, and the UPDATE below compares the presented token against THAT value
+		// rather than against a fresh read. The two run inside one explicit transaction, which is what makes
+		// the range lock span both -- in autocommit each statement is its own transaction and the lock is
+		// released before the UPDATE begins, which is the same gap wearing a different shape. A concurrent
+		// leader advancing the high-water now blocks on the range lock until this transaction ends, so it
+		// observes the advance and this caller cannot be superseded mid-statement.
+		//
+		// Both hints are required, for the reason the standalone fence request documents: HOLDLOCK alone
+		// leaves two leaders each holding a shared range lock and each needing to convert it, so the engine
+		// resolves the cycle by killing one as a deadlock victim; UPDATE locks are not mutually compatible,
+		// so the second leader blocks instead of dying.
+		//
+		// The unfenced path (@FencingToken IS NULL) skips the MERGE entirely and keeps its original
+		// semantics -- no fence, no advance, no lock taken on a table it does not use.
+		// SET NOCOUNT ON is load-bearing, not hygiene. The caller reads rows-affected to decide whether the
+		// mark was refused, and a multi-statement batch returns the SUM of every statement's rowcount. The
+		// fence MERGE always affects exactly one row, so without this the batch reports 1 even when the
+		// guarded UPDATE matched nothing -- a refusal indistinguishable from a success, which is the same
+		// defect this guard exists to prevent, relocated into the guard's own return value. The rowcount the
+		// caller sees is therefore taken explicitly from the UPDATE alone, below.
 		var sql = $"""
+			SET NOCOUNT ON;
+			SET XACT_ABORT ON;
+			BEGIN TRANSACTION;
+
+			DECLARE @HighWater bigint = NULL;
+
+			IF @FencingToken IS NOT NULL
+			BEGIN
+				DECLARE @Advanced TABLE (HighWaterToken bigint);
+
+				MERGE {fenceTableName} WITH (UPDLOCK, HOLDLOCK) AS f
+				USING (SELECT @FenceScope AS OutboxTable) AS s ON (f.OutboxTable = s.OutboxTable)
+				WHEN MATCHED THEN
+					UPDATE SET HighWaterToken =
+						CASE WHEN @FencingToken >= f.HighWaterToken THEN @FencingToken ELSE f.HighWaterToken END
+				WHEN NOT MATCHED THEN
+					INSERT (OutboxTable, HighWaterToken) VALUES (@FenceScope, @FencingToken)
+				OUTPUT INSERTED.HighWaterToken INTO @Advanced;
+
+				SELECT TOP (1) @HighWater = HighWaterToken FROM @Advanced;
+			END
+
 			UPDATE {tableName}
 			SET Status = 2, SentAt = @SentAt, LastError = NULL,
 				-- Release the lease on completion. A sent message is terminal and holds no lease, but
@@ -73,8 +126,14 @@ public sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, int>
 				LeasedAt = NULL, LeasedBy = NULL,
 				FencingToken = CASE WHEN @FencingToken IS NULL THEN FencingToken ELSE @FencingToken END
 			WHERE Id = @MessageId
-				AND Status <> 2
-				AND (@FencingToken IS NULL OR @FencingToken >= ISNULL((SELECT HighWaterToken FROM {fenceTableName} WHERE OutboxTable = @FenceScope), 0))
+				AND Status NOT IN (2, 5)
+				AND (@FencingToken IS NULL OR @FencingToken >= @HighWater);
+
+			DECLARE @Marked int = @@ROWCOUNT;
+
+			COMMIT TRANSACTION;
+
+			SELECT @Marked;
 			""";
 
 		var parameters = new DynamicParameters();
@@ -85,7 +144,9 @@ public sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, int>
 
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
+		// ExecuteScalar, not Execute: the batch reports the guarded UPDATE's own rowcount rather than the
+		// sum of its statements, so "refused" stays distinguishable from "applied".
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await connection.ExecuteScalarAsync<int>(Command).ConfigureAwait(false);
 	}
 }

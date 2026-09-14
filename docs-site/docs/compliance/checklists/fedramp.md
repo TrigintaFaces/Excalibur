@@ -2,15 +2,14 @@
 
 **Framework:** Excalibur
 **Standard:** NIST 800-53 Rev 5 (FedRAMP Moderate Baseline)
-**Epic:** FedRAMP Government Compliance
-**Status:** 14/14 controls SATISFIED (100% complete)
-**Last Updated:** 2026-01-01
+**Status:** 12 of 14 controls satisfied by the framework; 2 partial (SI-7, PM-11)
+**Last Updated:** 2026-09-12
 
 ---
 
 ## Overview
 
-This checklist provides a step-by-step guide for FedRAMP certification preparation using the Excalibur framework. The framework implements 14 NIST 800-53 Rev 5 controls as secure-by-default capabilities, enabling framework consumers to inherit compliance rather than implement from scratch.
+This checklist provides a step-by-step guide for FedRAMP certification preparation using the Excalibur framework. The framework implements 12 NIST 800-53 Rev 5 controls as secure-by-default capabilities, and contributes partially to 2 more, enabling framework consumers to inherit compliance rather than implement from scratch.
 
 **FedRAMP Impact Level:** Moderate
 **Authorization Boundary:** Excalibur framework (NuGet packages)
@@ -22,22 +21,22 @@ This checklist provides a step-by-step guide for FedRAMP certification preparati
 
 | Control | Title | Framework Status | Consumer Action | Evidence Location |
 |---------|-------|------------------|-----------------|-------------------|
-| **AC-3** | Access Enforcement | ✅ SATISFIED | Inherit `[RequirePermission]` | `docs/advanced/security.md:15-45` |
-| **AC-6** | Least Privilege | ✅ SATISFIED | Inherit RBAC | `docs/advanced/security.md:47-78` |
-| **AU-2** | Audit Events | ✅ SATISFIED | Inherit `IAuditLogger` | `docs/advanced/security.md:215-260` |
-| **AU-3** | Content of Audit Records | ✅ SATISFIED | Inherit audit schema | `docs/advanced/security.md:262-310` |
-| **AU-9** | Protection of Audit Information | ✅ SATISFIED | Inherit immutable logs | `docs/advanced/security.md:312-350` |
-| **IA-5** | Authenticator Management | ✅ SATISFIED | Inherit Argon2id hashing | `docs/advanced/security.md:80-125` |
-| **SC-8** | Transmission Confidentiality | ✅ SATISFIED | Inherit TLS 1.2+ | `docs/advanced/security.md:127-168` |
-| **SC-13** | Cryptographic Protection | ✅ SATISFIED | Inherit `IEncryptionProvider` | `docs/advanced/security.md:170-213` |
-| **SC-28** | Protection of Information at Rest | ✅ SATISFIED | Inherit `[PersonalData]` | `docs/advanced/security.md:352-395` |
-| **SI-4** | System Monitoring | ✅ SATISFIED | Inherit OpenTelemetry | `docs/advanced/deployment.md:515-570` |
-| **SI-7** | Software Integrity | ⚠️ PARTIAL | Inherit SBOM + dependency scanning; packages are UNSIGNED | `docs/compliance/fedramp/CM-8-SBOM.md:38-77` |
-| **PM-11** | Mission/Business Process Definition | ✅ SATISFIED | Reference RTM | `management/specs/requirements-traceability-matrix.md` |
-| **SA-15** | Development Process | ✅ SATISFIED | Reference CI/CD | `.github/workflows/ci.yml` |
-| **CM-8** | Component Inventory | ✅ SATISFIED | Reference SBOM | `docs/compliance/fedramp/CM-8-SBOM.md` |
+| **AC-3** | Access Enforcement | ✅ SATISFIED | Inherit `[RequirePermission]` | [Attribute-based authorization](../../advanced/security.md#requirepermission-attribute) |
+| **AC-6** | Least Privilege | ✅ SATISFIED | Inherit RBAC | [Role-based authorization](../../advanced/security.md#role-based-authorization) |
+| **AU-2** | Audit Events | ✅ SATISFIED | Inherit `IAuditLogger` | [Audit event types](../../security/audit-logging.md#event-types) |
+| **AU-3** | Content of Audit Records | ✅ SATISFIED | Inherit audit schema | [Audit event properties](../../security/audit-logging.md#event-properties) |
+| **AU-9** | Protection of Audit Information | ✅ SATISFIED | Inherit immutable logs | [Hash chain integrity](../../security/audit-logging.md#hash-chain-integrity) |
+| **IA-5** | Authenticator Management | ✅ SATISFIED | Inherit Argon2id hashing | [Password hashing](../../advanced/security.md#password-hashing) |
+| **SC-8** | Transmission Confidentiality | ✅ SATISFIED | Inherit TLS 1.2+ | [Transport encryption](../../advanced/security.md#transport-encryption) |
+| **SC-13** | Cryptographic Protection | ✅ SATISFIED | Inherit `IEncryptionProvider` | [AES-256-GCM encryption](../../security/encryption-architecture.md#aes-256-gcm-encryption) |
+| **SC-28** | Protection of Information at Rest | ✅ SATISFIED | Inherit `[PersonalData]` | [Field-level encryption](../../security/encryption-architecture.md#personaldata-attribute) |
+| **SI-4** | System Monitoring | ✅ SATISFIED | Inherit OpenTelemetry | [OpenTelemetry](../../observability/index.md#opentelemetry) |
+| **SI-7** | Software Integrity | ⚠️ PARTIAL | Inherit SBOM + dependency scanning; packages are UNSIGNED | [SBOM generation](../fedramp/CM-8-SBOM.md#sbom-generation) |
+| **PM-11** | Mission/Business Process Definition | ⚠️ PARTIAL | Define your own mission/business processes and their security risk | N/A (business process) |
+| **SA-15** | Development Process | ✅ SATISFIED | Reference CI/CD | [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) |
+| **CM-8** | Component Inventory | ✅ SATISFIED | Reference SBOM | [Component inventory (CM-8)](../fedramp/CM-8-SBOM.md) |
 
-**Status:** 14/14 controls (100% complete)
+**Status:** 12 satisfied, 2 partial (SI-7 software integrity, PM-11 business process)
 
 ---
 
@@ -52,7 +51,7 @@ This checklist provides a step-by-step guide for FedRAMP certification preparati
 - [ ] Identify what is OUT of scope: Consumer applications, consumer infrastructure
 - [ ] Document authorization boundary in System Security Plan (SSP)
 
-**Reference:** `docs/compliance/fedramp/README.md:14-17`
+**Reference:** [FedRAMP overview — authorization boundary](../fedramp/README.md#overview)
 
 #### 1.2 Review Control Inheritance Model
 
@@ -63,7 +62,7 @@ This checklist provides a step-by-step guide for FedRAMP certification preparati
 **Example Inheritance Statement:**
 > "The application inherits SC-13 (Cryptographic Protection) from the Excalibur framework, which implements AES-256-GCM encryption via the `IEncryptionProvider` abstraction. Framework compliance evidence includes NIST FIPS 140-2 validated algorithms and continuous vulnerability scanning."
 
-**Reference:** `docs/compliance/fedramp/README.md:240-242`
+**Reference:** [FedRAMP overview — references](../fedramp/README.md#references)
 
 #### 1.3 Gather Evidence Package
 
@@ -78,11 +77,10 @@ This checklist provides a step-by-step guide for FedRAMP certification preparati
 gh run download <run-id> -n cyclonedx-sbom
 
 # Download security scan reports
-gh run download <run-id> -n zap-dast-report
-gh run download <run-id> -n trivy-container-scan
+# No DAST or container-scan artifacts are produced by this pipeline.
 ```
 
-**Reference:** `docs/compliance/fedramp/README.md:192-201`
+**Reference:** [FedRAMP authorization inheritance](../fedramp/README.md#fedramp-authorization-inheritance)
 
 ---
 
@@ -122,8 +120,8 @@ public class DeleteUserCommand : IDispatchAction
 - [ ] Test authorization enforcement (unit + integration tests)
 
 **Evidence:**
-- `docs/advanced/security.md:15-45` - Authorization guide
-- Test coverage reports (≥60% enforced in CI)
+- [Attribute-based authorization](../../advanced/security.md#attribute-based-authorization) - Authorization guide
+- Test coverage reports (enforced regression floor of 44% in CI)
 - GitHub Actions workflow runs
 
 **SSP Statement:**
@@ -161,7 +159,7 @@ The organization employs the principle of least privilege, allowing only authori
 - [ ] Document role justifications in SSP
 
 **Evidence:**
-- `docs/advanced/security.md:47-78` - RBAC guide
+- [Role-based authorization](../../advanced/security.md#role-based-authorization) - RBAC guide
 - Permission catalog (configuration files)
 - Access review procedures
 
@@ -226,7 +224,7 @@ public class UserService
 - [ ] Verify audit logs are generated for all security-relevant events
 
 **Evidence:**
-- `docs/advanced/security.md:215-260` - Audit logging guide
+- [Audit logging](../../security/audit-logging.md) - Audit logging guide
 - Audit log samples (anonymized)
 - Test coverage for audit logging
 
@@ -270,7 +268,7 @@ public sealed record AuditEvent
 - [ ] Test audit record completeness (integration tests)
 
 **Evidence:**
-- `docs/advanced/security.md:262-310` - Audit schema documentation
+- [Audit event properties](../../security/audit-logging.md#event-properties) - Audit schema documentation
 - Sample audit records (anonymized)
 - Schema validation tests
 
@@ -319,7 +317,7 @@ public class AppendOnlyAuditStore : IAuditStore
 - [ ] Document audit log retention policy (e.g., 90 days, 1 year, 7 years)
 
 **Evidence:**
-- `docs/advanced/security.md:312-350` - Audit protection guide
+- [Hash chain integrity](../../security/audit-logging.md#hash-chain-integrity) - Audit protection guide
 - Audit storage configuration (IAM policies, SQL permissions)
 - Retention policy documentation
 
@@ -364,7 +362,7 @@ services.AddPasswordHasher(options =>
 - [ ] Enforce password history (prevent reuse of last 5 passwords)
 
 **Evidence:**
-- `docs/advanced/security.md:80-125` - Password management guide
+- [Password hashing](../../advanced/security.md#password-hashing) - Password management guide
 - Password policy configuration
 - Unit tests for password hashing
 
@@ -407,7 +405,7 @@ app.UseHsts();
 - [ ] Document certificate management procedures
 
 **Evidence:**
-- `docs/advanced/security.md:127-168` - TLS configuration guide
+- [Transport encryption](../../advanced/security.md#transport-encryption) - TLS configuration guide
 - TLS scan results (testssl.sh output)
 - Certificate management procedures
 
@@ -442,7 +440,9 @@ public class User
 {
     public Guid Id { get; set; }
 
-    [PersonalData]  // Automatically encrypted at rest
+    [PersonalData]  // [PersonalData] is encrypted ONLY on a record that also carries [DataSubjectId],
+    // and only on a path you wire (crypto-shredding / the encrypting event-store decorator).
+    // A record with no [DataSubjectId] member is left in cleartext.
     public string Email { get; set; }
 
     [PersonalData]
@@ -455,7 +455,7 @@ public class User
 - [ ] Document key rotation procedures
 
 **Evidence:**
-- `docs/advanced/security.md:170-213` - Encryption guide
+- [Encryption architecture](../../security/encryption-architecture.md) - Encryption guide
 - Key management procedures
 - FIPS 140-2 compliance statement
 
@@ -493,7 +493,8 @@ public class CreditCard
     public DateTime ExpirationDate { get; set; }  // NOT encrypted
 }
 
-// Repository automatically encrypts/decrypts
+// Encryption happens on the paths you wire (crypto-shredding / the encrypting event-store
+// decorator), and only for records carrying [DataSubjectId]. There is no generic encrypting repository.
 var card = await _repository.GetAsync<CreditCard>(cardId, ct);
 Console.WriteLine(card.CardNumber);  // Decrypted: "4111111111111111"
 
@@ -506,7 +507,7 @@ Console.WriteLine(card.CardNumber);  // Decrypted: "4111111111111111"
 - [ ] Document data classification policy (what gets encrypted)
 
 **Evidence:**
-- `docs/advanced/security.md:352-395` - Data at rest encryption guide
+- [Field-level encryption](../../security/encryption-architecture.md#field-level-encryption) - Data at rest encryption guide
 - Data classification policy
 - Encryption verification tests
 
@@ -562,7 +563,7 @@ app.MapHealthChecks("/health");
 - [ ] Test monitoring with simulated attacks
 
 **Evidence:**
-- `docs/advanced/deployment.md:515-570` - Monitoring guide
+- [Observability](../../observability/index.md#opentelemetry) - Monitoring guide
 - OpenTelemetry configuration
 - Alert rules and runbooks
 
@@ -587,7 +588,7 @@ The organization employs integrity verification mechanisms to detect unauthorize
 - [ ] Record that the packages carry **no author signature** (see below) in your own supply-chain risk assessment
 
 **Evidence:**
-- `docs/compliance/fedramp/CM-8-SBOM.md:38-77` - SBOM generation guide
+- [SBOM generation](../fedramp/CM-8-SBOM.md#sbom-generation) - SBOM generation guide
 - NuGet package hashes (`.nupkg` files)
 - Vulnerability scan reports
 
@@ -660,26 +661,24 @@ jobs:
     - Restore dependencies
     - Build solution
     - Run unit tests
-    - Upload coverage (≥60% enforced)
+    - Upload coverage (enforced regression floor of 44%)
 
   security-sast:
     - CodeQL analysis (SAST)
     - Dependency vulnerability scan
     - Secrets scanning (Gitleaks)
 
-  security-dast:
-    - ZAP baseline scan (DAST)
+  # NOTE: no DAST job exists in this pipeline.
     - API security testing
 
-  container-scan:
-    - Trivy container scan
+  # (no container-scan job exists)
     - Critical vulnerability blocking
 
   sbom-generation:
     - CycloneDX SBOM generation
     - Upload artifacts (90-day retention)
 
-  rtm-validation:
+  # (no requirements-traceability job exists)
     - Requirements traceability validation
     - Coverage enforcement
 ```
@@ -688,7 +687,7 @@ jobs:
 - [ ] Document development standards in SSP
 
 **Evidence:**
-- `.github/workflows/ci.yml` - CI/CD pipeline
+- [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) - CI/CD pipeline and quality gates
 - GitHub Actions workflow runs (audit trail)
 - Security scan reports (SARIF, JSON)
 
@@ -756,7 +755,7 @@ ls -lh bom.json bom.xml
 - [ ] Reference SBOM in SSP (control CM-8 evidence)
 
 **Evidence:**
-- `docs/compliance/fedramp/CM-8-SBOM.md` - Comprehensive CM-8 documentation
+- [Component inventory (CM-8)](../fedramp/CM-8-SBOM.md) - Comprehensive CM-8 documentation
 - SBOM artifacts (CycloneDX JSON/XML)
 - GitHub Security tab (dependency graph)
 
@@ -832,15 +831,15 @@ ls -lh bom.json bom.xml
 ### Primary Evidence
 
 **Process Evidence:**
-- `.github/workflows/ci.yml` - CI/CD pipeline (1,200+ lines)
+- [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) - CI/CD pipeline and quality gates
 - GitHub Actions workflow runs (90-day audit trail)
-- Test coverage reports (≥60% enforced)
+- Test coverage reports (enforced regression floor of 44%)
 - Security scan reports (SAST, DAST, container, secrets)
 
 **Artifact Evidence:**
 - SBOM artifacts (CycloneDX JSON/XML)
 - NuGet packages (hash-verifiable; **no author signature** — see SI-7)
-- Docker images (Trivy-scanned)
+- Docker images (**not scanned by this pipeline** — no container scanning runs here)
 - RTM reports (requirements traceability)
 
 ### Supporting Documentation
@@ -851,9 +850,8 @@ ls -lh bom.json bom.xml
 - [FedRAMP Moderate Baseline](https://www.fedramp.gov/assets/resources/documents/FedRAMP_Security_Controls_Baseline.xlsx)
 
 **Framework Documentation:**
-- `docs/compliance/fedramp/README.md` - FedRAMP overview
-- `docs/compliance/fedramp/CM-8-SBOM.md` - CM-8 detailed implementation
-- `management/specs/requirements-traceability-matrix.md` - RTM
+- [FedRAMP overview](../fedramp/README.md) - FedRAMP overview
+- [Component inventory (CM-8)](../fedramp/CM-8-SBOM.md) - CM-8 detailed implementation
 
 ---
 
@@ -865,7 +863,7 @@ ls -lh bom.json bom.xml
 - Dependency vulnerability scanning
 - Security policy enforcement (CRITICAL vulnerabilities block)
 - Requirements traceability validation
-- Code coverage measurement (≥60% enforced)
+- Code coverage measurement (enforced regression floor of 44%)
 
 ### Pull Request Gates
 
@@ -894,7 +892,7 @@ ls -lh bom.json bom.xml
 **Questions:**
 - Product Manager: Requirements clarification, control scope
 - Software Architect: Technical implementation, architecture decisions
-- Project Manager: Evidence packages, sprint planning, audit coordination
+- Project Manager: Evidence packages, audit coordination
 
 **Escalation:**
 - Security incidents: follow your organisation's incident response plan. The framework records
@@ -911,6 +909,5 @@ ls -lh bom.json bom.xml
 
 ---
 
-**Last Updated:** 2026-01-01
-**Next Review:** 2026-04-01
-**Status:** FedRAMP checklist COMPLETE
+**Last Updated:** 2026-09-12
+**Status:** 12 of 14 controls satisfied by the framework; SI-7 and PM-11 partial

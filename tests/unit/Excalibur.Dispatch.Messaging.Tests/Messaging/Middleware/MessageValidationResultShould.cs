@@ -59,7 +59,7 @@ public sealed class MessageValidationResultShould
 	public void Failure_ReturnsInvalidResult()
 	{
 		// Arrange
-		var error = new ValidationError("Field", "Field is required");
+		var error = new MessageValidationError("Field", "Field is required");
 
 		// Act
 		var result = MessageValidationResult.Failure(error);
@@ -72,8 +72,8 @@ public sealed class MessageValidationResultShould
 	public void Failure_ContainsProvidedErrors()
 	{
 		// Arrange
-		var error1 = new ValidationError("Name", "Name is required");
-		var error2 = new ValidationError("Email", "Invalid email format");
+		var error1 = new MessageValidationError("Name", "Name is required");
+		var error2 = new MessageValidationError("Email", "Invalid email format");
 
 		// Act
 		var result = MessageValidationResult.Failure(error1, error2);
@@ -99,7 +99,7 @@ public sealed class MessageValidationResultShould
 	public void Failure_WithSingleError_PreservesError()
 	{
 		// Arrange
-		var error = new ValidationError("Amount", "Amount must be positive");
+		var error = new MessageValidationError("Amount", "Amount must be positive");
 
 		// Act
 		var result = MessageValidationResult.Failure(error);
@@ -118,7 +118,7 @@ public sealed class MessageValidationResultShould
 	public void Constructor_WithValidTrue_SetsIsValidTrue()
 	{
 		// Act
-		var result = new MessageValidationResult(true, Array.Empty<ValidationError>());
+		var result = new MessageValidationResult(true, Array.Empty<MessageValidationError>());
 
 		// Assert
 		result.IsValid.ShouldBeTrue();
@@ -128,7 +128,7 @@ public sealed class MessageValidationResultShould
 	public void Constructor_WithValidFalse_SetsIsValidFalse()
 	{
 		// Act
-		var result = new MessageValidationResult(false, Array.Empty<ValidationError>());
+		var result = new MessageValidationResult(false, Array.Empty<MessageValidationError>());
 
 		// Assert
 		result.IsValid.ShouldBeFalse();
@@ -149,7 +149,7 @@ public sealed class MessageValidationResultShould
 	public void Constructor_WithErrors_CreatesReadOnlyList()
 	{
 		// Arrange
-		var errors = new List<ValidationError>
+		var errors = new List<MessageValidationError>
 		{
 			new("Field1", "Error 1"),
 			new("Field2", "Error 2"),
@@ -159,7 +159,7 @@ public sealed class MessageValidationResultShould
 		var result = new MessageValidationResult(false, errors);
 
 		// Assert
-		_ = result.Errors.ShouldBeAssignableTo<IReadOnlyList<ValidationError>>();
+		_ = result.Errors.ShouldBeAssignableTo<IReadOnlyList<MessageValidationError>>();
 		result.Errors.Count.ShouldBe(2);
 	}
 
@@ -167,7 +167,7 @@ public sealed class MessageValidationResultShould
 	public void Constructor_WithErrors_CopiesErrorsNotReferenceOriginal()
 	{
 		// Arrange
-		var errors = new List<ValidationError>
+		var errors = new List<MessageValidationError>
 		{
 			new("Field1", "Error 1"),
 		};
@@ -176,7 +176,7 @@ public sealed class MessageValidationResultShould
 		var result = new MessageValidationResult(false, errors);
 
 		// Modify original list
-		errors.Add(new ValidationError("Field2", "Error 2"));
+		errors.Add(new MessageValidationError("Field2", "Error 2"));
 
 		// Assert - Result should not be affected
 		result.Errors.Count.ShouldBe(1);
@@ -214,8 +214,8 @@ public sealed class MessageValidationResultShould
 		// Arrange
 		var validResult = MessageValidationResult.Success();
 		var invalidResult = MessageValidationResult.Failure(
-			new ValidationError("Email", "Invalid format"),
-			new ValidationError("Password", "Too short"));
+			new MessageValidationError("Email", "Invalid format"),
+			new MessageValidationError("Password", "Too short"));
 
 		// Act & Assert
 		if (validResult.IsValid)
@@ -242,7 +242,7 @@ public sealed class MessageValidationResultShould
 	{
 		// Arrange
 		var success = MessageValidationResult.Success();
-		var failure = MessageValidationResult.Failure(new ValidationError("test", "error"));
+		var failure = MessageValidationResult.Failure(new MessageValidationError("test", "error"));
 
 		// Assert
 		success.IsValid.ShouldNotBe(failure.IsValid);
@@ -253,9 +253,9 @@ public sealed class MessageValidationResultShould
 	{
 		// Arrange
 		var result = MessageValidationResult.Failure(
-			new ValidationError("Field1", "Error1"),
-			new ValidationError("Field2", "Error2"),
-			new ValidationError("Field3", "Error3"));
+			new MessageValidationError("Field1", "Error1"),
+			new MessageValidationError("Field2", "Error2"),
+			new MessageValidationError("Field3", "Error3"));
 
 		// Act
 		var errorMessages = new List<string>();
@@ -276,8 +276,8 @@ public sealed class MessageValidationResultShould
 	{
 		// Arrange
 		var result = MessageValidationResult.Failure(
-			new ValidationError("First", "First error"),
-			new ValidationError("Second", "Second error"));
+			new MessageValidationError("First", "First error"),
+			new MessageValidationError("Second", "Second error"));
 
 		// Act & Assert
 		result.Errors[0].PropertyName.ShouldBe("First");

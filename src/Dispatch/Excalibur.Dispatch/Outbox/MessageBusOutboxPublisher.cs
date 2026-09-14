@@ -39,6 +39,33 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<MessageBusOutboxPublisher> _logger;
 
+	// Leadership fencing. The store capability is resolved through the store's own service-provider seam
+	// (never a cast -- a cast sees only the outermost decorator), and the gate through the provider, so
+	// presenting a token adds nothing to this type's public construction surface.
+	private readonly IFencedOutboxStore? _fencedStore;
+
+	/// <summary>
+	/// The store's claim-scoped completion capability, when it offers one.
+	/// </summary>
+	/// <remarks>
+	/// Discovered through the store's own service-provider seam like every other capability here, never by
+	/// casting: a cast sees only the outermost decorator and reports a capability absent that the store
+	/// beneath it implements.
+	/// </remarks>
+	private readonly IClaimScopedOutboxStore? _claimScopedStore;
+
+	/// <summary>
+	/// The store's combined fenced-and-claim-scoped completion capability, when it offers one.
+	/// </summary>
+	/// <remarks>
+	/// A third probe rather than a cast or a type test, for the same reason as the two above: a cast sees
+	/// only the outermost decorator. This is the INTERSECTION of two capabilities, so a store answering to
+	/// each of the others separately does not necessarily answer to this one.
+	/// </remarks>
+	private readonly IFencedClaimScopedOutboxStore? _fencedClaimScopedStore;
+	private readonly ILeaderProcessingGate? _leaderGate;
+	private readonly bool _fencingActive;
+
 	// Outbox-read DoS guard limit: from OutboxDeliveryOptions; bounded 4 MiB when unconfigured
 	// (never inert), null = explicit opt-out.
 	private readonly int? _maxPayloadBytes;
@@ -75,6 +102,12 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_maxPayloadBytes = ResolveMaxPayloadBytes(serviceProvider);
+		_fencedStore = outboxStore.GetService(typeof(IFencedOutboxStore)) as IFencedOutboxStore;
+		_claimScopedStore = outboxStore.GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore;
+		_fencedClaimScopedStore =
+			outboxStore.GetService(typeof(IFencedClaimScopedOutboxStore)) as IFencedClaimScopedOutboxStore;
+		_leaderGate = ResolveLeaderGate(serviceProvider);
+		_fencingActive = ResolveFencingActive(serviceProvider, _leaderGate);
 	}
 
 	/// <summary>
@@ -103,6 +136,12 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_maxPayloadBytes = ResolveMaxPayloadBytes(serviceProvider);
+		_fencedStore = outboxStore.GetService(typeof(IFencedOutboxStore)) as IFencedOutboxStore;
+		_claimScopedStore = outboxStore.GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore;
+		_fencedClaimScopedStore =
+			outboxStore.GetService(typeof(IFencedClaimScopedOutboxStore)) as IFencedClaimScopedOutboxStore;
+		_leaderGate = ResolveLeaderGate(serviceProvider);
+		_fencingActive = ResolveFencingActive(serviceProvider, _leaderGate);
 	}
 
 	// Bounded-by-default (4 MiB) unless OutboxDeliveryOptions is registered with an explicit value/opt-out.
@@ -112,6 +151,71 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		serviceProvider.GetService(typeof(IOptions<OutboxDeliveryOptions>)) is IOptions<OutboxDeliveryOptions> options
 			? options.Value.MaxPayloadBytes
 			: PayloadSizeGuard.DefaultMaxPayloadBytes;
+
+	// Resolved from the provider rather than taken as a constructor parameter, so presenting the token costs
+	// no change to this type's public construction surface.
+	private static ILeaderProcessingGate? ResolveLeaderGate(IServiceProvider serviceProvider) =>
+		serviceProvider.GetService(typeof(ILeaderProcessingGate)) as ILeaderProcessingGate;
+
+	// A leadership tenure only fences when the deployment actually elects one. SingleActiveWriter is the
+	// consumer's declaration that exactly one writer exists by construction, which is the one configuration
+	// where an unfenced drain is legitimate.
+	private static bool ResolveFencingActive(IServiceProvider serviceProvider, ILeaderProcessingGate? gate) =>
+		gate is not null
+		&& !(serviceProvider.GetService(typeof(IOptions<OutboxDeliveryOptions>)) is IOptions<OutboxDeliveryOptions> options
+			&& options.Value.SingleActiveWriter);
+
+	/// <summary>
+	/// Claims a batch, presenting the leadership token when both a tenure and a fencing-capable store exist.
+	/// </summary>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private ValueTask<IEnumerable<OutboundMessage>> ClaimBatchAsync(int batchSize, CancellationToken cancellationToken)
+	{
+		if (_fencingActive && _fencedStore is { } fenced && _leaderGate?.FencingToken is { } token)
+		{
+			return fenced.GetUnsentMessagesAsync(batchSize, token, cancellationToken);
+		}
+
+		GuardActiveGateHasFencingToken();
+		return _outboxStore.GetUnsentMessagesAsync(batchSize, cancellationToken);
+	}
+
+	/// <summary>
+	/// Marks a message sent, presenting the leadership token when both a tenure and a fencing-capable store exist.
+	/// </summary>
+	private ValueTask MarkSentFencedAsync(string messageId, CancellationToken cancellationToken)
+	{
+		if (_fencingActive && _fencedStore is { } fenced && _leaderGate?.FencingToken is { } token)
+		{
+			return fenced.MarkSentAsync(messageId, token, cancellationToken);
+		}
+
+		GuardActiveGateHasFencingToken();
+		return _outboxStore.MarkSentAsync(messageId, cancellationToken);
+	}
+
+	/// <summary>
+	/// Composition guard: a leader gate that is <em>present</em> but yields no fencing token MUST fail closed
+	/// rather than fall through to the unfenced members.
+	/// </summary>
+	/// <remarks>
+	/// Checking leadership and then draining is check-then-act, not a fence: a dispatcher that loses its
+	/// tenure while paused resumes, observes its own stale snapshot, and writes. The token is what the store
+	/// compares against its durable high-water, so a drain that cannot present one under an active tenure has
+	/// no way to be refused and must refuse itself. With no election configured a null token is the
+	/// legitimate unfenced path and drains normally.
+	/// </remarks>
+	private void GuardActiveGateHasFencingToken()
+	{
+		if (_fencingActive && _leaderGate?.FencingToken is null)
+		{
+			throw new OutboxFencingTokenUnavailableException(
+				"The outbox leader gate is active but no fencing token is available for the current tenure; " +
+				"refusing to drain unfenced. A fenced leader election must present a monotonic fencing token. " +
+				"Draining without one would let a superseded leader publish messages a live leader has claimed.");
+		}
+	}
 
 	/// <inheritdoc />
 	public async Task<OutboundMessage> PublishAsync(
@@ -247,15 +351,19 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// Routing them through the claim removes both, and needs no second reservation mechanism.
 	/// </para>
 	/// <para>
-	/// Unfenced drain: this publisher holds no leadership tenure, so it claims through the unfenced
-	/// <c>IOutboxStore</c> members. A fenced drain runs through the outbox processor, which presents its token.
+	/// Fenced drain: where a leadership tenure and a fencing-capable store are both present, the claim and the
+	/// mark-sent carry the tenure's token, so a superseded leader is refused by the store's durable high-water
+	/// rather than admitted. Checking leadership before draining is not a substitute — that is check-then-act,
+	/// and a dispatcher paused past the end of its tenure resumes and writes on a stale observation. Where no
+	/// election is configured the unfenced members are the legitimate path; where a tenure is active but no
+	/// token can be presented, the drain refuses rather than proceeding unfenced.
 	/// </para>
 	/// </remarks>
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task<PublishingResult> DrainClaimedBatchAsync(CancellationToken cancellationToken)
 	{
-		var messages = await _outboxStore.GetUnsentMessagesAsync(100, cancellationToken).ConfigureAwait(false);
+		var messages = await ClaimBatchAsync(100, cancellationToken).ConfigureAwait(false);
 		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
 	}
 
@@ -436,6 +544,14 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		Message = "No transport deliveries found for multi-transport message {MessageId}")]
 	private partial void LogNoTransportDeliveries(string messageId);
 
+	[LoggerMessage(EventId = 2409, Level = LogLevel.Warning,
+		Message = "Fenced mark-sent for message {MessageId} was refused: this tenure's fencing token is stale (a newer leader has taken over). Aborting with no further store write; the message is left claimed for the current leader to resolve.")]
+	private partial void LogFencedMarkSentRefused(string messageId, Exception ex);
+
+	[LoggerMessage(EventId = 2410, Level = LogLevel.Information,
+		Message = "Failure report for outbox message {MessageId} wrote nothing ({Outcome}); continuing with the rest of the batch")]
+	private partial void LogFailureReportDeclined(string messageId, string outcome);
+
 	private async Task<TransportPublishResult> PublishToTransportAsync(
 		OutboundMessage message,
 		OutboundMessageTransport transport,
@@ -596,6 +712,91 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 	}
 
+	/// <summary>
+	/// Records a delivery failure against the CLAIM this publisher holds, rather than against the process
+	/// it runs in.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The sibling handler seven lines above already refuses an unfenced write, and this one used to
+	/// perform it.</b> That handler aborts with no store write when the fence refuses a mark-sent,
+	/// reasoning in its own comment that the plain completion carries no fence term. The general handler
+	/// beneath it then called exactly that member. The reasoning was right and only one of the two paths
+	/// acted on it.
+	/// </para>
+	/// <para>
+	/// <b>The identity is on the message and has always been.</b> This drain reads messages straight from
+	/// the store with no conversion step between the claim and the completion, so the token the claim
+	/// stamped is still on the row it was handed. It was never lost here; it was never presented.
+	/// </para>
+	/// <para>
+	/// <b>Depth follows the stamp, and this call cannot make it deeper.</b> The completion discriminates
+	/// exactly as finely as the value the claim wrote: presenting a token minted per acquisition refuses a
+	/// report from a different claim, while presenting a bare process identity refuses nothing, because
+	/// every cycle of one process presents the same string. A store whose claim does not mint a per-claim
+	/// token gets no benefit from this route until it does.
+	/// </para>
+	/// <para>
+	/// <b>Falls back rather than failing.</b> A store without the capability keeps the pre-existing
+	/// unscoped completion; that write is unrefusable, which is a known gap and not a regression
+	/// introduced here.
+	/// </para>
+	/// </remarks>
+	private async Task ReportFailureForClaimAsync(
+		OutboundMessage message,
+		string errorMessage,
+		CancellationToken cancellationToken)
+	{
+		var attempt = message.RetryCount + 1;
+
+		// THE FENCED ROUTE IS PREFERRED, and it needs all three facts together: the combined capability, an
+		// active tenure holding a token, and the claim this message was handed under. Missing any one of them
+		// means this caller cannot make the stronger assertion, so it falls to the route that asserts what it
+		// can rather than to one that would assert more than it knows.
+		if (message.DispatcherId is { Length: > 0 } claim
+			&& _fencingActive
+			&& _leaderGate?.FencingToken is { } fencingToken
+			&& _fencedClaimScopedStore is { } fencedScoped)
+		{
+			var fencedOutcome = await fencedScoped.MarkFailedAsync(
+					message.Id,
+					errorMessage,
+					attempt,
+					// This drain computes no backoff schedule of its own, so the visibility floor the
+					// statement applies is the store's configured one.
+					nextAttemptAt: null,
+					new OutboxWriteAuthority(fencingToken, claim),
+					cancellationToken)
+				.ConfigureAwait(false);
+
+			if (fencedOutcome is not OutboxCompletionOutcome.Applied)
+			{
+				LogFailureReportDeclined(message.Id, fencedOutcome.ToString());
+			}
+
+			return;
+		}
+
+		if (_claimScopedStore is null || message.DispatcherId is not { Length: > 0 } claimIdentity)
+		{
+			await _outboxStore.MarkFailedAsync(message.Id, errorMessage, attempt, cancellationToken)
+				.ConfigureAwait(false);
+			return;
+		}
+
+		// Returned, never thrown. This runs inside a catch block, where a sibling catch clause on the same
+		// try cannot run -- so a refusal raised as an exception would escape the loop and abandon every
+		// remaining message this publisher legitimately holds. A declined report concerns one row.
+		var outcome = await _claimScopedStore
+			.MarkFailedAsync(message.Id, errorMessage, attempt, claimIdentity, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (outcome is not OutboxCompletionOutcome.Applied)
+		{
+			LogFailureReportDeclined(message.Id, outcome.ToString());
+		}
+	}
+
 	private async Task<PublishingResult> PublishMessagesAsync(
 		IReadOnlyList<OutboundMessage> messages,
 		CancellationToken cancellationToken)
@@ -653,9 +854,18 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 
 				LogPublishedMessageToDestination(message.Id, message.Destination);
 			}
+			catch (OutboxFenceRefusedException ex)
+			{
+				// The fence refused this tenure's mark-sent because a newer leader has taken over. This
+				// is NOT a delivery failure -- the message may already be delivered by the current leader
+				// -- so it must not be marked failed by a superseded tenure (MarkFailedAsync carries no
+				// fence term and would be an unfenced write). Abort this message with no further store
+				// write, leaving it as claimed for the live leader to resolve.
+				LogFencedMarkSentRefused(message.Id, ex);
+			}
 			catch (Exception ex)
 			{
-				await _outboxStore.MarkFailedAsync(message.Id, ex.Message, message.RetryCount + 1, cancellationToken).ConfigureAwait(false);
+				await ReportFailureForClaimAsync(message, ex.Message, cancellationToken).ConfigureAwait(false);
 
 				failureCount++;
 				failedDelta++;
@@ -720,7 +930,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 
 		_ = await _messageBus.PublishAsync(wrappedMessage, context, cancellationToken).ConfigureAwait(false);
-		await _outboxStore.MarkSentAsync(message.Id, cancellationToken).ConfigureAwait(false);
+		await MarkSentFencedAsync(message.Id, cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task<PublishingResult> PublishMultiTransportMessageAsync(

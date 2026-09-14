@@ -20,6 +20,18 @@ namespace Excalibur.Dispatch;
 public sealed class InboxEntry
 {
 	/// <summary>
+	/// The metadata key under which a writer supplies the correlation identifier, and the key this type
+	/// reads to populate <see cref="CorrelationId"/>.
+	/// </summary>
+	private const string CorrelationIdMetadataKey = "CorrelationId";
+
+	/// <summary>
+	/// The metadata key under which a writer supplies the causation identifier, and the key this type
+	/// reads to populate <see cref="CausationId"/>.
+	/// </summary>
+	private const string CausationIdMetadataKey = "CausationId";
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="InboxEntry" /> class.
 	/// </summary>
 	public InboxEntry()
@@ -50,6 +62,28 @@ public sealed class InboxEntry
 		Metadata = metadata ?? new Dictionary<string, object>(StringComparer.Ordinal);
 		ReceivedAt = DateTimeOffset.UtcNow;
 		Status = InboxStatus.Received;
+
+		// The writers that build the metadata put the correlation id in it rather than assigning the
+		// property, and every store persists the property to a dedicated field. Lifting it here is what
+		// ties the two representations together: without it the field is written null for every entry the
+		// framework creates, and a query filtering the inbox on correlation answers "no such message"
+		// instead of answering the question.
+		if (Metadata.TryGetValue(CorrelationIdMetadataKey, out var correlation)
+			&& correlation is string correlationId
+			&& !string.IsNullOrWhiteSpace(correlationId))
+		{
+			CorrelationId = correlationId;
+		}
+
+		// Same lift, same reason: InboxMiddleware.ExtractMetadata writes CausationId into the bag rather
+		// than assigning the property, so without this the field is null for every entry the framework
+		// creates.
+		if (Metadata.TryGetValue(CausationIdMetadataKey, out var causation)
+			&& causation is string causationId
+			&& !string.IsNullOrWhiteSpace(causationId))
+		{
+			CausationId = causationId;
+		}
 	}
 
 	/// <summary>
@@ -146,6 +180,12 @@ public sealed class InboxEntry
 	/// </summary>
 	/// <value> Correlation ID for distributed tracing and message flow tracking. </value>
 	public string? CorrelationId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the causation identifier for tracing.
+	/// </summary>
+	/// <value> The id of the message that caused this one, for distributed tracing and message flow tracking. </value>
+	public string? CausationId { get; set; }
 
 	/// <summary>
 	/// Gets or sets the tenant identifier for multi-tenant scenarios.

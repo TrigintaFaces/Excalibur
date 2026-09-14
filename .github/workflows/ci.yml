@@ -453,6 +453,16 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
+      # Runs FIRST, and deliberately: the audit below reports "all projects assigned" whether that is
+      # true or whether it can no longer tell. Those print the same line. This step plants a unit test
+      # project belonging to no shard and no tier and requires the audit to refuse it, then requires it
+      # to accept the unmodified tree -- so a pass below is a verdict the instrument earned rather than
+      # one it defaulted to.
+      - name: Validate unit-test shard coverage (self-test, non-vacuity)
+        shell: pwsh
+        run: |
+          ./eng/ci/validate-unit-shards.ps1 -SelfTest
+
       - name: Validate unit-test shard coverage
         shell: pwsh
         run: |
@@ -629,7 +639,9 @@ jobs:
           Write-Host "Enforcing $($expected.Count) blocking-tier assemblies."
           # Non-vacuity floor: if the slnf derivation ever yields far fewer than the tier really holds,
           # the gate must refuse (exit 2) rather than pass a shrunken set (the vacuous-pass trap). 40 is a
-          # conservative floor well below the current ~53 blocking-tier assemblies.
+          # conservative floor below the 66 assemblies the tier currently holds. The floor catches a
+          # catastrophic derivation failure, NOT drift: a set shrunk to 41 still passes it, so the floor
+          # is not a substitute for reading the "Enforcing N" line above when N looks wrong.
           ./eng/ci/validate-shard-results.ps1 -TrxDir AggregatedTrx -ExpectedAssemblies $expected -Enforce $true -MinExpectedAssemblies 40 -OutDir artifacts/reports/ShardAggregation
       - name: Upload aggregation report
         if: always()

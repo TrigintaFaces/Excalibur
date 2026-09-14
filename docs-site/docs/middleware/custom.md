@@ -211,7 +211,7 @@ public class AuditMiddleware : IDispatchMiddleware
                 TenantId = context.GetTenantId(),
                 Timestamp = startTime,
                 Duration = DateTime.UtcNow - startTime,
-                Success = result.IsSuccess,
+                Success = result.Succeeded,
                 ErrorMessage = result.ErrorMessage
             }, ct);
         }
@@ -292,7 +292,7 @@ public class CircuitBreakerMiddleware : IDispatchMiddleware
         {
             var result = await next(message, context, ct);
 
-            if (result.IsSuccess)
+            if (result.Succeeded)
                 _circuitBreaker.RecordSuccess(circuitKey);
             else
                 _circuitBreaker.RecordFailure(circuitKey);

@@ -87,7 +87,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			? null
 			: new RetryOptions
 			{
-				MaxAttempts = attr.MaxAttempts,
+				MaxRetryAttempts = attr.MaxRetryAttempts,
 				BaseDelay = TimeSpan.FromMilliseconds(attr.BaseDelayMs),
 				MaxDelay = TimeSpan.FromMilliseconds(attr.MaxDelayMs),
 				BackoffStrategy = attr.BackoffStrategy,
@@ -118,10 +118,17 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		// Get effective options (attribute takes precedence over global options)
 		var effectiveOptions = GetEffectiveOptions(message.GetType());
 
+		// RetryOptions.MaxRetryAttempts is retries AFTER the first attempt (matching Polly's
+		// RetryStrategyOptions.MaxRetryAttempts, which every Polly-based policy sharing these options
+		// already reads that way) -- so the middleware performs one more try than that value.
+		// Previously this loop treated MaxRetryAttempts as the TOTAL, an off-by-one against every
+		// Polly adapter fed the same options.
+		var totalAttempts = effectiveOptions.MaxRetryAttempts + 1;
+
 		using var activity = ActivitySource.StartActivity("RetryMiddleware.Invoke");
 		_ = (activity?.SetTag("message.id", context.MessageId ?? string.Empty));
 		_ = (activity?.SetTag("message.type", message.GetType().Name));
-		_ = (activity?.SetTag("retry.max_attempts", effectiveOptions.MaxAttempts));
+		_ = (activity?.SetTag("retry.max_attempts", totalAttempts));
 
 		var attempt = 0;
 		Exception? lastException = null;
@@ -133,7 +140,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		// or be failed by -- constructing a ladder it will not walk.
 		IBackoffCalculator? backoff = null;
 
-		while (attempt < effectiveOptions.MaxAttempts)
+		while (attempt < totalAttempts)
 		{
 			attempt++;
 
@@ -142,11 +149,11 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 				using var attemptActivity = ActivitySource.StartActivity($"RetryMiddleware.Attempt.{attempt}");
 				_ = (attemptActivity?.SetTag("retry.attempt", attempt));
 
-				LogAttemptingMessage(attempt, effectiveOptions.MaxAttempts, context.MessageId ?? string.Empty);
+				LogAttemptingMessage(attempt, totalAttempts, context.MessageId ?? string.Empty);
 
 				var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 
-				if (result.IsSuccess)
+				if (result.Succeeded)
 				{
 					if (attempt > 1)
 					{
@@ -159,7 +166,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 				}
 
 				// Failed result: retry only while the policy allows it AND attempts remain.
-				if (ShouldRetry(effectiveOptions, result, attempt))
+				if (ShouldRetry(result, attempt, totalAttempts))
 				{
 					LogMessageFailedWillRetry(context.MessageId ?? string.Empty, attempt);
 				}
@@ -172,7 +179,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 					// Genuine exhaustion via the failed-result path on the final
 					// attempt converges on the SINGLE post-loop exhaustion terminal (which emits the
 					// exhausted counter once) — no longer returns here.
-					if (attempt >= effectiveOptions.MaxAttempts)
+					if (attempt >= totalAttempts)
 					{
 						lastFailedResult = result;
 						break;
@@ -186,7 +193,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			catch (OperationCanceledException)
 			{
 				// cooperative cancellation is never a retry-exhaustion. Propagate it (mirrors
-				// DefaultRetryPolicy.IsCancellation) — it must not be retried, and must never increment
+				// the shared cancellation predicate) — it must not be retried, and must never increment
 				// dispatch.retry.exhausted nor reach the exhaustion terminal.
 				throw;
 			}
@@ -201,7 +208,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 				// Retryable exception. At the cap this is genuine exhaustion → converge on the single
 				// post-loop terminal; otherwise record it and fall through to the backoff delay.
 				lastException = ex;
-				if (attempt >= effectiveOptions.MaxAttempts)
+				if (attempt >= totalAttempts)
 				{
 					break;
 				}
@@ -221,12 +228,12 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			}
 
 			// Don't delay after the last attempt
-			if (attempt < effectiveOptions.MaxAttempts)
+			if (attempt < totalAttempts)
 			{
 				RetryAttemptsCounter.Add(1, new KeyValuePair<string, object?>("message.type", message.GetType().Name));
 				backoff ??= BackoffCalculatorFactory.Create(
 					effectiveOptions.BackoffStrategy,
-					ToPolicyOptions(effectiveOptions));
+					effectiveOptions);
 
 				var delay = backoff.CalculateDelay(attempt);
 				LogWaitingBeforeRetry(delay.TotalMilliseconds, attempt + 1, context.MessageId ?? string.Empty);
@@ -235,13 +242,14 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			}
 		}
 
-		// The loop body never ran, which is only possible when MaxAttempts is non-positive: the message was
-		// never dispatched. That is a configuration fault, not an exhaustion — no exhausted-count, and raised
-		// rather than reported as a message-level failure the caller cannot distinguish from a real one.
+		// The loop body never ran, which is only possible when MaxRetryAttempts is negative (0 is legal:
+		// it means "no retries", i.e. exactly one try): the message was never dispatched. That is a
+		// configuration fault, not an exhaustion — no exhausted-count, and raised rather than reported
+		// as a message-level failure the caller cannot distinguish from a real one.
 		if (attempt == 0)
 		{
 			throw new InvalidOperationException(
-				$"RetryOptions.MaxAttempts must be at least 1, but was {effectiveOptions.MaxAttempts}; the message was never dispatched.");
+				$"RetryOptions.MaxRetryAttempts must be non-negative, but was {effectiveOptions.MaxRetryAttempts}; the message was never dispatched.");
 		}
 
 		// ── Single retry-exhaustion terminal ──
@@ -254,7 +262,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		var errorMessage = lastException is not null
 			? lastException.GetSanitizedErrorDescription(_sanitizer)
 			: lastFailedResult?.ProblemDetails?.Detail ?? "All retry attempts exhausted";
-		LogRetriesExhausted(context.MessageId ?? string.Empty, effectiveOptions.MaxAttempts, errorMessage);
+		LogRetriesExhausted(context.MessageId ?? string.Empty, totalAttempts, errorMessage);
 
 		_ = (activity?.SetTag("retry.exhausted", value: true));
 		_ = (activity?.SetTag("retry.final_attempt", attempt));
@@ -314,15 +322,15 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		"Message {MessageId} failed after {MaxAttempts} attempts. Final error: {Error}")]
 	private partial void LogRetriesExhausted(string messageId, int maxAttempts, string error);
 
-	private static bool ShouldRetry(RetryOptions options, IMessageResult result, int attempt)
+	private static bool ShouldRetry(IMessageResult result, int attempt, int totalAttempts)
 	{
-		if (attempt >= options.MaxAttempts)
+		if (attempt >= totalAttempts)
 		{
 			return false;
 		}
 
 		// Don't retry successful results
-		if (result.IsSuccess)
+		if (result.Succeeded)
 		{
 			return false;
 		}
@@ -376,47 +384,4 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		return _classifier.Classify(exception) == MessageFailureKind.Transient;
 	}
 
-	/// <summary>
-	/// Converts a raw delay expressed in milliseconds into a bounded <see cref="TimeSpan" />, guaranteeing
-	/// the result is finite and never exceeds <paramref name="maxDelay" />.
-	/// </summary>
-	/// <param name="milliseconds"> The raw delay in milliseconds, which may have overflowed to a non-finite value. </param>
-	/// <param name="maxDelay"> The maximum permitted delay. </param>
-	/// <returns> A <see cref="TimeSpan" /> in the range <c>[TimeSpan.Zero, maxDelay]</c>. </returns>
-	private static TimeSpan ClampMs(double milliseconds, TimeSpan maxDelay)
-	{
-		// Exponential growth (Math.Pow) can overflow to PositiveInfinity / NaN before any cap is applied;
-		// collapsing that to the cap avoids the OverflowException that TimeSpan.FromMilliseconds would throw
-		// on a non-finite input.
-		if (!double.IsFinite(milliseconds))
-		{
-			return maxDelay;
-		}
-
-		var capped = Math.Min(milliseconds, maxDelay.TotalMilliseconds);
-		return TimeSpan.FromMilliseconds(Math.Max(0d, capped));
-	}
-
-
-	/// <summary>
-	/// Projects this middleware's retry options onto the shape the shared backoff calculators read.
-	/// </summary>
-	/// <param name="options">The middleware's retry options.</param>
-	/// <returns>The equivalent policy options.</returns>
-	/// <remarks>
-	/// Two option types describe one idea, which is a problem of its own; until they are reconciled
-	/// this keeps the ladder in one place rather than reimplementing it beside them.
-	/// </remarks>
-	private static RetryPolicyOptions ToPolicyOptions(RetryOptions options) => new()
-	{
-		MaxRetryAttempts = options.MaxAttempts,
-		Backoff = new RetryBackoffOptions
-		{
-			BaseDelay = options.BaseDelay,
-			MaxDelay = options.MaxDelay,
-			BackoffMultiplier = options.BackoffMultiplier,
-			JitterFactor = options.JitterFactor,
-			EnableJitter = options.UseJitter,
-		},
-	};
 }

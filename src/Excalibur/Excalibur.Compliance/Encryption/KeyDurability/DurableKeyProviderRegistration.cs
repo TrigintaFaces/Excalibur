@@ -17,7 +17,7 @@ namespace Excalibur.Compliance;
 /// <see cref="IDurableKeyProvider" /> through <see cref="IServiceProvider.GetService(Type)" />, so no separate
 /// attestation is registered and a provider cannot be advertised as durable without being it.
 /// </remarks>
-public static class DurableKeyProviderRegistration
+internal static class DurableKeyProviderRegistration
 {
 	/// <summary>
 	/// Adds the boot-time gate that fails startup when encryption is left on a volatile key provider
@@ -26,7 +26,7 @@ public static class DurableKeyProviderRegistration
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The same <see cref="IServiceCollection" /> for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> <paramref name="services" /> is <see langword="null" />. </exception>
-	public static IServiceCollection AddKeyDurabilityGate(this IServiceCollection services)
+	internal static IServiceCollection AddKeyDurabilityGate(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

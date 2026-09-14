@@ -52,7 +52,11 @@ public static class IbmMqTransportServiceCollectionExtensions
 			var provider = sp.GetRequiredKeyedService<IIbmMqConnectionProvider>(name);
 			var options = sp.GetRequiredService<IOptionsMonitor<IbmMqOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<IbmMqTransportSender>>();
-			return new IbmMqTransportSender(provider, options.QueueName, logger);
+			// The CloudEvents send path, on the same terms as every other transport that has one. It was
+			// absent here for a real reason and that reason is now gone: structured mode is identified by
+			// its media type alone, and until the content type could survive this transport the encoder
+			// would have produced a body no conformant receiver could recognise.
+			return new IbmMqTransportSender(provider, options.QueueName, logger).WithCloudEventEncoding();
 		});
 
 		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
@@ -60,7 +64,7 @@ public static class IbmMqTransportServiceCollectionExtensions
 			var provider = sp.GetRequiredKeyedService<IIbmMqConnectionProvider>(name);
 			var options = sp.GetRequiredService<IOptionsMonitor<IbmMqOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<IbmMqTransportReceiver>>();
-			return new IbmMqTransportReceiver(provider, options.QueueName, options.Receive, logger);
+			return new IbmMqTransportReceiver(provider, options.QueueName, options.Receive, logger).WithCloudEventDecoding(CloudEventBinding.HouseConvention);
 		});
 
 		return services;

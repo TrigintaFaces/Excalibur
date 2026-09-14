@@ -43,7 +43,7 @@ if (string.Equals(mode, "metapackage", StringComparison.OrdinalIgnoreCase))
 	builder.Services.AddExcaliburSqlServer(sql =>
 	{
 		sql.ConnectionString = connection;
-		sql.UseInbox = true;
+		sql.UseInboxStore = true;
 		sql.UseSaga = true;
 		sql.UseLeaderElection = true;
 		sql.UseAuditLogging = true;

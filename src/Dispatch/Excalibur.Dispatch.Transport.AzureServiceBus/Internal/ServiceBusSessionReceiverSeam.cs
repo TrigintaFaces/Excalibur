@@ -147,12 +147,29 @@ internal sealed partial class ServiceBusSessionReceiverSeam : IServiceBusReceive
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		// Settle against the currently-locked session receiver. In the pull loop a batch is settled
-		// before the next ReceiveAsync, so the owning session is still held.
-		var session = _session
-			?? throw new InvalidOperationException(
-				"No active Azure Service Bus session to settle the message against. The session lock may " +
-				"have expired or the message was already settled.");
+		// Take the same gate ReceiveMessagesAsync/DisposeAsync already hold across the session swap
+		// (_sessionGate's own field comment: "so concurrent ReceiveMessagesAsync / settle calls never
+		// race on the session swap") -- this call was the one site that did not, so an unguarded read
+		// here could observe a session mid-swap (released/disposed by a concurrent receive) instead of
+		// the one this settle is actually for. Safe against the documented sequential pull-loop usage
+		// (settle runs strictly after the receive that produced the message returns, so the gate is
+		// never held by the caller's own in-flight receive when settle takes it) and against a future
+		// concurrent-prefetch consumer, which is exactly the case the field comment already anticipates.
+		await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+		ServiceBusSessionReceiver session;
+		try
+		{
+			// Settle against the currently-locked session receiver. In the pull loop a batch is settled
+			// before the next ReceiveAsync, so the owning session is still held.
+			session = _session
+				?? throw new InvalidOperationException(
+					"No active Azure Service Bus session to settle the message against. The session lock may " +
+					"have expired or the message was already settled.");
+		}
+		finally
+		{
+			_ = _sessionGate.Release();
+		}
 
 		await settle(session, message, cancellationToken).ConfigureAwait(false);
 	}

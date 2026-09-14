@@ -39,8 +39,13 @@ public sealed class ConfidentialityControlValidatorShould
 		var result = await sut.ValidateAsync("CNF-001", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("CNF-001");
-		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		// This arm was named "always passes" and required exactly that: IsEffective true at full
+		// score from a method that observes nothing. The capability really is shipped, which is
+		// what the Configuration evidence says; whether this deployment operates it is not
+		// observable from here, so the control is unverified rather than effective.
+		result.IsEffective.ShouldBeFalse();
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.Evidence.ShouldNotBeEmpty();
 	}
 
@@ -52,8 +57,10 @@ public sealed class ConfidentialityControlValidatorShould
 		var result = await sut.ValidateAsync("CNF-002", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("CNF-002");
+		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
+		// longer says is that the CONTROL operated, because nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -76,7 +83,10 @@ public sealed class ConfidentialityControlValidatorShould
 		var result = await sut.ValidateAsync("CNF-003", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("CNF-003");
-		result.IsEffective.ShouldBeTrue();
+		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
+		// longer says is that the CONTROL operated, because nothing here observed it operating.
+		result.IsConfigured.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 		result.Evidence.ShouldContain(e => e.Description.Contains("Cryptographic erasure"));
 	}
 
@@ -173,7 +183,11 @@ public sealed class ConfidentialityControlValidatorShould
 		var result = await sut.RunTestAsync("CNF-001", parameters, CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("CNF-001");
-		result.Outcome.ShouldBe(TestOutcome.NoExceptions);
-		result.ItemsTested.ShouldBe(10);
+		// The verdict, not NotTested: a validator ran. What did not happen is SAMPLING, which the
+		// item count and the null finding count below carry.
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
+		// Zero, not the requested 10: RunTestAsync forwards a verdict and samples nothing. The
+		// requested size stays available on Parameters, where it is a request rather than a measurement.
+		result.ItemsTested.ShouldBe(0);
 	}
 }

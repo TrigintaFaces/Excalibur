@@ -73,7 +73,7 @@ public sealed class ProcessorResilienceIntegrationShould
 	{
 		// Arrange - Simulates InboxProcessor behavior
 		var dlq = new InMemoryDeadLetterQueue(_dlqLogger);
-		var cbOptions = new CircuitBreakerOptions { FailureThreshold = 2 };
+		var cbOptions = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 2 };
 		var circuitBreaker = new CircuitBreakerPolicy(cbOptions, "inbox-handler", _cbLogger);
 
 		// Trip the circuit
@@ -116,7 +116,7 @@ public sealed class ProcessorResilienceIntegrationShould
 	public async Task RegistryIsolatesCircuitBreakersPerTransport()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 3 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 3 };
 		var registry = new TransportCircuitBreakerRegistry(options, NullLoggerFactory.Instance);
 
 		// Act - Create separate circuits for different transports/message types
@@ -140,7 +140,7 @@ public sealed class ProcessorResilienceIntegrationShould
 	public async Task RegistryReturnsExistingCircuitForSameTransport()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5 };
 		var registry = new TransportCircuitBreakerRegistry(options, NullLoggerFactory.Instance);
 
 		// Act
@@ -157,13 +157,13 @@ public sealed class ProcessorResilienceIntegrationShould
 	public async Task RegistryAllowsCustomOptionsPerTransport()
 	{
 		// Arrange
-		var defaultOptions = new CircuitBreakerOptions { FailureThreshold = 5 };
+		var defaultOptions = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5 };
 		var registry = new TransportCircuitBreakerRegistry(defaultOptions, NullLoggerFactory.Instance);
 
 		var criticalOptions = new CircuitBreakerOptions
 		{
-			FailureThreshold = 2,
-			OpenDuration = TimeSpan.FromSeconds(30)
+			ConsecutiveFailureThreshold = 2,
+			BreakDuration = TimeSpan.FromSeconds(30)
 		};
 
 		// Act
@@ -186,7 +186,7 @@ public sealed class ProcessorResilienceIntegrationShould
 	public async Task RegistryGetAllStatesReturnsAllCircuits()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 2 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 2 };
 		var registry = new TransportCircuitBreakerRegistry(options, NullLoggerFactory.Instance);
 
 		await registry.GetOrCreate("Transport1").SucceedAsync().ConfigureAwait(false);
@@ -313,8 +313,8 @@ public sealed class ProcessorResilienceIntegrationShould
 		var backoff = ExponentialBackoffCalculator.CreateForMessageQueue();
 		var cbOptions = new CircuitBreakerOptions
 		{
-			FailureThreshold = 5, // Higher threshold to allow recovery before circuit opens
-			OpenDuration = TimeSpan.FromMilliseconds(100),
+			ConsecutiveFailureThreshold = 5, // Higher threshold to allow recovery before circuit opens
+			BreakDuration = TimeSpan.FromMilliseconds(100),
 		};
 		var registry = new TransportCircuitBreakerRegistry(cbOptions, NullLoggerFactory.Instance);
 		var deliveryOptions = new DeliveryGuaranteeOptions

@@ -6,6 +6,7 @@ using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.SqlServer;
 
@@ -112,7 +113,10 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 			var innerLogger = sp.GetRequiredService<ILogger<SqlServerLeaderElection>>();
 			// optional classifier-accelerated self-demotion (null when none registered → grace-only).
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
-			return new SqlServerHealthBasedLeaderElection(electionOptions, healthOptions, logger, innerLogger, failureClassifier);
+			// Forwarded to the inner SqlServerLeaderElection for fail-closed fencing-token issuance on
+			// acquisition — the same auto-registered provider the health-based path registers below.
+			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			return new SqlServerHealthBasedLeaderElection(electionOptions, healthOptions, logger, innerLogger, failureClassifier, fencingTokenProvider);
 		});
 
 		services.TryAddSingleton<IHealthBasedLeaderElection>(sp =>
@@ -143,6 +147,12 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 		// to provide, silently absent. Idempotent via TryAdd, so an explicit outbox.WithLeaderElection()
 		// composes with it. A single-active-writer topology opts the outbox out with AsSingleWriter().
 		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
+
+		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
+		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
+		// provider rather than requiring a second, easily-forgotten AddSqlServerFencingTokenProvider() +
+		// WithFencingTokens() call. WithoutFencingTokens() opts out.
+		services.TryAddDefaultFencingTokenProvider(_ => new SqlServerFencingTokenProvider(connectionString));
 
 		return services;
 	}

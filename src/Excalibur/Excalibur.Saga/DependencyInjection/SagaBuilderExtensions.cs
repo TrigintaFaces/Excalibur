@@ -112,5 +112,26 @@ public static class SagaBuilderExtensions
 
 		return builder;
 	}
+	/// <summary>
+	/// Configures <see cref="SagaOptions"/> from the builder.
+	/// </summary>
+	/// <param name="builder">The saga builder.</param>
+	/// <param name="configure">Configures the saga options.</param>
+	/// <returns>The same builder for chaining.</returns>
+	/// <remarks>
+	/// Named <c>WithOptions</c> to match <c>IDispatchBuilder.WithOptions</c> and
+	/// <c>ILeaderElectionBuilder.WithOptions</c> rather than inventing a third spelling for the same idea.
+	/// It exists so the builder is a complete entry point: <c>AddSagas</c> previously carried a second
+	/// overload taking <c>Action&lt;SagaOptions&gt;</c>, and because C# does not use a statement lambda's
+	/// body for overload resolution, the natural call bound to that one and failed with an error naming a
+	/// type the consumer never wrote. One entry point cannot be ambiguous with itself.
+	/// </remarks>
+	public static ISagaBuilder WithOptions(this ISagaBuilder builder, Action<SagaOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
 
+		_ = builder.Services.Configure(configure);
+		return builder;
+	}
 }

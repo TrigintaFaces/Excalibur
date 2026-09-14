@@ -12,39 +12,8 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CoreOptionsDepthShould
 {
-	// --- CompressionOptions ---
 
-	[Fact]
-	public void CompressionOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new CompressionOptions();
 
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.CompressionType.ShouldBe(CompressionType.Gzip);
-		options.CompressionLevel.ShouldBe(6);
-		options.MinimumSizeThreshold.ShouldBe(1024);
-	}
-
-	[Fact]
-	public void CompressionOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new CompressionOptions
-		{
-			Enabled = true,
-			CompressionType = CompressionType.Brotli,
-			CompressionLevel = 9,
-			MinimumSizeThreshold = 512,
-		};
-
-		// Assert
-		options.Enabled.ShouldBeTrue();
-		options.CompressionType.ShouldBe(CompressionType.Brotli);
-		options.CompressionLevel.ShouldBe(9);
-		options.MinimumSizeThreshold.ShouldBe(512);
-	}
 
 	// --- CompressionType enum ---
 

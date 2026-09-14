@@ -197,9 +197,14 @@ internal sealed class MongoDbOutboxDocument
 	public string? LeasedBy { get; set; }
 
 	/// <summary>
-	/// Gets or sets the highest outbox fencing token observed for this document, used to fail-closed
-	/// reject mark-sent calls and exclude claims from a superseded (stale) leader. Null means no
-	/// fencing token has been recorded yet.
+	/// Gets or sets the fencing token of the tenure that most recently claimed this document, stamped by
+	/// the SAME atomic write that performs the claim. A fenced mark-sent requires this field to be null or
+	/// no greater than the token it presents, evaluated in the same atomic write as the mark-sent mutation
+	/// itself -- so a claim by a fresher tenure landing after this document's original claimant validated
+	/// its own token, but before that claimant's mark-sent lands, is visible to the mutation and refuses
+	/// it. Null means the document has never been claimed under a fencing token (including every document
+	/// on an unfenced deployment); a mark-sent on such a document is judged by the store's scope-wide
+	/// fencing check alone.
 	/// </summary>
 	[BsonElement("fencingToken")]
 	public long? FencingToken { get; set; }

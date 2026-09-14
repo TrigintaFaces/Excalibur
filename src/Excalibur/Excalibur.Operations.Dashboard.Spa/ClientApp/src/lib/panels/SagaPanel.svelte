@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatServerInstant } from "../time";
   import { onDestroy, onMount } from "svelte";
 
   import { ApiError, getJson } from "../api";
@@ -85,7 +86,7 @@
           {#each stuck as s (s.sagaId)}
             <li>
               <span class="type">{s.sagaType}</span>
-              <span class="due">due {new Date(s.dueAt).toLocaleString()}</span>
+              <span class="due">due {formatServerInstant(s.dueAt)}</span>
             </li>
           {/each}
         </ul>

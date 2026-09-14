@@ -38,7 +38,7 @@ namespace Excalibur.EventSourcing.InMemory;
 /// </list>
 /// </para>
 /// </remarks>
-internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure
+internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEventStoreVersionProbe
 {
 	private readonly ConcurrentDictionary<(string TenantId, string AggregateId, string AggregateType), List<StoredEvent>> _events = new();
 	private readonly ConcurrentDictionary<(string TenantId, string EventId), StoredEvent> _eventsById = new();
@@ -134,6 +134,28 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
  return LoadAsync(aggregateId, aggregateType, -1, cancellationToken);
+	}
+
+	/// <inheritdoc />
+	public ValueTask<long> GetMaxVersionAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		cancellationToken.ThrowIfCancellationRequested();
+
+		if (!_events.TryGetValue(GetKey(aggregateId, aggregateType), out var events))
+		{
+			return new ValueTask<long>(-1L);
+		}
+
+		lock (events)
+		{
+			// Appends are version-ordered, so the last entry is the maximum -- no scan.
+			return new ValueTask<long>(events.Count == 0 ? -1L : events[^1].Version);
+		}
 	}
 
 	/// <inheritdoc/>

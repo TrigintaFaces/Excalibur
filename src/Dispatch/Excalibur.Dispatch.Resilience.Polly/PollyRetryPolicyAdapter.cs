@@ -24,21 +24,21 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// </para>
 /// <para>
 /// For consumers who don't need Polly's advanced features, the core package provides
-/// <see cref="DefaultRetryPolicy"/> which uses <see cref="IBackoffCalculator"/> for delays.
+/// the in-box policies, which use <see cref="IBackoffCalculator"/> for delays.
 /// </para>
 /// </remarks>
 public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 {
 	private readonly ResiliencePipeline _pipeline;
 	private readonly ILogger _logger;
-	private readonly RetryOptions _options;
+	private readonly PollyRetryOptions _options;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PollyRetryPolicyAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> Retry configuration options. </param>
 	/// <param name="logger"> Optional logger instance. </param>
-	public PollyRetryPolicyAdapter(IOptions<RetryOptions> options, ILogger? logger = null)
+	public PollyRetryPolicyAdapter(IOptions<PollyRetryOptions> options, ILogger? logger = null)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger.Instance;
@@ -47,7 +47,7 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 		_pipeline = new ResiliencePipelineBuilder()
 			.AddRetry(new RetryStrategyOptions
 			{
-				MaxRetryAttempts = _options.MaxRetries,
+				MaxRetryAttempts = _options.MaxRetryAttempts,
 				Delay = _options.BaseDelay,
 				BackoffType = _options.BackoffStrategy switch
 				{
@@ -60,6 +60,12 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 					_ => DelayBackoffType.Exponential,
 				},
 				UseJitter = _options.UseJitter || _options.BackoffStrategy == BackoffStrategy.FullJitter,
+
+				// The cap a consumer configures. Without this, an exponential strategy grows unbounded:
+				// PollyRetryOptions.MaxDelay defaults to one minute, and every consumer of this adapter
+				// was silently getting no cap at all. The option was only ever read by the duplicate
+				// concrete retry implementation, which nothing resolved, so the knob looked honoured.
+				MaxDelay = _options.MaxDelay,
 				// The floor is composed with AND, so a consumer predicate can only ever NARROW what is retried,
 				// never widen it. Written the other way round -- consulting ShouldRetry first, or defaulting to
 				// true and letting the predicate opt out -- a caller who supplies no predicate (the default)
@@ -100,7 +106,7 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 	/// <inheritdoc />
 	/// <remarks>
 	/// Executes the action through Polly's resilience pipeline with full retry,
-	/// circuit breaker, and jitter support based on <see cref="RetryOptions"/> configuration.
+	/// circuit breaker, and jitter support based on <see cref="PollyRetryOptions"/> configuration.
 	/// </remarks>
 	public async Task<TResult> ExecuteAsync<TResult>(
 		Func<CancellationToken, Task<TResult>> action,
@@ -116,7 +122,7 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 	/// <inheritdoc />
 	/// <remarks>
 	/// Executes the action through Polly's resilience pipeline with full retry,
-	/// circuit breaker, and jitter support based on <see cref="RetryOptions"/> configuration.
+	/// circuit breaker, and jitter support based on <see cref="PollyRetryOptions"/> configuration.
 	/// </remarks>
 	public async Task ExecuteAsync(
 		Func<CancellationToken, Task> action,

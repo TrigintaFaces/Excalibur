@@ -24,15 +24,22 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 {
 	private const string CloudEventsStructuredContentType = "application/cloudevents+json";
 
-	private const string CeSpecVersionProperty = "ce-specversion";
-	private const string CeTypeProperty = "ce-type";
-	private const string CeSourceProperty = "ce-source";
-	private const string CeIdProperty = "ce-id";
-	private const string CeTimeProperty = "ce-time";
-	private const string CeDataContentTypeProperty = "ce-datacontenttype";
-	private const string CeSubjectProperty = "ce-subject";
-	private const string CeDataSchemaProperty = "ce-dataschema";
-	private const string CeTimeoutProperty = "ce-timeout";
+	// The AMQP binding requires "cloudEvents_" (or "cloudEvents:") on application properties, and a
+	// single message MUST use one separator for every attribute -- so the extension path below derives
+	// its prefix from this constant rather than repeating a literal that could drift from the required
+	// attributes above. The strip length is taken from the constant for the same reason.
+	private const string CloudEventsAttributePrefix = "cloudEvents_";
+	private const string LegacyCloudEventsAttributePrefix = "ce-";
+
+	private const string CeSpecVersionProperty = "cloudEvents_specversion";
+	private const string CeTypeProperty = "cloudEvents_type";
+	private const string CeSourceProperty = "cloudEvents_source";
+	private const string CeIdProperty = "cloudEvents_id";
+	private const string CeTimeProperty = "cloudEvents_time";
+	private const string CeDataContentTypeProperty = "cloudEvents_datacontenttype";
+	private const string CeSubjectProperty = "cloudEvents_subject";
+	private const string CeDataSchemaProperty = "cloudEvents_dataschema";
+	private const string CeTimeoutProperty = "cloudEvents_timeout";
 	private const string DispatchPrefix = "dispatch-";
 	private const string DispatchPrefixWithoutSeparator = "dispatch";
 	private const string TimeoutAttributeName = "timeout";
@@ -249,12 +256,12 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 	{
 		foreach (var property in properties)
 		{
-			if (!property.Key.StartsWith("ce-", StringComparison.OrdinalIgnoreCase) || IsRequiredCloudEventProperty(property.Key))
+			if (!IsCloudEventAttributeName(property.Key) || IsRequiredCloudEventProperty(property.Key))
 			{
 				continue;
 			}
 
-			var attributeName = property.Key[3..];
+			var attributeName = StripCloudEventAttributePrefix(property.Key);
 			var value = property.Value?.ToString();
 			if (!string.IsNullOrEmpty(value))
 			{
@@ -339,11 +346,9 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 				continue;
 			}
 
-			var normalizedName = attributeName.StartsWith("ce-", StringComparison.OrdinalIgnoreCase)
-				? attributeName[3..]
-				: attributeName;
+			var normalizedName = StripCloudEventAttributePrefix(attributeName);
 
-			properties[$"ce-{normalizedName}"] = value switch
+			properties[$"{CloudEventsAttributePrefix}{normalizedName}"] = value switch
 			{
 				JsonElement jsonElement => jsonElement.ToString(),
 				_ => value.ToString() ?? string.Empty,
@@ -573,13 +578,13 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 
 		foreach (var property in transportMessage.Properties)
 		{
-			if (!property.Key.StartsWith("ce-", StringComparison.OrdinalIgnoreCase) ||
+			if (!IsCloudEventAttributeName(property.Key) ||
 				IsRequiredCloudEventProperty(property.Key))
 			{
 				continue;
 			}
 
-			var attributeName = property.Key[3..];
+			var attributeName = StripCloudEventAttributePrefix(property.Key);
 			cloudEvent[attributeName] = property.Value?.ToString();
 		}
 
@@ -587,4 +592,47 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 
 		return cloudEvent;
 	}
+
+	// The AMQP binding mandates "cloudEvents_" on the wire, and that is what this adapter now WRITES.
+	// It still READS the "ce-" spelling earlier versions of this adapter emitted, because the two breaks
+	// are not the same: changing what we emit is an API-compatibility decision, which a pre-release line
+	// covers; refusing to read what we already put on a consumer's queue is a DATA-compatibility decision,
+	// which it does not. Messages sent by prior versions are sitting in real subscriptions right now, and
+	// a consumer upgrading this package must still be able to drain them.
+	//
+	// WHEN THIS READ GOES AWAY: 11.0.0, and it is not a date anyone picks here. The published upgrade
+	// policy carries a rule for exactly this — when a transport's wire format changes, the READING side of
+	// the old format is kept for the remainder of the major line and removed at the next major. From the
+	// release carrying this change onward, this adapter writes the spec-assigned prefix; 11.0.0 writes and
+	// reads it alone.
+	//
+	// WHAT THE DRAIN OBLIGATION ACTUALLY COVERS, stated for the moment it matters rather than for today.
+	// Every version released before this change writes the hyphenated spelling and nothing else, so a
+	// message is in the old form if and only if the version that published it predates this change. By
+	// the time a consumer crosses to 11.x they will have run versions on both sides, and their backlog
+	// will hold a MIX — so the obligation is not "everything you have is stale", which is true only until
+	// this ships, nor "a little legacy tail", which understates it. It is: any message written by a
+	// version older than this one is unreadable by 11.0.0, and no consumer can tell which those are by
+	// looking at the queue.
+	//
+	// That rule governs DATA, which is the axis this affordance sits on. The policy's other rule — that
+	// minor and patch stay backward compatible within a major — is about API surface and does NOT settle
+	// a question about bytes already written to a queue. Both point at 11.0.0 here; only the first one is
+	// the reason, and citing the wrong one would make this comment collapse the moment someone noticed.
+	//
+	// CONSUMER OBLIGATION, because the other half is not observable from inside the framework: before
+	// crossing to 11.x, drain or re-publish any message a 10.x version wrote with the old spelling.
+	// Nothing in this library can see a consumer's backlog, so nothing here can tell them when it is safe
+	// — only what they must do first, and the policy publishes it while 10.x is current so they can act.
+	private static bool IsCloudEventAttributeName(string name) =>
+		name.StartsWith(CloudEventsAttributePrefix, StringComparison.OrdinalIgnoreCase)
+		|| name.StartsWith(LegacyCloudEventsAttributePrefix, StringComparison.OrdinalIgnoreCase);
+
+	private static string StripCloudEventAttributePrefix(string name) =>
+		name.StartsWith(CloudEventsAttributePrefix, StringComparison.OrdinalIgnoreCase)
+			? name[CloudEventsAttributePrefix.Length..]
+			: name.StartsWith(LegacyCloudEventsAttributePrefix, StringComparison.OrdinalIgnoreCase)
+				? name[LegacyCloudEventsAttributePrefix.Length..]
+				: name;
+
 }

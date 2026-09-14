@@ -187,6 +187,24 @@ namespace Excalibur.AuditLogging {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Insufficient permissions for audit annotation operations. SecurityAnalyst, ComplianceOfficer, or Administrator role required..
+        /// </summary>
+        internal static string RbacAuditAnnotationStore_AnnotatePermissionsRequired {
+            get {
+                return ResourceManager.GetString("RbacAuditAnnotationStore_AnnotatePermissionsRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Insufficient permissions to read audit annotations. SecurityAnalyst, ComplianceOfficer, or Administrator role required..
+        /// </summary>
+        internal static string RbacAuditAnnotationStore_ReadPermissionsRequired {
+            get {
+                return ResourceManager.GetString("RbacAuditAnnotationStore_ReadPermissionsRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to User with role {Role} attempted to access event {EventId} of type {EventType}.
         /// </summary>
         internal static string RbacAuditStore_AccessEventDenied {
@@ -228,33 +246,6 @@ namespace Excalibur.AuditLogging {
         internal static string RbacAuditStore_VerifyIntegrityDenied {
             get {
                 return ResourceManager.GetString("RbacAuditStore_VerifyIntegrityDenied", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Insufficient permissions for audit annotation operations. SecurityAnalyst, ComplianceOfficer, or Administrator role required..
-        /// </summary>
-        /// <summary>
-        ///   Looks up a localized string similar to No IAuditAnnotationStore registration found. Call AddAuditAnnotations() before AddRbacAuditAnnotationStore()..
-        /// </summary>
-        internal static string AuditLoggingServiceCollectionExtensions_NoAnnotationStoreRegistrationFound {
-            get {
-                return ResourceManager.GetString("AuditLoggingServiceCollectionExtensions_NoAnnotationStoreRegistrationFound", resourceCulture);
-            }
-        }
-
-        internal static string RbacAuditAnnotationStore_AnnotatePermissionsRequired {
-            get {
-                return ResourceManager.GetString("RbacAuditAnnotationStore_AnnotatePermissionsRequired", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Insufficient permissions to read audit annotations. SecurityAnalyst, ComplianceOfficer, or Administrator role required..
-        /// </summary>
-        internal static string RbacAuditAnnotationStore_ReadPermissionsRequired {
-            get {
-                return ResourceManager.GetString("RbacAuditAnnotationStore_ReadPermissionsRequired", resourceCulture);
             }
         }
     }

@@ -466,30 +466,6 @@ The `ISagaBuilder` fluent API provides optional capabilities:
 | `.WithCoordination()` | Registers `SagaCoordinator` + `SagaHandlingMiddleware` |
 | `.WithTimeouts()` | Enables timeout scheduling and delivery |
 | `.WithInstrumentation()` | Adds OpenTelemetry tracing and metrics |
-| `.WithCorrelation()` | Enables saga lookup by business identifiers |
-| `.WithReminders()` | Saga reminder scheduling |
-
-## SQL Server Correlation Queries
-
-Look up saga instances by business identifiers using `ISagaCorrelationQuery`:
-
-```csharp
-// Find sagas by correlation ID (uses indexed computed column)
-var sagas = await correlationQuery.FindByCorrelationIdAsync("order-123", ct);
-
-// Find sagas by arbitrary JSON property (uses JSON_VALUE)
-var sagas = await correlationQuery.FindByPropertyAsync("CustomerId", "cust-456", ct);
-```
-
-Register via the builder:
-
-```csharp
-services.AddExcalibur(x => x.AddSagas(saga =>
-    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
-        .WithCorrelationQuery()));
-```
-
-Property names in `FindByPropertyAsync` are validated against a `[GeneratedRegex]` whitelist to prevent JSON path injection.
 
 ## What's Next
 

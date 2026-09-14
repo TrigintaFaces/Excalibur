@@ -479,11 +479,11 @@ public sealed class ContextObservabilityMiddlewareDepthShould : IDisposable
 	private ContextObservabilityMiddleware CreateMiddleware(ContextObservabilityOptions? options = null)
 	{
 		return new ContextObservabilityMiddleware(
-			NullLogger<ContextObservabilityMiddleware>.Instance,
 			_fakeTracker,
 			_fakeMetrics,
 			_fakeEnricher,
-			MsOptions.Create(options ?? new ContextObservabilityOptions()));
+			MsOptions.Create(options ?? new ContextObservabilityOptions()),
+			NullLogger<ContextObservabilityMiddleware>.Instance);
 	}
 }
 

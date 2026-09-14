@@ -43,10 +43,10 @@ public static class KubernetesLeaderElectionBuilderExtensions
 	/// }));
 	/// </code>
 	/// </example>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode(
+		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
+	[RequiresDynamicCode(
+		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
 	public static ILeaderElectionBuilder UseKubernetes(
 		this ILeaderElectionBuilder builder,
 		Action<ILeaderElectionKubernetesBuilder> configure)
@@ -63,10 +63,10 @@ public static class KubernetesLeaderElectionBuilderExtensions
 		return builder;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode(
+		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
+	[RequiresDynamicCode(
+		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
 	private static void RegisterOptionsAndServices(
 		ILeaderElectionBuilder builder,
 		LeaderElectionKubernetesBuilder k8sBuilder)
@@ -156,6 +156,13 @@ public static class KubernetesLeaderElectionBuilderExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Kubernetes");
 		});
+
+		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
+		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
+		// provider rather than requiring a second, easily-forgotten AddKubernetesFencingTokenProvider() +
+		// WithFencingTokens() call. WithoutFencingTokens() opts out.
+		builder.Services.TryAddDefaultFencingTokenProvider(sp =>
+			ActivatorUtilities.CreateInstance<KubernetesFencingTokenProvider>(sp));
 	}
 
 	/// <summary>

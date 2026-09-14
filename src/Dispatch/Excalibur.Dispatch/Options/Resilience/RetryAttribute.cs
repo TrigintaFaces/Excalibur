@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Options.Resilience;
 /// <para>
 /// Example:
 /// <code>
-/// [Retry(MaxAttempts = 5, BaseDelayMs = 500)]
+/// [Retry(MaxRetryAttempts = 5, BaseDelayMs = 500)]
 /// public record ImportDataAction(...) : IDispatchAction;
 /// </code>
 /// </para>
@@ -28,7 +28,7 @@ public sealed class RetryAttribute : Attribute
 	/// Gets or sets the maximum number of retry attempts.
 	/// </summary>
 	/// <value>Default is 3.</value>
-	public int MaxAttempts { get; set; } = 3;
+	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the base delay between retry attempts in milliseconds.

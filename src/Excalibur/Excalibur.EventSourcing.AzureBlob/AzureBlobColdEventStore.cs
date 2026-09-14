@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Polly;
+using Polly.Retry;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -37,6 +39,42 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 {
 	private const int MaxConcurrencyRetries = 5;
 
+	/// <summary>
+	/// Retries the <see cref="WriteAsync" /> read-modify-write body when the conditional upload is
+	/// rejected because another writer committed first.
+	/// </summary>
+	/// <remarks>
+	/// Built on Polly rather than a hand-rolled loop. The delegate re-reads the blob on every attempt, so
+	/// re-invoking it IS the compare-and-swap retry -- each attempt works against the now-current ETag
+	/// rather than replaying a stale one. No backoff: the loop this replaced retried immediately, and a
+	/// delay here only widens the window for another writer to win again.
+	/// <para>
+	/// Both 412 and 409 are retried. A precondition failure is the ETag mismatch; a conflict is the blob
+	/// having been created between the read that found none and the create that assumed none.
+	/// </para>
+	/// </remarks>
+	private readonly ResiliencePipeline _writeRetryPipeline;
+
+	private ResiliencePipeline BuildWriteRetryPipeline() =>
+		new ResiliencePipelineBuilder()
+			.AddRetry(new RetryStrategyOptions
+			{
+				ShouldHandle = new PredicateBuilder().Handle<RequestFailedException>(
+					static ex => ex.Status is 412 or 409),
+				MaxRetryAttempts = MaxConcurrencyRetries,
+				Delay = TimeSpan.Zero,
+				BackoffType = DelayBackoffType.Constant,
+				OnRetry = args =>
+				{
+					_logger.LogDebug(
+						"Concurrent archive detected (status {Status}); retrying (attempt {Attempt})",
+						(args.Outcome.Exception as RequestFailedException)?.Status,
+						args.AttemptNumber + 1);
+					return default;
+				},
+			})
+			.Build();
+
 	private readonly BlobContainerClient _containerClient;
 	private readonly ILogger<AzureBlobColdEventStore> _logger;
 
@@ -67,6 +105,7 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 
 		_containerClient = containerClient;
 		_logger = logger;
+		_writeRetryPipeline = BuildWriteRetryPipeline();
 	}
 
 	/// <inheritdoc />
@@ -91,10 +130,11 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 		// (lost update). We capture the source blob's ETag on read and write conditionally (IfMatch for an
 		// update, IfNoneMatch=* for a create); a precondition failure means another writer raced us, so we
 		// re-read and retry against the now-current blob.
-		for (var attempt = 0; ; attempt++)
-		{
-			var (existingEvents, etag) = await TryDownloadForUpdateAsync(blobClient, cancellationToken)
-				.ConfigureAwait(false);
+		return await _writeRetryPipeline.ExecuteAsync(
+			async ct =>
+			{
+				var (existingEvents, etag) = await TryDownloadForUpdateAsync(blobClient, ct)
+					.ConfigureAwait(false);
 
 			// Merge by version MEMBERSHIP, not by maximum. Selecting by "version greater than the existing
 			// max" silently DROPS a submitted version that falls into a gap below it — cold holding {0,1,5}
@@ -121,28 +161,22 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 				? new BlobRequestConditions { IfMatch = e }
 				: new BlobRequestConditions { IfNoneMatch = ETag.All };
 
-			try
-			{
-				await WriteEventsToBlobAsync(blobClient, existingEvents, conditions, cancellationToken)
+				// A 412 or 409 here means another writer committed between our read and our write. It
+				// propagates, and the pipeline re-invokes this whole delegate so the next attempt re-reads
+				// the now-current blob.
+				await WriteEventsToBlobAsync(blobClient, existingEvents, conditions, ct)
 					.ConfigureAwait(false);
 
 				_logger.LogDebug(
 					"Archived {NewCount} events for {AggregateId} to blob (total {TotalCount})",
 					newEvents.Count, aggregateId, existingEvents.Count);
+
 				// The conditional upload has been awaited and acknowledged, so the merged set is durable —
 				// but durability is not contiguity. Report the prefix actually present, so a caller holding
 				// the only other copy of a gap never deletes across it.
 				return ContiguousDurablePrefix(existingEvents);
-			}
-			catch (RequestFailedException ex) when (
-				(ex.Status == 412 || ex.Status == 409) && attempt < MaxConcurrencyRetries)
-			{
-				// Another writer committed between our read and write — re-read and retry.
-				_logger.LogDebug(
-					"Concurrent archive detected for {AggregateId} (status {Status}); retrying (attempt {Attempt})",
-					aggregateId, ex.Status, attempt + 1);
-			}
-		}
+			},
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />

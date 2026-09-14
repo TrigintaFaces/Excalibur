@@ -45,6 +45,16 @@ package:
   identifying an inbox entry is composed differently, so entries written by an earlier version are not found
   by this one. Drain the inbox before upgrading, or re-key the existing entries.
 
+One further change rewrites stored data, and it is the one to do **after** the rollout rather than
+before:
+
+- **[MongoDB outbox timestamps change shape](mongodb-outbox-instant-format.md)** -- The MongoDB outbox
+  now stores instants as BSON dates. Delivery is unaffected, because the store reads both shapes. What
+  does not carry over is TTL expiry of messages already marked sent before the upgrade: the expiry
+  monitor skips the older shape silently, so a deployment relying on the TTL index alone retains them
+  indefinitely. The retention sweep removes them either way. Rewrite them in place once every instance
+  is running the new version.
+
 Also see **[Migrating to .NET 10](net10-only.md)** if your projects are not yet on `net10.0`, and
 **[Version Upgrades](version-upgrades.md)** for the versioning policy and what each release stage promises.
 

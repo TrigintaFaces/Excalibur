@@ -62,13 +62,13 @@ public sealed class SagaOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveCorrectDefaultMaxRetryAttempts()
+	public void HaveCorrectDefaultMaxAttempts()
 	{
 		// Arrange & Act
 		var options = new SagaOptions();
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(3);
+		options.MaxAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -147,16 +147,16 @@ public sealed class SagaOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AllowCustomMaxRetryAttempts()
+	public void AllowCustomMaxAttempts()
 	{
 		// Arrange
 		var options = new SagaOptions();
 
 		// Act
-		options.MaxRetryAttempts = 5;
+		options.MaxAttempts = 5;
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(5);
+		options.MaxAttempts.ShouldBe(5);
 	}
 
 	[Fact]

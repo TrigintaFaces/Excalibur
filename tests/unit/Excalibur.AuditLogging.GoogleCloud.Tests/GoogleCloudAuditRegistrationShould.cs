@@ -14,7 +14,7 @@ namespace Excalibur.AuditLogging.GoogleCloud.Tests;
 /// Locks the Google Cloud Logging audit exporter registration onto the typed client it configures.
 /// The entry point added a second descriptor by implementation type, and that one wins on resolve,
 /// so the exporter a consumer actually got was built from the container's plain HttpClient --
-/// carrying none of the configuration AddHttpClient applied. The Timeout option it advertises was inert as a result.
+/// carrying none of the configuration AddHttpClient applied. Neither the resilience handler nor the retry and timeout settings it advertises reached it.
 /// The HttpClient timeout is the discriminator: the plain client's default is 100 seconds.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -47,7 +47,7 @@ public sealed class GoogleCloudAuditRegistrationShould
 
 		var exporter = provider.GetRequiredService<IAuditLogExporter>();
 
-		HttpClientOf(exporter).Timeout.ShouldBe(TimeSpan.FromSeconds(30));
+		HttpClientOf(exporter).Timeout.ShouldBe(Timeout.InfiniteTimeSpan);
 	}
 
 	[Fact]

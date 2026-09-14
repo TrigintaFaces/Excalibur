@@ -67,7 +67,10 @@ public sealed class OutboxFencingStartupValidatorFailsClosedShould
 		// LIVENESS (a). The permitted composition: leader election + a genuinely FENCED store. A validator that
 		// resolved the safety arm by always throwing would fail here. The correct guard starts cleanly.
 		await using var provider = BuildProvider(
-			store: HonestFake(b => b.Implements<IFencedOutboxStore>()),
+			store: HonestFake(b => b
+				.Implements<IFencedOutboxStore>()
+				.Implements<IFencedClaimScopedOutboxStore>()
+				.Implements<IFencedDeadLetterableOutboxStore>()),
 			leaderGate: A.Fake<ILeaderProcessingGate>(),
 			singleActiveWriter: false);
 

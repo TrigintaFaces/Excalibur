@@ -18,7 +18,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
-  </ItemGroup>
+      <PackageReference Include="Polly" />
+</ItemGroup>
   <ItemGroup>
     <PackageReference Include="Google.Cloud.Storage.V1" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />

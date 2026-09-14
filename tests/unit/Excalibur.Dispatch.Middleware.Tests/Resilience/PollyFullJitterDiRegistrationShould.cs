@@ -15,12 +15,21 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <remarks>
 /// <para>
 /// Complements the factory-path lock (bead ufbn29, <c>PollyFullJitterWiringShould</c> in the same folder,
-/// which binds <c>RetryPolicy.CreateBackoffCalculator</c>). The <c>FullJitter</c> forcing lives at three
-/// sites sharing the same one-token expression; this lock covers the DI-registration site
-/// (<c>DispatchBuilderResilienceExtensions</c>), a distinct code path the factory-path lock does not exercise.
-/// The third site (<c>PollyRetryPolicyAdapter</c>) consumes the flag into a Polly pipeline and is not
-/// unit-observable without timing — left to integration coverage; its mapping is identical to the two locked
-/// sites.
+/// The <c>FullJitter</c> forcing now lives at two sites: the DI-registration site
+/// (<c>DispatchBuilderResilienceExtensions</c>), which this lock covers, and <c>PollyRetryPolicyAdapter</c>,
+/// which consumes the flag into a Polly pipeline. A third site used to live on the concrete
+/// <c>RetryPolicy</c>; that type was a duplicate of the adapter, nothing resolved it, and it was removed
+/// along with its factory-path lock.
+/// </para>
+/// <para>
+/// <b>KNOWN GAP — <c>PollyRetryPolicyAdapter</c>'s forcing is NOT covered by any test.</b> This comment
+/// previously said that site was "left to integration coverage." That was false, and it is the kind of
+/// false statement that is worse than silence: a reader looking for the gap found a sentence saying it
+/// was already handled. Measured on the whole tests tree — <c>FullJitter</c> appears 38 times, and
+/// <b>zero</b> of them under <c>tests/integration/</c> or <c>tests/conformance/</c> (positive control: the
+/// same glob finds other tokens in those directories, so the zero discriminates). The adapter is the
+/// implementation consumers actually resolve as <c>IRetryPolicy</c>, so the uncovered site is the one
+/// that matters most.
 /// </para>
 /// <para>
 /// <b>The bug this catches:</b> selecting <c>FullJitter</c> while leaving <c>UseJitter=false</c> must still
@@ -40,7 +49,7 @@ public sealed class PollyFullJitterDiRegistrationShould
     private static IBackoffCalculator ResolveCalculator(BackoffStrategy strategy, bool useJitter)
     {
         var services = new ServiceCollection();
-        _ = services.AddPollyResilienceAdapters(o => o.RetryOptions = new RetryOptions
+        _ = services.AddPollyResilienceAdapters(o => o.RetryOptions = new PollyRetryOptions
         {
             BackoffStrategy = strategy,
             UseJitter = useJitter,

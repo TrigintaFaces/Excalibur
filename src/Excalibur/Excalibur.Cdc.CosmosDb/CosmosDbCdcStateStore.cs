@@ -401,6 +401,13 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 
 		_disposed = true;
 
+		// The SYNC path releases the same things the async one does. SemaphoreSlim.Dispose is a synchronous
+		// operation, so there is nothing about this field that requires the async path -- it was simply
+		// released there and not here, and a consumer writing `using` rather than `await using` reaches ONLY
+		// this method. A disposal asymmetry between the two paths is invisible at the call site: both
+		// compile, both look complete, and only one frees the handle.
+		_initLock?.Dispose();
+
 		if (_ownsClient)
 		{
 			_client.Dispose();

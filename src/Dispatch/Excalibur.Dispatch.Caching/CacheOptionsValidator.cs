@@ -14,6 +14,8 @@ namespace Excalibur.Dispatch.Caching;
 ///   <item><description>DefaultExpiration must be positive</description></item>
 ///   <item><description>CacheTimeout must be positive and less than DefaultExpiration</description></item>
 ///   <item><description>JitterRatio must be between 0.0 and 1.0</description></item>
+///   <item><description>TagStampLifetime must be positive and greater than DefaultExpiration</description></item>
+///   <item><description>TagStampRefreshInterval must be positive</description></item>
 /// </list>
 /// </remarks>
 public sealed class CacheOptionsValidator : IValidateOptions<CacheOptions>
@@ -47,6 +49,28 @@ public sealed class CacheOptionsValidator : IValidateOptions<CacheOptions>
 			failures.Add(
 				$"{nameof(CacheBehaviorOptions.CacheTimeout)} ({options.Behavior.CacheTimeout}) " +
 				$"must be less than {nameof(CacheBehaviorOptions.DefaultExpiration)} ({options.Behavior.DefaultExpiration}).");
+		}
+
+		if (options.TagStampRefreshInterval <= TimeSpan.Zero)
+		{
+			failures.Add($"{nameof(CacheOptions.TagStampRefreshInterval)} must be positive (was {options.TagStampRefreshInterval}).");
+		}
+
+		if (options.TagStampLifetime <= TimeSpan.Zero)
+		{
+			failures.Add($"{nameof(CacheOptions.TagStampLifetime)} must be positive (was {options.TagStampLifetime}).");
+		}
+
+		// Cross-property, structural: a tag's version stamp record must outlive every cache entry
+		// that can reference it, or a still-valid entry could outlive the tag record it was compared
+		// against, defeating the tracker's fail-open handling of an absent record.
+		if (options.TagStampLifetime > TimeSpan.Zero && options.Behavior.DefaultExpiration > TimeSpan.Zero &&
+			options.TagStampLifetime <= options.Behavior.DefaultExpiration)
+		{
+			failures.Add(
+				$"{nameof(CacheOptions.TagStampLifetime)} ({options.TagStampLifetime}) must be greater than " +
+				$"{nameof(CacheBehaviorOptions.DefaultExpiration)} ({options.Behavior.DefaultExpiration}), or a cache " +
+				"entry could outlive the tag version stamp it was written against.");
 		}
 
 		return failures.Count > 0

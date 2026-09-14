@@ -4,6 +4,7 @@ using Excalibur.Dispatch.Configuration;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Excalibur.Dispatch.Observability.Metrics;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWebApplication()

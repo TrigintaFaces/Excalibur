@@ -728,6 +728,9 @@ internal static class AzureServiceBusEventId
 	/// <summary>Transport sender: batch sent.</summary>
 	public const int TransportSenderBatchSent = 24972;
 
+	/// <summary>Transport sender: the message carried a priority Service Bus cannot honour.</summary>
+	public const int TransportSenderPriorityNotSupported = 24975;
+
 	/// <summary>Transport sender: batch send failed.</summary>
 	public const int TransportSenderBatchSendFailed = 24973;
 

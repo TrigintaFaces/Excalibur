@@ -6,7 +6,10 @@ using Excalibur.A3.Audit;
 using Excalibur.A3.Exceptions;
 using Excalibur.Dispatch.Delivery;
 
+using Excalibur.Dispatch.Caching;
+
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.A3.Authorization.Grants;
 
@@ -17,7 +20,7 @@ namespace Excalibur.A3.Authorization.Grants;
 /// This handler revokes all non-expired grants for a specified user and clears the related cache entries to ensure updated state for
 /// subsequent authorization checks.
 /// </remarks>
-internal sealed class RevokeAllGrantsCommandHandler(IGrantRepository grantRepository, IDistributedCache cache)
+internal sealed class RevokeAllGrantsCommandHandler(IGrantRepository grantRepository, [FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache)
 	: IActionHandler<RevokeAllGrantsCommand, AuditableResult<bool>>
 {
 	/// <inheritdoc />

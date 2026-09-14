@@ -26,9 +26,11 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 	/// <param name="errorMessage">The error message.</param>
 	/// <param name="retryCount">The current retry count.</param>
 	/// <param name="leasedBy">
-	/// Identifier of the processor marking the message failed (the same value written to <c>LeasedBy</c> when the
-	/// row was claimed). The update only affects the row when it is unleased or still leased by this processor,
-	/// so a stale processor cannot overwrite a message a peer has since re-claimed.
+	/// BARE processor identity of the caller marking the message failed. This is deliberately NOT the value
+	/// stored in <c>LeasedBy</c>: the claim stamps a per-call <c>{processorId}:{claimId}</c>, so an equality
+	/// test against a bare identity matches no claimed row at all. The guard matches it by PREFIX, and the
+	/// update still only affects the row when it is unleased or leased by THIS processor, so a stale
+	/// processor cannot overwrite a message a peer has since re-claimed.
 	/// </param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
@@ -93,11 +95,11 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 		parameters.Add("@MessageId", messageId);
 		parameters.Add("@ErrorMessage", errorMessage);
 		parameters.Add("@RetryCount", retryCount);
-		parameters.Add("@LeasedBy", leasedBy);
+		OutboxFailureMark.AddLeaseOwnership(parameters, leasedBy);
 		parameters.Add("@LastAttemptAt", DateTimeOffset.UtcNow);
 		if (nextAttemptAt.HasValue)
 		{
-			parameters.Add("@NextAttemptDelayMs", ToServerDelayMilliseconds(nextAttemptAt.Value));
+			parameters.Add("@NextAttemptDelayMs", OutboxFailureMark.ToServerDelayMilliseconds(nextAttemptAt.Value));
 		}
 
 		if (floorSeconds.HasValue)
@@ -111,33 +113,4 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);
 	}
 
-	/// <summary>
-	/// Converts the caller's absolute next-attempt instant into the DELAY it represents, so the statement can
-	/// re-anchor it on the server clock.
-	/// </summary>
-	/// <param name="nextAttemptAt">The next-attempt instant the caller computed from its own clock.</param>
-	/// <returns>The delay in milliseconds, which is negative when the schedule has already elapsed.</returns>
-	/// <remarks>
-	/// <para>
-	/// The caller computes this instant as "now, plus a backoff" against its OWN clock; the claim predicate
-	/// reads the stored column back against the SERVER's. Binding the instant verbatim therefore straddles two
-	/// clocks, and where the dispatcher runs ahead of the database the message stays invisible for the whole
-	/// skew AFTER its backoff has genuinely elapsed — a due message withheld, bounded by nothing but the skew.
-	/// Recovering the duration here and re-adding it to <c>SYSUTCDATETIME()</c> in the statement keeps the
-	/// dispatcher's intent and puts one clock on both sides of the comparison.
-	/// </para>
-	/// <para>
-	/// An already-elapsed schedule yields a NEGATIVE delay, which is deliberate: composed with the floor it
-	/// simply loses to it, and with no floor configured it makes the message due immediately, which is what an
-	/// elapsed schedule means. The value is clamped to the range <c>DATEADD</c> accepts.
-	/// </para>
-	/// </remarks>
-	private static int ToServerDelayMilliseconds(DateTimeOffset nextAttemptAt)
-	{
-		var delayMs = (nextAttemptAt - DateTimeOffset.UtcNow).TotalMilliseconds;
-
-		return delayMs <= int.MinValue
-			? int.MinValue
-			: delayMs >= int.MaxValue ? int.MaxValue : (int)delayMs;
-	}
 }

@@ -7,6 +7,9 @@ using Excalibur.Inbox.MongoDB;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using MongoDB.Bson;
+using MongoDB.Driver;
+
 using Shouldly;
 
 using Tests.Shared.Conformance.Inbox;
@@ -69,5 +72,65 @@ public sealed class MongoDbInboxStoreConformanceShould : InboxStoreConformanceTe
 	protected override async Task CleanupAsync()
 	{
 		await _fixture.CleanupAsync().ConfigureAwait(false);
+	}
+
+	// 2mek4x: a real, provider-side persistence rejection -- never a mocked client. A document validator
+	// requiring a field the store never writes makes the server reject every insert/update against the
+	// collection with a genuine WriteError, the same shape of failure a consumer would see from a real
+	// misconfiguration (e.g. a validator or a schema migration left the collection in a state the store's
+	// writes cannot satisfy).
+
+	/// <inheritdoc/>
+	protected override async Task InjectPersistenceFaultAsync()
+	{
+		using var faultClient = new MongoClient(_fixture.ConnectionString);
+		var database = faultClient.GetDatabase(_fixture.DatabaseName);
+		var collectionName = new MongoDbInboxOptions().CollectionName;
+
+		try
+		{
+			// The store creates the collection lazily on first use; this fault-injection test may run
+			// before any other operation has touched it, so ensure it exists before collMod-ing it.
+			await database.CreateCollectionAsync(collectionName).ConfigureAwait(false);
+		}
+		catch (MongoCommandException ex) when (string.Equals(ex.CodeName, "NamespaceExists", StringComparison.Ordinal))
+		{
+			// Already created by an earlier test's use of the shared fixture's Store -- nothing to do.
+		}
+
+		var command = new BsonDocument
+		{
+			{
+				"collMod", collectionName
+			},
+			{
+				"validator", new BsonDocument("$jsonSchema", new BsonDocument
+				{
+					{ "bsonType", "object" },
+					{ "required", new BsonArray { "__2mek4x_deliberately_impossible_field__" } },
+				})
+			},
+			{ "validationLevel", "strict" },
+			{ "validationAction", "error" },
+		};
+
+		_ = await database.RunCommandAsync<BsonDocument>(command).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	protected override async Task RemovePersistenceFaultAsync()
+	{
+		using var faultClient = new MongoClient(_fixture.ConnectionString);
+		var database = faultClient.GetDatabase(_fixture.DatabaseName);
+		var collectionName = new MongoDbInboxOptions().CollectionName;
+
+		var command = new BsonDocument
+		{
+			{ "collMod", collectionName },
+			{ "validator", new BsonDocument() },
+			{ "validationLevel", "off" },
+		};
+
+		_ = await database.RunCommandAsync<BsonDocument>(command).ConfigureAwait(false);
 	}
 }

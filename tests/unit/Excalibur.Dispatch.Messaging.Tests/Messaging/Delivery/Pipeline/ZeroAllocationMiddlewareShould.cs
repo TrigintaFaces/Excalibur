@@ -170,109 +170,6 @@ public sealed class ZeroAllocationMiddlewareShould
 
 	#endregion
 
-	#region ZeroAllocationValidationMiddleware Tests
-
-	[Fact]
-	public void ZeroAllocationValidationMiddleware_Stage_ReturnsValidation()
-	{
-		// Arrange
-		var middleware = new ZeroAllocationValidationMiddleware();
-
-		// Act & Assert
-		middleware.Stage.ShouldBe(DispatchMiddlewareStage.Validation);
-	}
-
-	[Fact]
-	public void ZeroAllocationValidationMiddleware_ImplementsIDispatchMiddleware()
-	{
-		// Arrange
-		var middleware = new ZeroAllocationValidationMiddleware();
-
-		// Assert
-		_ = middleware.ShouldBeAssignableTo<IDispatchMiddleware>();
-	}
-
-	[Fact]
-	public void ZeroAllocationValidationMiddleware_ImplementsIZeroAllocationMiddleware()
-	{
-		// Arrange
-		var middleware = new ZeroAllocationValidationMiddleware();
-
-		// Assert
-		_ = middleware.ShouldBeAssignableTo<IZeroAllocationMiddleware>();
-	}
-
-	[Fact]
-	public void ZeroAllocationValidationMiddleware_IDispatchMiddleware_Stage_ReturnsCorrectValue()
-	{
-		// Arrange
-		IDispatchMiddleware middleware = new ZeroAllocationValidationMiddleware();
-
-		// Act & Assert
-		middleware.Stage.ShouldBe(DispatchMiddlewareStage.Validation);
-	}
-
-	[Fact]
-	public async Task ZeroAllocationValidationMiddleware_InvokeAsync_WithValidMessage_CallsNextDelegate()
-	{
-		// Arrange
-		IDispatchMiddleware middleware = new ZeroAllocationValidationMiddleware();
-		var message = A.Fake<IDispatchMessage>();
-		var context = new Dispatch.Messaging.MessageContext { MessageId = "test-id" };
-		var nextCalled = false;
-
-		DispatchRequestDelegate nextDelegate = (msg, ctx, ct) =>
-		{
-			nextCalled = true;
-			return new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
-		};
-
-		// Act
-		_ = await middleware.InvokeAsync(message, context, nextDelegate, CancellationToken.None);
-
-		// Assert
-		nextCalled.ShouldBeTrue();
-	}
-
-	[Fact]
-	public async Task ZeroAllocationValidationMiddleware_InvokeAsync_WithNullMessage_ThrowsArgumentNullException()
-	{
-		// Arrange
-		IDispatchMiddleware middleware = new ZeroAllocationValidationMiddleware();
-		var context = new Dispatch.Messaging.MessageContext { MessageId = "test-id" };
-		using var cts = new CancellationTokenSource();
-
-		DispatchRequestDelegate nextDelegate = (msg, ctx, ct) =>
-			new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
-
-		// Act & Assert
-		// Note: The null check happens during envelope creation, not in the middleware logic
-		_ = await Should.ThrowAsync<ArgumentNullException>(() =>
-			middleware.InvokeAsync(null!, context, nextDelegate, CancellationToken.None).AsTask());
-	}
-
-	[Fact]
-	public async Task ZeroAllocationValidationMiddleware_InvokeAsync_WithValidMessage_ReturnsSuccessResult()
-	{
-		// Arrange
-		IDispatchMiddleware middleware = new ZeroAllocationValidationMiddleware();
-		var message = A.Fake<IDispatchMessage>();
-		var context = new Dispatch.Messaging.MessageContext { MessageId = "test-id" };
-		var expectedResult = A.Fake<IMessageResult>();
-		_ = A.CallTo(() => expectedResult.Succeeded).Returns(true);
-
-		DispatchRequestDelegate nextDelegate = (msg, ctx, ct) =>
-			new ValueTask<IMessageResult>(expectedResult);
-
-		// Act
-		var result = await middleware.InvokeAsync(message, context, nextDelegate, CancellationToken.None);
-
-		// Assert
-		result.ShouldBe(expectedResult);
-	}
-
-	#endregion
-
 	#region MiddlewareResult Tests
 
 	[Fact]
@@ -413,25 +310,6 @@ public sealed class ZeroAllocationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, nextDelegate, cts.Token);
 
 		// Assert - Should complete without throwing
-		_ = result.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public async Task ZeroAllocationValidationMiddleware_InvokeAsync_WithCancellation_CompletesNormally()
-	{
-		// Arrange
-		IDispatchMiddleware middleware = new ZeroAllocationValidationMiddleware();
-		var message = A.Fake<IDispatchMessage>();
-		var context = new Dispatch.Messaging.MessageContext { MessageId = "test-id" };
-		using var cts = new CancellationTokenSource();
-
-		DispatchRequestDelegate nextDelegate = (msg, ctx, ct) =>
-			new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
-
-		// Act
-		var result = await middleware.InvokeAsync(message, context, nextDelegate, cts.Token);
-
-		// Assert
 		_ = result.ShouldNotBeNull();
 	}
 

@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization.MemoryPack;
 
@@ -19,7 +20,7 @@ using System.Buffers;
 using System.Reflection;
 using System.Text.Json;
 
-// Use alias to avoid namespace collision with Excalibur.Outbox.InboxOptions
+// Named alias for readability: MessageMetadata is a common name across the messaging namespaces.
 using DeliveryMessageMetadata = Excalibur.Dispatch.Messaging.MessageMetadata;
 using DispatchMessageResult = Excalibur.Dispatch.MessageResult;
 using DeliveryInboxOptions = Excalibur.Dispatch.Options.Delivery.InboxOptions;
@@ -564,7 +565,12 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var deadLetterQueue = CreateDeadLetterQueue();
 		var circuitBreaker = A.Fake<ICircuitBreakerPolicy>();
 		A.CallTo(() => circuitBreaker.State).Returns(CircuitState.Closed);
-		A.CallTo(() => circuitBreaker.ExecuteAsync<bool>(A<Func<CancellationToken, Task<bool>>>._, A<CancellationToken>._))
+		// The generic argument must track what the drain actually asks the breaker to run. The drain now
+		// returns the inbox stage's disposition through the breaker, so a fake arranged on the old
+		// Task<bool> overload matches nothing, throws nothing, and this arm silently stops exercising
+		// the mid-execute catch it exists to cover.
+		A.CallTo(() => circuitBreaker.ExecuteAsync<InboxLeaseDisposition>(
+				A<Func<CancellationToken, Task<InboxLeaseDisposition>>>._, A<CancellationToken>._))
 			.ThrowsAsync(new CircuitBreakerOpenException("transport circuit opened mid-dispatch"));
 		var registry = A.Fake<ITransportCircuitBreakerRegistry>();
 		A.CallTo(() => registry.GetOrCreate(A<string>._)).Returns(circuitBreaker);

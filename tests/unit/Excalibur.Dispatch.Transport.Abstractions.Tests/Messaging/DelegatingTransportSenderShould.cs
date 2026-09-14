@@ -81,12 +81,15 @@ public sealed class DelegatingTransportSenderShould
     [Fact]
     public void GetService_Should_Delegate_To_Inner()
     {
+        // Probed with a type the decorator is not, so the assertion is about forwarding. typeof(object)
+        // cannot test that: every object is an object, so the decorator answers for itself and the call
+        // never reaches the inner sender.
         var inner = A.Fake<ITransportSender>();
-        var service = new object();
-        A.CallTo(() => inner.GetService(typeof(object))).Returns(service);
+        var service = A.Fake<IDeadLetterQueueManager>();
+        A.CallTo(() => inner.GetService(typeof(IDeadLetterQueueManager))).Returns(service);
 
         var delegating = new TestDelegatingSender(inner);
-        var result = delegating.GetService(typeof(object));
+        var result = delegating.GetService(typeof(IDeadLetterQueueManager));
 
         result.ShouldBe(service);
     }

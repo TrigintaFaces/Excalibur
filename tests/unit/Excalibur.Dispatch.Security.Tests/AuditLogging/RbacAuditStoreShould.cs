@@ -591,7 +591,7 @@ public sealed class RbacAuditStoreShould
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<UnauthorizedAccessException>(async () =>
-			await _sut.GetLastEventAsync(null, CancellationToken.None));
+			await _sut.GetLastEventAsync(CancellationToken.None));
 	}
 
 	[Fact]
@@ -603,7 +603,7 @@ public sealed class RbacAuditStoreShould
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<UnauthorizedAccessException>(async () =>
-			await _sut.GetLastEventAsync(null, CancellationToken.None));
+			await _sut.GetLastEventAsync(CancellationToken.None));
 	}
 
 	[Fact]
@@ -614,11 +614,11 @@ public sealed class RbacAuditStoreShould
 			.Returns(AuditLogRole.SecurityAnalyst);
 
 		var expectedEvent = CreateAuditEvent(AuditEventType.Security);
-		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<string?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<CancellationToken>._))
 			.Returns(expectedEvent);
 
 		// Act
-		var result = await _sut.GetLastEventAsync(null, CancellationToken.None);
+		var result = await _sut.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(expectedEvent);
@@ -632,11 +632,11 @@ public sealed class RbacAuditStoreShould
 			.Returns(AuditLogRole.ComplianceOfficer);
 
 		var expectedEvent = CreateAuditEvent(AuditEventType.DataAccess);
-		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<string?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<CancellationToken>._))
 			.Returns(expectedEvent);
 
 		// Act
-		var result = await _sut.GetLastEventAsync(null, CancellationToken.None);
+		var result = await _sut.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(expectedEvent);
@@ -650,32 +650,32 @@ public sealed class RbacAuditStoreShould
 			.Returns(AuditLogRole.Administrator);
 
 		var expectedEvent = CreateAuditEvent(AuditEventType.System);
-		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<string?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<CancellationToken>._))
 			.Returns(expectedEvent);
 
 		// Act
-		var result = await _sut.GetLastEventAsync(null, CancellationToken.None);
+		var result = await _sut.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(expectedEvent);
 	}
 
 	[Fact]
-	public async Task GetLastEventAsync_PassesTenantIdToInnerStore()
+	public async Task GetLastEventAsync_DelegatesToInnerStoreExactlyOnce()
 	{
 		// Arrange
 		_ = A.CallTo(() => _roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(AuditLogRole.Administrator);
 
-		_ = A.CallTo(() => _innerStore.GetLastEventAsync("tenant-x", A<CancellationToken>._))
+		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<CancellationToken>._))
 			.Returns((AuditEvent?)null);
 
 		// Act
-		var result = await _sut.GetLastEventAsync("tenant-x", CancellationToken.None);
+		var result = await _sut.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		result.ShouldBeNull();
-		_ = A.CallTo(() => _innerStore.GetLastEventAsync("tenant-x", A<CancellationToken>._))
+		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -932,14 +932,14 @@ public sealed class RbacAuditStoreShould
 		using var cts = new CancellationTokenSource();
 		var token = cts.Token;
 
-		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<string?>._, token))
+		_ = A.CallTo(() => _innerStore.GetLastEventAsync(token))
 			.Returns((AuditEvent?)null);
 
 		// Act
-		_ = await _sut.GetLastEventAsync(null, token);
+		_ = await _sut.GetLastEventAsync(token);
 
 		// Assert
-		_ = A.CallTo(() => _innerStore.GetLastEventAsync(A<string?>._, token))
+		_ = A.CallTo(() => _innerStore.GetLastEventAsync(token))
 			.MustHaveHappenedOnceExactly();
 	}
 

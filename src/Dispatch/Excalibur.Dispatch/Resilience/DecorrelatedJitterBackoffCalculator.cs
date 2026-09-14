@@ -39,18 +39,18 @@ internal sealed class DecorrelatedJitterBackoffCalculator : IBackoffCalculator
 	/// Initializes a new instance of the <see cref="DecorrelatedJitterBackoffCalculator"/> class with default options.
 	/// </summary>
 	public DecorrelatedJitterBackoffCalculator()
-		: this(new RetryPolicyOptions())
+		: this(new RetryOptions())
 	{
 	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DecorrelatedJitterBackoffCalculator"/> class.
 	/// </summary>
-	/// <param name="options"> The retry policy options containing backoff configuration. </param>
-	public DecorrelatedJitterBackoffCalculator(RetryPolicyOptions options)
+	/// <param name="options"> The retry options containing backoff configuration. </param>
+	public DecorrelatedJitterBackoffCalculator(RetryOptions options)
 		: this(
-			options?.Backoff.BaseDelay ?? TimeSpan.FromSeconds(1),
-			options?.Backoff.MaxDelay ?? TimeSpan.FromMinutes(30))
+			options?.BaseDelay ?? TimeSpan.FromSeconds(1),
+			options?.MaxDelay ?? TimeSpan.FromMinutes(30))
 	{
 	}
 

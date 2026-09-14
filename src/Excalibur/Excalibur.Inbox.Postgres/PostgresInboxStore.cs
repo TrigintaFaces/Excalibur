@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
@@ -217,6 +217,28 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	// returns it so the caller emits the tenant term iff the column exists. Benign-idempotent — no lock. The
 	// (a) hosted-service validator calls this at startup so host consumers fail before the first message.
 	internal async ValueTask<bool> EnsureSchemaAsync(CancellationToken cancellationToken)
+	{
+		var hasTenantColumn = await ReadSchemaOnceAsync(cancellationToken).ConfigureAwait(false);
+
+		// The (b) fail-closed floor. SITED HERE, downstream of the cached read, because ReadSchemaOnceAsync
+		// returns hasTenantColumn on BOTH its paths -- the cached early return and the post-catalog read --
+		// so one call covers both and the check runs on EVERY operation.
+		//
+		// Folding this into the cached method instead would place it behind that method's early return,
+		// where it runs exactly ONCE: under whichever identity made the first call, which at host start is
+		// the benign default, and never again. The eager validation arm would arm the cache and disarm the
+		// floor for every subsequent request -- a guard that passes, caches its pass, and then sails every
+		// real cross-tenant call through. It would go green under any test that arranges the bad
+		// configuration and calls once.
+		InboxSchemaContract.VerifyTenantAdmissible(_options.QualifiedTableName, hasTenantColumn, _tenantContext);
+
+		return hasTenantColumn;
+	}
+
+	// Reads the physical schema ONCE and caches it. The physical key does not change under a running
+	// process, so caching it is correct; the ambient tenant does change per operation, which is why the
+	// admissibility check above is not in here.
+	private async ValueTask<bool> ReadSchemaOnceAsync(CancellationToken cancellationToken)
 	{
 		if (_schemaContractVerified)
 		{

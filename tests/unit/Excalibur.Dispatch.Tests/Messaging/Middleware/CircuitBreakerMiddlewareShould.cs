@@ -63,7 +63,7 @@ public sealed class CircuitBreakerMiddlewareShould
     [Fact]
     public async Task RecordFailureOnException_AndRethrowTheOriginal()
     {
-        var sut = CreateSut(new CircuitBreakerOptions { FailureThreshold = 5 });
+        var sut = CreateSut(new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5 });
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
 
@@ -83,8 +83,8 @@ public sealed class CircuitBreakerMiddlewareShould
     {
         var options = new CircuitBreakerOptions
         {
-            FailureThreshold = 2,
-            OpenDuration = TimeSpan.FromSeconds(60)
+            ConsecutiveFailureThreshold = 2,
+            BreakDuration = TimeSpan.FromSeconds(60)
         };
         var sut = CreateSut(options);
         var message = A.Fake<IDispatchMessage>();

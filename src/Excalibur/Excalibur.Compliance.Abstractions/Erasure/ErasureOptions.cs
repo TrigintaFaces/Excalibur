@@ -81,6 +81,23 @@ public sealed class ErasureOptions
 	public bool AllowImmediateErasure { get; set; }
 
 	/// <summary>
+	/// Gets or sets a value indicating whether this deployment operates no legal holds, so erasure may run
+	/// without a legal-hold service (default: <see langword="false"/>).
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> to declare that no legal holds exist and erasure need not consult any;
+	/// otherwise <see langword="false"/>.
+	/// </value>
+	/// <remarks>
+	/// Erasure skips the legal-hold check when no legal-hold service is registered. That is correct for a
+	/// deployment with no holds and irreversible for one that has them, so the absence must be declared
+	/// rather than inferred: with this left <see langword="false"/> and no legal-hold service registered,
+	/// startup fails instead of erasing past holds nobody checked. Setting it accepts that erasure requests
+	/// will not be blocked by any hold.
+	/// </remarks>
+	public bool OperatesNoLegalHolds { get; set; }
+
+	/// <summary>
 	/// Gets or sets retention-related options (certificate retention, signing keys).
 	/// </summary>
 	public ErasureRetentionOptions Retention { get; set; } = new();

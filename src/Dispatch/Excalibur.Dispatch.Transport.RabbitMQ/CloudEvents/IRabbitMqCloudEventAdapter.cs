@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// payload) and binary mode (message headers).
 /// </remarks>
 public interface IRabbitMqCloudEventAdapter :
-	ICloudEventMapper<(IBasicProperties properties, ReadOnlyMemory<byte> body)>
+	ICloudEventEncoder<(IBasicProperties properties, ReadOnlyMemory<byte> body)>
 {
 	/// <summary>
 	/// Validates that RabbitMQ message properties and body contain valid CloudEvent data.

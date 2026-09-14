@@ -69,5 +69,8 @@ public sealed class InMemoryPersistenceProviderConformanceTests : PersistencePro
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
+	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
+	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();
 	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

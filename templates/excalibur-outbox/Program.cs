@@ -1,3 +1,9 @@
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Observability.Metrics;
+#if (UseSqlServer)
+using Excalibur.Outbox.SqlServer;
+#endif
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -39,8 +45,7 @@ builder.Services.AddExcalibur(excalibur => excalibur
     .AddOutbox(outbox =>
     {
 #if (UseSqlServer)
-        outbox.UseSqlServer(builder.Configuration.GetConnectionString("OutboxStore")
-            ?? throw new InvalidOperationException("ConnectionStrings:OutboxStore is required."));
+        outbox.UseSqlServer(sql => sql.ConnectionStringName("OutboxStore"));
 #endif
         outbox.WithProcessing(processing =>
         {

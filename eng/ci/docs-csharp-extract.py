@@ -33,7 +33,7 @@ import sys
 # Doc walking / fence extraction
 # ---------------------------------------------------------------------------
 
-SKIP_DIRS = {"node_modules", "bin", "obj", ".git", ".dts", ".claude"}
+SKIP_DIRS = {"node_modules", "bin", "obj", ".git", ".dts", ".claude", ".nuget"}
 DOC_ROOTS = ("docs-site", "docs")  # plus repo-wide README*.md
 CSHARP_LANGS = {"csharp", "cs"}
 FENCE_RE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
@@ -247,6 +247,16 @@ BCL_DENYLIST = {
     "BackgroundService", "IHostedService", "TokenValidationParameters", "DataRow",
     "IAsyncLifetime", "ClaimsPrincipal", "ClaimsIdentity", "Claim", "DbConnection",
     "DbContext", "SqlConnection", "IDbConnection", "DateOnly", "TimeOnly", "Uri",
+    "UnauthorizedAccessException", "ClaimTypes", "MemoryCache", "ActivityStatusCode",
+    # serverless host SDKs -- deployment guides show the host's own signature, not ours
+    "APIGatewayProxyRequest", "APIGatewayProxyResponse", "SQSEvent", "LambdaSerializer",
+    "IHttpFunction", "ICloudEventFunction", "MessagePublishedData", "AuthorizationLevel",
+    "HttpRequestData", "HttpResponseData",
+    # driver / client types shown in provider guides
+    "BsonBinaryReader", "BsonBinaryWriter", "FieldSort", "KeywordProperty", "TextProperty",
+    "BooleanProperty", "DateProperty", "DoubleNumberProperty",
+    # Testcontainers, shown in integration-test guides
+    "Testcontainers", "MsSqlContainer", "MsSqlBuilder",
 }
 
 # Types DEFINED inside a snippet are local example declarations, never phantoms.

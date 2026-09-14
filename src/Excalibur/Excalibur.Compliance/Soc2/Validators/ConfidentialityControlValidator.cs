@@ -109,12 +109,20 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 			"Attribute-based classification available: [PersonalData], and [Sensitive] with a DataClassification level of Internal, Confidential or Restricted",
 			nameof(ConfidentialityControlValidator)));
 
-		evidence.Add(CreateEvidence(
-			EvidenceType.TestResult,
-			"Data classification infrastructure available",
-			nameof(ConfidentialityControlValidator)));
-
-		return CreateSuccessResult(ControlCnf001, evidence);
+		// The Configuration evidence above is true: the capability is shipped. What is NOT
+		// established is that this deployment operates it, and a TestResult item saying the
+		// control was "verified" asserted a check that never ran. Offering a capability is not
+		// operating a control.
+		return CreateFailureResult(
+			ControlCnf001,
+			[
+				"Classification attributes ship with the framework, but whether the consumer applied them to their personal data is not observable from here, so this control is unverified."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence,
+			// Same shape as the ProcessingIntegrity trio: the classification attributes ship here, so
+			// reporting the capability absent contradicts the Configuration evidence just above.
+			isConfigured: true);
 	}
 
 	private ControlValidationResult ValidateDataProtection()
@@ -134,11 +142,24 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 			nameof(ConfidentialityControlValidator)));
 
 		evidence.Add(CreateEvidence(
-			EvidenceType.TestResult,
-			"Data protection control verified - encryption service available",
+			EvidenceType.Configuration,
+			"Field encryption service is available; no classified field was observed to be encrypted in "
+			+ "this period",
 			nameof(ConfidentialityControlValidator)));
 
-		return CreateSuccessResult(ControlCnf002, evidence);
+		// The evidence above is true and stays: the seam is configured. What does NOT follow is that
+		// the CONTROL operated. Presence of a component is not operation of a control, and this
+		// returned effective at a score of 100 to an external assessor.
+		return CreateFailureResult(
+			ControlCnf002,
+			[
+				"An encryption service is available, but whether classified data is actually protected by "
+				+ "it depends on the consumer applying classification, which is not observable from here, "
+				+ "so this control is unverified."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence,
+			isConfigured: true);
 	}
 
 	private ControlValidationResult ValidateDataDisposal()
@@ -164,7 +185,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 
 			// Partial score: a compensating manual procedure MAY exist, but the declared automated
 			// control is absent and unverifiable here — not a full failure, not a pass.
-			return CreateFailureResult(ControlCnf003, issues, effectivenessScore: 40, evidence);
+			return CreateFailureResult(ControlCnf003, issues, effectivenessScore: Soc2EffectivenessScore.Unverified, evidence);
 		}
 
 		evidence.Add(CreateEvidence(
@@ -173,10 +194,22 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 			nameof(ConfidentialityControlValidator)));
 
 		evidence.Add(CreateEvidence(
-			EvidenceType.TestResult,
-			"Data disposal control verified - erasure infrastructure available",
+			EvidenceType.Configuration,
+			"Cryptographic erasure infrastructure is available; no erasure was observed to be carried "
+			+ "out in this period",
 			nameof(ConfidentialityControlValidator)));
 
-		return CreateSuccessResult(ControlCnf003, evidence);
+		// The evidence above is true and stays: the seam is configured. What does NOT follow is that
+		// the CONTROL operated. Presence of a component is not operation of a control, and this
+		// returned effective at a score of 100 to an external assessor.
+		return CreateFailureResult(
+			ControlCnf003,
+			[
+				"Cryptographic erasure is available, but no disposal was observed in this period, so the "
+				+ "disposal control is unverified here and requires independent attestation."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence,
+			isConfigured: true);
 	}
 }

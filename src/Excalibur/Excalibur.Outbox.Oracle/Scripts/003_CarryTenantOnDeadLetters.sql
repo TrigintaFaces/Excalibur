@@ -180,10 +180,22 @@ END;
 --    Oracle treats NULLs as DISTINCT in a unique index, which is why the column is closed in step 1
 --    BEFORE the key is widened here: widening first would let two rows differing only by
 --    NULL-versus-reserved-key coexist, and the MODIFY would then have nothing to reject.
+--
+--    THE COLLISION CHECK BELOW RUNS BEFORE THE DROP, AND THAT ORDER IS NOT OPTIONAL. Oracle commits
+--    DDL implicitly, so the drop and the widened recreate cannot be made one unit of work: if the
+--    recreate fails the drop stands, and the table is left with NO unique key -- one dead letter
+--    could then be stored twice under the same message id, and a redrive would replay it once per
+--    copy. On the shape 001 provisions, the widening cannot collide, because it adds a column to a
+--    key whose leading column is already unique on its own. That reasoning holds only for that
+--    shape; a table whose constraint of this name covers some other column set can hold a colliding
+--    pair, and the recreate would then fail with ORA-02437 after the drop had committed. So the
+--    condition the recreate actually needs is measured first, and the script refuses on it rather
+--    than assuming the shape.
 -- ---------------------------------------------------------------------------------------
 DECLARE
     v_is_correct  NUMBER;
     v_exists      NUMBER;
+    v_collisions  NUMBER;
 BEGIN
     SELECT COUNT(*) INTO v_exists
       FROM USER_CONSTRAINTS
@@ -193,6 +205,20 @@ BEGIN
       FROM USER_CONS_COLUMNS
      WHERE TABLE_NAME = 'OUTBOX_DEAD_LETTERS' AND CONSTRAINT_NAME = 'UQ_OUTBOX_DLQ_MESSAGE_ID'
        AND COLUMN_NAME = 'TENANT_ID';
+
+    IF v_is_correct = 0 THEN
+        EXECUTE IMMEDIATE
+            'SELECT COUNT(*) FROM (SELECT 1 FROM OUTBOX_DEAD_LETTERS
+                                    GROUP BY MESSAGE_ID, TENANT_ID
+                                   HAVING COUNT(*) > 1)'
+            INTO v_collisions;
+
+        IF v_collisions > 0 THEN
+            RAISE_APPLICATION_ERROR(-20005,
+                '003 REFUSED: ' || v_collisions ||
+                ' group(s) of rows in OUTBOX_DEAD_LETTERS already share (MESSAGE_ID, TENANT_ID), so the widened unique key cannot be created. Oracle commits DDL, so attempting it would drop the existing key and then fail with ORA-02437, leaving the dead-letter table with no unique key at all -- one entry could be stored twice under a single message id and a redrive would replay it once per copy. The key has NOT been dropped and nothing else in this step has been changed. Find them with: SELECT MESSAGE_ID, TENANT_ID, COUNT(*) FROM OUTBOX_DEAD_LETTERS GROUP BY MESSAGE_ID, TENANT_ID HAVING COUNT(*) > 1; resolve each group to one row, then re-run.');
+        END IF;
+    END IF;
 
     IF v_exists > 0 AND v_is_correct = 0 THEN
         EXECUTE IMMEDIATE

@@ -46,7 +46,7 @@ internal sealed partial class RabbitMqMessageBus(
 	IOptions<RabbitMqOptions> options,
 	ILogger<RabbitMqMessageBus> logger,
 	IEnvelopeCloudEventBridge? cloudEventBridge = null,
-	ICloudEventMapper<(IBasicProperties properties, ReadOnlyMemory<byte> body)>? cloudEventMapper = null,
+	ICloudEventEncoder<(IBasicProperties properties, ReadOnlyMemory<byte> body)>? cloudEventEncoder = null,
 	RabbitMqCloudEventOptions? cloudEventOptions = null,
 	RabbitMqTopologyInitializer? topologyInitializer = null) : IMessageBus
 {
@@ -73,7 +73,7 @@ internal sealed partial class RabbitMqMessageBus(
 
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 
-		if (cloudEventBridge is not null && cloudEventMapper is not null)
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
 		{
 			await PublishWithCloudEventsAsync(action, context, LogSentAction, cancellationToken).ConfigureAwait(false);
 			return;
@@ -113,7 +113,7 @@ internal sealed partial class RabbitMqMessageBus(
 
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 
-		if (cloudEventBridge is not null && cloudEventMapper is not null)
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
 		{
 			await PublishWithCloudEventsAsync(evt, context, LogPublishedEvent, cancellationToken).ConfigureAwait(false);
 			return;
@@ -153,7 +153,7 @@ internal sealed partial class RabbitMqMessageBus(
 
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 
-		if (cloudEventBridge is not null && cloudEventMapper is not null)
+		if (cloudEventBridge is not null && cloudEventEncoder is not null)
 		{
 			await PublishWithCloudEventsAsync(doc, context, LogSentDocument, cancellationToken).ConfigureAwait(false);
 			return;
@@ -181,6 +181,20 @@ internal sealed partial class RabbitMqMessageBus(
 
 	private static MessageEnvelope CreateEnvelope(IDispatchMessage message, IMessageContext context)
 	{
+		// The declared name, not the CLR FullName. This value becomes the CloudEvent type attribute on a
+		// message leaving the process -- often to another organisation's broker -- and a FullName carries
+		// the namespace and assembly, so a consumer refactoring their own code changes the string the
+		// far side matches on. GetDeclaredName rather than GetName because GetName THROWS for a type
+		// declaring no name and a publish must not start failing for a message that has always published.
+		// Both forms resolve on receipt: the type registry claims a type under its declared name AND its
+		// CLR forms, so this needs no migration.
+		//
+		// The context still wins where it has a value: on a receive-then-re-emit round trip it holds the
+		// ORIGINATING publisher's type string, and restating that as our own name would rewrite another
+		// organisation's event identity. CloudEventEnvelopeConverter makes the same call for the same
+		// reason.
+		var messageClrType = message.GetType();
+
 		var envelope = new MessageEnvelope(message)
 		{
 			MessageId = context.MessageId ?? Uuid7Extensions.GenerateString(),
@@ -190,7 +204,9 @@ internal sealed partial class RabbitMqMessageBus(
 			CausationId = context.CausationId,
 			TraceParent = context.GetTraceParent(),
 			TenantId = context.GetTenantId(),
-			MessageType = context.GetMessageType() ?? message.GetType().FullName,
+			MessageType = context.GetMessageType()
+				?? MessageNameHelper.GetDeclaredName(messageClrType)
+				?? messageClrType.FullName,
 			ContentType = context.GetContentType() ?? "application/json",
 			DeliveryCount = context.GetDeliveryCount(),
 			ReceivedTimestampUtc = context.GetReceivedTimestampUtc() ?? DateTimeOffset.UtcNow,
@@ -217,7 +233,7 @@ internal sealed partial class RabbitMqMessageBus(
 			var transportMessage = await cloudEventBridge!
 				.ToTransportAsync<(IBasicProperties properties, ReadOnlyMemory<byte> body)>(
 					envelope,
-					cloudEventMapper!.Options.DefaultMode,
+					cloudEventEncoder!.Options.DefaultMode,
 					cancellationToken)
 				.ConfigureAwait(false);
 

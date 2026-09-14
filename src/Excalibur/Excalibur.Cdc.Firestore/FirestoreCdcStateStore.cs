@@ -9,6 +9,8 @@ using Excalibur.Dispatch;
 
 using Google.Cloud.Firestore;
 
+using Grpc.Core;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -81,10 +83,6 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	public async Task<FirestoreCdcPosition?> GetPositionAsync(
 		string processorName,
 		CancellationToken cancellationToken)
@@ -118,10 +116,6 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	public async Task SavePositionAsync(
 		string processorName,
 		FirestoreCdcPosition position,
@@ -167,32 +161,43 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	public async Task DeletePositionAsync(
-		string processorName,
+	/// <remarks>
+	/// An unconditional Firestore delete succeeds whether or not the document was there and reports
+	/// nothing either way, so the answer has to come from the server. <see cref="Precondition.MustExist"/>
+	/// is the SDK's own way to ask for it: the delete is rejected when the document is absent, in one
+	/// round trip and with no read to race against. A check-then-delete would need two, and the window
+	/// between them is exactly where a concurrent delete makes the answer wrong.
+	/// </remarks>
+	public async Task<bool> DeletePositionAsync(
+		string consumerId,
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrWhiteSpace(processorName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
 
-		LogDeletingPosition(processorName);
+		LogDeletingPosition(consumerId);
 
-		var docRef = _db.Collection(_collectionName).Document(processorName);
-		_ = await docRef.DeleteAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+		var docRef = _db.Collection(_collectionName).Document(consumerId);
+
+		try
+		{
+			_ = await docRef.DeleteAsync(Precondition.MustExist, cancellationToken).ConfigureAwait(false);
+			return true;
+		}
+		catch (RpcException ex) when (ex.StatusCode is StatusCode.NotFound or StatusCode.FailedPrecondition)
+		{
+			// The document was not there. Both codes are reported for an unmet exists-precondition
+			// depending on the backend, and neither is a fault -- "there was nothing to delete" is one of
+			// the two answers this method exists to give. Every other status propagates.
+			return false;
+		}
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	async Task<ChangePosition?> ICdcStateStore.GetPositionAsync(string consumerId, CancellationToken cancellationToken) =>
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
@@ -206,17 +211,6 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken)
-	{
-		await DeletePositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
-		return true;
-	}
-
-	/// <inheritdoc/>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	async IAsyncEnumerable<(string ConsumerId, ChangePosition Position)> ICdcStateStore.GetAllPositionsAsync(
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{

@@ -100,10 +100,10 @@ if [ "$RC" -eq 2 ]; then pass "D zero decorators -> REFUSE(2), not a silent no-o
 # the committed blob is reachable it is used verbatim; otherwise the shape is reconstructed (mirror-safe).
 REAL_TELE="src/Excalibur/Excalibur.Inbox/Diagnostics/TelemetryInboxStoreDecorator.cs"
 mkdir -p "$TMP/e"
-REPO="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo '')"
+REPO="$(git -C "${SCRIPT_DIR:?path is empty -- an empty -C runs in the CURRENT directory}" rev-parse --show-toplevel 2>/dev/null || echo '')"
 GOT_REAL=0
-if [ -n "$REPO" ] && git -C "$REPO" cat-file -e "HEAD:$REAL_TELE" 2>/dev/null; then
-	git -C "$REPO" show "HEAD:$REAL_TELE" > "$TMP/e/real.cs" 2>/dev/null && GOT_REAL=1
+if [ -n "$REPO" ] && git -C "${REPO:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "HEAD:$REAL_TELE" 2>/dev/null; then
+	git -C "${REPO:?path is empty -- an empty -C runs in the CURRENT directory}" show "HEAD:$REAL_TELE" > "$TMP/e/real.cs" 2>/dev/null && GOT_REAL=1
 fi
 if [ "$GOT_REAL" -eq 1 ] && ! grep -q 'IScopedTransactionalInboxStore' "$TMP/e/real.cs"; then
 	rc_gate "$TMP/e"; RC=$?

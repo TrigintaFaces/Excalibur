@@ -65,8 +65,10 @@ internal sealed partial class LocalMessageBus(
 
 	private readonly ConcurrentDictionary<Type, EventDispatchPlan[]?> _eventDispatchPlanCache = new();
 
-	private readonly ConcurrentDictionary<Type, DirectActionDispatchPlan?> _directActionPlanCache =
-		InitializeDirectActionPlanCache(registry, logger);
+	// Populated lazily by TryGetDirectActionDispatchPlan: every entry the frozen map (_frozenDirectActionPlanMap)
+	// does not already shadow. Eagerly seeding it from the same registry entries used to build the frozen map
+	// was dead work -- the frozen map is checked first, so no type this cache could pre-populate is ever reached.
+	private readonly ConcurrentDictionary<Type, DirectActionDispatchPlan?> _directActionPlanCache = new();
 
 	private readonly ConcurrentDictionary<Type, PrecompiledDirectActionDispatchPlan?> _precompiledDirectActionPlanCache = new();
 	private readonly ConcurrentDictionary<Type, bool> _selfRegisteredHandlerCache = new();
@@ -1402,7 +1404,9 @@ internal sealed partial class LocalMessageBus(
 			return true;
 		}
 
-		if (!TryGetActionResponseType(entry.MessageType, out var responseType) ||
+		// The response type is carried on the registry entry (set at registration, from a generic argument the
+		// composition root already named) rather than recovered by reflecting over MessageType's interfaces.
+		if (entry.ResponseType is not { } responseType ||
 			!TryCreateTypedWithResponseAsyncInvoker(entry.MessageType, entry.HandlerType, responseType, logger, out var invokeWithResponseAsync))
 		{
 			plan = default;
@@ -1418,22 +1422,6 @@ internal sealed partial class LocalMessageBus(
 			TryInvokeWithResponseSync: CreateDirectActionWithResponseSyncInvoker(invokeWithResponseAsync),
 			InvokeWithResponseAsync: invokeWithResponseAsync);
 		return true;
-	}
-
-	private static bool TryGetActionResponseType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type actionType, out Type responseType)
-	{
-		foreach (var candidate in actionType.GetInterfaces())
-		{
-			if (candidate.IsGenericType &&
-				candidate.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
-			{
-				responseType = candidate.GetGenericArguments()[0];
-				return true;
-			}
-		}
-
-		responseType = null!;
-		return false;
 	}
 
 	[UnconditionalSuppressMessage(
@@ -2711,29 +2699,6 @@ internal sealed partial class LocalMessageBus(
 		}
 
 		return new ConcurrentDictionary<Type, HandlerRegistryEntry[]>();
-	}
-
-	private static ConcurrentDictionary<Type, DirectActionDispatchPlan?> InitializeDirectActionPlanCache(IHandlerRegistry registry, ILogger logger)
-	{
-		var cache = new ConcurrentDictionary<Type, DirectActionDispatchPlan?>();
-		var entries = GetConcreteEntries(registry);
-		for (var index = 0; index < entries.Count; index++)
-		{
-			var entry = entries[index];
-			if (!typeof(IDispatchAction).IsAssignableFrom(entry.MessageType))
-			{
-				continue;
-			}
-
-			if (cache.ContainsKey(entry.MessageType))
-			{
-				continue;
-			}
-
-			_ = cache.TryAdd(entry.MessageType, CreateRuntimeDirectActionDispatchPlan(entry, logger));
-		}
-
-		return cache;
 	}
 
 	/// <summary>

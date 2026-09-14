@@ -19,21 +19,4 @@ public sealed class CloudNativeAndCoreModelsShould
 		rule.Permissions.ShouldBe(AccessPermissions.Receive | AccessPermissions.Send);
 	}
 
-	[Fact]
-	public void TransportPollingStatistics_StoresAggregates()
-	{
-		var stats = new TransportPollingStatistics
-		{
-			TotalPolls = 15,
-			TotalMessages = 120,
-			TotalErrors = 2,
-			TotalDuration = TimeSpan.FromSeconds(30)
-		};
-
-		stats.TotalPolls.ShouldBe(15);
-		stats.TotalMessages.ShouldBe(120);
-		stats.TotalErrors.ShouldBe(2);
-		stats.TotalDuration.ShouldBe(TimeSpan.FromSeconds(30));
-	}
-
 }

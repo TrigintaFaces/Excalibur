@@ -58,6 +58,22 @@ internal class BasicMessageResult(
 	/// </summary>
 	/// <value> The problem details or <see langword="null" />. </value>
 	public IMessageProblemDetails? ProblemDetails { get; } = problemDetails;
+
+	/// <summary>
+	/// Gets a value describing how this result was produced.
+	/// </summary>
+	/// <value>
+	/// <see cref="MessageDisposition.ServedFromCache" /> when <see cref="CacheHit" /> is set; otherwise
+	/// the value supplied by the producer, which defaults to <see cref="MessageDisposition.Handled" />.
+	/// </value>
+	/// <remarks>
+	/// Defaulted FROM <see cref="CacheHit" /> rather than passed independently of it, so the common case
+	/// cannot be got wrong by omission: a cached result that reported <see cref="MessageDisposition.Handled" />
+	/// would tell a caller a handler ran when none did. A producer that satisfies a message without a handler
+	/// for some other reason sets this explicitly.
+	/// </remarks>
+	public MessageDisposition Disposition { get; init; } =
+		cacheHit ? MessageDisposition.ServedFromCache : MessageDisposition.Handled;
 }
 
 /// <summary>

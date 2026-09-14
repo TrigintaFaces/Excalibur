@@ -576,6 +576,90 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that an EMPTY caller tenant argument means "no tenant supplied", identically across providers.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// An empty string is not a tenant identifier: the untenanted partition is a sentinel VALUE, never
+	/// <c>""</c> and never <see langword="null"/>. So <c>""</c> can only mean the caller named no tenant, and
+	/// the answer must equal the answer for <see langword="null"/>. Providers disagreed on this: some read
+	/// <c>""</c> as "unspecified" and left the ambient term alone, while others matched it as a literal tenant
+	/// value and so returned only the holds belonging to no tenant — the same call, the same data, two
+	/// different answers depending on which store was registered.
+	/// </para>
+	/// <para>
+	/// The halves are independent. LIVENESS: the caller's own tenant hold survives an empty argument, which a
+	/// store that treats <c>""</c> as a literal value fails while leaving SAFETY untouched. SAFETY: an empty
+	/// argument does not become a licence to read another tenant's holds, which a store that "fixes" liveness
+	/// by dropping the ambient term fails while leaving LIVENESS untouched.
+	/// </para>
+	/// </remarks>
+	/// <returns> A task representing the asynchronous operation. </returns>
+	public virtual async Task GetActiveHoldsForDataSubjectAsync_EmptyTenantId_ShouldBehaveAsUnspecified()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var dataSubjectIdHash = GenerateDataSubjectIdHash();
+		var tenantA = $"tenant-A-{Guid.NewGuid():N}";
+		var tenantB = $"tenant-B-{Guid.NewGuid():N}";
+
+		var ownHold = CreateLegalHold(dataSubjectIdHash: dataSubjectIdHash, tenantId: tenantA, isActive: true);
+		await store.SaveHoldAsync(ownHold, CancellationToken.None).ConfigureAwait(false);
+
+		// Another tenant's order for the same subject. Without it the arm is satisfied by a store that
+		// returns everything, which is the opposite defect.
+		var otherTenantHold = CreateLegalHold(dataSubjectIdHash: dataSubjectIdHash, tenantId: tenantB, isActive: true);
+		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
+
+		var withEmpty = await GetQueryStore(store)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, string.Empty, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var withNull = await GetQueryStore(store)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// LIVENESS -- an empty argument is not a tenant to match against, so the caller's own hold survives it.
+		if (!withEmpty.Any(h => h.HoldId == ownHold.HoldId))
+		{
+			throw new TestFixtureAssertionException(
+				$"An active hold for '{tenantA}' ({ownHold.HoldId}) was saved, and a read passing an EMPTY "
+				+ "tenant argument did not return it. An empty string is not a tenant identifier -- the "
+				+ "untenanted partition is a sentinel VALUE, never the empty string -- so an empty argument "
+				+ "means the caller named no tenant and must answer exactly as null does. A store that matches "
+				+ "it as a literal value returns only the holds belonging to no tenant, and a legal hold blocks "
+				+ "erasure: a caller told nothing is blocking proceeds with a deletion that cannot be undone.");
+		}
+
+		// The contract itself: empty and null are the SAME question, so they are the same answer. This is the
+		// half that reds on the divergence -- one provider reading the empty string as a literal tenant value
+		// while its siblings read it as "unsupplied" is exactly a set difference between these two reads.
+		var emptyIds = withEmpty.Select(h => h.HoldId).OrderBy(id => id).ToList();
+		var nullIds = withNull.Select(h => h.HoldId).OrderBy(id => id).ToList();
+		if (!emptyIds.SequenceEqual(nullIds))
+		{
+			throw new TestFixtureAssertionException(
+				"A read passing an EMPTY tenant argument returned a different set of holds than the same read "
+				+ $"passing null ({emptyIds.Count} vs {nullIds.Count}). Both spell 'the caller named no tenant', "
+				+ "so a store that distinguishes them gives one answer here and a different answer on a sibling "
+				+ "provider for the same call.");
+		}
+
+		// SAFETY -- the arm must not be satisfiable by a store that simply returns everything. Naming a real
+		// tenant still confines the read, so the two halves cannot be passed by the same mutation.
+		var scoped = await GetQueryStore(store)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, tenantA, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (scoped.Any(h => h.HoldId == otherTenantHold.HoldId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A read scoped to '{tenantA}' returned '{tenantB}'s hold ({otherTenantHold.HoldId}). Reading an "
+				+ "unsupplied tenant argument permissively must not become reading every argument permissively: "
+				+ "a store that returns every tenant's holds discloses one tenant's legal matters to another.");
+		}
+	}
+
+	/// <summary>
 	/// Verifies that GetActiveHoldsForDataSubjectAsync throws ArgumentException for null/whitespace.
 	/// </summary>
 	public virtual async Task GetActiveHoldsForDataSubjectAsync_NullDataSubjectIdHash_ShouldThrowArgumentException()

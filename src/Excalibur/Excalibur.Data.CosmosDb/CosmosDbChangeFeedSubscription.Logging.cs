@@ -22,4 +22,15 @@ public sealed partial class CosmosDbChangeFeedSubscription<TDocument>
 	[LoggerMessage(DataCosmosDbEventId.ChangeFeedReceivedBatch, LogLevel.Debug,
 		"Change feed '{SubscriptionId}' received batch of {Count} documents")]
 	private partial void LogReceivedBatch(string subscriptionId, int count);
+
+	[LoggerMessage(DataCosmosDbEventId.ChangeFeedError, LogLevel.Warning,
+		"Change feed '{SubscriptionId}' failed to save its checkpoint. Event delivery continues; the "
+		+ "redelivery window on a future restart widens until a checkpoint save succeeds again.")]
+	private partial void LogCheckpointSaveFailed(string subscriptionId, Exception exception);
+
+	[LoggerMessage(DataCosmosDbEventId.ChangeFeedCheckpointDegraded, LogLevel.Critical,
+		"Change feed '{SubscriptionId}' has failed to save its checkpoint {ConsecutiveFailures} consecutive "
+		+ "times and is now reporting checkpoint-degraded. Event delivery continues; the redelivery window on "
+		+ "a future restart is growing.")]
+	private partial void LogCheckpointDegraded(string subscriptionId, int consecutiveFailures);
 }

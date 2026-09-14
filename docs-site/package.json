@@ -6,6 +6,7 @@
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",
+    "build:verify": "bash scripts/build-verify.sh",
     "validate:version-links": "node ./scripts/validate-version-safe-links.mjs",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",

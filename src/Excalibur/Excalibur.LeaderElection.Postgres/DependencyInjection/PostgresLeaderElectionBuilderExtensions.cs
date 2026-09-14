@@ -44,6 +44,8 @@ public static class PostgresLeaderElectionBuilderExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static ILeaderElectionBuilder UsePostgres(
 		this ILeaderElectionBuilder builder,
 		Action<IPostgresLeaderElectionBuilder> configure)
@@ -64,10 +66,8 @@ public static class PostgresLeaderElectionBuilderExtensions
 		return builder.UsePostgresCore();
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	private static void RegisterOptionsAndServices(
 		ILeaderElectionBuilder builder,
 		PostgresLeaderElectionBuilder pgBuilder,
@@ -149,7 +149,8 @@ public static class PostgresLeaderElectionBuilderExtensions
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
-			// optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
+			// optional fencing-token provider (fencing is on by default; null only when the consumer
+			// called WithoutFencingTokens() → no fencing).
 			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
 			return new PostgresLeaderElection(pgOptions, electionOptions, logger, fencingTokenProvider);
 		});
@@ -163,6 +164,16 @@ public static class PostgresLeaderElectionBuilderExtensions
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
+
+		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
+		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
+		// provider rather than requiring a second, easily-forgotten AddPostgresFencingTokenProvider() +
+		// WithFencingTokens() call. WithoutFencingTokens() opts out. This is the UsePostgres() builder path;
+		// the standalone Add*PostgresLeaderElection() entry points are wired separately. The connection
+		// string is resolved lazily from options (same as PostgresLeaderElection above) because
+		// DataSource/DataSourceFactory/ConnectionStringName only finalize it via PostConfigure.
+		builder.Services.TryAddDefaultFencingTokenProvider(sp =>
+			new PostgresFencingTokenProvider(sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>().Value.ConnectionString));
 
 		return builder;
 	}

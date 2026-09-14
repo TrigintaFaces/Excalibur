@@ -801,11 +801,22 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					// it again here would count every delivery failure twice, opening the circuit at half
 					// the configured threshold and overriding the breaker's own decision about which
 					// exceptions count.
-					await circuitBreaker.ExecuteAsync(async token =>
+					var disposition = await circuitBreaker.ExecuteAsync(
+						async token => await DispatchSingleMessageAsync(message, storeMessageId, handlerType, lease, token)
+							.ConfigureAwait(false),
+						ct).ConfigureAwait(false);
+
+					if (disposition == InboxLeaseDisposition.Declined)
 					{
-						await DispatchSingleMessageAsync(message, token).ConfigureAwait(false);
-						return true;
-					}, ct).ConfigureAwait(false);
+						// The inbox stage refused this dispatch -- a live lease on the entry is held elsewhere -- so
+						// the handler did NOT run. Finalizing here would mark the entry processed on an invocation
+						// that never happened, and MarkDeduplicatedAsync would additionally record the external id as
+						// already handled, so a later redelivery of the same message would be finalized without
+						// reaching a handler either: the message would be unrecoverable by retry, not merely lost
+						// once. Both belong to whoever holds the live term.
+						LogDrainEntryHeldElsewhere(storeMessageId, handlerType);
+						return;
+					}
 
 					await MarkDeduplicatedAsync(message.ExternalMessageId, ct).ConfigureAwait(false);
 					await FinalizeProcessedAsync(storeMessageId, handlerType, lease, ct).ConfigureAwait(false);
@@ -969,16 +980,33 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		"AOT",
 		"IL3050:Using RequiresDynamicCode member in AOT",
 		Justification = "Inbox dispatch uses runtime deserialization for stored message payloads.")]
-	private async Task DispatchSingleMessageAsync(IInboxMessage message, CancellationToken cancellationToken)
+	private async Task<InboxLeaseDisposition> DispatchSingleMessageAsync(
+		IInboxMessage message,
+		string storeMessageId,
+		string handlerType,
+		LeaseToken? lease,
+		CancellationToken cancellationToken)
 	{
 		LogDispatchingMessage(message.ExternalMessageId, _dispatcherId!);
-		await DispatchAsync(message, cancellationToken).ConfigureAwait(false);
-		LogDispatchSuccess(message.ExternalMessageId, _dispatcherId!);
+		var disposition = await DispatchAsync(message, storeMessageId, handlerType, lease, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (disposition != InboxLeaseDisposition.Declined)
+		{
+			LogDispatchSuccess(message.ExternalMessageId, _dispatcherId!);
+		}
+
+		return disposition;
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeFromUtf8 with runtime type resolution from MessageTypeRegistry")]
 	[RequiresDynamicCode("Calls Excalibur.Dispatch.Serialization.DispatchJsonSerializer.DeserializeFromUtf8(ReadOnlySpan<Byte>, Type)")]
-	private async Task DispatchAsync(IInboxMessage storedMessage, CancellationToken cancellationToken)
+	private async Task<InboxLeaseDisposition> DispatchAsync(
+		IInboxMessage storedMessage,
+		string storeMessageId,
+		string handlerType,
+		LeaseToken? lease,
+		CancellationToken cancellationToken)
 	{
 		if (!MessageTypeRegistry.TryGetType(storedMessage.MessageType, out var type))
 		{
@@ -1021,6 +1049,14 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		context.MessageId = storedMessage.ExternalMessageId;
 		context.GetOrCreateIdentityFeature().ExternalId = storedMessage.ExternalMessageId;
 
+		// Present the claim this drain already holds on the entry. Without it the inbox stage asks the store
+		// for a lease this caller is already holding, is refused, treats the holder as a competitor, and skips
+		// the handler while still reporting a completion.
+		var claim = context.GetOrCreateInboxLeaseFeature();
+		claim.MessageId = storeMessageId;
+		claim.HandlerType = handlerType;
+		claim.Lease = lease;
+
 		var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
 		var result = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken).ConfigureAwait(false);
 
@@ -1030,6 +1066,10 @@ public sealed partial class InboxProcessor : IInboxProcessor
 			var errorMessage = result.ErrorMessage ?? ErrorConstants.MessageDispatchFailed;
 			throw new InvalidOperationException(errorMessage);
 		}
+
+		// A refusal and a completion both surface as a succeeded dispatch, so the caller cannot tell them
+		// apart from the result alone. The stage records which one happened on the context this method owns.
+		return claim.Disposition;
 	}
 
 	/// <summary>

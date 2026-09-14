@@ -251,7 +251,7 @@ public async Task Handler_ShouldUseUserIdFromContext()
     var result = await handler.HandleAsync(command, context, CancellationToken.None);
 
     // Assert
-    result.IsSuccess.ShouldBeTrue();
+    result.Succeeded.ShouldBeTrue();
 }
 ```
 

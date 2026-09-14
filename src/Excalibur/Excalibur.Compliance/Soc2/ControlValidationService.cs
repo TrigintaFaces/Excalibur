@@ -76,15 +76,15 @@ internal sealed class ControlValidationService : IControlValidationService
 				ControlId = controlId,
 				Parameters = parameters,
 				ItemsTested = 0,
-				ExceptionsFound = 0,
-				Outcome = TestOutcome.ControlFailure,
-				Exceptions = [new TestException
-				{
-					ItemId = "N/A",
-					Description = $"No validator registered for control: {controlId}",
-					Severity = GapSeverity.Critical,
-					OccurredAt = DateTimeOffset.UtcNow
-				}]
+				// Zero here asserted a search that returned nothing. No validator ran, so there is no such
+				// number — the same distinction the type now carries for every other did-not-run path.
+				ExceptionsFound = null,
+				// No validator means no test ran. Reporting ControlFailure here told an assessor the
+				// control had been tested and failed, and the empty Exceptions list beside it made the
+				// claim self-contradictory. NotTested says only what is true; Notes says why.
+				Outcome = TestOutcome.NotTested,
+				Exceptions = [],
+				Notes = $"No validator registered for control: {controlId}"
 			};
 		}
 
@@ -98,7 +98,7 @@ internal sealed class ControlValidationService : IControlValidationService
 	/// <inheritdoc />
 	public IReadOnlyList<string> GetControlsForCriterion(TrustServicesCriterion criterion) =>
 		_criterionToControls.TryGetValue(criterion, out var controls)
-			? controls
+			? [.. controls]
 			: [];
 
 	private void BuildControlMappings()

@@ -49,13 +49,17 @@ public sealed class CosmosStoresBorrowTheRegisteredClientShould
     private const string EmulatorKey =
         "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 
-    private static (ServiceProvider Provider, CosmosClient Shared) BuildHost()
+    private static (ServiceProvider Provider, CosmosClient Shared) BuildHost(bool registerSharedClient = true)
     {
         var shared = new CosmosClient(Endpoint, EmulatorKey);
 
         var services = new ServiceCollection();
         _ = services.AddLogging();
-        _ = services.AddSingleton(shared);
+
+        if (registerSharedClient)
+        {
+            _ = services.AddSingleton(shared);
+        }
 
         _ = services.Configure<CosmosDbAuthorizationOptions>(o =>
         {
@@ -66,6 +70,13 @@ public sealed class CosmosStoresBorrowTheRegisteredClientShould
         {
             o.Client.AccountEndpoint = Endpoint;
             o.Client.AccountKey = EmulatorKey;
+            o.DatabaseName = "conformance";
+            o.ContainerName = "snapshots";
+
+            // Container creation is the only step of InitializeAsync that issues a request. Turning it
+            // off lets the initialization arm below run the ownership decision to completion with no
+            // account behind it -- GetDatabase and GetContainer are client-side references.
+            o.CreateContainerIfNotExists = false;
         });
         _ = services.Configure<CosmosDbProjectionStoreOptions>(o =>
         {
@@ -93,6 +104,11 @@ public sealed class CosmosStoresBorrowTheRegisteredClientShould
         (CosmosClient?)store.GetType()
             .GetField("_client", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(store);
+
+    private static bool Initialized(object store) =>
+        (bool)store.GetType()
+            .GetField("_initialized", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(store)!;
 
     private static bool OwnsClient(object store) =>
         (bool)store.GetType()
@@ -151,6 +167,67 @@ public sealed class CosmosStoresBorrowTheRegisteredClientShould
         // throws ObjectDisposedException, which is the exact symptom a wrongly-owned client produces.
         Should.NotThrow(() => ClientOf(snapshots)!.Endpoint);
         shared.Endpoint.ShouldNotBeNull();
+    }
+
+    /// <summary>
+    /// SAFETY: initialization does not turn a borrowed client into an owned one.
+    /// </summary>
+    /// <remarks>
+    /// The arm above resolves the stores and checks ownership straight away, which is a state the
+    /// snapshot store reaches before it has decided anything. Ownership is decided inside
+    /// InitializeAsync, and the snapshot store used to set the flag twice -- once correctly, inside the
+    /// branch that builds a client, and once unconditionally just below it. A store handed the host's
+    /// client therefore claimed it, and disposing that one store closed the account for every other
+    /// Cosmos feature sharing it. Nothing in the resolution-time arm can see that: the flag is still
+    /// false until the store is initialized.
+    /// </remarks>
+    [Fact]
+    public async Task InitializingABorrowingStore_LeavesTheSharedClientOwnedByTheHost()
+    {
+        var (provider, shared) = BuildHost();
+        using var host = provider;
+
+        var snapshots = provider.GetRequiredService<CosmosDbSnapshotStore>();
+        var projections = provider.GetRequiredService<CosmosDbProjectionStore<TestProjection>>();
+
+        // LIVENESS: the arm is worthless if initialization did not actually run -- a store that threw or
+        // returned early would leave the flag false for a reason that has nothing to do with the fix.
+        await snapshots.InitializeAsync(TestContext.Current.CancellationToken);
+        Initialized(snapshots).ShouldBeTrue("the ownership decision is made inside InitializeAsync.");
+
+        ClientOf(snapshots).ShouldBeSameAs(shared);
+        OwnsClient(snapshots).ShouldBeFalse(
+            "an initialized store that was handed the host's client must not claim ownership of it.");
+
+        await snapshots.DisposeAsync();
+
+        // The client every other feature is still holding must be alive.
+        Should.NotThrow(() => ClientOf(projections)!.Endpoint);
+        shared.Endpoint.ShouldNotBeNull();
+    }
+
+    /// <summary>
+    /// LIVENESS for the ownership flag itself: a store that had to build its own client still owns it.
+    /// </summary>
+    /// <remarks>
+    /// Without this arm the safety arms above are all satisfied by a store that never claims ownership of
+    /// anything -- which leaks a client per store instead of disposing one. Ownership must track which
+    /// path ran, not be pinned to either answer.
+    /// </remarks>
+    [Fact]
+    public async Task AStoreWithNoRegisteredClient_BuildsAndOwnsItsOwn()
+    {
+        var (provider, shared) = BuildHost(registerSharedClient: false);
+        using var host = provider;
+        using var unregistered = shared;
+
+        var snapshots = provider.GetRequiredService<CosmosDbSnapshotStore>();
+        await snapshots.InitializeAsync(TestContext.Current.CancellationToken);
+
+        ClientOf(snapshots).ShouldNotBeNull();
+        ClientOf(snapshots).ShouldNotBeSameAs(shared, "no client was registered for it to borrow.");
+        OwnsClient(snapshots).ShouldBeTrue(
+            "a store that built its own client is the only thing that will ever dispose it.");
     }
 
     private sealed class TestProjection

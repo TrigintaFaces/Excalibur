@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Messaging;
 
 /// <summary>
@@ -77,6 +79,8 @@ public interface ISagaStore
 	/// separate partitions even when every other field is identical.
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("Saga state is persisted with a serializer that may require types which cannot be statically analyzed. Every shipped store reflects on TSagaState.")]
+	[RequiresDynamicCode("Saga state is persisted with a reflection-based serializer that generates converters at run time. Every shipped store reflects on TSagaState.")]
 	Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState;
 

@@ -113,12 +113,14 @@ internal sealed class CosmosDbSnapshotDocument
 	/// <returns>The URL-safe document identifier.</returns>
 	public static string CreateId(string aggregateId, string tenantId)
 	{
-		var composite = $"t:{tenantId}:{aggregateId}";
+		var composite = TenantScopedKey.Compose(tenantId, aggregateId);
 		var bytes = System.Text.Encoding.UTF8.GetBytes(composite);
-		return Convert.ToBase64String(bytes)
-			.Replace('+', '-')  // URL-safe
-			.Replace('/', '_')  // URL-safe
-			.TrimEnd('=');      // Remove padding
+
+		// Byte-for-byte identical to the substitution this replaced -- verified across every length
+		// from 0 to 256 bytes and on the composite shape built above -- so documents written by
+		// earlier versions keep the same id. A document id is persisted, so an encoder that differed
+		// by one character would orphan every existing snapshot rather than merely re-encode it.
+		return System.Buffers.Text.Base64Url.EncodeToString(bytes);
 	}
 
 	/// <summary>

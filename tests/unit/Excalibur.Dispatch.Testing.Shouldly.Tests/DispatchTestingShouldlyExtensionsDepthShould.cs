@@ -94,7 +94,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveCompleted_PassesForSuccess()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		result.ShouldHaveCompleted();
 	}
@@ -103,7 +103,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveCompleted_ThrowsForFailure()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(false);
+		A.CallTo(() => result.Succeeded).Returns(false);
 
 		Should.Throw<ShouldAssertException>(() => result.ShouldHaveCompleted());
 	}
@@ -119,7 +119,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveFailed_PassesForFailure()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(false);
+		A.CallTo(() => result.Succeeded).Returns(false);
 
 		result.ShouldHaveFailed();
 	}
@@ -128,7 +128,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveFailed_ThrowsForSuccess()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		Should.Throw<ShouldAssertException>(() => result.ShouldHaveFailed());
 	}
@@ -144,7 +144,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveFailedWithError_PassesForFailureWithMessage()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(false);
+		A.CallTo(() => result.Succeeded).Returns(false);
 		A.CallTo(() => result.ErrorMessage).Returns("Something went wrong");
 
 		result.ShouldHaveFailedWithError();
@@ -154,7 +154,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveFailedWithError_PassesWithMatchingSubstring()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(false);
+		A.CallTo(() => result.Succeeded).Returns(false);
 		A.CallTo(() => result.ErrorMessage).Returns("Connection timeout: server unreachable");
 
 		result.ShouldHaveFailedWithError("timeout");
@@ -164,7 +164,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveFailedWithError_ThrowsOnSuccess()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		Should.Throw<ShouldAssertException>(() => result.ShouldHaveFailedWithError());
 	}
@@ -180,7 +180,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveFailedWithError_ThrowsWhenErrorMessageNull()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(false);
+		A.CallTo(() => result.Succeeded).Returns(false);
 		A.CallTo(() => result.ErrorMessage).Returns(null);
 
 		Should.Throw<ShouldAssertException>(() => result.ShouldHaveFailedWithError());
@@ -190,7 +190,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 	public void ShouldHaveFailedWithError_ThrowsWhenSubstringNotFound()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(false);
+		A.CallTo(() => result.Succeeded).Returns(false);
 		A.CallTo(() => result.ErrorMessage).Returns("Some error occurred");
 
 		Should.Throw<ShouldAssertException>(() => result.ShouldHaveFailedWithError("timeout"));

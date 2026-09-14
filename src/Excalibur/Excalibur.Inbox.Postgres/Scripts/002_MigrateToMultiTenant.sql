@@ -26,9 +26,27 @@ ALTER TABLE public.inbox_messages
     ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) NOT NULL DEFAULT '__untenanted__';
 
 -- 2) Rebuild the unique key: drop the pair PK, add the triple PK.
-ALTER TABLE public.inbox_messages DROP CONSTRAINT IF EXISTS pk_inbox_messages;
-ALTER TABLE public.inbox_messages
-    ADD CONSTRAINT pk_inbox_messages PRIMARY KEY (message_id, handler_type, tenant_id);
+--
+--    The two statements are inside ONE block because between them the table has no key at all,
+--    and an inbox with no key admits a second delivery of a message it has already handled --
+--    the one outcome an inbox exists to prevent. Sent as separate statements each one
+--    autocommits, so a recreate that fails -- because this database reached a nullable tenant_id
+--    by some other route, or holds rows that collide on the triple -- would leave the drop
+--    committed and the table permanently unprotected.
+--
+--    Postgres runs a DO block as a single statement in a single transaction and rolls its DDL
+--    back, so the block is what makes the drop and the recreate inseparable. It is used in
+--    preference to a file-level BEGIN/COMMIT for the same reason the sibling migrations in this
+--    package are written this way: it needs no assumption about how a runner applies the file,
+--    and it nests correctly inside a migration tool that has already opened a transaction of its
+--    own. Both statements stay idempotent, so a rolled-back run can be re-run once the cause of
+--    the failure is fixed.
+DO $$
+BEGIN
+    ALTER TABLE public.inbox_messages DROP CONSTRAINT IF EXISTS pk_inbox_messages;
+    ALTER TABLE public.inbox_messages
+        ADD CONSTRAINT pk_inbox_messages PRIMARY KEY (message_id, handler_type, tenant_id);
+END $$;
 
 -- 3) Optional: drop the sentinel default now that the key is rebuilt, so future inserts
 --    must supply a real tenant id (the store always binds one on the multi-tenant path).

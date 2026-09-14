@@ -971,7 +971,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		}, CancellationToken.None);
 
 		// Act
-		var lastEvent = await rbacStore.GetLastEventAsync(null, CancellationToken.None);
+		var lastEvent = await rbacStore.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		_ = lastEvent.ShouldNotBeNull();
@@ -1197,7 +1197,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			CancellationToken cancellationToken = default)
 			=> Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId = null, CancellationToken cancellationToken = default)
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken = default)
 			=> Task.FromResult<AuditEvent?>(null);
 	}
 }

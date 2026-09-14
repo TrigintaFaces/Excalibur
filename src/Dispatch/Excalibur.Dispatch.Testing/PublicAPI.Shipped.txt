@@ -119,6 +119,8 @@ Excalibur.Dispatch.Testing.MessageContextBuilder.WithTraceParent(string! tracePa
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithUserId(string! userId) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithWorkflowId(string! workflowId) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
 Excalibur.Dispatch.Testing.Polling.WaitHelpers
+Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests
+Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.TransportCircuitBreakerRegistryConformanceTests() -> void
 Excalibur.Dispatch.Testing.SagaTestHarness<TSaga>
 Excalibur.Dispatch.Testing.SagaTestHarness<TSaga>.ConfigureServices(System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>! configure) -> Excalibur.Dispatch.Testing.SagaTestHarness<TSaga!>!
 Excalibur.Dispatch.Testing.SagaTestHarness<TSaga>.DisposeAsync() -> System.Threading.Tasks.ValueTask
@@ -152,6 +154,8 @@ Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.Any<TMessage>() -> boo
 Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.Clear() -> void
 Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.Count.get -> int
 Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.Select<TMessage>() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Testing.Tracking.DispatchedMessage!>!
+Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests
+Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.CloudEventTransportConformanceTests() -> void
 Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver
 Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.AcknowledgeAsync(Excalibur.Dispatch.Transport.TransportReceivedMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.AcknowledgedMessages.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportReceivedMessage!>!
@@ -237,6 +241,10 @@ Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.VerifyS
 Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.VerifySubscribeStartsAndStops() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.VerifySubscribeThrowsOnNullHandler() -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions
+abstract Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.CreateRegistry() -> Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry!
+abstract Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.CreateReceiverAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportReceiver!>!
+abstract Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.EncodeAsync(CloudNative.CloudEvents.CloudEvent! cloudEvent, Excalibur.Dispatch.CloudEvents.CloudEventMode mode) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.TransportReceivedMessage!>!
+abstract Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.SeedMessagesAsync(Excalibur.Dispatch.Transport.ITransportReceiver! receiver, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportReceivedMessage!>! messages) -> System.Threading.Tasks.Task!
 abstract Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.CreateReceiverAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportReceiver!>!
 abstract Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.SeedMessagesAsync(Excalibur.Dispatch.Transport.ITransportReceiver! receiver, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportReceivedMessage!>! messages) -> System.Threading.Tasks.Task!
 abstract Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.CreateSenderAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportSender!>!
@@ -252,4 +260,20 @@ static Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.Cr
 static Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.CreateTestMessage(string! body, string? id = null) -> Excalibur.Dispatch.Transport.TransportReceivedMessage!
 static Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions.AddDispatchTesting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! destination = "test-destination", string! source = "test-source") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Dispatch.Testing.Polling.WaitHelpers.DefaultPollInterval -> System.TimeSpan
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyABlankTransportNameIsRefused() -> void
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyABoundedRegistryNeverSharesOneCircuitBetweenTransports() -> void
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyANewPolicyIsUsableAndStartsClosed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyAnUnknownNameIsAbsentRatherThanFabricated() -> void
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyEveryValueTheOptionsTypeAdmitsIsAccepted() -> void
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyNullOptionsAreRefused() -> void
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyResetReturnsAnOpenedCircuitToService() -> System.Threading.Tasks.Task!
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyTheCircuitOpensOnTheConfiguredThresholdThenAdmitsAProbe() -> System.Threading.Tasks.Task!
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyTheSameNameReturnsTheSamePolicy() -> void
+virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.CreateCloudEvent() -> CloudNative.CloudEvents.CloudEvent!
+virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.Payload.get -> byte[]!
+virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.SupportedModes.get -> System.Collections.Generic.IReadOnlyCollection<Excalibur.Dispatch.CloudEvents.CloudEventMode>!
+virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.VerifyBinaryModeRoundTripsThroughItsOwnReceiver() -> System.Threading.Tasks.Task!
+virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.VerifyDeclinedModesDoNotDecode() -> System.Threading.Tasks.Task!
+virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.VerifyOrdinaryTrafficIsNotReportedAsCloudEvent() -> System.Threading.Tasks.Task!
+virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.VerifyStructuredModeRoundTripsThroughItsOwnReceiver() -> System.Threading.Tasks.Task!
 virtual Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.CreatePairedReceiverAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportReceiver?>!

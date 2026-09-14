@@ -2,8 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.A3;
+using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Stores.InMemory;
+using Excalibur.Dispatch;
+
+using FakeItEasy;
+
+using GrantType = Excalibur.A3.Authorization.Grants.GrantType;
 
 namespace Excalibur.Tests.A3;
 
@@ -177,6 +183,60 @@ public sealed class A3CoreServiceCollectionExtensionsShould
 		// Assert -- override wins
 		var provider = services.BuildServiceProvider();
 		provider.GetService<IActivityGroupStore>().ShouldBeOfType<StubActivityGroupStore>();
+	}
+
+	// km3zpd: AddExcaliburA3Core() previously registered IGrantStore/IActivityGroupStore but never an
+	// Excalibur.A3.Authorization.IAuthorizationPolicyProvider, so a consumer on the documented lightweight
+	// path could not evaluate a grant at all -- GetRequiredService<IAuthorizationPolicyProvider>() threw.
+	// Both arms below run against the real DI composition (AddExcaliburA3Core() alone, no AddExcaliburA3()).
+
+	[Fact]
+	public async Task RegisterAWorkingAuthorizationPolicyProvider_WithNoFullStack()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddExcaliburA3Core();
+		var authToken = A.Fake<IAuthenticationToken>();
+		A.CallTo(() => authToken.UserId).Returns("user-1");
+		services.AddSingleton(authToken);
+
+		var tenantContext = A.Fake<ITenantContext>();
+		A.CallTo(() => tenantContext.TenantId).Returns("tenant-1");
+		services.AddSingleton(tenantContext);
+
+		var provider = services.BuildServiceProvider();
+		var grantStore = provider.GetRequiredService<IGrantStore>();
+		await grantStore.SaveGrantAsync(
+			new Grant("user-1", FullName: null, "tenant-1", GrantType.Activity, "CanApprove", ExpiresOn: null, "seed", DateTimeOffset.UtcNow),
+			CancellationToken.None);
+
+		// Act
+		var policyProvider = provider.GetRequiredService<IAuthorizationPolicyProvider>();
+		var policy = await policyProvider.GetPolicyAsync();
+
+		// Assert -- liveness: the seeded grant is actually honored, not silently dropped
+		policy.IsAuthorized("CanApprove").ShouldBeTrue();
+
+		// Assert -- safety: an activity never granted is still refused
+		policy.IsAuthorized("CanDeleteEverything").ShouldBeFalse();
+	}
+
+	[Fact]
+	public void ThrowFromGetPolicyAsync_WhenNoTenantIsResolved()
+	{
+		// Arrange -- the ambient-null-tenant fail-closed contract must hold on the lightweight path too
+		var services = new ServiceCollection();
+		services.AddExcaliburA3Core();
+		var authToken = A.Fake<IAuthenticationToken>();
+		A.CallTo(() => authToken.UserId).Returns("user-1");
+		services.AddSingleton(authToken);
+		services.AddSingleton(A.Fake<ITenantContext>()); // TenantId defaults to null
+
+		var provider = services.BuildServiceProvider();
+		var policyProvider = provider.GetRequiredService<IAuthorizationPolicyProvider>();
+
+		// Act & Assert
+		Should.ThrowAsync<InvalidOperationException>(() => policyProvider.GetPolicyAsync());
 	}
 
 	#region Test Doubles

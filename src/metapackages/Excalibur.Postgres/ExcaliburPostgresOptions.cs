@@ -31,9 +31,29 @@ public sealed class ExcaliburPostgresOptions
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to register inbox services (default: <see langword="true"/>).
+	/// Gets or sets a value indicating whether to register the inbox STORE (default: <see langword="true"/>).
 	/// </summary>
-	public bool UseInbox { get; set; } = true;
+	/// <remarks>
+	/// <para>
+	/// <b>This registers the store only. It does NOT deduplicate anything on its own.</b> Deduplication is
+	/// performed by <c>InboxMiddleware</c>, which no shipped pipeline profile contains — a host opts into it
+	/// with <c>UseInbox()</c> on the dispatch builder:
+	/// </para>
+	/// <code>
+	/// services.AddExcaliburPostgres(o =&gt;
+	/// {
+	///     o.ConnectionString = connectionString;      // UseInboxStore defaults to true
+	///     o.ConfigureDispatch(d =&gt; d.UseInbox());  // and THIS is what deduplicates
+	/// });
+	/// </code>
+	/// <para>
+	/// The two halves are deliberately separate: the store is also what the estate-wide retry drain and the
+	/// manual <c>IInboxProcessor</c> path read, both of which are useful without the middleware. That is why
+	/// this option does not place the middleware for you — and why leaving it at its default while never
+	/// calling <c>UseInbox()</c> gives you a populated store and no deduplication.
+	/// </para>
+	/// </remarks>
+	public bool UseInboxStore { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to register saga services (default: <see langword="true"/>).

@@ -25,7 +25,7 @@ namespace Excalibur.Outbox.Oracle;
 /// </summary>
 [SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class coordinates the Dapper request set, outbox message mapping, and leadership-fencing control-table CAS by design (parity with SqlServerOutboxStore).")]
-public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
+public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
 {
 	private readonly IDb _db;
 
@@ -47,7 +47,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	/// rebuilding the string at each call site — is what makes that agreement structural: the two paths cannot
 	/// drift apart, because there is only one expression.
 	/// </remarks>
-	private static string DispatcherId { get; } = $"dispatcher-{Environment.MachineName}-{Environment.ProcessId}";
+	private static string ProcessDispatcherId { get; } = $"dispatcher-{Environment.MachineName}-{Environment.ProcessId}";
 
 	private readonly OracleOutboxStoreOptions _options;
 	private readonly ILogger<OracleOutboxStore> _logger;
@@ -169,38 +169,6 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 			var durationMs = stopwatch.Elapsed.TotalMilliseconds;
 			_metrics.RecordSaveMessages(durationMs, outboxMessages.Count);
 			LogOperationCompleted(durationMs, "SaveMessages");
-		}
-	}
-
-	/// <summary>
-	/// Releases reservation on outbox messages for a specific dispatcher.
-	/// </summary>
-	/// <param name="dispatcherId"> Identifier of the dispatcher to unreserve messages for. </param>
-	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
-	/// <returns> Number of messages unreserved. </returns>
-	public async Task<int> UnReserveOutboxMessagesAsync(string dispatcherId, CancellationToken cancellationToken)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
-
-		LogUnreserveMessages(dispatcherId);
-
-		var stopwatch = ValueStopwatch.StartNew();
-		try
-		{
-			var req = new ResetOutboxMessageReservation(
-				dispatcherId,
-				_options.QualifiedOutboxTableName,
-				DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken);
-
-			var result = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
-			return result;
-		}
-		finally
-		{
-			var durationMs = stopwatch.Elapsed.TotalMilliseconds;
-			_metrics.RecordUnreserveMessages(durationMs, 0); // Count not available from operation
-			LogOperationCompleted(durationMs, "UnReserveMessages");
 		}
 	}
 
@@ -592,10 +560,11 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		// are never dropped on a convenience path. The propagated TenantId is persisted to the
 		// outbox table's tenant_id column on both the direct (InsertOutboxMessage) and scheduled
 		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled.
-		// Derive the routing destination from the message context — falling back to the message
-		// type name (the convention the other outbox providers use) rather than a hardcoded "default", so
-		// a consumer's configured destination is persisted and honored on dispatch.
-		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().Name;
+		// Derive the routing destination from the message context — falling back to the
+		// namespace-qualified type name (FullName, not the bare Name: two message types with the same
+		// short name in different namespaces must not collapse to one destination) rather than a
+		// hardcoded "default", so a consumer's configured destination is persisted and honored on dispatch.
+		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().FullName ?? message.GetType().Name;
 		var outboundMessage = OutboundMessage.FromContext(
 			message.GetType().Name,
 			serializedPayload,
@@ -624,7 +593,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
 		// Use a fixed dispatcher ID for this interface method - in practice this would need proper session management
-		var dispatcherId = DispatcherId;
+		var dispatcherId = ProcessDispatcherId;
 		var reservedMessages = await ReserveOutboxMessagesAsync(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false);
 
 		return ConvertReservedToOutbound(reservedMessages);
@@ -683,6 +652,15 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 					// has never been tried. The retry ceiling is compared against this value, so an
 					// unrestored count is a message that can never dead-letter and retries for ever.
 					RetryCount = msg.Attempts,
+
+					// The CLAIM IDENTITY the reservation just stamped. The statement already selected
+					// dispatcher_id back, and this mapping dropped it -- so every message Oracle handed the
+					// drain carried a null claim, and every completion scoped to that claim was unreachable.
+					// The drain passes this value straight through as the claim term, so losing it here does
+					// not degrade the completion to a weaker guard; it degrades it to no guard at all on the
+					// claim-scoped route, and to an unusable one on the fenced route, which refuses a null.
+					// Postgres and SQL Server both carry it forward; Oracle was the only store that did not.
+					DispatcherId = msg.DispatcherId,
 				};
 
 				outboundMessages.Add(outboundMessage);
@@ -740,7 +718,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		// fresher leader can advance the high-water between the fence check and the claim (the check-then-act
 		// window is closed by construction). A superseded (stale) token stamps nothing and yields a set-based
 		// empty claim — it MUST NOT throw here (IFencedOutboxStore claim contract).
-		var dispatcherId = DispatcherId;
+		var dispatcherId = ProcessDispatcherId;
 		var request = new FencedReserveOutboxMessages(
 			dispatcherId,
 			batchSize,
@@ -793,6 +771,40 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		if (result.DeletedCount == 0)
 		{
 			throw new InvalidOperationException($"Message {messageId} not found or already sent.");
+		}
+	}
+
+	/// <inheritdoc/>
+	public async Task<long?> GetFencingHighWaterAsync(CancellationToken cancellationToken)
+	{
+		var request = new GetOutboxFenceHighWaterRequest(
+			_options.QualifiedFenceTableName,
+			_options.QualifiedOutboxTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		return await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async Task ResetFencingHighWaterAsync(long newHighWater, bool force, CancellationToken cancellationToken)
+	{
+		var request = new ResetOutboxFenceHighWaterRequest(
+			_options.QualifiedFenceTableName,
+			_options.QualifiedOutboxTableName,
+			newHighWater,
+			force,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		var applied = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+		if (!applied)
+		{
+			var current = await GetFencingHighWaterAsync(cancellationToken).ConfigureAwait(false);
+			throw new InvalidOperationException(
+				$"Refusing to lower the fencing high-water mark from {current} to {newHighWater} without " +
+				"force: true. Lowering it re-admits a leader whose token is now below the (lowered) " +
+				"high-water, which is the split-brain the fence exists to prevent.");
 		}
 	}
 
@@ -862,7 +874,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 			messageId,
 			retryCount,
 			errorMessage,
-			DispatcherId,
+			ProcessDispatcherId,
 			_options.FailureBackoffFloorSeconds,
 			_options.QualifiedOutboxTableName,
 			DbTimeouts.RegularTimeoutSeconds,
@@ -875,6 +887,107 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		// the store's — matching the InMemory reference contract (Liskov: one load-bearing postcondition per
 		// family; parity with the Postgres outbox).
 	}
+
+
+	/// <inheritdoc />
+	public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset? nextAttemptAt,
+		OutboxWriteAuthority authority,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+		ArgumentOutOfRangeException.ThrowIfNegative(retryCount);
+
+		// BOTH components validated. OutboxWriteAuthority is a struct, so its default cannot be intercepted
+		// by a constructor and arrives carrying a zero token -- which the fence ACCEPTS on a scope with no
+		// recorded mark, because the MERGE creates that mark from the presented value and GREATEST then
+		// returns it unchanged. Without this the only thing refusing a defaulted authority would be the
+		// claim term failing for an unrelated reason, which is one guard doing the other's job by accident.
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(authority.FencingToken);
+		ArgumentException.ThrowIfNullOrWhiteSpace(authority.ClaimIdentity);
+
+		var request = new Requests.FencedSetOutboxMessageFailed(
+			messageId,
+			errorMessage,
+			retryCount,
+			_options.FailureBackoffFloorSeconds,
+			authority.ClaimIdentity,
+			authority.FencingToken,
+			_options.QualifiedOutboxTableName,
+			_options.QualifiedFenceTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		var result = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+
+		return ClassifyFenced(result, authority.FencingToken);
+	}
+
+	/// <inheritdoc />
+	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
+		string messageId,
+		string reason,
+		long fencingToken,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+
+		// Refused before the block, for the reason above, and it matters more here: on this member an
+		// accepted stale token MOVES the row out of the outbox table, which is not recoverable by retrying.
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fencingToken);
+
+		var request = new Requests.FencedMarkMessageDeadLettered(
+			messageId,
+			reason,
+			fencingToken,
+			_options.QualifiedOutboxTableName,
+			_options.QualifiedDeadLetterTableName,
+			_options.QualifiedFenceTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		var result = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+
+		// GREATEST(existing, token) == token exactly when the token was accepted. A strictly greater stored
+		// high-water means a successor advanced past it, so the block moved nothing.
+		if (result.HighWaterToken != fencingToken)
+		{
+			return OutboxCompletionOutcome.FenceRefused;
+		}
+
+		// No ClaimLost arm: this member carries no claim term, so it cannot have been the claim that
+		// refused. A zero row count here means the row was already gone -- returning ClaimLost would be
+		// reporting a decision this statement never made.
+		return result.DeletedCount > 0
+			? OutboxCompletionOutcome.Applied
+			: OutboxCompletionOutcome.MessageNotFound;
+	}
+
+	/// <summary>
+	/// Maps a fenced completion result onto the outcome the caller acts on.
+	/// </summary>
+	/// <remarks>
+	/// The order is load-bearing. A refused fence is checked FIRST because it is the only outcome meaning
+	/// "stop draining entirely" -- a newer tenure exists and every remaining claim this caller holds is
+	/// void. Reading the row count first would report ClaimLost for a superseded tenure, which tells the
+	/// caller to carry on with the rest of its batch: the wrong instruction, and indistinguishable from the
+	/// benign case in a log.
+	/// </remarks>
+	private static OutboxCompletionOutcome ClassifyFenced(
+		Requests.FencedClaimMutationResult result,
+		long presentedToken) =>
+		result.HighWaterToken != presentedToken
+			? OutboxCompletionOutcome.FenceRefused
+			: result.UpdatedCount > 0
+				? OutboxCompletionOutcome.Applied
+				: result.RowExists
+					? OutboxCompletionOutcome.ClaimLost
+					: OutboxCompletionOutcome.MessageNotFound;
 
 	/// <summary>
 	/// Marks a message as failed and records an exponential-backoff schedule so it is not re-claimed for retry
@@ -914,7 +1027,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		var req = new SetOutboxMessageBackoff(
 			messageId,
 			nextAttemptDelaySeconds,
-			DispatcherId,
+			ProcessDispatcherId,
 			// The floor travels with the computed schedule rather than being displaced by it — see the request
 			// for why binding the caller's schedule alone made the preferred path ignore a configured floor.
 			_options.FailureBackoffFloorSeconds,
@@ -1128,9 +1241,6 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		"Reserving up to {BatchSize} outbox messages for dispatcher {DispatcherId}")]
 	private partial void LogReserveMessages(string dispatcherId, int batchSize);
 
-	[LoggerMessage(OutboxOracleEventId.OutboxUnreserveMessages, LogLevel.Debug,
-		"Unreserving outbox messages for dispatcher {DispatcherId}")]
-	private partial void LogUnreserveMessages(string dispatcherId);
 
 	[LoggerMessage(OutboxOracleEventId.OutboxDeleteRecord, LogLevel.Debug,
 		"Deleting outbox record {MessageId}")]

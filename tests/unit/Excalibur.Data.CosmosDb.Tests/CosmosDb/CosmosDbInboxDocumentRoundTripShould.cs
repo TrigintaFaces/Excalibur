@@ -181,7 +181,7 @@ public sealed class CosmosDbInboxDocumentRoundTripShould
 		var original = new InboxEntry("msg-123", RealHandlerType, "Orders.OrderPlaced", [7, 8, 9]);
 		var document = DocumentType
 			.GetMethod("FromInboxEntry", BindingFlags.Public | BindingFlags.Static)!
-			.Invoke(null, [original])!;
+			.Invoke(null, [original, "tenant-1"])!;
 
 		var entry = ToEntry(document);
 
@@ -189,6 +189,23 @@ public sealed class CosmosDbInboxDocumentRoundTripShould
 		entry.MessageId.ShouldBe("msg-123");
 		entry.MessageType.ShouldBe("Orders.OrderPlaced");
 		entry.Payload.ShouldBe(new byte[] { 7, 8, 9 });
+	}
+
+	/// <summary>
+	/// The dedup id the two-argument <c>CreateId</c> overload produces collides across tenants, so the
+	/// factory must reject an attempt to build a document without a tenant term rather than silently fall
+	/// back to the tenant-less form.
+	/// </summary>
+	[Fact]
+	public void RejectAnEmptyTenantWhenBuildingFromAnEntry()
+	{
+		var original = new InboxEntry("msg-123", RealHandlerType, "Orders.OrderPlaced", [7, 8, 9]);
+		var method = DocumentType.GetMethod("FromInboxEntry", BindingFlags.Public | BindingFlags.Static)!;
+
+		var act = () => method.Invoke(null, [original, string.Empty]);
+
+		var thrown = Should.Throw<TargetInvocationException>(act);
+		thrown.InnerException.ShouldBeOfType<ArgumentException>();
 	}
 
 	private static string CreateId(string messageId, string handlerType, string tenantId) =>

@@ -390,7 +390,12 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		// The caller's argument NARROWS the ambient set to their own tenant plus the holds that belong to
 		// no tenant. It is the same disjunction the ambient term uses, and for the same reason: a global
 		// hold blocks this tenant's erasures, so dropping it from their view does not fail safe.
-		var callerPredicate = tenantId is not null
+		// An empty string is not a tenant identifier (the untenanted partition is the sentinel value,
+		// never ""), so it means "no caller tenant supplied" and leaves the ambient term alone -- the
+		// same reading the sibling query methods and the in-memory store use. Treating "" as a tenant
+		// to match against would make this one method return only untenanted holds where the others
+		// return the caller's own.
+		var callerPredicate = !string.IsNullOrEmpty(tenantId)
 			? $" AND {TenantMatchClause("TenantId", "@TenantId")}"
 			: string.Empty;
 

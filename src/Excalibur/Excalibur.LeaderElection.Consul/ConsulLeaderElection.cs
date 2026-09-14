@@ -192,10 +192,6 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	public string? CurrentLeaderId => _cachedCurrentLeaderId;
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-		Justification = "UpdateHealthAsync uses JSON serialization for health metadata which is necessary for Consul health checks")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "UpdateHealthAsync uses JSON serialization for health metadata which is necessary for Consul health checks")]
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
 		if (_isRunning)
@@ -226,10 +222,6 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-		Justification = "UpdateHealthAsync uses JSON serialization for health metadata which is necessary for Consul health checks")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "UpdateHealthAsync uses JSON serialization for health metadata which is necessary for Consul health checks")]
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
 		if (!_isRunning)
@@ -649,6 +641,10 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	{
 		if (_fencingTokenProvider is null)
 		{
+			// No provider configured => this election runs in NON-FENCING mode by design, not "minted
+			// nothing, proceed anyway". A consumer who needs fencing must configure a provider; the
+			// fenced-resource seam (GuardActiveGateHasFencingToken) is what guards against a fenced
+			// store being used without one, not this method.
 			return true;
 		}
 

@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Dispatch.Delivery.Registry;
+using Excalibur.Dispatch.TypeResolution;
 using Excalibur.Dispatch.Options.ErrorHandling;
 using Excalibur.Dispatch.Serialization;
 
@@ -610,9 +612,139 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 
 	#endregion
 
+	#region Declared-name identity
+
+	[Fact]
+	public async Task HandlePoisonMessageAsync_CaptureTheDeclaredNameNotTheClrFullName()
+	{
+		// Arrange
+		var message = new NamedPoisonMessage();
+
+		// Act
+		await _sut.HandlePoisonMessageAsync(message, CreateFakeContext(), "reason", CancellationToken.None);
+
+		// Assert: the declared name is stored, not the CLR full name. Every other durable surface
+		// stores the declared name, and a CLR name moves when a consumer refactors a namespace.
+		_ = A.CallTo(() => _deadLetterStore.StoreAsync(
+				A<DeadLetterMessage>.That.Matches(m => m.MessageType == DeclaredName),
+				A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task HandlePoisonMessageAsync_FallBackToTheClrNameForAMessageThatDeclaresNone()
+	{
+		// Arrange: the dead-letter path is the error path, so a message with no declared name must
+		// still be captured rather than failing a second time.
+		var message = new TestMessage();
+
+		// Act
+		await _sut.HandlePoisonMessageAsync(message, CreateFakeContext(), "reason", CancellationToken.None);
+
+		// Assert
+		_ = A.CallTo(() => _deadLetterStore.StoreAsync(
+				A<DeadLetterMessage>.That.Matches(m => m.MessageType == typeof(TestMessage).FullName),
+				A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task ReplayMessageAsync_ResolveAMessageWhoseDeclaredNameIsNotAClrTypeName()
+	{
+		// Arrange: the declared name is deliberately nothing like a CLR type name, so this can only
+		// pass through the declared-name claim in the type registry.
+		// The registry only answers through a registered resolver; production forces this when the
+		// dispatch services are added.
+		_ = MessageTypeResolver.Instance;
+		MessageTypeRegistry.RegisterType<NamedPoisonMessage>();
+
+		var deadLetterMessage = new DeadLetterMessage
+		{
+			Id = Guid.NewGuid().ToString("N"),
+			MessageId = "declared-name-id",
+			MessageType = DeclaredName,
+			MessageBody = "{}",
+			MessageMetadata = "{}",
+			Reason = "test",
+		};
+
+		_ = A.CallTo(() => _deadLetterStore.GetByIdAsync("declared-name-id", A<CancellationToken>._))
+			.Returns(deadLetterMessage);
+
+		using var sut = CreateHandlerWithDispatcher();
+
+		// Act
+		var result = await sut.ReplayMessageAsync("declared-name-id", CancellationToken.None);
+
+		// Assert
+		result.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task ReplayMessageAsync_StillResolveAnEntryStoredUnderTheClrFullName()
+	{
+		// Arrange: entries captured before this identity change hold the CLR full name. The registry
+		// claims a type under BOTH forms, so those entries must keep replaying.
+		// The registry only answers through a registered resolver; production forces this when the
+		// dispatch services are added.
+		_ = MessageTypeResolver.Instance;
+		MessageTypeRegistry.RegisterType<NamedPoisonMessage>();
+
+		var deadLetterMessage = new DeadLetterMessage
+		{
+			Id = Guid.NewGuid().ToString("N"),
+			MessageId = "clr-name-id",
+			MessageType = typeof(NamedPoisonMessage).FullName!,
+			MessageBody = "{}",
+			MessageMetadata = "{}",
+			Reason = "test",
+		};
+
+		_ = A.CallTo(() => _deadLetterStore.GetByIdAsync("clr-name-id", A<CancellationToken>._))
+			.Returns(deadLetterMessage);
+
+		using var sut = CreateHandlerWithDispatcher();
+
+		// Act
+		var result = await sut.ReplayMessageAsync("clr-name-id", CancellationToken.None);
+
+		// Assert
+		result.ShouldBeTrue();
+	}
+
+	#endregion
+
+	/// <summary>
+	/// Replay resolves the stored type, then dispatches it through a scope. The class fixture's bare
+	/// fake provider cannot create a scope, so a replay that must reach a verdict needs a real
+	/// container with a dispatcher in it.
+	/// </summary>
+	private PoisonMessageHandler CreateHandlerWithDispatcher()
+	{
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(dispatcher)
+			.WithReturnType<Task<IMessageResult>>()
+			.Returns(Task.FromResult<IMessageResult>(MessageResult.Success()));
+
+		var services = new ServiceCollection();
+		_ = services.AddSingleton(dispatcher);
+
+		return new PoisonMessageHandler(
+			_deadLetterStore,
+			_serializer,
+			services.BuildServiceProvider(),
+			_options,
+			_logger);
+	}
+
 	#region Test Types
 
+	private const string DeclaredName = "poison.declared.v1";
+
 	private sealed class TestMessage : IDispatchMessage { }
+
+	[MessageName(DeclaredName)]
+	private sealed class NamedPoisonMessage : IDispatchMessage { }
 
 	#endregion
 }

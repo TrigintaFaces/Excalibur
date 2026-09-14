@@ -12,7 +12,6 @@ public interface IHandlerRegistryEntry
 	/// <summary>
 	/// Gets the type of message that this handler can process.
 	/// </summary>
-	[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.Interfaces)]
 	Type MessageType { get; }
 
 	/// <summary>
@@ -25,4 +24,11 @@ public interface IHandlerRegistryEntry
 	/// Gets a value indicating whether this handler returns a response after processing.
 	/// </summary>
 	bool ExpectsResponse { get; }
+
+	/// <summary>
+	/// Gets the response type produced by the handler when <see cref="ExpectsResponse" /> is <see langword="true" />,
+	/// or <see langword="null" /> when the handler does not return a response, or was registered through a caller
+	/// that did not supply it.
+	/// </summary>
+	Type? ResponseType { get; }
 }

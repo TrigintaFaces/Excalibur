@@ -35,7 +35,10 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	/// <summary>
 	/// The inbox store instance under test.
 	/// </summary>
-	protected IInboxStore Store { get; private set; } = null!;
+	// protected set so a provider whose fault is IRREVERSIBLE on the store instance (a disposed client,
+	// a closed connection) can rebuild it in RemovePersistenceFaultAsync. The alternative is a fault that
+	// destroys the backing store, which erases the evidence the durability arm's safety half inspects.
+	protected IInboxStore Store { get; set; } = null!;
 
 	/// <summary>
 	/// The inbox store admin interface, resolved from the Store via cast.
@@ -73,6 +76,22 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	/// </summary>
 	/// <returns>A configured IInboxStore instance.</returns>
 	protected abstract Task<IInboxStore> CreateStoreAsync();
+
+	/// <summary>
+	/// Creates a second, independent store instance for the fresh-instance durability read-back in
+	/// <see cref="ThrowNotNoOpOnPersistenceFailure"/>.
+	/// </summary>
+	/// <remarks>
+	/// Defaults to <see cref="CreateStoreAsync"/>, which is correct whenever a fresh instance still points
+	/// at the SAME physical backing store (a shared connection string / database / table or collection
+	/// name) -- true for most providers. Override this instead when it does not -- for example a fixture
+	/// that randomises a per-call namespace (a key prefix) for isolation BETWEEN DIFFERENT tests sharing
+	/// one container: a naive second <see cref="CreateStoreAsync"/> call there would build a store pointed
+	/// at a namespace of its own, and could never observe what the first instance wrote regardless of
+	/// whether the write actually succeeded -- silently making the safety arm vacuous rather than red or
+	/// green on the property it exists to check.
+	/// </remarks>
+	protected virtual Task<IInboxStore> CreateVerificationStoreAsync() => CreateStoreAsync();
 
 	/// <summary>
 	/// Cleans up the IInboxStore instance after each test.
@@ -858,4 +877,130 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			async () => _ = await store.IsProcessedAsync(absent, "ConcurrentFirstUse", CancellationToken.None).ConfigureAwait(false),
 			"the inbox store").ConfigureAwait(false);
 	}
+
+	#region Durability Fault Injection (2mek4x)
+
+	/// <summary>
+	/// Makes the NEXT durable write against the backing store fail with a real, provider-side rejection
+	/// (for example renaming the backing table/collection out from under the store) — never a mocked
+	/// client, which would return whatever it was told rather than reproduce a server's rejection.
+	/// </summary>
+	/// <remarks>
+	/// The base default throws rather than skip: a provider that has not wired real fault injection fails
+	/// <see cref="ThrowNotNoOpOnPersistenceFailure"/> loudly (RED-by-construction) instead of silently
+	/// passing an arm it never actually ran. Override this together with
+	/// <see cref="RemovePersistenceFaultAsync"/> to wire the arm for a real provider; override
+	/// <see cref="ThrowNotNoOpOnPersistenceFailure"/> itself only for a store with no external persistence
+	/// layer to fault (the in-memory store).
+	/// </remarks>
+	protected virtual Task InjectPersistenceFaultAsync() =>
+		throw new NotSupportedException(
+			$"{GetType().Name} has not wired durability fault injection (2mek4x) — override " +
+			$"{nameof(InjectPersistenceFaultAsync)} and {nameof(RemovePersistenceFaultAsync)} with a real " +
+			"provider-side fault (drop/rename the backing store, revoke a permission, sever the connection) " +
+			$"rather than letting {nameof(ThrowNotNoOpOnPersistenceFailure)} skip.");
+
+	/// <summary>
+	/// Reverses <see cref="InjectPersistenceFaultAsync"/> so the fixture's shared backing store is usable
+	/// by the next test again. Called from a <c>finally</c>, so it MUST be safe to call even when the
+	/// fault was never actually put in place (for example because the write it was meant to break never
+	/// happened).
+	/// </summary>
+	protected virtual Task RemovePersistenceFaultAsync() =>
+		throw new NotSupportedException(
+			$"{GetType().Name} has not wired durability fault injection (2mek4x) — see " +
+			$"{nameof(InjectPersistenceFaultAsync)}.");
+
+	/// <summary>
+	/// SAFETY + LIVENESS: <see cref="IInboxStore"/>'s durability fault model
+	/// (<see cref="IInboxStore"/> XML docs, "Durability fault model") requires that a persistence failure
+	/// on <see cref="IInboxStore.CreateEntryAsync"/> surface as a thrown exception and leave nothing
+	/// persisted — never a silent no-op that reports success while the write never landed. A no-op here
+	/// converts at-least-once delivery into silent message loss, because the caller acks on the strength
+	/// of the "successful" write.
+	/// </summary>
+	[Fact]
+	public virtual async Task ThrowNotNoOpOnPersistenceFailure()
+	{
+		var messageId = $"fault-{Guid.NewGuid():N}";
+		const string handlerType = "DurabilityFaultInjection";
+
+		await InjectPersistenceFaultAsync().ConfigureAwait(false);
+		try
+		{
+			// SAFETY: the write must throw, not return successfully having recorded nothing.
+			_ = await Should.ThrowAsync<Exception>(
+				() => Store.CreateEntryAsync(
+						messageId, handlerType, "FaultMessageType", [1],
+						new Dictionary<string, object>(StringComparer.Ordinal), CancellationToken.None)
+					.AsTask())
+				.ConfigureAwait(false);
+		}
+		finally
+		{
+			// Removed BEFORE the read-back below, deliberately: a fresh store instance's FIRST use against
+			// several real providers re-verifies its own schema/topology (for example a multi-tenant
+			// primary-key check), and that verification has no way to distinguish "the backing store is
+			// mid-fault" from "the backing store was never provisioned" -- both look like a missing/
+			// malformed schema. Removing the fault first keeps the read-back a clean test of "was anything
+			// persisted", which is the property this arm actually needs to prove; restoring the backing
+			// store does not fabricate a row that was never written.
+			//
+			// THE CONSTRAINT THAT ORDERING PUTS ON THE FAULT, stated here because it is only discoverable
+			// by breaking it: A FAULT MUST NOT DESTROY THE EVIDENCE THE ASSERTION INSPECTS. That is the
+			// property; the mechanism is free. Permission (an ACL revoke, a write block), routing (a severed
+			// client route), lifecycle (a disposed client) and schema (a rename, a validator) all satisfy it
+			// -- pick whichever the provider actually offers, since some offer only one. A destructive fault (drop the
+			// table, delete the keyspace) erases the very rows the read-back below inspects, so the safety
+			// assertion cannot fail whatever the faulted write did, and neither ordering rescues it:
+			// repair-then-read queries an empty store, read-then-repair queries one that is not there.
+			await RemovePersistenceFaultAsync().ConfigureAwait(false);
+		}
+
+		// Read back from a FRESH store instance -- never trust the faulted instance's own view -- and
+		// confirm the throw did not leave a partial write behind.
+		var duringFault = await CreateVerificationStoreAsync().ConfigureAwait(false);
+		try
+		{
+			(await duringFault.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false))
+				.ShouldBeNull("a thrown CreateEntryAsync must not have persisted anything");
+		}
+		finally
+		{
+			await DisposeStoreAsync(duringFault).ConfigureAwait(false);
+		}
+
+		// LIVENESS: with the fault removed, the identical call succeeds and is durably readable from a
+		// second fresh instance -- so a store that simply throws on everything cannot pass this arm.
+		_ = await Store.CreateEntryAsync(
+				messageId, handlerType, "FaultMessageType", [1],
+				new Dictionary<string, object>(StringComparer.Ordinal), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var afterRepair = await CreateVerificationStoreAsync().ConfigureAwait(false);
+		try
+		{
+			(await afterRepair.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false))
+				.ShouldNotBeNull("the identical write must succeed and be durably readable once the fault is gone");
+		}
+		finally
+		{
+			await DisposeStoreAsync(afterRepair).ConfigureAwait(false);
+		}
+	}
+
+	private static async Task DisposeStoreAsync(IInboxStore store)
+	{
+		switch (store)
+		{
+			case IAsyncDisposable asyncDisposable:
+				await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+				break;
+			case IDisposable disposable:
+				disposable.Dispose();
+				break;
+		}
+	}
+
+	#endregion Durability Fault Injection (2mek4x)
 }

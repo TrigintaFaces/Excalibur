@@ -507,7 +507,7 @@ public sealed class DomainEventSerializationContractShould
 		var bytes = serializer.SerializeEvent(original);
 		var deserialized = (OrderCreatedEvent)serializer.DeserializeEvent(bytes, typeof(OrderCreatedEvent));
 
-		// Assert -- T.21: CorrelationId/CausationId are first-class properties
+		// Assert -- CorrelationId/CausationId are computed from Metadata, which round-trips
 		deserialized.CorrelationId.ShouldBe("12345678-1234-1234-1234-123456789012");
 		deserialized.CausationId.ShouldBe("cause-001");
 	}

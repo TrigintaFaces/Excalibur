@@ -54,8 +54,8 @@ namespace Excalibur.Outbox.Oracle.Tests;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "Oracle")]
+[Collection(OracleOutboxCollection.Name)]
 public sealed class OracleDeadLetterTenantProvenanceShould(OracleOutboxStoreContainerFixture fixture)
-	: IClassFixture<OracleOutboxStoreContainerFixture>
 {
 	private const string Sentinel = "__untenanted__";
 

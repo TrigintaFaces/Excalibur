@@ -61,6 +61,10 @@ public sealed class EventStoreEncryptionWiringShould
 		// bridge above so its TryAdd fallbacks stay no-ops and erasure destroys keys in the SAME provider the
 		// encryption stack reads from -- otherwise the shred would target a second, unrelated key store.
 		_ = services.AddInMemoryErasureStore();
+		// Erasure requires a legal-hold service: it is irreversible and consults holds before it
+		// proceeds, so an optional resolution let an unfinished deployment skip the check silently.
+		// This stack operates no holds and now says so, which is the declared way to mean it.
+		_ = services.AddNoLegalHolds();
 		_ = services.AddGdprErasure(o => o.KeyShredOnlyErasure = true);
 
 		// Event store + at-rest field encryption WIRE under test.

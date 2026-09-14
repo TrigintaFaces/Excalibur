@@ -15,7 +15,6 @@ using Polly;
 using BackoffStrategy = Excalibur.Dispatch.Resilience.BackoffStrategy;
 using CircuitBreakerOptions = Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions;
 using ITransportCircuitBreakerRegistry = Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry;
-using RetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -45,65 +44,27 @@ public static class DispatchBuilderResilienceExtensions
 	}
 
 	/// <summary>
-	/// Adds Dispatch resilience patterns with configuration.
-	/// </summary>
-	/// <param name="builder"> The dispatch builder. </param>
-	/// <param name="configureOptions"> Action to configure resilience options. </param>
-	/// <returns> The dispatch builder for method chaining. </returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure resilience options models are annotated accordingly.")]
-	[RequiresDynamicCode(
-		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
-	private static IDispatchBuilder UseResilienceCore(
-		this IDispatchBuilder builder,
-		Action<ResilienceOptions> configureOptions)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configureOptions);
-
-		// Add basic resilience
-		_ = builder.UseResilienceCore();
-
-		// Configure options
-		_ = builder.Services.Configure(configureOptions);
-
-		return builder;
-	}
-
-	/// <summary>
 	/// Adds Dispatch resilience (retry, circuit breaker, bulkhead, timeout) via the builder.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="configure">Optional action to configure resilience options.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="builder"/> is null.
 	/// </exception>
-	/// <example>
+	/// <remarks>
+	/// Tune the individual stages through the options types their subsystems own, so each knob has a
+	/// single home:
 	/// <code>
-	/// services.AddDispatch(dispatch =>
-	/// {
-	///     dispatch.UseResilience(res => res.DefaultRetryCount = 3);
-	/// });
+	/// services.AddDispatch(dispatch =&gt; dispatch.UseResilience());
+	/// services.Configure&lt;PollyRetryOptions&gt;(o =&gt; o.MaxAttempts = 3);
+	/// services.Configure&lt;CircuitBreakerOptions&gt;(o =&gt; o.ConsecutiveFailureThreshold = 5);
 	/// </code>
-	/// </example>
+	/// </remarks>
 	[RequiresUnreferencedCode(
 		"Configuration binding may reference types not preserved during trimming. Ensure resilience options models are annotated accordingly.")]
 	[RequiresDynamicCode(
 		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
-	public static IDispatchBuilder UseResilience(
-		this IDispatchBuilder builder,
-		Action<ResilienceOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		if (configure != null)
-		{
-			return builder.UseResilienceCore(configure);
-		}
-
-		return builder.UseResilienceCore();
-	}
+	public static IDispatchBuilder UseResilience(this IDispatchBuilder builder) => builder.UseResilienceCore();
 
 	/// <summary>
 	/// Adds Polly-based adapters for all resilience interfaces.
@@ -156,7 +117,7 @@ public static class DispatchBuilderResilienceExtensions
 		_ = services.RemoveAll<IRetryPolicy>();
 		_ = services.AddSingleton<IRetryPolicy>(sp =>
 		{
-			var retryOpts = options.RetryOptions ?? new RetryOptions();
+			var retryOpts = options.RetryOptions ?? new PollyRetryOptions();
 			var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<PollyRetryPolicyAdapter>>();
 			return new PollyRetryPolicyAdapter(Microsoft.Extensions.Options.Options.Create(retryOpts), logger);
 		});
@@ -172,7 +133,7 @@ public static class DispatchBuilderResilienceExtensions
 		_ = services.RemoveAll<IBackoffCalculator>();
 		_ = services.AddSingleton<IBackoffCalculator>(sp =>
 		{
-			var retryOpts = options.RetryOptions ?? new RetryOptions();
+			var retryOpts = options.RetryOptions ?? new PollyRetryOptions();
 			return new PollyBackoffCalculatorAdapter(
 				retryOpts.BackoffStrategy switch
 				{

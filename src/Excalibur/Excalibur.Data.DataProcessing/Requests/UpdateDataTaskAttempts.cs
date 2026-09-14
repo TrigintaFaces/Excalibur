@@ -13,7 +13,7 @@ namespace Excalibur.Data.DataProcessing.Requests;
 /// </summary>
 [NoTenantTerm(
 	TenantConfinement.NoTenantDimension,
-	"The data-processing task queue has no tenant dimension: its table declares no tenant column, and a task is addressed by its own identifier. This is a statement about the schema as it exists, not a judgement that tenant-owned work never flows through it.")]
+	"The data-processing task queue has no tenant dimension: its table declares no tenant column, and a task is addressed by its own identifier. This is a statement about the schema as it exists, not a judgement that tenant-owned work never flows through it. The enqueue API accepts a record type only (IDataOrchestrationManager.AddDataTaskForRecordTypeAsync), and the drain selects all pending tasks by record type -- no tenant identity can enter the queue through either path.")]
 internal sealed class UpdateDataTaskAttempts : DataRequest<int>
 {
 	/// <summary>

@@ -59,7 +59,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Dispatch.Transport.Abstractions` | AOT-safe | |
+| `Excalibur.Dispatch.Transport.Abstractions` | Annotated | `CloudEventEncoderAdapter<TOutbound>` forwards to the registered `ICloudEventEncoder<TOutbound>`, which may serialize reflectively. Annotated paths: `ToTransportAsync`. Each transport's own `UseCloudEvents`/`AddCloudEventsForX` registration carries the same annotation, so the signal reaches a consumer who opts into CloudEvents. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | Annotated | Builder pattern, no reflection. Annotated paths: `ToTransportMessageAsync`, `AddCloudEventsForRabbitMq`. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Transport.AwsSqs` | Annotated | Builder pattern, no reflection. Annotated paths: `ToBatchSqsMessageAsync`, `ToEventBridgeEventAsync` and 4 more, plus the CloudEvents registrations `UseCloudEvents`, `AddCloudEventsForSqs`, `AddCloudEventsForSns`, `AddCloudEventsForEventBridge`. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Transport.AzureServiceBus` | Annotated | `MessageDeserializerRegistry` typed pattern; `EventGridTransportSender` annotated. Annotated paths: `ToTransportMessageAsync`, plus the CloudEvents registrations `UseCloudEvents`, `AddCloudEventsForServiceBus`, `AddCloudEventsForEventHubs`. The rest of the surface publishes clean. |
@@ -226,7 +226,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.Saga` | Annotated | Source-gen registry population via `IPostConfigureOptions` pattern. Annotated paths: `AddSagas`, `ProcessEventAsync`, the `RequestTimeoutAsync` overload that carries timeout data (the parameterless overload is AOT-safe) and 5 more. The rest of the surface publishes clean. |
 | `Excalibur.Saga.SqlServer` | Annotated | Annotated paths: `AddSqlServerSagaStore`, `SaveSagaRequest`, `UseSqlServerSagaStore` and 1 more. The rest of the surface publishes clean. |
 | `Excalibur.Saga.Postgres` | Annotated | Annotated paths: `AddPostgresSagaStore`, `SaveSagaRequest`. The rest of the surface publishes clean. |
-| `Excalibur.Saga.MongoDB` | AOT-safe | Analysis reports 4 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
+| `Excalibur.Saga.MongoDB` | Annotated | Annotated path: `SaveAsync` — saga state is serialized with a reflection-based serializer. The rest of the surface publishes clean. |
 | `Excalibur.Saga.DynamoDb` | **Not compatible** | Ships `Excalibur.Data.DynamoDb`, which is not AOT-compatible |
 | `Excalibur.Saga.Firestore` | **Not compatible** | Ships `Excalibur.Data.Firestore`, which is not AOT-compatible |
 | `Excalibur.Saga.CosmosDb` | **Not compatible** | CosmosDB SDK dependency |
@@ -277,6 +277,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 |---------|-----------|-------|
 | `Excalibur.A3` | Annotated | Annotated paths: `AddA3DispatchServices`, `AddExcaliburA3`, `ExtractResourceId` and 4 more. The rest of the surface publishes clean. |
 | `Excalibur.A3.Abstractions` | AOT-safe | |
+| `Excalibur.A3.AspNetCore` | AOT-safe | |
 | `Excalibur.A3.Core` | AOT-safe | |
 | `Excalibur.A3.Governance` | AOT-safe | |
 | `Excalibur.A3.Governance.Abstractions` | AOT-safe | |
@@ -391,7 +392,7 @@ directly from each project's `IsAotCompatible` property, the same source the sec
 | `Excalibur.Dispatch.Compat.MediatR` | AOT-safe | `AddMediatRCompat` registers a fixed set of adapters and needs no reflection over consumer types, so the whole surface publishes clean. |
 | `Excalibur.Dispatch.Migration` | **Not compatible** |  |
 | `Excalibur.Dispatch.Transport.IbmMq` | **Not compatible** | NOT compatible. The IBM MQ managed client uses runtime reflection and dynamic assembly loading. |
-| `Excalibur.Dispatch.Transport.Mqtt` | AOT-safe |  |
+| `Excalibur.Dispatch.Transport.Mqtt` | Annotated | Builder pattern, no reflection. The CloudEvents encoder serializes the payload through reflection-based JSON. Annotated paths: `ToTransportMessageAsync`, `AddCloudEventsForMqtt`. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Transport.Pulsar` | AOT-safe |  |
 | `Excalibur.AuditLogging.Abstractions` | AOT-safe |  |
 | `Excalibur.Compliance.MongoDb` | AOT-safe |  |

@@ -409,6 +409,41 @@ fi
 # than ignoring one, and filing a bug deleted other agents' bug reports.
 # The Issue Accountability Rule stands, enforced by `bd create` -- which is what it always was.
 
+# ── Staged reservation guard (BLOCKING, grep-speed) ─────────────────────────────────
+# Refuses a commit that stages a file another agent holds an EXCLUSIVE OPCOM reservation on.
+#
+# WHY: reservations were advisory in the only direction that mattered. An agent locks a file it is
+# mid-edit; the integrator stages it; git does not care and no hook asked. A commit takes whatever
+# is in the tree at that instant, so a locked file can be published HALF-FINISHED under a message
+# asserting it is a fix. Measured 2026-09-11: a reservation check run at 17:20Z returned count 0,
+# nine locks were taken after it, and at 19:00Z five reserved files belonging to three agents landed
+# in one commit. A reservation reading expires exactly like a git status letter.
+#
+# COST: one HTTP call against a list we already maintain, 8s timeout. It does NOT invoke a compiler
+# and must never grow to -- see when-to-create-a-gate.md.
+#
+# ESCAPE HATCH, deliberately visible: RESERVATION_GUARD=off git commit …
+# Operator direction 2026-09-11: "if it starts hindering commits because reservations were not
+# removed then we will remove it." A stale lock must never become a wall -- take the hatch, say why,
+# and tell the holder. The guard REFUSES (exit 3) rather than passing when OPCOM is unreachable,
+# and an unreachable tracker is treated as a warning here, not a block: a local outage must not
+# stop the only committer.
+RESV_GUARD="$REPO_ROOT/.claude/harness/staged-reservation-guard.sh"
+if [ "${RESERVATION_GUARD:-}" = "off" ]; then
+    echo -e "${YELLOW}⚠ staged-reservation-guard BYPASSED (RESERVATION_GUARD=off).${NC}"
+elif [ -f "$RESV_GUARD" ]; then
+    bash "$RESV_GUARD" && rg_rc=0 || rg_rc=$?
+    if [ "$rg_rc" -eq 1 ]; then
+        echo -e "${RED}✗ COMMIT REJECTED: staged files are exclusively reserved by another agent.${NC}" >&2
+        echo -e "${CYAN}  Drop them, or RESERVATION_GUARD=off if the holder has agreed.${NC}" >&2
+        exit 1
+    elif [ "$rg_rc" -eq 3 ]; then
+        echo -e "${YELLOW}⚠ staged-reservation-guard REFUSED (could not reach OPCOM). NOT a pass -- proceeding,${NC}" >&2
+        echo -e "${YELLOW}  but nothing was checked. Verify by hand if you are integrating someone else's lane.${NC}" >&2
+    fi
+fi
+
+
 # ── Staged secret scan (BLOCKING) ──────────────────────────────────────────────────
 # The real control that bd-flush-then-commit.md clause 4 references. Lives in .claude/harness/ (repo
 # machinery — off product CI, off tests/**, never published), wired HERE in the local pre-commit hook.
@@ -520,12 +555,28 @@ echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━�
 #   project). It prints the finding and proceeds. It is a documented bypass, not a silent one — if it
 #   becomes routine, that is evidence the gate is mis-scoped, and it should be re-ruled, not ignored.
 CSBG="$REPO_ROOT/eng/ci/committed-sha-build-gate.sh"
+# A bypass must leave an ARTIFACT. Without one, a deliberately-skipped gate and a gate that
+# PASSED are indistinguishable in the history forever -- nobody can audit which commits were
+# actually verified, including the person who skipped it. prepare-commit-msg appends this.
+GATE_BYPASS_MARK="$(git rev-parse --git-path gate-bypass-trailer 2>/dev/null)"
+[ -n "$GATE_BYPASS_MARK" ] && rm -f "$GATE_BYPASS_MARK"   # never inherit a stale marker
 if [ -f "$CSBG" ]; then
     bash "$CSBG" --staged && csbg_rc=0 || csbg_rc=$?
     case "${csbg_rc:-0}" in
         0) ;;  # PASS — the commit matches the tree that was built.
         1)
             if [ "${COMMITTED_SHA_GATE:-}" = "warn" ]; then
+                if [ -n "$GATE_BYPASS_MARK" ]; then
+                    {
+                        printf '
+'
+                        printf 'Gate-Bypassed: committed-sha-build-gate (COMMITTED_SHA_GATE=warn)
+'
+                        printf 'Bypass-Reason: %s
+' "${COMMITTED_SHA_GATE_REASON:-not stated by the committer}"
+                    } > "$GATE_BYPASS_MARK"
+                    echo -e "${YELLOW}  Recorded: a Gate-Bypassed trailer will go into this commit message.${NC}"
+                fi
                 echo -e "${YELLOW}⚠ committed-sha-build-gate WARN-ONLY (COMMITTED_SHA_GATE=warn): proceeding on a${NC}"
                 echo -e "${YELLOW}  knowingly-partial stage. The committed SHA is NOT the tree you built.${NC}"
             else
@@ -852,6 +903,36 @@ if [ -n "$CR_BLOBS" ]; then
     echo "$CR_BLOBS" | sed 's/^/    /' >&2
     echo -e "${RED}  These clone dirty on Linux and REFUSE the release gate (clean-tree assertion).${NC}" >&2
     echo -e "${CYAN}  Fix:  perl -0pi -e 's/\r+\n/\r\n/g' <file>   (then re-stage)${NC}" >&2
+    exit 1
+fi
+
+
+# @@ Internal references in the public surface @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Tracker, sprint and ADR identifiers must not reach anything a consumer sees: XML doc comments ship
+# in the NuGet .xml and surface in IntelliSense, and src/, eng/ and .github/workflows/ are mirrored
+# to a public repository verbatim.
+#
+# The gate existed and ran only in mirror CI, so a leak was caught after it was already committed --
+# 34 files reached HEAD that way. It is wired here because this is the last moment it can be cheap to
+# fix: the author is still holding the change.
+#
+# --staged, NOT the whole tree, and that distinction is what makes this affordable. The whole-surface
+# scan is a ~10k-pattern fixed-string grep taking minutes; --staged narrows the scan itself to the
+# staged paths, so a three-file commit pays three files. Exemption stays per-path, so narrowing the
+# scope does not widen what the gate accepts -- an internal sink staged for commit is still exempt.
+# Nothing staged returns clean immediately rather than falling through to a bare pathspec.
+NIR_GATE="$(git rev-parse --show-toplevel)/eng/ci/no-internal-refs-gate.sh"
+if [ -x "$NIR_GATE" ] || [ -f "$NIR_GATE" ]; then
+    if ! bash "$NIR_GATE" --staged; then
+        echo -e "${RED}X COMMIT REJECTED: an internal reference reached the public surface.${NC}" >&2
+        echo -e "${RED}  Tracker/sprint/ADR ids ship to consumers in IntelliSense and in the public mirror.${NC}" >&2
+        echo -e "${CYAN}  Fix: keep the substance, drop the reference -- describe the behaviour, not the work item.${NC}" >&2
+        echo -e "${CYAN}  Do NOT raise the baseline to make this pass; it is a ratchet and only moves down.${NC}" >&2
+        exit 1
+    fi
+else
+    echo -e "${RED}X COMMIT REFUSED: ${NIR_GATE} is missing — the public-surface scan never ran.${NC}" >&2
+    echo -e "${RED}  Nothing was checked, which is NOT a clean bill of health.${NC}" >&2
     exit 1
 fi
 

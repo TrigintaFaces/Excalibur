@@ -77,17 +77,6 @@
         "resolved": "3.3.4",
         "contentHash": "kNLTfXtXUWDHVt5iaPkkiPuyHYlMgLI6SOFT4w88bfeI2vqSeGgHunFkdvlaCM8RDfcY0t2+jnesQtidRJJ/DA=="
       },
-      "Microsoft.SourceLink.GitHub": {
-        "type": "Direct",
-        "requested": "[10.0.202, )",
-        "resolved": "10.0.202",
-        "contentHash": "vRm3w0AWndnqt8X73qoWTdD/qp7o+bYMCufl7hSiQUSqeI3WKdqA/ElE6MCUscy84FX8HCMcK2EJCtTm+4bdbw==",
-        "dependencies": {
-          "Microsoft.Build.Tasks.Git": "10.0.202",
-          "Microsoft.SourceLink.Common": "10.0.202",
-          "System.IO.Hashing": "10.0.6"
-        }
-      },
       "Roslynator.Analyzers": {
         "type": "Direct",
         "requested": "[4.15.0, )",
@@ -296,14 +285,6 @@
         "type": "Transitive",
         "resolved": "10.0.0",
         "contentHash": "bUubrBD6tRJE3V1kvRloYc6NymH3R5oFKjAS9e0ELNx6u0ZR+zjps9dDQyjgqN/rArzl7f+21KGszj3YRN7F2Q=="
-      },
-      "Microsoft.Build.Tasks.Git": {
-        "type": "Transitive",
-        "resolved": "10.0.202",
-        "contentHash": "HXAW7dToPLi6lHN4TJz1FfxLYfPS3EF20YrrZxQ9xbwbjLkFXJ+SwkuuILoAdCWTNHhHfa5oqOsrOEQX5s+eMg==",
-        "dependencies": {
-          "System.IO.Hashing": "10.0.6"
-        }
       },
       "Microsoft.Data.SqlClient.Extensions.Abstractions": {
         "type": "Transitive",
@@ -514,11 +495,6 @@
         "type": "Transitive",
         "resolved": "17.11.4",
         "contentHash": "mudqUHhNpeqIdJoUx2YDWZO/I9uEDYVowan89R6wsomfnUJQk6HteoQTlNjZDixhT2B4IXMkMtgZtoceIjLRmA=="
-      },
-      "Microsoft.SourceLink.Common": {
-        "type": "Transitive",
-        "resolved": "10.0.202",
-        "contentHash": "g8E67huS0Slt6iJiUG1uj2N4NBo/q68Q1y1H4nFu1Cn4AOp6S5D8AeGLhGMzBT+JmNCjiGTvKco2qkbe4F31tQ=="
       },
       "Microsoft.SqlServer.Server": {
         "type": "Transitive",
@@ -873,6 +849,24 @@
           "Polly": "[8.6.6, )"
         }
       },
+      "excalibur.dispatch.resilience.polly": {
+        "type": "Project",
+        "dependencies": {
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Microsoft.Extensions.Caching.Abstractions": "[10.0.10, )",
+          "Microsoft.Extensions.Caching.Memory": "[10.0.10, )",
+          "Microsoft.Extensions.Configuration.Abstractions": "[10.0.10, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
+          "Microsoft.Extensions.Hosting.Abstractions": "[10.0.10, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.10, )",
+          "Microsoft.Extensions.Options": "[10.0.10, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.10, )",
+          "Microsoft.Extensions.Options.DataAnnotations": "[10.0.10, )",
+          "Polly": "[8.6.6, )",
+          "System.Threading.RateLimiting": "[10.0.7, )"
+        }
+      },
       "excalibur.dispatch.serialization.memorypack": {
         "type": "Project",
         "dependencies": {
@@ -932,6 +926,7 @@
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
           "OpenTelemetry.Extensions.Hosting": "[1.15.3, )",
+          "Polly": "[8.6.6, )",
           "System.IO.Hashing": "[10.0.7, )"
         }
       },

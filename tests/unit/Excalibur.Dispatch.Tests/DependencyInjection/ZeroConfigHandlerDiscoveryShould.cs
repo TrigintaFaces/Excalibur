@@ -62,7 +62,7 @@ public sealed class ZeroConfigHandlerDiscoveryShould
 		var probe = new ZeroConfigProbeAction();
 		var result = await dispatcher.DispatchAsync(probe, TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue(
+		result.Succeeded.ShouldBeTrue(
 			$"a bare AddDispatch() must reach a handler in the entry assembly, as every getting-started "
 			+ $"document promises. Dispatch failed with: {result.ErrorMessage}");
 
@@ -117,7 +117,7 @@ public sealed class ZeroConfigHandlerDiscoveryShould
 			.GetRequiredService<IDispatcher>()
 			.DispatchAsync(probe, TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue($"dispatch failed with: {result.ErrorMessage}");
+		result.Succeeded.ShouldBeTrue($"dispatch failed with: {result.ErrorMessage}");
 		probe.HandledBy.ShouldBe(
 			nameof(ExplicitOverrideHandler),
 			"the consumer registered ExplicitOverrideHandler by hand; the entry-assembly scan must not "
@@ -144,7 +144,7 @@ public sealed class ZeroConfigHandlerDiscoveryShould
 			.GetRequiredService<IDispatcher>()
 			.DispatchAsync(probe, TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue($"dispatch failed with: {result.ErrorMessage}");
+		result.Succeeded.ShouldBeTrue($"dispatch failed with: {result.ErrorMessage}");
 		probe.Handled.ShouldBeTrue("an explicitly supplied assembly must still be scanned");
 	}
 

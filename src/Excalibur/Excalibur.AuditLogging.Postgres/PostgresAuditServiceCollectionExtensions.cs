@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.AuditLogging.Postgres;
+using Excalibur.AuditLogging.Retention;
 using Excalibur.Compliance;
 
 using Microsoft.Extensions.Configuration;
@@ -50,10 +51,8 @@ public static class PostgresAuditServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="PostgresAuditOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static IServiceCollection AddPostgresAuditStore(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -78,6 +77,42 @@ public static class PostgresAuditServiceCollectionExtensions
 		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider —
 		// PostgresAuditStore depends on IAuditIntegrityStrategy to tag/verify records.
 		_ = services.AddAuditIntegrity();
+
+		// The retention settings a consumer actually sets live on PostgresAuditRetentionOptions, but the
+		// service that enforces them reads AuditRetentionOptions. The two types are unrelated — both sealed,
+		// no inheritance — so without this projection the provider-facing block is wired to nothing: a
+		// consumer sets EnableRetentionEnforcement = false, the enforcing service still reads its own
+		// default of true, and their audit data is deleted anyway; a consumer sets RetentionPeriod = 90 days
+		// and every event is kept for the core default of seven years. All three properties are projected,
+		// because a block where one knob works and the rest are inert is worse than one that is wholly
+		// inert — the working knob is the evidence a consumer uses to conclude the others work too. Mirrors
+		// the identical projection in SqlServerAuditServiceCollectionExtensions.RegisterSqlServerAuditStoreCore.
+		// CleanupBatchSize is deliberately NOT among them: there is no store-agnostic batch size in the core
+		// options to project it onto (see PostgresAuditRetentionOptions.CleanupBatchSize).
+		//
+		// A DEFAULT IS NOT A CHOICE. Each property is projected only when it differs from this type's own
+		// shipped default, so registering the store never overwrites a window the host already set on the
+		// core options via a separate AddAuditRetention call.
+		_ = services.AddOptions<AuditRetentionOptions>()
+			.Configure<IOptions<PostgresAuditOptions>>(static (core, postgres) =>
+			{
+				var provider = postgres.Value.Retention;
+
+				if (provider.EnableRetentionEnforcement != PostgresAuditRetentionOptions.DefaultEnableRetentionEnforcement)
+				{
+					core.EnableRetentionEnforcement = provider.EnableRetentionEnforcement;
+				}
+
+				if (provider.RetentionPeriod != PostgresAuditRetentionOptions.DefaultRetentionPeriod)
+				{
+					core.RetentionPeriod = provider.RetentionPeriod;
+				}
+
+				if (provider.CleanupInterval != PostgresAuditRetentionOptions.DefaultCleanupInterval)
+				{
+					core.CleanupInterval = provider.CleanupInterval;
+				}
+			});
 
 		// Idempotent single-tenant default: the store takes ITenantContext positionally, so without a
 		// registration it cannot be constructed — it would throw at resolve while every unit test that news

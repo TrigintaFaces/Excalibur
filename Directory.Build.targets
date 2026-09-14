@@ -56,13 +56,22 @@
     <BuildExamplesAndTests Condition="'$(BuildExamplesAndTests)' == ''">false</BuildExamplesAndTests>
   </PropertyGroup>
 
-  <!-- Detect sample/test/benchmark projects by path -->
+  <!-- Detect sample/test/benchmark projects by path.
+
+       The separator is NORMALISED before matching, and that is the whole point of this block rather
+       than a tidiness. MSBuildProjectFullPath uses the platform separator: backslash on Windows,
+       forward slash on Linux. Matching on '\tests\' therefore never matched anything on Linux, so
+       this skip was a silent no-op there: every test, example and benchmark project built even
+       with BuildExamplesAndTests=false, which is the opposite of what the flag says and the reason
+       a Linux CI leg cost time nobody could account for. A path check that hard-codes one platform's
+       separator does not fail on the other; it quietly matches nothing. -->
   <PropertyGroup>
     <_ProjectPathLower>$([System.String]::Copy('$(MSBuildProjectFullPath)').ToLower())</_ProjectPathLower>
+    <_ProjectPathNorm>$(_ProjectPathLower.Replace('\','/'))</_ProjectPathNorm>
     <!-- Use MSBuild property functions to evaluate Contains() safely for VS/MSBuild -->
-    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathLower)').Contains('\examples\')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
-    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathLower)').Contains('\tests\')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
-    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathLower)').Contains('\benchmarks\')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
+    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathNorm)').Contains('/examples/')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
+    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathNorm)').Contains('/tests/')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
+    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathNorm)').Contains('/benchmarks/')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
   </PropertyGroup>
 
   <!-- Remove compile items to avoid producing errors for skipped projects -->

@@ -460,84 +460,53 @@ public sealed class Soc2ComplianceServiceShould
 	#region ValidateControlAsync Tests
 
 	[Fact]
-	public async Task ValidateControlAsync_ReturnNotConfigured_WhenNoControlsForCriterion()
+	public async Task ValidateCriterionAsync_ReturnsNoResults_WhenNoControlsForCriterion()
 	{
 		// Arrange
-		_ = A.CallTo(() => _fakeControlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
-			.Returns([]);
+		_ = A.CallTo(() => _fakeControlValidation.ValidateCriterionAsync(A<TrustServicesCriterion>._, A<CancellationToken>._))
+			.Returns<IReadOnlyList<ControlValidationResult>>([]);
 
 		// Act
-		var result = await _sut.ValidateControlAsync(TrustServicesCriterion.CC6_LogicalAccess, CancellationToken.None);
+		var results = await _sut.ValidateCriterionAsync(TrustServicesCriterion.CC6_LogicalAccess, CancellationToken.None);
 
-		// Assert
-		result.IsConfigured.ShouldBeFalse();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBe(0);
+		// Assert -- an assessment that did not run, not a control assessed and found ineffective.
+		results.ShouldBeEmpty();
 	}
 
 	[Fact]
-	public async Task ValidateControlAsync_ValidateFirstControl_WhenMultipleExist()
+	public async Task ValidateCriterionAsync_ReportsEveryControl_WhenMultipleExist()
 	{
-		// Arrange
-		var controlIds = new List<string> { "SEC-001", "SEC-002" };
-		_ = A.CallTo(() => _fakeControlValidation.GetControlsForCriterion(TrustServicesCriterion.CC6_LogicalAccess))
-			.Returns(controlIds);
-		_ = A.CallTo(() => _fakeControlValidation.ValidateControlAsync("SEC-001", A<CancellationToken>._))
-			.Returns(CreateValidationResult("SEC-001", true, 100));
+		// Arrange -- the failing control is SECOND, so a first-control verdict would report a pass.
+		_ = A.CallTo(() => _fakeControlValidation.ValidateCriterionAsync(TrustServicesCriterion.CC6_LogicalAccess, A<CancellationToken>._))
+			.Returns<IReadOnlyList<ControlValidationResult>>(
+				[CreateValidationResult("SEC-001", true, 100), CreateValidationResult("SEC-002", false, 10)]);
 
 		// Act
-		_ = await _sut.ValidateControlAsync(TrustServicesCriterion.CC6_LogicalAccess, CancellationToken.None);
+		var results = await _sut.ValidateCriterionAsync(TrustServicesCriterion.CC6_LogicalAccess, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _fakeControlValidation.ValidateControlAsync("SEC-001", A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
+		results.Count.ShouldBe(2);
+		results.ShouldContain(r => r.ControlId == "SEC-002" && !r.IsEffective);
 	}
 
 	#endregion ValidateControlAsync Tests
 
 	#region GetEvidenceAsync Tests
 
-	[Fact]
-	public async Task GetEvidenceAsync_ReturnEvidence_WithCorrectCriterion()
-	{
-		// Arrange
-		var criterion = TrustServicesCriterion.CC6_LogicalAccess;
-		var periodStart = DateTimeOffset.UtcNow.AddDays(-30);
-		var periodEnd = DateTimeOffset.UtcNow;
-
-		// Act
-		var result = await _sut.GetEvidenceAsync(criterion, periodStart, periodEnd, CancellationToken.None);
-
-		// Assert
-		result.Criterion.ShouldBe(criterion);
-		result.PeriodStart.ShouldBe(periodStart);
-		result.PeriodEnd.ShouldBe(periodEnd);
-	}
+	// These four arms used to assert that the service returns an empty AuditEvidence with a non-empty
+	// ChainOfCustodyHash, and an empty byte[] export. They passed, and what they certified was a
+	// cryptographically signed artifact attesting to evidence nobody collected. A test that locks in a
+	// fabrication is worse than no test: it makes the fabrication look deliberate and reviewed.
 
 	[Fact]
-	public async Task GetEvidenceAsync_ReturnEmptyItems_WhenNoEvidence()
+	public async Task GetEvidenceAsync_ThrowsNotSupported_WhenNoEvidenceStoreIsConfigured()
 	{
-		// Act
-		var result = await _sut.GetEvidenceAsync(
+		// Act & Assert -- failing is the only answer that cannot be mistaken for evidence.
+		_ = await Should.ThrowAsync<NotSupportedException>(() => _sut.GetEvidenceAsync(
 			TrustServicesCriterion.CC6_LogicalAccess,
 			DateTimeOffset.UtcNow.AddDays(-30),
-			DateTimeOffset.UtcNow, CancellationToken.None);
-
-		// Assert
-		result.Items.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public async Task GetEvidenceAsync_IncludeChainOfCustodyHash()
-	{
-		// Act
-		var result = await _sut.GetEvidenceAsync(
-			TrustServicesCriterion.CC6_LogicalAccess,
-			DateTimeOffset.UtcNow.AddDays(-30),
-			DateTimeOffset.UtcNow, CancellationToken.None);
-
-		// Assert
-		result.ChainOfCustodyHash.ShouldNotBeNullOrEmpty();
+			DateTimeOffset.UtcNow,
+			CancellationToken.None));
 	}
 
 	#endregion GetEvidenceAsync Tests
@@ -545,16 +514,14 @@ public sealed class Soc2ComplianceServiceShould
 	#region ExportForAuditorAsync Tests
 
 	[Fact]
-	public async Task ExportForAuditorAsync_ReturnEmptyArray()
+	public async Task ExportForAuditorAsync_ThrowsNotSupported_WhenThereIsNothingToExport()
 	{
-		// Act
-		var result = await _sut.ExportForAuditorAsync(
+		// Act & Assert -- an empty byte[] reads as a successful export of a quiet period.
+		_ = await Should.ThrowAsync<NotSupportedException>(() => _sut.ExportForAuditorAsync(
 			ExportFormat.Pdf,
 			DateTimeOffset.UtcNow.AddDays(-30),
-			DateTimeOffset.UtcNow, CancellationToken.None);
-
-		// Assert
-		result.ShouldBeEmpty();
+			DateTimeOffset.UtcNow,
+			CancellationToken.None));
 	}
 
 	#endregion ExportForAuditorAsync Tests

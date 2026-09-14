@@ -19,7 +19,9 @@ const sidebars: SidebarsConfig = {
       items: [
         { type: 'doc', id: 'intro' },
         { type: 'doc', id: 'how-do-i' },
+        { type: 'doc', id: 'pick-your-stack' },
         { type: 'doc', id: 'whats-new' },
+        { type: 'doc', id: 'known-issues' },
         {
           type: 'category',
           label: 'Getting Started',
@@ -34,6 +36,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'getting-started/secure-order-tutorial' },
             { type: 'doc', id: 'getting-started/project-templates' },
             { type: 'doc', id: 'getting-started/samples' },
+            { type: 'doc', id: 'getting-started/program-cs-templates' },
           ],
         },
         {
@@ -44,10 +47,13 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             { type: 'doc', id: 'core-concepts/actions-and-handlers' },
+            { type: 'doc', id: 'core-concepts/event-patterns' },
             { type: 'doc', id: 'core-concepts/message-context' },
             { type: 'doc', id: 'core-concepts/results-and-errors' },
             { type: 'doc', id: 'core-concepts/dependency-injection' },
             { type: 'doc', id: 'core-concepts/configuration' },
+            { type: 'doc', id: 'core-concepts/configuration-advanced' },
+            { type: 'doc', id: 'core-concepts/configuration-environments' },
           ],
         },
         { type: 'doc', id: 'package-guide' },
@@ -85,6 +91,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'middleware/authorization' },
             { type: 'doc', id: 'middleware/serialization' },
             { type: 'doc', id: 'middleware/serialization-providers' },
+            { type: 'doc', id: 'middleware/ordering-validation' },
           ],
         },
         {
@@ -108,6 +115,10 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'transports/keyed-transport-seam' },
             { type: 'doc', id: 'transports/cron-timer' },
             { type: 'doc', id: 'transports/message-mapping' },
+            { type: 'doc', id: 'transports/grpc' },
+            { type: 'doc', id: 'transports/kafka-schema-registry' },
+            { type: 'doc', id: 'transports/event-grid' },
+            { type: 'doc', id: 'transports/request-reply' },
           ],
         },
         {
@@ -166,6 +177,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'event-sourcing/providers' },
             { type: 'doc', id: 'event-sourcing/seed-data' },
             { type: 'doc', id: 'event-sourcing/durable-execution' },
+            { type: 'doc', id: 'event-sourcing/tenant-sharding' },
           ],
         },
         {
@@ -228,6 +240,8 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'data-providers/inmemory' },
             { type: 'doc', id: 'data-providers/multi-database' },
             { type: 'doc', id: 'data-providers/spanner' },
+            { type: 'doc', id: 'data-providers/opensearch' },
+            { type: 'doc', id: 'data-providers/sqlite' },
           ],
         },
       ],
@@ -354,6 +368,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'operations/recovery-runbooks' },
             { type: 'doc', id: 'operations/cdc-troubleshooting' },
             { type: 'doc', id: 'operations/performance-tuning' },
+            { type: 'doc', id: 'operations/dashboard' },
           ],
         },
         {
@@ -371,6 +386,10 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'migration/version-upgrades' },
             { type: 'doc', id: 'migration/authorization-tenant-required' },
             { type: 'doc', id: 'migration/inbox-document-id-rekey' },
+            { type: 'doc', id: 'migration/compat-mediatr-disclaimer' },
+            { type: 'doc', id: 'migration/mongodb-outbox-instant-format' },
+            { type: 'doc', id: 'migration/net10-only' },
+            { type: 'doc', id: 'migration/nosql-tenant-key-rekey' },
           ],
         },
       ],
@@ -397,6 +416,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'testing/test-harness' },
             { type: 'doc', id: 'testing/transport-test-doubles' },
             { type: 'doc', id: 'testing/shouldly-assertions' },
+            { type: 'doc', id: 'testing/conformance-toolkit' },
           ],
         },
       ],
@@ -422,6 +442,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'security/encryption-architecture' },
             { type: 'doc', id: 'security/encryption-providers' },
             { type: 'doc', id: 'security/threat-model' },
+            { type: 'doc', id: 'security/security-event-store' },
           ],
         },
         {
@@ -470,6 +491,7 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             { type: 'doc', id: 'legal/compliance-disclaimer' },
+            { type: 'doc', id: 'legal/third-party-notices' },
           ],
         },
       ],
@@ -483,6 +505,7 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         { type: 'doc', id: 'reference/llm-reference' },
+        { type: 'doc', id: 'reference/package-matrix' },
         {
           type: 'category',
           label: 'Diagnostics',
@@ -494,6 +517,12 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'diagnostics/DISP002' },
             { type: 'doc', id: 'diagnostics/DISP003' },
             { type: 'doc', id: 'diagnostics/DISP004' },
+            { type: 'doc', id: 'diagnostics/DISP005' },
+            { type: 'doc', id: 'diagnostics/DISP006' },
+            { type: 'doc', id: 'diagnostics/EXMIG0001' },
+            { type: 'doc', id: 'diagnostics/EXMIG0002' },
+            { type: 'doc', id: 'diagnostics/EXMIG0003' },
+            { type: 'doc', id: 'diagnostics/EXMIG0004' },
           ],
         },
         {

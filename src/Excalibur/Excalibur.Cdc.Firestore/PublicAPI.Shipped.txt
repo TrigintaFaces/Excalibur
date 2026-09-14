@@ -49,7 +49,7 @@ Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.ProcessorName.set -> void
 Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.UpdatedAt.get -> System.DateTimeOffset
 Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.UpdatedAt.set -> void
 Excalibur.Cdc.Firestore.FirestoreCdcStateStore
-Excalibur.Cdc.Firestore.FirestoreCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.DeletePositionAsync(string! consumerId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Cdc.Firestore.FirestoreCdcStateStore.Dispose() -> void
 Excalibur.Cdc.Firestore.FirestoreCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Cdc.Firestore.FirestoreCdcStateStore.FirestoreCdcStateStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Firestore.FirestoreCdcStateStore!>! logger) -> void
@@ -115,7 +115,6 @@ Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.ProjectId(string! projectId) -> Exc
 Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
 Excalibur.Cdc.Firestore.IFirestoreCdcProcessor
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore
-Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition?>!
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions

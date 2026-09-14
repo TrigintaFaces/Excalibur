@@ -577,6 +577,78 @@ public sealed class MaterializedViewRefreshServiceShould
 	#region Retry Logic Tests
 
 	[Fact]
+	public async Task ExecuteAsync_StopRetryingAfterAPoisonEventHalt()
+	{
+		// A poison event is PERMANENT: the stored type will not resolve six seconds from now, so the retry
+		// loop would re-read the same event, fail identically, and log forever without progress -- which is
+		// what the original report described (millions of log lines, no advance).
+		//
+		// THE CLAUSE ORDER IS THE THING UNDER TEST. The poison catch must sit ABOVE the general catch; below
+		// it, it is unreachable and the halt silently degrades back into the retry loop. This arm and
+		// ExecuteAsync_RetryOnTransientFailure are a matched pair: that one throws a plain
+		// InvalidOperationException and still retries, this one throws the derived poison type and must not.
+		var processor = A.Fake<IMaterializedViewProcessor>();
+		var callCount = 0;
+
+		var registrationType = typeof(MaterializedViewRefreshService).Assembly
+			.GetType("Excalibur.EventSourcing.Views.MaterializedViewBuilderRegistration")
+			.ShouldNotBeNull();
+		var registration = Activator.CreateInstance(
+			registrationType,
+			typeof(SlugNamedView),
+			typeof(SlugNamedViewBuilder),
+			new SlugNamedViewBuilder(),
+			new ViewStoreAccessor<SlugNamedView>(),
+			ViewDeliverySemantics.ExactlyOnce).ShouldNotBeNull();
+		var registrationSequenceType = typeof(IEnumerable<>).MakeGenericType(registrationType);
+		var registrations = Array.CreateInstance(registrationType, 1);
+		registrations.SetValue(registration, 0);
+
+		A.CallTo(() => processor.CatchUpAsync(A<string>._, A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				_ = Interlocked.Increment(ref callCount);
+				throw new MaterializedViewPoisonEventException(
+					"slug-named-view",
+					"event-1",
+					"Some.Moved.Assembly.OrderAmendedEvent",
+					102,
+					new InvalidOperationException("Unknown event type"));
+			});
+
+		var options = Options.Create(new MaterializedViewRefreshOptions
+		{
+			Enabled = true,
+			CatchUpOnStartup = true,
+			RefreshInterval = TimeSpan.FromMilliseconds(10),
+			InitialRetryDelay = TimeSpan.FromMilliseconds(10),
+			MaxRetryCount = 3
+		});
+
+		A.CallTo(() => _serviceProvider.GetService(typeof(IMaterializedViewProcessor))).Returns(processor);
+		A.CallTo(() => _serviceProvider.GetService(registrationSequenceType)).Returns(registrations);
+
+		var service = new MaterializedViewRefreshService(
+			_scopeFactory, options, TimeProvider.System, NullLogger<MaterializedViewRefreshService>.Instance);
+
+		using var cts = new CancellationTokenSource();
+
+		await service.StartAsync(cts.Token);
+		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None);
+		var afterFirstWindow = Volatile.Read(ref callCount);
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// The retry loop would have burned through MaxRetryCount=3 with a 10ms delay many times over in
+		// 300ms. One catch-up attempt per refresh tick is the halt working; a climbing count is the retry
+		// loop, which is the defect.
+		afterFirstWindow.ShouldBeLessThan(
+			5,
+			"a poison halt must not be retried: the stored type will not start resolving, so retrying only "
+			+ "re-reads the same event forever");
+	}
+
+	[Fact]
 	public async Task ExecuteAsync_RetryOnTransientFailure()
 	{
 		// Arrange

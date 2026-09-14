@@ -70,12 +70,12 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 	/// <para>
 	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
 	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
-	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventEncoder{TOutbound}"/>
 	/// backed by a source-generated serializer to compose without the requirement.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
-	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForKafka(
 		this IServiceCollection services,
 		Action<KafkaCloudEventOptions>? configureKafka = null,
@@ -98,7 +98,7 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 		services.TryAddSingleton(static sp => sp.GetRequiredService<IOptions<KafkaCloudEventOptions>>().Value);
 
 		services.TryAddSingleton<IKafkaCloudEventAdapter, KafkaCloudEventAdapter>();
-		services.AddCloudEventMapper<Message<string, string>>(static sp =>
+		services.AddCloudEventEncoder<Message<string, string>>(static sp =>
 			(KafkaCloudEventAdapter)sp.GetRequiredService<IKafkaCloudEventAdapter>());
 
 		return services;

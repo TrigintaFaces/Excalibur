@@ -58,7 +58,7 @@ public sealed class ServerlessColdStartE2EShould : FunctionalTestBase
 			.ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue($"Dispatch failed: {result.ErrorMessage}");
+		result.Succeeded.ShouldBeTrue($"Dispatch failed: {result.ErrorMessage}");
 		ColdStartTestActionHandler.LastInput.ShouldBe("cold-start-test");
 		ColdStartTestActionHandler.HandleCount.ShouldBe(1);
 	}
@@ -92,7 +92,7 @@ public sealed class ServerlessColdStartE2EShould : FunctionalTestBase
 
 		// Assert: full cold-start should complete within generous budget
 		// (2 seconds is very generous for in-process dispatch without real AWS)
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		sw.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2),
 			$"Cold start took {sw.Elapsed.TotalMilliseconds:F0}ms, exceeds 2000ms budget");
 	}
@@ -144,7 +144,7 @@ public sealed class ServerlessColdStartE2EShould : FunctionalTestBase
 				.ConfigureAwait(false);
 
 			// If it returned without throwing, result should indicate failure
-			result.IsSuccess.ShouldBeFalse(
+			result.Succeeded.ShouldBeFalse(
 				"Cancelled dispatch should either throw OperationCanceledException or return failed result");
 		}
 		catch (OperationCanceledException)
@@ -176,7 +176,7 @@ public sealed class ServerlessColdStartE2EShould : FunctionalTestBase
 
 			var result = await dispatcher.DispatchAsync(action, context, CancellationToken.None)
 				.ConfigureAwait(false);
-			result.IsSuccess.ShouldBeTrue($"Dispatch {i} failed: {result.ErrorMessage}");
+			result.Succeeded.ShouldBeTrue($"Dispatch {i} failed: {result.ErrorMessage}");
 		}
 
 		// Assert

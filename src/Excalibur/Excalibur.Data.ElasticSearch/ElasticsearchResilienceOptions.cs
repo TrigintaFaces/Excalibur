@@ -25,7 +25,7 @@ public sealed class ElasticsearchResilienceOptions
 	/// Gets the circuit breaker configuration.
 	/// </summary>
 	/// <value> The circuit breaker settings for preventing cascading failures. </value>
-	public CircuitBreakerOptions CircuitBreaker { get; init; } = new();
+	public ElasticsearchCircuitBreakerOptions CircuitBreaker { get; init; } = new();
 
 	/// <summary>
 	/// Gets the timeout configuration for operations.

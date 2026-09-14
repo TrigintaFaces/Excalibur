@@ -48,6 +48,7 @@
     <!-- Dispatch projects -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Patterns.Azure\Excalibur.Dispatch.Patterns.Azure.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.ClaimCheck.AwsS3\Excalibur.Dispatch.ClaimCheck.AwsS3.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />

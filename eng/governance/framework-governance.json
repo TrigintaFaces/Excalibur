@@ -324,6 +324,7 @@
       "samples/02-messaging-transports/TransportBindings/TransportBindings.csproj",
       "samples/03-cloud-native/CloudEvents/CloudEvents.csproj",
       "samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj",
+      "samples/04-reliability/OrderingValidation/OrderingValidation.csproj",
       "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
       "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
       "samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj",
@@ -335,14 +336,15 @@
       "samples/06-security/AwsSecretsManager/AwsSecretsManager.csproj",
       "samples/06-security/AzureKeyVault/AzureKeyVault.csproj",
       "samples/06-security/GdprCompliance/GdprCompliance.csproj",
+      "samples/06-security/GrantAuthorizedApi/GrantAuthorizedApi.csproj",
       "samples/06-security/JitAccess/JitAccess.csproj",
       "samples/06-security/MessageEncryption/MessageEncryption.csproj",
       "samples/06-security/ProvisioningWorkflow/ProvisioningWorkflow.csproj",
       "samples/06-security/SeparationOfDuties/SeparationOfDuties.csproj",
       "samples/06-security/StandaloneA3/StandaloneA3.csproj",
       "samples/07-observability/HealthChecks/HealthChecks.csproj",
-      "samples/07-observability/OperationalDashboard/OperationalDashboard.csproj",
       "samples/07-observability/OpenTelemetry/OpenTelemetry.csproj",
+      "samples/07-observability/OperationalDashboard/OperationalDashboard.csproj",
       "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
       "samples/08-serialization/MessagePackSample/MessagePackSample.csproj",
       "samples/08-serialization/Protobuf/Protobuf.csproj",
@@ -364,9 +366,9 @@
       "samples/09-advanced/deployment/Testing/Testing.csproj",
       "samples/09-advanced/persistence-patterns/CloudStorageSnapshots/CloudStorageSnapshots.csproj",
       "samples/09-advanced/persistence-patterns/CosmosDbEventStore/CosmosDbEventStore.csproj",
+      "samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj",
       "samples/09-advanced/persistence-patterns/InboxIdempotency/InboxIdempotency.csproj",
       "samples/09-advanced/persistence-patterns/MultiDatabase/MultiDatabase.csproj",
-      "samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj",
       "samples/09-advanced/persistence-patterns/OutOfBandProjections/OutOfBandProjections.csproj",
       "samples/09-advanced/persistence-patterns/ProjectionRebuildJob/ProjectionRebuildJob.csproj",
       "samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj",
@@ -493,6 +495,11 @@
         "timeoutSeconds": null
       },
       {
+        "project": "samples/04-reliability/OrderingValidation/OrderingValidation.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
         "project": "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
         "mode": "build",
         "timeoutSeconds": null
@@ -544,6 +551,11 @@
       },
       {
         "project": "samples/06-security/GdprCompliance/GdprCompliance.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/GrantAuthorizedApi/GrantAuthorizedApi.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },

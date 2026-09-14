@@ -235,31 +235,37 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 
 	private async ValueTask<StoredEvent> DecryptSubjectFieldsAsync(StoredEvent stored, CancellationToken cancellationToken)
 	{
-		// Resolve + materialize the event so its [PersonalData] fields can be decrypted in place. An event whose type
-		// cannot be resolved/deserialized was not written through this decorator's field-encryption path, so it is
-		// returned unchanged rather than failing the load.
-		IDomainEvent? domainEvent;
+		if (stored.EventData is null)
+		{
+			return stored;
+		}
+
+		Type eventType;
 		try
 		{
-			var eventType = _eventSerializer.ResolveType(stored.EventType);
-			if (eventType is null || stored.EventData is null)
-			{
-				return stored;
-			}
-
-			domainEvent = _eventSerializer.DeserializeEvent(stored.EventData, eventType);
+			eventType = _eventSerializer.ResolveType(stored.EventType);
 		}
-		catch (Exception ex) when (ex is not OperationCanceledException)
+		catch (UnknownEventTypeException)
+		{
+			// An event whose type name is not registered was not written through this decorator's
+			// field-encryption path, so there is nothing here to decrypt and it is returned unchanged.
+			// Only THIS outcome is swallowed: a decryption or deserialization fault on a KNOWN type is a
+			// real failure and must surface, not be handed back to the caller as if it were untouched data.
+			return stored;
+		}
+
+		// Byte-identical passthrough. An event type declaring no [PersonalData] members has nothing to
+		// decrypt, and materializing it only to re-emit it would hand the caller bytes that are merely
+		// EQUIVALENT to the stored ones: property order, string escaping, and number and date formatting all
+		// differ between the stored form and a re-serialization. A consumer that hashes, signs, compares or
+		// diffs the stored payload reads that difference as tampering. The decision is a property of the
+		// TYPE and the plan behind it is cached, so this is a dictionary lookup, not a per-event walk.
+		if (!SubjectFieldCryptor.HasPersonalDataFields(eventType))
 		{
 			return stored;
 		}
 
-		// An unresolvable/undeserializable event was not written through this decorator's field-encryption
-		// path, so there is nothing to decrypt — return it unchanged rather than materializing a null.
-		if (domainEvent is null)
-		{
-			return stored;
-		}
+		var domainEvent = _eventSerializer.DeserializeEvent(stored.EventData, eventType);
 
 		await _subjectFieldCryptor.DecryptFieldsAsync(domainEvent, cancellationToken).ConfigureAwait(false);
 

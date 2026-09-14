@@ -193,6 +193,7 @@ for t in \
     "eng/ci/integration-shard-partition-gate.sh --self-test" \
     "eng/ci/release-test-verdict-gate.sh --self-test" \
     "eng/ci/lockfile-drift-gate.test.sh" \
+    "eng/ci/perf-regression-check.test.sh" \
     "eng/ci/task-delay-syncwait-gate.test.sh" \
     "eng/ci/docs-csharp-extract.test.sh" \
     "eng/ci/pre-commit-dispatch-gate.test.sh" \

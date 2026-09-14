@@ -45,4 +45,20 @@ public sealed class InMemoryInboxStoreConformanceShould : InboxStoreConformanceT
 		// InMemoryInboxStore is disposed in DisposeAsync by base class
 		return Task.CompletedTask;
 	}
+
+	/// <summary>
+	/// 2mek4x's durability fault-injection arm is N/A here, not merely unwired: the in-memory store IS the
+	/// record, with no external persistence layer that can fail independently of the process. See the
+	/// identical override on <c>Excalibur.Data.InMemory.Tests.InMemory.InMemoryInboxStoreConformanceShould</c>
+	/// for the full rationale.
+	/// </summary>
+	public override async Task ThrowNotNoOpOnPersistenceFailure()
+	{
+		// Sanctioned by the base: this store has no external persistence layer to fault. But the base
+		// sanctions the OVERRIDE, not a bare Task.CompletedTask -- a completed task is indistinguishable
+		// from an arm that silently stopped verifying. Assert the fact the override rests on: there is
+		// genuinely nothing here to fault, which is why the base's default refuses to pretend otherwise.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			async () => await InjectPersistenceFaultAsync());
+	}
 }

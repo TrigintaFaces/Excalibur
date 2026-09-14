@@ -58,12 +58,35 @@ public sealed record Snapshot : ISnapshot
 		byte[] data,
 		string aggregateType,
 		IDictionary<string, object>? metadata = null) =>
+		Create(aggregateId, version, data, aggregateType, TimeProvider.System, Guid.NewGuid, metadata);
+
+	/// <summary>
+	/// Testable overload: the clock and id generator are injected so a caller (a deterministic test, or a
+	/// future feature needing a non-random snapshot id) can control them. Production callers use the
+	/// five-argument overload, which supplies <see cref="TimeProvider.System"/> and <see cref="Guid.NewGuid()"/>.
+	/// </summary>
+	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="version">The aggregate version.</param>
+	/// <param name="data">The serialized state data as an immutable memory region.</param>
+	/// <param name="aggregateType">The type of the aggregate.</param>
+	/// <param name="timeProvider">The clock used to stamp <see cref="CreatedAt"/>.</param>
+	/// <param name="idGenerator">Generates the <see cref="SnapshotId"/>.</param>
+	/// <param name="metadata">Optional metadata.</param>
+	/// <returns>A new <see cref="Snapshot"/> instance.</returns>
+	internal static Snapshot Create(
+		string aggregateId,
+		long version,
+		byte[] data,
+		string aggregateType,
+		TimeProvider timeProvider,
+		Func<Guid> idGenerator,
+		IDictionary<string, object>? metadata = null) =>
 		new()
 		{
-			SnapshotId = Guid.NewGuid().ToString(),
+			SnapshotId = idGenerator().ToString(),
 			AggregateId = aggregateId,
 			Version = version,
-			CreatedAt = DateTimeOffset.UtcNow,
+			CreatedAt = timeProvider.GetUtcNow(),
 			Data = data,
 			AggregateType = aggregateType,
 			Metadata = metadata

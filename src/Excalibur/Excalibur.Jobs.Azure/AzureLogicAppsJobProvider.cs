@@ -5,7 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
 
-using Azure;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Logic;
@@ -92,17 +91,13 @@ public sealed partial class AzureLogicAppsJobProvider : IJobSchedulerProvider
 
 		try
 		{
-			var subscription = await _armClient.GetDefaultSubscriptionAsync(cancellationToken).ConfigureAwait(false);
-			var resourceGroup = await subscription.GetResourceGroupAsync(_options.ResourceGroupName, cancellationToken)
-				.ConfigureAwait(false);
-
 			var workflowDefinition = CreateWorkflowDefinition<TJob>(jobName, recurrence);
 
 			var workflow = new LogicWorkflowData(new AzureLocation(_options.Location)) { Definition = workflowDefinition };
 
 			var workflowName = $"EXCALIBUR-JOB-{jobName.ToUpperInvariant()}";
-			_ = await resourceGroup.Value.GetLogicWorkflows().CreateOrUpdateAsync(
-				WaitUntil.Completed,
+			await _armClient.CreateOrUpdateWorkflowAsync(
+				_options.ResourceGroupName,
 				workflowName,
 				workflow,
 				cancellationToken).ConfigureAwait(false);
@@ -126,16 +121,12 @@ public sealed partial class AzureLogicAppsJobProvider : IJobSchedulerProvider
 	{
 		try
 		{
-			var subscription = await _armClient.GetDefaultSubscriptionAsync(cancellationToken).ConfigureAwait(false);
-			var resourceGroup = await subscription.GetResourceGroupAsync(_options.ResourceGroupName, cancellationToken)
+			var workflowName = $"EXCALIBUR-JOB-{jobName.ToUpperInvariant()}";
+			var deleted = await _armClient.DeleteWorkflowAsync(_options.ResourceGroupName, workflowName, cancellationToken)
 				.ConfigureAwait(false);
 
-			var workflowName = $"EXCALIBUR-JOB-{jobName.ToUpperInvariant()}";
-			var workflow = await resourceGroup.Value.GetLogicWorkflowAsync(workflowName, cancellationToken).ConfigureAwait(false);
-
-			if (workflow.HasValue)
+			if (deleted)
 			{
-				_ = await workflow.Value.DeleteAsync(WaitUntil.Completed, cancellationToken).ConfigureAwait(false);
 				LogDeletedWorkflowSuccess(workflowName);
 			}
 			else

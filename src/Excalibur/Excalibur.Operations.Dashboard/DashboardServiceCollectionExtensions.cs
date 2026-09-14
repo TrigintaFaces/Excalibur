@@ -35,6 +35,11 @@ public static class DashboardServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
+		// The read modules below capture each view's CapturedAt from TimeProvider rather than
+		// DateTimeOffset.UtcNow, so a host must have one resolvable. TryAdd: a consumer that already
+		// registered its own TimeProvider (e.g. for deterministic tests) keeps it.
+		services.TryAddSingleton(TimeProvider.System);
+
 		// Validation is performed by DashboardOptionsValidator (below) rather than
 		// ValidateDataAnnotations(), which is reflection-based and not trim/AOT-safe.
 		services.AddOptions<DashboardOptions>()

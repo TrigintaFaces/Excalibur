@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# shipped-ddl-sweep.test.sh — regression lock for eng/ci/shipped-ddl-sweep.sh (S890 exhkgt / AC-D1-AC2).
+# shipped-ddl-sweep.test.sh — regression lock for eng/ci/shipped-ddl-sweep.sh.
 #
-# The gate's thesis is "cannot report a false PASS" (r4dzl2 exit-hole class): a consumer copies our
+# The gate's thesis is "cannot report a false PASS" (the exit-hole class): a consumer copies our
 # shipped CREATE TABLE and it must declare every column our code writes/reads, or the gate blocks.
 # This lock is the gate's WIRED control — it proves the gate produces all THREE distinct verdicts on
 # inputs it controls: FAIL on a planted omission, PASS on a matching pair, REFUSE on a can't-evaluate.
@@ -17,13 +17,13 @@
 # (SHIPPED_DDL_DOC_ROOTS + SHIPPED_DDL_MAP_FILE + SHIPPED_DDL_REPO_ROOT -> no git, absolute-path find).
 #
 # Behavioral 3-state (hermetic):
-#   G  planted omission (src writes a col the DDL omits) -> gate exit 1  (FAIL — the 34k958 class)
+#   G  planted omission (src writes a col the DDL omits) -> gate exit 1  (FAIL — the missing-column class)
 #   H  matching DDL/code pair                            -> gate exit 0  (PASS, no false positive)
 #   I  empty doc root                                    -> gate exit 2  (REFUSE, never a pass)
 # Static guards (grep the gate source — the SA seam guards must not regress):
 #   D  3-state exit codes present (E_PASS=0 / E_FAIL=1 / E_REFUSE=2)
 #   E  testability seam present (SHIPPED_DDL_MAP_FILE + SHIPPED_DDL_DOC_ROOTS override)
-#   F  non-vacuity floor present (MIN_WRITTEN_COLS) + NO suppression cap (fmvdpg class)
+#   F  non-vacuity floor present (MIN_WRITTEN_COLS) + NO suppression cap (the suppression-cap class)
 #   J  guard-1: production default roots are the REAL surface (docs-site samples)
 #
 # Run: bash eng/ci/shipped-ddl-sweep.test.sh   (exit 0 = all green; non-zero = a lock failed)
@@ -76,7 +76,7 @@ CREATE TABLE outbox_messages (
 EOF
 rc="$(run_gate "$FX/docs")"
 if [ "$rc" -eq 1 ]; then
-    pass "G: planted omission -> gate FAIL(1) (the 34k958 missing-column class is caught)"
+    pass "G: planted omission -> gate FAIL(1) (the missing-column class is caught)"
 else
     fail "G: planted omission did NOT FAIL (got exit $rc, expected 1)"
 fi
@@ -107,7 +107,7 @@ else
     fail "I: empty scan did NOT REFUSE (got exit $rc, expected 2) — a false PASS on nothing"
 fi
 
-# --- K. TAB-indented INSERT paren-list extraction (7o2vuu regression) --------
+# --- K. TAB-indented INSERT paren-list extraction (regression lock) --------
 # The real SqlServer write path (InsertOutboxMessageRequest.cs) wraps the INSERT
 # column list onto TAB-indented continuation lines. A grep bracket of [ \t] does
 # NOT match a literal TAB (it matches space, backslash, and 't'), so the extractor
@@ -131,12 +131,12 @@ rc="$(SHIPPED_DDL_DOC_ROOTS="$KFX/docs" SHIPPED_DDL_SRC_ROOTS="$KFX/src" \
       SHIPPED_DDL_MAP_FILE="$KFX/map" SHIPPED_DDL_MIN_COLS=1 SHIPPED_DDL_REPO_ROOT="$PWD" \
       bash "$GATE" --sweep >/dev/null 2>&1; echo $?)"
 if [ "$rc" -eq 0 ]; then
-    pass "K: TAB-indented INSERT paren-list extracted -> PASS(0) (7o2vuu: [[:space:]] matches real tabs; [ \\t] did not)"
+    pass "K: TAB-indented INSERT paren-list extracted -> PASS(0) ([[:space:]] matches real tabs; [ \\t] did not)"
 else
     fail "K: TAB-indented INSERT not extracted (got exit $rc, expected 0) — the [ \\t] tab-class regression"
 fi
 
-# --- L. DELIMITED identifiers: bracketed T-SQL + quoted Postgres (48opzo) ----
+# --- L. DELIMITED identifiers: bracketed T-SQL + quoted Postgres ------------
 # The table-name extractor used a BARE-identifier class ([A-Za-z_][A-Za-z0-9_.]*),
 # which cannot match a delimited identifier. Two shipped dialects are affected:
 #   T-SQL      CREATE TABLE [EventSourcing].[Events]
@@ -173,9 +173,9 @@ CREATE TABLE [EventSourcing].[Events] (
 EOF
 rc="$(run_lgate)"
 if [ "$rc" -eq 1 ]; then
-    pass "L1: bracketed T-SQL divergence -> gate FAIL(1) (48opzo: delimited identifiers are no longer invisible)"
+    pass "L1: bracketed T-SQL divergence -> gate FAIL(1) (delimited identifiers are no longer invisible)"
 else
-    fail "L1: bracketed T-SQL divergence NOT caught (got exit $rc, expected 1) — the 48opzo blind spot"
+    fail "L1: bracketed T-SQL divergence NOT caught (got exit $rc, expected 1) — the delimited-identifier blind spot"
 fi
 
 # L2 — LIVENESS: same bracketed table, DDL now matches the write path.
@@ -195,7 +195,7 @@ else
     fail "L2: bracketed T-SQL matching pair did NOT PASS (got exit $rc, expected 0)"
 fi
 
-# --- M. NOT-APPLICABLE: the declared fourth state (1mquo5) -------------------
+# --- M. NOT-APPLICABLE: the declared fourth state ----------------------------
 # Not every shipped CREATE TABLE is a promise about framework-owned schema; a sample's
 # own fixture has no framework write path to diff against. The exemption channel is only
 # safe if it CANNOT become a suppression list, so all four arms are locked -- the two
@@ -275,7 +275,7 @@ fi
 # (naming f5-sweep's F5_MAX_HITS_PER_TOKEN in prose), so an unstripped grep matches the gate's own
 # explanation of why it has no cap — the self-referential-scanner trap. Assert no cap in CODE.
 if grep -q 'MIN_WRITTEN_COLS' "$GATE" && ! sed -E 's/#.*$//' "$GATE" | grep -qE 'MAX_HITS|SUPPRESS'; then
-    pass "F: gate has the non-vacuity floor (MIN_WRITTEN_COLS) and NO suppression cap in code (fmvdpg class)"
+    pass "F: gate has the non-vacuity floor (MIN_WRITTEN_COLS) and NO suppression cap in code (the suppression-cap class)"
 else
     fail "F: gate missing MIN_WRITTEN_COLS floor, or introduced a suppression cap (in code) that can mute a verdict"
 fi

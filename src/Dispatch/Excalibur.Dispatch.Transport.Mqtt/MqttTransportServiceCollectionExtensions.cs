@@ -60,7 +60,12 @@ public static class MqttTransportServiceCollectionExtensions
 			var provider = sp.GetRequiredKeyedService<IMqttConnectionProvider>(name);
 			var options = sp.GetRequiredService<IOptionsMonitor<MqttOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<MqttTransportReceiver>>();
-			return new MqttTransportReceiver(provider, options, logger);
+
+			// Decoding is applied unconditionally: the decoder is total, so a message carrying no
+			// CloudEvents markers is returned untouched. Gating this on a second opt-in is what would
+			// leave receive asymmetric with send, where encoding applies automatically once CloudEvents
+			// is configured.
+			return new MqttTransportReceiver(provider, options, logger).WithCloudEventDecoding(CloudEventBinding.Mqtt);
 		});
 
 		return services;

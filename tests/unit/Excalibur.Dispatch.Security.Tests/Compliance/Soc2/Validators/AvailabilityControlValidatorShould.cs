@@ -65,7 +65,11 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("AVL-001", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		// Health monitoring is performed by the HOST, typically ASP.NET Core health checks, and is
+		// not observable from this framework. Offering the capability is not operating the control.
+		result.IsEffective.ShouldBeFalse();
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.ControlId.ShouldBe("AVL-001");
 	}
 
@@ -84,18 +88,22 @@ public sealed class AvailabilityControlValidatorShould
 	#region ValidateAsync - AVL-002 (Performance Metrics) Tests
 
 	[Fact]
-	public async Task ValidateAsync_AVL002_ReturnSuccess_WhenComplianceMetricsConfigured()
+	public async Task ValidateAsync_AVL002_ReportsConfiguredButUnverified_WhenComplianceMetricsPresent()
 	{
 		// Act
 		var result = await _sut.ValidateAsync("AVL-002", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		// Renamed from ReturnSuccess_When...Configured, which stated the substitution in its own name:
+		// a component being CONFIGURED was read as the control SUCCEEDING. The mechanism is present and
+		// the result still says so; nothing here observed it operating.
+		result.IsConfigured.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 		result.ControlId.ShouldBe("AVL-002");
 	}
 
 	[Fact]
-	public async Task ValidateAsync_AVL002_ReturnSuccess_WhenNoComplianceMetrics()
+	public async Task ValidateAsync_AVL002_ReportUnverified_WhenNoComplianceMetrics()
 	{
 		// Arrange
 		_sut = new AvailabilityControlValidator(null, _fakeBackupConfigProvider);
@@ -104,8 +112,12 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("AVL-002", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
-		result.Evidence.ShouldContain(e => e.Description.Contains("external monitoring"));
+		result.IsEffective.ShouldBeFalse();
+		// Partial by design: a compensating external arrangement may exist, but the declared control is
+		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
+		// the exact figure is the framework's encoding and may be restated without changing the meaning.
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("IComplianceMetrics"));
 	}
 
 	#endregion
@@ -113,7 +125,7 @@ public sealed class AvailabilityControlValidatorShould
 	#region ValidateAsync - AVL-003 (Backup Verification) Tests
 
 	[Fact]
-	public async Task ValidateAsync_AVL003_ReturnSuccess_WhenBackupConfigured()
+	public async Task ValidateAsync_AVL003_ReportsConfiguredButUnverified_WhenBackupPresent()
 	{
 		// Arrange
 		_ = A.CallTo(() => _fakeBackupConfigProvider.IsBackupConfigured).Returns(true);
@@ -124,13 +136,17 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("AVL-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		// Renamed from ReturnSuccess_When...Configured, which stated the substitution in its own name:
+		// a component being CONFIGURED was read as the control SUCCEEDING. The mechanism is present and
+		// the result still says so; nothing here observed it operating.
+		result.IsConfigured.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 		result.ControlId.ShouldBe("AVL-003");
 		result.Evidence.ShouldContain(e => e.Description.Contains("SqlServerSnapshotStore"));
 	}
 
 	[Fact]
-	public async Task ValidateAsync_AVL003_ReturnSuccess_WhenBackupNotConfigured_WithRecommendation()
+	public async Task ValidateAsync_AVL003_ReportUnverified_WhenBackupNotConfigured_WithRecommendation()
 	{
 		// Arrange
 		_ = A.CallTo(() => _fakeBackupConfigProvider.IsBackupConfigured).Returns(false);
@@ -139,13 +155,18 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("AVL-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		// Partial by design: a compensating external arrangement may exist, but the declared control is
+		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
+		// the exact figure is the framework's encoding and may be restated without changing the meaning.
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("reports itself not configured"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("not configured"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("Recommendation"));
 	}
 
 	[Fact]
-	public async Task ValidateAsync_AVL003_ReturnSuccess_WhenBackupProviderNull_WithRecommendation()
+	public async Task ValidateAsync_AVL003_ReportUnverified_WhenBackupProviderNull_WithRecommendation()
 	{
 		// Arrange
 		_sut = new AvailabilityControlValidator(_fakeComplianceMetrics, null);
@@ -154,7 +175,12 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("AVL-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		// Partial by design: a compensating external arrangement may exist, but the declared control is
+		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
+		// the exact figure is the framework's encoding and may be restated without changing the meaning.
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("not registered"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("not registered"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("Recommendation"));
 	}
@@ -276,8 +302,8 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.RunTestAsync("AVL-001", parameters, CancellationToken.None);
 
 		// Assert
-		result.Outcome.ShouldBe(TestOutcome.NoExceptions);
-		result.ExceptionsFound.ShouldBe(0);
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
+		result.ExceptionsFound.ShouldBeNull();
 	}
 
 	[Fact]
@@ -293,7 +319,7 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.RunTestAsync("AVL-003", parameters, CancellationToken.None);
 
 		// Assert
-		result.Outcome.ShouldBe(TestOutcome.NoExceptions);
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
 	}
 
 	#endregion

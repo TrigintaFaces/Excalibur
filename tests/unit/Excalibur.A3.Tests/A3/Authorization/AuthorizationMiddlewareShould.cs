@@ -196,7 +196,7 @@ public sealed class AuthorizationMiddlewareShould : IDisposable
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]

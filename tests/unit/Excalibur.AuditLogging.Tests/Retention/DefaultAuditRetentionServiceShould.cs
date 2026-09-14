@@ -58,8 +58,7 @@ public sealed class DefaultAuditRetentionServiceShould
         var sut = CreateSut(
             new AuditRetentionOptions
             {
-                RetentionPeriod = TimeSpan.FromDays(30),
-                BatchSize = 100
+                RetentionPeriod = TimeSpan.FromDays(30)
             },
             new FixedTimeProvider(now));
 
@@ -111,7 +110,6 @@ public sealed class DefaultAuditRetentionServiceShould
         {
             RetentionPeriod = TimeSpan.FromDays(365),
             CleanupInterval = TimeSpan.FromHours(6),
-            BatchSize = 5000,
             ArchiveBeforeDelete = true
         };
         var sut = CreateSut(options);
@@ -120,7 +118,6 @@ public sealed class DefaultAuditRetentionServiceShould
 
         policy.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
         policy.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
-        policy.BatchSize.ShouldBe(5000);
         policy.ArchiveBeforeDelete.ShouldBeTrue();
     }
 
@@ -133,7 +130,6 @@ public sealed class DefaultAuditRetentionServiceShould
 
         policy.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
         policy.CleanupInterval.ShouldBe(TimeSpan.FromDays(1));
-        policy.BatchSize.ShouldBe(10000);
         policy.ArchiveBeforeDelete.ShouldBeFalse();
     }
 

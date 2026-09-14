@@ -1,0 +1,122 @@
+# E2E Capability Manifest
+#
+# Enumerated from what we ADVERTISE (ARCHITECTURE.md guarantee docs, package READMEs) -- NEVER from
+# what is implemented. Enumerating from source would only ever confirm "the code that exists, exists",
+# which is exactly the blind spot that let a sharded deployment silently drop GDPR erasure, let Kafka
+# resolve a CloudEvents mapper and never call it, and let Postgres ship without SqlServer's tenant-
+# isolation locks -- 5,688 unit-test files never noticed any of the three, because a unit test proves a
+# COMPONENT behaves and cannot observe that the component is never reached.
+#
+# Read by eng/ci/e2e-capability-gate.ps1. A row's `e2e_test` empty/absent is a GATE FAILURE by
+# construction -- there is no "not applicable" escape hatch here; an advertised capability with no
+# consumer-shaped, real-infra proof is exactly the hole this manifest exists to make visible.
+#
+# `e2e_test` must be a REAL end-to-end arm: through public DI registration, across the real seam (a real
+# provider database / a real broker -- not an in-memory fake), reading the outcome back from that real
+# system. A conformance test that only asserts a class exists, or a wiring test against an in-memory
+# store, does not qualify -- see the bead for the two concrete false-green shapes already found in this
+# repo (asserts-existence-only, and self-skips-so-reports-green-on-nothing).
+#
+# Scope for this pass: the six guarantee-critical subsystems (their own ARCHITECTURE.md contracts already
+# exist) plus erasure and CloudEvents. Population growth belongs on the bead, not silently in this file.
+
+version: 1
+
+capabilities:
+  - name: outbox-delivery
+    advertised_in: "src/Excalibur/Excalibur.Outbox/ARCHITECTURE.md - Delivery guarantee"
+    project: "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+    e2e_test: "Excalibur.Integration.Tests.Data.Outbox.SqlServerOutboxDeliveryEndToEndShould.DeliverAStagedMessageToItsTransport_ThroughTheRealDIRegistration"
+
+  - name: inbox-effectively-once
+    advertised_in: "src/Excalibur/Excalibur.Inbox/ARCHITECTURE.md - Guarantee (at-least-once delivery turned into effectively-once processing)"
+    project: "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+    e2e_test: "Excalibur.Integration.Tests.Data.Inbox.ExactlyOnceMessagingCompositionE2EShould.ExactlyOnceComposition_UnderDuplicateSubmitAndConsumerCrash_AppliesEffectExactlyOnce"
+
+  - name: leader-election-mutual-exclusion
+    advertised_in: "src/Excalibur/Excalibur.LeaderElection/ARCHITECTURE.md - The guarantee (at most one leader per resource)"
+    project: "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+    e2e_test: "Excalibur.Integration.Tests.LeaderElection.SqlServerLeaderElectionMutualExclusionEndToEndShould.ElectExactlyOneLeader_AndTransferOnStop_ThroughTheRealDIRegistration"
+
+  - name: event-store-tenant-confinement
+    advertised_in: "src/Excalibur/Excalibur.EventSourcing/ARCHITECTURE.md - Guarantee ('A store is confining when an operation performed under tenant partition P observes and mutates only rows written under P.')"
+    project: "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+    e2e_test: "Excalibur.Integration.Tests.Data.EventStore.SqlServerEventStoreTenantConfinementEndToEndShould.NotObserveAnotherTenantsStream_AtTheSameAggregateId_ThroughTheRealDIRegistration"
+
+  - name: gdpr-erasure
+    advertised_in: "src/Excalibur/Excalibur.EventSourcing/ARCHITECTURE.md section 3 - 'The erasure capability is forwarded through the whole event-store decoration chain so it is reachable via the supported dependency-injection composition.'"
+    project: "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+    e2e_test: "Excalibur.Integration.Tests.Data.EventStore.SqlServerEventStoreErasureContributorShould.TombstoneOnlyTheScopedTenant_WhenMtContributorErasesWithATenant"
+
+  - name: saga-tenant-isolation
+    advertised_in: "src/Excalibur/Excalibur.Saga/ARCHITECTURE.md - Tenant isolation guarantee"
+    project: "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+    e2e_test: "Excalibur.Integration.Tests.Data.Saga.SqlServerSagaStoreTenantConfinementEndToEndShould.NotRetrieveAnotherTenantsSaga_AtTheSameSagaId_ThroughTheRealDIRegistration"
+
+  - name: projections-rebuild-is-erasure-path
+    advertised_in: "src/Excalibur/Excalibur.EventSourcing/ARCHITECTURE.md section 4 - Projections: rebuild is the erasure path"
+    project: "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+    e2e_test: "Excalibur.Integration.Tests.Data.Projections.SqlServerProjectionRebuildErasureEndToEndShould.NeverHandAnErasedSubjectsEventsToAProjection_WhileStillRebuildingEveryOtherSubject"
+
+  # RESTORED after removal. The entry below was deleted earlier on the reading that inbound decode
+  # was not advertised anywhere, so this file's own rule -- enumerate from what we ADVERTISE -- put
+  # it out of scope. That reading is superseded: supporting CloudEvents in BOTH directions, on every
+  # transport where the protocol allows it, is a stated product requirement. A requirement is a
+  # stronger basis for an entry than an advertisement, so the entry belongs here whether or not any
+  # README mentions receiving.
+  #
+  # The note that stood here prescribed exactly this: "ADD AN ENTRY HERE the moment an advertisement
+  # claims inbound decode, or the moment the seam is wired." The requirement is the first of those,
+  # arriving from the product rather than from a doc.
+  #
+  # It is NOT REACHABLE, and the shape of what is missing changed once the contract itself was read.
+  #
+  #     src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/ICloudEventDecoder.cs
+  #       "The framework ships exactly one implementation, over TransportReceivedMessage ... so one
+  #        decoder serves every provider instead of nine hand-written, divergent ones ... only build
+  #        a transport-specific decoder if a provider proves it genuinely cannot be decoded from
+  #        TransportReceivedMessage."
+  #
+  # READ THAT AS AN INSTRUCTION, NOT A DESCRIPTION. Its present tense is false and has been since the
+  # commit that introduced it -- no implementation of that interface has ever been committed:
+  #
+  #     git log --oneline -S "ICloudEventDecoder<TransportReceivedMessage>" -- src/   ->  no commits
+  #
+  # Several people sized this work from that sentence's TENSE. The load-bearing half is the DIRECTIVE:
+  # one decoder over the transport-neutral inbound type, never nine per-transport ones.
+  #
+  # CORRECTED. An earlier revision of this note read "most of the decoding is already written and
+  # unreachable", which sizes the work as WIRING. False under that directive: the per-transport decode
+  # methods that exist are the nine divergent ones it tells you not to build, so they are not code
+  # awaiting a wire, and counting them sizes the work downward. What is missing is one decoder, its
+  # registration, and an invocation point.
+  #
+  # NAME THE TIER before citing any of that as done. This entry is about what a CONSUMER gets, so a
+  # working tree does not settle it and neither does an untracked file -- `git rev-parse HEAD:<path>`
+  # does, and a released version is a third tier again.
+  #
+  #     # every decode entry point, found by SHAPE rather than by a name someone remembered:
+  #     N=$(git grep -hoE "Task<CloudEvent\??>\s+[A-Za-z]+Async" -- src/Dispatch | sed -E 's/.*>[[:space:]]*//' | sort -u | paste -sd'|' -)
+  #     git grep -nE "$N" -- src/ | grep -v "/CloudEvents/" | grep -v PublicAPI
+  #     -> 0     CONTROL, encode side, same query shape: ToTransportAsync -> 13
+  #
+  # The shape query matters more than the zero, and it took two corrections to earn that. Enumerating
+  # by a name you already know -- FromTransportMessageAsync -- misses the ones named per transport
+  # (FromSqsMessageAsync, FromKafkaAsync, ParseStructuredModeAsync), so a name-list confirms what you
+  # expect and can never discover what you did not. Then the first shape query written here made the
+  # SAME error one level down: it spelled the return type Task<CloudEvent>, which cannot match a
+  # nullable-returning method, so it missed 2 of 12 -- including TryDecodeAsync, the only entry point
+  # the shipped design uses. The \?? above is that fix, and the zero is re-measured at the wider set.
+  #
+  # No count of adapters is given here on purpose: three people measured that population and got three
+  # defensible answers because each chose a different denominator. The reachability zero above is the
+  # number that does not move, and it is the one that matters.
+  #
+  # So this entry is expected to FAIL until inbound decode is reachable through the supported
+  # composition and has a real end-to-end arm -- that failure is the point of listing it, not a defect
+  # in this file. Do not resolve it by deleting the entry, and do not resolve it by deleting the seam.
+
+  - name: cloudevents-inbound-decode
+    advertised_in: "Product requirement: CloudEvents support covers both sending and receiving on every transport whose protocol binding permits it. This entry rests on the requirement alone and deliberately cites no document. The transport READMEs are being corrected as this is written, so any sentence quoted here about what they currently claim would be stale on landing -- and the requirement is a stronger basis than an advertisement in any case, which is why the entry does not need one."
+    project: ""
+    e2e_test: ""

@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Options.Threading;
 using Excalibur.Dispatch.Threading;
@@ -39,6 +40,11 @@ public static class ThreadingServiceCollectionExtensions
 		services.TryAddSingleton<IKeyedLock, KeyedLock>();
 		services.TryAddSingleton<BackgroundExecutionMiddleware>();
 
+		// Union in as IDispatchMiddleware -- without this the middleware was only reachable via
+		// UseBackgroundExecution()'s explicit UseMiddleware<T>() call, so the bare Add form registered
+		// the type but never ran it.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, BackgroundExecutionMiddleware>());
+
 		return services;
 	}
 
@@ -62,6 +68,11 @@ public static class ThreadingServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddSingleton<IKeyedLock, KeyedLock>();
 		services.TryAddSingleton<BackgroundExecutionMiddleware>();
+
+		// Union in as IDispatchMiddleware -- without this the middleware was only reachable via
+		// UseBackgroundExecution()'s explicit UseMiddleware<T>() call, so the bare Add form registered
+		// the type but never ran it.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, BackgroundExecutionMiddleware>());
 
 		return services;
 	}

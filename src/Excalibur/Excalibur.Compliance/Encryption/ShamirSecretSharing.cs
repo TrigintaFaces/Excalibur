@@ -28,6 +28,9 @@ namespace Excalibur.Compliance.Encryption;
 /// attack is computationally infeasible. Do NOT use it to split low-entropy or guessable secrets;
 /// for that, supply a keyed (HMAC) commitment with a key held outside the share set, or an
 /// information-theoretically hiding commitment (e.g. Pedersen VSS) — tracked as a follow-up.
+/// <see cref="Split"/> enforces a minimum secret length as a structural floor against the obvious
+/// misuse (a short passphrase, PIN, or token) — length alone cannot prove high entropy, so this is a
+/// partial, not complete, enforcement of the precondition above.
 /// </para>
 /// <para>
 /// This implementation uses GF(256) (Galois Field with 256 elements) for finite field arithmetic,
@@ -52,6 +55,15 @@ internal static class ShamirSecretSharing
 	private const int HeaderLength = DataOffset; // 37 bytes of header precede the share data
 	private const int MaxSecretLength = ushort.MaxValue; // secretLen is encoded in 2 bytes
 
+	// The embedded SHA-256 commitment is only computationally hiding (see the class remarks): a holder of
+	// one sub-threshold share can offline guess-and-check the secret against it. That attack is infeasible
+	// against a high-entropy secret and trivial against a short passphrase/PIN/token. Length alone cannot
+	// PROVE high entropy (an all-zero 32-byte array passes and has none), but it structurally rejects the
+	// class of misuse the doc comment already warns against by name -- every documented caller splits a
+	// randomly-generated 256-bit (32-byte) key, so 16 bytes (128 bits) rejects anything short while leaving
+	// real callers untouched.
+	private const int MinSecretLength = 16;
+
 	/// <summary>
 	/// Splits a secret into multiple shares using Shamir's Secret Sharing.
 	/// </summary>
@@ -60,8 +72,9 @@ internal static class ShamirSecretSharing
 	/// <param name="threshold">Minimum number of shares required to reconstruct the secret.</param>
 	/// <returns>An array of shares, each identified by its index (1-based).</returns>
 	/// <exception cref="ArgumentException">
-	/// Thrown when threshold is greater than totalShares,
-	/// or when either value is less than 2, or greater than 255.
+	/// Thrown when threshold is greater than totalShares, when either value is less than 2 or greater
+	/// than 255, when <paramref name="secret"/> is empty, or when it is shorter than the minimum length
+	/// this method enforces as a floor against splitting an obviously low-entropy secret.
 	/// </exception>
 	public static byte[][] Split(ReadOnlySpan<byte> secret, int totalShares, int threshold)
 	{
@@ -70,6 +83,11 @@ internal static class ShamirSecretSharing
 		if (secret.IsEmpty)
 		{
 			throw new ArgumentException("Secret must not be empty.", nameof(secret));
+		}
+
+		if (secret.Length < MinSecretLength)
+		{
+			throw new ArgumentException(Resources.ShamirSecretSharing_SecretTooShort, nameof(secret));
 		}
 
 		if (secret.Length > MaxSecretLength)

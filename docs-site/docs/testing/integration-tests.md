@@ -165,7 +165,7 @@ public async Task CreateOrder_handler_persists_aggregate()
     var result = await dispatcher.DispatchAsync(command, CancellationToken.None);
 
     // Verify result
-    Assert.True(result.IsSuccess);
+    Assert.True(result.Succeeded);
 
     // Verify persistence
     var order = await repository.GetByIdAsync(result.ReturnValue.OrderId, CancellationToken.None);
@@ -324,7 +324,7 @@ The main CI pipeline runs integration tests as a dedicated gate after unit shard
 Current gate command shape:
 
 ```bash
-dotnet test Excalibur.sln \
+dotnet test Excalibur.sln --blame-hang-timeout 10m \
   --configuration Release \
   --no-build \
   --blame-hang-timeout 5m \
@@ -345,7 +345,7 @@ Recommended local reproduction sequence:
 ```bash
 dotnet restore Excalibur.sln
 dotnet build Excalibur.sln -c Release --no-restore
-dotnet test Excalibur.sln -c Release --no-build \
+dotnet test Excalibur.sln -c Release --no-build --blame-hang-timeout 10m \
   --blame-hang-timeout 5m \
   --filter "Category=Integration|Category=EndToEnd" \
   -- RunConfiguration.TestSessionTimeout=1200000

@@ -18,10 +18,17 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// <param name="messageType"> The type of message that this handler can process. </param>
 /// <param name="handlerType"> The type of the handler implementation that processes the message. </param>
 /// <param name="expectsResponse"> Indicates whether this handler returns a response after processing. </param>
+/// <param name="responseType">
+/// The response type the handler produces when <paramref name="expectsResponse" /> is <see langword="true" />.
+/// Optional so every existing 3-argument call site, including the source generator's emitted registration, stays
+/// source-compatible; a caller that omits it gets a <see langword="null" /> <see cref="ResponseType" /> and the
+/// consumer falls back to the reflective path.
+/// </param>
 internal sealed class HandlerRegistryEntry(
-	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType,
+	Type messageType,
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
-	bool expectsResponse) : IHandlerRegistryEntry
+	bool expectsResponse,
+	Type? responseType = null) : IHandlerRegistryEntry
 {
 	/// <summary>
 	/// Gets the type of message that this handler can process. This type is used for message routing and handler resolution during dispatch operations.
@@ -31,7 +38,6 @@ internal sealed class HandlerRegistryEntry(
 	/// The message type serves as the primary key for handler lookup during message processing. It must match the generic type parameter of
 	/// the handler implementation to ensure type safety during handler invocation.
 	/// </remarks>
-	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
 	public Type MessageType { get; } = messageType;
 
 	/// <summary>
@@ -58,4 +64,15 @@ internal sealed class HandlerRegistryEntry(
 	/// CQRS architectural pattern implementation within the messaging framework.
 	/// </remarks>
 	public bool ExpectsResponse { get; } = expectsResponse;
+
+	/// <summary>
+	/// Gets the response type produced by the handler when <see cref="ExpectsResponse" /> is <see langword="true" />,
+	/// or <see langword="null" /> when the handler does not return a response, or was registered through a caller
+	/// that did not supply it.
+	/// </summary>
+	/// <remarks>
+	/// Carrying the response type here lets direct-action dispatch plan construction read it directly instead of
+	/// recovering it by reflecting over <see cref="MessageType" />'s implemented interfaces on every dispatch.
+	/// </remarks>
+	public Type? ResponseType { get; } = responseType;
 }

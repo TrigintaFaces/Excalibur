@@ -24,14 +24,6 @@ public sealed class AuditRetentionOptionsShould
     }
 
     [Fact]
-    public void Default_batch_size_to_10000()
-    {
-        var options = new AuditRetentionOptions();
-
-        options.BatchSize.ShouldBe(10000);
-    }
-
-    [Fact]
     public void Default_archive_before_delete_to_false()
     {
         var options = new AuditRetentionOptions();
@@ -46,13 +38,11 @@ public sealed class AuditRetentionOptionsShould
         {
             RetentionPeriod = TimeSpan.FromDays(365),
             CleanupInterval = TimeSpan.FromHours(6),
-            BatchSize = 5000,
             ArchiveBeforeDelete = true
         };
 
         options.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
         options.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
-        options.BatchSize.ShouldBe(5000);
         options.ArchiveBeforeDelete.ShouldBeTrue();
     }
 }

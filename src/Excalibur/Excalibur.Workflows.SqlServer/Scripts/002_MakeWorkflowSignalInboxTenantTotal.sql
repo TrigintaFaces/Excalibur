@@ -145,6 +145,14 @@ GO
 --    Dropped and recreated rather than altered: SQL Server will not alter the column set of an
 --    existing key constraint in place. The guard asserts an EXACT column set, so a table left with
 --    both constraints would still fail startup — the old one must go, not merely be joined.
+--
+--    The two statements are ONE unit of work. Between them the table has no admission constraint
+--    at all, so a signal already accepted could be accepted a second time and the workflow would
+--    see it twice. If the recreate fails — because step 1 did not run and TenantId is absent, or
+--    because the widened key exceeds the index key limit on a deployment whose InstanceId or
+--    SignalId is wider than the shipped schema declares — the drop must go back with it. SQL
+--    Server rolls DDL back, so the transaction is what enforces that. The guard does not: it
+--    only decides whether to START.
 -- ---------------------------------------------------------------------------------------
 IF OBJECT_ID(N'[dbo].[workflow_signal_inbox]', N'U') IS NOT NULL
    AND EXISTS (SELECT * FROM sys.columns
@@ -160,16 +168,33 @@ IF OBJECT_ID(N'[dbo].[workflow_signal_inbox]', N'U') IS NOT NULL
        GROUP BY i.index_id
        HAVING COUNT(DISTINCT c.name) = 3 AND COUNT(*) = 3)
 BEGIN
-    IF EXISTS (SELECT * FROM sys.key_constraints
-               WHERE parent_object_id = OBJECT_ID(N'[dbo].[workflow_signal_inbox]')
-                 AND name = N'UQ_workflow_signal_inbox' AND type = N'UQ')
-    BEGIN
-        ALTER TABLE [dbo].[workflow_signal_inbox] DROP CONSTRAINT [UQ_workflow_signal_inbox];
-    END
+    BEGIN TRANSACTION;
 
-    ALTER TABLE [dbo].[workflow_signal_inbox]
-        ADD CONSTRAINT [UQ_workflow_signal_inbox]
-            UNIQUE ([TenantId], [InstanceId], [SignalId]);
+    BEGIN TRY
+        IF EXISTS (SELECT * FROM sys.key_constraints
+                   WHERE parent_object_id = OBJECT_ID(N'[dbo].[workflow_signal_inbox]')
+                     AND name = N'UQ_workflow_signal_inbox' AND type = N'UQ')
+        BEGIN
+            ALTER TABLE [dbo].[workflow_signal_inbox] DROP CONSTRAINT [UQ_workflow_signal_inbox];
+        END
+
+        ALTER TABLE [dbo].[workflow_signal_inbox]
+            ADD CONSTRAINT [UQ_workflow_signal_inbox]
+                UNIQUE ([TenantId], [InstanceId], [SignalId]);
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        -- The table keeps the admission constraint it had, tenant-less but enforcing. Re-raise:
+        -- the host's startup check asserts the exact three-column set, so a failure reported as a
+        -- success would surface later as a refused start rather than as this migration's fault.
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH
 END
 GO
 

@@ -203,12 +203,26 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 			return;
 		}
 
+		// MQTT 5 carries the CloudEvents binary-mode ce-* attributes as user properties and the
+		// structured-mode marker as ContentType -- both were previously discarded here, which made
+		// binary-mode CloudEvents structurally undetectable on receive.
+		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
+		if (args.ApplicationMessage.UserProperties is { } userProperties)
+		{
+			foreach (var property in userProperties)
+			{
+				properties[property.Name] = property.Value;
+			}
+		}
+
 		var received = new TransportReceivedMessage
 		{
 			Id = id,
 			Body = args.ApplicationMessage.Payload.ToArray(),
+			ContentType = args.ApplicationMessage.ContentType,
 			Source = Source,
 			EnqueuedAt = DateTimeOffset.UtcNow,
+			Properties = properties,
 		};
 
 		_pendingAcks[id] = args;

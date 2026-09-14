@@ -154,19 +154,26 @@ public record GrantScope(string TenantId, string GrantType, string Qualifier)
 	{
 		ArgumentNullException.ThrowIfNull(scope);
 
-		var parts = scope.Split(':', 3, StringSplitOptions.RemoveEmptyEntries);
+		// RemoveEmptyEntries is deliberately absent: it SHIFTS the remaining segments left, so an empty
+		// tenant would silently promote the grant type into the tenant position and address a different
+		// grant. An empty segment must fail the length check, not be dropped.
+		var parts = scope.Split(':', 3);
 
 		if (parts.Length != 3)
 		{
 			throw new ArgumentException("The scope is invalid. The expected format is '[TenantId]:[GrantType]:[Qualifier]'");
 		}
 
-		return new GrantScope(parts[0], parts[1], parts[2]);
+		return new GrantScope(
+			GrantKeyFormat.Unescape(parts[0]),
+			GrantKeyFormat.Unescape(parts[1]),
+			GrantKeyFormat.Unescape(parts[2]));
 	}
 
 	/// <summary>
 	/// Returns a string representation of the scope in the format '[TenantId]:[GrantType]:[Qualifier]'.
 	/// </summary>
 	/// <returns> A string representation of the scope. </returns>
-	public override string ToString() => $"{TenantId}:{GrantType}:{Qualifier}";
+	public override string ToString() =>
+		$"{GrantKeyFormat.Escape(TenantId)}:{GrantKeyFormat.Escape(GrantType)}:{GrantKeyFormat.Escape(Qualifier)}";
 }

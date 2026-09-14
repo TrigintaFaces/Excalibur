@@ -88,12 +88,20 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 			"Message validation pipeline available via IDispatchMiddleware",
 			nameof(ProcessingIntegrityControlValidator)));
 
-		evidence.Add(CreateEvidence(
-			EvidenceType.TestResult,
-			"Input validation control verified - pipeline infrastructure available",
-			nameof(ProcessingIntegrityControlValidator)));
-
-		return CreateSuccessResult(ControlInt001, evidence);
+		// The Configuration evidence above is true: the capability is shipped. What is NOT
+		// established is that this deployment operates it, and a TestResult item saying the
+		// control was "verified" asserted a check that never ran. Offering a capability is not
+		// operating a control.
+		return CreateFailureResult(
+			ControlInt001,
+			[
+				"The message validation pipeline ships with the framework but runs only where the consumer registered it, so its operation is unverified here and requires independent attestation."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence,
+			// The capability ships in this framework -- the Configuration evidence above says so. What is
+			// unknown is whether the consumer wired it, and that is the OUTCOME, not the configuration.
+			isConfigured: true);
 	}
 
 	private ControlValidationResult ValidateIdempotency()
@@ -108,12 +116,20 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 			"Outbox pattern with message ID deduplication provides idempotency",
 			nameof(ProcessingIntegrityControlValidator)));
 
-		evidence.Add(CreateEvidence(
-			EvidenceType.TestResult,
-			"Idempotency control verified - outbox deduplication available",
-			nameof(ProcessingIntegrityControlValidator)));
-
-		return CreateSuccessResult(ControlInt002, evidence);
+		// The Configuration evidence above is true: the capability is shipped. What is NOT
+		// established is that this deployment operates it, and a TestResult item saying the
+		// control was "verified" asserted a check that never ran. Offering a capability is not
+		// operating a control.
+		return CreateFailureResult(
+			ControlInt002,
+			[
+				"Outbox deduplication provides idempotency where an outbox is configured; the outbox is optional and a deployment dispatching in process has none, so this is unverified here."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence,
+			// The capability ships in this framework -- the Configuration evidence above says so. What is
+			// unknown is whether the consumer wired it, and that is the OUTCOME, not the configuration.
+			isConfigured: true);
 	}
 
 	private ControlValidationResult ValidateDeliveryConfirmation()
@@ -128,11 +144,19 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 			"Outbox pattern tracks message delivery status with confirmation",
 			nameof(ProcessingIntegrityControlValidator)));
 
-		evidence.Add(CreateEvidence(
-			EvidenceType.TestResult,
-			"Delivery confirmation control verified - outbox tracking available",
-			nameof(ProcessingIntegrityControlValidator)));
-
-		return CreateSuccessResult(ControlInt003, evidence);
+		// The Configuration evidence above is true: the capability is shipped. What is NOT
+		// established is that this deployment operates it, and a TestResult item saying the
+		// control was "verified" asserted a check that never ran. Offering a capability is not
+		// operating a control.
+		return CreateFailureResult(
+			ControlInt003,
+			[
+				"Delivery confirmation is tracked by the outbox where one is configured; the outbox is optional, so this control is unverified here and requires independent attestation."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence,
+			// The capability ships in this framework -- the Configuration evidence above says so. What is
+			// unknown is whether the consumer wired it, and that is the OUTCOME, not the configuration.
+			isConfigured: true);
 	}
 }

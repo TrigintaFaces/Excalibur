@@ -1,3 +1,8 @@
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Observability.Metrics;
+#if (UseSqlServer)
+using Excalibur.Saga.SqlServer.DependencyInjection;
+#endif
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -39,11 +44,7 @@ builder.Services.AddExcalibur(excalibur => excalibur
     .AddSagas(saga =>
     {
 #if (UseSqlServer)
-        saga.UseSqlServer(sql =>
-        {
-            sql.ConnectionString = builder.Configuration.GetConnectionString("SagaStore")
-                ?? throw new InvalidOperationException("ConnectionStrings:SagaStore is required.");
-        });
+        saga.UseSqlServer(sql => sql.ConnectionStringName("SagaStore"));
 #endif
         saga.WithCoordination()
             .WithInstrumentation();

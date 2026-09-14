@@ -192,7 +192,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 
 		// Assert - Verify result
 		_ = result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		nextCalled.ShouldBeTrue();
 
 		// Assert - Verify activity creation
@@ -373,7 +373,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		// Assert - Verify performance characteristics
 		processingTimes.ShouldNotBeEmpty();
 		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await)
-		tasks.All(t => t.Result.IsSuccess).ShouldBeTrue();
+		tasks.All(t => t.Result.Succeeded).ShouldBeTrue();
 		#pragma warning restore RS0030
 
 		// Assert - Verify timing logs exist

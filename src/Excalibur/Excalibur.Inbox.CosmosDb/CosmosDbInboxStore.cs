@@ -232,12 +232,9 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
-		var document = CosmosDbInboxDocument.FromInboxEntry(entry);
-
-		// Compose the ambient tenant INTO the dedup id and stamp the row, so the dedup key + every keyed read
-		// isolate per tenant — two tenants' identical (messageId, handlerType) can never collide.
-		document.Id = ScopedId(messageId, handlerType);
-		document.TenantId = TenantTerm;
+		// The ambient tenant is REQUIRED by FromInboxEntry, so the dedup id it returns is composed with the
+		// tenant term from construction — there is no tenant-less document to accidentally persist.
+		var document = CosmosDbInboxDocument.FromInboxEntry(entry, TenantTerm);
 
 		// The stored partition-key field (handler_type) MUST equal the partition we write to, so it matches the
 		// uniform partition selection: the shared partition-key value when configured, else the handler type.

@@ -30,10 +30,17 @@ namespace Excalibur.Tests.Governance;
 /// using-resolved (<c>using Azure.Foo; ... A.Fake&lt;Bar&gt;()</c>) forms.
 /// </para>
 /// <para>
-/// Exceptions (e.g., if a seam adapter's own tests legitimately need to fake
-/// an SDK concrete for a real-SDK passthrough conformance smoke) should be
-/// added to <see cref="ExceptionTypeFullNames"/> with an ADR-142 §D7
-/// justification in the PR description.
+/// <b>There is no exception list, and none may be added.</b> ADR-142 §D7 states that
+/// framework code MUST NOT expose third-party SDK concrete types to test fakes directly,
+/// and that every SDK call path a test needs to substitute goes through a narrow internal
+/// seam interface owned by this framework. A violation here is therefore a missing seam,
+/// never a candidate for exemption -- the remedy is to build the seam, not to record the
+/// site. The debt baseline below exists only to let an inherited population shrink; it is
+/// not an escape hatch for new code.
+///
+/// This paragraph previously directed readers to an <c>ExceptionTypeFullNames</c> member
+/// that does not exist. A see-cref to a phantom symbol reads exactly like one to a real
+/// symbol, and this one cost three reversed rulings in two hours.
 /// </para>
 /// </remarks>
 [Trait("Category", "Conformance")]

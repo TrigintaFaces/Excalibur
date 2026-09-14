@@ -249,7 +249,9 @@ internal sealed class InMemoryDataInventoryStore : IDataInventoryStore, IDataInv
 						FieldName = location.FieldName,
 						DataCategory = location.DataCategory,
 						IsAutoDiscovered = location.IsAutoDiscovered,
-						RecordCount = 1
+						// This store CAN count, so it counts. The loop adds one entry per (table, field) and
+						// skips the rest, so a literal here reported three records of one field as one.
+						RecordCount = CountRecordsForLocation(tenantTerm, location.TableName, location.FieldName)
 					});
 				}
 			}

@@ -7,11 +7,14 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.CloudEvents;
+using Excalibur.Dispatch.Options.CloudEvents;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Aws;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs;
 
@@ -134,6 +137,50 @@ public sealed class AwsSqsMessageBusShould : IAsyncDisposable
 		// Act & Assert
 		await Should.ThrowAsync<InvalidOperationException>(
 			() => bus.PublishAsync(action, context, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task PublishEvent_WhenCloudEventsConfigured_EmitsCloudEventAttributesOnDefaultSend()
+	{
+		// This is the 2hgehp regression arm: CloudEvents must be on the ORDINARY send path once a
+		// mapper is registered, with no separate opt-in call at the publish site. Only the AWS SDK
+		// boundary (IAmazonSQS) is faked -- the mapper, bridge, and envelope converter are the real
+		// production types, so a mapper that silently drops attributes would fail this test.
+		var cloudEventOptions = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
+		var mapper = new AwsSqsCloudEventAdapter(cloudEventOptions, NullLogger<AwsSqsCloudEventAdapter>.Instance);
+		var bridge = new EnvelopeCloudEventBridge(
+			new CloudEventEnvelopeConverter(cloudEventOptions.Value),
+			[new CloudEventEncoderAdapter<SendMessageRequest>(mapper)]);
+
+		var bus = new AwsSqsMessageBus(
+			_sqsClient,
+			_serializer,
+			Microsoft.Extensions.Options.Options.Create(_options),
+			Microsoft.Extensions.Options.Options.Create(new AwsSqsFifoOptions()),
+			NullLogger<AwsSqsMessageBus>.Instance,
+			bridge,
+			mapper);
+
+		var evt = new TestCloudEventBusEvent();
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
+
+		SendMessageRequest? captured = null;
+		A.CallTo(() => _sqsClient.SendMessageAsync(A<SendMessageRequest>._, A<CancellationToken>._))
+			.Invokes((SendMessageRequest r, CancellationToken _) => captured = r)
+			.Returns(Task.FromResult(new SendMessageResponse()));
+
+		await bus.PublishAsync(evt, context, CancellationToken.None);
+
+		_ = captured.ShouldNotBeNull();
+		captured.MessageAttributes.ShouldContainKey("ce-specversion");
+		captured.MessageAttributes.ShouldContainKey("ce-id");
+		captured.MessageAttributes["ce-type"].StringValue.ShouldContain(nameof(TestCloudEventBusEvent));
+	}
+
+	private sealed class TestCloudEventBusEvent : IDispatchEvent
+	{
 	}
 
 	[Fact]

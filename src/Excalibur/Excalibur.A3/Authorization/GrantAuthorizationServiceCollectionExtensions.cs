@@ -48,7 +48,13 @@ public static class GrantAuthorizationServiceCollectionExtensions
 		// Ensure the authorization core + grant handler are present (idempotent — safe to call repeatedly
 		// and alongside AddExcaliburAuthorization).
 		services.AddAuthorizationCore();
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuthorizationHandler, GrantsAuthorizationHandler>());
+
+		// SCOPED, not singleton. The handler resolves the A3 policy provider, which is registered scoped
+		// because it reads the current caller's identity and ambient tenant. A singleton handler cannot
+		// hold a scoped dependency: with scope validation on it refuses to build the container, and with
+		// validation off it captures the first request's provider for the lifetime of the process and
+		// authorizes every later request as that first caller, in that first caller's tenant.
+		services.TryAddEnumerable(ServiceDescriptor.Scoped<IAuthorizationHandler, GrantsAuthorizationHandler>());
 
 		// Register the named policy backed by the A3 grant requirement.
 		services.Configure<AuthorizationOptions>(options =>

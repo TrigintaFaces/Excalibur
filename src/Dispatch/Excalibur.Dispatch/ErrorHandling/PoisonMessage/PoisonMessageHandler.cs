@@ -101,10 +101,20 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 			// Extract processing info from context
 			var processingInfo = ExtractProcessingInfo(context);
 
+			// The declared name, not the CLR FullName: every other durable surface (event store, outbox,
+			// CloudEvents) stores the declared name, and a FullName moves when a consumer refactors a
+			// namespace, orphaning its own dead letters. GetDeclaredName is used rather than GetName
+			// because GetName THROWS for a type with no declared name, and this is the error path -- it
+			// must not fail a second time. Both forms resolve on replay: the type registry claims a type
+			// under its declared name AND its CLR forms, so entries stored under either name replay.
+			var messageClrType = message.GetType();
+			var declaredMessageType = MessageNameHelper.GetDeclaredName(messageClrType)
+				?? messageClrType.FullName ?? messageClrType.Name;
+
 			var deadLetterMessage = new DeadLetterMessage
 			{
 				MessageId = context.MessageId ?? Guid.NewGuid().ToString("N"),
-				MessageType = message.GetType().FullName ?? message.GetType().Name,
+				MessageType = declaredMessageType,
 				MessageBody = messageBody,
 				MessageMetadata = messageMetadata,
 				Reason = reason,

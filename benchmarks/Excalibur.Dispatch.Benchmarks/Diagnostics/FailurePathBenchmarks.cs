@@ -6,6 +6,9 @@ using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Resilience;
+using Excalibur.Dispatch.Resilience.Polly;
+
+using MsOptions = Microsoft.Extensions.Options.Options;
 using Excalibur.Dispatch.Options.Resilience;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,26 +32,22 @@ public class FailurePathBenchmarks
 	public void GlobalSetup()
 	{
 		_fixture = new DiagnosticBenchmarkFixture(includeFaultingHandler: true, includeCancelableHandler: true);
-		_retryPolicy = new DefaultRetryPolicy(new RetryPolicyOptions
+		// The in-box duplicate retry policy was deleted; Polly is the framework's retry implementation,
+		// so these measure what a consumer actually runs.
+		_retryPolicy = new PollyRetryPolicyAdapter(MsOptions.Create(new PollyRetryOptions
 		{
 			MaxRetryAttempts = 3,
-			Backoff = new RetryBackoffOptions
-			{
-				BaseDelay = TimeSpan.FromMilliseconds(1),
-				MaxDelay = TimeSpan.FromMilliseconds(5),
-				EnableJitter = false,
-			},
-		});
-		_retryPolicyNoDelay = new DefaultRetryPolicy(new RetryPolicyOptions
+			BaseDelay = TimeSpan.FromMilliseconds(1),
+			MaxDelay = TimeSpan.FromMilliseconds(5),
+			UseJitter = false,
+		}));
+		_retryPolicyNoDelay = new PollyRetryPolicyAdapter(MsOptions.Create(new PollyRetryOptions
 		{
 			MaxRetryAttempts = 3,
-			Backoff = new RetryBackoffOptions
-			{
-				BaseDelay = TimeSpan.FromTicks(1),
-				MaxDelay = TimeSpan.FromTicks(1),
-				EnableJitter = false,
-			},
-		}, new FixedBackoffCalculator(TimeSpan.Zero));
+			BaseDelay = TimeSpan.Zero,
+			MaxDelay = TimeSpan.Zero,
+			UseJitter = false,
+		}));
 	}
 
 	[GlobalCleanup]
@@ -67,7 +66,7 @@ public class FailurePathBenchmarks
 				attempts++;
 				if (attempts < 3)
 				{
-					throw new InvalidOperationException("synthetic transient failure");
+					throw new TimeoutException("synthetic transient failure");
 				}
 
 				ct.ThrowIfCancellationRequested();
@@ -86,7 +85,7 @@ public class FailurePathBenchmarks
 				attempts++;
 				if (attempts < 3)
 				{
-					throw new InvalidOperationException("synthetic transient failure");
+					throw new TimeoutException("synthetic transient failure");
 				}
 
 				ct.ThrowIfCancellationRequested();
@@ -106,11 +105,11 @@ public class FailurePathBenchmarks
 				{
 					attempts++;
 					ct.ThrowIfCancellationRequested();
-					throw new InvalidOperationException("persistent failure");
+					throw new TimeoutException("persistent failure");
 				},
 				CancellationToken.None).ConfigureAwait(false);
 		}
-		catch (InvalidOperationException)
+		catch (TimeoutException)
 		{
 			// Expected path for benchmark.
 		}
@@ -129,11 +128,11 @@ public class FailurePathBenchmarks
 				{
 					attempts++;
 					ct.ThrowIfCancellationRequested();
-					throw new InvalidOperationException("persistent failure");
+					throw new TimeoutException("persistent failure");
 				},
 				CancellationToken.None).ConfigureAwait(false);
 		}
-		catch (InvalidOperationException)
+		catch (TimeoutException)
 		{
 			// Expected path for benchmark.
 		}

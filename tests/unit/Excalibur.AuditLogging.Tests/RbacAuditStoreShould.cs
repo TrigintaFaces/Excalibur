@@ -217,7 +217,7 @@ public sealed class RbacAuditStoreShould
             .Returns(role);
 
         await Should.ThrowAsync<UnauthorizedAccessException>(
-            () => _sut.GetLastEventAsync(null, CancellationToken.None));
+            () => _sut.GetLastEventAsync(CancellationToken.None));
     }
 
     [Fact]

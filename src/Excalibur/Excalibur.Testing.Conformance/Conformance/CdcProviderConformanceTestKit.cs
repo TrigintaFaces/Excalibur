@@ -60,6 +60,27 @@ public abstract class CdcProviderConformanceTestKit : ConformanceTestKit
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
 
 	/// <summary>
+	/// Declares whether a save that lost a concurrent race may throw instead of silently being overwritten.
+	/// The default implementation accepts no such exception, matching a store with no ordering guard.
+	/// </summary>
+	/// <param name="exception">An exception thrown by one of several concurrent <c>SavePositionAsync</c> calls.</param>
+	/// <returns>
+	/// <see langword="true"/> when <paramref name="exception"/> is this store's documented way of refusing to
+	/// regress a position that a concurrent writer already advanced past; otherwise <see langword="false"/>.
+	/// </returns>
+	/// <remarks>
+	/// A store that refuses to persist a stale position under concurrent writes is choosing the SAFER of two
+	/// wrong-looking outcomes, not failing to implement last-write-wins: last-write-wins was never a contract
+	/// this kit's callers can observe (nothing orders the concurrent tasks), so a store that instead never
+	/// regresses its own watermark satisfies the same real requirement — the position converges to something
+	/// valid — by a stronger route. Override this to recognize that store's specific refusal exception (for
+	/// example <c>CdcStalePositionException</c>) so <see cref="ConcurrentSavePosition_SameConsumer_LastWriteWins"/>
+	/// can tell "this write lost the race, by design" from "this store is broken." Do not weaken the store to
+	/// avoid overriding this — the refusal is the correct behavior; the arm's job is to recognize it.
+	/// </remarks>
+	protected virtual bool ConcurrentSaveMayRefuseAsStale(Exception exception) => false;
+
+	/// <summary>
 	/// Creates a unique consumer identifier for testing.
 	/// </summary>
 	/// <returns>A unique consumer identifier.</returns>
@@ -331,15 +352,48 @@ public abstract class CdcProviderConformanceTestKit : ConformanceTestKit
 		}
 	});
 
-	/// <summary>Verifies concurrent saves to the same consumer converge to a valid last-write-wins position.</summary>
+	/// <summary>
+	/// Verifies concurrent saves to the same consumer converge to a valid position — either by last-write-wins,
+	/// or by a documented refusal to regress a watermark a concurrent writer already advanced past. This does
+	/// NOT assert which one wins, only that the outcome is final and valid; see
+	/// <see cref="ConcurrentSaveMayRefuseAsStale"/> for why a refusing store is not a defect.
+	/// </summary>
 	public virtual Task ConcurrentSavePosition_SameConsumer_LastWriteWins() => RunAsync(async store =>
 	{
 		var consumerId = CreateConsumerId();
 		const int concurrentWrites = 10;
 
+		// Not Task.WhenAll: it surfaces only the first exception, which is exactly the information this arm
+		// needs from EVERY task — a store that refuses N-1 of N writes as stale must still be told apart from
+		// one that refused all N (broken) or threw something ConcurrentSaveMayRefuseAsStale does not recognize
+		// (also broken). Each task is awaited individually so every outcome is observed.
 		var tasks = Enumerable.Range(0, concurrentWrites)
-			.Select(i => store.SavePositionAsync(consumerId, CreateTestPosition(i), CancellationToken.None));
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+			.Select(i => store.SavePositionAsync(consumerId, CreateTestPosition(i), CancellationToken.None))
+			.ToList();
+
+		var succeeded = 0;
+		foreach (var task in tasks)
+		{
+			try
+			{
+				await task.ConfigureAwait(false);
+				succeeded++;
+			}
+			catch (Exception ex) when (ConcurrentSaveMayRefuseAsStale(ex))
+			{
+				// A documented monotonic refusal: this write lost the race to a concurrent one with a later
+				// position, and the store correctly declined to regress its own watermark rather than silently
+				// letting the loser overwrite the winner.
+			}
+		}
+
+		if (succeeded == 0)
+		{
+			throw new TestFixtureAssertionException(
+				"Every concurrent write was refused as stale. A store that refuses all of N concurrent writes "
+				+ "is indistinguishable from one that accepts none, which is not the property this arm proves — "
+				+ "at least one write must land.");
+		}
 
 		var retrieved = await store.GetPositionAsync(consumerId, CancellationToken.None).ConfigureAwait(false);
 

@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.ComponentModel.DataAnnotations;
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -34,7 +32,12 @@ public sealed class AzureStorageQueueConnectionOptions
 	/// <summary>
 	/// Gets or sets the Azure Storage connection string.
 	/// </summary>
-	[Required]
+	/// <remarks>
+	/// Optional. Supply either this or <see cref="StorageAccountUri"/> together with
+	/// <see cref="UseManagedIdentity"/>; the transport fails fast at client construction when neither
+	/// is configured. It is deliberately not marked required, because doing so would reject the
+	/// managed-identity configuration this type also advertises.
+	/// </remarks>
 	public string? ConnectionString { get; set; }
 
 	/// <summary>

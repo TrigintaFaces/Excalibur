@@ -77,12 +77,15 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		_serializer = serializer;
 		_logger = logger;
 
-		// Validate that outbox store is available when enabled
-		if (_options.Enabled && _outboxStore == null)
-		{
-			throw new InvalidOperationException(
-				Resources.OutboxStagingMiddleware_NoOutboxServices);
-		}
+		// NO STORE CHECK HERE, DELIBERATELY. This middleware is seated two different ways and the
+		// constructor cannot tell them apart: a host that called UseOutbox() asked for staging and a
+		// missing store is a misconfiguration, while a host that merely took the default pipeline never
+		// asked and a missing store simply means it has no outbox. Throwing here punished the second
+		// population for the first one's mistake, and it threw on the first dispatch of each scope rather
+		// than at startup, so even the population it was aimed at learned too late.
+		//
+		// OutboxStagingWiringValidator now carries the check, registered by UseOutbox() alone, and refuses
+		// to START. When no store is present this middleware stays inert -- see the guard in InvokeAsync.
 	}
 
 	/// <inheritdoc />
@@ -111,7 +114,11 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		ArgumentNullException.ThrowIfNull(nextDelegate);
 
 		// Skip outbox staging if disabled
-		if (!_options.Enabled)
+		// An absent store is inert, not fatal: a default-pipeline host that never registered an outbox
+		// passes straight through. Creating an OutboxContext here would be worse than throwing -- a handler
+		// would stage into a context nothing drains, and the messages would be silently discarded. The loud
+		// failure for a host that DID ask for the outbox happens at startup, in the wiring validator.
+		if (!_options.Enabled || _outboxStore is null)
 		{
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}

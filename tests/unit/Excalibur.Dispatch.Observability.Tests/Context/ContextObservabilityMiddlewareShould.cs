@@ -31,11 +31,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				null!,
 				_fakeTracker,
 				_fakeMetrics,
 				_fakeEnricher,
-				MsOptions.Create(new ContextObservabilityOptions())));
+				MsOptions.Create(new ContextObservabilityOptions()),
+				null!));
 	}
 
 	[Fact]
@@ -43,11 +43,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				NullLogger<ContextObservabilityMiddleware>.Instance,
 				null!,
 				_fakeMetrics,
 				_fakeEnricher,
-				MsOptions.Create(new ContextObservabilityOptions())));
+				MsOptions.Create(new ContextObservabilityOptions()),
+				NullLogger<ContextObservabilityMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -55,11 +55,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				NullLogger<ContextObservabilityMiddleware>.Instance,
 				_fakeTracker,
 				null!,
 				_fakeEnricher,
-				MsOptions.Create(new ContextObservabilityOptions())));
+				MsOptions.Create(new ContextObservabilityOptions()),
+				NullLogger<ContextObservabilityMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -67,11 +67,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				NullLogger<ContextObservabilityMiddleware>.Instance,
 				_fakeTracker,
 				_fakeMetrics,
 				null!,
-				MsOptions.Create(new ContextObservabilityOptions())));
+				MsOptions.Create(new ContextObservabilityOptions()),
+				NullLogger<ContextObservabilityMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -79,11 +79,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				NullLogger<ContextObservabilityMiddleware>.Instance,
 				_fakeTracker,
 				_fakeMetrics,
 				_fakeEnricher,
-				null!));
+				null!,
+				NullLogger<ContextObservabilityMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -420,10 +420,10 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	private ContextObservabilityMiddleware CreateMiddleware(ContextObservabilityOptions? options = null)
 	{
 		return new ContextObservabilityMiddleware(
-			NullLogger<ContextObservabilityMiddleware>.Instance,
 			_fakeTracker,
 			_fakeMetrics,
 			_fakeEnricher,
-			MsOptions.Create(options ?? new ContextObservabilityOptions()));
+			MsOptions.Create(options ?? new ContextObservabilityOptions()),
+			NullLogger<ContextObservabilityMiddleware>.Instance);
 	}
 }

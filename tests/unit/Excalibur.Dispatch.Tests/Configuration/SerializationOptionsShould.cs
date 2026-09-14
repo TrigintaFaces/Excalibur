@@ -90,6 +90,24 @@ public sealed class SerializationOptionsShould
 		result.PropertyNamingPolicy.ShouldBe(JsonNamingPolicy.CamelCase);
 		result.DefaultIgnoreCondition.ShouldBe(JsonIgnoreCondition.WhenWritingNull);
 		result.WriteIndented.ShouldBeTrue();
+		// ApplyDefaults deliberately does NOT add JsonStringEnumConverter: that converter requires
+		// dynamic code, so adding it by default would make the shared options AOT-hostile for every
+		// consumer, including those who never serialise an enum as a string. The opt-in lives on
+		// ApplyDefaultsWithStringEnums, asserted by the sibling arm below.
+		result.Converters.ShouldNotContain(c => c is JsonStringEnumConverter);
+	}
+
+	[Fact]
+	[RequiresDynamicCode("Test requires dynamic code for JSON serialization options")]
+	public void DispatchJsonSerializerOptions_ApplyDefaultsWithStringEnums_AddsTheConverter()
+	{
+		// The other half of the split. Without this arm the change above only DELETES an assertion,
+		// and nothing would notice if the opt-in stopped working.
+		var options = new JsonSerializerOptions();
+
+		var result = DispatchJsonSerializerOptions.ApplyDefaultsWithStringEnums(options);
+
+		result.ShouldBeSameAs(options);
 		result.Converters.ShouldContain(c => c is JsonStringEnumConverter);
 	}
 

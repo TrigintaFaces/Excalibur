@@ -126,6 +126,10 @@ projects:
     classification: Sample
     in_solution: true
 
+  - path: samples/04-reliability/OrderingValidation/OrderingValidation.csproj
+    classification: Sample
+    in_solution: true
+
   - path: samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj
     classification: Sample
     in_solution: true
@@ -163,6 +167,10 @@ projects:
     in_solution: true
 
   - path: samples/06-security/GdprCompliance/GdprCompliance.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/GrantAuthorizedApi/GrantAuthorizedApi.csproj
     classification: Sample
     in_solution: true
 
@@ -690,6 +698,12 @@ projects:
     framework_owner: Excalibur
 
   - path: src/Excalibur/Excalibur.A3.Abstractions/Excalibur.A3.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.A3.AspNetCore/Excalibur.A3.AspNetCore.csproj
     classification: Shipping
     in_solution: true
     tier: Extension
@@ -1703,6 +1717,12 @@ projects:
     framework_owner: Excalibur
 
   - path: tests/unit/Excalibur.A3.Governance.Tests/Excalibur.A3.Governance.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.A3.AspNetCore.Tests/Excalibur.A3.AspNetCore.Tests.csproj
     classification: Test
     in_solution: true
     category: Unit

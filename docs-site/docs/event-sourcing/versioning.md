@@ -58,8 +58,11 @@ public record OrderCreatedV2(Guid OrderId, string CustomerId, decimal TotalAmoun
 // Configure serializer to handle schema evolution
 services.AddJsonSerialization(options =>
 {
-    // Ignore unknown properties when deserializing
-    options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip;
+    options.ConfigureSerializer = json =>
+    {
+        // Ignore unknown properties when deserializing
+        json.UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip;
+    };
 });
 ```
 

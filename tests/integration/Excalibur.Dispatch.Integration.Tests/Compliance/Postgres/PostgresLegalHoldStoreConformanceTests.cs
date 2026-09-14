@@ -148,6 +148,10 @@ public sealed class PostgresLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 		GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
 
 	[Fact]
+	public Task GetActiveHoldsForDataSubjectAsync_EmptyTenantId_ShouldBehaveAsUnspecified_Test() =>
+		GetActiveHoldsForDataSubjectAsync_EmptyTenantId_ShouldBehaveAsUnspecified();
+
+	[Fact]
 	public Task GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching_Test() =>
 		GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching();
 

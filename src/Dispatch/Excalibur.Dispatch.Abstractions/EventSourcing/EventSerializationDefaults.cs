@@ -61,18 +61,52 @@ public static class EventSerializationDefaults
 	/// replacing them, so the naming policy, string-enum representation and null handling that fix the
 	/// stored wire format stay canonical and apply to whichever resolver is in use -- events written with a
 	/// resolver are byte-identical to events written without one.
+	/// <para>
+	/// Supplying no resolver is only viable where reflection-based serialization is available. Where it is
+	/// not -- a Native AOT publish, or any host that has disabled the
+	/// <c>System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault</c> feature switch -- an absent
+	/// resolver is rejected here, at store construction, rather than surfacing as a failure on the first
+	/// event a running application tries to write.
+	/// </para>
 	/// </remarks>
 	/// <param name="jsonOptions">The canonical serializer options to attach the resolver to.</param>
 	/// <param name="resolver">The host's resolver, or <see langword="null"/> to keep the reflection path.</param>
 	/// <returns><see langword="true"/> when a resolver was attached.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// <paramref name="resolver"/> is <see langword="null"/> and reflection-based serialization is
+	/// unavailable, so the reflection path this would fall back to cannot run.
+	/// </exception>
 	public static bool TryApplyTypeInfoResolver(
 		JsonSerializerOptions jsonOptions,
 		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? resolver)
+		=> TryApplyTypeInfoResolver(jsonOptions, resolver, JsonSerializer.IsReflectionEnabledByDefault);
+
+	// The reflection-availability flag is a parameter rather than a direct read of
+	// JsonSerializer.IsReflectionEnabledByDefault so the AOT arm is reachable from a test: the switch is
+	// read once per process by System.Text.Json and cannot be flipped from inside a running test host.
+	internal static bool TryApplyTypeInfoResolver(
+		JsonSerializerOptions jsonOptions,
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? resolver,
+		bool reflectionEnabled)
 	{
 		ArgumentNullException.ThrowIfNull(jsonOptions);
 
 		if (resolver is null)
 		{
+			// No resolver means the reflection path. Under Native AOT that path cannot run at all, and the
+			// only signal a consumer would otherwise get is a NotSupportedException from the first event
+			// they serialize -- in production, on a store that constructed cleanly. Name the requirement
+			// and the property that satisfies it instead.
+			if (!reflectionEnabled)
+			{
+				throw new InvalidOperationException(
+					"Reflection-based serialization is unavailable in this application (Native AOT, or " +
+					"the System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault feature switch is " +
+					"off), so event payloads cannot be serialized without a source-generated type-info " +
+					"resolver. Set the store's EventTypeInfoResolver option to a source-generated " +
+					"JsonSerializerContext -- for example EventTypeInfoResolver = AppEventContext.Default.");
+			}
+
 			return false;
 		}
 
@@ -101,7 +135,7 @@ public static class EventSerializationDefaults
 	/// governs object properties, not dictionary entries, so the reflection path emits it too.
 	/// </para>
 	/// <para>
-	/// Call this only when <see cref="TryApplyTypeInfoResolver"/> reported that a resolver was attached; with
+	/// Call this only when <see cref="TryApplyTypeInfoResolver(JsonSerializerOptions, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?)"/> reported that a resolver was attached; with
 	/// no resolver the reflection path (<c>JsonSerializer.SerializeToUtf8Bytes(metadata, jsonOptions)</c>) is
 	/// the equivalent and cheaper form.
 	/// </para>

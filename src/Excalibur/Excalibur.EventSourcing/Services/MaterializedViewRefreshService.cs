@@ -9,6 +9,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Polly;
+using Polly.Retry;
+
 using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.EventSourcing.Services;
@@ -146,41 +149,52 @@ internal sealed partial class MaterializedViewRefreshService : BackgroundService
 	private async Task RefreshWithRetryAsync(CancellationToken cancellationToken)
 	{
 		var opts = _options.Value;
-		var retryCount = 0;
-		var currentDelay = opts.InitialRetryDelay;
+		var attempts = 0;
 
-		while (!cancellationToken.IsCancellationRequested)
-		{
-			try
+		// Transient-fault retry is delegated to a Polly ResiliencePipeline (exponential backoff + jitter,
+		// matching Excalibur.Dispatch.Resilience.Polly's own PollyRetryPolicyFactory pattern) instead of a
+		// hand-rolled loop. MaxRetryCount == 0 means unlimited retries in the prior contract; Polly's
+		// RetryStrategyOptions requires MaxRetryAttempts >= 1, so that maps to int.MaxValue.
+		var pipeline = new ResiliencePipelineBuilder()
+			.AddRetry(new RetryStrategyOptions
 			{
-				await RefreshAllViewsAsync(cancellationToken).ConfigureAwait(false);
-				return; // Success
-			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-			{
-				throw; // Re-throw cancellation
-			}
-			catch (Exception ex)
-			{
-				retryCount++;
-
-				if (opts.MaxRetryCount > 0 && retryCount >= opts.MaxRetryCount)
+				// A poison event is PERMANENT: the stored type will not resolve six seconds from now, so
+				// retrying re-reads the same event, fails identically, and logs forever without progress.
+				// Excluding MaterializedViewPoisonEventException here is what keeps the poison halt from
+				// degrading back into the retry loop it exists to prevent -- ShouldHandle=false lets it
+				// propagate out of ExecuteAsync unretried, on the FIRST occurrence.
+				ShouldHandle = new PredicateBuilder().Handle<Exception>(
+					ex => ex is not MaterializedViewPoisonEventException and not OperationCanceledException),
+				MaxRetryAttempts = opts.MaxRetryCount > 0 ? opts.MaxRetryCount : int.MaxValue,
+				Delay = opts.InitialRetryDelay,
+				MaxDelay = opts.MaxRetryDelay,
+				BackoffType = DelayBackoffType.Exponential,
+				UseJitter = true,
+				OnRetry = args =>
 				{
-					LogMaxRetriesExceeded(retryCount, ex);
-					return; // Give up after max retries
-				}
+					attempts = args.AttemptNumber + 1;
+					LogRetrying(attempts, args.RetryDelay, args.Outcome.Exception!);
+					return default;
+				},
+			})
+			.Build();
 
-				LogRetrying(retryCount, currentDelay, ex);
-				await Task.Delay(currentDelay, _timeProvider, cancellationToken).ConfigureAwait(false);
-
-				// Exponential backoff with jitter (non-security context - jitter for retry spacing)
-#pragma warning disable CA5394 // Do not use insecure randomness
-				var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 100));
-#pragma warning restore CA5394
-				currentDelay = TimeSpan.FromTicks(Math.Min(
-					currentDelay.Ticks * 2,
-					opts.MaxRetryDelay.Ticks)) + jitter;
-			}
+		try
+		{
+			await pipeline.ExecuteAsync(
+				static (svc, ct) => new ValueTask(svc.RefreshAllViewsAsync(ct)),
+				this,
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (MaterializedViewPoisonEventException ex)
+		{
+			LogPoisonEventHalt(ex.ViewName ?? "(all views)", ex.EventId ?? "(unknown)", ex.EventType ?? "(unknown)", ex.GlobalPosition, ex);
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+		{
+			// The pipeline exhausted every retry; the last failure surfaces here rather than being
+			// silently swallowed, exactly as the prior loop's "give up after max retries" branch did.
+			LogMaxRetriesExceeded(attempts, ex);
 		}
 	}
 
@@ -321,6 +335,12 @@ internal sealed partial class MaterializedViewRefreshService : BackgroundService
 		Level = LogLevel.Error,
 		Message = "Unexpected error in refresh loop")]
 	private partial void LogUnexpectedError(Exception ex);
+
+	[LoggerMessage(
+		EventId = 3015,
+		Level = LogLevel.Critical,
+		Message = "Materialized view refresh HALTED for {ViewName}: event {EventId} at global position {GlobalPosition} has stored type '{EventType}', which cannot be resolved. The view is stopped and will not advance -- it is NOT silently skipping the event. Register the stored type name against the type it belongs to now if it moved namespace or assembly, or against a type no builder handles to pass over it deliberately.")]
+	private partial void LogPoisonEventHalt(string viewName, string eventId, string eventType, long globalPosition, Exception ex);
 
 	#endregion
 }

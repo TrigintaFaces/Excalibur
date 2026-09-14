@@ -149,7 +149,7 @@ public abstract class Soc2ReportStoreConformanceTestKit : ConformanceTestKit
 			Criterion = TrustServicesCriterion.CC6_LogicalAccess,
 			Description = "Logical access controls",
 			Controls = [CreateMinimalControlDescription()],
-			IsMet = true
+			Outcome = CriterionOutcome.Met
 		};
 
 	/// <summary>

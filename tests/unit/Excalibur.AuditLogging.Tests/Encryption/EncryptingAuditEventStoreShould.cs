@@ -271,7 +271,7 @@ public sealed class EncryptingAuditEventStoreShould
 
         var encryptedActorId = await EncryptString("last-user");
 
-        A.CallTo(() => _innerStore.GetLastEventAsync("tenant-1", A<CancellationToken>._))
+        A.CallTo(() => _innerStore.GetLastEventAsync(A<CancellationToken>._))
             .Returns(new AuditEvent
             {
                 EventId = "evt-last",
@@ -282,7 +282,7 @@ public sealed class EncryptingAuditEventStoreShould
                 ActorId = encryptedActorId
             });
 
-        var result = await sut.GetLastEventAsync("tenant-1", CancellationToken.None);
+        var result = await sut.GetLastEventAsync(CancellationToken.None);
 
         result.ShouldNotBeNull();
         result.ActorId.ShouldBe("last-user");
@@ -293,10 +293,10 @@ public sealed class EncryptingAuditEventStoreShould
     {
         var sut = CreateSut();
 
-        A.CallTo(() => _innerStore.GetLastEventAsync("empty-tenant", A<CancellationToken>._))
+        A.CallTo(() => _innerStore.GetLastEventAsync(A<CancellationToken>._))
             .Returns(Task.FromResult<AuditEvent?>(null));
 
-        var result = await sut.GetLastEventAsync("empty-tenant", CancellationToken.None);
+        var result = await sut.GetLastEventAsync(CancellationToken.None);
 
         result.ShouldBeNull();
     }

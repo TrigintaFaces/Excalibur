@@ -4,7 +4,7 @@
 # WHY THIS SHAPE
 #   Every arm invokes the REAL script as a subprocess, with real argv, real files, and real
 #   HOOKS_SRC_DIR / HOOKS_DEST_DIR pointing at a throwaway tree. It never touches this repo's
-#   .git/hooks. "Has a self-test" != "non-vacuous" (tpu8m2): a self-test that exercises a
+#   .git/hooks. "Has a self-test" != "non-vacuous": a self-test that exercises a
 #   function's internals but never crosses the parser->shell boundary proves nothing.
 #
 #   Every SAFETY arm (the gate refuses/reports a bad state) is paired with a LIVENESS arm (the

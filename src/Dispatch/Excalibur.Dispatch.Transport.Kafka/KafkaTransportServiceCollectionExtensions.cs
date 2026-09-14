@@ -117,10 +117,13 @@ public static class KafkaTransportServiceCollectionExtensions
 				.ValidateOnStart();
 		}
 
-		// KafkaMessageBus takes IPayloadSerializer, whose only registration is AddPluggableSerialization.
-		// Seat it here (all TryAdd) so the documented AddDispatch() + AddKafkaTransport() composition can
-		// construct the bus; a consumer registering their own serializer still wins.
-		_ = services.AddPluggableSerialization();
+		// Serialization is the application's choice, so no transport registers a serializer -- but every
+		// transport message bus requires one. State the requirement here so a host missing it stops at
+		// start-up naming the call that fixes it, rather than failing to activate the bus.
+		// Serialization is the application's choice, so no transport registers a serializer -- but every
+		// transport message bus requires one. State the requirement here so a host missing it stops at
+		// start-up naming the call that fixes it, rather than failing to activate the bus.
+		_ = services.RequirePayloadSerializer();
 
 		// Register core Kafka services
 		RegisterKafkaServices(services, transportOptions);
@@ -445,7 +448,7 @@ public static class KafkaTransportServiceCollectionExtensions
 			var consumer = sp.GetRequiredService<IConsumer<string, byte[]>>();
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportReceiver>>();
 			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(name).Consumer.MaxPayloadBytes;
-			return new KafkaTransportReceiver(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming);
+			return new KafkaTransportReceiver(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming).WithCloudEventDecoding(CloudEventBinding.Kafka);
 		});
 	}
 

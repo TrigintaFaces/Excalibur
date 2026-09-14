@@ -28,10 +28,13 @@ namespace Excalibur.LeaderElection.MongoDB;
 /// new leader (which advanced the counter) is rejected.
 /// </para>
 /// <para>
-/// <b>Exhaustion:</b> the counter is a BSON 64-bit integer. A <c>$inc</c> past <see cref="long.MaxValue"/>
-/// wraps to a non-positive value; since tokens start at <c>1</c> and are strictly positive, a non-positive
-/// result means the domain is exhausted and the provider fails closed with
-/// <see cref="FencingTokenExhaustedException"/> rather than issuing a wrapped (non-monotonic) token.
+/// <b>Exhaustion:</b> the counter is a BSON 64-bit integer. MongoDB does NOT silently wrap a <c>$inc</c>
+/// past <see cref="long.MaxValue"/> -- the server rejects the operation with a native
+/// <c>MongoCommandException</c> ("Failed to apply $inc operations to current value..."), measured against a
+/// real server. That is translated to <see cref="FencingTokenExhaustedException"/>, with the
+/// native exception preserved as <see cref="Exception.InnerException"/>, mirroring the Redis and Postgres
+/// providers' translation of their own native overflow errors. The <c>token &lt;= 0</c> check below remains
+/// as a defensive backstop for a hypothetical driver/server version that returns rather than throws.
 /// </para>
 /// </remarks>
 internal sealed class MongoDbFencingTokenProvider : IFencingTokenProvider
@@ -66,14 +69,34 @@ internal sealed class MongoDbFencingTokenProvider : IFencingTokenProvider
 			ReturnDocument = ReturnDocument.After,
 		};
 
-		var document = await _counters.FindOneAndUpdateAsync(filter, update, options, cancellationToken)
-			.ConfigureAwait(false);
+		FencingCounterDocument document;
+		try
+		{
+			document = await _counters.FindOneAndUpdateAsync(filter, update, options, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		catch (MongoCommandException ex) when (ex.Message.Contains("$inc", StringComparison.Ordinal))
+		{
+			// The real server rejects an $inc that would overflow int64 rather than wrapping it (measured
+			// against a real MongoDB). Translate so a consumer's fail-closed
+			// catch(FencingTokenExhaustedException) relinquish path is honored rather than seeing a raw
+			// MongoCommandException (a wrapped/reused fencing token would be a split-brain catastrophe).
+			throw new FencingTokenExhaustedException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					"MongoDB fencing token domain is exhausted for resource '{0}'.",
+					resourceId),
+				ex)
+			{
+				ResourceId = resourceId,
+			};
+		}
 
 		var token = document.Seq;
 		if (token <= 0)
 		{
-			// int64 $inc wrapped past long.MaxValue -> exhausted. Fail closed rather than mint a
-			// non-monotonic token that would let a stale leader validate as current (split-brain).
+			// Defensive backstop: a non-positive result without a thrown exception would still be
+			// non-monotonic. Fail closed rather than mint an unsafe token.
 			throw new FencingTokenExhaustedException(
 				string.Format(
 					CultureInfo.InvariantCulture,

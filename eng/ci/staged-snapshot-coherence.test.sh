@@ -30,10 +30,10 @@ bad()  { echo "  FAIL $1"; fail=$((fail + 1)); }
 new_repo() {
     local d
     d="$(mktemp -d)"
-    git -C "$d" init -q
-    git -C "$d" config user.email t@t.t
-    git -C "$d" config user.name t
-    git -C "$d" config commit.gpgsign false
+    git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" init -q
+    git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" config user.email t@t.t
+    git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" config user.name t
+    git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" config commit.gpgsign false
     mkdir -p "$d/eng/ci"
     cp "$GATE_SRC" "$d/eng/ci/staged-snapshot-coherence.sh"
     echo "$d"
@@ -55,8 +55,8 @@ STUB
 seed_commit() {
     local d="$1"
     echo "original" > "$d/file.txt"
-    git -C "$d" add file.txt
-    git -C "$d" commit -qm initial
+    git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add file.txt
+    git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" commit -qm initial
 }
 
 run_gate() { ( cd "$1" && bash eng/ci/staged-snapshot-coherence.sh >/dev/null 2>&1 ); echo $?; }
@@ -68,11 +68,11 @@ echo "[staged-snapshot-coherence.test] running..."
 # exactly the defect it exists for.
 d="$(new_repo)"; seed_commit "$d"; install_stub "$d" 0
 echo "STAGED-CONTENT" > "$d/file.txt"
-git -C "$d" add file.txt
+git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add file.txt
 echo "WORKTREE-ONLY-CONTENT" > "$d/file.txt"   # dirty AFTER staging: index and disk now differ
 rc="$(run_gate "$d")"
 probe="$(cat "$d/.probe-sha" 2>/dev/null || true)"
-got="$(git -C "$d" show "$probe:file.txt" 2>/dev/null || true)"
+got="$(git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" show "$probe:file.txt" 2>/dev/null || true)"
 if [ "$got" = "STAGED-CONTENT" ]; then
     ok "STAGED-NOT-WORKTREE: the probe commit carries the INDEX content, not the file on disk"
 else
@@ -80,8 +80,8 @@ else
 fi
 
 # The probe must not become reachable: no ref may move, and HEAD must not advance.
-head_before="$(git -C "$d" rev-parse HEAD)"
-if [ "$head_before" = "$(git -C "$d" rev-parse HEAD)" ] && [ -n "$probe" ] && [ "$probe" != "$head_before" ]; then
+head_before="$(git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" rev-parse HEAD)"
+if [ "$head_before" = "$(git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" rev-parse HEAD)" ] && [ -n "$probe" ] && [ "$probe" != "$head_before" ]; then
     ok "NON-MUTATING: HEAD did not move and the probe is a distinct dangling commit"
 else
     bad "NON-MUTATING: HEAD moved or the probe was not distinct from HEAD"
@@ -96,33 +96,33 @@ fi
 
 # ---------------------------------------------------------------- SAFETY
 d="$(new_repo)"; seed_commit "$d"; install_stub "$d" 1
-echo "change" > "$d/file.txt"; git -C "$d" add file.txt
+echo "change" > "$d/file.txt"; git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add file.txt
 rc="$(run_gate "$d")"
 [ "$rc" -eq 1 ] && ok "SAFETY: a non-compiling staged snapshot is REJECTED (exit 1)" \
                || bad "SAFETY: expected exit 1 for a failing build, got $rc"
 
 d="$(new_repo)"; seed_commit "$d"; install_stub "$d" 64
-echo "change" > "$d/file.txt"; git -C "$d" add file.txt
+echo "change" > "$d/file.txt"; git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add file.txt
 rc="$(run_gate "$d")"
 [ "$rc" -eq 64 ] && ok "SAFETY: a sibling REFUSE propagates as REFUSE, never as a pass (exit 64)" \
                 || bad "SAFETY: a REFUSE must not become a pass — expected 64, got $rc"
 
 # A build gate that vanished must refuse. Silence here would be an inert gate reporting health.
 d="$(new_repo)"; seed_commit "$d"
-echo "change" > "$d/file.txt"; git -C "$d" add file.txt
+echo "change" > "$d/file.txt"; git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add file.txt
 rc="$(run_gate "$d")"
 [ "$rc" -eq 64 ] && ok "SAFETY: a MISSING build gate REFUSES (exit 64), it does not pass silently" \
                 || bad "SAFETY: missing sibling must REFUSE — expected 64, got $rc"
 
 # Unborn HEAD: nothing to parent the probe to. Must refuse rather than claim a pass.
 d="$(new_repo)"; install_stub "$d" 0
-echo "x" > "$d/file.txt"; git -C "$d" add file.txt
+echo "x" > "$d/file.txt"; git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add file.txt
 rc="$(run_gate "$d")"
 [ "$rc" -eq 64 ] && ok "SAFETY: an unborn HEAD REFUSES (exit 64)" \
                 || bad "SAFETY: unborn HEAD must REFUSE — expected 64, got $rc"
 
 d="$(new_repo)"; seed_commit "$d"; install_stub "$d" 0
-echo "change" > "$d/file.txt"; git -C "$d" add file.txt
+echo "change" > "$d/file.txt"; git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add file.txt
 rc="$(run_gate "$d")"
 [ "$rc" -eq 0 ] && ok "LIVENESS: a coherent staged snapshot is ACCEPTED (exit 0)" \
                || bad "LIVENESS: a good commit must be allowed — expected 0, got $rc"
@@ -139,7 +139,7 @@ sleep 30
 exit 0
 SLOWSTUB
     chmod +x "$d/eng/ci/committed-sha-build-gate.sh"
-    echo "change" > "$d/file.txt"; git -C "$d" add file.txt
+    echo "change" > "$d/file.txt"; git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add file.txt
     rc="$( ( cd "$d" && STAGED_SNAPSHOT_GATE_TIMEOUT=2 bash eng/ci/staged-snapshot-coherence.sh >/dev/null 2>&1 ); echo $? )"
     [ "$rc" -eq 64 ] && ok "SAFETY: a build that exceeds the time bound REFUSES (exit 64), never passes" \
                      || bad "SAFETY: an over-bound build must REFUSE — expected 64, got $rc"

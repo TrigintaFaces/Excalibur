@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# orphan-test-project-gate.test.sh — non-vacuous self-test for orphan-test-project-gate.sh (0he3g1).
+# orphan-test-project-gate.test.sh — non-vacuous self-test for orphan-test-project-gate.sh.
 #
 #   SAFETY    an integration test csproj on disk but NOT in the filter  -> exit 1 (orphan detected)
 #   LIVENESS  every integration test csproj present in the filter        -> exit 0 (no false-positive)
@@ -13,13 +13,13 @@
 
 set -uo pipefail
 
-# ── Git-env isolation (xy3hze) — MUST precede the first git call ────────────────────────────────
+# ── Git-env isolation — MUST precede the first git call ────────────────────────────────
 # git EXPORTS GIT_INDEX_FILE / GIT_DIR / GIT_WORK_TREE into every hook and every child process.
 # This script `git init`s its own throwaway fixture repos — but an inherited GIT_INDEX_FILE is an
 # ABSOLUTE PATH and WINS over the repo you are standing in, so `git add` inside the fixture writes
 # the CALLER'S index instead. `git init` does not rescue you; neither does `cd`.
 #
-# Measured consequence, S890: run from a normal shell this script passed; run from pre-commit (where
+# Measured consequence: run from a normal shell this script passed; run from pre-commit (where
 # git had exported GIT_INDEX_FILE) every arm failed AND it staged its own fixtures — including an
 # AWS-shaped token and an RSA private-key header — into the real repo's index, one arm at a time.
 # The standalone GREEN is the disguise: the only environment that reproduces it is the one the gate
@@ -60,7 +60,7 @@ run() {  # $1 = fixture dir. Runs the REAL gate against the fixture's TESTS_ROOT
     RC=$?
 }
 
-echo "orphan-test-project-gate.sh — self-test (0he3g1)"
+echo "orphan-test-project-gate.sh — self-test"
 echo
 
 d="$(make_fixture in-filter)"; run "$d"

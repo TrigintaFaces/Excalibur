@@ -42,7 +42,6 @@ Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor
 Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor.DecryptFieldsAsync(object! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor.EncryptFieldsAsync(object! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor.SubjectFieldCryptor(Excalibur.Compliance.IFieldEncryptor! fieldEncryptor) -> void
-Excalibur.Compliance.DurableKeyProviderRegistration
 Excalibur.Compliance.Encryption.AesGcmEncryptionOptions
 Excalibur.Compliance.Encryption.AesGcmEncryptionOptions.AesGcmEncryptionOptions() -> void
 Excalibur.Compliance.Encryption.AesGcmEncryptionOptions.DefaultPurpose.get -> string?
@@ -218,7 +217,7 @@ Excalibur.Compliance.Erasure.ErasureSchedulerOptions.UseExponentialBackoff.get -
 Excalibur.Compliance.Erasure.ErasureSchedulerOptions.UseExponentialBackoff.set -> void
 Excalibur.Compliance.Erasure.ErasureService
 Excalibur.Compliance.Erasure.ErasureService.CancelErasureAsync(System.Guid requestId, string! reason, string! cancelledBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Compliance.Erasure.ErasureService.ErasureService(Excalibur.Compliance.IErasureStore! store, Excalibur.Compliance.IKeyManagementAdmin! keyAdmin, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.ErasureOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Erasure.ErasureService!>! logger, Excalibur.Compliance.Erasure.IDataSubjectHasher! dataSubjectHasher, Excalibur.Compliance.ILegalHoldService? legalHoldService, Excalibur.Compliance.IDataInventoryService? dataInventoryService, System.Collections.Generic.IEnumerable<Excalibur.Compliance.IErasureContributor!>? contributors = null) -> void
+Excalibur.Compliance.Erasure.ErasureService.ErasureService(Excalibur.Compliance.IErasureStore! store, Excalibur.Compliance.IKeyManagementAdmin! keyAdmin, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.ErasureOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Erasure.ErasureService!>! logger, Excalibur.Compliance.Erasure.IDataSubjectHasher! dataSubjectHasher, Excalibur.Compliance.ILegalHoldService! legalHoldService, Excalibur.Compliance.IDataInventoryService? dataInventoryService, Excalibur.Compliance.IKeyEscrowService? keyEscrowService, System.Collections.Generic.IEnumerable<Excalibur.Compliance.IErasureContributor!>? contributors = null) -> void
 Excalibur.Compliance.Erasure.ErasureService.ExecuteAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureExecutionResult!>!
 Excalibur.Compliance.Erasure.ErasureService.GenerateCertificateAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureCertificate!>!
 Excalibur.Compliance.Erasure.ErasureService.GetStatusAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureStatus?>!
@@ -471,6 +470,16 @@ Excalibur.Compliance.Restriction.RestrictionReason.AccuracyContested = 0 -> Exca
 Excalibur.Compliance.Restriction.RestrictionReason.ErasureObjected = 2 -> Excalibur.Compliance.Restriction.RestrictionReason
 Excalibur.Compliance.Restriction.RestrictionReason.LegalClaim = 3 -> Excalibur.Compliance.Restriction.RestrictionReason
 Excalibur.Compliance.Restriction.RestrictionReason.UnlawfulProcessing = 1 -> Excalibur.Compliance.Restriction.RestrictionReason
+Excalibur.Compliance.Retention.InboxRetentionOptions
+Excalibur.Compliance.Retention.InboxRetentionOptions.InboxRetentionOptions() -> void
+Excalibur.Compliance.Retention.InboxRetentionOptions.RetentionDays.get -> int
+Excalibur.Compliance.Retention.InboxRetentionOptions.RetentionDays.set -> void
+Excalibur.Compliance.Retention.OutboxRetentionOptions
+Excalibur.Compliance.Retention.OutboxRetentionOptions.BatchSize.get -> int
+Excalibur.Compliance.Retention.OutboxRetentionOptions.BatchSize.set -> void
+Excalibur.Compliance.Retention.OutboxRetentionOptions.OutboxRetentionOptions() -> void
+Excalibur.Compliance.Retention.OutboxRetentionOptions.RetentionDays.get -> int
+Excalibur.Compliance.Retention.OutboxRetentionOptions.RetentionDays.set -> void
 Excalibur.Compliance.Retention.RetentionEnforcementService
 Excalibur.Compliance.Retention.RetentionEnforcementService.EnforceRetentionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RetentionEnforcementResult!>!
 Excalibur.Compliance.Retention.RetentionEnforcementService.GetRetentionPoliciesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.RetentionPolicy!>!>!
@@ -484,6 +493,7 @@ Excalibur.Compliance.Soc2.Soc2ReportExporter
 Excalibur.Compliance.Soc2.Soc2ReportExporter.ExportAsync(Excalibur.Compliance.Soc2Report! report, Excalibur.Compliance.ExportFormat format, Excalibur.Compliance.Soc2ReportExportOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ExportResult!>!
 Excalibur.Compliance.Soc2.Soc2ReportExporter.ExportWithEvidenceAsync(Excalibur.Compliance.Soc2Report! report, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvidence!>! evidence, Excalibur.Compliance.EvidencePackageOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ExportResult!>!
 Excalibur.Compliance.Soc2.Soc2ReportExporter.GetSupportedFormats() -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ExportFormat>!
+Excalibur.Compliance.Soc2.Soc2ReportExporter.Soc2ReportExporter(Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Soc2.Soc2ReportExporter!>! logger, System.TimeProvider! timeProvider, Excalibur.Compliance.ISoc2PdfRenderer? pdfRenderer = null) -> void
 Excalibur.Compliance.Soc2.Soc2ReportExporter.ValidateForExport(Excalibur.Compliance.Soc2Report! report, Excalibur.Compliance.ExportFormat format) -> Excalibur.Compliance.ExportValidationResult!
 Excalibur.Compliance.Soc2.Soc2ReportGenerator
 Excalibur.Compliance.Soc2.Soc2ReportGenerator.GenerateAndStoreReportAsync(Excalibur.Compliance.ReportGenerationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.Soc2Report!>!
@@ -513,6 +523,7 @@ Microsoft.Extensions.DependencyInjection.ComplianceHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.CryptoShreddingServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ErasureSchemaValidationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MaskingServiceCollectionExtensions
@@ -548,12 +559,12 @@ override Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidato
 override Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator.SupportedControls.get -> System.Collections.Generic.IReadOnlyList<string!>!
 override Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator.SupportedCriteria.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.TrustServicesCriterion>!
 override Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator.ValidateAsync(string! controlId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlValidationResult!>!
-static Excalibur.Compliance.DurableKeyProviderRegistration.AddKeyDurabilityGate(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor.HasPersonalDataFields(System.Type! recordType) -> bool
 static Excalibur.Compliance.Encryption.NullKeyCache.Instance.get -> Excalibur.Compliance.Encryption.NullKeyCache!
 static Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions.Default.get -> Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions!
 static Excalibur.Compliance.Observability.NullEncryptionTelemetry.Instance.get -> Excalibur.Compliance.Observability.NullEncryptionTelemetry!
 static Excalibur.Compliance.Soc2.Validators.BaseControlValidator.CreateEvidence(Excalibur.Compliance.EvidenceType type, string! description, string! source, string? dataReference = null) -> Excalibur.Compliance.EvidenceItem!
-static Excalibur.Compliance.Soc2.Validators.BaseControlValidator.CreateFailureResult(string! controlId, System.Collections.Generic.IReadOnlyList<string!>! issues, int effectivenessScore = 0, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.EvidenceItem!>? evidence = null) -> Excalibur.Compliance.ControlValidationResult!
+static Excalibur.Compliance.Soc2.Validators.BaseControlValidator.CreateFailureResult(string! controlId, System.Collections.Generic.IReadOnlyList<string!>! issues, int effectivenessScore = 0, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.EvidenceItem!>? evidence = null, bool isConfigured = false) -> Excalibur.Compliance.ControlValidationResult!
 static Excalibur.Compliance.Soc2.Validators.BaseControlValidator.CreateSuccessResult(string! controlId, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.EvidenceItem!>? evidence = null) -> Excalibur.Compliance.ControlValidationResult!
 static Microsoft.Extensions.DependencyInjection.ComplianceHealthChecksBuilderExtensions.AddComplianceHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.ComplianceHealthChecksBuilderExtensions.AddEncryptionHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "encryption", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
@@ -572,6 +583,7 @@ static Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExten
 static Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions.AddEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions.AddHkdfKeyDerivation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions.AddHkdfKeyDerivation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureSchemaValidationServiceCollectionExtensions.AddErasureSchemaValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddDataInventoryService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddDataSubjectHashing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddErasureScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -586,6 +598,7 @@ static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensio
 static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddLegalHoldExpiration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddLegalHoldExpiration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Erasure.LegalHoldExpirationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddLegalHoldService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddNoLegalHolds(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddAuditLogEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddAuditLogEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.AuditLogEncryptionOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddBreachNotification(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -595,8 +608,10 @@ static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddConsentManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.ConsentOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddDataPortability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddDataPortability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.DataPortabilityOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddInboxRetention(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Retention.InboxRetentionOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddKeyEscrow(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddKeyEscrow(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddOutboxRetention(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Retention.OutboxRetentionOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddRetentionEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddRetentionEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.RetentionEnforcementOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddSubjectAccessRequests(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -628,18 +643,3 @@ static Microsoft.Extensions.DependencyInjection.StoreEncryptionServiceCollection
 static Microsoft.Extensions.DependencyInjection.StoreEncryptionServiceCollectionExtensions.AddOutboxEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.StoreEncryptionServiceCollectionExtensions.AddStoreEncryptionWiringGuards(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Compliance.Soc2.Validators.BaseControlValidator.RunTestAsync(string! controlId, Excalibur.Compliance.ControlTestParameters! parameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlTestResult!>!
-Excalibur.Compliance.Retention.InboxRetentionOptions
-Excalibur.Compliance.Retention.InboxRetentionOptions.InboxRetentionOptions() -> void
-Excalibur.Compliance.Retention.InboxRetentionOptions.RetentionDays.get -> int
-Excalibur.Compliance.Retention.InboxRetentionOptions.RetentionDays.set -> void
-Excalibur.Compliance.Retention.OutboxRetentionOptions
-Excalibur.Compliance.Retention.OutboxRetentionOptions.BatchSize.get -> int
-Excalibur.Compliance.Retention.OutboxRetentionOptions.BatchSize.set -> void
-Excalibur.Compliance.Retention.OutboxRetentionOptions.OutboxRetentionOptions() -> void
-Excalibur.Compliance.Retention.OutboxRetentionOptions.RetentionDays.get -> int
-Excalibur.Compliance.Retention.OutboxRetentionOptions.RetentionDays.set -> void
-Excalibur.Compliance.Soc2.Soc2ReportExporter.Soc2ReportExporter(Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Soc2.Soc2ReportExporter!>! logger, System.TimeProvider! timeProvider, Excalibur.Compliance.ISoc2PdfRenderer? pdfRenderer = null) -> void
-Microsoft.Extensions.DependencyInjection.ErasureSchemaValidationServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.ErasureSchemaValidationServiceCollectionExtensions.AddErasureSchemaValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddInboxRetention(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Retention.InboxRetentionOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddOutboxRetention(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Retention.OutboxRetentionOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

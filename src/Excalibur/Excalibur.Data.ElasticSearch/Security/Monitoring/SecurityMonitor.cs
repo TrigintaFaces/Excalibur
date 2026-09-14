@@ -164,7 +164,7 @@ internal sealed class SecurityMonitor : IElasticsearchSecurityMonitor
 			SecurityRiskScore riskScore;
 
 			// Query recent security events
-			var eventsResponse = await _elasticClient.SearchAsync<SecurityEvent>(
+			var eventsResponse = await _elasticClient.SearchAsync<ElasticsearchSecurityEvent>(
 				static s => s
 					.Query(static q => q
 						.Range(r => r.DateRange(dr => dr.Field("timestamp").Gte(DateMath.Now.Subtract(TimeSpan.FromHours(24))))))
@@ -365,7 +365,7 @@ internal sealed class SecurityMonitor : IElasticsearchSecurityMonitor
 	/// <returns> A task that represents the asynchronous operation. The task result contains the calculated security risk level. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="events" /> is null. </exception>
 	public Task<SecurityRiskLevel> CalculateSecurityRiskAsync(
-		IEnumerable<SecurityEvent> events,
+		IEnumerable<ElasticsearchSecurityEvent> events,
 		SecurityAnalysisContext? context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(events);

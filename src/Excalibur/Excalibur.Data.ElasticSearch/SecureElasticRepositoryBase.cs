@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using System.Security;
 
 using Elastic.Clients.Elasticsearch;
@@ -427,16 +428,54 @@ public abstract class SecureElasticRepositoryBase<
 	protected abstract string? GetCurrentSourceIpAddress();
 
 	/// <summary>
-	/// Checks if an IP address falls within a specified range or matches exactly.
+	/// Checks whether an IP address falls within a configured range or matches it exactly.
 	/// </summary>
 	/// <remarks>
-	/// Implement this method to provide proper CIDR subnet matching for your network security requirements.
-	/// This method is only called when <see cref="ElasticsearchSecurityOptions.NetworkSecurity"/> is enabled.
+	/// The default handles both forms used in the whitelist and blacklist: CIDR notation
+	/// (<c>10.0.0.0/24</c>, <c>2001:db8::/32</c>) and a single literal address, for IPv4 and IPv6 alike.
+	/// Addresses are compared parsed rather than as text, so equivalent spellings of the same address
+	/// match. Override only for a matching rule the framework cannot express — a correct override is
+	/// harder than it looks, and this predicate decides whether a caller is blocked.
+	/// <para>
+	/// An entry that cannot be parsed does not match, and is logged as a warning: a malformed blacklist
+	/// entry would otherwise silently fail to block, with nothing to show for it.
+	/// </para>
+	/// Only called when <see cref="ElasticsearchSecurityOptions.NetworkSecurity"/> is enabled.
 	/// </remarks>
 	/// <param name="ipAddress"> The IP address to check. </param>
-	/// <param name="rangeOrIp"> The IP range or exact IP to match against. </param>
-	/// <returns> <see langword="true"/> if the IP address matches the range; otherwise, <see langword="false"/>. </returns>
-	protected abstract bool IsIpInRange(string ipAddress, string rangeOrIp);
+	/// <param name="rangeOrIp"> The CIDR range or literal address to match against. </param>
+	/// <returns> <see langword="true"/> if the address matches; otherwise, <see langword="false"/>. </returns>
+	protected virtual bool IsIpInRange(string ipAddress, string rangeOrIp)
+	{
+		if (!IPAddress.TryParse(ipAddress, out var address))
+		{
+			_securityLogger.LogWarning(
+				"Network security rule skipped: the source address {SourceIpAddress} is not a valid IP address.",
+				ipAddress);
+			return false;
+		}
+
+		if (rangeOrIp.Contains('/', StringComparison.Ordinal))
+		{
+			if (IPNetwork.TryParse(rangeOrIp, out var network))
+			{
+				return network.Contains(address);
+			}
+
+			_securityLogger.LogWarning(
+				"Network security rule skipped: {RangeOrIp} is not valid CIDR notation.", rangeOrIp);
+			return false;
+		}
+
+		if (IPAddress.TryParse(rangeOrIp, out var literal))
+		{
+			return address.Equals(literal);
+		}
+
+		_securityLogger.LogWarning(
+			"Network security rule skipped: {RangeOrIp} is neither a CIDR range nor an IP address.", rangeOrIp);
+		return false;
+	}
 
 	/// <summary>
 	/// Validates the current security context for the requested operation.

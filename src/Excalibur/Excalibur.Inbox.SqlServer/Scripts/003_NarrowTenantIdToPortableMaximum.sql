@@ -126,18 +126,41 @@ BEGIN
             THROW 50003, @msg, 1;
         END
 
-        IF EXISTS (SELECT * FROM sys.key_constraints
-                   WHERE parent_object_id = OBJECT_ID(N'[dbo].[inbox_messages]')
-                     AND name = N'PK_inbox_messages' AND type = N'PK')
-        BEGIN
-            ALTER TABLE [dbo].[inbox_messages] DROP CONSTRAINT PK_inbox_messages;
-        END
+        -- The drop, the alter and the rebuild are ONE unit of work. The refusal above rules out
+        -- the failure this script can name -- a value too long to fit -- but not the ones it
+        -- cannot: a NULL in TenantId, or another index or constraint on the column that this
+        -- block does not know to drop, both fail the ALTER COLUMN after the key is already gone.
+        -- SQL Server rolls DDL back, so the transaction is what keeps that from leaving the
+        -- inbox with no dedup key at all.
+        BEGIN TRANSACTION;
 
-        ALTER TABLE [dbo].[inbox_messages]
-            ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+        BEGIN TRY
+            IF EXISTS (SELECT * FROM sys.key_constraints
+                       WHERE parent_object_id = OBJECT_ID(N'[dbo].[inbox_messages]')
+                         AND name = N'PK_inbox_messages' AND type = N'PK')
+            BEGIN
+                ALTER TABLE [dbo].[inbox_messages] DROP CONSTRAINT PK_inbox_messages;
+            END
 
-        ALTER TABLE [dbo].[inbox_messages]
-            ADD CONSTRAINT PK_inbox_messages PRIMARY KEY (MessageId, HandlerType, TenantId);
+            ALTER TABLE [dbo].[inbox_messages]
+                ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+
+            ALTER TABLE [dbo].[inbox_messages]
+                ADD CONSTRAINT PK_inbox_messages PRIMARY KEY (MessageId, HandlerType, TenantId);
+
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            -- The table keeps the column width and the key it had, which is the same "Nothing
+            -- has been changed" contract the refusals above state. Re-raise so a failed
+            -- migration cannot be read as a success.
+            IF XACT_STATE() <> 0
+            BEGIN
+                ROLLBACK TRANSACTION;
+            END;
+
+            THROW;
+        END CATCH
 
         PRINT '003: [dbo].[inbox_messages].TenantId narrowed to NVARCHAR(64) and PK_inbox_messages rebuilt.';
     END

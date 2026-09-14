@@ -51,7 +51,10 @@ public sealed class FencingStartupGuardResolvesThroughGetServiceShould
 	public async Task NotThrowAtStartup_WhenLeaderElectionWrapsAFencedStoreInADecorator()
 	{
 		// REGRESSION / LIVENESS — RED against the :258 `is` cast (throws), GREEN once it resolves via GetService.
-		var fencedInner = HonestFake(b => b.Implements<IFencedOutboxStore>());
+		var fencedInner = HonestFake(b => b
+			.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>()
+			.Implements<IFencedDeadLetterableOutboxStore>());
 		var decorated = new TelemetryOutboxStoreDecorator(fencedInner);
 
 		var construct = () => CreateProcessor(decorated, leaderGate: A.Fake<ILeaderProcessingGate>());
@@ -88,7 +91,10 @@ public sealed class FencingStartupGuardResolvesThroughGetServiceShould
 		// NON-VACUITY baseline. A bare fenced store (no decorator) + an active gate must construct both before AND
 		// after the fix — proving the guard does not simply always-throw and that the liveness arm's difference is
 		// caused by decoration, not by the presence of a gate.
-		var fenced = HonestFake(b => b.Implements<IFencedOutboxStore>());
+		var fenced = HonestFake(b => b
+			.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>()
+			.Implements<IFencedDeadLetterableOutboxStore>());
 
 		var construct = () => CreateProcessor(fenced, leaderGate: A.Fake<ILeaderProcessingGate>());
 

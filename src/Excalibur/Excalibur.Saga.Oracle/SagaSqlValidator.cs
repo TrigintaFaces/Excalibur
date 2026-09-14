@@ -29,6 +29,6 @@ internal static partial class SagaSqlValidator
 	/// <summary>
 	/// Matches <c>word.word</c> where word is alphanumeric + underscore (Oracle unquoted identifiers).
 	/// </summary>
-	[GeneratedRegex(@"^\w+\.\w+$")]
+	[GeneratedRegex(@"^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$")]
 	private static partial Regex QualifiedNamePattern();
 }

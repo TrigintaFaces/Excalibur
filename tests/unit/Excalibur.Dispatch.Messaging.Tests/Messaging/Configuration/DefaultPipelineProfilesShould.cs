@@ -188,14 +188,22 @@ public sealed class DefaultPipelineProfilesShould
 	}
 
 	[Fact]
-	public void IncludeContractVersionCheckMiddlewareInDefaultProfile()
+	public void ExcludeContractVersionCheckMiddlewareFromDefaultProfile()
 	{
 		// Act
 		var profile = DefaultPipelineProfiles.CreateDefaultProfile();
 
-		// Assert — the advertised contract-version control is wired into the Default pipeline
-		// (backed by a default IContractVersionService so it is not silently inert).
-		profile.MiddlewareEntries.Select(e => e.MiddlewareType).ShouldContain(typeof(ContractVersionCheckMiddleware));
+		// Assert — the default profile declares ONLY what a bare AddDispatch() can construct.
+		// ContractVersionCheckMiddleware requires an IContractVersionService that AddDispatch()
+		// does not register, so declaring it would reinstate the declared-but-inert pipeline:
+		// the entry is Optional, materialization null-skips it, and the consumer silently gets
+		// no contract-version checking while the profile claims otherwise. Excluding it is what
+		// makes the profile's declaration honest.
+		profile.MiddlewareEntries.Select(e => e.MiddlewareType).ShouldNotContain(typeof(ContractVersionCheckMiddleware));
+
+		// LIVENESS — this arm must not pass by the profile being empty.
+		profile.MiddlewareEntries.ShouldNotBeEmpty(
+			"An empty profile would satisfy the assertion above while proving nothing.");
 	}
 
 	[Fact]

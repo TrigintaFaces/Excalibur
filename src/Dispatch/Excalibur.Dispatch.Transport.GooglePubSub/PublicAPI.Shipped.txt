@@ -1,12 +1,4 @@
 #nullable enable
-Excalibur.Dispatch.Transport.Google.AckError
-Excalibur.Dispatch.Transport.Google.AckError.AckError(string! AckId, string! Message, System.Exception? Exception = null) -> void
-Excalibur.Dispatch.Transport.Google.AckError.AckId.get -> string!
-Excalibur.Dispatch.Transport.Google.AckError.AckId.init -> void
-Excalibur.Dispatch.Transport.Google.AckError.Exception.get -> System.Exception?
-Excalibur.Dispatch.Transport.Google.AckError.Exception.init -> void
-Excalibur.Dispatch.Transport.Google.AckError.Message.get -> string!
-Excalibur.Dispatch.Transport.Google.AckError.Message.init -> void
 Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions
 Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CloudEventTransportOptions() -> void
 Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CompressionThreshold.get -> int
@@ -50,61 +42,6 @@ Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterSubscriptionName
 Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterTopicName.get -> Google.Cloud.PubSub.V1.TopicName?
 Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterTopicName.set -> void
 Excalibur.Dispatch.Transport.Google.DeadLetterOptions.NonRetryableReasons.get -> System.Collections.Generic.HashSet<string!>!
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.AvailableCapacity.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.ByteProcessingRate.get -> double
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.BytesProcessed.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.BytesReceived.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.CurrentOutstandingBytes.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.CurrentOutstandingMessages.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.ErrorRate.get -> double
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.FlowControlMetrics() -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.FlowControlPauses.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.GetSnapshot() -> Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot!
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MaxConcurrency.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MaxConcurrency.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MaxOutstandingMessages.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MaxOutstandingMessages.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MessageProcessingRate.get -> double
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MessagesProcessed.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MessagesReceived.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.OutstandingMessages.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.ProcessingErrors.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.RecordFlowControlPause() -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.RecordMessageProcessed(long sizeInBytes) -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.RecordMessageReceived(long sizeInBytes) -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.RecordProcessingError(long sizeInBytes) -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.Reset() -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.TimeSinceReset.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Google.FlowControlMetrics.UtilizationPercentage.get -> double
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ByteProcessingRate.get -> double
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ByteProcessingRate.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.BytesProcessed.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.BytesProcessed.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.BytesReceived.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.BytesReceived.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.CurrentOutstandingBytes.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.CurrentOutstandingBytes.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.CurrentOutstandingMessages.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.CurrentOutstandingMessages.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ErrorRate.get -> double
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ErrorRate.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.FlowControlMetricsSnapshot() -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.FlowControlPauses.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.FlowControlPauses.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessageProcessingRate.get -> double
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessageProcessingRate.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessagesProcessed.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessagesProcessed.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessagesReceived.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessagesReceived.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ProcessingErrors.get -> long
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ProcessingErrors.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.SnapshotTime.get -> System.DateTimeOffset
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.SnapshotTime.set -> void
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.UtilizationPercentage.get -> double
-Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.UtilizationPercentage.set -> void
 Excalibur.Dispatch.Transport.Google.FlowControlState
 Excalibur.Dispatch.Transport.Google.FlowControlState.CurrentOutstandingBytes.get -> long
 Excalibur.Dispatch.Transport.Google.FlowControlState.CurrentOutstandingBytes.init -> void
@@ -316,27 +253,11 @@ Excalibur.Dispatch.Transport.Google.PubSubDeadLetterOptions.PubSubDeadLetterOpti
 Excalibur.Dispatch.Transport.Google.PubSubDeadLetterOptions.TopicId.get -> string?
 Excalibur.Dispatch.Transport.Google.PubSubDeadLetterOptions.TopicId.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.AdaptationInterval.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.AdaptationInterval.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.EnableAdaptiveFlowControl.get -> bool
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.EnableAdaptiveFlowControl.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MaxOutstandingByteCount.get -> long
 Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MaxOutstandingByteCount.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MaxOutstandingElementCount.get -> int
 Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MaxOutstandingElementCount.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MemoryPressureThreshold.get -> double
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MemoryPressureThreshold.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MinOutstandingByteCount.get -> long
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MinOutstandingByteCount.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MinOutstandingElementCount.get -> int
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MinOutstandingElementCount.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.PubSubFlowControlOptions() -> void
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.ScaleDownFactor.get -> double
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.ScaleDownFactor.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.ScaleUpFactor.get -> double
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.ScaleUpFactor.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.TargetUtilizationPercentage.get -> double
-Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.TargetUtilizationPercentage.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.Validate() -> void
 Excalibur.Dispatch.Transport.Google.PubSubMessage
 Excalibur.Dispatch.Transport.Google.PubSubMessage.AckId.get -> string!

@@ -116,6 +116,14 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		}
 
 		// Register core AWS SQS services
+		// Serialization is the application's choice, so no transport registers a serializer -- but every
+		// transport message bus requires one. State the requirement here so a host missing it stops at
+		// start-up naming the call that fixes it, rather than failing to activate the bus.
+		// Serialization is the application's choice, so no transport registers a serializer -- but every
+		// transport message bus requires one. State the requirement here so a host missing it stops at
+		// start-up naming the call that fixes it, rather than failing to activate the bus.
+		_ = services.RequirePayloadSerializer();
+
 		RegisterAwsSqsServices(services, name, adapterOptions);
 
 		// Flow the configured FIFO selectors to the message bus so ConfigureFifo applies on the
@@ -358,7 +366,7 @@ public static class AwsSqsTransportServiceCollectionExtensions
 				visibilityTimeoutSeconds: queueOptions is null
 					? 30
 					: (int)queueOptions.VisibilityTimeout.TotalSeconds,
-				maxPayloadBytes: adapterOptions.MaxPayloadBytes);
+				maxPayloadBytes: adapterOptions.MaxPayloadBytes).WithCloudEventDecoding(CloudEventBinding.HouseConvention);
 		});
 	}
 
@@ -440,17 +448,24 @@ public static class AwsSqsTransportServiceCollectionExtensions
 			return;
 		}
 
-		_ = services.AddSingleton(sp =>
+		// Keyed by transport name, like the client and bus above. Registered unkeyed, a second named SQS
+		// transport with provisioning enabled added a second unkeyed descriptor and GetRequiredService
+		// resolved the LAST one for every name -- so both hosted services provisioned through one
+		// transport's sqsClient, silently applying one name's queue attributes to the other's client.
+		_ = services.AddKeyedSingleton(name, (sp, key) =>
 		{
-			var sqsClient = sp.GetRequiredKeyedService<IAmazonSQS>(name);
+			var sqsClient = sp.GetRequiredKeyedService<IAmazonSQS>(key);
 			var snsClient = sp.GetService<Amazon.SimpleNotificationService.IAmazonSimpleNotificationService>();
 			var logger = sp.GetRequiredService<ILogger<AwsSqsProvisioner>>();
 			return new AwsSqsProvisioner(sqsClient, snsClient, logger);
 		});
 
+		// The hosted service stays UNKEYED on purpose: the generic host runs IEnumerable<IHostedService>
+		// resolved without a key, so a keyed registration would never be started. Each named transport
+		// adds its own descriptor to that enumerable, and each closes over its own name and options.
 		_ = services.AddSingleton<IHostedService>(sp =>
 		{
-			var provisioner = sp.GetRequiredService<AwsSqsProvisioner>();
+			var provisioner = sp.GetRequiredKeyedService<AwsSqsProvisioner>(name);
 			var logger = sp.GetRequiredService<ILogger<AwsSqsProvisioningHostedService>>();
 			return new AwsSqsProvisioningHostedService(provisioner, adapterOptions, logger);
 		});

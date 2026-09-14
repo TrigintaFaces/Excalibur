@@ -31,7 +31,11 @@ public static class DispatchJsonSerializerOptions
 	/// <summary>
 	/// Gets the default <see cref="JsonSerializerOptions" /> configured for JSON serialization.
 	/// </summary>
-	/// <value> A <see cref="JsonSerializerOptions" /> instance using <see cref="JsonSerializerDefaults.Web" />. </value>
+	/// <value>
+	/// A <see cref="JsonSerializerOptions" /> instance using <see cref="JsonSerializerDefaults.General" />, so
+	/// property names round-trip with the casing they are declared with. Use <see cref="Web" /> for the
+	/// camel-cased, case-insensitive behaviour that web payloads usually expect.
+	/// </value>
 	public static JsonSerializerOptions Default => DefaultSettings.Value;
 
 	/// <summary>
@@ -39,17 +43,12 @@ public static class DispatchJsonSerializerOptions
 	/// </summary>
 	/// <value> A <see cref="JsonSerializerOptions" /> instance using <see cref="JsonSerializerDefaults.Web" />. </value>
 	/// <remarks>
-	/// These options include a string-enum converter that is built at run time, so they cannot be
-	/// produced ahead of time. Callers that publish ahead-of-time should build their own options from a
-	/// <see cref="JsonSerializerContext" /> instead, or apply
-	/// <see cref="JsonStringEnumConverter{TEnum}" /> to the specific enums they serialize.
-	/// The value is created on first access rather than in a field initializer, because a class
-	/// constructor cannot declare the dynamic-code requirement and would therefore hide it.
+	/// Enums serialize as numbers here, matching <see cref="JsonSerializerDefaults.Web" />. Call
+	/// <see cref="ApplyDefaultsWithStringEnums" /> on your own instance for camel-cased enum names;
+	/// that converter is built at run time, so those options cannot be produced ahead of time.
 	/// </remarks>
 	public static JsonSerializerOptions Web
 	{
-		[RequiresDynamicCode(
-			"The shared web options add a string-enum converter that is constructed at run time.")]
 		get
 		{
 			var existing = Volatile.Read(ref _webSettings);
@@ -69,8 +68,11 @@ public static class DispatchJsonSerializerOptions
 	/// <param name="options"> The <see cref="JsonSerializerOptions" /> instance to configure. </param>
 	/// <returns> The configured <see cref="JsonSerializerOptions" /> instance. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="options" /> is <c> null </c>. </exception>
-	[RequiresDynamicCode(
-		"JSON serializer options configuration with converters requires dynamic code generation for enum and type conversion.")]
+	/// <remarks>
+	/// Enums are left to serialize as numbers, which is what <see cref="JsonSerializerDefaults.Web" />
+	/// itself does. Call <see cref="ApplyDefaultsWithStringEnums" /> instead if you want them written as
+	/// camel-cased names, and see the note there about what that costs.
+	/// </remarks>
 	public static JsonSerializerOptions ApplyDefaults(JsonSerializerOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
@@ -80,7 +82,26 @@ public static class DispatchJsonSerializerOptions
 		options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 		options.WriteIndented = true;
 
-		// Add custom converters for enums and other data types.
+		return options;
+	}
+
+	/// <summary>
+	/// Applies the standard settings and writes enums as camel-cased names rather than numbers.
+	/// </summary>
+	/// <param name="options"> The <see cref="JsonSerializerOptions" /> instance to configure. </param>
+	/// <returns> The configured <see cref="JsonSerializerOptions" /> instance. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="options" /> is <c> null </c>. </exception>
+	/// <remarks>
+	/// The converter this adds builds a converter per enum type on first use, so an application that
+	/// compiles ahead-of-time cannot use these options. Name the enums individually with
+	/// <see cref="JsonStringEnumConverter{TEnum}" />, or supply a <see cref="JsonSerializerContext" />,
+	/// if you need both string enums and ahead-of-time compilation.
+	/// </remarks>
+	[RequiresDynamicCode(
+		"Writing enums as names uses a converter built per enum type at run time.")]
+	public static JsonSerializerOptions ApplyDefaultsWithStringEnums(JsonSerializerOptions options)
+	{
+		_ = ApplyDefaults(options);
 		options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 
 		return options;

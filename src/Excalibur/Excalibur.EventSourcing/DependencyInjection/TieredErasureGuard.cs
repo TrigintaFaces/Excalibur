@@ -44,7 +44,7 @@ internal sealed class TieredErasureGuard(IServiceProvider serviceProvider)
 
 		// No event store registered at all is a different composition error, reported by whoever requires
 		// one. This gate speaks only to a store that is present and cannot erase.
-		if (eventStore is null || eventStore.GetService(typeof(IEventStoreErasure)) is not null)
+		if (eventStore is null || eventStore.GetService(typeof(IEventStoreErasure)) is IEventStoreErasure)
 		{
 			return ValidateOptionsResult.Success;
 		}

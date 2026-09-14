@@ -36,7 +36,7 @@ public sealed class RetryMiddlewareShould
 
     private RetryMiddleware CreateSut(RetryOptions? options = null)
     {
-        var opts = options ?? new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
+        var opts = options ?? new RetryOptions { MaxRetryAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
         return new RetryMiddleware(Microsoft.Extensions.Options.Options.Create(opts), Sanitizer, _logger);
     }
 
@@ -60,7 +60,7 @@ public sealed class RetryMiddlewareShould
     {
         var sut = CreateSut(new RetryOptions
         {
-            MaxAttempts = 3,
+            MaxRetryAttempts = 3,
             BaseDelay = TimeSpan.FromMilliseconds(1)
         });
         var message = A.Fake<IDispatchMessage>();
@@ -90,7 +90,7 @@ public sealed class RetryMiddlewareShould
     {
         var sut = CreateSut(new RetryOptions
         {
-            MaxAttempts = 2,
+            MaxRetryAttempts = 2,
             BaseDelay = TimeSpan.FromMilliseconds(1)
         });
         var message = A.Fake<IDispatchMessage>();
@@ -113,7 +113,7 @@ public sealed class RetryMiddlewareShould
     {
         var sut = CreateSut(new RetryOptions
         {
-            MaxAttempts = 3,
+            MaxRetryAttempts = 3,
             BaseDelay = TimeSpan.FromMilliseconds(1)
         });
         var message = A.Fake<IDispatchMessage>();
@@ -140,7 +140,7 @@ public sealed class RetryMiddlewareShould
     {
         var sut = CreateSut(new RetryOptions
         {
-            MaxAttempts = 3,
+            MaxRetryAttempts = 3,
             BaseDelay = TimeSpan.FromMilliseconds(1)
         });
         var message = A.Fake<IDispatchMessage>();
@@ -167,7 +167,7 @@ public sealed class RetryMiddlewareShould
     {
         var sut = CreateSut(new RetryOptions
         {
-            MaxAttempts = 3,
+            MaxRetryAttempts = 3,
             BaseDelay = TimeSpan.FromMilliseconds(1)
         });
         var message = A.Fake<IDispatchMessage>();
@@ -227,7 +227,7 @@ public sealed class RetryMiddlewareShould
         // reached exhaustion; the assertion below was stale. The floor-precedence guarantee is proven by the
         // companion safety arm NonRetryableFloorException_AllowlistedButNeverRetried below — do NOT flip this
         // back to a floor exception (that would require weakening the floor, reopening the isolation hole).
-        var options = new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
+        var options = new RetryOptions { MaxRetryAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
         options.RetryableExceptions.Add(typeof(TransientTestException));
         var sut = CreateSut(options);
         var callCount = 0;
@@ -246,7 +246,8 @@ public sealed class RetryMiddlewareShould
         // Assert (LIVENESS) — fail-loud, never silent; the ORIGINAL exception reaches the caller with its
         // type and message intact, and every attempt was used.
         thrown.Message.ShouldBe("transient — never recovers");
-        callCount.ShouldBe(options.MaxAttempts);
+        // MaxRetryAttempts is retries AFTER the first, so exhaustion is one more try than that value.
+        callCount.ShouldBe(options.MaxRetryAttempts + 1);
     }
 
     [Fact]
@@ -257,8 +258,8 @@ public sealed class RetryMiddlewareShould
         // EVEN when a consumer explicitly allowlists it. The floor takes precedence over RetryableExceptions, so
         // retrying a permanent cross-tenant violation can never be enabled by configuration. This turns the
         // near-miss that produced the stale sibling above into a permanent structural guard: if a future change
-        // let the allowlist override the floor, this test goes RED (callCount would climb to MaxAttempts).
-        var options = new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
+        // let the allowlist override the floor, this test goes RED (callCount would climb to MaxRetryAttempts).
+        var options = new RetryOptions { MaxRetryAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
         options.RetryableExceptions.Add(typeof(InvalidOperationException)); // allowlist attempt — the floor must override it
         var sut = CreateSut(options);
         var callCount = 0;
@@ -284,7 +285,7 @@ public sealed class RetryMiddlewareShould
     public async Task ExhaustedRetries_ViaTransientFailedResult_ReturnFailLoudTerminal_NeverSilentDrop()
     {
         // Arrange — a transient (500) failed result is retried until the attempt cap.
-        var sut = CreateSut(new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
+        var sut = CreateSut(new RetryOptions { MaxRetryAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
         var callCount = 0;
 
         // Act
@@ -311,7 +312,8 @@ public sealed class RetryMiddlewareShould
         result.ProblemDetails.ShouldNotBeNull();
         result.ProblemDetails!.Type.ShouldBe("Error");
         result.ProblemDetails!.Detail.ShouldBe("transient — never recovers");
-        callCount.ShouldBe(3);
+        // MaxRetryAttempts is retries AFTER the first, so exhaustion is one more try than that value.
+        callCount.ShouldBe(4);
     }
 
     [Fact]
@@ -337,7 +339,7 @@ public sealed class RetryMiddlewareShould
     {
         var options = new RetryOptions
         {
-            MaxAttempts = 3,
+            MaxRetryAttempts = 3,
             BaseDelay = TimeSpan.FromMilliseconds(1)
         };
         options.RetryableExceptions.Add(typeof(TimeoutException));
@@ -368,7 +370,7 @@ public sealed class RetryMiddlewareShould
     {
         var options = new RetryOptions
         {
-            MaxAttempts = 3,
+            MaxRetryAttempts = 3,
             BaseDelay = TimeSpan.FromMilliseconds(1)
         };
         options.NonRetryableExceptions.Add(typeof(TimeoutException));

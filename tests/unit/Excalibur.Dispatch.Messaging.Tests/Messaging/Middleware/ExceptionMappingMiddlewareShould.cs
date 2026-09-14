@@ -81,7 +81,7 @@ public sealed class ExceptionMappingMiddlewareShould
 
 		// Assert
 		result.ShouldBe(expectedResult);
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -111,7 +111,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("test:error");
 	}
@@ -218,7 +218,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("urn:dispatch:error:mapping-failed");
 		result.ProblemDetails.ErrorCode.ShouldBe(500);
@@ -243,7 +243,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(404);
 		result.ProblemDetails.Detail.ShouldBe("Not found");
@@ -268,7 +268,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(500); // Default fallback
 	}
@@ -325,7 +325,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - The middleware should log with 500 as default when ErrorCode is 0
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 	}
 
@@ -349,7 +349,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("urn:dispatch:error:mapping-failed");
 	}
@@ -381,7 +381,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - Should handle null type gracefully (logs "unknown")
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails!.ErrorCode.ShouldBe(400);
 	}
@@ -412,7 +412,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		result.ProblemDetails.Type.ShouldBe("test:aggregate");
 	}
 

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Amazon.Scheduler;
@@ -24,6 +24,16 @@ public sealed partial class AwsSchedulerJobProvider(
 	IOptions<AwsSchedulerOptions> options,
 	ILogger<AwsSchedulerJobProvider> logger) : IJobSchedulerProvider, IDisposable
 {
+	// CA2213 assumes a held IDisposable field is OWNED by the holder. It is not, here, and the
+	// registration is the evidence: AwsJobsServiceCollectionExtensions hands this provider
+	// `(AmazonSchedulerClient)provider.GetRequiredService<IAmazonScheduler>()` -- the CONTAINER'S
+	// singleton, shared with every other consumer and disposed by the container. Disposing it here
+	// would kill a client others still hold. This is a suppression of a wrong assumption, not of a
+	// real hole: there is no unreleased resource, because this type never acquired one.
+	[SuppressMessage(
+		"Usage",
+		"CA2213:Disposable fields should be disposed",
+		Justification = "Container-owned singleton, injected; the container disposes it. See the registration in AwsJobsServiceCollectionExtensions.")]
 	private readonly AmazonSchedulerClient _schedulerClient = schedulerClient ?? throw new ArgumentNullException(nameof(schedulerClient));
 	private readonly ILogger<AwsSchedulerJobProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly AwsSchedulerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -100,28 +110,14 @@ public sealed partial class AwsSchedulerJobProvider(
 	}
 
 	/// <summary>
-	/// Disposes the AWS scheduler client.
+	/// Marks this provider unusable. It holds no resource of its own to release.
 	/// </summary>
-	public void Dispose()
-	{
-		Dispose(disposing: true);
-		GC.SuppressFinalize(this);
-	}
-
-	/// <summary>
-	/// Releases the unmanaged resources used by the <see cref="AwsSchedulerJobProvider"/> and optionally releases the managed resources.
-	/// </summary>
-	/// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
-	private void Dispose(bool disposing)
-	{
-		if (!_disposed)
-		{
-			if (disposing)
-			{
-				_schedulerClient?.Dispose();
-			}
-
-			_disposed = true;
-		}
-	}
+	/// <remarks>
+	/// No <c>Dispose(bool)</c> overload and no finalizer: the type is sealed and owns nothing disposable,
+	/// so the virtual-dispose pattern would be ceremony around a single flag. The client it uses is the
+	/// container's singleton -- injected as
+	/// <c>(AmazonSchedulerClient)provider.GetRequiredService&lt;IAmazonScheduler&gt;()</c>, shared with every
+	/// other consumer, and disposed by the container. Disposing it here killed a client others still held.
+	/// </remarks>
+	public void Dispose() => _disposed = true;
 }

@@ -13,8 +13,8 @@ Excalibur.Postgres.ExcaliburPostgresOptions.UseAuditLogging.get -> bool
 Excalibur.Postgres.ExcaliburPostgresOptions.UseAuditLogging.set -> void
 Excalibur.Postgres.ExcaliburPostgresOptions.UseCompliance.get -> bool
 Excalibur.Postgres.ExcaliburPostgresOptions.UseCompliance.set -> void
-Excalibur.Postgres.ExcaliburPostgresOptions.UseInbox.get -> bool
-Excalibur.Postgres.ExcaliburPostgresOptions.UseInbox.set -> void
+Excalibur.Postgres.ExcaliburPostgresOptions.UseInboxStore.get -> bool
+Excalibur.Postgres.ExcaliburPostgresOptions.UseInboxStore.set -> void
 Excalibur.Postgres.ExcaliburPostgresOptions.UseLeaderElection.get -> bool
 Excalibur.Postgres.ExcaliburPostgresOptions.UseLeaderElection.set -> void
 Excalibur.Postgres.ExcaliburPostgresOptions.UseSaga.get -> bool

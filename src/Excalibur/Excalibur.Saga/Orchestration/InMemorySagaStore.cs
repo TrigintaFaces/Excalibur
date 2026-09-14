@@ -118,6 +118,8 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 	/// Thrown when the persisted version no longer matches the loaded (expected) version — a concurrent
 	/// writer advanced the saga between load and save. The newer write is preserved (no lost update).
 	/// </exception>
+	[RequiresUnreferencedCode("Delegates to a saga store whose serializer may require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("Delegates to a saga store that serializes with a reflection-based serializer generating converters at run time.")]
 	public Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState
 	{

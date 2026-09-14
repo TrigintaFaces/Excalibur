@@ -147,11 +147,36 @@ IF EXISTS (SELECT * FROM sys.indexes i
                      AND i.is_primary_key = 1
                      AND c.name = N'TenantId')
 BEGIN
-    DECLARE @pkName SYSNAME = (SELECT name FROM sys.indexes
-                               WHERE object_id = OBJECT_ID(N'dispatch.sagas') AND is_primary_key = 1);
-    EXEC('ALTER TABLE dispatch.sagas DROP CONSTRAINT ' + @pkName);
+    -- The drop and the rebuild are ONE unit of work. Step 1 runs in an earlier batch and GO is a
+    -- CLIENT separator, so a runner that continues past a failed batch reaches this one with
+    -- TenantId still nullable -- and a PRIMARY KEY cannot be defined over a nullable column, so
+    -- the recreate fails after the drop has already committed. That leaves the sagas table with
+    -- NO key: sagas are correlated by a business key, so two tenants' Order-123 sagas would both
+    -- be admitted and one tenant's saga state would be read for the other. SQL Server rolls DDL
+    -- back, so the transaction is what makes that impossible.
+    BEGIN TRANSACTION;
 
-    ALTER TABLE dispatch.sagas
-        ADD CONSTRAINT PK_dispatch_sagas PRIMARY KEY CLUSTERED (TenantId, SagaId);
+    BEGIN TRY
+        DECLARE @pkName SYSNAME = (SELECT name FROM sys.indexes
+                                   WHERE object_id = OBJECT_ID(N'dispatch.sagas') AND is_primary_key = 1);
+        EXEC('ALTER TABLE dispatch.sagas DROP CONSTRAINT ' + @pkName);
+
+        ALTER TABLE dispatch.sagas
+            ADD CONSTRAINT PK_dispatch_sagas PRIMARY KEY CLUSTERED (TenantId, SagaId);
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        -- The table keeps the tenant-less key it had. That key is the fault this step exists to
+        -- correct -- it treats two tenants' sagas for the same business key as one row -- but it
+        -- is still a key, and a table with the wrong key is recoverable where a table with none is
+        -- not. Re-raise so the re-key is not reported as done.
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH
 END
 GO

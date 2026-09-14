@@ -565,23 +565,13 @@ The inbox supports three processing modes:
 
 ### Pipeline Mode
 
-`InboxMiddleware` is registered by `AddDispatch` and sits at the pre-processing stage, so registering
-an inbox store is all that is needed for it to deduplicate every message in the pipeline:
+:::warning Registering an inbox store is NOT enough — you must also place the middleware
+`AddDispatch` makes `InboxMiddleware` *resolvable*; it does **not** put it in the pipeline. No shipped
+profile contains it, so a host that registers an inbox store and nothing else deduplicates **nothing**.
+Call `UseInbox()` (or its alias `UseIdempotency()`) explicitly.
+:::
 
-```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
-
-services.AddSqlServerInboxStore(options =>
-{
-    options.ConnectionString = connectionString;
-});
-```
-
-To place the middleware explicitly in a custom pipeline, call `UseInbox()` (or its alias
-`UseIdempotency()`) — deduplicate after authentication and before validation:
+Deduplicate after authentication and before validation:
 
 ```csharp
 services.AddDispatch(dispatch =>

@@ -45,7 +45,6 @@ SnapshotConformanceTestBase
 # ---------------------------------------------------------------------------------------------
 CircuitBreakerConformanceBase
 EventSerializerTypeNameRoundTripConformanceTestBase
-SerializerConformanceTestsBase
 SagaStoreRetentionConformanceTestBase
 SagaTimeoutStoreConformanceTestBase
 # Both live in the test tree only; no kit ships for either family (verified: zero shipped types

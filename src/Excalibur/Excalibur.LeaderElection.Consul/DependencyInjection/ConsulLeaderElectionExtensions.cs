@@ -27,10 +27,10 @@ public static class ConsulLeaderElectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Configuration action for the Consul builder.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode(
+		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
+	[RequiresDynamicCode(
+		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
 	public static IServiceCollection AddConsulLeaderElection(
 		this IServiceCollection services,
 		Action<ILeaderElectionConsulBuilder> configure)
@@ -101,10 +101,10 @@ public static class ConsulLeaderElectionExtensions
 		return services;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode(
+		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
+	[RequiresDynamicCode(
+		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
 	private static void RegisterOptionsAndServices(
 		IServiceCollection services,
 		LeaderElectionConsulBuilder consulBuilder)
@@ -185,5 +185,12 @@ public static class ConsulLeaderElectionExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Consul");
 		});
+
+		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
+		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
+		// provider rather than requiring a second, easily-forgotten AddConsulFencingTokenProvider() +
+		// WithFencingTokens() call. WithoutFencingTokens() opts out.
+		services.TryAddDefaultFencingTokenProvider(sp =>
+			ActivatorUtilities.CreateInstance<ConsulFencingTokenProvider>(sp));
 	}
 }

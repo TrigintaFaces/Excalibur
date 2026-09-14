@@ -84,6 +84,21 @@ internal sealed class SqlServerOutboxOptionsValidator(
 			return ValidateOptionsResult.Fail("TransportsTableName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
 		}
 
+		// The fence control table is interpolated into statement text by QualifiedFenceTableName exactly as
+		// its siblings above are, so it carries the same requirement. It was omitted here while they were
+		// checked -- which is the failure mode of a validation convention held per-property rather than
+		// enforced: the one identifier in the fencing seam nobody validated. The bracket-quoting in
+		// QualifiedFenceTableName is not a substitute for the allowlist; a ']' closes the quote.
+		if (string.IsNullOrWhiteSpace(options.Tables.FenceTableName))
+		{
+			return ValidateOptionsResult.Fail("FenceTableName is required.");
+		}
+
+		if (!SqlIdentifierValidator.IsValid(options.Tables.FenceTableName))
+		{
+			return ValidateOptionsResult.Fail("FenceTableName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
+		}
+
 		var pollingIntervalSeconds = _processingOptions.Value.PollingInterval.TotalSeconds;
 		var partition = _partitionOptions.Value;
 		var partitionActive = partition.Strategy != OutboxPartitionStrategy.None;

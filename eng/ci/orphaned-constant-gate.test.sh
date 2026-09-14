@@ -5,7 +5,7 @@
 # code no longer contains is prose orphaned by a parameterising refactor — the class that cost ~90
 # minutes and four refuted theories mid-incident. This lock is the gate's WIRED control: it proves the
 # gate produces all THREE verdicts on inputs it controls, that it FIRES on the REAL historical ghost and
-# is SILENT on its fix, and — the AC4 arm — that it does NOT fire on a file full of legitimate prose
+# is SILENT on its fix, and — the noise-control arm — that it does NOT fire on a file full of legitimate prose
 # numbers (the noise that gets such a gate switched off).
 #
 # Behavioral 3-state (hermetic, via ORPHCONST_SRC override; no git):
@@ -20,7 +20,7 @@
 #   D/E SKIP (not fail) when the .claude history blob is unreachable (shallow/mirror) — the hermetic
 #   arms A/B/C are the mirror-safe backbone.
 #
-# AC4 noise control (the reason this gate can ship at all):
+# Noise control (the reason this gate can ship at all):
 #   F  a file of legitimate prose numbers (counts, line-deltas, a sprint number, a version) -> PASS(0)
 #
 # Static guards (grep the gate source — the seam guards must not regress):
@@ -79,8 +79,8 @@ rc="$(run_gate "$CD")"
 # ── D/E. REAL historical ghost + its repair (skippable) ──────────────────────
 GHOST_SHA="8da986c85^"; GHOST_PATH=".claude/hooks/poll-opcom.sh"
 DD="$WORK/d"; mkdir -p "$DD"
-if git -C "$PWD" cat-file -e "$GHOST_SHA:$GHOST_PATH" 2>/dev/null; then
-    git -C "$PWD" show "$GHOST_SHA:$GHOST_PATH" > "$DD/poll-opcom.sh" 2>/dev/null
+if git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "$GHOST_SHA:$GHOST_PATH" 2>/dev/null; then
+    git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" show "$GHOST_SHA:$GHOST_PATH" > "$DD/poll-opcom.sh" 2>/dev/null
     rc="$(run_gate "$DD")"
     [ "$rc" -eq 1 ] && pass "D: pre-repair poll-opcom.sh (comment 7200, code 86400) -> FAIL(1)" \
                     || fail "D: the real historical ghost did NOT FAIL (got $rc, expected 1) — gate is vacuous"
@@ -88,8 +88,8 @@ else
     skip "D: historical ghost blob unreachable (shallow/mirror) — hermetic arm A covers the class"
 fi
 ED="$WORK/e"; mkdir -p "$ED"
-if git -C "$PWD" cat-file -e "HEAD:$GHOST_PATH" 2>/dev/null; then
-    git -C "$PWD" show "HEAD:$GHOST_PATH" > "$ED/poll-opcom.sh" 2>/dev/null
+if git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "HEAD:$GHOST_PATH" 2>/dev/null; then
+    git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" show "HEAD:$GHOST_PATH" > "$ED/poll-opcom.sh" 2>/dev/null
     rc="$(run_gate "$ED")"
     [ "$rc" -eq 0 ] && pass "E: current poll-opcom.sh (cap comment states no number) -> PASS(0)" \
                     || fail "E: the repaired file did NOT PASS (got $rc, expected 0) — a false positive on real prose"
@@ -97,7 +97,7 @@ else
     skip "E: current file unreachable"
 fi
 
-# ── F. AC4 noise control: legitimate prose numbers -> PASS(0) ─────────────────
+# ── F. Noise control: legitimate prose numbers -> PASS(0) ─────────────────
 FD="$WORK/f"; mkdir -p "$FD"
 cat > "$FD/x.sh" <<'EOF'
 # Observed ~570 live workers; +125 lines changed; a batch of 882 items; version 1.1.0; an 8-bit field.
@@ -106,7 +106,7 @@ NOOP=1
 EOF
 rc="$(run_gate "$FD")"
 # expected: REFUSE(2) — no cadence-number to evaluate (prose is correctly NOT netted) — never FAIL(1).
-[ "$rc" -ne 1 ] && pass "F: a file of legitimate prose numbers is NOT flagged (rc=$rc, not FAIL) — the AC4 noise bound holds" \
+[ "$rc" -ne 1 ] && pass "F: a file of legitimate prose numbers is NOT flagged (rc=$rc, not FAIL) — the noise bound holds" \
                 || fail "F: prose numbers were flagged as orphans (got FAIL) — the gate is noisy"
 
 # ── Static guards on the gate source ─────────────────────────────────────────

@@ -68,7 +68,7 @@ internal static class DynamoDbSnapshotDocument
 	/// </param>
 	/// <returns>The partition key.</returns>
 	public static string CreatePK(string aggregateId, string tenantId) =>
-		$"{SnapshotPrefix}t:{tenantId}:{aggregateId}";
+		SnapshotPrefix + TenantScopedKey.Compose(tenantId, aggregateId);
 
 	/// <summary>
 	/// Creates the sort key value for a given aggregate type.

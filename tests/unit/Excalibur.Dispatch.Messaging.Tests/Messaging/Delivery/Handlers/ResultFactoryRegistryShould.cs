@@ -92,7 +92,7 @@ public sealed class ResultFactoryRegistryShould
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 
 		var typed = result.ShouldBeAssignableTo<IMessageResult<string>>();
 		typed!.ReturnValue.ShouldBe("hello");
@@ -110,7 +110,7 @@ public sealed class ResultFactoryRegistryShould
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -125,7 +125,7 @@ public sealed class ResultFactoryRegistryShould
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion

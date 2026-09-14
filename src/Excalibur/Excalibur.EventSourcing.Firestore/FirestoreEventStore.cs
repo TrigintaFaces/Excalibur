@@ -19,6 +19,7 @@ using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Excalibur.Data;
 
 namespace Excalibur.EventSourcing.Firestore;
 
@@ -135,22 +136,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 
-		if (serviceType == typeof(ICloudNativeProviderInfo))
-		{
-			return this;
-		}
-
-		if (serviceType == typeof(ICloudNativeEventStoreChangeFeed))
-		{
-			return this;
-		}
-
-		if (serviceType == typeof(ICloudNativeEventStoreInfo))
-		{
-			return this;
-		}
-
-		return null;
+		return serviceType.IsInstanceOfType(this) ? this : null;
 	}
 
 	/// <summary>
@@ -543,7 +529,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				messageId,
 				correlationId);
 			_logger.LogError(ex, "Error appending events to stream {StreamId}", streamId);
-			return CloudAppendResult.CreateFailure(ex.Message, 0);
+			return CloudAppendResult.CreateFailure(ex.Message, 0, ClassifyAppendFailure(ex));
 		}
 		finally
 		{
@@ -706,21 +692,39 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 	/// </para>
 	/// </remarks>
 	private string BuildStreamId(string aggregateType, string aggregateId)
-		=> $"{TenantKeyPrefix}{TenantScope.FromContext(_tenantContext).TenantId}:{aggregateType}:{aggregateId}";
+		=> TenantScopedKey.Compose(
+			TenantScope.FromContext(_tenantContext).TenantId, aggregateType, aggregateId);
+
+	/// <summary>
+	/// Classifies an append fault by its gRPC status code: known throttling/availability statuses are
+	/// transient, everything else is treated as permanent.
+	/// </summary>
+	/// <remarks>
+	/// Same transient status set as <c>Excalibur.Data.Firestore.FirestoreRetryPolicy.IsTransientStatusCode</c>
+	/// (the shared Firestore provider's own retry classification), so this store's append-failure
+	/// classification agrees with the same package's other retry decisions rather than re-deriving one.
+	/// </remarks>
+	private static MessageFailureKind ClassifyAppendFailure(RpcException exception) =>
+		exception.StatusCode switch
+		{
+			StatusCode.Unavailable => MessageFailureKind.Transient,
+			StatusCode.DeadlineExceeded => MessageFailureKind.Transient,
+			StatusCode.Aborted => MessageFailureKind.Transient,
+			StatusCode.ResourceExhausted => MessageFailureKind.Transient,
+			StatusCode.Internal => MessageFailureKind.Transient,
+			_ => MessageFailureKind.Permanent,
+		};
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
+		// Delegates to IDomainEvent.CorrelationId (checks OutboxHeaderNames.CorrelationId, the
+		// framework declared key, then the legacy PascalCase/camelCase spellings) rather than
+		// re-implementing the key-priority chain here.
 		foreach (var @event in events)
 		{
-			if (@event.Metadata == null)
+			if (@event.CorrelationId is { } correlationId)
 			{
-				continue;
-			}
-
-			if (@event.Metadata.TryGetValue("CorrelationId", out var correlationId) ||
-				@event.Metadata.TryGetValue("correlationId", out correlationId))
-			{
-				return correlationId?.ToString();
+				return correlationId;
 			}
 		}
 

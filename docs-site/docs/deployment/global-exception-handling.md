@@ -204,7 +204,7 @@ You can use individual middleware methods if you don't need the full stack.
 
 ## Sample Usage
 
-See `samples/09-advanced/WebWorkerSample/WebHost/Program.cs` for a complete example:
+A complete example:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);

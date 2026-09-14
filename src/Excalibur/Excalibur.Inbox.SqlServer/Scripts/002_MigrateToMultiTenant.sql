@@ -31,12 +31,37 @@ END
 GO
 
 -- 2) Rebuild the unique key: drop the pair PK, add the triple PK.
+--
+--    The drop and the recreate are ONE unit of work, because between them the table has no
+--    dedup key at all: an inbox with no key admits a second delivery of a message it has
+--    already handled, which is the one outcome an inbox exists to prevent. If step 1 did not
+--    leave TenantId in place and non-nullable -- because it was skipped, or because this
+--    database reached a TenantId column by some other route -- the recreate fails, and
+--    without the transaction the drop would already have committed. SQL Server rolls DDL
+--    back, so the transaction is what makes that impossible.
 IF EXISTS (SELECT * FROM sys.key_constraints
            WHERE parent_object_id = OBJECT_ID(N'[dbo].[inbox_messages]') AND name = N'PK_inbox_messages' AND type = N'PK')
 BEGIN
-    ALTER TABLE [dbo].[inbox_messages] DROP CONSTRAINT PK_inbox_messages;
-    ALTER TABLE [dbo].[inbox_messages]
-        ADD CONSTRAINT PK_inbox_messages PRIMARY KEY (MessageId, HandlerType, TenantId);
+    BEGIN TRANSACTION;
+
+    BEGIN TRY
+        ALTER TABLE [dbo].[inbox_messages] DROP CONSTRAINT PK_inbox_messages;
+        ALTER TABLE [dbo].[inbox_messages]
+            ADD CONSTRAINT PK_inbox_messages PRIMARY KEY (MessageId, HandlerType, TenantId);
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        -- Returns the table to the key it had. Re-raise afterwards: a migration that failed
+        -- must not look clean, or the host is registered for multi-tenancy against a table
+        -- that was never re-keyed.
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH
 END
 GO
 
@@ -64,23 +89,46 @@ GO
 --
 -- TenantId is part of PK_inbox_messages, and SQL Server will not alter a column that participates
 -- in a key, so the key is dropped and rebuilt around the alter. Run with the store stopped.
+--
+-- All three statements are ONE unit of work. The ALTER COLUMN in the middle can fail on a table
+-- this script did not create -- a NULL in TenantId is rejected by NOT NULL, and the column may
+-- carry an index or constraint this block does not know to drop -- and without the transaction
+-- that failure would leave the table with no dedup key at all, which is strictly less protection
+-- than the script found and admits a second delivery of an already-handled message.
 IF EXISTS (SELECT * FROM sys.columns c
            JOIN sys.objects o ON o.object_id = c.object_id
            WHERE o.object_id = OBJECT_ID(N'[dbo].[inbox_messages]')
              AND c.name = N'TenantId'
              AND c.collation_name <> N'Latin1_General_BIN2')
 BEGIN
-    IF EXISTS (SELECT * FROM sys.key_constraints
-               WHERE parent_object_id = OBJECT_ID(N'[dbo].[inbox_messages]')
-                 AND name = N'PK_inbox_messages' AND type = N'PK')
-    BEGIN
-        ALTER TABLE [dbo].[inbox_messages] DROP CONSTRAINT PK_inbox_messages;
-    END
+    BEGIN TRANSACTION;
 
-    ALTER TABLE [dbo].[inbox_messages]
-        ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+    BEGIN TRY
+        IF EXISTS (SELECT * FROM sys.key_constraints
+                   WHERE parent_object_id = OBJECT_ID(N'[dbo].[inbox_messages]')
+                     AND name = N'PK_inbox_messages' AND type = N'PK')
+        BEGIN
+            ALTER TABLE [dbo].[inbox_messages] DROP CONSTRAINT PK_inbox_messages;
+        END
 
-    ALTER TABLE [dbo].[inbox_messages]
-        ADD CONSTRAINT PK_inbox_messages PRIMARY KEY (MessageId, HandlerType, TenantId);
+        ALTER TABLE [dbo].[inbox_messages]
+            ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+
+        ALTER TABLE [dbo].[inbox_messages]
+            ADD CONSTRAINT PK_inbox_messages PRIMARY KEY (MessageId, HandlerType, TenantId);
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        -- The table keeps the key and the collation it had. Re-raise: a re-collation that
+        -- failed must not look clean, because the case-insensitive column it leaves behind is
+        -- the tenant leak this block exists to close.
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH
 END
 GO

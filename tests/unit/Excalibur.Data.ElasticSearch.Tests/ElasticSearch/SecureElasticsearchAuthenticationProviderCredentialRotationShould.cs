@@ -24,7 +24,7 @@ namespace Excalibur.Data.Tests.ElasticSearch.Security.Authentication;
 [Trait("Sprint", "398")]
 public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationShould : IDisposable
 {
-	private readonly IElasticsearchKeyProvider _mockKeyProvider;
+	private readonly IElasticsearchKeyStorage _mockKeyProvider;
 	private readonly IHttpClientFactory _mockHttpClientFactory;
 	private readonly ILogger<SecureElasticsearchAuthenticationProvider> _logger;
 	private readonly MockHttpMessageHandler _mockHttpHandler;
@@ -33,7 +33,7 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 
 	public SecureElasticsearchAuthenticationProviderCredentialRotationShould()
 	{
-		_mockKeyProvider = A.Fake<IElasticsearchKeyProvider>();
+		_mockKeyProvider = A.Fake<IElasticsearchKeyStorage>();
 		_mockHttpClientFactory = A.Fake<IHttpClientFactory>();
 		_logger = NullLogger<SecureElasticsearchAuthenticationProvider>.Instance;
 		_mockHttpHandler = new MockHttpMessageHandler();
@@ -58,11 +58,10 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		_ = result.NextRotationDue.ShouldNotBeNull();
 		result.Message.ShouldContain("API key rotation completed");
 
-		// Verify key was generated
-		_ = A.CallTo(() => _mockKeyProvider.GenerateEncryptionKeyAsync(
+		// Verify a freshly generated key was stored
+		_ = A.CallTo(() => _mockKeyProvider.SetSecretAsync(
 				"elasticsearch:apikey:test-api-key-id",
-				EncryptionKeyType.Hmac,
-				256,
+				A<string>.Ignored,
 				A<SecretMetadata?>.That.Matches(m => m.Description == "Elasticsearch API Key"),
 				A<CancellationToken>.Ignored))
 			.MustHaveHappened();
@@ -74,7 +73,6 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		// Arrange
 		var settings = CreateApiKeySettingsWithRotation();
 		ConfigureExistingApiKey("old-api-key-secret");
-		ConfigureSuccessfulKeyGeneration();
 
 		_sut = CreateProvider(settings);
 
@@ -113,7 +111,7 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		// Arrange
 		var settings = CreateApiKeySettingsWithRotation();
 		ConfigureExistingApiKey("old-key");
-		ConfigureFailedKeyGeneration("Key generation service unavailable");
+		ConfigureFailedApiKeyWrite();
 
 		_sut = CreateProvider(settings);
 
@@ -122,7 +120,7 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.Message.ShouldContain("Key generation service unavailable");
+		result.Message.ShouldContain("the credential store rejected the write");
 	}
 
 	[Fact]
@@ -172,9 +170,11 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		_ = result.NextRotationDue.ShouldNotBeNull();
 		result.Message.ShouldContain("Service account rotation completed");
 
-		// Verify key was rotated
-		_ = A.CallTo(() => _mockKeyProvider.RotateEncryptionKeyAsync(
+		// Verify a freshly generated secret was stored
+		_ = A.CallTo(() => _mockKeyProvider.SetSecretAsync(
 				"elasticsearch:serviceaccount:secret",
+				A<string>.Ignored,
+				A<SecretMetadata?>.Ignored,
 				A<CancellationToken>.Ignored))
 			.MustHaveHappened();
 	}
@@ -185,7 +185,6 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		// Arrange
 		var settings = CreateServiceAccountOptionsWithRotation();
 		ConfigureExistingServiceAccountSecret("old-service-secret");
-		ConfigureSuccessfulKeyRotation();
 		ConfigureSuccessfulServiceAccountTokenRefresh();
 
 		_sut = CreateProvider(settings);
@@ -224,7 +223,7 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		// Arrange
 		var settings = CreateServiceAccountOptionsWithRotation();
 		ConfigureExistingServiceAccountSecret("old-secret");
-		ConfigureFailedKeyRotation("Rotation service unavailable");
+		ConfigureFailedServiceAccountWrite();
 
 		_sut = CreateProvider(settings);
 
@@ -233,7 +232,7 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.Message.ShouldContain("Rotation service unavailable");
+		result.Message.ShouldContain("the credential store rejected the write");
 	}
 
 	[Fact]
@@ -242,7 +241,6 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		// Arrange
 		var settings = CreateServiceAccountOptionsWithRotation();
 		ConfigureExistingServiceAccountSecret("old-secret");
-		ConfigureSuccessfulKeyRotation();
 		ConfigureSuccessfulServiceAccountTokenRefresh();
 
 		_sut = CreateProvider(settings);
@@ -280,9 +278,11 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		_ = result.NextRotationDue.ShouldNotBeNull();
 		result.Message.ShouldContain("OAuth2 client rotation completed");
 
-		// Verify key was rotated
-		_ = A.CallTo(() => _mockKeyProvider.RotateEncryptionKeyAsync(
+		// Verify a freshly generated secret was stored
+		_ = A.CallTo(() => _mockKeyProvider.SetSecretAsync(
 				"elasticsearch:oauth2:clientsecret",
+				A<string>.Ignored,
+				A<SecretMetadata?>.Ignored,
 				A<CancellationToken>.Ignored))
 			.MustHaveHappened();
 	}
@@ -293,7 +293,6 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		// Arrange
 		var settings = CreateOAuth2OptionsWithRotation();
 		ConfigureExistingOAuth2ClientSecret("old-client-secret");
-		ConfigureSuccessfulKeyRotation();
 		ConfigureSuccessfulOAuth2TokenRefresh();
 
 		_sut = CreateProvider(settings);
@@ -332,7 +331,6 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 		// Arrange
 		var settings = CreateOAuth2OptionsWithRotation();
 		ConfigureExistingOAuth2ClientSecret("old-secret");
-		ConfigureSuccessfulKeyRotation();
 		ConfigureSuccessfulOAuth2TokenRefresh();
 
 		_sut = CreateProvider(settings);
@@ -615,7 +613,6 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 	private void ConfigureSuccessfulApiKeyRotationScenario()
 	{
 		ConfigureExistingApiKey(null);
-		ConfigureSuccessfulKeyGeneration();
 	}
 
 	private void ConfigureExistingApiKey(string? existingKeySecret)
@@ -633,40 +630,17 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 			.Returns(Task.FromResult(true));
 	}
 
-	private void ConfigureSuccessfulKeyGeneration()
-	{
-		var generationResult = KeyGenerationResult.CreateSuccess(
-			"elasticsearch:apikey:test-api-key-id",
-			EncryptionKeyType.Hmac,
-			256,
-			"v2");
-
-		_ = A.CallTo(() => _mockKeyProvider.GenerateEncryptionKeyAsync(
+	private void ConfigureFailedApiKeyWrite() =>
+		A.CallTo(() => _mockKeyProvider.SetSecretAsync(
+				"elasticsearch:apikey:test-api-key-id",
 				A<string>.Ignored,
-				A<EncryptionKeyType>.Ignored,
-				A<int>.Ignored,
 				A<SecretMetadata?>.Ignored,
 				A<CancellationToken>.Ignored))
-			.Returns(Task.FromResult(generationResult));
-	}
-
-	private void ConfigureFailedKeyGeneration(string errorMessage)
-	{
-		var generationResult = KeyGenerationResult.CreateFailure(errorMessage);
-
-		_ = A.CallTo(() => _mockKeyProvider.GenerateEncryptionKeyAsync(
-				A<string>.Ignored,
-				A<EncryptionKeyType>.Ignored,
-				A<int>.Ignored,
-				A<SecretMetadata?>.Ignored,
-				A<CancellationToken>.Ignored))
-			.Returns(Task.FromResult(generationResult));
-	}
+			.Returns(Task.FromResult(false));
 
 	private void ConfigureSuccessfulServiceAccountRotationScenario()
 	{
 		ConfigureExistingServiceAccountSecret(null);
-		ConfigureSuccessfulKeyRotation();
 		ConfigureSuccessfulServiceAccountTokenRefresh();
 	}
 
@@ -685,29 +659,13 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 			.Returns(Task.FromResult(true));
 	}
 
-	private void ConfigureSuccessfulKeyRotation()
-	{
-		var rotationResult = new KeyRotationResult(
-			success: true,
-			keyName: "test-key",
-			newKeyVersion: "v2",
-			previousKeyVersion: "v1");
-
-		_ = A.CallTo(() => _mockKeyProvider.RotateEncryptionKeyAsync(
+	private void ConfigureFailedServiceAccountWrite() =>
+		A.CallTo(() => _mockKeyProvider.SetSecretAsync(
+				"elasticsearch:serviceaccount:secret",
 				A<string>.Ignored,
+				A<SecretMetadata?>.Ignored,
 				A<CancellationToken>.Ignored))
-			.Returns(Task.FromResult(rotationResult));
-	}
-
-	private void ConfigureFailedKeyRotation(string errorMessage)
-	{
-		var rotationResult = KeyRotationResult.CreateFailure("test-key", errorMessage);
-
-		_ = A.CallTo(() => _mockKeyProvider.RotateEncryptionKeyAsync(
-				A<string>.Ignored,
-				A<CancellationToken>.Ignored))
-			.Returns(Task.FromResult(rotationResult));
-	}
+			.Returns(Task.FromResult(false));
 
 	private void ConfigureSuccessfulServiceAccountTokenRefresh()
 	{
@@ -726,7 +684,6 @@ public sealed class SecureElasticsearchAuthenticationProviderCredentialRotationS
 	private void ConfigureSuccessfulOAuth2ClientRotationScenario()
 	{
 		ConfigureExistingOAuth2ClientSecret(null);
-		ConfigureSuccessfulKeyRotation();
 		ConfigureSuccessfulOAuth2TokenRefresh();
 	}
 

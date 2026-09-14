@@ -284,7 +284,7 @@ record CancelRequest(string Reason);
 
 :::tip Railway-Oriented Programming
 
-Notice the endpoints don't use `if/else` or manual `result.IsSuccess` checks. Instead:
+Notice the endpoints don't use `if/else` or manual `result.Succeeded` checks. Instead:
 - **`.ToApiResult()`** — converts success to 200/202 and failure to ProblemDetails automatically
 - **`.ToNoContentResult()`** — converts success to 204 No Content
 - **`.Match()`** — gives you full control over both success and failure paths

@@ -12,7 +12,10 @@ using Excalibur.Data;
 using Excalibur.Dispatch;
 using Excalibur.Domain;
 
+using Excalibur.Dispatch.Caching;
+
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using ExcaliburHeaderNames = Excalibur.Application.ExcaliburHeaderNames;
@@ -30,7 +33,7 @@ public sealed partial class ActivityGroupService(
 	IActivityGroupStore activityGroupStore,
 	IActivityGroupGrantStore activityGroupGrantStore,
 	ILogger<ActivityGroupService> logger,
-	IDistributedCache cache) : IActivityGroupService
+	[FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache) : IActivityGroupService
 {
 	/// <inheritdoc />
 	public async Task<bool> ExistsAsync(string activityGroupName, CancellationToken cancellationToken)

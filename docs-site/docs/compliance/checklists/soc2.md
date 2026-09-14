@@ -4,7 +4,7 @@
 **Standard:** SOC 2 (Service Organization Control 2) - Trust Services Criteria
 **Categories:** Security (CC1-CC9) + Optional (Availability, Processing Integrity, Confidentiality, Privacy)
 **Status:** Automated control validation + evidence collection
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-09-12
 
 ---
 
@@ -41,18 +41,18 @@ This checklist provides step-by-step guidance for SOC 2 certification preparatio
 | **CC1** | Control Environment | N/A | Management commitment, ethics policies | Business process |
 | **CC2** | Communication | N/A | Communication policies | Business process |
 | **CC3** | Risk Assessment | N/A | Risk assessment procedures | Business process |
-| **CC4** | Monitoring Activities | ✅ `IAuditLogger` (tamper-evident hash chain) | Configure audit logging | `docs/security/audit-logging.md` |
-| **CC5** | Control Activities | ✅ `[RequirePermission]`, input validation | Implement authorization | `docs/advanced/security.md:15-78` |
-| **CC6** | Logical Access | ✅ RBAC, encryption, key management | Configure access controls | `docs/advanced/security.md` |
-| **CC7** | System Operations | ✅ Health checks, monitoring | Configure OpenTelemetry | `docs/advanced/deployment.md:515-570` |
-| **CC8** | Change Management | ✅ CI/CD pipeline, version control | Review pipeline | `.github/workflows/ci.yml` |
+| **CC4** | Monitoring Activities | ✅ `IAuditLogger` (tamper-evident hash chain) | Configure audit logging | [Audit logging](../../security/audit-logging.md#soc-2-controls) |
+| **CC5** | Control Activities | ✅ `[RequirePermission]`, input validation | Implement authorization | [Authorization](../../advanced/security.md#authorization) |
+| **CC6** | Logical Access | ✅ RBAC, encryption, key management | Configure access controls | [Role-based authorization](../../advanced/security.md#role-based-authorization) |
+| **CC7** | System Operations | ✅ Health checks, monitoring | Configure OpenTelemetry | [OpenTelemetry](../../observability/index.md#opentelemetry) |
+| **CC8** | Change Management | ✅ CI/CD pipeline, version control | Review pipeline | [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) |
 | **CC9** | Risk Mitigation | ✅ Security scanning (SAST, DAST) | Review scan results | GitHub Actions runs |
 
 ### Availability - A1-A3
 
 | Criterion | Title | Framework Implementation | Consumer Action | Evidence Location |
 |-----------|-------|--------------------------|-----------------|-------------------|
-| **A1** | Infrastructure Management | ✅ Health checks, retry policies | Configure health checks | `docs/advanced/deployment.md` |
+| **A1** | Infrastructure Management | ✅ Health checks, retry policies | Configure health checks | [Health checks](../../observability/health-checks.md) |
 | **A2** | Capacity Management | ⚠️ Partial | Monitor capacity, scale as needed | Cloud provider docs |
 | **A3** | Backup & Recovery | ⚠️ Partial | Configure backups | Cloud provider docs |
 
@@ -60,17 +60,17 @@ This checklist provides step-by-step guidance for SOC 2 certification preparatio
 
 | Criterion | Title | Framework Implementation | Consumer Action | Evidence Location |
 |-----------|-------|--------------------------|-----------------|-------------------|
-| **PI1** | Input Validation | ✅ `IInputValidator`, FluentValidation | Validate inputs | `docs/advanced/testing.md` |
-| **PI2** | Processing Accuracy | ✅ Outbox pattern, idempotency | Configure outbox | `docs/guides/outbox-pattern.md` |
-| **PI3** | Output Completeness | ✅ Event ordering, correlation IDs | Verify telemetry | `docs/advanced/deployment.md` |
+| **PI1** | Input Validation | ✅ `IInputValidator`, FluentValidation | Validate inputs | [Input validation](../../advanced/security.md#input-validation) |
+| **PI2** | Processing Accuracy | ✅ Outbox pattern, idempotency | Configure outbox | [Outbox pattern](../../patterns/outbox.md) |
+| **PI3** | Output Completeness | ✅ Event ordering, correlation IDs | Verify telemetry | [Observability](../../observability/index.md) |
 
 ### Confidentiality - C1-C3
 
 | Criterion | Title | Framework Implementation | Consumer Action | Evidence Location |
 |-----------|-------|--------------------------|-----------------|-------------------|
-| **C1** | Data Classification | ✅ `[PersonalData]`, `[Sensitive]` attributes | Classify data | `docs/security/data-classification.md` |
-| **C2** | Data Protection | ✅ AES-256-GCM encryption | Configure encryption | `docs/advanced/security.md:170-213` |
-| **C3** | Data Disposal | ✅ Cryptographic erasure (`IErasureService`) | Configure erasure | `docs/security/gdpr-compliance.md` |
+| **C1** | Data Classification | ✅ `[PersonalData]`, `[Sensitive]` attributes | Classify data | [Data masking](../data-masking.md) |
+| **C2** | Data Protection | ✅ AES-256-GCM encryption | Configure encryption | [AES-256-GCM encryption](../../security/encryption-architecture.md#aes-256-gcm-encryption) |
+| **C3** | Data Disposal | ✅ Cryptographic erasure (`IErasureService`) | Configure erasure | [GDPR erasure](../gdpr-erasure.md) |
 
 **Legend:**
 - ✅ Framework provides automated validation
@@ -217,21 +217,19 @@ public class UserService
 ```
 
 - [ ] Run `AuditLogControlValidator` to verify compliance
-- [ ] Review validation results (4 controls: SEC-004, SEC-005, MON-001, MON-002)
+- [ ] Review validation results (2 controls: SEC-004 Audit Logging, SEC-005 Security Monitoring)
 
 **Evidence:**
-- `docs/security/audit-logging.md` - Audit logging guide
+- [Audit logging](../../security/audit-logging.md) - Audit logging guide
 - Audit log samples (anonymized)
 - Hash chain integrity verification tests
-- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit` — 30 available)
+- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit`)
 
-:::caution The audit kit's SQL binding is partial
-Of this kit's 30 arms, **10 are wired on real SQL Server and real PostgreSQL**; the other 20 run
-against the in-memory store only. The 10 that do run on the SQL providers are the load-bearing ones
-for this control — chain integrity over an intact trail, violation detection when a record is
-rewritten, violation detection when a record is deleted from the middle, and the cross-tenant read
-arms. Cite that specifically. Do not cite "the audit conformance kit passes against our database",
-because two thirds of it did not run there.
+:::caution Wrapped is not run
+The kit is bound against real SQL Server and real PostgreSQL, not the in-memory store alone. **That
+evidences our schema and our configuration, not your deployment** — our suites run against a disposable
+container. Cite the arms *your* run executed and passed against *your* database, not the bindings we
+ship.
 :::
 
 
@@ -295,7 +293,7 @@ public class CreateUserCommandValidator : AbstractValidator<CreateUserCommand>
 - [ ] Test input validation (reject invalid inputs)
 
 **Evidence:**
-- `docs/advanced/security.md:15-78` - Authorization guide
+- [Authorization](../../advanced/security.md#authorization) - Authorization guide
 - Unit tests for authorization and validation
 - Code review evidence (authorization applied to sensitive operations)
 
@@ -331,7 +329,9 @@ public class User
 {
     public Guid Id { get; set; }
 
-    [PersonalData]  // Automatically encrypted at rest
+    [PersonalData]  // [PersonalData] is encrypted ONLY on a record that also carries [DataSubjectId],
+    // and only on a path you wire (crypto-shredding / the encrypting event-store decorator).
+    // A record with no [DataSubjectId] member is left in cleartext.
     public string Email { get; set; }
 
     [PersonalData]
@@ -354,10 +354,10 @@ public class User
 ```
 
 - [ ] Run `EncryptionControlValidator` to verify compliance
-- [ ] Review validation results (4 controls: SEC-001, SEC-002, SEC-003, CNF-001)
+- [ ] Review validation results (3 controls: SEC-001, SEC-002, SEC-003)
 
 **Evidence:**
-- `docs/advanced/security.md:170-213` - Encryption guide
+- [Encryption architecture](../../security/encryption-architecture.md) - Encryption guide
 - Encryption verification tests
 - Key management procedures
 - TLS configuration (testssl.sh scan results)
@@ -411,7 +411,7 @@ app.MapHealthChecks("/health");
 - [ ] Implement runbooks for common incidents
 
 **Evidence:**
-- `docs/advanced/deployment.md:515-570` - Monitoring guide
+- [Observability](../../observability/index.md#opentelemetry) - Monitoring guide
 - OpenTelemetry configuration
 - Health check endpoint verification
 - Alert rules and runbooks
@@ -445,19 +445,18 @@ jobs:
     - Restore dependencies
     - Build solution
     - Run unit tests
-    - Upload coverage (≥60% enforced)
+    - Upload coverage (enforced regression floor of 44%)
 
   security-sast:
     - CodeQL analysis (SAST)
     - Dependency vulnerability scan
     - Secrets scanning (Gitleaks)
 
-  security-dast:
-    - ZAP baseline scan (DAST)
+  # NOTE: no DAST and no container scanning run in this pipeline.
+  # Security scanning is CodeQL (SAST), Gitleaks (secrets) and dependency scanning.
     - API security testing
 
-  container-scan:
-    - Trivy container scan
+  # (no container-scan job exists)
     - Critical vulnerability blocking
 
   sbom-generation:
@@ -470,7 +469,7 @@ jobs:
 - [ ] Document rollback procedures
 
 **Evidence:**
-- `.github/workflows/ci.yml` - CI/CD pipeline
+- [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) - CI/CD pipeline and quality gates
 - GitHub Actions workflow runs (90-day audit trail)
 - Deployment logs
 - Rollback documentation
@@ -485,8 +484,8 @@ The entity identifies, assesses, and manages risks associated with the system.
 
 **Framework Implementation:**
 - SAST (CodeQL)
-- DAST (OWASP ZAP)
-- Container scanning (Trivy)
+- **No DAST and no container scanning run in this pipeline.** If your assessment requires either,
+  you must add it — do not cite it as inherited.
 - Secrets scanning (Gitleaks)
 - Dependency vulnerability scanning
 
@@ -569,6 +568,18 @@ services.AddHttpClient("ExternalAPI")
 **Control Requirement:**
 The entity monitors system components and resource utilization to enable the implementation of additional capacity to help meet its objectives.
 
+**Framework Implementation:**
+- `AvailabilityControlValidator` reports capacity monitoring as control AVL-002
+- `IComplianceMetrics` is the registration point the validator reads
+- Registration-based verification only: the validator confirms a metrics provider is registered. It does
+  not read a metric, evaluate a threshold, or observe a scaling event.
+- **If no `IComplianceMetrics` is registered, AVL-002 does not pass** — it is reported as an unverified
+  control with the gap named in the evidence. Monitoring performed by a system outside this framework may
+  well satisfy A2, but it requires independent attestation rather than our mark.
+- **This describes the framework as it now stands, and no published version behaves this way yet.** Through
+  `10.0.0-alpha.10`, AVL-002 reports as *satisfied* whether or not a metrics provider is registered. If you
+  are generating reports from a released package, see [Known issues](../../known-issues.md).
+
 **Consumer Checklist:**
 
 - [ ] Configure auto-scaling (Azure App Service, AWS ECS, Kubernetes HPA)
@@ -627,6 +638,14 @@ is registered and returns `IsBackupConfigured == true`, and it records the provi
 description as evidence. Those values are supplied by you. A passing AVL-003 evidences that a
 backup arrangement has been *declared*, not that a backup *exists* or that it can be restored.
 Restoration testing remains entirely your control, and an assessor will ask for its results.
+
+**If no `IBackupConfigurationProvider` is registered, AVL-003 does not pass.** The declared control is absent
+and cannot be verified from inside the framework, so it is reported as an unverified control with the gap
+named in the evidence rather than as a green. **This is the framework as it now stands: through
+`10.0.0-alpha.10`, AVL-003 reports as satisfied with no provider registered** — see
+[Known issues](../../known-issues.md) if you are generating reports from a released package.
+Backup verification may well be performed by means this framework cannot observe — that is precisely
+the case requiring independent attestation rather than our mark.
 :::
 
 **Evidence:**
@@ -843,7 +862,7 @@ Procedures exist to protect information designated as confidential from unauthor
 - Access control tests
 
 **SSP Statement:**
-> "C2 is satisfied through field-level encryption using AES-256-GCM. All `[PersonalData]` and `[Sensitive]` fields are automatically encrypted at rest. Access control prevents unauthorized decryption."
+> "C2 is satisfied through field-level encryption using AES-256-GCM. `[PersonalData]` fields are encrypted at rest on records that also carry `[DataSubjectId]`, with crypto-shredding registered. (`[Sensitive]` drives masking and classification, not encryption.) Access control prevents unauthorized decryption."
 
 #### 5.3 C3: Data Disposal (Cryptographic Erasure)
 
@@ -863,7 +882,7 @@ Information designated as confidential is disposed of in accordance with the ent
 **Evidence:**
 - Erasure configuration
 - Erasure certificates
-- Conformance results from the arms you wrapped (`ErasureStoreConformanceTestKit` — 24 available)
+- Conformance results from the arms you wrapped (`ErasureStoreConformanceTestKit`)
 
 **SSP Statement:**
 > "C3 is satisfied through cryptographic erasure using the `IErasureService`. Deletion of encryption keys renders confidential data irrecoverable. Erasure certificates provide cryptographic proof of disposal."
@@ -977,7 +996,7 @@ var report = await _complianceService.GenerateTypeIIReportAsync(
 ## Consumer Responsibilities
 
 **Framework Provides:**
-- Automated control validation (6 validators: Encryption, Audit, Availability, ProcessingIntegrity, Confidentiality, Privacy)
+- Automated control validation (5 validators: Encryption, Audit, Availability, ProcessingIntegrity, Confidentiality). **There is no Privacy validator** — selecting `TrustServicesCategory.Privacy` enables no automated validation.
 - Evidence collection from audit logs and system state
 - Type I and Type II report generation
 - Export formats for auditors (JSON, CSV, Excel, PDF)
@@ -1006,7 +1025,7 @@ var report = await _complianceService.GenerateTypeIIReportAsync(
   - `AvailabilityControlValidator` (3 controls)
   - `ProcessingIntegrityControlValidator` (3 controls)
   - `ConfidentialityControlValidator` (3 controls)
-- [ ] Review validation results (all controls should be EFFECTIVE)
+- [ ] Review validation results. **Only SEC-001, SEC-003 and SEC-004 can report EFFECTIVE**; the other eleven controls are reported *unverified* by design, because the framework declines to certify a control it cannot observe from inside itself. Expect that, and supply independent attestation for those.
 - [ ] Document any gaps and remediate
 
 **Week 8: Evidence Collection**
@@ -1050,13 +1069,13 @@ var report = await _complianceService.GenerateTypeIIReportAsync(
 ### Primary Evidence
 
 **Framework Implementation:**
-- `docs/security/soc2-compliance.md` - SOC 2 guide (500+ lines)
-- `docs/advanced/security.md` - Security capabilities
-- `docs/security/audit-logging.md` - Audit logging guide
+- [Audit logging — SOC 2 controls](../../security/audit-logging.md#soc-2-controls) - Control mapping
+- [Security guide](../../advanced/security.md) - Security capabilities
+- [Audit logging](../../security/audit-logging.md) - Audit logging guide
 
 **Automated Validation:**
-- Built-in validators (6 validators, 17+ controls)
-- Conformance test kits (Audit, Erasure, LegalHold, DataInventory — 92 arms available to wrap; the count that evidences a control is the one your own run executed)
+- Built-in validators (5 validators, 14 controls)
+- Conformance test kits (Audit, Erasure, LegalHold, DataInventory; the count that evidences a control is the one your own run executed)
 
 **Evidence Artifacts:**
 - Audit log samples
@@ -1084,7 +1103,7 @@ var report = await _complianceService.GenerateTypeIIReportAsync(
 ### Automated Monitoring
 
 **Hourly (Recommended):**
-- Control validation (all 17+ controls)
+- Control validation (all 14 controls)
 - Gap detection (severity threshold: Medium)
 - Alerting (PagerDuty, Slack, email)
 
@@ -1128,6 +1147,5 @@ var report = await _complianceService.GenerateTypeIIReportAsync(
 
 ---
 
-**Last Updated:** 2026-01-01
-**Next Review:** 2026-04-01
-**Status:** SOC 2 checklist COMPLETE ✅
+**Last Updated:** 2026-09-12
+**Document status:** every Trust Services criterion in scope is walked through below. **This describes the document, not your compliance posture** — and note that only 3 of the 14 automated controls can report EFFECTIVE; the rest are reported unverified by design and need independent attestation.

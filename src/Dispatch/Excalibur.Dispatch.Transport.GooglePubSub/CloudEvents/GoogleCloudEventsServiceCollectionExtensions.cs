@@ -41,12 +41,12 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 	/// <para>
 	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
 	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
-	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventEncoder{TOutbound}"/>
 	/// backed by a source-generated serializer to compose without the requirement.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
-	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
 	public static IServiceCollection UseCloudEvents(
 		this IServiceCollection services,
 		Action<CloudEventOptions>? configureOptions = null)
@@ -74,7 +74,7 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 		services.TryAddSingleton(static provider =>
 			provider.GetRequiredService<IOptions<GooglePubSubCloudEventOptions>>().Value);
 
-		services.AddCloudEventMapper<PubsubMessage, GooglePubSubCloudEventAdapter>();
+		services.AddCloudEventEncoder<PubsubMessage, GooglePubSubCloudEventAdapter>();
 
 		return services;
 	}
@@ -90,12 +90,12 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 	/// <para>
 	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
 	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
-	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventEncoder{TOutbound}"/>
 	/// backed by a source-generated serializer to compose without the requirement.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
-	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForPubSub(
 		this IServiceCollection services,
 		Action<GooglePubSubCloudEventOptions>? configurePubSub = null,

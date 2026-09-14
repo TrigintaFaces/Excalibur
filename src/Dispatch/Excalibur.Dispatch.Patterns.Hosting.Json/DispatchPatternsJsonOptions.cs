@@ -1,40 +1,40 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Excalibur.Dispatch.Patterns;
 
 /// <summary>
-/// Configuration options for the Excalibur.Dispatch.Patterns hosting JSON serializer.
+/// Configures the JSON serializer used by the patterns hosting surface (message, outbox, and saga payloads).
 /// </summary>
+/// <remarks>
+/// The serializer establishes its own transport defaults — camelCase naming, case-insensitive reads, null
+/// omission, and a pooled buffer profile — and then applies <see cref="ConfigureSerializer" /> last, so a
+/// delegate here can override any of them. Configuration is expressed as a delegate rather than a
+/// pre-built options instance because the serializer must layer consumer settings <em>over</em> its
+/// defaults; handing it a finished instance would silently discard them.
+/// </remarks>
 public sealed class DispatchPatternsJsonOptions
 {
 	/// <summary>
-	/// Initializes a new instance of the <see cref="DispatchPatternsJsonOptions" /> class.
+	/// Gets or sets a delegate applied to the serializer's options after its defaults are established.
 	/// </summary>
-	// Intentionally NOT the event canonical serializer (EventSerializationDefaults.Canonical): this is the
-	// consumer-injectable options DTO for the patterns-hosting JSON surface, not event-payload persistence.
-	// Web defaults (camelCase + case-insensitive) are the discoverable convention here; documented-exempt in
-	// the event-serializer guard.
-	public DispatchPatternsJsonOptions() =>
-		SerializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = false, };
+	/// <value> <see langword="null" /> to accept the defaults unchanged. </value>
+	/// <example>
+	/// <code>
+	/// services.AddJsonSerialization(o =&gt; o.ConfigureSerializer = json =&gt; json.WriteIndented = true);
+	/// </code>
+	/// </example>
+	public Action<JsonSerializerOptions>? ConfigureSerializer { get; set; }
 
 	/// <summary>
-	/// Gets the configurable <see cref="JsonSerializerOptions" /> used when no source-generated context is supplied.
-	/// </summary>
-	/// <value> The configurable <see cref="JsonSerializerOptions" /> used when no source-generated context is supplied. </value>
-	public JsonSerializerOptions SerializerOptions { get; }
-
-	/// <summary>
-	/// Gets or sets the optional <see cref="JsonSerializerContext" /> used for AOT-friendly serialization. When provided, the serializer
-	/// prefers the context and falls back to <see cref="SerializerOptions" /> if type info is missing.
+	/// Gets or sets the source-generated context used for serialization.
 	/// </summary>
 	/// <value>
-	/// The optional <see cref="JsonSerializerContext" /> used for AOT-friendly serialization. When provided, the serializer prefers the
-	/// context and falls back to <see cref="SerializerOptions" /> if type info is missing.
+	/// <see langword="null" /> to use the built-in context. Native AOT consumers must supply a context
+	/// covering their payload types, because no reflection fallback is available under AOT.
 	/// </value>
 	public JsonSerializerContext? SerializerContext { get; set; }
 }

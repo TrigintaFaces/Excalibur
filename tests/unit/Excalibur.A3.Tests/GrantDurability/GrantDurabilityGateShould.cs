@@ -87,6 +87,38 @@ public sealed class GrantDurabilityGateShould
 		volatileStore.GetService(typeof(IDurableGrantStore)).ShouldBeNull();
 	}
 
+	[Fact]
+	public void Refuse_a_store_that_answers_the_capability_query_with_the_wrong_type()
+	{
+		// SAFETY. The guard asks the store for IDurableGrantStore. A store that answers with SOMETHING
+		// rather than with the capability is not durable, and a guard testing the reply for non-null
+		// cannot tell the two apart -- it reports the capability present and the host starts without it.
+		// This is reachable without a malicious store: a hand-written GetService returning `this` or a
+		// cached object unconditionally has the effect, and so does a test double that proxies every type.
+		var services = new ServiceCollection();
+		_ = services.AddSingleton<IGrantStore, FakeOverAnsweringGrantStore>();
+		_ = services.AddGrantDurabilityGate();
+
+		using var provider = services.BuildServiceProvider();
+
+		_ = Should.Throw<OptionsValidationException>(
+			() => Resolve(provider),
+			"a store answering the durability query with an object of the wrong type is NOT durable, and "
+			+ "the gate must refuse it exactly as it refuses a store that answers null");
+	}
+
+	[Fact]
+	public void Answer_the_capability_query_with_something_non_null_but_wrong_in_the_over_answering_double()
+	{
+		// Keeps the arm above honest. If the double ever stopped over-answering, the arm would pass
+		// because the store looks volatile rather than because the guard checks the type.
+		IGrantStore overAnswering = new FakeOverAnsweringGrantStore();
+
+		var answer = overAnswering.GetService(typeof(IDurableGrantStore));
+
+		answer.ShouldNotBeNull("the double exists to answer non-null for a capability it does not have");
+		answer.ShouldNotBeAssignableTo<IDurableGrantStore>();
+	}
 	private static GrantDurabilityOptions Resolve(IServiceProvider provider) =>
 		provider.GetRequiredService<IOptions<GrantDurabilityOptions>>().Value;
 
@@ -146,5 +178,37 @@ public sealed class GrantDurabilityGateShould
 			string qualifier, CancellationToken cancellationToken) => Task.FromResult(false);
 
 		public object? GetService(Type serviceType) => null;
+	}
+
+	/// <summary>
+	/// A store that answers every capability query with a non-null object of the wrong type.
+	/// </summary>
+	/// <remarks>
+	/// This is the subject a non-null test cannot distinguish from a durable store. It implements
+	/// <see cref="IGrantStore" /> only -- it is NOT durable -- and returns a
+	/// <see cref="System.Text.StringBuilder" /> for anything asked of it.
+	/// </remarks>
+	private sealed class FakeOverAnsweringGrantStore : IGrantStore
+	{
+		public Task<Grant?> GetGrantAsync(string userId, string tenantId, string grantType,
+			string qualifier, CancellationToken cancellationToken) => Task.FromResult<Grant?>(null);
+
+		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
+			Task.FromResult<IReadOnlyList<Grant>>([]);
+
+		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired,
+			CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Grant>>([]);
+
+		public Task<int> SaveGrantAsync(Grant grant, CancellationToken cancellationToken) => Task.FromResult(1);
+
+		public Task<int> DeleteGrantAsync(string userId, string tenantId, string grantType,
+			string qualifier, string? revokedBy, DateTimeOffset? revokedOn,
+			CancellationToken cancellationToken) => Task.FromResult(1);
+
+		public Task<bool> GrantExistsAsync(string userId, string tenantId, string grantType,
+			string qualifier, CancellationToken cancellationToken) => Task.FromResult(false);
+
+		// The defect this arm exists for: non-null for everything, correct for nothing.
+		public object? GetService(Type serviceType) => new System.Text.StringBuilder();
 	}
 }

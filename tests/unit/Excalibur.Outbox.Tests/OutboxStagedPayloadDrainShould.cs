@@ -393,9 +393,7 @@ public sealed class OutboxStagedPayloadDrainShould : UnitTestBase
 #pragma warning restore CA1031
 		}
 
-		public void Reset()
-		{
-		}
+		public Task ResetAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
 	private sealed class RecordingCircuitBreakerRegistry : ITransportCircuitBreakerRegistry

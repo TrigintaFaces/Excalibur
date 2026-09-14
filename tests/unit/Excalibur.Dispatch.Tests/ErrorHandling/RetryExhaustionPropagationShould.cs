@@ -166,7 +166,8 @@ public sealed class RetryExhaustionPropagationShould
 		var result = await provider.GetRequiredService<IDispatcher>()
 			.DispatchAsync(new ProbeAction(), TestContext.Current.CancellationToken);
 
-		counter.Count.ShouldBe(2, "a transient fault is attempted up to the configured cap");
+		// MaxRetryAttempts is retries AFTER the first, so exhaustion is one more try than that value.
+		counter.Count.ShouldBe(3, "a transient fault is attempted up to the configured cap");
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe(MappedProblemType);
 		result.ProblemDetails.Detail.ShouldBe(
@@ -197,7 +198,8 @@ public sealed class RetryExhaustionPropagationShould
 		var result = await provider.GetRequiredService<IDispatcher>()
 			.DispatchAsync(new ProbeAction(), TestContext.Current.CancellationToken);
 
-		counter.Count.ShouldBe(3, "a transient 503 is retried to the cap");
+		// MaxRetryAttempts is retries AFTER the first, so exhaustion is one more try than that value.
+		counter.Count.ShouldBe(4, "a transient 503 is retried to the cap");
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe(
 			DownstreamProblemType,
@@ -326,7 +328,7 @@ public sealed class RetryExhaustionPropagationShould
 		var result = await provider.GetRequiredService<IDispatcher>()
 			.DispatchAsync(new ProbeAction(), TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue(
+		result.Succeeded.ShouldBeTrue(
 			"only the consumer's typed handler can turn this fault into a success, so a success proves it ran");
 		var sentinel = (result as IMessageResult<string>)?.ReturnValue;
 		sentinel.ShouldBe(
@@ -393,7 +395,7 @@ public sealed class RetryExhaustionPropagationShould
 		_ = services.AddSingleton(new FaultSpec(fault));
 		_ = services.Configure<RetryOptions>(options =>
 		{
-			options.MaxAttempts = maxAttempts;
+			options.MaxRetryAttempts = maxAttempts;
 			options.BaseDelay = TimeSpan.FromMilliseconds(1);
 		});
 		_ = services.AddExceptionMapping(mapping => _ = mapping

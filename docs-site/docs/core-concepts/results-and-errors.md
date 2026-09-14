@@ -95,8 +95,6 @@ public interface IMessageResult
     // Primary success indicator
     bool Succeeded { get; }
 
-    // Alias for Succeeded
-    bool IsSuccess => Succeeded;
 
     // Error message when failed
     string? ErrorMessage { get; }
@@ -139,7 +137,7 @@ if (result.Succeeded)
 }
 
 // Alternative syntax
-if (result.IsSuccess)
+if (result.Succeeded)
 {
     // Handle success
 }

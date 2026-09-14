@@ -235,6 +235,7 @@
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
           "OpenTelemetry.Extensions.Hosting": "[1.15.3, )",
+          "Polly": "[8.6.6, )",
           "System.IO.Hashing": "[10.0.7, )"
         }
       },
@@ -277,7 +278,8 @@
           "Excalibur.Data.Abstractions": "[1.0.0, )",
           "Excalibur.Dispatch": "[1.0.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Excalibur.Hosting": "[1.0.0, )"
+          "Excalibur.Hosting": "[1.0.0, )",
+          "Polly": "[8.6.6, )"
         }
       },
       "excalibur.workflows.abstractions": {

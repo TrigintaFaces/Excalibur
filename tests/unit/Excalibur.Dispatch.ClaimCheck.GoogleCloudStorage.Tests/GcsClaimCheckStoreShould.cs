@@ -129,9 +129,11 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task DeleteAsync_WhenDeleteSucceeds_ShouldReturnTrue()
+	public async Task DeleteAsync_WhenTheObjectExisted_ShouldReturnTrue()
 	{
 		var storageClient = A.Fake<IStorageClientSeam>();
+		A.CallTo(() => storageClient.ObjectExistsAsync("test-bucket", A<string>._, A<CancellationToken>._))
+			.Returns(true);
 		A.CallTo(() => storageClient.DeleteObjectAsync(
 				"test-bucket",
 				A<string>._,
@@ -142,6 +144,33 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 		var deleted = await sut.DeleteAsync(new ClaimCheckReference { Id = "cc-delete" }, CancellationToken.None);
 
 		deleted.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task DeleteAsync_WhenNoObjectWasThere_ShouldReturnFalseEvenThoughTheDeleteSucceeded()
+	{
+		// The defect this replaces: Cloud Storage's delete is idempotent and SILENT, so it succeeds
+		// identically whether or not an object was there. Reading the result of the delete therefore
+		// answers "did the call work", while the contract asks "was something removed" -- and the store
+		// used to return true unconditionally, reporting a deletion of a payload that never existed.
+		var storageClient = A.Fake<IStorageClientSeam>();
+		A.CallTo(() => storageClient.ObjectExistsAsync("test-bucket", A<string>._, A<CancellationToken>._))
+			.Returns(false);
+		A.CallTo(() => storageClient.DeleteObjectAsync(
+				"test-bucket",
+				A<string>._,
+				A<CancellationToken>._))
+			.Returns(Task.CompletedTask);
+
+		var sut = CreateSut(storageClient);
+		var deleted = await sut.DeleteAsync(new ClaimCheckReference { Id = "cc-absent" }, CancellationToken.None);
+
+		deleted.ShouldBeFalse();
+
+		// The delete is still issued. Not deleting because the probe said "absent" would turn a benign
+		// race into a leaked object, and the probe is an observation rather than a lock.
+		A.CallTo(() => storageClient.DeleteObjectAsync("test-bucket", A<string>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]

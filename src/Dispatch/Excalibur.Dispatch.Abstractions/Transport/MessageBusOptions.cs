@@ -21,31 +21,13 @@ public abstract class MessageBusOptions
 	/// Gets a value indicating whether messages sent through this bus should be retried.
 	/// </summary>
 	/// <value> <see langword="true" /> when retry should be attempted; otherwise, <see langword="false" />. </value>
+	/// <remarks>
+	/// This switch decides only whether the bus retries at all. How it retries — the attempt count, the
+	/// backoff strategy, the delay and any jitter — is configured once for the pipeline through the
+	/// resilience options, so that retry behaviour has a single source of truth rather than a per-bus
+	/// copy that would have to win or lose against it.
+	/// </remarks>
 	public bool EnableRetries { get; init; }
-
-	/// <summary>
-	/// Gets the maximum retry attempts.
-	/// </summary>
-	/// <value> The maximum number of retry attempts. </value>
-	public int MaxRetryAttempts { get; init; } = 3;
-
-	/// <summary>
-	/// Gets the strategy used to calculate delays between retries.
-	/// </summary>
-	/// <value> The retry backoff strategy. </value>
-	public RetryStrategy RetryStrategy { get; init; } = RetryStrategy.FixedDelay;
-
-	/// <summary>
-	/// Gets the delay between retry attempts.
-	/// </summary>
-	/// <value> The base delay interval between retries. </value>
-	public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(1);
-
-	/// <summary>
-	/// Gets the percentage of randomness applied to the calculated delay. Use values between 0 and 1. Set to 0 to disable jitter.
-	/// </summary>
-	/// <value> The jitter factor applied to retry scheduling. </value>
-	public double JitterFactor { get; init; }
 
 	/// <summary>
 	/// Gets the optional URI for remote dispatch (used in forwarding or remote buses).

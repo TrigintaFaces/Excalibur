@@ -108,8 +108,8 @@ public sealed class TransportCircuitBreakerRegistryShould
 		var registry = new TransportCircuitBreakerRegistry();
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 10,
-			OpenDuration = TimeSpan.FromMinutes(2),
+			ConsecutiveFailureThreshold = 10,
+			BreakDuration = TimeSpan.FromMinutes(2),
 		};
 
 		// Act
@@ -131,7 +131,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	public async Task UseDefaultOptionsWhenNotProvided()
 	{
 		// Arrange
-		var defaultOptions = new CircuitBreakerOptions { FailureThreshold = 2 };
+		var defaultOptions = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 2 };
 		var registry = new TransportCircuitBreakerRegistry(defaultOptions);
 
 		// Act
@@ -229,7 +229,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	public async Task IsolateFailuresBetweenTransports()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 2 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 2 };
 		var registry = new TransportCircuitBreakerRegistry(options);
 
 		var rabbitBreaker = registry.GetOrCreate("rabbitmq");
@@ -250,8 +250,8 @@ public sealed class TransportCircuitBreakerRegistryShould
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 1,
-			OpenDuration = TimeSpan.FromMilliseconds(50),
+			ConsecutiveFailureThreshold = 1,
+			BreakDuration = TimeSpan.FromMilliseconds(50),
 		};
 		var registry = new TransportCircuitBreakerRegistry(options);
 
@@ -332,7 +332,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	public async Task ResetAllBreakers()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 1 };
 		var registry = new TransportCircuitBreakerRegistry(options);
 
 		var rabbitBreaker = registry.GetOrCreate("rabbitmq");
@@ -343,7 +343,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 		await kafkaBreaker.FailAsync().ConfigureAwait(false);
 
 		// Act
-		registry.ResetAll();
+		await registry.ResetAllAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		rabbitBreaker.State.ShouldBe(CircuitState.Closed);
@@ -358,7 +358,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	public async Task ReturnAllTransportStates()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 1 };
 		var registry = new TransportCircuitBreakerRegistry(options);
 
 		var rabbitBreaker = registry.GetOrCreate("rabbitmq");
@@ -462,6 +462,12 @@ public sealed class TransportCircuitBreakerRegistryShould
 	// consumer-supplied and may be derived from message content. An unbounded map would therefore
 	// grow with traffic. Safety arm: the map stops growing at the cap. Liveness arm: below the cap
 	// distinct keys still get distinct circuits, so the safety arm cannot pass by capping at one.
+	//
+	// These arms previously certified the opposite contract. One was called
+	// ShareTheOverflowCircuitForKeysPastTheCap and asserted that two different keys past the cap
+	// receive the SAME circuit -- a test whose name stated the defect as the requirement. Sharing a
+	// circuit between keys means one dependency's failures open another's circuit, so the arms now
+	// bind isolation, which is the property the registry exists to provide.
 
 	[Fact]
 	public void StopGrowingOnceTheCircuitCapIsReached()
@@ -473,13 +479,16 @@ public sealed class TransportCircuitBreakerRegistryShould
 			_ = registry.GetOrCreate($"key-{i}");
 		}
 
-		registry.Count.ShouldBeLessThanOrEqualTo(TransportCircuitBreakerRegistry.MaxBreakers + 1);
-		registry.GetTransportNames().ShouldContain(TransportCircuitBreakerRegistry.OverflowKey);
+		registry.Count.ShouldBeLessThanOrEqualTo(TransportCircuitBreakerRegistry.MaxBreakers);
 	}
 
 	[Fact]
-	public void ShareTheOverflowCircuitForKeysPastTheCap()
+	public void NeverShareOneCircuitBetweenTwoKeysPastTheCap()
 	{
+		// The replacement for the arm that asserted sharing. Filling the cap with IDLE circuits means
+		// the registry can evict, so both of these keys get a retained circuit of their own -- but the
+		// assertion deliberately binds only NOT-SHARED, because that is the guarantee. It holds whether
+		// the key was served by eviction or by the unretained fallback.
 		var registry = new TransportCircuitBreakerRegistry();
 
 		for (var i = 0; i < TransportCircuitBreakerRegistry.MaxBreakers; i++)
@@ -490,7 +499,64 @@ public sealed class TransportCircuitBreakerRegistryShould
 		var first = registry.GetOrCreate("overflowed-a");
 		var second = registry.GetOrCreate("overflowed-b");
 
-		first.ShouldBeSameAs(second);
+		first.ShouldNotBeSameAs(second);
+	}
+
+	[Fact]
+	public async Task PreferAnIdleCircuitOverOneThatIsOpenWhenEvicting()
+	{
+		// Renamed from NeverEvictACircuitThatIsOpen, which asserted an absolute the contract does not
+		// make: when NOTHING is idle the least recently used circuit is evicted whatever its state,
+		// because keeping the map coherent matters more than keeping one circuit. What IS guaranteed is
+		// the preference -- an idle circuit is always taken first -- so that the drop-a-protective-circuit
+		// branch is reached only when every circuit is actively protecting something.
+		//
+		// The reason the preference is load-bearing: evicting an OPEN circuit sends traffic straight back
+		// at the dependency it is shielding. The oldest entry by recency is deliberately the open one, so
+		// a recency-only policy would choose it first.
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 1 };
+		var registry = new TransportCircuitBreakerRegistry(options);
+
+		var protectedCircuit = registry.GetOrCreate("must-survive");
+		await protectedCircuit.FailAsync().ConfigureAwait(false);
+		protectedCircuit.State.ShouldBe(CircuitState.Open);
+
+		for (var i = 0; i < TransportCircuitBreakerRegistry.MaxBreakers + 200; i++)
+		{
+			_ = registry.GetOrCreate($"filler-{i}");
+		}
+
+		registry.TryGet("must-survive").ShouldBeSameAs(protectedCircuit);
+		registry.TryGet("must-survive")!.State.ShouldBe(CircuitState.Open);
+	}
+
+	[Fact]
+	public async Task KeepTheCallersOwnOptionsForAKeyServedPastTheCap()
+	{
+		// The third edge: the shared overflow circuit was built from whichever caller created it FIRST,
+		// so every later key silently ran on a stranger's thresholds. A key served past the cap must
+		// honour the options passed FOR IT.
+		//
+		// The ordering here is load-bearing and my first version of this arm got it wrong: it made the
+		// key under test the first caller past the cap, which the old code served with that caller's own
+		// options -- so the arm passed against the very defect it was written to catch. Options theft
+		// only manifests from the SECOND overflowing caller onward. "earlier-overflow" must therefore
+		// come first, with a threshold high enough that inheriting it would keep the circuit closed.
+		var registry = new TransportCircuitBreakerRegistry(new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5 });
+
+		for (var i = 0; i < TransportCircuitBreakerRegistry.MaxBreakers; i++)
+		{
+			_ = registry.GetOrCreate($"key-{i}");
+		}
+
+		_ = registry.GetOrCreate("earlier-overflow", new CircuitBreakerOptions { ConsecutiveFailureThreshold = 50 });
+
+		var mine = registry.GetOrCreate("mine", new CircuitBreakerOptions { ConsecutiveFailureThreshold = 1 });
+		await mine.FailAsync().ConfigureAwait(false);
+
+		// One failure opens it only if MY threshold of 1 was used. Inheriting the earlier caller's 50
+		// leaves it closed, which is exactly what the pre-fix registry did.
+		mine.State.ShouldBe(CircuitState.Open);
 	}
 
 	[Fact]
@@ -505,6 +571,53 @@ public sealed class TransportCircuitBreakerRegistryShould
 		registry.Count.ShouldBe(2);
 	}
 
+	[Fact]
+	public void LetTryGetFindEveryCircuitGetOrCreateHandedOutPastTheCap()
+	{
+		// The history constraint: GetOrCreate(k) and TryGet(k) must agree, here on the ordinary
+		// past-the-cap path where an idle circuit was available to evict.
+		//
+		// SCOPE, stated because I checked and it is not what I first assumed: this arm does NOT bind the
+		// withdrawn create-but-do-not-store remedy. Every filler here is idle, so idle eviction always
+		// succeeds and the unstored branch is never reached -- I verified that by reintroducing the
+		// withdrawn remedy, and this arm stayed GREEN while StayCoherentAndBoundedWhenEveryCircuitIsOpen
+		// went red. That arm is the lock for the unstored defect; this one is the cheap sibling covering
+		// the common path.
+		var registry = new TransportCircuitBreakerRegistry();
+
+		for (var i = 0; i < TransportCircuitBreakerRegistry.MaxBreakers; i++)
+		{
+			_ = registry.GetOrCreate($"key-{i}");
+		}
+
+		var handedOut = registry.GetOrCreate("served-past-the-cap");
+
+		registry.TryGet("served-past-the-cap").ShouldBeSameAs(handedOut);
+	}
+
+	[Fact]
+	public async Task StayCoherentAndBoundedWhenEveryCircuitIsOpen()
+	{
+		// The pathological case the preference cannot serve: the cap fully occupied by OPEN circuits, so
+		// no idle victim exists. The registry evicts anyway. What must survive is coherence and the
+		// bound -- not any particular circuit.
+		//
+		// THIS IS THE ARM THAT BINDS THE WITHDRAWN REMEDY. Reintroducing create-but-do-not-store turns
+		// it RED (TryGet returns null for a key GetOrCreate just reported success for) while every other
+		// arm here stays green, because this is the only scenario that reaches the branch at all.
+		var registry = new TransportCircuitBreakerRegistry(new CircuitBreakerOptions { ConsecutiveFailureThreshold = 1 });
+
+		for (var i = 0; i < TransportCircuitBreakerRegistry.MaxBreakers; i++)
+		{
+			var circuit = registry.GetOrCreate($"open-{i}");
+			await circuit.FailAsync().ConfigureAwait(false);
+		}
+
+		var late = registry.GetOrCreate("arrives-last");
+
+		registry.TryGet("arrives-last").ShouldBeSameAs(late);
+		registry.Count.ShouldBeLessThanOrEqualTo(TransportCircuitBreakerRegistry.MaxBreakers);
+	}
 	#endregion Bounded Registry Tests
 }
 

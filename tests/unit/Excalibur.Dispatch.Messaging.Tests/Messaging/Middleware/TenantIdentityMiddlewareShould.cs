@@ -153,7 +153,7 @@ public sealed class TenantIdentityMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -178,7 +178,7 @@ public sealed class TenantIdentityMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		context.GetItem<string>("TenantId").ShouldBe("tenant-abc");
 	}
 
@@ -249,7 +249,7 @@ public sealed class TenantIdentityMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		context.GetItem<string>("TenantId").ShouldBe("tenant-from-property");
 	}
 
@@ -275,7 +275,7 @@ public sealed class TenantIdentityMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		context.GetItem<string>("TenantId").ShouldBe("default-tenant");
 	}
 
@@ -399,7 +399,7 @@ public sealed class TenantIdentityMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -465,7 +465,7 @@ public sealed class TenantIdentityMiddlewareShould
 
 		// Assert -- the liveness arm. Without it, a bound of zero would satisfy the rejection test below
 		// while refusing every tenant the framework can actually store.
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -529,7 +529,7 @@ public sealed class TenantIdentityMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -551,7 +551,7 @@ public sealed class TenantIdentityMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion

@@ -55,7 +55,7 @@ public sealed class ResilienceIntegrationShould
 	{
 		// Arrange - Setup DLQ and Circuit Breaker
 		var dlq = new InMemoryDeadLetterQueue(_dlqLogger);
-		var options = new CircuitBreakerOptions { FailureThreshold = 2 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 2 };
 		var circuitBreaker = new CircuitBreakerPolicy(options, "order-service", _cbLogger);
 
 		// Act - Simulate failures until circuit opens
@@ -176,7 +176,7 @@ public sealed class ResilienceIntegrationShould
 	{
 		// Arrange
 		var dlq = new InMemoryDeadLetterQueue(_dlqLogger);
-		var options = new CircuitBreakerOptions { FailureThreshold = 2 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 2 };
 		var registry = new TransportCircuitBreakerRegistry(options, NullLoggerFactory.Instance);
 
 		// Act - Open RabbitMQ circuit, keep Kafka closed
@@ -303,8 +303,8 @@ public sealed class ResilienceIntegrationShould
 
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 1,
-			OpenDuration = TimeSpan.FromMilliseconds(50),
+			ConsecutiveFailureThreshold = 1,
+			BreakDuration = TimeSpan.FromMilliseconds(50),
 		};
 		var circuitBreaker = new CircuitBreakerPolicy(options, "payment-service", _cbLogger);
 
@@ -427,8 +427,8 @@ public sealed class ResilienceIntegrationShould
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 2,
-			OpenDuration = TimeSpan.FromMilliseconds(50),
+			ConsecutiveFailureThreshold = 2,
+			BreakDuration = TimeSpan.FromMilliseconds(50),
 		};
 		var circuitBreaker = new CircuitBreakerPolicy(options, "test", _cbLogger);
 		var stateTransitions = new List<(CircuitState From, CircuitState To)>();

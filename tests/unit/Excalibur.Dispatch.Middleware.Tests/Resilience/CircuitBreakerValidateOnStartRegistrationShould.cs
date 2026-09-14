@@ -42,8 +42,8 @@ public sealed class CircuitBreakerValidateOnStartRegistrationShould
 		services.AddLogging();
 		_ = services.AddPollyCircuitBreaker("valid-breaker", options =>
 		{
-			options.FailureThreshold = 10;
-			options.OpenDuration = TimeSpan.FromSeconds(60);
+			options.MinimumThroughput = 10;
+			options.BreakDuration = TimeSpan.FromSeconds(60);
 			options.OperationTimeout = TimeSpan.FromSeconds(10);
 		});
 
@@ -53,7 +53,7 @@ public sealed class CircuitBreakerValidateOnStartRegistrationShould
 		var value = optionsMonitor.Get("valid-breaker");
 
 		// Assert
-		value.FailureThreshold.ShouldBe(10);
+		value.MinimumThroughput.ShouldBe(10);
 	}
 
 	[Fact]
@@ -64,7 +64,7 @@ public sealed class CircuitBreakerValidateOnStartRegistrationShould
 		services.AddLogging();
 		_ = services.AddPollyCircuitBreaker("invalid-breaker", options =>
 		{
-			options.FailureThreshold = 0; // Invalid: must be >= 1
+			options.MinimumThroughput = 0; // Invalid: must be >= 1
 		});
 
 		// Act

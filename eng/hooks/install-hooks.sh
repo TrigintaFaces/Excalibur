@@ -65,6 +65,7 @@ install_hook pre-commit
 install_hook pre-push
 install_hook post-merge
 install_hook post-checkout
+install_hook post-commit
 install_hook prepare-commit-msg
 
 # ── core.hooksPath: make the TRACKED eng/hooks the executed set ───────────────────────────────

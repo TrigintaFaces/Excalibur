@@ -121,7 +121,7 @@ The boundary is enforced by reflection-based tests in `tests\unit\Excalibur.Disp
 
 ```bash
 # Run hosting boundary tests
-dotnet test --filter "Category=Unit&Component=Hosting"
+dotnet test --filter "Category=Unit&Component=Hosting" --blame-hang-timeout 10m
 ```
 
 These tests will fail if:

@@ -87,7 +87,7 @@ internal sealed partial class MetricsMiddleware(IDispatchMetrics metrics, ILogge
 	{
 		try
 		{
-			var success = result.IsSuccess;
+			var success = result.Succeeded;
 			_metrics.RecordProcessingDuration(stopwatch.Elapsed.TotalMilliseconds, messageType, success);
 			_metrics.RecordMessageProcessed(messageType, handlerType);
 

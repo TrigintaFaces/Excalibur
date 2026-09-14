@@ -44,17 +44,19 @@ Each Excalibur package single-targets one .NET major. There is no multi-targetin
 
 Breaking changes are communicated through multiple channels:
 
-1. **CHANGELOG.md** -- Categorized changes (Added, Changed, Deprecated, Removed, Fixed). Until `10.0.0`
-   ships, the pre-releases are documented cumulatively under a single heading rather than one entry per
-   alpha; the file says so at the top and explains why.
+1. **[What's New](../whats-new.md)** -- categorized changes for the release you are moving to, with
+   everything that requires action from you collected under
+   [Before you upgrade](../whats-new.md#before-you-upgrade). Until `10.0.0` ships, the pre-releases are
+   documented cumulatively under a single heading rather than one entry per alpha.
 2. **PublicAPI tracking** -- `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` files in each package track API surface changes
 3. **GitHub Releases** -- Tagged releases with detailed notes
 4. **Migration guides** -- For significant changes, dedicated migration documentation is provided
 
 ### During Pre-Release (Alpha/Beta)
 
-Breaking changes may occur between any pre-release version. Review the CHANGELOG before upgrading for the
-cumulative picture, and the tagged release notes on GitHub for what changed in a specific pre-release.
+Breaking changes may occur between any pre-release version. Review
+[What's New](../whats-new.md) before upgrading for the cumulative picture, and the tagged release notes on
+GitHub for what changed in a specific pre-release.
 
 ### After Stable Release
 
@@ -62,11 +64,48 @@ cumulative picture, and the tagged release notes on GitHub for what changed in a
 - Breaking API changes are reserved for a new **major line**, which coincides with adopting a new .NET major
 - Behavioral changes (same API, different behavior) are treated as breaking
 
+### Drain in-flight messages before crossing a major boundary
+
+**This is an obligation on you, and it cannot be met after the upgrade.**
+
+A message already sitting on a queue or topic was written by the version that published it. When a
+transport's wire format changes, the *reading* side of the old format is kept for the remainder of the
+major line and removed at the next major. **A message written by `10.x` is therefore not guaranteed
+readable by `11.0.0`.**
+
+Within a stable major line this cuts one way only: reading stays compatible, because minor and patch
+releases are backward compatible. **During pre-release it does not**, per the pre-release policy above --
+a wire format may change between any two alphas, and each such change is listed in the release notes
+with what it requires of you.
+
+Concretely, this applies to the CloudEvents attribute naming on **AMQP 1.0** transports -- Azure Service
+Bus and Azure Event Hubs. **Every released version writes the `ce-` prefix on those transports, and that
+is the spelling sitting on your broker now.** A later `10.x` release will switch the write to the
+`cloudEvents_` prefix that the AMQP 1.0 protocol binding assigns, and will go on reading `ce-` for the
+remainder of the `10.x` line. `11.0.0` writes and reads the binding's spelling only.
+
+**RabbitMQ is not affected and needs no drain for this.** The CloudEvents specification assigns no prefix
+to AMQP 0-9-1, so that transport keeps the `ce-` spelling it uses today, on both the write and the read,
+across the boundary.
+
+**What you must do:** before deploying a major upgrade, let your consumers drain the queues and topics
+the previous major wrote to, so that no message written by the old version is still in flight when the
+new one starts reading. How long that takes depends on your queue depth and your
+consumers' throughput, which only you can measure.
+
+**Why we cannot do this for you:** whether your queues are empty is a fact about your infrastructure,
+not about the package. The framework can guarantee that a version reads what it writes and what the
+previous versions of its own major line wrote. It cannot know what is still queued on your broker.
+
+This is the same shape as the idempotency obligation the delivery guarantees carry: the framework states
+what it guarantees, and names the part that only you can hold.
+
 ## Deprecation Policy
 
 Once stable, Excalibur follows a minimum deprecation window:
 
-1. **Deprecation notice** -- The API is marked with `[Obsolete("Use X instead.")]` and documented in the CHANGELOG
+1. **Deprecation notice** -- The API is marked with `[Obsolete("Use X instead.")]` and documented in
+   [What's New](../whats-new.md)
 2. **Minimum one minor version** -- The deprecated API continues to work for at least one minor release cycle within the current major line
 3. **Removal** -- The API is removed at the next major line, with a migration guide
 
@@ -82,12 +121,12 @@ This page states the *policy*. For what actually changed in the release you are 
    rewrite data you have already stored. Both current ones must be completed *before* you deploy the new
    package: [authorization grants require a tenant](authorization-tenant-required.md) and
    [Firestore and Elasticsearch inbox keys change shape](inbox-document-id-rekey.md).
-3. **`CHANGELOG.md`** -- the full per-change history, with each breaking entry labelled and carrying its
-   migration.
+3. **[GitHub Releases](https://github.com/TrigintaFaces/Excalibur/releases)** -- the per-release notes,
+   with each breaking entry labelled and carrying its migration.
 
 ## Upgrade Best Practices
 
-1. **Read the CHANGELOG** -- Check for breaking changes and migration notes before upgrading
+1. **Read [What's New](../whats-new.md)** -- Check for breaking changes and migration notes before upgrading
 2. **Test before upgrading** -- Run your full test suite on the current version
 3. **Upgrade in staging first** -- Validate in a non-production environment
 4. **Back up persistence stores** -- Event stores, outbox tables, and saga stores before major upgrades
@@ -98,7 +137,7 @@ This page states the *policy*. For what actually changed in the release you are 
 Stay informed about releases and changes:
 
 - **GitHub Releases** -- Watch the [Excalibur repository](https://github.com/TrigintaFaces/Excalibur/releases) for release notifications
-- **CHANGELOG** -- Review `CHANGELOG.md` in the repository root for detailed change history
+- **[What's New](../whats-new.md)** -- The change history for the release you are on, categorized by area
 - **NuGet** -- Configure NuGet notifications for `Excalibur.Dispatch` and other packages you depend on
 
 ## See Also

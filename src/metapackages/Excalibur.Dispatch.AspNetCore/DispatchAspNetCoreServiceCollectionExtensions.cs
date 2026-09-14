@@ -27,7 +27,7 @@ public static class DispatchAspNetCoreServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return services
+        _ = services
             .AddDispatch(dispatch =>
             {
                 dispatch.UseObservability();
@@ -42,7 +42,8 @@ public static class DispatchAspNetCoreServiceCollectionExtensions
                 {
                     configureDispatch(dispatch);
                 }
-            })
-            .AddDispatchAmbientScope();
+            });
+
+        return services.AddDispatchAmbientScope();
     }
 }

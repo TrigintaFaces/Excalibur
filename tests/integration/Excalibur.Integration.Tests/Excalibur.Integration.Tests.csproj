@@ -43,6 +43,7 @@
     <PackageReference Include="MongoDB.Driver" />
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Google.Cloud.Firestore" />
+    <PackageReference Include="Google.Cloud.Storage.V1" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Consul" />
     <PackageReference Include="KubernetesClient" />
@@ -193,6 +194,7 @@
     <!-- Cold store providers for tiered storage integration tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.AzureBlob\Excalibur.EventSourcing.AzureBlob.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.AwsS3\Excalibur.EventSourcing.AwsS3.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Gcs\Excalibur.EventSourcing.Gcs.csproj" />
     <!-- OpenSearch projection store integration tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.OpenSearch\Excalibur.Data.OpenSearch.csproj" />
     <!-- S853 integration regression locks: ES outbox cleanup (v8k7jo), Redis job-lock (jqlqc8), fencing tokens (umemwa) -->

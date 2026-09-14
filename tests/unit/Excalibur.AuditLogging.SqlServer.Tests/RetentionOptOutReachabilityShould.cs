@@ -72,6 +72,76 @@ public sealed class RetentionOptOutReachabilityShould
 				"absent an explicit opt-out, retention must remain enabled.");
 	}
 
+	[Fact]
+	public void Carry_a_consumers_retention_window_through_to_the_enforcing_service()
+	{
+		// SAFETY: the window is the value the sweep deletes behind. Left unprojected, a consumer who asks for
+		// ninety days keeps every audit event for the core default of seven years — no error, no warning, and
+		// the only symptom is data that should have been destroyed still being there years later.
+		using var provider = BuildProvider(o => o.Retention.RetentionPeriod = TimeSpan.FromDays(90));
+
+		provider.GetRequiredService<IOptions<AuditRetentionOptions>>().Value
+			.RetentionPeriod.ShouldBe(TimeSpan.FromDays(90),
+				"the retention window a consumer sets on the SQL Server options block must reach the type the "
+				+ "sweep reads — that block sits beside the connection string, which is where a retention "
+				+ "window looks like it belongs.");
+	}
+
+	[Fact]
+	public void Carry_a_consumers_cleanup_interval_through_to_the_enforcing_service()
+	{
+		// SAFETY: the interval is what the retention background service waits between sweeps.
+		using var provider = BuildProvider(o => o.Retention.CleanupInterval = TimeSpan.FromHours(6));
+
+		provider.GetRequiredService<IOptions<AuditRetentionOptions>>().Value
+			.CleanupInterval.ShouldBe(TimeSpan.FromHours(6),
+				"the sweep interval a consumer sets on the SQL Server options block must reach the background "
+				+ "service that schedules the sweep.");
+	}
+
+	[Fact]
+	public void Leave_the_core_defaults_in_place_when_the_consumer_configures_no_retention()
+	{
+		// LIVENESS for both arms above. Without it a projection hard-wired to a constant satisfies them, and
+		// every consumer silently inherits that constant instead of the documented default.
+		using var provider = BuildProvider(configureRetention: null);
+
+		var enforcing = provider.GetRequiredService<IOptions<AuditRetentionOptions>>().Value;
+
+		enforcing.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365),
+			"a consumer who configures no window must get the shipped seven-year default, not whatever "
+			+ "constant a projection happens to carry.");
+		enforcing.CleanupInterval.ShouldBe(TimeSpan.FromDays(1),
+			"a consumer who configures no interval must get the shipped daily default.");
+	}
+
+	[Fact]
+	public void Not_overwrite_a_window_the_host_already_set_on_the_core_options()
+	{
+		// The projection must not turn registration ORDER into a retention policy. A host that sets the
+		// window on AuditRetentionOptions and then registers the store has expressed one preference; the
+		// store's own untouched default must not land on top of it. This arm fails if the projection is
+		// unconditional, and the direction it fails in — seven years replacing ninety days — over-retains.
+		var services = new ServiceCollection();
+		services.AddLogging();
+
+		_ = services.Configure<AuditRetentionOptions>(o => o.RetentionPeriod = TimeSpan.FromDays(90));
+
+		_ = services.AddSqlServerAuditStore(o =>
+		{
+			o.ConnectionString = "Server=(local);Database=Test;Integrated Security=true;";
+			o.SchemaName = "audit";
+			o.TableName = "AuditEvents";
+		});
+
+		using var provider = services.BuildServiceProvider();
+
+		provider.GetRequiredService<IOptions<AuditRetentionOptions>>().Value
+			.RetentionPeriod.ShouldBe(TimeSpan.FromDays(90),
+				"registering the SQL Server store must not silently replace a retention window the host had "
+				+ "already chosen — the provider block carries a default, and a default is not a choice.");
+	}
+
 	private static ServiceProvider BuildProvider(bool enableRetentionEnforcement) =>
 		BuildProvider(o => o.Retention.EnableRetentionEnforcement = enableRetentionEnforcement);
 

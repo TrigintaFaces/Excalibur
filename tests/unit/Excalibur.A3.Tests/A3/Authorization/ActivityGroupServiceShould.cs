@@ -59,7 +59,6 @@ public sealed class ActivityGroupServiceShould : IDisposable
 		ApplicationContext.Init(new Dictionary<string, string?>
 		{
 			["ApplicationName"] = "TestApp",
-			[nameof(AuthorizationCacheKey)] = "testapp",
 		});
 
 	public void Dispose() => ApplicationContext.Reset();

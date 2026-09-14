@@ -32,6 +32,38 @@ public sealed class OneTimeInitializer
 	private Task? _initialization;
 
 	/// <summary>
+	/// Gets a value indicating whether initialisation has been started.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> once <see cref="RunAsync"/> has been called; otherwise <see langword="false"/>.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// This exists so a fixture's TEARDOWN can be bounded by its SETUP. Initialisation here is lazy and
+	/// opt-in — a test provisions the schema by asking for it — while xUnit runs disposal after every test
+	/// in the class, including one that never asked. A reflection-only arm therefore reaches a cleanup that
+	/// deletes from tables nothing ever created, and the arm is reported as failing on infrastructure it
+	/// does not use.
+	/// </para>
+	/// <para>
+	/// Reading this is the honest fix rather than catching the resulting error: cleanup that never ran
+	/// setup has nothing to clean, which is a different statement from cleanup that failed. Swallowing the
+	/// exception would also hide a real cleanup failure, and those are what keep a shared-state suite from
+	/// contaminating the next test.
+	/// </para>
+	/// </remarks>
+	public bool HasRun
+	{
+		get
+		{
+			lock (_sync)
+			{
+				return _initialization is not null;
+			}
+		}
+	}
+
+	/// <summary>
 	/// Runs <paramref name="initialize"/> on the first call and awaits that same operation on every
 	/// later call, whether it succeeded or failed.
 	/// </summary>

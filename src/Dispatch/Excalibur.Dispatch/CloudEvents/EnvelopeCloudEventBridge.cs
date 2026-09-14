@@ -7,34 +7,34 @@ namespace Excalibur.Dispatch.CloudEvents;
 
 /// <summary>
 /// Default implementation of <see cref="IEnvelopeCloudEventBridge" /> that composes the
-/// <see cref="ICloudEventEnvelopeConverter" /> with registered CloudEvent mapper adapters to translate
-/// between Dispatch envelopes and transport-specific representations.
+/// <see cref="ICloudEventEnvelopeConverter" /> with registered CloudEvent encoder adapters to translate
+/// Dispatch envelopes into transport-specific representations.
 /// </summary>
 /// <remarks>
-/// Mappers are resolved through pre-closed <see cref="ICloudEventMapperAdapter"/> instances keyed by
+/// Encoders are resolved through pre-closed <see cref="ICloudEventEncoderAdapter"/> instances keyed by
 /// transport-message <see cref="Type"/>. This keeps the bridge trimming/AOT-safe: there is no
 /// <see cref="System.Type.MakeGenericType(System.Type[])"/> and no late-bound <c>dynamic</c> dispatch —
-/// each generic mapper is closed once, at its DI registration site, via
-/// <c>AddCloudEventMapper</c>.
+/// each generic encoder is closed once, at its DI registration site, via
+/// <c>AddCloudEventEncoder</c>.
 /// </remarks>
 public sealed class EnvelopeCloudEventBridge : IEnvelopeCloudEventBridge
 {
 	private readonly ICloudEventEnvelopeConverter _converter;
-	private readonly IReadOnlyDictionary<Type, ICloudEventMapperAdapter> _adapters;
+	private readonly IReadOnlyDictionary<Type, ICloudEventEncoderAdapter> _adapters;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EnvelopeCloudEventBridge" /> class.
 	/// </summary>
 	/// <param name="converter"> The envelope converter that produces <see cref="CloudEvent" /> instances. </param>
-	/// <param name="adapters"> The registered transport mapper adapters, keyed internally by transport-message type. </param>
+	/// <param name="adapters"> The registered transport encoder adapters, keyed internally by transport-message type. </param>
 	public EnvelopeCloudEventBridge(
 		ICloudEventEnvelopeConverter converter,
-		IEnumerable<ICloudEventMapperAdapter> adapters)
+		IEnumerable<ICloudEventEncoderAdapter> adapters)
 	{
 		_converter = converter ?? throw new ArgumentNullException(nameof(converter));
 		ArgumentNullException.ThrowIfNull(adapters);
 
-		var map = new Dictionary<Type, ICloudEventMapperAdapter>();
+		var map = new Dictionary<Type, ICloudEventEncoderAdapter>();
 		foreach (var adapter in adapters)
 		{
 			// Last registration wins for a given transport type (matches TryAdd-style override semantics).
@@ -64,28 +64,10 @@ public sealed class EnvelopeCloudEventBridge : IEnvelopeCloudEventBridge
 		return (TTransportMessage)transportMessage;
 	}
 
-	/// <inheritdoc />
-	public async Task<MessageEnvelope> FromTransportAsync(
-		object transportMessage,
-		CancellationToken cancellationToken)
-	{
-		ArgumentNullException.ThrowIfNull(transportMessage);
-
-		if (transportMessage is CloudEvent cloudEvent)
-		{
-			return await _converter.ToEnvelopeAsync(cloudEvent, cancellationToken).ConfigureAwait(false);
-		}
-
-		var adapter = ResolveAdapter(transportMessage.GetType());
-		var cloudEventResult = await adapter.FromTransportAsync(transportMessage, cancellationToken).ConfigureAwait(false);
-
-		return await _converter.ToEnvelopeAsync(cloudEventResult, cancellationToken).ConfigureAwait(false);
-	}
-
-	private ICloudEventMapperAdapter ResolveAdapter(Type transportMessageType) =>
+	private ICloudEventEncoderAdapter ResolveAdapter(Type transportMessageType) =>
 		_adapters.TryGetValue(transportMessageType, out var adapter)
 			? adapter
 			: throw new InvalidOperationException(
-				$"No CloudEvent mapper registered for transport message type '{transportMessageType.FullName}'. " +
-				$"Register one with services.AddCloudEventMapper<{transportMessageType.Name}, TMapper>().");
+				$"No CloudEvent encoder registered for transport message type '{transportMessageType.FullName}'. " +
+				$"Register one with services.AddCloudEventEncoder<{transportMessageType.Name}, TEncoder>().");
 }

@@ -34,6 +34,14 @@ public static class SagaTelemetryExtensions
 	///     .WithTracing(tracing => tracing.AddSource(SagaActivitySource.SourceName));
 	/// </code>
 	/// </para>
+	/// <para>
+	/// <b>Turning saga telemetry on and off</b> is done here, on the SDK, not on this method: saga
+	/// signals are collected only for a meter and source you register. Omit
+	/// <c>AddMeter(SagaMetrics.MeterName)</c> and no saga metrics are collected; omit
+	/// <c>AddSource(SagaActivitySource.SourceName)</c> and no saga spans are recorded. This method
+	/// deliberately exposes no enable/disable switches of its own, so there is one place that decides
+	/// what is collected rather than two that can disagree.
+	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
@@ -49,35 +57,11 @@ public static class SagaTelemetryExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Register instrumentation options so consumers can configure metrics/tracing toggles.
-		// No ValidateOnStart(): both properties are bools with no invalid state for an
-		// IValidateOptions<T> to reject.
-		_ = services.AddOptions<SagaInstrumentationOptions>().ValidateOnStart();
-
 		// Ensure the static meter and activity source are initialized.
 		// These are process-lifetime singletons (static fields), but touching them here
 		// guarantees they are created before any OpenTelemetry SDK listener starts collecting.
 		_ = SagaMetrics.MeterName;
 		_ = SagaActivitySource.SourceName;
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds saga instrumentation with custom configuration.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Action to configure instrumentation options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSagaInstrumentation(
-		this IServiceCollection services,
-		Action<SagaInstrumentationOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = services.AddSagaInstrumentation();
-		_ = services.Configure(configure);
 
 		return services;
 	}

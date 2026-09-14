@@ -406,7 +406,6 @@ builder.Services.AddHealthChecks()
 | Method | Default name | Monitors |
 |--------|--------------|----------|
 | `AddDispatchCoreHealthChecks()` | — | Aggregate: registers the three checks below |
-| `AddPipelineIntegrityHealthCheck()` | `pipeline-integrity` | Middleware pipeline wiring integrity |
 | `AddSerializationHealthCheck()` | `serialization` | Message serializer availability |
 | `AddStreamingHandlerHealthCheck()` | `streaming-handler` | Streaming handler registration |
 

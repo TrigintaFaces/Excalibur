@@ -17,7 +17,9 @@ namespace Excalibur.Saga.SqlServer.Requests;
 internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>
-	/// Initializes a new instance of the <see cref="PurgeCompletedSagasRequest"/> class.
+	/// Purges only <paramref name="scope"/>'s completed sagas. The scope is required: an omitted one used to
+	/// mean the untenanted partition by default, which is a different set of rows from the caller's own and
+	/// was reachable without anybody writing it down.
 	/// </summary>
 	/// <param name="threshold">The exclusive upper bound: only sagas completed strictly before this instant are purged.</param>
 	/// <param name="qualifiedTableName">The fully qualified saga table name.</param>
@@ -27,18 +29,36 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 	/// tenant's sagas; <see cref="TenantScope.Untenanted"/> deletes only the untenanted partition — the rows that
 	/// carry no tenant at all. Neither can reach another tenant's rows.
 	/// </param>
-	/// <param name="allTenants">
-	/// When <see langword="true"/>, no tenant discriminator is emitted and completed sagas are purged across
-	/// every tenant. Reachable only from <c>PurgeAllTenantsCompletedBeforeAsync</c>, whose name is the control:
-	/// this flag has no caller that did not spell out the estate-wide intent, and <paramref name="scope"/> is
-	/// ignored when it is set.
-	/// </param>
-	public PurgeCompletedSagasRequest(
+	/// <returns>A request that emits a tenant discriminator.</returns>
+	public static PurgeCompletedSagasRequest ForTenant(
 		DateTimeOffset threshold,
 		string qualifiedTableName,
-		CancellationToken cancellationToken,
-		TenantScope scope = default,
-		bool allTenants = false)
+		TenantScope scope,
+		CancellationToken cancellationToken)
+		=> new(threshold, qualifiedTableName, scope, allTenants: false, cancellationToken);
+
+	/// <summary>
+	/// Purges every tenant's completed sagas, emitting no tenant discriminator. Estate-wide is a NAMED verb
+	/// here, never a flag or an absent scope: this factory takes no <see cref="TenantScope"/> at all, so the
+	/// state where a caller supplies a scope and the request silently ignores it is unrepresentable rather
+	/// than merely documented.
+	/// </summary>
+	/// <param name="threshold">The exclusive upper bound: only sagas completed strictly before this instant are purged.</param>
+	/// <param name="qualifiedTableName">The fully qualified saga table name.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>A request that emits no tenant discriminator.</returns>
+	public static PurgeCompletedSagasRequest ForAllTenants(
+		DateTimeOffset threshold,
+		string qualifiedTableName,
+		CancellationToken cancellationToken)
+		=> new(threshold, qualifiedTableName, scope: default, allTenants: true, cancellationToken);
+
+	private PurgeCompletedSagasRequest(
+		DateTimeOffset threshold,
+		string qualifiedTableName,
+		TenantScope scope,
+		bool allTenants,
+		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
 		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);

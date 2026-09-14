@@ -61,8 +61,17 @@ public abstract class DelegatingPersistenceProvider : IPersistenceProvider
 		=> Inner.InitializeAsync(options, cancellationToken);
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Answering for this decorator before deferring inward is what keeps the decorator in the caller's
+	/// path. Forwarding unconditionally hands back the provider underneath, and every behaviour this
+	/// decorator adds silently stops applying to whatever the caller does with it.
+	/// </remarks>
 	public virtual object? GetService(Type serviceType)
-		=> Inner.GetService(serviceType);
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return serviceType.IsInstanceOfType(this) ? this : Inner.GetService(serviceType);
+	}
 
 	/// <inheritdoc />
 	public virtual async ValueTask DisposeAsync()

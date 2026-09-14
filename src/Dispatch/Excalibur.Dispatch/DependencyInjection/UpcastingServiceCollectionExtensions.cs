@@ -36,9 +36,11 @@ public static class UpcastingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Register options infrastructure. No ValidateOnStart(): UpcastingOptions has nothing an
-		// IValidateOptions<T> could reject -- EnableAutoUpcastOnReplay is a bool and
-		// RegistrationActions is populated by code, not consumer config.
+		// ValidateOnStart() carries its weight here even with no IValidateOptions<T>: it forces the
+		// options to be BOUND at host start, so a malformed configured value fails where an operator
+		// sees it instead of lazily on a replay path. There is deliberately no validator, because
+		// there is nothing to reject -- EnableAutoUpcastOnReplay is a bool, and RegistrationActions
+		// is populated by code rather than consumer configuration.
 		_ = services.AddOptions<UpcastingOptions>().ValidateOnStart();
 
 		// Register the pipeline as singleton with deferred configuration

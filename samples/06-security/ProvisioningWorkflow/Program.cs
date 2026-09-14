@@ -1,4 +1,4 @@
-// Provisioning Workflow Sample
+﻿// Provisioning Workflow Sample
 // Demonstrates creating a provisioning request, risk scoring, approval chain,
 // and grant creation using in-memory stores.
 
@@ -8,10 +8,22 @@ using Excalibur.A3.Governance.Provisioning;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+using ProvisioningWorkflow;
+
 var builder = Host.CreateApplicationBuilder(args);
 
+// Everything AddExcaliburA3 requires of the host but does not register itself: the application-scoped
+// authorization cache, and this sample's opt-in to a volatile grant store. Both are explained on
+// SampleHostComposition rather than here, so this file stays about the provisioning workflow.
+builder.Services.AddSampleAuthorizationPrerequisites();
+
 // Register A3 Core with in-memory stores + Governance with Provisioning
-builder.Services.AddExcaliburA3Core()
+//
+// AddExcaliburA3() is what a real host calls. Unlike AddExcaliburA3Core() -- the gate-free
+// lightweight path -- it installs the grant-durability startup gate, which FAILS CLOSED when grants
+// would live in a volatile store: grants lost on restart make a user whose grants vanished
+// indistinguishable from one who never had any, so authorization silently denies everyone.
+builder.Services.AddExcaliburA3()
 	.AddGovernance(g => g
 		.AddProvisioning(
 			provisioning =>
@@ -21,6 +33,12 @@ builder.Services.AddExcaliburA3Core()
 			}));
 
 var app = builder.Build();
+
+// Run the startup gates NOW. This sample builds a host and never calls StartAsync(), so the gates a
+// hosted run would fire never fire on their own -- the shape a console tool, a migration utility or a
+// test fixture has. ValidateStartupGates() is the host-less trigger; without the opt-in above, this
+// line is where the run would stop.
+_ = app.Services.ValidateStartupGates();
 
 using var scope = app.Services.CreateScope();
 var provisioningStore = scope.ServiceProvider.GetRequiredService<IProvisioningStore>();

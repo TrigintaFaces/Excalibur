@@ -21,10 +21,10 @@ public sealed class SagaOptionsValidator : IValidateOptions<SagaOptions>
 
 		var failures = new List<string>();
 
-		// MaxRetryAttempts must be non-negative
-		if (options.MaxRetryAttempts < 0)
+		// MaxAttempts must be non-negative
+		if (options.MaxAttempts < 0)
 		{
-			failures.Add($"{nameof(SagaOptions.MaxRetryAttempts)} must be >= 0 (was {options.MaxRetryAttempts}).");
+			failures.Add($"{nameof(SagaOptions.MaxAttempts)} must be >= 0 (was {options.MaxAttempts}).");
 		}
 
 		// MaxConcurrency must be positive
@@ -46,7 +46,7 @@ public sealed class SagaOptionsValidator : IValidateOptions<SagaOptions>
 		}
 
 		// Cross-property: RetryDelay should not exceed DefaultTimeout
-		if (options.MaxRetryAttempts > 0 && options.RetryDelay >= options.DefaultTimeout)
+		if (options.MaxAttempts > 0 && options.RetryDelay >= options.DefaultTimeout)
 		{
 			failures.Add(
 				$"{nameof(SagaOptions.RetryDelay)} ({options.RetryDelay}) must be less than " +

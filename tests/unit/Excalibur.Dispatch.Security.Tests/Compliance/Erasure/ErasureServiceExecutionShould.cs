@@ -55,7 +55,8 @@ public sealed class ErasureServiceExecutionShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
-			_dataInventoryService);
+			_dataInventoryService,
+			null);
 	}
 
 	#region ExecuteAsync Tests
@@ -513,13 +514,21 @@ public sealed class ErasureServiceExecutionShould
 	[Fact]
 	public async Task RequestErasureAsync_Succeeds_WithoutOptionalServices()
 	{
-		// Arrange - no legal hold service or data inventory service
+		// Arrange - no data inventory service and no key escrow service, both genuinely optional.
+		//
+		// THE LEGAL-HOLD SERVICE IS NOT AMONG THEM AND THIS ARM USED TO SAY IT WAS. It passed null there,
+		// which made "this deployment operates no holds" and "nobody wired the service" the same
+		// observation -- and the second silently skipped a check that gates an IRREVERSIBLE operation. The
+		// dependency is now required, and a deployment with no holds says so by supplying the service that
+		// truthfully reports none. The capability under test is unchanged: erasure still proceeds when
+		// nothing blocks it. It is simply reached honestly now.
 		var sut = new ErasureService(
 			_store,
 			_keyAdmin,
 			Microsoft.Extensions.Options.Options.Create(_erasureOptions),
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
+			new NoLegalHoldsService(),
 			null,
 			null);
 

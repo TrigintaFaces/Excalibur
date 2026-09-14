@@ -1,4 +1,4 @@
-// JIT Access Sample
+﻿// JIT Access Sample
 // Demonstrates requesting temporary (just-in-time) access with automatic expiry.
 // The JitAccessExpiryService would normally auto-revoke expired grants as a BackgroundService.
 
@@ -11,7 +11,28 @@ using Microsoft.Extensions.Hosting;
 var builder = Host.CreateApplicationBuilder(args);
 
 // Register A3 Core with in-memory stores + Governance with Provisioning + JIT
-builder.Services.AddExcaliburA3Core()
+//
+// AddExcaliburA3() is what a real host calls. Unlike AddExcaliburA3Core() -- the gate-free
+// lightweight path -- it installs the grant-durability startup gate, which FAILS CLOSED when grants
+// would live in a volatile store: grants lost on restart make a user whose grants vanished
+// indistinguishable from one who never had any, so authorization silently denies everyone.
+//
+// This sample keeps the in-memory stores, so it must say so out loud. A production host registers a
+// durable grant store instead and leaves this option alone.
+builder.Services.Configure<GrantDurabilityOptions>(o => o.AllowVolatileGrantStore = true);
+
+// Authorization caching needs a distributed cache that is partitioned per application. This is TWO
+// registrations, not one: the scoped wrapper is keyed, and it wraps whichever unkeyed cache the
+// container holds -- so a host that registers only the wrapper has nothing for it to wrap. Grant cache
+// keys identify a user but not an application, so without the partition two applications sharing one
+// cache server address the same entry for the same user and one serves the other's grants.
+//
+// A real host points the unkeyed registration at Redis or SQL Server; the in-memory one here is what
+// makes this sample self-contained, and it is not a production choice.
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddApplicationScopedDistributedCache(o => o.Scope = "jit-access-sample");
+
+builder.Services.AddExcaliburA3()
 	.AddGovernance(g => g
 		.AddProvisioning(
 			provisioning =>
@@ -27,6 +48,12 @@ builder.Services.AddExcaliburA3Core()
 			}));
 
 var app = builder.Build();
+
+// Run the startup gates NOW. This sample builds a host and never calls StartAsync(), so the gates a
+// hosted run would fire never fire on their own -- the shape a console tool, a migration utility or a
+// test fixture has. ValidateStartupGates() is the host-less trigger; without the opt-in above, this
+// line is where the run would stop.
+_ = app.Services.ValidateStartupGates();
 
 using var scope = app.Services.CreateScope();
 var provisioningStore = scope.ServiceProvider.GetRequiredService<IProvisioningStore>();

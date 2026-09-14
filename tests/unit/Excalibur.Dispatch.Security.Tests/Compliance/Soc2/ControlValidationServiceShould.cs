@@ -213,9 +213,13 @@ public sealed class ControlValidationServiceShould
 		var result = await _sut.RunControlTestAsync("UNKNOWN-001", parameters, CancellationToken.None);
 
 		// Assert
-		result.Outcome.ShouldBe(TestOutcome.ControlFailure);
+		result.Outcome.ShouldBe(
+			TestOutcome.NotTested,
+			"no validator ran, so neither effectiveness nor failure was observed");
 		result.ItemsTested.ShouldBe(0);
-		result.Exceptions.ShouldContain(e => e.Description.Contains("No validator registered"));
+		result.Notes.ShouldNotBeNull();
+		result.Notes.ShouldContain("No validator registered");
+		result.Exceptions.ShouldBeEmpty("a test that never ran cannot have found an exception");
 	}
 
 	[Fact]
@@ -267,7 +271,7 @@ public sealed class ControlValidationServiceShould
 	}
 
 	[Fact]
-	public async Task RunControlTestAsync_SetCriticalSeverity_ForUnregisteredControl()
+	public async Task RunControlTestAsync_ReportsNoFinding_ForUnregisteredControl()
 	{
 		// Arrange
 		var parameters = new ControlTestParameters { SampleSize = 25 };
@@ -276,7 +280,13 @@ public sealed class ControlValidationServiceShould
 		var result = await _sut.RunControlTestAsync("UNKNOWN-001", parameters, CancellationToken.None);
 
 		// Assert
-		result.Exceptions[0].Severity.ShouldBe(GapSeverity.Critical);
+		// This required a fabricated finding: no validator is registered, so nothing was examined and
+		// there is no exception to rate Critical. A severity on an unexamined control is an assertion
+		// about evidence that does not exist; the outcome says no test ran and the notes say why.
+		result.Exceptions.ShouldBeEmpty();
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
+		result.ExceptionsFound.ShouldBeNull();
+		result.Notes.ShouldContain("UNKNOWN-001");
 	}
 
 	#endregion RunControlTestAsync Tests

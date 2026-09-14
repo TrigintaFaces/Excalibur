@@ -33,14 +33,4 @@ public enum DataAccessOperation
 	/// Data export operation.
 	/// </summary>
 	Export = 4,
-
-	/// <summary>
-	/// Data import operation.
-	/// </summary>
-	Import = 5,
-
-	/// <summary>
-	/// Data query or search operation.
-	/// </summary>
-	Query = 6,
 }

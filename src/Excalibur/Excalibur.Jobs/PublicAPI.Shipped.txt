@@ -1,17 +1,23 @@
 #nullable enable
 Excalibur.Jobs.Core.ConfigurationExtensions
-Excalibur.Jobs.Core.IJobOptionsHostedWatcherService
 Excalibur.Jobs.Core.JobHeartbeatTracker
 Excalibur.Jobs.Core.JobHeartbeatTracker.GetLastHeartbeat(string! jobName) -> System.DateTimeOffset?
+Excalibur.Jobs.Core.JobHeartbeatTracker.JobHeartbeatTracker(System.TimeProvider? timeProvider = null) -> void
 Excalibur.Jobs.Core.JobHeartbeatTracker.RecordHeartbeat(string! jobName) -> void
 Excalibur.Jobs.Core.JobOptions
 Excalibur.Jobs.Core.JobOptions.CronSchedule.get -> string!
+Excalibur.Jobs.Core.JobOptions.CronSchedule.set -> void
 Excalibur.Jobs.Core.JobOptions.DegradedThreshold.get -> System.TimeSpan
+Excalibur.Jobs.Core.JobOptions.DegradedThreshold.set -> void
 Excalibur.Jobs.Core.JobOptions.Disabled.get -> bool
+Excalibur.Jobs.Core.JobOptions.Disabled.set -> void
 Excalibur.Jobs.Core.JobOptions.JobGroup.get -> string!
+Excalibur.Jobs.Core.JobOptions.JobGroup.set -> void
 Excalibur.Jobs.Core.JobOptions.JobName.get -> string!
+Excalibur.Jobs.Core.JobOptions.JobName.set -> void
 Excalibur.Jobs.Core.JobOptions.JobOptions() -> void
 Excalibur.Jobs.Core.JobOptions.UnhealthyThreshold.get -> System.TimeSpan
+Excalibur.Jobs.Core.JobOptions.UnhealthyThreshold.set -> void
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.Dispose() -> void
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.JobOptionsHostedWatcherService(Quartz.ISchedulerFactory! schedulerFactory, Microsoft.Extensions.Options.IOptionsMonitor<TOptions!>! configMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions!>!>! logger) -> void
@@ -75,10 +81,3 @@ static Excalibur.Jobs.Quartz.JobConfiguratorExtensions.AddJobInstances<TJob>(thi
 static Excalibur.Jobs.Quartz.JobConfiguratorExtensions.AddRecurringJob<TJob>(this Excalibur.Jobs.Quartz.IJobConfigurator! configurator, System.TimeSpan interval, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddJobWatcher<TJob, TOptions>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfigurationSection! configurationSection) -> void
 static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddQuartzWithJobs(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Quartz.IServiceCollectionQuartzConfigurator!>? withJobs) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Jobs.Core.JobHeartbeatTracker.JobHeartbeatTracker(System.TimeProvider? timeProvider = null) -> void
-Excalibur.Jobs.Core.JobOptions.JobName.set -> void
-Excalibur.Jobs.Core.JobOptions.JobGroup.set -> void
-Excalibur.Jobs.Core.JobOptions.CronSchedule.set -> void
-Excalibur.Jobs.Core.JobOptions.DegradedThreshold.set -> void
-Excalibur.Jobs.Core.JobOptions.Disabled.set -> void
-Excalibur.Jobs.Core.JobOptions.UnhealthyThreshold.set -> void

@@ -95,8 +95,8 @@ public sealed class ControlValidatorConformanceTests : ControlValidatorConforman
 		RunTestAsync_SupportedControl_ShouldReturnResultWithValidProperties();
 
 	[Fact]
-	public Task RunTestAsync_UnsupportedControl_ShouldReturnExceptions_Test() =>
-		RunTestAsync_UnsupportedControl_ShouldReturnExceptions();
+	public Task RunTestAsync_UnsupportedControl_ShouldNotFabricateAPass_Test() =>
+		RunTestAsync_UnsupportedControl_ShouldNotFabricateAPass();
 
 	#endregion RunTestAsync Method Tests
 

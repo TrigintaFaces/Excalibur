@@ -198,7 +198,7 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 		// Act
 		services.AddExcalibur(builder =>
 		{
-			result = builder.AddSagas(opts => opts.MaxConcurrency = 5);
+			result = builder.AddSagas(saga => saga.WithOptions(opts => opts.MaxConcurrency = 5));
 		});
 
 		// Assert
@@ -232,7 +232,7 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 		// Act
 		services.AddExcalibur(builder =>
 		{
-			result = builder.AddSagas((Action<SagaOptions>?)null);
+			result = builder.AddSagas();
 		});
 
 		// Assert
@@ -248,7 +248,7 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 		// Act — AddSagas delegates to services.Configure<SagaOptions>(), which is deferred
 		services.AddExcalibur(builder =>
 		{
-			builder.AddSagas(opts => opts.MaxConcurrency = 42);
+			builder.AddSagas(saga => saga.WithOptions(opts => opts.MaxConcurrency = 42));
 		});
 
 		// Assert — resolve options from provider to verify configure was registered

@@ -33,28 +33,45 @@ public sealed class ActivityContextExtensionsShould
 	[Fact]
 	public void ApplicationNameShouldReturnValueFromGetValueMethod()
 	{
-		// Arrange
+		// Arrange -- the context is now the only source, so no static initialisation is needed to call this at all.
 		const string expectedApplicationName = "TestApplication";
-		const string defaultApplicationName = "DefaultApp";
 
-		// Initialize ApplicationContext so ApplicationContext.ApplicationName doesn't throw
-		// (The extension method evaluates the default value eagerly)
-		ApplicationContext.Init(new Dictionary<string, string?> { ["ApplicationName"] = defaultApplicationName });
+		// The accessor now asks for a null default rather than string.Empty, so the stub matches the call
+		// the production code actually makes. A stub bound to the old default would simply not match, and
+		// FakeItEasy would hand back its own dummy -- green or red for reasons unrelated to the contract.
+		_ = A.CallTo(() => _activityContext.GetValue(nameof(ActivityContextExtensions.ApplicationName), (string?)null))
+			.Returns(expectedApplicationName);
+
+		// Act
+		var result = _activityContext.ApplicationName();
+
+		// Assert
+		result.ShouldBe(expectedApplicationName);
+	}
+
+	[Fact]
+	public void ApplicationNameShouldNotSubstituteTheAmbientStaticWhenTheContextCarriesNoValue()
+	{
+		// Arrange -- the ambient static holds a DIFFERENT value from the context. Before this fix the static was passed as the
+		// default, so a context carrying nothing silently returned the process-wide name and no caller could tell the two apart.
+		ApplicationContext.Init(new Dictionary<string, string?> { ["ApplicationName"] = "AmbientApp" });
 		try
 		{
-			// The extension method calls GetValue with nameof(ApplicationName) and ApplicationContext.ApplicationName as default
-			_ = A.CallTo(() => _activityContext.GetValue(nameof(ActivityContextExtensions.ApplicationName), defaultApplicationName))
-				.Returns(expectedApplicationName);
+			// Echo back whatever default the production code supplies, so this arm observes the DEFAULT rather than a value
+			// we chose. The accessor now asks for null rather than string.Empty, so the echo returns null and absence is
+			// distinguishable from a stored empty string -- which the previous contract could not express.
+			_ = A.CallTo(() => _activityContext.GetValue(nameof(ActivityContextExtensions.ApplicationName), A<string?>._))
+				.ReturnsLazily((string _, string? defaultValue) => defaultValue);
 
 			// Act
 			var result = _activityContext.ApplicationName();
 
-			// Assert
-			result.ShouldBe(expectedApplicationName);
+			// Assert -- absence reads as absence, not as the ambient value.
+			result.ShouldBeNull();
+			result.ShouldNotBe("AmbientApp");
 		}
 		finally
 		{
-			// Clean up static state
 			ApplicationContext.Reset();
 		}
 	}
@@ -136,8 +153,12 @@ public sealed class ActivityContextExtensionsShould
 	}
 
 	[Fact]
-	public void CorrelationIdShouldReturnEmptyGuidWhenCorrelationIdNotFound()
+	public void CorrelationIdShouldReturnNullWhenCorrelationIdNotFound()
 	{
+		// The accessor used to fabricate Guid.Empty here, which collapsed three distinct states into one
+		// value: no correlation id in the context, a correlation id present but unset, and a genuinely
+		// stored Guid.Empty. Null now means absent and nothing else.
+
 		// Arrange
 		_ = A.CallTo(() => _activityContext.GetValue(nameof(ActivityContextExtensions.CorrelationId), default(ICorrelationId)))
 			.Returns(null);
@@ -146,7 +167,7 @@ public sealed class ActivityContextExtensionsShould
 		var result = _activityContext.CorrelationId();
 
 		// Assert
-		result.ShouldBe(Guid.Empty);
+		result.ShouldBeNull();
 	}
 
 	[Fact]

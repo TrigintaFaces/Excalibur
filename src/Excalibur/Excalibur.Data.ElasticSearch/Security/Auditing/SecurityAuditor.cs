@@ -52,7 +52,14 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private readonly ISecurityAuditStore _auditStore;
 	private readonly ILogger<SecurityAuditor> _logger;
 	private readonly SemaphoreSlim _auditSemaphore;
-	private readonly Timer? _complianceReportTimer;
+	private readonly TimeProvider _timeProvider;
+
+	// Shutdown signal for both periodic loops. Disposal cancels it, then awaits the loop tasks, so a
+	// dispose never races an in-flight tick and no loop body observes a disposed auditor.
+	private readonly CancellationTokenSource _shutdownCts = new();
+
+	// Null when no compliance frameworks are configured -- there is nothing for the loop to report on.
+	private readonly Task? _complianceReportLoop;
 	private readonly Dictionary<ComplianceFramework, ComplianceReporter> _complianceReporters;
 	// Bounded in-memory audit buffers. FullMode.Wait applies producer backpressure (callers
 	// await when full) so a slow/failed audit sink throttles rather than dropping. The drain NEVER writes
@@ -62,20 +69,25 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private readonly Channel<SecurityAuditEvent> _priorityEventChannel;
 	private readonly List<SecurityAuditEvent> _retryBuffer = [];
 	private volatile bool _hasPendingRetry;
-	private readonly Timer _auditEventProcessor;
+	private readonly Task _auditEventProcessorLoop;
 	private ConcurrentBag<Task> _trackedTasks = [];
 
 	// flush backoff. When a flush fails (e.g. EnsureLogIntegrity=true with a missing signing key,
 	// where ComputeIntegrityHashAsync fails closed), the failed batch is re-queued. Without backoff the
 	// timer immediately re-dequeues and re-fails — a busy hot-loop pegging CPU. These fields gate the flush
 	// body so retries are spaced by a capped exponential backoff. The deadline is stored as a UTC tick count
-	// (DateTimeOffset.UtcNow.UtcTicks; Environment.TickCount64 is banned project-wide).
+	// (from the injected TimeProvider; Environment.TickCount64 is banned project-wide).
 	private const int FlushBackoffBaseMs = 1_000;
 	private const int FlushBackoffMaxMs = 30_000;
 
 	// Consecutive flush failures at/above this mark the audit flush degraded (observable to a
 	// health check) — a sustained sink outage while the retry buffer accumulates and producers backpressure.
 	private const int AuditFlushDegradedThreshold = 3;
+	// Periodic schedules. Both are driven by the injected TimeProvider, so tests advance a
+	// FakeTimeProvider by one interval instead of sleeping.
+	private static readonly TimeSpan ComplianceReportInterval = TimeSpan.FromHours(24);
+	private static readonly TimeSpan AuditQueueDrainInterval = TimeSpan.FromSeconds(10);
+
 	private long _flushBackoffUntilUtcTicks;
 	private int _consecutiveFlushFailures;
 	private volatile bool _disposed;
@@ -126,7 +138,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		ILogger<SecurityAuditor> logger)
 		: this(elasticsearchClient, CreateAuditStore(elasticsearchClient), auditOptions, monitoringOptions,
-			DefaultIntegrityStrategy.Value, new DefaultAuditTelemetrySanitizer(), logger)
+			DefaultIntegrityStrategy.Value, new DefaultAuditTelemetrySanitizer(), TimeProvider.System, logger)
 	{
 	}
 
@@ -139,6 +151,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// <param name="monitoringOptions"> The security monitoring configuration options. </param>
 	/// <param name="integrityStrategy"> The shared keyed-MAC audit integrity strategy. </param>
 	/// <param name="sanitizer"> The sanitizer used to mask PII on audit events before enqueue; when <see langword="null"/> and <see cref="AuditOptions.MaskPiiInAuditEvents"/> is enabled, construction fails closed. </param>
+	/// <param name="timeProvider"> The time source driving the compliance-report and audit-queue-drain schedules. </param>
 	/// <param name="logger"> The logger for operational events. </param>
 	/// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
 	public SecurityAuditor(
@@ -147,9 +160,10 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		IAuditIntegrityStrategy integrityStrategy,
 		ITelemetrySanitizer? sanitizer,
+		TimeProvider timeProvider,
 		ILogger<SecurityAuditor> logger)
 		: this(elasticsearchClient, CreateAuditStore(elasticsearchClient), auditOptions, monitoringOptions,
-			integrityStrategy, sanitizer, logger)
+			integrityStrategy, sanitizer, timeProvider, logger)
 	{
 	}
 
@@ -174,7 +188,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		ILogger<SecurityAuditor> logger)
 		: this(elasticsearchClient, auditStore, auditOptions, monitoringOptions,
-			DefaultIntegrityStrategy.Value, new DefaultAuditTelemetrySanitizer(), logger)
+			DefaultIntegrityStrategy.Value, new DefaultAuditTelemetrySanitizer(), TimeProvider.System, logger)
 	{
 	}
 
@@ -188,6 +202,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// <param name="monitoringOptions"> The security monitoring configuration options. </param>
 	/// <param name="integrityStrategy"> The shared keyed-MAC audit integrity strategy. </param>
 	/// <param name="sanitizer"> The sanitizer used to mask PII on audit events before enqueue; when <see langword="null"/> and <see cref="AuditOptions.MaskPiiInAuditEvents"/> is enabled, construction fails closed. </param>
+	/// <param name="timeProvider"> The time source driving the compliance-report and audit-queue-drain schedules. </param>
 	/// <param name="logger"> The logger for operational events. </param>
 	/// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
 	internal SecurityAuditor(
@@ -197,6 +212,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		IAuditIntegrityStrategy integrityStrategy,
 		ITelemetrySanitizer? sanitizer,
+		TimeProvider timeProvider,
 		ILogger<SecurityAuditor> logger)
 	{
 		_elasticsearchClient = elasticsearchClient ?? throw new ArgumentNullException(nameof(elasticsearchClient));
@@ -204,6 +220,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		Configuration = auditOptions?.Value ?? throw new ArgumentNullException(nameof(auditOptions));
 		_ = monitoringOptions?.Value ?? throw new ArgumentNullException(nameof(monitoringOptions));
 		_integrityStrategy = integrityStrategy ?? throw new ArgumentNullException(nameof(integrityStrategy));
+		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		// Fail-closed backstop (defense-in-depth, enforce-invariants-structurally): PII masking is default-on,
@@ -244,16 +261,18 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		_writer.ComplianceViolationDetected += (sender, args) => ComplianceViolationDetected?.Invoke(this, args);
 		_maintenanceService.AuditArchiveCompleted += (sender, args) => AuditArchiveCompleted?.Invoke(this, args);
 
-		// Initialize compliance reporting timer
+		// Periodic work runs on PeriodicTimer driven by the injected TimeProvider, never a raw
+		// System.Threading.Timer: the loop body is awaited (so ticks cannot overlap), its exceptions are
+		// observed and logged rather than lost on a void callback, it honours a CancellationToken, and a
+		// FakeTimeProvider makes both schedules testable without waiting real time.
 		if (Configuration.ComplianceFrameworks.Count != 0)
 		{
-			_complianceReportTimer = new Timer(GenerateComplianceReports, state: null,
-				TimeSpan.FromHours(24), TimeSpan.FromHours(24));
+			_complianceReportLoop = RunPeriodicAsync(
+				ComplianceReportInterval, GenerateComplianceReportsAsync, "compliance-report", _shutdownCts.Token);
 		}
 
-		// Initialize audit event processor
-		_auditEventProcessor = new Timer(ProcessAuditEventQueue, state: null,
-			TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+		_auditEventProcessorLoop = RunPeriodicAsync(
+			AuditQueueDrainInterval, ProcessAuditEventQueueAsync, "audit-queue-drain", _shutdownCts.Token);
 
 		_trackedTasks.Add(InitializeAuditIndicesAsync());
 
@@ -311,7 +330,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// Records a general security event for compliance and monitoring purposes.
 	/// </summary>
 	public Task<bool> RecordSecurityEventAsync(
-		SecurityEvent securityEvent,
+		ElasticsearchSecurityEvent securityEvent,
 		CancellationToken cancellationToken) =>
 		_writer.RecordSecurityEventAsync(securityEvent, cancellationToken);
 
@@ -409,25 +428,22 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 		_disposed = true;
 
+		_shutdownCts.Cancel();
 		_auditSemaphore?.Dispose();
-		_complianceReportTimer?.Dispose();
 		_ = _normalEventChannel.Writer.TryComplete();
 		_ = _priorityEventChannel.Writer.TryComplete();
-		_auditEventProcessor?.Dispose();
 
-		// Best-effort drain of tracked tasks with timeout to prevent abandonment
+		// Best-effort drain of the periodic loops and tracked tasks with timeout to prevent abandonment
 		try
 		{
-			var tasks = _trackedTasks.ToArray();
-			if (tasks.Length > 0)
-			{
-				Task.WaitAll(tasks, TimeSpan.FromSeconds(5));
-			}
+			Task.WaitAll(ShutdownTasks(), TimeSpan.FromSeconds(5));
 		}
 		catch (AggregateException)
 		{
 			// Expected -- tasks may cancel or fault during shutdown
 		}
+
+		_shutdownCts.Dispose();
 
 		foreach (var reporter in _complianceReporters.Values)
 		{
@@ -450,26 +466,24 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 		_disposed = true;
 
-		// Wait for in-flight timer callbacks
+		// Signal both periodic loops, then await them so no tick is in flight past disposal.
+		await _shutdownCts.CancelAsync().ConfigureAwait(false);
 		_auditSemaphore?.Dispose();
-		if (_complianceReportTimer != null)
-		{
-			await _complianceReportTimer.DisposeAsync().ConfigureAwait(false);
-		}
 
 		_ = _normalEventChannel.Writer.TryComplete();
 		_ = _priorityEventChannel.Writer.TryComplete();
-		await _auditEventProcessor.DisposeAsync().ConfigureAwait(false);
 
-		// Wait for tracked tasks to complete
+		// Wait for the periodic loops and tracked tasks to complete
 		try
 		{
-			await Task.WhenAll(_trackedTasks).ConfigureAwait(false);
+			await Task.WhenAll(ShutdownTasks()).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
+
+		_shutdownCts.Dispose();
 
 		foreach (var reporter in _complianceReporters.Values)
 		{
@@ -516,18 +530,14 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// <summary>
 	/// Processes the audit event queue and stores events in Elasticsearch.
 	/// </summary>
-	private void ProcessAuditEventQueue(object? state)
+	private async Task ProcessAuditEventQueueAsync()
 	{
 		if (_disposed || (_priorityEventChannel.Reader.Count == 0 && _normalEventChannel.Reader.Count == 0 && !_hasPendingRetry))
 		{
 			return;
 		}
 
-		var task = QueueBackgroundWork(async () =>
-		{
-			await ProcessAuditEventQueueCoreAsync().ConfigureAwait(false);
-		});
-		_trackedTasks.Add(task);
+		await ProcessAuditEventQueueCoreAsync().ConfigureAwait(false);
 
 		// Drain completed tasks to prevent unbounded growth
 		var snapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
@@ -549,7 +559,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 		// while a prior flush is in its failure backoff window, skip this attempt so a persistently
 		// failing flush (e.g. missing integrity signing key) does not busy-loop re-dequeue/re-fail/re-queue.
-		if (DateTimeOffset.UtcNow.UtcTicks < Volatile.Read(ref _flushBackoffUntilUtcTicks))
+		if (_timeProvider.GetUtcNow().UtcTicks < Volatile.Read(ref _flushBackoffUntilUtcTicks))
 		{
 			return;
 		}
@@ -640,7 +650,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 				FlushBackoffMaxMs);
 			Volatile.Write(
 				ref _flushBackoffUntilUtcTicks,
-				DateTimeOffset.UtcNow.UtcTicks + (delayMs * TimeSpan.TicksPerMillisecond));
+				_timeProvider.GetUtcNow().UtcTicks + (delayMs * TimeSpan.TicksPerMillisecond));
 		}
 	}
 
@@ -662,34 +672,32 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// <summary>
 	/// Generates compliance reports for all enabled frameworks.
 	/// </summary>
-	private void GenerateComplianceReports(object? state)
+	private async Task GenerateComplianceReportsAsync()
 	{
 		if (_disposed)
 		{
 			return;
 		}
 
-		var task = QueueBackgroundWork(async () =>
-		{
-			var endTime = DateTimeOffset.UtcNow;
-			var startTime = endTime.AddDays(-1); // Daily reports
+		var endTime = _timeProvider.GetUtcNow();
+		var startTime = endTime.AddDays(-1); // Daily reports
 
-			foreach (var framework in Configuration.ComplianceFrameworks)
+		foreach (var framework in Configuration.ComplianceFrameworks)
+		{
+			try
 			{
-				try
-				{
-					var report = await _queryService.GenerateComplianceReportAsync(framework, startTime, endTime, CancellationToken.None).ConfigureAwait(false);
-					_logger.LogInformation(
-						"Daily compliance report generated for {Framework}: {Violations} violations found",
-						framework, report.Violations.Count);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Failed to generate compliance report for {Framework}", framework);
-				}
+				var report = await _queryService
+					.GenerateComplianceReportAsync(framework, startTime, endTime, _shutdownCts.Token)
+					.ConfigureAwait(false);
+				_logger.LogInformation(
+					"Daily compliance report generated for {Framework}: {Violations} violations found",
+					framework, report.Violations.Count);
 			}
-		});
-		_trackedTasks.Add(task);
+			catch (Exception ex) when (ex is not OperationCanceledException)
+			{
+				_logger.LogError(ex, "Failed to generate compliance report for {Framework}", framework);
+			}
+		}
 
 		// Drain completed tasks to prevent unbounded growth
 		var drainSnapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
@@ -702,10 +710,48 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		}
 	}
 
-	private static Task QueueBackgroundWork(Func<Task> callback) =>
-		Task.Factory.StartNew(
-			callback,
-			CancellationToken.None,
-			TaskCreationOptions.DenyChildAttach,
-			TaskScheduler.Default).Unwrap();
+	/// <summary>
+	/// Runs <paramref name="body"/> once per <paramref name="period"/> until <paramref name="cancellationToken"/>
+	/// is signalled, on a <see cref="PeriodicTimer"/> driven by the injected <see cref="TimeProvider"/>.
+	/// </summary>
+	/// <remarks>
+	/// The body is awaited, so two ticks never overlap, and every exception it throws is observed and logged
+	/// instead of being lost on a fire-and-forget void timer callback. A faulting body does not stop the loop.
+	/// </remarks>
+	private async Task RunPeriodicAsync(TimeSpan period, Func<Task> body, string loopName, CancellationToken cancellationToken)
+	{
+		// Created synchronously on the caller's stack (everything before the first await), so the timer is
+		// registered with the TimeProvider by the time the constructor returns. A test may therefore advance a
+		// FakeTimeProvider immediately, with no race against the loop starting.
+		using var timer = new PeriodicTimer(period, _timeProvider);
+
+		try
+		{
+			while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+			{
+				try
+				{
+					await body().ConfigureAwait(false);
+				}
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+				{
+					break;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Unhandled exception in the {LoopName} loop; the loop continues", loopName);
+				}
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			// Expected on disposal.
+		}
+	}
+
+	/// <summary> Every task disposal must await: the tracked one-shot work plus both periodic loops. </summary>
+	private Task[] ShutdownTasks() =>
+		_complianceReportLoop is null
+			? [.. _trackedTasks, _auditEventProcessorLoop]
+			: [.. _trackedTasks, _auditEventProcessorLoop, _complianceReportLoop];
 }

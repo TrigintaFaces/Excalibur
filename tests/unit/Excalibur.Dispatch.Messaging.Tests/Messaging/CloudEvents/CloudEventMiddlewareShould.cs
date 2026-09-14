@@ -165,7 +165,7 @@ public sealed class CloudEventMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		context.MessageId.ShouldBe("ce-123");
 		context.GetSource().ShouldBe("urn:test-source");
 	}
@@ -435,7 +435,7 @@ public sealed class CloudEventMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -458,7 +458,7 @@ public sealed class CloudEventMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		context.MessageId.ShouldBe("ce-alt");
 	}
 

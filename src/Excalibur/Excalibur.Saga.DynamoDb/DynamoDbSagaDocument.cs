@@ -7,6 +7,7 @@ using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Data;
 
 namespace Excalibur.Saga.DynamoDb;
 
@@ -18,7 +19,11 @@ namespace Excalibur.Saga.DynamoDb;
 /// Uses single-table design with the following key structure:
 /// </para>
 /// <list type="bullet">
-/// <item><description>PK: SAGA#t:{tenantId}:{sagaId} - Partition by tenant AND saga</description></item>
+/// <item><description>PK: <c>SAGA#</c> followed by the injective tenant-scoped composition of the
+/// tenant and the saga id. The tenant and saga terms are encoded rather than concatenated, so no two
+/// tenant/saga pairs can produce the same partition key whatever characters their identifiers
+/// contain. An identifier free of <c>:</c> and <c>%</c> encodes to itself, so the rendered key is
+/// unchanged for ordinary ids.</description></item>
 /// <item><description>SK: {sagaType} - Sort key for multi-type queries</description></item>
 /// </list>
 /// </remarks>
@@ -92,7 +97,7 @@ internal static class DynamoDbSagaDocument
 	/// <param name="sagaId">The saga identifier.</param>
 	/// <returns>The partition key value.</returns>
 	public static string CreatePK(string tenantId, Guid sagaId) =>
-		$"{TenantedPartitionKeyPrefix}{tenantId}:{sagaId}";
+SagaPrefix + TenantScopedKey.Compose(tenantId, sagaId.ToString());
 
 	/// <summary>
 	/// Creates the sort key value for a given saga type.

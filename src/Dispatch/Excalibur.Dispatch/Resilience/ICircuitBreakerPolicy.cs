@@ -13,6 +13,16 @@ namespace Excalibur.Dispatch.Resilience;
 /// through to test if the underlying service has recovered.
 /// </para>
 /// <para>
+/// <b>A policy's configuration is fixed for its lifetime.</b> The values an implementation is created
+/// with are the values it uses until it is discarded: no member of this interface changes them, and
+/// neither does any later change to the object they were read from. Configuration types in this
+/// framework are settable so they can take part in the options pattern -- binding, <c>Configure</c>
+/// callbacks and startup validation all require setters -- so a caller may still hold the instance it
+/// passed and alter it afterwards. Doing so has no effect on a policy already built from it, on any
+/// implementation. To run with different settings, create a new policy; do not mutate and expect the
+/// existing one to follow.
+/// </para>
+/// <para>
 /// Diagnostic properties (ConsecutiveFailures, LastOpenedAt) and events (StateChanged) are kept off
 /// this interface so an implementation is not obliged to carry them. Test the policy instance for
 /// <see cref="ICircuitBreakerDiagnostics"/> or <see cref="ICircuitBreakerEvents"/> to reach them.
@@ -61,9 +71,18 @@ public interface ICircuitBreakerPolicy
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Manually resets the circuit breaker to the closed state.
+	/// Manually returns the circuit breaker to the closed state.
 	/// </summary>
-	void Reset();
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>A task that completes once the circuit is closed.</returns>
+	/// <remarks>
+	/// <b>When the returned task completes, <see cref="State" /> is <see cref="CircuitState.Closed" />.</b>
+	/// That is the postcondition an operator depends on: the point of a manual reset is to put a circuit
+	/// back into service, and a caller that cannot tell when that has happened has to poll or guess.
+	/// An implementation whose close is asynchronous must therefore await it and publish the closed state
+	/// before completing, and a close that fails must surface as a faulted task rather than a log line.
+	/// </remarks>
+	Task ResetAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>

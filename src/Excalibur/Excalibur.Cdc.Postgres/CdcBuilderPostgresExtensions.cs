@@ -115,6 +115,8 @@ public static class CdcBuilderPostgresExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static ICdcBuilder UsePostgres(
 		this ICdcBuilder builder,
 		Action<IPostgresCdcBuilder> configure)
@@ -212,10 +214,8 @@ public static class CdcBuilderPostgresExtensions
 		return null;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	private static void RegisterOptionsAndServices(
 		ICdcBuilder builder,
 		PostgresCdcBuilder pgBuilder,

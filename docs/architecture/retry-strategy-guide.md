@@ -10,7 +10,7 @@ retry behavior.
 
 | Subsystem | Mechanism | Location | When to Use |
 |-----------|-----------|----------|-------------|
-| **Dispatch Core** | `IRetryPolicy` + `DefaultRetryPolicy` + `NoOpRetryPolicy` | `src/Dispatch/Excalibur.Dispatch/Resilience/` | Framework-level message handler retries. Use for custom handler-level retry logic. |
+| **Dispatch Core** | `IRetryPolicy` + `NoOpRetryPolicy` | `src/Dispatch/Excalibur.Dispatch/Resilience/` | Framework-level message handler retries. Use for custom handler-level retry logic. |
 | **Polly Integration** | `PollyRetryPolicyAdapter` implements `IRetryPolicy` | `src/Dispatch/Excalibur.Dispatch.Resilience.Polly/` | When consumers want Polly v8 resilience policies for handler retries. Wraps `ResiliencePipeline` as an `IRetryPolicy`. |
 | **Outbox** | Custom loop with configurable delay | `src/Excalibur/Excalibur.Outbox/` | Background service retry for failed outbox message delivery. Retry interval and max attempts configured via `OutboxProcessingOptions`. |
 | **AWS SQS** | AWS SDK retry via `AmazonSQSConfig.MaxErrorRetry` | `src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/` | SDK-level transient fault handling. Attempt count set by `UseMaxRetryAttempts` on the transport builder. |

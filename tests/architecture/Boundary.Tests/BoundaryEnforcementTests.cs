@@ -65,30 +65,26 @@ public sealed class BoundaryEnforcementTests
             "Excalibur.A3"
         };
 
-        // VERIFIED, pre-existing encapsulation violations (Excalibur.Data public types whose signatures
-        // expose a concrete Excalibur.Dispatch type — e.g. ElasticsearchCircuitBreaker.State returns the
-        // CircuitState enum from the concrete Dispatch assembly, not Dispatch.Abstractions). The likely fix
-        // moves CircuitState + the circuit-breaker/dead-letter contract types into Dispatch.Abstractions —
-        // a public-API change out of this guard's scope. Named exemption keeps the guard's teeth: any OTHER
-        // (new) public type exposing a concrete Dispatch type still fails.
-        var trackedExposures = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "ElasticsearchCircuitBreaker",   // tracked: evrjug
-            "IElasticsearchCircuitBreaker",  // tracked: evrjug
-            "IOpenSearchCircuitBreaker",     // tracked: evrjug
-            "PostgresDeadLetterStore",       // tracked: evrjug
-            "SqlServerDeadLetterStore",      // tracked: evrjug
-        };
+        // The tracked exemption that used to sit here (ElasticsearchCircuitBreaker,
+        // IElasticsearchCircuitBreaker, IOpenSearchCircuitBreaker, PostgresDeadLetterStore,
+        // SqlServerDeadLetterStore) is gone: CircuitState now lives in Excalibur.Dispatch.Abstractions, two
+        // of the five types no longer exist, and the guard passes over the remaining three with nothing
+        // exempted. Nothing may be added back — a new exposure is a boundary defect, not a tracked one.
+        var candidates = 0;
 
         foreach (var ns in excaliburNamespaces)
         {
-            var publicTypesExposingDispatch = Types.InCurrentDomain()
+            var publicDispatchDependentTypes = Types.InCurrentDomain()
                 .That().ResideInNamespace(ns)
                 .And().ArePublic()
                 .And().HaveDependencyOn("Excalibur.Dispatch")
                 .GetTypes()
+                .ToList();
+
+            candidates += publicDispatchDependentTypes.Count;
+
+            var publicTypesExposingDispatch = publicDispatchDependentTypes
                 .Where(t => ExposesDispatchInSignature(t))
-                .Where(t => !trackedExposures.Contains(t.Name))
                 .ToList();
 
             publicTypesExposingDispatch.ShouldBeEmpty(
@@ -96,6 +92,14 @@ public sealed class BoundaryEnforcementTests
                 "Use Excalibur.Dispatch.Abstractions interfaces instead for loose coupling. " +
                 $"Types exposing Excalibur.Dispatch: {string.Join(", ", publicTypesExposingDispatch.Select(t => t.Name))}");
         }
+
+        // Liveness: an empty candidate set would make every assertion above pass while measuring nothing.
+        // The module initializer force-loads the framework set, so zero here means drift, not compliance.
+        candidates.ShouldBeGreaterThan(
+            0,
+            "No public Excalibur type depends on Excalibur.Dispatch at all — the guard measured an empty " +
+            "set and its green is vacuous. Check that the module initializer still force-loads the " +
+            "Excalibur.* assemblies.");
     }
 
     // REMOVED (bh0syy): ExcaliburPackages_ShouldPrefer_DispatchAbstractions. Per SoftwareArchitect's ruling —

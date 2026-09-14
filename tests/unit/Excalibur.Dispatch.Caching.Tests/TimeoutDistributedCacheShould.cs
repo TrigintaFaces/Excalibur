@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Caching;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 using Tests.Shared.Infrastructure;
 
@@ -65,18 +66,39 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 	public async Task ReportAMiss_WhenTheBackendReadOutlastsTheDeadline()
 	{
 		// SAFETY. A stalled backend must cost the deadline, not the length of the stall.
+		//
+		// The deadline is spent on an INJECTED clock. This arm used to let the backend stall for real and
+		// assert the call returned inside Deadline * 10, which measures the host as much as the decorator:
+		// under a full-shard run it failed at 2.51s against a 2s bound while the decorator was behaving
+		// correctly -- the timeout fired on time and the thread pool simply did not reach the continuation.
+		// A timing bound a busy CI host can cross is a red build with no defect behind it, and this shard is
+		// release-blocking. The property asserted is unchanged; the two arms below already prove it this way.
 		var backend = new ControllableCache { GetDelay = Deadline * 20 };
 		backend.Store("k", [1, 2, 3]);
-		var cache = Create(backend);
+		var timeProvider = new FakeTimeProvider();
+		var cache = new TimeoutDistributedCache(
+			backend,
+			MsOptions.Create(OptionsWith(Deadline)),
+			_meterFactory,
+			NullLogger<TimeoutDistributedCache>.Instance,
+			circuitBreaker: null,
+			timeProvider);
 
 		var elapsed = Stopwatch.StartNew();
-		var value = await cache.GetAsync("k", CancellationToken.None);
+		var pending = cache.GetAsync("k", CancellationToken.None);
+
+		// Wait for the backend to be ENTERED before advancing: the deadline source is created before the
+		// operation is invoked, so entry proves the timer exists and the advance cannot be lost.
+		await backend.Entered.Task;
+		timeProvider.Advance(Deadline + TimeSpan.FromTicks(1));
+
+		var value = await pending;
 		elapsed.Stop();
 
 		value.ShouldBeNull("a backend that outlasts the deadline is reported as a miss, so the handler runs");
 		elapsed.Elapsed.ShouldBeLessThan(
-			Deadline * 10,
-			"the caller must be released at the deadline rather than waiting out the backend");
+			backend.GetDelay,
+			"the caller must be released when the DEADLINE elapses, not when the backend finally returns");
 	}
 
 	[Fact]
@@ -164,6 +186,53 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 	}
 
 	[Fact]
+	public async Task ReportAMiss_WhenTheBackendIgnoresCancellationEntirely()
+	{
+		// SAFETY, and the one every other timeout arm above cannot prove: every ControllableCache arm
+		// passes the CancellationToken to its own Task.Delay, so it correctly unwinds the moment cts.Token
+		// fires -- which is NOT how the one distributed-cache backend this framework ships actually
+		// behaves. Microsoft.Extensions.Caching.StackExchangeRedis's RedisCache only checks its token
+		// BEFORE dispatching the command; StackExchange.Redis's own IDatabase async methods take no
+		// CancellationToken at all, so a slow Redis command cannot be aborted once in flight. This fixture
+		// (UncooperativeCache) reproduces exactly that: it never observes the token it is handed. Before
+		// the WaitAsync fix, a bare `await` on this backend's task would hang for the full delay regardless
+		// of the deadline -- this arm is what would have gone RED against that.
+		//
+		// THE CLOCK IS INJECTED, and that is the whole difference from how this arm used to read. It
+		// previously let a real 4-second backend delay race a real 2-second assertion, so a loaded machine
+		// failed it -- measured 1 failure in 5 consecutive runs with no code change between them. The
+		// property under test was never the wall clock; it is that the caller is released by the DEADLINE
+		// rather than by the backend. Advancing a fake clock asserts exactly that and cannot be perturbed
+		// by load, which also stops the arm passing for the wrong reason on a fast machine.
+		var backend = new UncooperativeCache { GetDelay = Deadline * 20 };
+		backend.Store("k", [1, 2, 3]);
+		var timeProvider = new FakeTimeProvider();
+		var cache = new TimeoutDistributedCache(
+			backend,
+			MsOptions.Create(OptionsWith(Deadline)),
+			_meterFactory,
+			NullLogger<TimeoutDistributedCache>.Instance,
+			circuitBreaker: null,
+			timeProvider);
+
+		var elapsed = Stopwatch.StartNew();
+		var pending = cache.GetAsync("k", CancellationToken.None);
+
+		// Wait for the backend to be ENTERED before advancing: the deadline source is created before the
+		// operation is invoked, so entry proves the timer exists and the advance cannot be lost.
+		await backend.Entered.Task;
+		timeProvider.Advance(Deadline + TimeSpan.FromTicks(1));
+
+		var value = await pending;
+		elapsed.Stop();
+
+		value.ShouldBeNull("a backend that ignores its own cancellation token must still be bounded by the caller-side deadline");
+		elapsed.Elapsed.ShouldBeLessThan(
+			backend.GetDelay,
+			"the caller must be released when the DEADLINE elapses, not when the uncancellable backend finally returns");
+	}
+
+	[Fact]
 	public void BeRegisteredAroundAConsumerSuppliedBackend()
 	{
 		// The decorator is worthless if composition never applies it.
@@ -192,6 +261,73 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 
 		var resolved = provider.GetRequiredService<IDistributedCache>().ShouldBeOfType<TimeoutDistributedCache>();
 		resolved.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public async Task ReleaseTheCallerOnAFakeClockWithoutSpendingTheDeadline()
+	{
+		// EVERY other arm in this class pays its deadline in wall-clock time, which is why the whole class
+		// is environment-sensitive: the margin between a 200ms deadline and a slower-than-expected machine
+		// is what decides the result. This arm asserts the same timeout behaviour with the clock injected,
+		// so it cannot be affected by machine load at all.
+		var backend = new NeverCompletingCache();
+		var timeProvider = new FakeTimeProvider();
+		var cache = new TimeoutDistributedCache(
+			backend,
+			MsOptions.Create(OptionsWith(Deadline)),
+			_meterFactory,
+			NullLogger<TimeoutDistributedCache>.Instance,
+			circuitBreaker: null,
+			timeProvider);
+
+		var elapsed = Stopwatch.StartNew();
+		var pending = cache.GetAsync("k", CancellationToken.None);
+
+		// Wait for the backend to be ENTERED rather than advancing blind: the deadline source is created
+		// before the operation is invoked, so entry proves the timer exists and the advance cannot be lost.
+		await backend.Entered.Task;
+		timeProvider.Advance(Deadline + TimeSpan.FromTicks(1));
+
+		var value = await pending;
+		elapsed.Stop();
+
+		value.ShouldBeNull("the deadline elapsed on the injected clock, so the call must degrade to a miss");
+		elapsed.Elapsed.ShouldBeLessThan(
+			Deadline,
+			"the deadline was spent on the fake clock, so this arm must not consume it in wall-clock time");
+	}
+
+	/// <summary>A backend whose operation never completes, so only the deadline can end the call.</summary>
+	private sealed class NeverCompletingCache : IDistributedCache
+	{
+		public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public byte[]? Get(string key) => null;
+
+		public Task<byte[]?> GetAsync(string key, CancellationToken token = default)
+		{
+			_ = Entered.TrySetResult();
+			return new TaskCompletionSource<byte[]?>().Task;
+		}
+
+		public void Refresh(string key)
+		{
+		}
+
+		public Task RefreshAsync(string key, CancellationToken token = default) => Task.CompletedTask;
+
+		public void Remove(string key)
+		{
+		}
+
+		public Task RemoveAsync(string key, CancellationToken token = default) => Task.CompletedTask;
+
+		public void Set(string key, byte[] value, DistributedCacheEntryOptions options)
+		{
+		}
+
+		public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default)
+			=> Task.CompletedTask;
 	}
 
 	private static CacheOptions OptionsWith(TimeSpan deadline)
@@ -231,6 +367,13 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 	{
 		private readonly Dictionary<string, byte[]> _store = [];
 
+		/// <summary>
+		/// Completes when the backend has been entered, so a test driving an injected clock can advance it
+		/// only once the deadline timer provably exists. Mirrors the signal <see cref="NeverCompletingCache"/>
+		/// and <see cref="UncooperativeCache"/> already expose.
+		/// </summary>
+		public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
 		public TimeSpan GetDelay { get; init; }
 
 		public TimeSpan SetDelay { get; init; }
@@ -255,6 +398,8 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 
 		public async Task<byte[]?> GetAsync(string key, CancellationToken token = default)
 		{
+			_ = Entered.TrySetResult();
+
 			if (GetDelay > TimeSpan.Zero)
 			{
 				await Task.Delay(GetDelay, token).ConfigureAwait(false);
@@ -293,6 +438,80 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 			}
 
 			Store(key, value);
+		}
+	}
+
+	/// <summary>
+	/// A backend that NEVER observes the <see cref="CancellationToken"/> it is handed, matching how the real
+	/// shipped Redis backend (<c>Microsoft.Extensions.Caching.StackExchangeRedis</c>) behaves once a command
+	/// is in flight -- unlike <see cref="ControllableCache"/>, whose delay is itself cancellable and so
+	/// cannot expose a decorator that only works when the backend cooperates.
+	/// </summary>
+	private sealed class UncooperativeCache : IDistributedCache
+	{
+		private readonly Dictionary<string, byte[]> _store = [];
+
+		/// <summary>Signals that the backend call has been entered, so a fake-clock advance cannot be lost.</summary>
+		public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public TimeSpan GetDelay { get; init; }
+
+		public void Store(string key, byte[] value)
+		{
+			lock (_store)
+			{
+				_store[key] = value;
+			}
+		}
+
+		public byte[]? Get(string key)
+		{
+			lock (_store)
+			{
+				return _store.TryGetValue(key, out var v) ? v : null;
+			}
+		}
+
+		public async Task<byte[]?> GetAsync(string key, CancellationToken token = default)
+		{
+			_ = Entered.TrySetResult();
+
+			// Deliberately CancellationToken.None: the delay itself is not cancellable, reproducing a
+			// command already dispatched to a server that does not accept a token.
+			if (GetDelay > TimeSpan.Zero)
+			{
+				await Task.Delay(GetDelay, CancellationToken.None).ConfigureAwait(false);
+			}
+
+			return Get(key);
+		}
+
+		public void Refresh(string key)
+		{
+		}
+
+		public Task RefreshAsync(string key, CancellationToken token = default) => Task.CompletedTask;
+
+		public void Remove(string key)
+		{
+			lock (_store)
+			{
+				_ = _store.Remove(key);
+			}
+		}
+
+		public Task RemoveAsync(string key, CancellationToken token = default)
+		{
+			Remove(key);
+			return Task.CompletedTask;
+		}
+
+		public void Set(string key, byte[] value, DistributedCacheEntryOptions options) => Store(key, value);
+
+		public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default)
+		{
+			Store(key, value);
+			return Task.CompletedTask;
 		}
 	}
 
@@ -342,14 +561,20 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 		// so the middleware cannot tell a healthy backend from a dead one. If the decorator does not report
 		// the timeout, nothing does: the breaker stays closed forever, every request pays the deadline on
 		// both the read and the write, and nothing is ever cached.
+		//
+		// Polled, not asserted immediately: the caller is now released via WaitAsync's own abandon race
+		// against the SAME cts.Token the backend observes, so for a token-cooperative backend (this fake)
+		// the caller can resume before ExecuteAsync's catch block finishes recording the failure. The
+		// abandoned execution still runs to completion and reports its real outcome -- it is eventually
+		// consistent, not lost -- which is exactly the tradeoff the fix documents on TimeoutDistributedCache.
 		var breaker = new RecordingCircuitBreaker();
 		var backend = new ControllableCache { GetDelay = Deadline * 20 };
 		var cache = CreateWithBreaker(backend, breaker);
 
 		_ = await cache.GetAsync("k", CancellationToken.None);
 
-		breaker.Failures.ShouldBe(
-			1,
+		var recorded = await WaitHelpers.WaitUntilAsync(() => breaker.Failures == 1, TestTimeouts.Scale(TimeSpan.FromSeconds(2)));
+		recorded.ShouldBeTrue(
 			"a backend that missed its deadline is unhealthy, and this decorator is the only component that "
 			+ "can observe it -- above here the timeout looks like a cache miss");
 		breaker.Successes.ShouldBe(
@@ -423,10 +648,11 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 
 		public CircuitState State => CircuitState.Closed;
 
-		public void Reset()
+		public Task ResetAsync(CancellationToken cancellationToken)
 		{
 			Successes = 0;
 			Failures = 0;
+			return Task.CompletedTask;
 		}
 
 

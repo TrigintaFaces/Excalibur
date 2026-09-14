@@ -24,7 +24,8 @@ namespace Excalibur.Outbox.Oracle.Tests;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "Oracle")]
-public sealed class OracleOutboxKeystoneRoundTripShould : IClassFixture<OracleOutboxStoreContainerFixture>
+[Collection(OracleOutboxCollection.Name)]
+public sealed class OracleOutboxKeystoneRoundTripShould
 {
 	// The expected same-partition claim order, hoisted so it is not a constant array argument (CA1861).
 	private static readonly string[] ExpectedAscendingSequenceClaimOrder = ["ord-1", "ord-2", "ord-3"];

@@ -79,7 +79,7 @@ public sealed class DocumentationExamplesShould
 		}
 
 		// Alternative syntax
-		if (result.IsSuccess)
+		if (result.Succeeded)
 		{
 			// Handle success
 		}

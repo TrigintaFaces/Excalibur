@@ -17,10 +17,11 @@ namespace Excalibur.Dispatch;
 /// Fencing is a <b>capability</b>, not an option. A store that cannot enforce it implements only
 /// <see cref="IOutboxStore"/>, whose methods take no token — so a non-fencing store has no way to
 /// <i>receive</i> a token, and therefore no way to silently discard one. Callers select the fenced drain by
-/// testing the type:
+/// asking the store for the capability — never by casting it, which sees only the outermost type and so
+/// reports the capability absent whenever the store sits behind a decorator:
 /// </para>
 /// <code>
-/// if (store is IFencedOutboxStore fenced &amp;&amp; currentToken is { } token)
+/// if (store.GetService(typeof(IFencedOutboxStore)) is IFencedOutboxStore fenced &amp;&amp; currentToken is { } token)
 /// {
 ///     messages = await fenced.GetUnsentMessagesAsync(batchSize, token, ct);
 /// }
@@ -45,12 +46,24 @@ public interface IFencedOutboxStore : IOutboxStore
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> Collection of unsent messages ready for delivery. </returns>
 	/// <remarks>
-	/// Implementations MUST claim only rows whose stored fencing high-water mark is less than or equal to
-	/// <paramref name="fencingToken"/>, and MUST atomically advance the stored high-water mark to the maximum
-	/// of its current value and <paramref name="fencingToken"/> as part of the same claim operation. A
-	/// presented token below the stored high-water mark indicates a superseded (stale) leader; the store MUST
-	/// exclude those rows from the claim rather than returning them. This is a set-based operation, so a stale
-	/// token simply yields fewer or zero claimable rows — it MUST NOT throw.
+	/// <b>The high-water mark is stored once per outbox SCOPE, not per message row.</b> Implementations
+	/// MUST claim rows only when <paramref name="fencingToken"/> is greater than or equal to the scope's
+	/// stored mark, and MUST advance that mark to the maximum of its current value and
+	/// <paramref name="fencingToken"/> within the same atomic action as the claim. A presented token below
+	/// the mark identifies a superseded tenure: the claim yields zero rows and MUST NOT throw — this is a
+	/// set-based operation, not an error.
+	/// <para>
+	/// <b>The mark answers which TENURE may act on this scope. It records nothing about an individual row,
+	/// and a per-row column does not implement this contract.</b> A per-row mark cannot see a tenure that
+	/// touched a different row in the same scope, so it admits a superseded leader on every row the current
+	/// leader has not yet reached — which is most rows, on every handover. It would also pass a
+	/// single-row test, which is why the distinction is stated here rather than left to the reader.
+	/// </para>
+	/// <para>
+	/// A token identifies a tenure and cannot discriminate two claim cycles of the same tenure, so this
+	/// mark is necessary and not sufficient on its own: completing a message additionally requires the
+	/// claim identity the row carries. See the claim-scoped capability for that half.
+	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when batchSize is less than 1. </exception>
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]

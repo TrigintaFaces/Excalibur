@@ -49,10 +49,17 @@ public sealed class MarkMessageDeadLetteredRequest : DataRequestBase<IDbConnecti
 		ArgumentNullException.ThrowIfNull(reason);
 
 		// Status 5 = DeadLettered (terminal). Clear the lease so a stale-lease sweep cannot resurrect it.
+		//
+		// The terminal exclusion is NOT redundant with that lease clear -- it is required BECAUSE of it.
+		// Nulling LeasedBy removes the only evidence a later completion could be judged against, so from
+		// that moment an ownership guard admits anyone. Status is the sole remaining discriminator, and
+		// without this term a second dead-letter writes another DLQ row for one message, and a message
+		// already SENT can be recorded as retry-exhausted.
 		var sql = $"""
 			UPDATE {tableName}
 			SET Status = 5, LastError = @Reason, LastAttemptAt = @LastAttemptAt, LeasedAt = NULL, LeasedBy = NULL
 			WHERE Id = @MessageId
+			  AND Status NOT IN (2, 5)
 			""";
 
 		var parameters = new DynamicParameters();

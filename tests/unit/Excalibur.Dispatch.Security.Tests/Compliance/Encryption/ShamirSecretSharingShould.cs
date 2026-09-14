@@ -16,8 +16,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Split_ReturnsCorrectNumberOfShares()
 	{
-		// Arrange
-		var secret = new byte[] { 0x12, 0x34, 0x56, 0x78 };
+		// Arrange -- 16 bytes, the minimum length Split enforces.
+		var secret = new byte[] { 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 		const int totalShares = 5;
 		const int threshold = 3;
 
@@ -31,8 +31,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Split_ReturnsSharesWithCorrectLength()
 	{
-		// Arrange
-		var secret = new byte[] { 0x12, 0x34, 0x56, 0x78 };
+		// Arrange -- 16 bytes, the minimum length Split enforces.
+		var secret = new byte[] { 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 		const int totalShares = 5;
 		const int threshold = 3;
 
@@ -50,8 +50,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Split_AssignsCorrectIndices()
 	{
-		// Arrange
-		var secret = new byte[] { 0xAB, 0xCD };
+		// Arrange -- 16 bytes, the minimum length Split enforces.
+		var secret = new byte[] { 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD };
 		const int totalShares = 5;
 		const int threshold = 3;
 
@@ -87,8 +87,9 @@ public sealed class ShamirSecretSharingShould
 	[InlineData(255, 128)]
 	public void Split_WorksWithVariousShareConfigurations(int totalShares, int threshold)
 	{
-		// Arrange
-		var secret = new byte[] { 0x42 };
+		// Arrange -- 16 bytes, the minimum length Split enforces.
+		var secret = new byte[16];
+		Array.Fill(secret, (byte)0x42);
 
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares, threshold);
@@ -160,8 +161,8 @@ public sealed class ShamirSecretSharingShould
 	[InlineData(10, 5)]
 	public void Reconstruct_RecoversSameSecret_WithThresholdShares(int totalShares, int threshold)
 	{
-		// Arrange
-		var secret = new byte[] { 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0 };
+		// Arrange -- 16 bytes, the minimum length Split enforces.
+		var secret = new byte[] { 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0 };
 		var shares = ShamirSecretSharing.Split(secret, totalShares, threshold);
 
 		// Take exactly threshold shares
@@ -177,8 +178,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Reconstruct_RecoversSameSecret_WithMoreThanThresholdShares()
 	{
-		// Arrange
-		var secret = new byte[] { 0xAB, 0xCD, 0xEF };
+		// Arrange -- 16 bytes, the minimum length Split enforces.
+		var secret = new byte[] { 0xAB, 0xCD, 0xEF, 0xAB, 0xCD, 0xEF, 0xAB, 0xCD, 0xEF, 0xAB, 0xCD, 0xEF, 0xAB, 0xCD, 0xEF, 0xAB };
 		const int totalShares = 5;
 		const int threshold = 3;
 		var shares = ShamirSecretSharing.Split(secret, totalShares, threshold);
@@ -196,8 +197,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Reconstruct_RecoversSameSecret_WithNonConsecutiveShares()
 	{
-		// Arrange
-		var secret = new byte[] { 0x11, 0x22, 0x33, 0x44 };
+		// Arrange -- 16 bytes, the minimum length Split enforces.
+		var secret = new byte[] { 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0x33, 0x44 };
 		const int totalShares = 5;
 		const int threshold = 3;
 		var shares = ShamirSecretSharing.Split(secret, totalShares, threshold);
@@ -286,7 +287,10 @@ public sealed class ShamirSecretSharingShould
 	{
 		// Arrange - two real, valid-format shares with the SAME index trigger duplicate detection
 		// (using crafted short shares would now trip the header-length guard first).
-		var shares = ShamirSecretSharing.Split(new byte[] { 0x42, 0x43 }, totalShares: 5, threshold: 2);
+		var shares = ShamirSecretSharing.Split(
+			new byte[] { 0x42, 0x43, 0x42, 0x43, 0x42, 0x43, 0x42, 0x43, 0x42, 0x43, 0x42, 0x43, 0x42, 0x43, 0x42, 0x43 },
+			totalShares: 5,
+			threshold: 2);
 		var invalidShares = new[] { shares[0], shares[0] }; // same index
 
 		// Act & Assert
@@ -303,8 +307,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void SplitAndReconstruct_WorksWithAllZeroSecret()
 	{
-		// Arrange
-		var secret = new byte[] { 0x00, 0x00, 0x00, 0x00 };
+		// Arrange -- 16 bytes (the minimum length Split enforces), still all-zero.
+		var secret = new byte[16];
 		const int totalShares = 5;
 		const int threshold = 3;
 
@@ -319,8 +323,9 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void SplitAndReconstruct_WorksWithAllOnesSecret()
 	{
-		// Arrange
-		var secret = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF };
+		// Arrange -- 16 bytes (the minimum length Split enforces), still all-ones.
+		var secret = new byte[16];
+		Array.Fill(secret, (byte)0xFF);
 		const int totalShares = 5;
 		const int threshold = 3;
 
@@ -333,10 +338,12 @@ public sealed class ShamirSecretSharingShould
 	}
 
 	[Fact]
-	public void SplitAndReconstruct_WorksWithSingleByteSecret()
+	public void SplitAndReconstruct_WorksWithSecretAtExactlyTheMinimumLength()
 	{
-		// Arrange
-		var secret = new byte[] { 0x42 };
+		// Arrange -- rq2fn3: Split now enforces a 16-byte floor against splitting an obviously
+		// low-entropy secret. This is the smallest secret still accepted; it must round-trip.
+		var secret = new byte[16];
+		Array.Fill(secret, (byte)0x42);
 		const int totalShares = 3;
 		const int threshold = 2;
 
@@ -349,10 +356,23 @@ public sealed class ShamirSecretSharingShould
 	}
 
 	[Fact]
+	public void Split_ThrowsArgumentException_WhenSecretIsShorterThanTheMinimumLength()
+	{
+		// rq2fn3 SAFETY arm: one byte short of the floor must be refused.
+		var secret = new byte[15];
+
+		var exception = Should.Throw<ArgumentException>(() =>
+			ShamirSecretSharing.Split(secret, totalShares: 3, threshold: 2));
+
+		exception.ParamName.ShouldBe("secret");
+	}
+
+	[Fact]
 	public void SplitAndReconstruct_ProducesUniqueShares()
 	{
-		// Arrange
-		var secret = new byte[] { 0x42 };
+		// Arrange -- 16 bytes, the minimum length Split enforces.
+		var secret = new byte[16];
+		Array.Fill(secret, (byte)0x42);
 		const int totalShares = 5;
 		const int threshold = 3;
 
@@ -371,8 +391,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void SplitAndReconstruct_WorksWith2of2Threshold()
 	{
-		// Arrange - minimum viable threshold
-		var secret = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF };
+		// Arrange - minimum viable threshold; secret is 16 bytes, the minimum length Split enforces.
+		var secret = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF };
 		const int totalShares = 2;
 		const int threshold = 2;
 

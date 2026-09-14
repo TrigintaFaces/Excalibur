@@ -142,6 +142,12 @@ public sealed class GdprErasureCoverageGateShould
             o.Retention.SigningKey = new byte[32];
             configure(o);
         });
+
+        // This host operates no legal holds, and says so rather than leaving anything to infer it.
+        // Erasure REQUIRES a legal-hold service -- an absent one made "no holds here" and "nobody wired
+        // it" the same observation, and the second silently skipped an irreversible check. This gate is
+        // about discovery coverage rather than holds, so it makes the decision explicitly and moves on.
+        _ = services.AddNoLegalHolds();
         _ = services.AddInMemoryErasureStore();
 
         if (withDiscovery)

@@ -132,6 +132,35 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	/// <summary>
 	/// Gets the database name for events.
 	/// </summary>
+	/// <summary>
+	/// Asserts that the emulator is available, throwing when it is not.
+	/// </summary>
+	/// <remarks>
+	/// THE FIXTURE OWNS THE AVAILABILITY POLICY, so every suite on this fixture answers "what
+	/// happens when the emulator is not there" the same way. Delegating the decision is what let
+	/// two suites against this same emulator answer it in OPPOSITE ways, leaving the honesty of a
+	/// given guarantee to depend on which convention its author happened to copy.
+	/// <para>
+	/// The policy is HARD FAILURE, not a skip: an un-run lock must not contribute a pass it did
+	/// not earn. A host that genuinely cannot run this belongs in the reviewed, expiring
+	/// suppression list -- named, owned and evidenced -- not in a per-test skip nobody can audit.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">The emulator is not available.</exception>
+	public void EnsureAvailable()
+	{
+		if (IsInitialized)
+		{
+			return;
+		}
+
+		throw new InvalidOperationException(
+			"CosmosDbEventStoreTelemetryTestFixture: the Cosmos emulator is not available, so this test cannot exercise the "
+			+ "real system it exists to verify. Reporting a pass here would certify a guarantee "
+			+ "nothing checked. Underlying initialization failure: "
+			+ "(none recorded -- InitializeAsync did not run)");
+	}
+
 	public string DatabaseName { get; } = "events";
 
 	/// <summary>

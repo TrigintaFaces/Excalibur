@@ -17,7 +17,7 @@ namespace Excalibur.A3.Authorization;
 /// <see cref="IDurableGrantStore" /> through <see cref="IServiceProvider.GetService(Type)" />, so no separate
 /// attestation is registered and a store cannot be advertised as durable without being it.
 /// </remarks>
-public static class DurableGrantStoreRegistration
+internal static class DurableGrantStoreRegistration
 {
 	/// <summary>
 	/// Adds the boot-time gate that fails startup when authorization is left on a volatile grant store
@@ -39,7 +39,7 @@ public static class DurableGrantStoreRegistration
 	/// <see cref="GrantDurabilityOptions.AllowVolatileGrantStore" /> deliberately.
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddGrantDurabilityGate(this IServiceCollection services)
+	internal static IServiceCollection AddGrantDurabilityGate(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

@@ -132,63 +132,63 @@ public sealed class Soc2ComplianceServiceShould
 	}
 
 	[Fact]
-	public async Task Validate_control_returns_not_configured_when_no_controls_for_criterion()
+	public async Task Validate_criterion_returns_no_results_when_no_controls_are_registered()
 	{
-		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
-			.Returns(new List<string>());
+		A.CallTo(() => _controlValidation.ValidateCriterionAsync(A<TrustServicesCriterion>._, A<CancellationToken>._))
+			.Returns<IReadOnlyList<ControlValidationResult>>([]);
 
 		var sut = CreateService();
 
-		var result = await sut.ValidateControlAsync(TrustServicesCriterion.CC1_ControlEnvironment, CancellationToken.None).ConfigureAwait(false);
+		var results = await sut.ValidateCriterionAsync(TrustServicesCriterion.CC1_ControlEnvironment, CancellationToken.None).ConfigureAwait(false);
 
-		result.IsConfigured.ShouldBeFalse();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBe(0);
+		// An unregistered criterion is an assessment that did not run. It must not be reported as a
+		// control that was assessed and found ineffective, which is what a fabricated result would say.
+		results.ShouldBeEmpty();
 	}
 
 	[Fact]
-	public async Task Validate_control_delegates_to_control_validation()
+	public async Task Validate_criterion_reports_a_failing_control_that_a_passing_one_precedes()
 	{
-		A.CallTo(() => _controlValidation.GetControlsForCriterion(TrustServicesCriterion.CC1_ControlEnvironment))
-			.Returns(new List<string> { "ctrl-1" });
-		A.CallTo(() => _controlValidation.ValidateControlAsync("ctrl-1", A<CancellationToken>._))
-			.Returns(CreatePassingResult("ctrl-1", 88));
+		// The ordering matters: the failure is SECOND. A verdict built from the first control alone
+		// reports this criterion as effective while one of its controls is not.
+		A.CallTo(() => _controlValidation.ValidateCriterionAsync(TrustServicesCriterion.CC1_ControlEnvironment, A<CancellationToken>._))
+			.Returns<IReadOnlyList<ControlValidationResult>>(
+				[CreatePassingResult("ctrl-1", 88), CreateFailingResult("ctrl-2")]);
 
 		var sut = CreateService();
 
-		var result = await sut.ValidateControlAsync(TrustServicesCriterion.CC1_ControlEnvironment, CancellationToken.None).ConfigureAwait(false);
+		var results = await sut.ValidateCriterionAsync(TrustServicesCriterion.CC1_ControlEnvironment, CancellationToken.None).ConfigureAwait(false);
 
-		result.ControlId.ShouldBe("ctrl-1");
-		result.IsEffective.ShouldBeTrue();
+		results.Count.ShouldBe(2);
+		results.ShouldContain(r => r.ControlId == "ctrl-2" && !r.IsEffective);
+	}
+
+	// Both arms below previously asserted the empty result. The name said it plainly -- "returns empty
+	// evidence" -- and what the service actually returned was an empty set carrying a real SHA-256
+	// chain-of-custody hash, which an auditor reads as collected and verified.
+
+	[Fact]
+	public async Task Get_evidence_throws_when_no_evidence_store_is_configured()
+	{
+		var sut = CreateService();
+
+		_ = await Should.ThrowAsync<NotSupportedException>(() => sut.GetEvidenceAsync(
+			TrustServicesCriterion.CC1_ControlEnvironment,
+			DateTimeOffset.UtcNow.AddDays(-30),
+			DateTimeOffset.UtcNow,
+			CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
-	public async Task Get_evidence_returns_empty_evidence()
-	{
-		var sut = CreateService();
-		var start = DateTimeOffset.UtcNow.AddDays(-30);
-		var end = DateTimeOffset.UtcNow;
-
-		var evidence = await sut.GetEvidenceAsync(TrustServicesCriterion.CC1_ControlEnvironment, start, end, CancellationToken.None).ConfigureAwait(false);
-
-		evidence.ShouldNotBeNull();
-		evidence.Criterion.ShouldBe(TrustServicesCriterion.CC1_ControlEnvironment);
-		evidence.Items.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public async Task Export_for_auditor_returns_empty_bytes()
+	public async Task Export_for_auditor_throws_when_there_is_nothing_to_export()
 	{
 		var sut = CreateService();
 
-		var result = await sut.ExportForAuditorAsync(
+		_ = await Should.ThrowAsync<NotSupportedException>(() => sut.ExportForAuditorAsync(
 			ExportFormat.Json,
 			DateTimeOffset.UtcNow.AddDays(-30),
 			DateTimeOffset.UtcNow,
-			CancellationToken.None).ConfigureAwait(false);
-
-		result.ShouldNotBeNull();
-		result.ShouldBeEmpty();
+			CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -276,6 +276,18 @@ public sealed class Soc2ComplianceServiceShould
 			ValidatedAt = DateTimeOffset.UtcNow,
 			Evidence = [],
 			ConfigurationIssues = []
+		};
+
+	private static ControlValidationResult CreateFailingResult(string controlId, int score = 20) =>
+		new()
+		{
+			ControlId = controlId,
+			IsConfigured = true,
+			IsEffective = false,
+			EffectivenessScore = score,
+			ValidatedAt = DateTimeOffset.UtcNow,
+			Evidence = [],
+			ConfigurationIssues = ["control is configured but not operating effectively"]
 		};
 
 	private void SetupControlValidation(string controlId, ControlValidationResult result)

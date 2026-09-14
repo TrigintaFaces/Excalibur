@@ -127,6 +127,7 @@ set -uo pipefail
 # ("SENTINEL-SHAPED") the moment eng/ came into scope. Those five now require an adjacent
 # `phase` to count. The five that are not English words keep their bare match.
 NIR_TOKEN_ERE='bd-[a-z0-9]{3,6}'\
+'|\bExcalibur[_.]Dispatch-[a-z0-9]{6}\b'\
 '|\b[Aa][Dd][Rr]-?[0-9]+'\
 '|\b[Ss][0-9]{3}\b'\
 '|\bSA[ #-]+[0-9]{4,}'\
@@ -262,16 +263,17 @@ nir_is_exempt() {
         .claude/*|*/.claude/*) return 0 ;;
         .dts/*|*/.dts/*) return 0 ;;
 
-        # GATE SELF-TEST FIXTURES ARE EXEMPT, AND THE RULE REQUIRES THEM TO BE.
+        # A GATE SELF-TEST IS NO LONGER EXEMPT BY ITS FILENAME.
         #
-        # A gate proves it is non-vacuous by planting the very tokens it hunts. Stripping
-        # those planted tokens would close the leak by disabling its own detector -- so the
-        # rule names this exemption explicitly. Recognised by filename: a *.test.sh, a
-        # *.harness-lock.sh, or a *.fixture.sh exists only to feed a gate.
+        # The rule requires planted tokens to survive -- a gate proves it is non-vacuous by
+        # carrying the very tokens it hunts, and stripping them would close the leak by
+        # disabling its own detector. That requirement is met per LINE now, by the marker in
+        # nir_keep_line, not per FILE.
         #
-        # This file is exempt for the same reason twice over: it DOCUMENTS the token shapes
-        # it catches (an ADR ref, a sprint ref) and it carries its own planted fixtures.
-        *.test.sh|*.harness-lock.sh|*.fixture.sh) return 0 ;;
+        # Keying it on the filename exempted the whole file: every comment, every assertion
+        # message, every note a maintainer left. Those are ordinary prose and they ship to a
+        # public mirror. Measured across the 40 files it covered: 27 token-bearing lines, of
+        # which only 7 were planted fixture data.
         */no-internal-refs-gate.sh|no-internal-refs-gate.sh) return 0 ;;
 
         # eng/** and .github/workflows/** are NOT exempt -- they are PUBLIC SURFACE.
@@ -306,6 +308,24 @@ nir_is_exempt() {
 #   stdout: the git pathspec arguments (one per line) selecting the public surface
 #           and excluding every internal sink. Used with `git grep` (fast, indexed).
 nir_public_pathspecs() {
+    # THE GATE SELF-TEST EXCLUSIONS ARE GONE FROM HERE, AND THAT IS HALF OF ONE CHANGE.
+    #
+    # `**/*.test.sh`, `**/*.harness-lock.sh` and `**/*.fixture.sh` were excluded HERE and
+    # ALSO exempted by filename in nir_is_exempt. Two filters, one policy -- exactly the
+    # hazard the comment in nir_keep_line names: that function decides which lines are
+    # OFFERED, this one decides which are KEPT, and widening only one of them produces a
+    # scanner that reports success while examining nothing new.
+    #
+    # Removing only the KEEP-side exemption produced precisely that -- the gate printed
+    # EXAMINED: 7153 and clean, with the examined count UNCHANGED, because these files had
+    # never been offered. A filter removal that does not move the denominator removed
+    # nothing. Both sides go together, or neither does.
+    #
+    # A planted fixture line now declares itself with the per-line marker in nir_keep_line:
+    # visible at the site, and it blinds the gate to one line rather than to forty files.
+    # A comment cannot live INSIDE the backslash-continued argument list below: it
+    # terminates the command. Placed here for that reason, and because putting it
+    # there silently truncated printf and dropped the last three exclusions.
     printf '%s\n' \
         'docs-site/' 'samples/' 'src/' 'CHANGELOG.md' 'README.md' \
         'eng/' '.github/workflows/' \
@@ -315,8 +335,7 @@ nir_public_pathspecs() {
         ':(exclude,glob)**/PublicAPI*.txt' \
         ':(exclude,glob)docs/**' ':(exclude,glob)tests/**' \
         ':(exclude,glob)management/**' \
-        ':(exclude,glob)**/*.test.sh' ':(exclude,glob)**/*.harness-lock.sh' \
-        ':(exclude,glob)**/*.fixture.sh' ':(exclude,glob)**/no-internal-refs-gate.sh' \
+        ':(exclude,glob)**/no-internal-refs-gate.sh' \
         ':(exclude,glob)**/package-lock.json' ':(exclude,glob)**/packages.lock.json'
         # AN `Internal/` DIRECTORY IS NOT AN INTERNAL SINK, and excluding it was a false
         # green over a real shipped surface. The C# compiler emits XML documentation for
@@ -341,6 +360,32 @@ nir_public_pathspecs() {
 nir_keep_line() {
     local line="$1" path content
     path="${line%%:*}"
+
+    # A LINE may declare itself a planted fixture. This replaces a WHOLE-FILE exemption
+    # keyed on the filename (`*.test.sh`, `*.harness-lock.sh`, `*.fixture.sh`), which
+    # exempted 40 files in their entirety -- including every comment and assertion message
+    # in them, which are ordinary prose that ships to a public mirror like any other.
+    #
+    # Measured before the change: 27 token-bearing lines across 9 of those 40 files. SEVEN
+    # are genuinely planted fixture data in one file; the rest were real tracker and
+    # acceptance-criterion ids sitting in comments, invisible because the filename said so.
+    #
+    # A heredoc-region rule was measured and REJECTED: zero of the 27 sit inside a heredoc,
+    # so it would have exempted nothing and left every real leak standing.
+    #
+    # The token allowlist is NOT the mechanism for these -- it strips a token GLOBALLY, and
+    # its own header says so: "a tracker id does not belong here; the fix for one of those is
+    # to rewrite the line." Allowlisting a planted `ADR-` id would blind the gate to that id
+    # everywhere. A per-line marker blinds it to exactly one line, at the site, in review.
+    # Spelled to match the secret scanner's existing convention (`pragma: allowlist secret`)
+    # so there is one idiom to learn, and chosen so the marker matches no token class this
+    # gate hunts. Declared INSIDE the function deliberately: nir-keep-line.fixture.sh lifts
+    # this function out of the file and runs it alone, so a constant defined above it is
+    # unbound there -- which is exactly how the fixture caught it.
+    local _allow_marker="pragma: allowlist internal-ref"
+    case "$line" in
+        *"$_allow_marker"*) return 1 ;;
+    esac
     case "$path" in
         src/*)
             case "$path" in
@@ -424,7 +469,34 @@ run_gate() {
             rm -f "$idset_file" "$staged_set"
             return 0
         fi
-        specs=(); mapfile -t specs < "$staged_set"
+
+        # EXEMPT PATHS ARE DROPPED HERE, BEFORE THEY BECOME A PATHSPEC -- not after, as hits.
+        #
+        # nir_is_exempt is applied to RESULTS further down, which is correct for the verdict and
+        # useless for the cost: the file still gets scanned. Pass 2 is a fixed-string grep carrying
+        # the entire ~12k-id set, and .beads/issues.jsonl is ~25 MB. Every commit stages the tracker
+        # export, so wiring this gate into pre-commit put that grep on every commit -- one sat for
+        # thirty minutes and had to be killed by hand.
+        #
+        # The exemption list is not duplicated here on purpose: the same nir_is_exempt that decides
+        # the verdict decides the scan, so the two can never drift into a file that is scanned but
+        # not judged, or judged but not scanned.
+        specs=()
+        while IFS= read -r _f; do
+            [ -n "$_f" ] || continue
+            nir_is_exempt "$_f" && continue
+            specs+=("$_f")
+        done < "$staged_set"
+
+        # Everything staged was exempt. This MUST return here: falling through with an empty specs
+        # array leaves `git grep -- ` with no pathspec, which scans the WHOLE TREE -- the cheapest
+        # commit silently becoming the most expensive one, which is the same trap the empty-staged
+        # check above exists to avoid.
+        if [ "${#specs[@]}" -eq 0 ]; then
+            echo "✅ no-internal-refs-gate: no staged files in the public surface."
+            rm -f "$idset_file" "$staged_set"
+            return 0
+        fi
     fi
 
     # Pass 1 — direct tokens (small ERE, fast). Pass 2 — bare beads ids (fixed-string,
@@ -481,6 +553,55 @@ run_gate() {
     local allow_ere=""
     if [ -f "$allow_file" ]; then
         allow_ere="$(grep -vE '^[[:space:]]*(#|$)' "$allow_file" | paste -sd'|' -)"
+        # The same entries as LITERAL tokens. Every one is a tool name -- the file forbids
+        # anything else -- so removing them is exact string replacement, and bash can do it
+        # without the two subprocesses a `printf | sed` pipeline costs on every line.
+        mapfile -t _allow_tokens < <(grep -vE '^[[:space:]]*(#|$)' "$allow_file")
+    fi
+
+    # ---------------------------------------------------------------------------------
+    # A SUBPROCESS COSTS ~1.1 SECONDS ON A DEVELOPER BOX HERE, so a per-line spawn is the
+    # gate's entire runtime. Measured 2026-09-10 on this repository:
+    #
+    #     the whole scan, both git-grep arms          3 s
+    #     50 trivial `grep` spawns                   56 s   -> ~1130 ms EACH
+    #     lines reaching the filter loop             75
+    #
+    # The loop below ran roughly six spawns per line -- a NIST probe, two `printf | sed`
+    # pipelines, two `printf | grep` pipelines, a staged-set probe -- so ~450 spawns, or
+    # about eight minutes, to filter 75 lines that were found in three seconds. The cost
+    # was never the scanning; it was the shelling out. Real-time antivirus scans every
+    # process creation on this platform, which is recorded elsewhere as the cause of hook
+    # timeouts, and it makes spawn count -- not data volume -- the thing to minimise.
+    #
+    # So the two lookups whose semantics are exact-membership are hoisted: computed once,
+    # answered in-process. The regex rewrites are deliberately NOT done here -- `\b` is a
+    # GNU extension that bash's own `[[ =~ ]]` may not honour identically, and a filter
+    # that silently stops matching is worse than a slow one.
+    # ---------------------------------------------------------------------------------
+    # One compiled predicate for the filter loop, rather than a grep spawn per line.
+    local _nir_leak_re="${ere_nobd}|bd-[a-z0-9]{3,6}"
+    declare -A _nist_file=()
+    if [ -s "$raw" ]; then
+        # ONE grep over the distinct paths, rather than one per line.
+        local _p
+        while IFS= read -r _p; do
+            [ -n "$_p" ] && _nist_file["$_p"]=0
+        done < <(sed -E "s/^([^:]*):.*/\1/" "$raw" | sort -u)
+        if [ "${#_nist_file[@]}" -gt 0 ]; then
+            while IFS= read -r _p; do
+                [ -n "$_p" ] && _nist_file["$_p"]=1
+            done < <(grep -liE "NIST 800-53|FedRAMP" -- "${!_nist_file[@]}" 2>/dev/null || true)
+        fi
+    fi
+
+    # The staged path set, as a set rather than a file to re-grep per line.
+    declare -A _staged=()
+    if [ -n "$staged_set" ] && [ -s "$staged_set" ]; then
+        local _sp
+        while IFS= read -r _sp; do
+            [ -n "$_sp" ] && _staged["$_sp"]=1
+        done < "$staged_set"
     fi
 
     if [ -s "$raw" ]; then
@@ -506,16 +627,24 @@ run_gate() {
             # a leak. The tempting alternative, allowlisting AC-2…AC-6 globally, would have blinded
             # the gate to real internal AC ids everywhere, including the one real leak found here.
             local _path="${line%%:*}"
-            if grep -qiE 'NIST 800-53|FedRAMP' "$_path" 2>/dev/null; then
+            if [ "${_nist_file[$_path]:-0}" = "1" ]; then
                 local _rest="${line#*:*:}"
                 _rest="$(printf '%s' "$_rest" | sed -E 's/\bAC-?[0-9]+[a-z]?//g')"
-                printf '%s' "$_rest" | grep -qE "$ere_nobd|bd-[a-z0-9]{3,6}" || continue
+                [[ "$_rest" =~ $_nir_leak_re ]] || continue
             fi
 
             if [ -n "$allow_ere" ]; then
                 local stripped="${line#*:*:}"
-                stripped="$(printf '%s' "$stripped" | sed -E "s/(${allow_ere})//g")"
-                printf '%s' "$stripped" | grep -qE "$ere_nobd|bd-[a-z0-9]{3,6}" || {
+                # Literal removal in-process. Was: printf | sed -E, two spawns per line.
+                local _tok
+                for _tok in "${_allow_tokens[@]}"; do
+                    stripped="${stripped//$_tok/}"
+                done
+                # Was: printf | grep -qE, two more spawns per line. bash and grep -E were
+                # measured to agree on this pattern class INCLUDING the `\b` boundary --
+                # both matched "see S### here" and both rejected "seeS###here" and "xS###" --
+                # so this is the same predicate, not a cheaper approximation.
+                [[ "$stripped" =~ $_nir_leak_re ]] || {
                     if [ -s "$idset_file" ]; then
                         printf '%s' "$stripped" | grep -qFwf "$idset_file" || continue
                     else
@@ -524,7 +653,7 @@ run_gate() {
                 }
             fi
             if [ -n "$staged_set" ]; then
-                grep -qxF -- "${line%%:*}" "$staged_set" || continue
+                [ "${_staged[${line%%:*}]:-0}" = "1" ] || continue
             fi
             printf '%s\n' "$line"
         done > "$report"
@@ -617,6 +746,7 @@ run_gate() {
 
 self_test() {
     local tmp pass=1
+    local SELF_PATH; SELF_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
     tmp="$(mktemp -d)"
     # shellcheck disable=SC2064
     trap "rm -rf '$tmp'" RETURN
@@ -632,6 +762,7 @@ self_test() {
     cat > "$pub_md" <<'EOF'
 # Feature
 Fixed the retry loop (bd-abc123) in Sprint 863 per ADR-336.
+The fully-qualified spelling leaks the same way: Excalibur_Dispatch-abc123.
 Delivered under S861 by the FORGE phase, task-2314.
 Tracked in bare id zx9q7k as well.
 Short prefixed ids also leak: bd-ab12 (4-char) and bd-x7q (3-char).
@@ -649,7 +780,7 @@ EOF
     h1="$(nir_hits_in_file "$pub_md" "$bare_ere")"
     # Covers every leak class AND the sub-6-char ids that the hardcoded {6} gate missed
     # (bd-ab12/bd-x7q prefixed via the ERE; qz7k9/x7q bare via the id set).
-    for tok in 'bd-abc123' 'bd-ab12' 'bd-x7q' 'Sprint 863' 'ADR-336' 'S861' 'FORGE' 'task-2314' 'zx9q7k' 'qz7k9' 'AD-326-1' 'AD-520.1' 'R999.4' 'R999.20a' 'adr-999' 'Phase 999.3' 'Phase 999.1h-2'; do
+    for tok in 'bd-abc123' 'Excalibur_Dispatch-abc123' 'bd-ab12' 'bd-x7q' 'Sprint 863' 'ADR-336' 'S861' 'FORGE' 'task-2314' 'zx9q7k' 'qz7k9' 'AD-326-1' 'AD-520.1' 'R999.4' 'R999.20a' 'adr-999' 'Phase 999.3' 'Phase 999.1h-2'; do
         if ! printf '%s\n' "$h1" | grep -qF "$tok"; then
             echo "self-test FAIL: did not flag public-surface leak '$tok'" >&2; pass=0
         fi
@@ -899,6 +1030,43 @@ EOF
         fi
     else
         echo "  anti-drift: SKIPPED (rule file absent — mirror/shallow clone); local runs assert gate<->rule coherence"
+    fi
+
+    # --- STAGED MODE: the exempt sink must never reach the SCAN, only the verdict --------
+    #
+    # nir_is_exempt keeps an exempt path out of the RESULTS. It does not keep it out of the
+    # git grep, and pass 2 carries the whole ~12k-id set as fixed strings. .beads/issues.jsonl
+    # is ~25 MB and is staged on every commit that touches the tracker, so once this gate was
+    # wired into pre-commit a single grep ran for thirty minutes and the commit had to be
+    # killed by hand. The fix drops exempt paths before they become a pathspec; this arm is
+    # what stops that silently regressing.
+    #
+    # Both halves in ONE run, because the failure mode is "skipped everything" as much as it
+    # is "scanned the sink": a filter that drops the tracker AND the source file would look
+    # fast and green.
+    local sr="$tmp/stagedrepo"
+    mkdir -p "$sr/src/Foo" "$sr/.beads"
+    if git -C "${sr:?staged-mode fixture path is empty}" init -q 2>/dev/null; then
+        git -C "${sr:?}" config user.email t@t.t; git -C "${sr:?}" config user.name t
+        git -C "${sr:?}" config commit.gpgsign false
+        # A sink big enough that scanning it would be visible, and a real leak beside it.
+        for _i in $(seq 1 2000); do echo '{"id":"Excalibur_Dispatch-zx9q7k","body":"bd-abc123 S861 ADR-336"}'; done > "$sr/.beads/issues.jsonl"
+        printf '/// <summary>Leaks bd-abc123 in a shipped doc comment.</summary>\npublic sealed class Leak { }\n' > "$sr/src/Foo/Leak.cs"
+        git -C "${sr:?}" add -A >/dev/null 2>&1
+        local staged_out
+        staged_out="$( cd "$sr" && bash "$SELF_PATH" --staged 2>&1 )"
+        if printf '%s' "$staged_out" | grep -q "src/Foo/Leak.cs"; then
+            echo "  staged-mode: a staged src/ leak is still CAUGHT"
+        else
+            echo "self-test FAIL: staged src/ leak was NOT caught — the exempt filter dropped too much" >&2; pass=0
+        fi
+        if printf '%s' "$staged_out" | grep -q "\.beads/issues\.jsonl"; then
+            echo "self-test FAIL: .beads/issues.jsonl reached the scan/report — the exempt sink is not being dropped" >&2; pass=0
+        else
+            echo "  staged-mode: the exempt tracker sink never reaches the scan"
+        fi
+    else
+        echo "  staged-mode: SKIPPED (could not create a throwaway repo)"
     fi
 
     if [ "$pass" -eq 1 ]; then

@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// Implements CloudEvents specification for Apache Kafka with DoD-compliant envelope property preservation. Supports structured mode
 /// (JSON payload) and binary mode (message headers).
 /// </remarks>
-public interface IKafkaCloudEventAdapter : ICloudEventMapper<Message<string, string>>
+public interface IKafkaCloudEventAdapter : ICloudEventEncoder<Message<string, string>>
 {
 	/// <summary>
 	/// Converts a Kafka <see cref="ConsumeResult{TKey, TValue}" /> into a CloudEvent using the configured mapper.

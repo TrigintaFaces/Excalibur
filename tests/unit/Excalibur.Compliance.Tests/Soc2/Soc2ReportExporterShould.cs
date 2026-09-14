@@ -516,7 +516,7 @@ public sealed class Soc2ReportExporterShould
 				{
 					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
 					Description = "Logical and Physical Access Controls",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls =
 					[
 						new ControlDescription

@@ -1,7 +1,9 @@
 using Company.DispatchMinimalApi.Actions;
 using Company.DispatchMinimalApi.Infrastructure;
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Hosting.AspNetCore;
+using Excalibur.Dispatch.Observability.Metrics;
 
 var builder = WebApplication.CreateBuilder(args);
 

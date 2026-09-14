@@ -20,6 +20,8 @@ Excalibur.Data.CloudNative.ChangeFeedOptions.ContinuationToken.get -> string?
 Excalibur.Data.CloudNative.ChangeFeedOptions.ContinuationToken.init -> void
 Excalibur.Data.CloudNative.ChangeFeedOptions.MaxBatchSize.get -> int
 Excalibur.Data.CloudNative.ChangeFeedOptions.MaxBatchSize.init -> void
+Excalibur.Data.CloudNative.ChangeFeedOptions.MaxConsecutiveCheckpointFailures.get -> int
+Excalibur.Data.CloudNative.ChangeFeedOptions.MaxConsecutiveCheckpointFailures.init -> void
 Excalibur.Data.CloudNative.ChangeFeedOptions.PartitionKeyFilter.get -> Excalibur.Data.CloudNative.IPartitionKey?
 Excalibur.Data.CloudNative.ChangeFeedOptions.PartitionKeyFilter.init -> void
 Excalibur.Data.CloudNative.ChangeFeedOptions.PollingInterval.get -> System.TimeSpan
@@ -35,10 +37,21 @@ Excalibur.Data.CloudNative.ChangeFeedStartPosition.FromTimestamp = 3 -> Excalibu
 Excalibur.Data.CloudNative.ChangeFeedStartPosition.Now = 1 -> Excalibur.Data.CloudNative.ChangeFeedStartPosition
 Excalibur.Data.CloudNative.CloudAppendResult
 Excalibur.Data.CloudNative.CloudAppendResult.ErrorMessage.get -> string?
+Excalibur.Data.CloudNative.CloudAppendResult.FailureKind.get -> Excalibur.Dispatch.MessageFailureKind?
 Excalibur.Data.CloudNative.CloudAppendResult.IsConcurrencyConflict.get -> bool
+Excalibur.Data.CloudNative.CloudAppendResult.NextExpectedVersion.get -> long?
 Excalibur.Data.CloudNative.CloudAppendResult.RequestCharge.get -> double
 Excalibur.Data.CloudNative.CloudAppendResult.SessionToken.get -> string?
 Excalibur.Data.CloudNative.CloudAppendResult.Success.get -> bool
+Excalibur.Data.CloudNative.CloudBatchCreateOperation
+Excalibur.Data.CloudNative.CloudBatchCreateOperation.CloudBatchCreateOperation(string! documentId, object! document) -> void
+Excalibur.Data.CloudNative.CloudBatchCreateOperation.Document.get -> object!
+Excalibur.Data.CloudNative.CloudBatchCreateOperation.DocumentId.get -> string!
+Excalibur.Data.CloudNative.CloudBatchCreateOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
+Excalibur.Data.CloudNative.CloudBatchDeleteOperation
+Excalibur.Data.CloudNative.CloudBatchDeleteOperation.CloudBatchDeleteOperation(string! documentId) -> void
+Excalibur.Data.CloudNative.CloudBatchDeleteOperation.DocumentId.get -> string!
+Excalibur.Data.CloudNative.CloudBatchDeleteOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
 Excalibur.Data.CloudNative.CloudBatchOperationType
 Excalibur.Data.CloudNative.CloudBatchOperationType.Create = 0 -> Excalibur.Data.CloudNative.CloudBatchOperationType
 Excalibur.Data.CloudNative.CloudBatchOperationType.Delete = 3 -> Excalibur.Data.CloudNative.CloudBatchOperationType
@@ -46,6 +59,11 @@ Excalibur.Data.CloudNative.CloudBatchOperationType.Patch = 4 -> Excalibur.Data.C
 Excalibur.Data.CloudNative.CloudBatchOperationType.Read = 5 -> Excalibur.Data.CloudNative.CloudBatchOperationType
 Excalibur.Data.CloudNative.CloudBatchOperationType.Replace = 1 -> Excalibur.Data.CloudNative.CloudBatchOperationType
 Excalibur.Data.CloudNative.CloudBatchOperationType.Upsert = 2 -> Excalibur.Data.CloudNative.CloudBatchOperationType
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation.CloudBatchReplaceOperation(string! documentId, object! document) -> void
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation.Document.get -> object!
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation.DocumentId.get -> string!
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
 Excalibur.Data.CloudNative.CloudBatchResult
 Excalibur.Data.CloudNative.CloudBatchResult.CloudBatchResult(bool success, double requestCharge, System.Collections.Generic.IReadOnlyList<Excalibur.Data.CloudNative.CloudOperationResult!>! operationResults, string? sessionToken = null, string? errorMessage = null) -> void
 Excalibur.Data.CloudNative.CloudBatchResult.ErrorMessage.get -> string?
@@ -53,6 +71,11 @@ Excalibur.Data.CloudNative.CloudBatchResult.OperationResults.get -> System.Colle
 Excalibur.Data.CloudNative.CloudBatchResult.RequestCharge.get -> double
 Excalibur.Data.CloudNative.CloudBatchResult.SessionToken.get -> string?
 Excalibur.Data.CloudNative.CloudBatchResult.Success.get -> bool
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation.CloudBatchUpsertOperation(string! documentId, object! document) -> void
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation.Document.get -> object!
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation.DocumentId.get -> string!
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
 Excalibur.Data.CloudNative.CloudCleanupResult
 Excalibur.Data.CloudNative.CloudCleanupResult.CloudCleanupResult(int deletedCount, double requestCharge) -> void
 Excalibur.Data.CloudNative.CloudCleanupResult.DeletedCount.get -> int
@@ -177,16 +200,21 @@ Excalibur.Data.CloudNative.IChangeFeedEvent<TDocument>.Timestamp.get -> System.D
 Excalibur.Data.CloudNative.IChangeFeedOptions
 Excalibur.Data.CloudNative.IChangeFeedOptions.ContinuationToken.get -> string?
 Excalibur.Data.CloudNative.IChangeFeedOptions.MaxBatchSize.get -> int
+Excalibur.Data.CloudNative.IChangeFeedOptions.MaxConsecutiveCheckpointFailures.get -> int
 Excalibur.Data.CloudNative.IChangeFeedOptions.PartitionKeyFilter.get -> Excalibur.Data.CloudNative.IPartitionKey?
 Excalibur.Data.CloudNative.IChangeFeedOptions.PollingInterval.get -> System.TimeSpan
 Excalibur.Data.CloudNative.IChangeFeedOptions.StartPosition.get -> Excalibur.Data.CloudNative.ChangeFeedStartPosition
 Excalibur.Data.CloudNative.IChangeFeedOptions.StartTimestamp.get -> System.DateTimeOffset?
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>
+Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.CheckpointLag.get -> System.TimeSpan?
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.IsActive.get -> bool
+Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.IsCheckpointDegraded.get -> bool
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.ReadChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Data.CloudNative.IChangeFeedEvent<TDocument>!>!
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.SubscriptionId.get -> string!
+Excalibur.Data.CloudNative.ICloudBatchDocumentOperation
+Excalibur.Data.CloudNative.ICloudBatchDocumentOperation.Document.get -> object!
 Excalibur.Data.CloudNative.ICloudBatchOperation
 Excalibur.Data.CloudNative.ICloudBatchOperation.DocumentId.get -> string!
 Excalibur.Data.CloudNative.ICloudBatchOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
@@ -333,6 +361,10 @@ Excalibur.Data.IUnitOfWork.CommitAsync(System.Threading.CancellationToken cancel
 Excalibur.Data.IUnitOfWork.Connection.get -> System.Data.IDbConnection!
 Excalibur.Data.IUnitOfWork.RollbackAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.IUnitOfWork.Transaction.get -> System.Data.IDbTransaction?
+Excalibur.Data.NoTenantTermAttribute
+Excalibur.Data.NoTenantTermAttribute.Confinement.get -> Excalibur.Data.TenantConfinement
+Excalibur.Data.NoTenantTermAttribute.Justification.get -> string!
+Excalibur.Data.NoTenantTermAttribute.NoTenantTermAttribute(Excalibur.Data.TenantConfinement confinement, string! justification) -> void
 Excalibur.Data.Observability.WriteStoreTelemetry
 Excalibur.Data.Observability.WriteStoreTelemetry.Providers
 Excalibur.Data.Observability.WriteStoreTelemetry.Results
@@ -481,8 +513,6 @@ Excalibur.Data.ResourceNotFoundException.ResourceNotFoundException(string! messa
 Excalibur.Data.ResourceNotFoundException.ResourceNotFoundException(string! resource, string? resourceId) -> void
 Excalibur.Data.Sharding.IAmbientTenantStoreResolver<TStore>
 Excalibur.Data.Sharding.IAmbientTenantStoreResolver<TStore>.ResolveCurrent() -> TStore
-Excalibur.Data.Sharding.ITenantPlacementStrategy
-Excalibur.Data.Sharding.ITenantPlacementStrategy.SelectShard(string! tenantId, System.Collections.Generic.IReadOnlyCollection<string!>! availableShardIds) -> string!
 Excalibur.Data.Sharding.ITenantShardMap
 Excalibur.Data.Sharding.ITenantShardMap.GetRegisteredShardIds() -> System.Collections.Generic.IReadOnlyCollection<string!>!
 Excalibur.Data.Sharding.ITenantShardMap.GetShardInfo(string! tenantId) -> Excalibur.Data.Sharding.ShardInfo!
@@ -495,6 +525,7 @@ Excalibur.Data.Sharding.ShardInfo.IndexPrefix.get -> string?
 Excalibur.Data.Sharding.ShardInfo.IndexPrefix.init -> void
 Excalibur.Data.Sharding.ShardInfo.Region.get -> string?
 Excalibur.Data.Sharding.ShardInfo.Region.init -> void
+Excalibur.Data.Sharding.ShardInfo.RequireCoordinate(string? value, string! coordinateName) -> string!
 Excalibur.Data.Sharding.ShardInfo.SchemaName.get -> string?
 Excalibur.Data.Sharding.ShardInfo.SchemaName.init -> void
 Excalibur.Data.Sharding.ShardInfo.ShardId.get -> string!
@@ -508,6 +539,12 @@ Excalibur.Data.Sharding.TenantShardMapExtensions
 Excalibur.Data.Sharding.TenantShardNotFoundException
 Excalibur.Data.Sharding.TenantShardNotFoundException.TenantId.get -> string!
 Excalibur.Data.Sharding.TenantShardNotFoundException.TenantShardNotFoundException(string! tenantId) -> void
+Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantConfinement.EstateWide = 0 -> Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantConfinement.ForeignKeyConfined = 2 -> Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantConfinement.IdentityAddressed = 1 -> Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantConfinement.NoTenantDimension = 3 -> Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantScopedKey
 Excalibur.Data.UnitOfWork
 Excalibur.Data.UnitOfWork.BeginTransactionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.UnitOfWork.CommitAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -562,13 +599,14 @@ const Excalibur.Data.Observability.WriteStoreTelemetry.Tags.Store = "store" -> s
 const Excalibur.Data.Observability.WriteStoreTelemetry.Tags.TraceId = "trace.id" -> string!
 const Excalibur.Data.OperationFailedException.DefaultMessage = "The operation failed." -> string!
 const Excalibur.Data.OperationFailedException.DefaultStatusCode = 500 -> int
+const Excalibur.Data.TenantScopedKey.Prefix = "t:" -> string!
 override Excalibur.Data.ConcurrencyException.GetProblemDetailsExtensions() -> System.Collections.Generic.IDictionary<string!, object?>?
 override Excalibur.Data.ConflictException.GetProblemDetailsExtensions() -> System.Collections.Generic.IDictionary<string!, object?>?
 override Excalibur.Data.ResourceException.GetProblemDetailsExtensions() -> System.Collections.Generic.IDictionary<string!, object?>?
 static Excalibur.Data.CloudNative.ChangeFeedOptions.FromContinuation(string! continuationToken) -> Excalibur.Data.CloudNative.ChangeFeedOptions!
 static Excalibur.Data.CloudNative.ChangeFeedOptions.FromTimestamp(System.DateTimeOffset timestamp) -> Excalibur.Data.CloudNative.ChangeFeedOptions!
 static Excalibur.Data.CloudNative.CloudAppendResult.CreateConcurrencyConflict(long expectedVersion, long actualVersion, double requestCharge) -> Excalibur.Data.CloudNative.CloudAppendResult!
-static Excalibur.Data.CloudNative.CloudAppendResult.CreateFailure(string! errorMessage, double requestCharge) -> Excalibur.Data.CloudNative.CloudAppendResult!
+static Excalibur.Data.CloudNative.CloudAppendResult.CreateFailure(string! errorMessage, double requestCharge, Excalibur.Dispatch.MessageFailureKind failureKind) -> Excalibur.Data.CloudNative.CloudAppendResult!
 static Excalibur.Data.CloudNative.CloudAppendResult.CreateSuccess(long nextExpectedVersion, double requestCharge, string? sessionToken = null) -> Excalibur.Data.CloudNative.CloudAppendResult!
 static Excalibur.Data.CloudNative.CloudNativeOutboxStoreExtensions.AddBatchAsync(this Excalibur.Data.CloudNative.ICloudNativeOutboxStore! store, System.Collections.Generic.IEnumerable<Excalibur.Data.CloudNative.CloudOutboxMessage!>! messages, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!
 static Excalibur.Data.CloudNative.CloudNativeOutboxStoreExtensions.CleanupOldMessagesAsync(this Excalibur.Data.CloudNative.ICloudNativeOutboxStore! store, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudCleanupResult!>!
@@ -596,6 +634,10 @@ static Excalibur.Data.ResourceException.ForResource(string! resource, string? re
 static Excalibur.Data.ResourceException.FormatMessage(string! resource, string? resourceId) -> string!
 static Excalibur.Data.ResourceNotFoundException.ForEntity<TEntity>(object! id) -> Excalibur.Data.ResourceNotFoundException!
 static Excalibur.Data.Sharding.TenantShardMapExtensions.CurrentShard(this Excalibur.Data.Sharding.ITenantShardMap! map, Excalibur.Dispatch.ITenantContext! context) -> Excalibur.Data.Sharding.ShardInfo!
+static Excalibur.Data.TenantScopedKey.Compose(string! tenantId, params string![]! segments) -> string!
+static Excalibur.Data.TenantScopedKey.Compose(string! tenantId, string! id) -> string!
+static Excalibur.Data.TenantScopedKey.EscapeSegment(string! value) -> string!
+static Excalibur.Data.TenantScopedKey.UnescapeSegment(string! value) -> string!
 static Excalibur.Data.Validation.SqlIdentifierValidator.IsValid(string! identifier) -> bool
 static Excalibur.Data.Validation.SqlIdentifierValidator.ThrowIfInvalid(string! identifier, string! parameterName) -> void
 static Microsoft.Extensions.DependencyInjection.AmbientTenantStoreResolverServiceCollectionExtensions.AddAmbientTenantStoreResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -612,35 +654,3 @@ virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.GetService(Syst
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.Name.get -> string!
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.CloudNative.CloudAppendResult.NextExpectedVersion.get -> long?
-Excalibur.Data.NoTenantTermAttribute
-Excalibur.Data.NoTenantTermAttribute.Confinement.get -> Excalibur.Data.TenantConfinement
-Excalibur.Data.NoTenantTermAttribute.Justification.get -> string!
-Excalibur.Data.NoTenantTermAttribute.NoTenantTermAttribute(Excalibur.Data.TenantConfinement confinement, string! justification) -> void
-Excalibur.Data.TenantConfinement
-Excalibur.Data.TenantConfinement.EstateWide = 0 -> Excalibur.Data.TenantConfinement
-Excalibur.Data.TenantConfinement.ForeignKeyConfined = 2 -> Excalibur.Data.TenantConfinement
-Excalibur.Data.TenantConfinement.IdentityAddressed = 1 -> Excalibur.Data.TenantConfinement
-Excalibur.Data.TenantConfinement.NoTenantDimension = 3 -> Excalibur.Data.TenantConfinement
-Excalibur.Data.CloudNative.ICloudBatchDocumentOperation
-Excalibur.Data.CloudNative.ICloudBatchDocumentOperation.Document.get -> object!
-Excalibur.Data.CloudNative.CloudBatchCreateOperation
-Excalibur.Data.CloudNative.CloudBatchCreateOperation.CloudBatchCreateOperation(string! documentId, object! document) -> void
-Excalibur.Data.CloudNative.CloudBatchCreateOperation.Document.get -> object!
-Excalibur.Data.CloudNative.CloudBatchCreateOperation.DocumentId.get -> string!
-Excalibur.Data.CloudNative.CloudBatchCreateOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
-Excalibur.Data.CloudNative.CloudBatchReplaceOperation
-Excalibur.Data.CloudNative.CloudBatchReplaceOperation.CloudBatchReplaceOperation(string! documentId, object! document) -> void
-Excalibur.Data.CloudNative.CloudBatchReplaceOperation.Document.get -> object!
-Excalibur.Data.CloudNative.CloudBatchReplaceOperation.DocumentId.get -> string!
-Excalibur.Data.CloudNative.CloudBatchReplaceOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
-Excalibur.Data.CloudNative.CloudBatchUpsertOperation
-Excalibur.Data.CloudNative.CloudBatchUpsertOperation.CloudBatchUpsertOperation(string! documentId, object! document) -> void
-Excalibur.Data.CloudNative.CloudBatchUpsertOperation.Document.get -> object!
-Excalibur.Data.CloudNative.CloudBatchUpsertOperation.DocumentId.get -> string!
-Excalibur.Data.CloudNative.CloudBatchUpsertOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
-Excalibur.Data.CloudNative.CloudBatchDeleteOperation
-Excalibur.Data.CloudNative.CloudBatchDeleteOperation.CloudBatchDeleteOperation(string! documentId) -> void
-Excalibur.Data.CloudNative.CloudBatchDeleteOperation.DocumentId.get -> string!
-Excalibur.Data.CloudNative.CloudBatchDeleteOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
-Excalibur.Data.Sharding.ShardInfo.RequireCoordinate(string? value, string! coordinateName) -> string!

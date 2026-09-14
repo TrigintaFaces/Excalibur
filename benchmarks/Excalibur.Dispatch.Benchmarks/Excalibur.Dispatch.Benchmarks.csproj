@@ -23,11 +23,12 @@
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="MemoryPack" />
     <!-- WolverineFx 5.31.1 transitively requires CodeAnalysis 5.x via JasperFx.RuntimeCompiler.
-         Central pin is now 5.3.0 (S835 bd-w8gx2w), so no VersionOverride needed. -->
+         Central pin is now 5.3.0, so no VersionOverride needed. -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />
     <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />

@@ -41,7 +41,8 @@ namespace Excalibur.Outbox.Oracle.Tests;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "Oracle")]
-public sealed class OracleOutboxMarkFailedRecordsOnDrainPathShould : IClassFixture<OracleOutboxStoreContainerFixture>
+[Collection(OracleOutboxCollection.Name)]
+public sealed class OracleOutboxMarkFailedRecordsOnDrainPathShould
 {
 	private const int MaxAttempts = 3;
 

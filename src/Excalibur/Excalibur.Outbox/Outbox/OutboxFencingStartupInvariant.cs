@@ -12,8 +12,11 @@ namespace Excalibur.Dispatch.Delivery;
 /// Enforces the outbox fencing composition invariant at startup: when a leader election is
 /// registered and the consumer has not opted out via <c>OutboxDeliveryOptions.SingleActiveWriter</c>,
 /// the drain MUST be fenced by an <see cref="ILeaderProcessingGate"/> AND the configured store MUST be
-/// able to enforce a fencing high-water mark (<see cref="IFencedOutboxStore"/>). Otherwise a superseded
-/// leader could claim and complete messages it no longer owns.
+/// able to enforce a fencing high-water mark on BOTH the mark-sent transition
+/// (<see cref="IFencedOutboxStore"/>) and the completion path -- the failure and dead-letter transitions
+/// (<see cref="IFencedClaimScopedOutboxStore"/> and <see cref="IFencedDeadLetterableOutboxStore"/>).
+/// Otherwise a superseded leader could claim and complete messages it no longer owns, or bury a message the
+/// live leader then delivers.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -75,7 +78,7 @@ internal static class OutboxFencingStartupInvariant
 				"guarantee yourself.");
 		}
 
-		if (outboxStore.GetService(typeof(IFencedOutboxStore)) is null)
+		if (outboxStore.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore)
 		{
 			throw new InvalidOperationException(
 				$"Leader election is configured for the outbox, but the configured store " +
@@ -84,12 +87,40 @@ internal static class OutboxFencingStartupInvariant
 				"messages it no longer owns. Use a store that records the high-water durably (e.g. PostgreSQL, Oracle, " +
 				"MongoDB, or the in-memory store), or, if exactly one process drains this outbox, opt out " +
 				"explicitly with AsSingleWriter() to take responsibility for the single-active-writer guarantee " +
-				"yourself. SQL Server also implements IFencedOutboxStore, but derives its high-water from the outbox " +
-				"rows rather than a dedicated fence record: a cleanup that purges sent rows resets the mark, and the " +
-				"advance overwrites rather than taking the maximum, so the mark can also move backwards. Treat its " +
-				"leadership fence as best-effort - the per-message lease still prevents two processors claiming the " +
-				"same message. Some stores (e.g. Elasticsearch) cannot express an atomic fencing high-water mark with " +
+				"yourself. Some stores (e.g. Elasticsearch) cannot express an atomic fencing high-water mark with " +
 				"their native primitives and always require AsSingleWriter() under a leader election.");
+		}
+
+		// COMPLETION-PATH fencing. IFencedOutboxStore fences the mark-SENT transition only, and for a long
+		// time this guard stopped there -- which left the two transitions a FAILED delivery takes completely
+		// unfenced. A superseded tenure could still report a failure, apply a backoff, or bury a message as
+		// dead-lettered, because those members fence by store CAPABILITY rather than by token and silently
+		// fall through to an unfenced write when the capability is absent. No race is required: a store
+		// without the capability writes unfenced every time.
+		//
+		// The harm is not symmetric with a lost mark-sent. A superseded tenure that dead-letters a message
+		// the live tenure then delivers successfully leaves that message simultaneously DELIVERED and sitting
+		// unreplayed in the dead-letter queue, so an operator draining the queue re-executes work that already
+		// succeeded.
+		//
+		// Both capabilities are required rather than one: the failure path and the dead-letter path are
+		// separate members with separate implementor populations, and a store that fences one and not the
+		// other closes half the window while reading as though it closed all of it.
+		if (outboxStore.GetService(typeof(IFencedClaimScopedOutboxStore)) is not IFencedClaimScopedOutboxStore
+			|| outboxStore.GetService(typeof(IFencedDeadLetterableOutboxStore)) is not IFencedDeadLetterableOutboxStore)
+		{
+			throw new InvalidOperationException(
+				$"Leader election is configured for the outbox, but the configured store " +
+				$"'{outboxStore.GetType().FullName}' cannot fence the COMPLETION path: it does not implement both " +
+				"IFencedClaimScopedOutboxStore and IFencedDeadLetterableOutboxStore. Fencing the mark-sent " +
+				"transition alone is not sufficient. A superseded leader would still be able to report a failure, " +
+				"apply a backoff, or dead-letter a message that the live leader then delivers successfully -- " +
+				"leaving that message both delivered and sitting unreplayed in the dead-letter queue, so an " +
+				"operator draining the queue re-executes work that already succeeded. Use a store that fences " +
+				"the completion path, or, if exactly one process drains this outbox, opt out explicitly with " +
+				"AsSingleWriter() to take responsibility for the single-active-writer guarantee yourself. This is " +
+				"the same opt-out that stores which cannot express atomic fencing with their native primitives " +
+				"have always required under a leader election.");
 		}
 	}
 

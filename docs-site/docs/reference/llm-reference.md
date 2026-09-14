@@ -61,7 +61,7 @@ All message types are in namespace `Excalibur.Dispatch`. Handler types are in `E
 | `IActionHandler<TAction, TResult>` | Query handler | 1 method: `Task<TResult> HandleAsync(TAction action, CancellationToken cancellationToken)` |
 | `IEventHandler<TEvent>` | Event handler | 1 method: `Task HandleAsync(TEvent eventMessage, CancellationToken cancellationToken)` |
 | `IDispatcher` | Central dispatcher | 6 dispatch methods + `ServiceProvider` property |
-| `IMessageResult` | Result wrapper | `Succeeded`, `IsSuccess`, `ErrorMessage`, `ProblemDetails` |
+| `IMessageResult` | Result wrapper | `Succeeded`, `ErrorMessage`, `ProblemDetails` |
 | `IMessageResult<T>` | Typed result | Adds `ReturnValue` property |
 
 ## Excalibur Domain Types
@@ -273,7 +273,7 @@ var result = await _dispatcher.DispatchAsync<GetOrder, Order>(
     new GetOrder(orderId), cancellationToken);
 
 // Check result
-if (result.IsSuccess)
+if (result.Succeeded)
     return Ok(result.ReturnValue);
 else
     return Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);

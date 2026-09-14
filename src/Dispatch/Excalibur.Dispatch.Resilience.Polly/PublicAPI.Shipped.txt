@@ -217,7 +217,7 @@ Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.ExecuteAsyn
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.LastOpenedAt.get -> System.DateTimeOffset?
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.PollyCircuitBreakerPolicyAdapter(Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions! options, string? circuitName = null, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
-Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.Reset() -> void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.ResetAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.State.get -> Excalibur.Dispatch.Resilience.CircuitState
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.StateChanged -> System.EventHandler<Excalibur.Dispatch.Resilience.CircuitStateChangedEventArgs!>?
 Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions
@@ -228,17 +228,28 @@ Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.EnableTelemetr
 Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.MaxBackoffDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.MaxBackoffDelay.set -> void
 Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.PollyResilienceAdapterOptions() -> void
-Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.RetryOptions.get -> Excalibur.Dispatch.Resilience.Polly.RetryOptions?
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.RetryOptions.get -> Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions?
 Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.RetryOptions.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.BackoffStrategy.get -> Excalibur.Dispatch.Resilience.BackoffStrategy
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.BackoffStrategy.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.BaseDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.BaseDelay.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.EnableDetailedLogging.get -> bool
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.EnableDetailedLogging.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.MaxDelay.get -> System.TimeSpan?
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.MaxDelay.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.PollyRetryOptions() -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.ShouldRetry.get -> System.Func<System.Exception!, bool>?
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.ShouldRetry.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.UseJitter.get -> bool
+Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.UseJitter.set -> void
 Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter
 Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.PollyRetryPolicyAdapter(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Resilience.Polly.RetryOptions!>! options, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
-Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory
-Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.Create(Excalibur.Dispatch.Transport.MessageBusOptions! busOptions) -> Polly.ResiliencePipeline!
-Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.CreateRetryPolicyAdapter(Excalibur.Dispatch.Transport.MessageBusOptions! busOptions) -> Excalibur.Dispatch.Resilience.IRetryPolicy!
-Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.PollyRetryPolicyFactory(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory!>! logger) -> void
-Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.PollyRetryPolicyFactory(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Resilience.RetryPolicyOptions!>! options) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.PollyRetryPolicyAdapter(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions!>! options, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry
 Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.Count.get -> int
 Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.Dispose() -> void
@@ -250,46 +261,8 @@ Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.PollyTr
 Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.PollyTransportCircuitBreakerRegistry(Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions! defaultOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry!>? logger) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.PollyTransportCircuitBreakerRegistry(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry!>? logger = null) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.Remove(string! transportName) -> bool
-Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.ResetAll() -> void
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.ResetAllAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.TryGet(string! transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy?
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.DefaultRetryCount.get -> int
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.DefaultRetryCount.set -> void
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.DefaultTimeoutSeconds.get -> int
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.DefaultTimeoutSeconds.set -> void
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.EnableCircuitBreaker.get -> bool
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.EnableCircuitBreaker.set -> void
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.Enabled.get -> bool
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.Enabled.set -> void
-Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.ResilienceOptions() -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.BackoffStrategy.get -> Excalibur.Dispatch.Resilience.BackoffStrategy
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.BackoffStrategy.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.BaseDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.BaseDelay.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.EnableDetailedLogging.get -> bool
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.EnableDetailedLogging.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.JitterFactor.get -> double
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.JitterFactor.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.JitterStrategy.get -> Excalibur.Dispatch.Resilience.Polly.JitterStrategy
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.JitterStrategy.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.MaxDelay.get -> System.TimeSpan?
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.MaxDelay.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.MaxRetries.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.OperationTimeout.get -> System.TimeSpan?
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.OperationTimeout.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.RetryOptions() -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.ShouldRetry.get -> System.Func<System.Exception!, bool>?
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.ShouldRetry.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.UseJitter.get -> bool
-Excalibur.Dispatch.Resilience.Polly.RetryOptions.UseJitter.set -> void
-Excalibur.Dispatch.Resilience.Polly.RetryPolicy
-Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.Threading.Tasks.Task!>! operation, System.Threading.CancellationToken cancellationToken, string? operationName = null) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken, string? operationName = null) -> System.Threading.Tasks.Task<T>!
-Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Dispatch.Resilience.Polly.RetryPolicy.RetryPolicy(Excalibur.Dispatch.Resilience.Polly.RetryOptions! options, Microsoft.Extensions.Logging.ILogger? logger = null, Excalibur.Dispatch.Resilience.Polly.ITimeoutManager? timeoutManager = null, Excalibur.Dispatch.Resilience.IBackoffCalculator? backoffCalculator = null) -> void
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.Dispose() -> void
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
@@ -324,7 +297,7 @@ Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExte
 Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderResilienceExtensions.AddPollyResilienceAdapters(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderResilienceExtensions.UsePollyResilienceAdapters(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions!>? configureOptions = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.DispatchBuilderResilienceExtensions.UseResilience(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Resilience.Polly.ResilienceOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderResilienceExtensions.UseResilience(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions.AddDispatchResilience(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! pipelineName, System.Action<Polly.ResiliencePipelineBuilder!>! configurePipeline) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions.AddHedgingPolicy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions.AddHedgingPolicy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Resilience.Polly.HedgingOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -333,8 +306,8 @@ static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollection
 static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddDistributedCircuitBreaker(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddPollyCircuitBreaker(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddPollyResilience(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration? configuration = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddPollyRetryPolicy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Resilience.Polly.RetryOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddRetryPolicyWithJitter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Resilience.Polly.RetryOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddPollyRetryPolicy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddRetryPolicyWithJitter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.ConfigureGracefulDegradation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.ConfigureTimeoutManager(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.Dispose(bool disposing) -> void

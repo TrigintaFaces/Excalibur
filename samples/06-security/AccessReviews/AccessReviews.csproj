@@ -11,7 +11,9 @@
   <!-- Access Reviews sample: uses A3.Core + A3.Governance (in-memory stores) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3.Core\Excalibur.A3.Core.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3\Excalibur.A3.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3.Governance\Excalibur.A3.Governance.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Caching\Excalibur.Dispatch.Caching.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 </Project>

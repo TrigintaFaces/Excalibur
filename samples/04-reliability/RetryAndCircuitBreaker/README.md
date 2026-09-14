@@ -98,7 +98,7 @@ builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 {
     options.FailureThreshold = 3;                    // Open after 3 failures
-    options.OpenDuration = TimeSpan.FromSeconds(10); // Cooldown period
+    options.BreakDuration = TimeSpan.FromSeconds(10); // Cooldown period
     options.OperationTimeout = TimeSpan.FromSeconds(5);
     // Half-open recovery is not configurable: ONE trial call is admitted and the
     // circuit closes if it succeeds.
@@ -175,17 +175,14 @@ Request 5 failed: BrokenCircuitException
 | `BaseDelay` | 1 second | Initial delay between retries |
 | `BackoffStrategy` | Exponential | Linear, Exponential, or Constant |
 | `UseJitter` | true | Add randomness to prevent thundering herd |
-| `JitterStrategy` | Equal | Full, Equal, or Decorrelated jitter |
-| `JitterFactor` | 0.2 | Jitter magnitude (0.0-1.0) |
 | `MaxDelay` | 1 minute | Maximum delay cap |
-| `OperationTimeout` | null | Overall timeout for all retries |
 
 ### Circuit Breaker Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `FailureThreshold` | 5 | Consecutive failures to open circuit |
-| `OpenDuration` | 30 seconds | Time circuit stays open |
+| `BreakDuration` | 30 seconds | Time circuit stays open |
 | `OperationTimeout` | 5 seconds | Timeout for each operation |
 
 Half-open recovery is not configurable. The circuit admits **one** trial call while half-open and

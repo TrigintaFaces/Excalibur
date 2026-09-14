@@ -605,6 +605,211 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		ex.Message.ShouldContain("version hole");
 	}
 
+	/// <summary>
+	/// The empty-tail hole: snapshot at version 50, but the stream stops at version 40. Zero rows come
+	/// back, so the first-event guard has nothing to compare and cannot see this; without the version
+	/// probe the repository rehydrates from the snapshot alone and hands back an aggregate at a version
+	/// its own stream never reached. The exception must name the aggregate and BOTH versions, because
+	/// the operator's next question is which aggregate and how far behind.
+	/// </summary>
+	[Fact]
+	public async Task GetByIdAsync_FailsLoud_WhenSnapshotIsAheadOfATruncatedStream()
+	{
+		// Arrange
+		var aggregateId = "agg-empty-tail-hole";
+		var snapshotManager = A.Fake<ISnapshotManager>();
+		var serializer = CreateMockSerializer();
+		var eventStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreVersionProbe>());
+		_ = A.CallTo(() => eventStore.GetService(typeof(IEventStoreVersionProbe))).Returns(eventStore);
+		_ = A.CallTo(() => ((IEventStoreVersionProbe)eventStore)
+				.GetMaxVersionAsync(aggregateId, "EdgeCaseAggregate", A<CancellationToken>._))
+			.Returns(new ValueTask<long>(40L));
+
+		var snapshot = new Snapshot
+		{
+			SnapshotId = Guid.NewGuid().ToString(),
+			AggregateId = aggregateId,
+			AggregateType = "EdgeCaseAggregate",
+			Version = 50,
+			Data = JsonSerializer.SerializeToUtf8Bytes(new { Data = "snapshot-data" }),
+			CreatedAt = DateTime.UtcNow,
+		};
+
+		_ = A.CallTo(() => snapshotManager.GetLatestSnapshotAsync(aggregateId, A<CancellationToken>._))
+			.Returns(snapshot);
+
+		// The EMPTY TAIL: no events at or above the snapshot's version.
+		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent>());
+
+		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
+			eventStore,
+			serializer,
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions { VerifyStreamReachesSnapshot = true }),
+			snapshotManager: snapshotManager,
+			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
+
+		// Act & Assert
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => repository.GetByIdAsync(aggregateId, CancellationToken.None));
+
+		ex.Message.ShouldContain("version hole");
+		ex.Message.ShouldContain(aggregateId, customMessage: "the operator must be told WHICH aggregate.");
+		ex.Message.ShouldContain("50", customMessage: "the snapshot version must be named.");
+		ex.Message.ShouldContain("40", customMessage: "the highest stored version must be named.");
+	}
+
+	/// <summary>
+	/// Liveness, and the arm that keeps the probe from being a blunt instrument: an empty tail is the
+	/// NORMAL case when the snapshot sits at the head of the stream. Snapshot at version 50 over events
+	/// through version 49 returns zero rows exactly as the truncated case does, and must load cleanly.
+	/// Without this arm the safety check above would pass just as well if it refused every snapshot.
+	/// </summary>
+	[Fact]
+	public async Task GetByIdAsync_LoadsNormally_WhenSnapshotSitsAtTheHeadOfTheStream()
+	{
+		// Arrange
+		var aggregateId = "agg-snapshot-at-head";
+		var snapshotManager = A.Fake<ISnapshotManager>();
+		var serializer = CreateMockSerializer();
+		var eventStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreVersionProbe>());
+		_ = A.CallTo(() => eventStore.GetService(typeof(IEventStoreVersionProbe))).Returns(eventStore);
+		_ = A.CallTo(() => ((IEventStoreVersionProbe)eventStore)
+				.GetMaxVersionAsync(aggregateId, "EdgeCaseAggregate", A<CancellationToken>._))
+			.Returns(new ValueTask<long>(49L));
+
+		var snapshot = new Snapshot
+		{
+			SnapshotId = Guid.NewGuid().ToString(),
+			AggregateId = aggregateId,
+			AggregateType = "EdgeCaseAggregate",
+			Version = 50,
+			Data = JsonSerializer.SerializeToUtf8Bytes(new { Data = "snapshot-data" }),
+			CreatedAt = DateTime.UtcNow,
+		};
+
+		_ = A.CallTo(() => snapshotManager.GetLatestSnapshotAsync(aggregateId, A<CancellationToken>._))
+			.Returns(snapshot);
+
+		// The EMPTY TAIL: no events at or above the snapshot's version.
+		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent>());
+
+		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
+			eventStore,
+			serializer,
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions { VerifyStreamReachesSnapshot = true }),
+			snapshotManager: snapshotManager,
+			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
+
+		// Act
+		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
+
+		// Assert
+		_ = result.ShouldNotBeNull("a snapshot at the head of its stream is the common case and must load.");
+	}
+
+	/// <summary>
+	/// Liveness for the opt-in contract: a store that does not provide the probe is never asked, and
+	/// behaves exactly as it did before the probe existed -- no third state, no forced provider work.
+	/// The same truncated stream that throws above must load here, because nothing can detect it.
+	/// </summary>
+	[Fact]
+	public async Task GetByIdAsync_LoadsUnchanged_WhenTheStoreProvidesNoVersionProbe()
+	{
+		// Arrange -- a plain store: GetService returns null for the probe.
+		var aggregateId = "agg-no-probe";
+		var eventStore = A.Fake<IEventStore>();
+		var snapshotManager = A.Fake<ISnapshotManager>();
+		var serializer = CreateMockSerializer();
+
+		var snapshot = new Snapshot
+		{
+			SnapshotId = Guid.NewGuid().ToString(),
+			AggregateId = aggregateId,
+			AggregateType = "EdgeCaseAggregate",
+			Version = 50,
+			Data = JsonSerializer.SerializeToUtf8Bytes(new { Data = "snapshot-data" }),
+			CreatedAt = DateTime.UtcNow,
+		};
+
+		_ = A.CallTo(() => snapshotManager.GetLatestSnapshotAsync(aggregateId, A<CancellationToken>._))
+			.Returns(snapshot);
+
+		// The EMPTY TAIL: no events at or above the snapshot's version.
+		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent>());
+
+		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
+			eventStore,
+			serializer,
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions { VerifyStreamReachesSnapshot = true }),
+			snapshotManager: snapshotManager,
+			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
+
+		// Act
+		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
+
+		// Assert
+		_ = result.ShouldNotBeNull(
+			"a store without the capability must be unaffected by this change.");
+	}
+
+	/// <summary>
+	/// The DEFAULT is free, and this is the arm that proves it. Same truncated stream as the failing case
+	/// above, same store, probe available -- but with verification left at its default of off, the load
+	/// behaves exactly as it did before this check existed, and the probe is never consulted. A reader
+	/// asking "does this cost me anything if I do not turn it on" is answered here.
+	/// </summary>
+	[Fact]
+	public async Task GetByIdAsync_DoesNotVerifyOrProbe_WhenVerificationIsLeftOff()
+	{
+		// Arrange -- identical to the failing case, except verification stays at its default (off).
+		var aggregateId = "agg-verification-off";
+		var snapshotManager = A.Fake<ISnapshotManager>();
+		var serializer = CreateMockSerializer();
+		var eventStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreVersionProbe>());
+		_ = A.CallTo(() => eventStore.GetService(typeof(IEventStoreVersionProbe))).Returns(eventStore);
+		_ = A.CallTo(() => ((IEventStoreVersionProbe)eventStore)
+				.GetMaxVersionAsync(aggregateId, "EdgeCaseAggregate", A<CancellationToken>._))
+			.Returns(new ValueTask<long>(40L));
+
+		var snapshot = new Snapshot
+		{
+			SnapshotId = Guid.NewGuid().ToString(),
+			AggregateId = aggregateId,
+			AggregateType = "EdgeCaseAggregate",
+			Version = 50,
+			Data = JsonSerializer.SerializeToUtf8Bytes(new { Data = "snapshot-data" }),
+			CreatedAt = DateTime.UtcNow,
+		};
+
+		_ = A.CallTo(() => snapshotManager.GetLatestSnapshotAsync(aggregateId, A<CancellationToken>._))
+			.Returns(snapshot);
+		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent>());
+
+		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
+			eventStore,
+			serializer,
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
+			snapshotManager: snapshotManager,
+			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
+
+		// Act
+		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
+
+		// Assert -- unchanged behaviour, and the probe was never called.
+		_ = result.ShouldNotBeNull("with verification off the load must behave exactly as it did before.");
+		A.CallTo(() => ((IEventStoreVersionProbe)eventStore)
+				.GetMaxVersionAsync(A<string>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
 	[Fact]
 	public async Task GetByIdAsync_ShouldSucceed_WhenNoVersionGapAfterSnapshot()
 	{

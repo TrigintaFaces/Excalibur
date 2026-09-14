@@ -66,12 +66,10 @@ builder.Services.AddDispatch(dispatch =>
 // Retry with exponential backoff and jitter for payment service
 builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 {
-	options.MaxRetries = 5; // Retry up to 5 times
+	options.MaxRetryAttempts = 5; // Retry up to 5 times
 	options.BaseDelay = TimeSpan.FromMilliseconds(200); // Start with 200ms delay
 	options.BackoffStrategy = BackoffStrategy.Exponential; // 200ms -> 400ms -> 800ms -> etc.
 	options.UseJitter = true; // Add randomness to prevent thundering herd
-	options.JitterStrategy = JitterStrategy.Equal; // Equal jitter distribution
-	options.JitterFactor = 0.3; // 30% jitter
 	options.MaxDelay = TimeSpan.FromSeconds(10); // Cap at 10 seconds
 	options.EnableDetailedLogging = true; // Log retry attempts
 	options.ShouldRetry = ex => ex is PaymentServiceException; // Only retry payment exceptions
@@ -80,8 +78,8 @@ builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 // Circuit breaker for inventory service
 builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 {
-	options.FailureThreshold = 3; // Open after 3 failures
-	options.OpenDuration = TimeSpan.FromSeconds(10); // Stay open for 10 seconds
+	options.ConsecutiveFailureThreshold = 3; // Open after 3 failures
+	options.BreakDuration = TimeSpan.FromSeconds(10); // Stay open for 10 seconds
 	options.OperationTimeout = TimeSpan.FromSeconds(5); // Timeout operations at 5 seconds
 
 	// There is no "close after N successes" or "N concurrent half-open tests" setting. The circuit
@@ -254,7 +252,7 @@ logger.LogInformation("");
 logger.LogInformation("Retry Policy Options:");
 logger.LogInformation("  | Option              | Default     | Description                      |");
 logger.LogInformation("  |---------------------|-------------|----------------------------------|");
-logger.LogInformation("  | MaxRetries          | 3           | Maximum retry attempts           |");
+logger.LogInformation("  | MaxRetryAttempts    | 3           | Maximum retry attempts           |");
 logger.LogInformation("  | BaseDelay           | 1 second    | Initial delay between retries    |");
 logger.LogInformation("  | BackoffStrategy     | Exponential | Linear, Exponential, or Constant |");
 logger.LogInformation("  | UseJitter           | true        | Add randomness to delays         |");
@@ -265,7 +263,7 @@ logger.LogInformation("Circuit Breaker Options:");
 logger.LogInformation("  | Option              | Default     | Description                      |");
 logger.LogInformation("  |---------------------|-------------|----------------------------------|");
 logger.LogInformation("  | FailureThreshold    | 5           | Failures to open circuit         |");
-logger.LogInformation("  | OpenDuration        | 30 seconds  | Time circuit stays open          |");
+logger.LogInformation("  | BreakDuration        | 30 seconds  | Time circuit stays open          |");
 logger.LogInformation("  | OperationTimeout    | 5 seconds   | Timeout for each operation       |");
 logger.LogInformation("");
 logger.LogInformation("Half-open recovery is not configurable: ONE trial call is admitted, and the");

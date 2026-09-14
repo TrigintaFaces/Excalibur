@@ -412,7 +412,7 @@ internal sealed class SecurityAuditWriter
 	/// Records a general security event for compliance and monitoring purposes.
 	/// </summary>
 	internal async Task<bool> RecordSecurityEventAsync(
-		SecurityEvent securityEvent,
+		ElasticsearchSecurityEvent securityEvent,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(securityEvent);

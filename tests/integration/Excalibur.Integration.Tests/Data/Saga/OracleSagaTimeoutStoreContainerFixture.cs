@@ -125,7 +125,14 @@ public sealed class OracleSagaTimeoutStoreContainerFixture : ContainerFixtureBas
 		var lines = sql
 			.Split('\n')
 			.Select(line => line.Trim())
-			.Where(line => !line.StartsWith("--", StringComparison.Ordinal));
+			.Where(line => !line.StartsWith("--", StringComparison.Ordinal))
+			// SQL*Plus directives are not SQL. The shipped scripts open with
+			// WHENEVER SQLERROR EXIT FAILURE ROLLBACK because they are applied by hand through
+			// SQL*Plus, where that line is what makes a failed migration roll back instead of
+			// continuing. ODP.NET submits statements to the server, which has never heard of it and
+			// answers ORA-00900: invalid SQL statement -- failing schema provisioning, and with it
+			// every test in the class, for a line that is correct in the file it lives in.
+			.Where(line => !line.StartsWith("WHENEVER ", StringComparison.OrdinalIgnoreCase));
 
 		return string.Join('\n', lines);
 	}

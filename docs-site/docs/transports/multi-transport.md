@@ -20,6 +20,8 @@ Dispatch supports routing messages to multiple transports based on type or predi
 
 ## Quick Start
 ```csharp
+builder.Services.AddPluggableSerialization(); // Transports don't seat a default serializer
+
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -90,6 +92,7 @@ Each transport registers with a default name. Use these names in routing rules:
 
 You can also register named instances:
 ```csharp
+builder.Services.AddPluggableSerialization(); // Transports don't seat a default serializer
 builder.Services.AddKafkaTransport("kafka-orders", kafka =>
 {
     kafka.BootstrapServers("localhost:9092")

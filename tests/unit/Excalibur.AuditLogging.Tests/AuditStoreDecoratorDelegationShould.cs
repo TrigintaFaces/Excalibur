@@ -197,8 +197,8 @@ public sealed class AuditStoreDecoratorDelegationShould
 			CancellationToken cancellationToken) =>
 			inner.VerifyChainIntegrityAsync(startDate, endDate, cancellationToken);
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken) =>
-			inner.GetLastEventAsync(tenantId, cancellationToken);
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken) =>
+			inner.GetLastEventAsync(cancellationToken);
 
 		public Task<int> PurgeExpiredAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
 			Task.FromResult(0);
@@ -269,7 +269,7 @@ public sealed class AuditStoreDecoratorDelegationShould
 			CancellationToken cancellationToken) =>
 			Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken) =>
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken) =>
 			Task.FromResult<AuditEvent?>(null);
 
 		public Task<int> PurgeExpiredAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>

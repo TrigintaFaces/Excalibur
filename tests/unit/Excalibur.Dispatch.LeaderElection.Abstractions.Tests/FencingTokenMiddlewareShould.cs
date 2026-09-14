@@ -120,7 +120,7 @@ public sealed class FencingTokenMiddlewareShould : UnitTestBase
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -204,7 +204,7 @@ public sealed class FencingTokenMiddlewareShould : UnitTestBase
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -237,7 +237,7 @@ public sealed class FencingTokenMiddlewareShould : UnitTestBase
 
 		// Assert
 		nextCalled.ShouldBeFalse();
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	#endregion

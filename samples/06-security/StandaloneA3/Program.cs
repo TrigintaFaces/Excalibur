@@ -14,6 +14,16 @@ builder.Services.AddExcaliburA3Core();
 
 var app = builder.Build();
 
+// This sample stays on AddExcaliburA3Core() deliberately -- it exists to show the lightweight path,
+// with no database, event sourcing, outbox or Dispatch pipeline. Core installs NO startup gates, so
+// the call below passes trivially. That is the point of showing it here: the same line in the
+// AccessReviews / JitAccess / ProvisioningWorkflow / SeparationOfDuties samples, which compose with
+// AddExcaliburA3(), is where a volatile grant store stops the run unless the host opted in.
+//
+// A host that never calls StartAsync() -- a console tool, a migration utility, a test fixture -- must
+// call this itself; nothing else runs the gates for it.
+_ = app.Services.ValidateStartupGates();
+
 using var scope = app.Services.CreateScope();
 var grantStore = scope.ServiceProvider.GetRequiredService<IGrantStore>();
 var activityGroupStore = scope.ServiceProvider.GetRequiredService<IActivityGroupStore>();

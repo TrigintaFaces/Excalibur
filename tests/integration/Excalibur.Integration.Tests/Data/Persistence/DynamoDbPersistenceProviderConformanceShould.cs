@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.CloudNative;
 using Excalibur.Data.DynamoDb;
 using Excalibur.Data.Persistence;
 using Excalibur.Testing.Conformance;
@@ -114,6 +115,63 @@ public sealed class DynamoDbPersistenceProviderConformanceShould
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
+	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
+	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();
 	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 	[Fact] public void ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers_Test() => ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers();
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Excalibur_Dispatch-7vyyp9: unlike Cosmos, DynamoDB's <c>TransactWriteItems</c> genuinely supports
+	/// multiple distinct items sharing one partition key value -- <c>SerializeDocument</c> writes the
+	/// partition-key attribute from <see cref="IPartitionKey.Value"/> and the sort-key attribute from the
+	/// document's own id, so two different ids under one partition key is a valid, real multi-item
+	/// transaction (not the single-id constraint Cosmos's <c>/id</c> partition-key path imposes). The
+	/// conflict target is seeded before the batch so the second Create's
+	/// <c>ConditionExpression = "attribute_not_exists(pk)"</c> hits a genuine, already-committed item.
+	/// </remarks>
+	protected override async Task<(IPartitionKey PartitionKey, IReadOnlyList<ICloudBatchOperation> Operations, Func<Task<bool>> FirstEffectVisibleAsync, Func<Task<bool>> FirstEffectPersistsWhenBatchSucceedsAsync)?>
+		CreateCloudNativeBatchAtomicityProbeAsync(ICloudNativePersistenceBatchOperations batchOperations)
+	{
+		var provider = (ICloudNativePersistenceProvider)batchOperations;
+		var partitionKey = new PartitionKey($"atomicity-probe-{Guid.NewGuid():N}");
+
+		var firstId = $"atomicity-first-{Guid.NewGuid():N}";
+		var conflictId = $"atomicity-conflict-{Guid.NewGuid():N}";
+
+		var seeded = await provider.CreateAsync(
+			new AtomicityProbeDocument(conflictId, "seed"), partitionKey, TestContext.Current.CancellationToken);
+		if (!seeded.Success)
+		{
+			return null;
+		}
+
+		IReadOnlyList<ICloudBatchOperation> operations =
+		[
+			new CloudBatchCreateOperation(firstId, new AtomicityProbeDocument(firstId, "first")),
+			new CloudBatchCreateOperation(conflictId, new AtomicityProbeDocument(conflictId, "duplicate")),
+		];
+
+		return (
+			partitionKey,
+			operations,
+			FirstEffectVisibleAsync: async () =>
+				await provider.GetByIdAsync<AtomicityProbeDocument>(
+					firstId, partitionKey, null, TestContext.Current.CancellationToken).ConfigureAwait(false) is not null,
+			FirstEffectPersistsWhenBatchSucceedsAsync: async () =>
+			{
+				var livenessId = $"atomicity-liveness-{Guid.NewGuid():N}";
+				var result = await batchOperations.ExecuteBatchAsync(
+					partitionKey,
+					[new CloudBatchCreateOperation(livenessId, new AtomicityProbeDocument(livenessId, "liveness"))],
+					TestContext.Current.CancellationToken).ConfigureAwait(false);
+
+				return result.Success
+					&& await provider.GetByIdAsync<AtomicityProbeDocument>(
+						livenessId, partitionKey, null, TestContext.Current.CancellationToken).ConfigureAwait(false) is not null;
+			});
+	}
+
+	private sealed record AtomicityProbeDocument(string Id, string Marker);
 }

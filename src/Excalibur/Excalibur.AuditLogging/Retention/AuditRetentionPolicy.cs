@@ -19,11 +19,6 @@ public sealed record AuditRetentionPolicy
 	public required TimeSpan CleanupInterval { get; init; }
 
 	/// <summary>
-	/// Gets the batch size for cleanup operations.
-	/// </summary>
-	public required int BatchSize { get; init; }
-
-	/// <summary>
 	/// Gets a value indicating whether events are archived before deletion.
 	/// </summary>
 	public required bool ArchiveBeforeDelete { get; init; }

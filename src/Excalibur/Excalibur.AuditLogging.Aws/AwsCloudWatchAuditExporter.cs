@@ -69,7 +69,7 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 		{
 			var payload = CreatePayload(auditEvent);
 			var json = JsonSerializer.Serialize(payload, AwsAuditJsonContext.Default.CloudWatchAuditPayload);
-			var response = await SendWithRetryAsync(json, cancellationToken).ConfigureAwait(false);
+			var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -283,7 +283,7 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 			_ = sb.AppendLine(JsonSerializer.Serialize(payload, AwsAuditJsonContext.Default.CloudWatchAuditPayload));
 		}
 
-		var response = await SendWithRetryAsync(sb.ToString(), cancellationToken).ConfigureAwait(false);
+		var response = await SendAsync(sb.ToString(), cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -294,50 +294,23 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 		return (false, $"HTTP {(int)response.StatusCode}: {errorBody}");
 	}
 
-	private async Task<HttpResponseMessage> SendWithRetryAsync(
+	private async Task<HttpResponseMessage> SendAsync(
 		string json,
 		CancellationToken cancellationToken)
 	{
-		var attempts = 0;
-		HttpResponseMessage? lastResponse = null;
-		var serviceUrl = _options.ServiceUrl
-						 ?? $"https://logs.{_options.Region}.amazonaws.com";
-
-		while (attempts <= _options.MaxRetryAttempts)
+		// Transient-fault retry (408/429/5xx + HttpRequestException/timeout) is handled by the standard
+		// resilience pipeline attached to the typed HttpClient in DI (AwsAuditServiceCollectionExtensions),
+		// the same seam the Datadog/Elasticsearch/OpenSearch/Splunk audit exporters already use. The
+		// buffered StringContent is replayable, so the pipeline can safely re-send across attempts.
+		var serviceUrl = _options.ServiceUrl ?? $"https://logs.{_options.Region}.amazonaws.com";
+		using var request = new HttpRequestMessage(HttpMethod.Post, serviceUrl)
 		{
-			attempts++;
+			Content = new StringContent(json, Encoding.UTF8, "application/x-amz-json-1.1")
+		};
 
-			try
-			{
-				using var request = new HttpRequestMessage(HttpMethod.Post, serviceUrl)
-				{
-					Content = new StringContent(json, Encoding.UTF8, "application/x-amz-json-1.1")
-				};
+		request.Headers.Add("X-Amz-Target", "Logs_20140328.PutLogEvents");
 
-				request.Headers.Add("X-Amz-Target", "Logs_20140328.PutLogEvents");
-
-				lastResponse = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-
-				if (lastResponse.IsSuccessStatusCode || !IsTransientStatusCode(lastResponse.StatusCode))
-				{
-					return lastResponse;
-				}
-
-				if (attempts <= _options.MaxRetryAttempts)
-				{
-					var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
-					LogAuditExportRetry(attempts, delay.TotalMilliseconds, lastResponse.StatusCode);
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-			}
-			catch (HttpRequestException) when (attempts <= _options.MaxRetryAttempts)
-			{
-				var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
-				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		return lastResponse ?? throw new HttpRequestException("Failed after all retry attempts");
+		return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 	}
 
 	[LoggerMessage(AwsAuditLoggingEventId.EventForwarded, LogLevel.Debug,
@@ -367,10 +340,6 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 	[LoggerMessage(AwsAuditLoggingEventId.HealthCheckFailed, LogLevel.Warning,
 		"AWS CloudWatch health check failed")]
 	private partial void LogHealthCheckFailed(Exception exception);
-
-	[LoggerMessage(AwsAuditLoggingEventId.ForwardRetried, LogLevel.Debug,
-		"Retrying AWS CloudWatch export (attempt {Attempt}) after {Delay}ms due to {StatusCode}")]
-	private partial void LogAuditExportRetry(int attempt, double delay, HttpStatusCode statusCode);
 
 	/// <summary>
 	/// CloudWatch audit event payload.

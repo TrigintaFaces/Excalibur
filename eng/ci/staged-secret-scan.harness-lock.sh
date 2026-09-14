@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # staged-secret-scan.harness-lock.sh — INDEPENDENT lock (author != impl) for staged-secret-scan.sh.
-# S886 / MS-A2 / 74nt46 (FR-A2 / GUIDE Ruling R3 — the real blocking staged secret scan).
+# Independent enforcement arm for the blocking staged secret scan.
 #
 # WHAT THIS LOCK BINDS (behavior, not line numbers)
 #   Drives the REAL scanner inside throwaway temp git repos (a staged fixture per arm) and asserts:
@@ -8,7 +8,7 @@
 #                  → scanner exits 1 (commit would be blocked). RED against the pre-fix hook where NO
 #                  scan runs, and RED against a no-op scanner (the inert control never fires).
 #     * LIVENESS — a clean staged tree → scanner exits 0 (a normal commit is allowed). This is the arm
-#                  that catches a "block everything" scanner — the S880 inert-control class. Do NOT omit.
+#                  that catches a "block everything" scanner — the inert-control class. Do NOT omit.
 #     * ALLOWLIST — a staged secret on a line marked `# pragma: allowlist secret` → scanner exits 0
 #                  (the exemption is honoured at the authoring site; the scanner is not weakened —
 #                  the SAFETY arms prove it still catches a non-pragma key).
@@ -24,13 +24,13 @@
 
 set -uo pipefail
 
-# ── Git-env isolation (xy3hze) — MUST precede the first git call ────────────────────────────────
+# ── Git-env isolation — MUST precede the first git call ────────────────────────────────
 # git EXPORTS GIT_INDEX_FILE / GIT_DIR / GIT_WORK_TREE into every hook and every child process.
 # This script `git init`s its own throwaway fixture repos — but an inherited GIT_INDEX_FILE is an
 # ABSOLUTE PATH and WINS over the repo you are standing in, so `git add` inside the fixture writes
 # the CALLER'S index instead. `git init` does not rescue you; neither does `cd`.
 #
-# Measured consequence, S890: run from a normal shell this script passed; run from pre-commit (where
+# Measured consequence: run from a normal shell this script passed; run from pre-commit (where
 # git had exported GIT_INDEX_FILE) every arm failed AND it staged its own fixtures — including an
 # AWS-shaped token and an RSA private-key header — into the real repo's index, one arm at a time.
 # The standalone GREEN is the disguise: the only environment that reproduces it is the one the gate
@@ -74,7 +74,7 @@ run_scan() {
     echo "$rc"
 }
 
-echo "staged-secret-scan — INDEPENDENT lock (FR-A2 / R3), scanner=$SCAN_ABS"
+echo "staged-secret-scan — INDEPENDENT lock, scanner=$SCAN_ABS"
 echo
 
 # SAFETY — AWS access key id planted → blocked.

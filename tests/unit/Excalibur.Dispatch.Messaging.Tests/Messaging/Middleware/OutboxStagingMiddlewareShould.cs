@@ -32,12 +32,27 @@ public sealed class OutboxStagingMiddlewareShould
 				null, new DispatchJsonSerializer(), null!));
 
 	[Fact]
-	public void ThrowWhenEnabledWithNoOutboxServices()
+	public void ConstructWithoutAStore_SoTheDefaultPipelineCanSeatItInert()
 	{
+		// This arm ASSERTED THE OPPOSITE until the middleware moved onto the default pipeline, and the
+		// inversion is deliberate rather than a relaxation. The constructor used to throw when enabled with
+		// no store, which made the middleware unseatable by default: a zero-configuration host that never
+		// asked for an outbox would have failed to dispatch. The constructor cannot tell a host that
+		// deliberately called UseOutbox() from one that merely took the defaults, so it is the wrong place
+		// to decide -- it punished the second population for the first one's mistake, and it fired per scope
+		// on first dispatch rather than at startup.
+		//
+		// The check now lives in OutboxStagingWiringValidator, registered by UseOutbox() alone and refusing
+		// to START. Nothing is unguarded: a host that asked for the outbox and registered no store fails at
+		// startup, and a handler that writes with no store fails at the write naming IOutboxStore.
 		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = true });
 
-		Should.Throw<InvalidOperationException>(() =>
-			new OutboxStagingMiddleware(options, null, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance));
+		var middleware = new OutboxStagingMiddleware(
+			options, null, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance);
+
+		middleware.ShouldNotBeNull(
+			"the default profile seats this middleware for every host, so construction without a store must "
+			+ "succeed and stay inert rather than throw");
 	}
 
 	[Fact]

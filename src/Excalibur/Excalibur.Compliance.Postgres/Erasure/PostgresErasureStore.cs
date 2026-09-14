@@ -729,12 +729,18 @@ public sealed partial class PostgresErasureStore
 		if (_options.AutoCreateSchema)
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
+
+			// CREATE TABLE IF NOT EXISTS guards on table EXISTENCE, so a database provisioned before a
+			// column was added creates nothing and reports success -- the table is there, it is simply
+			// the wrong shape. Without this, that database initializes cleanly on the auto-create path and
+			// fails later on first use with a raw undefined_column far from its cause. The verify-disabled
+			// path below already runs this same check; the auto-create path needs it just as much.
+			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
 		else
 		{
 			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
-
 	}
 
 	/// <summary>

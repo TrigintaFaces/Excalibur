@@ -1,4 +1,6 @@
 using Company.DispatchWorker.Workers;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Observability.Metrics;
 
 var builder = Host.CreateDefaultBuilder(args);
 

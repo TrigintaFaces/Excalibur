@@ -78,7 +78,6 @@ internal sealed class CachingMiddleware(
 	/// </summary>
 	private const int MaxCacheEntries = 1024;
 
-	private static readonly ConcurrentDictionary<Type, Type?> _cacheableInterfaceCache = new();
 	private static readonly ConcurrentDictionary<Type, Type?> _actionInterfaceCache = new();
 
 	private static readonly CompositeFormat MessageTypeNotDispatchActionFormat =
@@ -171,12 +170,8 @@ internal sealed class CachingMiddleware(
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
-		// Check if message implements any ICacheable<T> interface
-#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
 		var messageType = message.GetType();
-		var cacheableInterface = GetCacheableInterface(messageType);
-#pragma warning restore IL2072
-		var isInterfaceCacheable = cacheableInterface != null;
+		var isInterfaceCacheable = message is ICacheable;
 		var isAttrCacheable = messageType.IsDefined(typeof(CacheResultAttribute), inherit: true);
 
 		// If not cacheable at all, short-circuit
@@ -188,7 +183,7 @@ internal sealed class CachingMiddleware(
 		// Handle interface-based caching via reflection
 		if (isInterfaceCacheable)
 		{
-			return await HandleInterfaceCacheableReflectionAsync(message, key, context, nextDelegate, cancellationToken)
+			return await HandleInterfaceCacheableAsync(message, key, context, nextDelegate, cancellationToken)
 				.ConfigureAwait(false);
 		}
 
@@ -199,34 +194,6 @@ internal sealed class CachingMiddleware(
 		}
 
 		return MessageResult.Success();
-	}
-
-	/// <summary>
-	/// Resolves the ICacheable interface for a type using a bounded cache.
-	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL2070:DynamicallyAccessedMembers",
-		Justification = "GetInterfaces is used for well-known ICacheable<> interface resolution. Types implementing ICacheable are preserved by DI registration.")]
-	private static Type? GetCacheableInterface([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
-	{
-		if (_cacheableInterfaceCache.TryGetValue(messageType, out var cached))
-		{
-			return cached;
-		}
-
-		if (_cacheableInterfaceCache.Count >= MaxCacheEntries)
-		{
-			// Cache full -- compute without caching
-			return messageType.GetInterfaces()
-				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
-		}
-
-		var resolved = messageType.GetInterfaces()
-			.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
-
-		// Resolution is a pure function of the type, so a lost race stores the same answer.
-		_ = _cacheableInterfaceCache.TryAdd(messageType, resolved);
-
-		return resolved;
 	}
 
 	/// <summary>
@@ -276,32 +243,7 @@ internal sealed class CachingMiddleware(
 	/// </summary>
 	/// <param name="message">The message to extract cacheable information from.</param>
 	/// <returns>The cacheable information, or null if the message does not implement ICacheable.</returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2075:Type.GetInterfaces may break with trimming",
-		Justification = "ICacheable interface is a well-known pattern with stable member names")]
-	[UnconditionalSuppressMessage("Trimming", "IL2075:Type.GetMethod may break with trimming",
-		Justification = "ICacheable interface members are accessed via nameof for stability")]
-	[UnconditionalSuppressMessage("Trimming", "IL2075:Type.GetProperty may break with trimming",
-		Justification = "ICacheable interface members are accessed via nameof for stability")]
-	private static CacheableInfo? GetCacheableInfo(IDispatchMessage message)
-	{
-#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
-		var messageType = message.GetType();
-		var cacheableInterface = GetCacheableInterface(messageType);
-#pragma warning restore IL2072
-
-		if (cacheableInterface == null)
-		{
-			return null;
-		}
-
-		return new CacheableInfo
-		{
-			Interface = cacheableInterface,
-			ShouldCacheMethod = cacheableInterface.GetMethod(nameof(ICacheable<>.ShouldCache))!,
-			ExpirationProperty = cacheableInterface.GetProperty(nameof(ICacheable<>.ExpirationSeconds))!,
-			GetCacheTagsMethod = cacheableInterface.GetMethod(nameof(ICacheable<>.GetCacheTags))!,
-		};
-	}
+	private static ICacheable? GetCacheableInfo(IDispatchMessage message) => message as ICacheable;
 
 	/// <summary>
 	/// Deserializes a cached value from its stored form.
@@ -403,6 +345,28 @@ internal sealed class CachingMiddleware(
 				// Cache hit - deserialize value and return directly without calling handler
 				var cachedValue = DeserializeCachedValue(cachedResult);
 
+				// Fast path: a message implementing ICacheable<T> builds its own typed result through a
+				// default interface method (ICacheable.CreateCachedResult), so T is known at the
+				// interface's declaration site and no reflection is needed here. Only a message cacheable
+				// solely via [CacheResult] -- no ICacheable to call through -- reaches the reflection path
+				// below.
+				if (message is ICacheable cacheableMessage)
+				{
+					var typedResult = cacheableMessage.CreateCachedResult(cachedValue);
+					if (typedResult is null)
+					{
+						// The entry under this key holds another type. Fail open: drop to the handler and
+						// serve a freshly computed result rather than returning the wrong type. The stale
+						// entry is left for its owner to overwrite or expire.
+						LogCachedValueTypeMismatch(logger, expectedType: null, cachedValue.GetType().FullName);
+						return (await nextDelegate(message, context, cancellationToken).ConfigureAwait(false), false);
+					}
+
+					context.Result = cachedValue;
+
+					return (typedResult, true);
+				}
+
 				// Determine the return type from the message type
 				var messageType = message.GetType();
 #pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetActionInterface
@@ -449,7 +413,7 @@ internal sealed class CachingMiddleware(
 	}
 
 	/// <summary>
-	/// Handles caching for messages using reflection to invoke ICacheable interface methods.
+	/// Handles caching for messages that declare themselves cacheable.
 	/// </summary>
 	/// <param name="message">The message to cache.</param>
 	/// <param name="key">The cache key.</param>
@@ -459,7 +423,7 @@ internal sealed class CachingMiddleware(
 	/// <returns>The message result.</returns>
 	[RequiresUnreferencedCode("Calls HandleCachedResultAsync, which resolves the stored type name by reflection.")]
 	[RequiresDynamicCode("Calls HandleCachedResultAsync which uses dynamic code for deserialization")]
-	private async Task<IMessageResult> HandleInterfaceCacheableReflectionAsync(
+	private async Task<IMessageResult> HandleInterfaceCacheableAsync(
 		IDispatchMessage message,
 		string key,
 		IMessageContext context,
@@ -481,12 +445,12 @@ internal sealed class CachingMiddleware(
 		}
 
 		// Get expiration and tags
-		var expiration = GetExpiration(cacheableInfo, message);
-		var tags = GetCacheTags(cacheableInfo, message);
+		var expiration = GetExpiration(cacheableInfo);
+		var tags = GetCacheTags(cacheableInfo);
 
 		return await ExecuteWithCacheAsync(
 			key,
-			async ct => await CreateCacheValueAsync(message, context, nextDelegate, cacheableInfo, ct).ConfigureAwait(false),
+			async ct => await CreateCacheValueAsync(message, context, nextDelegate, cacheableInfo, tags, ct).ConfigureAwait(false),
 			expiration,
 			tags,
 			message,
@@ -540,6 +504,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="context">The message context.</param>
 	/// <param name="nextDelegate">The next middleware delegate.</param>
 	/// <param name="attr">The cache result attribute.</param>
+	/// <param name="tags">The cache tags for the entry, used to embed each tag's write-time version stamp.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The cached value.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL3050:Using RequiresDynamicCode member in AOT",
@@ -549,6 +514,7 @@ internal sealed class CachingMiddleware(
 		IMessageContext context,
 		DispatchRequestDelegate nextDelegate,
 		CacheResultAttribute? attr,
+		string[] tags,
 		CancellationToken cancellationToken)
 	{
 		var messageResult = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
@@ -566,6 +532,10 @@ internal sealed class CachingMiddleware(
 			context.Items["Dispatch:OriginalResult"] = messageResult;
 		}
 
+		var tagStamps = shouldCache
+			? await CreateTagStampsAsync(tags, cancellationToken).ConfigureAwait(false)
+			: null;
+
 		return new CachedValue
 		{
 
@@ -574,18 +544,18 @@ internal sealed class CachingMiddleware(
 			HasExecuted = true,
 			TypeName = returnValue?.GetType().AssemblyQualifiedName,
 			ActionTypeName = DescribeActionType(message.GetType()),
+			TagStamps = tagStamps,
 		};
 	}
 
 	/// <summary>
 	/// Gets the cache expiration time for a cacheable message.
 	/// </summary>
-	/// <param name="cacheableInfo">The cacheable interface information.</param>
-	/// <param name="message">The message to get expiration for.</param>
+	/// <param name="cacheable">The message, as its cacheable contract.</param>
 	/// <returns>The cache expiration time.</returns>
-	private TimeSpan GetExpiration(CacheableInfo cacheableInfo, IDispatchMessage message)
+	private TimeSpan GetExpiration(ICacheable cacheable)
 	{
-		var expirationSeconds = cacheableInfo.GetExpirationSeconds(message);
+		var expirationSeconds = cacheable.ExpirationSeconds;
 		var expiration = expirationSeconds > 0
 			? TimeSpan.FromSeconds(expirationSeconds)
 			: _options.Behavior.DefaultExpiration;
@@ -596,12 +566,11 @@ internal sealed class CachingMiddleware(
 	/// <summary>
 	/// Gets the cache tags for a cacheable message.
 	/// </summary>
-	/// <param name="cacheableInfo">The cacheable interface information.</param>
-	/// <param name="message">The message to get tags for.</param>
+	/// <param name="cacheable">The message, as its cacheable contract.</param>
 	/// <returns>The cache tags.</returns>
-	private string[] GetCacheTags(CacheableInfo cacheableInfo, IDispatchMessage message)
+	private string[] GetCacheTags(ICacheable cacheable)
 	{
-		var tags = cacheableInfo.GetTags(message);
+		var tags = cacheable.GetCacheTags() ?? [];
 		if (_options.DefaultTags.Length > 0)
 		{
 			tags = [.. tags, .. _options.DefaultTags];
@@ -616,7 +585,8 @@ internal sealed class CachingMiddleware(
 	/// <param name="message">The message to process.</param>
 	/// <param name="context">The message context.</param>
 	/// <param name="nextDelegate">The next middleware delegate.</param>
-	/// <param name="cacheableInfo">The resolved ICacheable interface information for the message.</param>
+	/// <param name="cacheable">The message, as its cacheable contract.</param>
+	/// <param name="tags">The cache tags for the entry, used to embed each tag's write-time version stamp.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The cached value.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL3050:Using RequiresDynamicCode member in AOT",
@@ -625,7 +595,8 @@ internal sealed class CachingMiddleware(
 		IDispatchMessage message,
 		IMessageContext context,
 		DispatchRequestDelegate nextDelegate,
-		CacheableInfo cacheableInfo,
+		ICacheable cacheable,
+		string[] tags,
 		CancellationToken cancellationToken)
 	{
 		// Cache miss - execute the delegate
@@ -634,11 +605,11 @@ internal sealed class CachingMiddleware(
 		// Get the return value if it's a generic result
 		var returnValue = ExtractReturnValue(messageResult);
 
-		// Honor BOTH the registered cache policy AND the message's own ICacheable<T>.ShouldCache
+		// Honor BOTH the registered cache policy AND the message's own ICacheable.ShouldCache
 		// decision. On the interface caching path the policy alone previously drove the decision,
 		// so an ICacheable result returning ShouldCache=false was silently cached anyway.
 		var shouldCache = ShouldCache(message, returnValue)
-			&& cacheableInfo.ShouldCache(message, returnValue);
+			&& cacheable.ShouldCache(returnValue);
 
 		// Store the return value in context
 		if (returnValue != null)
@@ -653,6 +624,10 @@ internal sealed class CachingMiddleware(
 			context.Items["Dispatch:OriginalResult"] = messageResult;
 		}
 
+		var tagStamps = shouldCache
+			? await CreateTagStampsAsync(tags, cancellationToken).ConfigureAwait(false)
+			: null;
+
 		// Create cached value that stores only the return value
 		return new CachedValue
 		{
@@ -662,7 +637,46 @@ internal sealed class CachingMiddleware(
 			HasExecuted = true,
 			TypeName = returnValue?.GetType().AssemblyQualifiedName,
 			ActionTypeName = DescribeActionType(message.GetType()),
+			TagStamps = tagStamps,
 		};
+	}
+
+	/// <summary>
+	/// Resolves each tag's current version stamp to embed in a newly written cache entry.
+	/// </summary>
+	/// <param name="tags">The cache tags for the entry being written.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>
+	/// A map of tag to the stamp it had at write time, or <see langword="null"/> when there is no tag
+	/// tracker configured or no tags to stamp. A tag whose stamp could not be resolved is omitted
+	/// rather than failing the write; a read later checking that specific tag treats its absence as
+	/// unprovable and serves fresh for that one entry, which is a single self-healing miss, not a
+	/// blocked write.
+	/// </returns>
+	private async Task<IReadOnlyDictionary<string, string>?> CreateTagStampsAsync(string[] tags, CancellationToken cancellationToken)
+	{
+		if (tagTracker is null || tags is not { Length: > 0 })
+		{
+			return null;
+		}
+
+		Dictionary<string, string>? stamps = null;
+		foreach (var tag in tags)
+		{
+			try
+			{
+				var stamp = await tagTracker.GetOrCreateStampAsync(tag, cancellationToken).ConfigureAwait(false);
+				(stamps ??= new Dictionary<string, string>(StringComparer.Ordinal))[tag] = stamp;
+			}
+			catch (Exception ex) when (ex is not OperationCanceledException)
+			{
+				// Fail-open: a cross-cutting cache must never break the write. The tag is simply omitted
+				// from this entry's recorded stamps.
+				logger.LogWarning(ex, "Failed to resolve version stamp for cache tag {Tag}; entry will be written without it.", tag);
+			}
+		}
+
+		return stamps;
 	}
 
 	/// <summary>
@@ -695,7 +709,7 @@ internal sealed class CachingMiddleware(
 
 		return await ExecuteWithCacheAsync(
 			key,
-			async ct => await CreateAttributeCacheValueAsync(message, context, nextDelegate, attr, ct).ConfigureAwait(false),
+			async ct => await CreateAttributeCacheValueAsync(message, context, nextDelegate, attr, tags, ct).ConfigureAwait(false),
 			expiration,
 			tags,
 			message,
@@ -738,7 +752,7 @@ internal sealed class CachingMiddleware(
 	{
 		// when the cache circuit breaker is open, skip the cache entirely and execute the handler
 		// directly (fail-open). This avoids paying the per-request CacheTimeout while the backend is
-		// known-unhealthy and gives it the configured OpenDuration to recover.
+		// known-unhealthy and gives it the configured BreakDuration to recover.
 		if (IsCacheBreakerOpen())
 		{
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
@@ -883,7 +897,7 @@ internal sealed class CachingMiddleware(
 			}
 		}
 
-		// Result handling (deserialization, poison-marker eviction, tag registration) runs OUTSIDE the
+		// Result handling (deserialization, poison-marker eviction, tag freshness check) runs OUTSIDE the
 		// fail-open scope: ONLY a cache-BACKEND failure fails open. A result-handling fault — e.g. a corrupt
 		// cached payload that fails to deserialize — is a data/logic error that MUST propagate, not be
 		// silently swallowed as a cache miss (which would mask data corruption).
@@ -1061,7 +1075,7 @@ internal sealed class CachingMiddleware(
 	private static void LogCachedValueTypeMismatch(ILogger logger, string? expectedType, string? actualType) =>
 		logger.LogWarning(
 			"Cache entry holds '{ActualType}' but the requesting action expects '{ExpectedType}'. Two action types "
-			+ "share a cache key. Serving the handler instead; give the actions distinct ICacheable<T>.GetCacheKey() values.",
+			+ "share a cache key. Serving the handler instead; give the actions distinct ICacheable.GetCacheKey() values.",
 			actualType,
 			expectedType);
 
@@ -1073,7 +1087,7 @@ internal sealed class CachingMiddleware(
 		logger.LogWarning(
 			"Cache entry was stored by '{StoringAction}' but '{RequestingAction}' requested it. Two action types "
 			+ "share a cache key. Serving the handler instead; give the actions distinct "
-			+ "ICacheable<T>.GetCacheKey() values.",
+			+ "ICacheable.GetCacheKey() values.",
 			storingAction,
 			requestingAction);
 
@@ -1126,7 +1140,7 @@ internal sealed class CachingMiddleware(
 	private static IMessageResult? CreateCachedMessageResult(Type returnType, object cachedValue)
 	{
 		// A cache key is not unique across action types. The key comes from the action itself via
-		// ICacheable<T>.GetCacheKey(), so two different actions can return the same string and address one
+		// ICacheable.GetCacheKey(), so two different actions can return the same string and address one
 		// entry — "user:{UserId}" on both a user query and a permissions query is ordinary code. Handing
 		// that entry to the wrong action returns another type's data to the caller.
 		//
@@ -1176,7 +1190,7 @@ internal sealed class CachingMiddleware(
 
 	/// <summary>
 	/// Completes a cache operation after <c>GetOrCreateAsync</c> returns: evicts non-cacheable markers,
-	/// records hit/miss telemetry, registers tag→key mappings for cacheable entries, and resolves the result.
+	/// checks tagged entries for staleness, records hit/miss telemetry, and resolves the result.
 	/// </summary>
 	/// <param name="key">The cache key.</param>
 	/// <param name="cachedResult">The value returned from HybridCache (fresh or served).</param>
@@ -1209,21 +1223,16 @@ internal sealed class CachingMiddleware(
 		// cache hit that still re-executes for the full TTL.
 		if (freshlyExecuted && cachedResult is { ShouldCache: false })
 		{
-			await RemovePoisonMarkerAsync(key, cancellationToken).ConfigureAwait(false);
+			await EvictAsync(key, "non-cacheable cache marker", cancellationToken).ConfigureAwait(false);
 		}
-		else
+		else if (!freshlyExecuted && tags is { Length: > 0 } && cachedResult is { ShouldCache: true, Value: not null })
 		{
-		}
-
-		// register a tag→key mapping exactly when a cacheable tagged entry is persisted — gate on the
-		// cache OUTCOME (ShouldCache:true, Value:not null), not on "did the local factory run". This both
-		// stops registering tags for non-cacheable markers AND registers the key when an entry was resolved
-		// from shared L2 without the local factory running (cross-instance tag invalidation).
-		if (tagTracker is not null
-			&& tags is { Length: > 0 }
-			&& cachedResult is { ShouldCache: true, Value: not null })
-		{
-			await RegisterTagKeysAsync(tagTracker, key, tags, cancellationToken).ConfigureAwait(false);
+			// A genuine hit (this request did not run the factory) for a tagged entry: prove it has not
+			// been invalidated since it was written before trusting it. A stale entry is evicted so the
+			// NEXT independent request naturally misses and repopulates with a fresh stamp -- this
+			// request falls through to nextDelegate below via cachedResult becoming null, serving fresh
+			// without waiting for that next request.
+			cachedResult = await CheckTaggedEntryFreshnessAsync(key, cachedResult, tags, cancellationToken).ConfigureAwait(false);
 		}
 
 		// Recorded AFTER the read-side guards, not before. An entry those guards reject is not served — the
@@ -1239,11 +1248,84 @@ internal sealed class CachingMiddleware(
 	}
 
 	/// <summary>
-	/// Evicts a non-cacheable marker entry, failing open so a removal error never surfaces to the caller.
+	/// Checks a tagged entry's write-time version stamps against each tag's current stamp, and evicts
+	/// the entry if it is stale.
+	/// </summary>
+	/// <param name="key">The cache key of the entry being checked.</param>
+	/// <param name="cachedResult">The candidate entry, already known <c>ShouldCache: true, Value: not null</c>.</param>
+	/// <param name="tags">The entry's cache tags.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>
+	/// <paramref name="cachedResult"/> unchanged when every tag's recorded stamp still matches its
+	/// current one; otherwise <see langword="null"/>, so the caller falls through and serves fresh.
+	/// </returns>
+	/// <remarks>
+	/// Two different kinds of "no stamp to compare" are handled differently here, by design (see
+	/// <see cref="ICacheTagTracker"/>'s remarks): a tag the tracker cannot currently resolve a stamp
+	/// for is treated as invalidated (fail closed — the tracker itself is what decides whether an
+	/// absent-from-backend tag counts as cold-and-valid or as unresolved); an entry with no recorded
+	/// stamp for one of its own tags is unconditionally treated as invalidated here (fail closed) —
+	/// most commonly an entry serialized before this mechanism existed, which has nothing to prove its
+	/// own validity with and must not be trusted merely because nothing contradicts it.
+	/// </remarks>
+	private async Task<CachedValue?> CheckTaggedEntryFreshnessAsync(
+		string key,
+		CachedValue cachedResult,
+		string[] tags,
+		CancellationToken cancellationToken)
+	{
+		if (tagTracker is null)
+		{
+			return cachedResult;
+		}
+
+		foreach (var tag in tags)
+		{
+			if (cachedResult.TagStamps is null || !cachedResult.TagStamps.TryGetValue(tag, out var recordedStamp))
+			{
+				// Malformed: this entry has nothing recorded for one of its own tags. Never conflate with
+				// a tag that simply has no stamp in the backend yet -- that is the tracker's concern, not
+				// this entry's. Fail closed.
+				await EvictAsync(key, "tagged entry missing its recorded version stamp", cancellationToken).ConfigureAwait(false);
+				return null;
+			}
+
+			string currentStamp;
+			try
+			{
+				currentStamp = await tagTracker.GetOrCreateStampAsync(tag, cancellationToken).ConfigureAwait(false);
+			}
+			catch (Exception ex) when (ex is not OperationCanceledException)
+			{
+				// The tracker could not resolve this tag's current stamp, so staleness can be neither
+				// proven nor disproven. Fail closed: the handler runs and the request still succeeds, it
+				// just is not served from cache this one time.
+				logger.LogWarning(
+					ex,
+					"Failed to resolve current version stamp for cache tag {Tag}; treating cache key {CacheKey} as stale.",
+					tag,
+					key);
+				await EvictAsync(key, "cache tag version stamp could not be resolved", cancellationToken).ConfigureAwait(false);
+				return null;
+			}
+
+			if (!string.Equals(recordedStamp, currentStamp, StringComparison.Ordinal))
+			{
+				await EvictAsync(key, "cache tag was invalidated", cancellationToken).ConfigureAwait(false);
+				return null;
+			}
+		}
+
+		return cachedResult;
+	}
+
+	/// <summary>
+	/// Evicts a cache entry, failing open so a removal error never surfaces to the caller.
 	/// </summary>
 	/// <param name="key">The cache key to remove.</param>
+	/// <param name="reason">A short, human-readable reason for the eviction, used only in the failure log.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	private async Task RemovePoisonMarkerAsync(string key, CancellationToken cancellationToken)
+	private async Task EvictAsync(string key, string reason, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -1252,30 +1334,8 @@ internal sealed class CachingMiddleware(
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			// Fail-open: a cross-cutting cache must never break the core operation. Failing to evict the
-			// non-cacheable marker only means a future request may see a stale marker — log, do not throw.
-			logger.LogWarning(ex, "Failed to evict non-cacheable cache marker for key {CacheKey}", key);
-		}
-	}
-
-	/// <summary>
-	/// Registers a tag→key mapping for a cacheable tagged entry, failing open so a tag-store backend error
-	/// (e.g. the tag store is down) never surfaces to the caller.
-	/// </summary>
-	/// <param name="tracker">The tag tracker (already confirmed non-null at the call site).</param>
-	/// <param name="key">The cache key to register.</param>
-	/// <param name="tags">The cache tags to associate with the key.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	private async Task RegisterTagKeysAsync(ICacheTagTracker tracker, string key, string[] tags, CancellationToken cancellationToken)
-	{
-		try
-		{
-			await tracker.RegisterKeyAsync(key, tags, cancellationToken).ConfigureAwait(false);
-		}
-		catch (Exception ex) when (ex is not OperationCanceledException)
-		{
-			// Fail-open: a cross-cutting cache must never break the core operation. Failing to register the
-			// tag→key mapping only means a later tag-based invalidation may miss this key — log, do not throw.
-			logger.LogWarning(ex, "Failed to register tag-to-key mapping for cache key {CacheKey}", key);
+			// entry only means a future request may see it again — log, do not throw.
+			logger.LogWarning(ex, "Failed to evict cache entry for key {CacheKey} ({Reason})", key, reason);
 		}
 	}
 
@@ -1320,52 +1380,5 @@ internal sealed class CachingMiddleware(
 		return TimeSpan.FromMilliseconds(Math.Max(jitteredMs, 1.0));
 	}
 
-	/// <summary>
-	/// Helper class to hold reflection information for ICacheable interface methods.
-	/// </summary>
-	private sealed class CacheableInfo
-	{
-		/// <summary>
-		/// Gets or sets the ICacheable interface type.
-		/// </summary>
-		public Type Interface { get; set; } = null!;
-
-		/// <summary>
-		/// Gets or sets the ShouldCache method info.
-		/// </summary>
-		public MethodInfo ShouldCacheMethod { get; set; } = null!;
-
-		/// <summary>
-		/// Gets or sets the ExpirationSeconds property info.
-		/// </summary>
-		public PropertyInfo ExpirationProperty { get; set; } = null!;
-
-		/// <summary>
-		/// Gets or sets the GetCacheTags method info.
-		/// </summary>
-		public MethodInfo GetCacheTagsMethod { get; set; } = null!;
-
-		/// <summary>
-		/// Determines if the result should be cached by invoking the ShouldCache method.
-		/// </summary>
-		/// <param name="message">The message to check.</param>
-		/// <param name="returnValue">The return value to check.</param>
-		/// <returns>True if the result should be cached; otherwise, false.</returns>
-		public bool ShouldCache(object message, object? returnValue) => ShouldCacheMethod?.Invoke(message, [returnValue]) as bool? ?? true;
-
-		/// <summary>
-		/// Gets the expiration seconds by reading the ExpirationSeconds property.
-		/// </summary>
-		/// <param name="message">The message to get expiration for.</param>
-		/// <returns>The expiration seconds.</returns>
-		public int GetExpirationSeconds(object message) => ExpirationProperty?.GetValue(message) as int? ?? 60;
-
-		/// <summary>
-		/// Gets the cache tags by invoking the GetCacheTags method.
-		/// </summary>
-		/// <param name="message">The message to get tags for.</param>
-		/// <returns>The cache tags.</returns>
-		public string[] GetTags(object message) => GetCacheTagsMethod?.Invoke(message, parameters: null) as string[] ?? [];
-	}
 
 }

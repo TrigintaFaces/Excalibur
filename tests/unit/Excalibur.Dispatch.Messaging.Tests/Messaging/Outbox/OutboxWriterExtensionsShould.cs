@@ -15,22 +15,18 @@ namespace Excalibur.Dispatch.Messaging.Tests.Messaging.Outbox;
 public sealed class OutboxWriterExtensionsShould : UnitTestBase
 {
 	[Fact]
-	public async Task DelegateToWriteAsyncOnWriter()
+	public async Task DelegateToTheSchedulingWriterWhenItSupportsScheduling()
 	{
-		// Arrange
-		var writer = A.Fake<IOutboxWriter>();
+		// Renamed from DelegateToWriteAsyncOnWriter, which asserted the defect: that a scheduled write on a
+		// writer without scheduling support fell through to a plain immediate WriteAsync. Delegation to
+		// WriteAsync is the wrong outcome, so a test named for it could only ever pass while the bug stood.
+		var writer = new AwaitsBeforeRecordingWriter();
 		var message = A.Fake<IDispatchMessage>();
 		var scheduledAt = new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero);
 
-		A.CallTo(() => writer.WriteAsync(message, "dest", A<CancellationToken>._))
-			.Returns(ValueTask.CompletedTask);
-
-		// Act
 		await writer.WriteScheduledAsync(message, "dest", scheduledAt, CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => writer.WriteAsync(message, "dest", CancellationToken.None))
-			.MustHaveHappenedOnceExactly();
+		writer.Recorded.ShouldBe(scheduledAt);
 	}
 
 	[Fact]
@@ -59,42 +55,51 @@ public sealed class OutboxWriterExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task AcceptNullDestination()
+	public async Task RefuseAWriterThatCannotSchedule_RatherThanWritingItImmediately()
 	{
-		// Arrange
+		// This arm used to assert the opposite: that a writer without scheduling support silently received
+		// a plain WriteAsync. That is a delivery at the WRONG TIME, which is the single thing this overload
+		// exists to control, and it happened with no error and nothing logged. The message still arrives,
+		// so nothing downstream looks broken -- a scheduled reminder or a delayed compensation just fires
+		// at once. RED against any return to the fallback.
 		var writer = A.Fake<IOutboxWriter>();
 		var message = A.Fake<IDispatchMessage>();
 		var scheduledAt = DateTimeOffset.UtcNow.AddHours(1);
 
-		A.CallTo(() => writer.WriteAsync(message, null, A<CancellationToken>._))
-			.Returns(ValueTask.CompletedTask);
+		var thrown = await Should.ThrowAsync<NotSupportedException>(
+			async () => await writer.WriteScheduledAsync(message, null, scheduledAt, CancellationToken.None));
 
-		// Act
+		thrown.Message.ShouldContain("cannot schedule");
+		A.CallTo(() => writer.WriteAsync(A<IDispatchMessage>._, A<string?>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task AcceptNullDestination()
+	{
+		var writer = new AwaitsBeforeRecordingWriter();
+		var message = A.Fake<IDispatchMessage>();
+		var scheduledAt = DateTimeOffset.UtcNow.AddHours(1);
+
 		await writer.WriteScheduledAsync(message, null, scheduledAt, CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => writer.WriteAsync(message, null, CancellationToken.None))
-			.MustHaveHappenedOnceExactly();
+		writer.Recorded.ShouldBe(scheduledAt);
 	}
 
 	[Fact]
 	public async Task PassCancellationTokenThrough()
 	{
 		// Arrange
-		var writer = A.Fake<IOutboxWriter>();
+		var writer = new AwaitsBeforeRecordingWriter();
 		var message = A.Fake<IDispatchMessage>();
 		var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(30);
 		using var cts = new CancellationTokenSource();
-
-		A.CallTo(() => writer.WriteAsync(message, "dest", cts.Token))
-			.Returns(ValueTask.CompletedTask);
 
 		// Act
 		await writer.WriteScheduledAsync(message, "dest", scheduledAt, cts.Token);
 
 		// Assert
-		A.CallTo(() => writer.WriteAsync(message, "dest", cts.Token))
-			.MustHaveHappenedOnceExactly();
+		writer.Recorded.ShouldBe(scheduledAt);
 	}
 
 	[Fact]

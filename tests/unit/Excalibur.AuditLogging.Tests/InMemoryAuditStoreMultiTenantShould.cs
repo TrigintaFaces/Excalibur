@@ -61,12 +61,24 @@ public sealed class InMemoryAuditStoreMultiTenantShould : IDisposable
     [Fact]
     public async Task Return_last_event_per_tenant()
     {
-        await _sut.StoreAsync(CreateEvent("evt-t1-first", "tenant-1"), CancellationToken.None);
-        await _sut.StoreAsync(CreateEvent("evt-t1-last", "tenant-1"), CancellationToken.None);
-        await _sut.StoreAsync(CreateEvent("evt-t2-only", "tenant-2"), CancellationToken.None);
+        // GetLastEventAsync resolves the AMBIENT scope, never a caller-supplied argument (the parameter
+        // was removed -- Excalibur_Dispatch-t8n6n5 -- because every store already ignored it and honouring
+        // it directly was the cross-tenant vulnerability). A switchable context is required to observe
+        // both tenants' "last event" from one store instance, same shape as Store_events_for_different_
+        // tenants_independently above.
+        var ambient = new SwitchableTenantContext("tenant-1");
+        using var sut = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), ambient);
 
-        var t1Last = await _sut.GetLastEventAsync("tenant-1", CancellationToken.None);
-        var t2Last = await _sut.GetLastEventAsync("tenant-2", CancellationToken.None);
+        await sut.StoreAsync(CreateEvent("evt-t1-first", "tenant-1"), CancellationToken.None);
+        await sut.StoreAsync(CreateEvent("evt-t1-last", "tenant-1"), CancellationToken.None);
+
+        ambient.TenantId = "tenant-2";
+        await sut.StoreAsync(CreateEvent("evt-t2-only", "tenant-2"), CancellationToken.None);
+
+        var t2Last = await sut.GetLastEventAsync(CancellationToken.None);
+
+        ambient.TenantId = "tenant-1";
+        var t1Last = await sut.GetLastEventAsync(CancellationToken.None);
 
         t1Last.ShouldNotBeNull();
         t1Last.EventId.ShouldBe("evt-t1-last");
@@ -80,7 +92,7 @@ public sealed class InMemoryAuditStoreMultiTenantShould : IDisposable
         await _sut.StoreAsync(CreateEvent("evt-def-1"), CancellationToken.None);
         await _sut.StoreAsync(CreateEvent("evt-def-2"), CancellationToken.None);
 
-        var last = await _sut.GetLastEventAsync(null, CancellationToken.None);
+        var last = await _sut.GetLastEventAsync(CancellationToken.None);
 
         last.ShouldNotBeNull();
         last.EventId.ShouldBe("evt-def-2");
@@ -165,8 +177,8 @@ public sealed class InMemoryAuditStoreMultiTenantShould : IDisposable
         _sut.Clear();
 
         _sut.Count.ShouldBe(0);
-        var t1Last = await _sut.GetLastEventAsync("tenant-1", CancellationToken.None);
-        var t2Last = await _sut.GetLastEventAsync("tenant-2", CancellationToken.None);
+        var t1Last = await _sut.GetLastEventAsync(CancellationToken.None);
+        var t2Last = await _sut.GetLastEventAsync(CancellationToken.None);
         t1Last.ShouldBeNull();
         t2Last.ShouldBeNull();
     }

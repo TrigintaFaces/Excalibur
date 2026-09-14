@@ -40,27 +40,27 @@ public sealed class MiddlewareAttributesAndResultsShould
 		Should.Throw<ArgumentNullException>(() => new SchemaIdAttribute(null!));
 	}
 
-	// --- ValidationError ---
+	// --- MessageValidationError ---
 
 	[Fact]
-	public void ValidationError_StoreProperties()
+	public void MessageValidationError_StoreProperties()
 	{
-		var error = new ValidationError("Name", "Name is required");
+		var error = new MessageValidationError("Name", "Name is required");
 
 		error.PropertyName.ShouldBe("Name");
 		error.ErrorMessage!.ShouldBe("Name is required");
 	}
 
 	[Fact]
-	public void ValidationError_ThrowOnNullPropertyName()
+	public void MessageValidationError_ThrowOnNullPropertyName()
 	{
-		Should.Throw<ArgumentNullException>(() => new ValidationError(null!, "msg"));
+		Should.Throw<ArgumentNullException>(() => new MessageValidationError(null!, "msg"));
 	}
 
 	[Fact]
-	public void ValidationError_ThrowOnNullErrorMessage()
+	public void MessageValidationError_ThrowOnNullErrorMessage()
 	{
-		Should.Throw<ArgumentNullException>(() => new ValidationError("Name", null!));
+		Should.Throw<ArgumentNullException>(() => new MessageValidationError("Name", null!));
 	}
 
 	// --- MessageValidationResult ---
@@ -78,8 +78,8 @@ public sealed class MiddlewareAttributesAndResultsShould
 	public void MessageValidationResult_Failure_HasErrors()
 	{
 		var result = MessageValidationResult.Failure(
-			new ValidationError("Field1", "Required"),
-			new ValidationError("Field2", "Too long"));
+			new MessageValidationError("Field1", "Required"),
+			new MessageValidationError("Field2", "Too long"));
 
 		result.IsValid.ShouldBeFalse();
 		result.Errors.Count.ShouldBe(2);
@@ -90,7 +90,7 @@ public sealed class MiddlewareAttributesAndResultsShould
 	[Fact]
 	public void MessageValidationResult_CreateWithConstructor()
 	{
-		var errors = new[] { new ValidationError("A", "B") };
+		var errors = new[] { new MessageValidationError("A", "B") };
 		var result = new MessageValidationResult(true, errors);
 
 		result.IsValid.ShouldBeTrue();

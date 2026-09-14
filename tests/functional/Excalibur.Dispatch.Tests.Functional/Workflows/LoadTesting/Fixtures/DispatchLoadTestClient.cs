@@ -102,9 +102,9 @@ public sealed class DispatchLoadTestClient : IAsyncDisposable
 
 			return new DispatchTestResult
 			{
-				Success = result.IsSuccess,
+				Success = result.Succeeded,
 				LatencyMs = sw.Elapsed.TotalMilliseconds,
-				Error = result.IsSuccess ? string.Empty : result.ErrorMessage ?? "Dispatch failed",
+				Error = result.Succeeded ? string.Empty : result.ErrorMessage ?? "Dispatch failed",
 			};
 		}
 		catch (Exception ex)
@@ -139,9 +139,9 @@ public sealed class DispatchLoadTestClient : IAsyncDisposable
 
 			return new DispatchTestResult
 			{
-				Success = result.IsSuccess,
+				Success = result.Succeeded,
 				LatencyMs = sw.Elapsed.TotalMilliseconds,
-				Error = result.IsSuccess ? string.Empty : result.ErrorMessage ?? "CDC dispatch failed",
+				Error = result.Succeeded ? string.Empty : result.ErrorMessage ?? "CDC dispatch failed",
 			};
 		}
 		catch (Exception ex)

@@ -32,6 +32,18 @@ internal sealed class GooglePubSubOptionsValidator : IValidateOptions<GooglePubS
 				"Google Pub/Sub SubscriptionId is required. Set GooglePubSubOptions.Connection.SubscriptionId to the target subscription.");
 		}
 
+		// The flow-control limits are nested inside these options, so nothing resolves an
+		// IValidateOptions<PubSubFlowControlOptions> for them. Validate them here or they are
+		// never validated at all.
+		try
+		{
+			options.Subscriber.FlowControl.Validate();
+		}
+		catch (ArgumentException ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+
 		return ValidateOptionsResult.Success;
 	}
 }

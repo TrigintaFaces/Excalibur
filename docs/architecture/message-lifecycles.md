@@ -135,7 +135,7 @@ Clustering introduces partition ownership and shard movement concerns.
 ### Envelope ↔ Transport workflow
 
 Dispatch’s CloudEvents bridge now composes an `ICloudEventEnvelopeConverter` with transport-specific
-`ICloudEventMapper<T>` implementations so that envelope metadata is materialised once and reused by
+`ICloudEventEncoder<T>` implementations so that envelope metadata is materialised once and reused by
 every transport. The bridge caches mapper instances and transparently handles CloudEvent ↔ envelope
 round-trips, including the special case where the transport already exposes `CloudEvent` as its
 native payload.【F:src\Dispatch\Excalibur.Dispatch\CloudEvents\EnvelopeCloudEventBridge.cs†L17-L118】 The

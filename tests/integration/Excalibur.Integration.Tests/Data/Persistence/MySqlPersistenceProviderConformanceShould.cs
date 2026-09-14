@@ -44,6 +44,20 @@ public sealed class MySqlPersistenceProviderConformanceShould
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// An OPEN connection the arm owns, so it can still be observed after the scope is disposed. Built
+	/// from the fixture's connection string rather than the provider's own, because the arm must hold the
+	/// only remaining handle.
+	/// </remarks>
+	protected override async Task<System.Data.IDbConnection?> CreateEnlistableConnectionAsync(
+		IPersistenceProvider provider)
+	{
+		var connection = new MySqlConnector.MySqlConnection(_fixture.ConnectionString);
+		await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+		return connection;
+	}
+
+	/// <inheritdoc/>
 	protected override string ExpectedProviderType => "SQL";
 
 	/// <inheritdoc/>
@@ -97,6 +111,9 @@ public sealed class MySqlPersistenceProviderConformanceShould
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
+	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
+	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();
 	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 	[Fact] public void ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers_Test() => ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers();
 }

@@ -95,7 +95,7 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 			// healthy to the circuit forever.
 			return await breaker.ExecuteAsync(
 				async ct => await nextDelegate(message, context, ct).ConfigureAwait(false),
-				static result => !result.IsSuccess,
+				static result => !result.Succeeded,
 				cancellationToken).ConfigureAwait(false);
 		}
 		catch (CircuitBreakerOpenException)

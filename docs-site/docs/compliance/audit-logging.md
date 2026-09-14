@@ -13,7 +13,9 @@ Dispatch provides tamper-evident audit logging with cryptographic hash chaining 
 - **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Security
+  dotnet add package Excalibur.AuditLogging
+  # plus a store, for anything beyond development:
+  dotnet add package Excalibur.AuditLogging.SqlServer   # or Excalibur.AuditLogging.Postgres
   ```
 - Familiarity with [security overview](../security/index.md) and [audit logging providers](../observability/audit-logging-providers.md)
 
@@ -45,11 +47,10 @@ Each audit event includes a hash of the previous event, creating an immutable ch
 ### Configuration
 
 ```csharp
-// One-call minimal wiring
-// Registers audit store + annotation store + audit context + AuditMiddleware
-// with the default in-memory providers in a single call. Override any piece
-// by registering the concrete service before or after the call — standard
-// TryAdd semantics apply.
+// Registers AuditMiddleware and the request-context services it needs
+// (IActivityContext, ICorrelationId, IETag, IClientAddress).
+// It does NOT register an audit store, an annotation store, or IAuditContext —
+// call AddAuditLogging(), AddAuditAnnotations() and AddAuditContext() for those.
 services.AddExcalibur(excalibur => excalibur.AddAudit());
 
 // Development/testing — in-memory store (no persistence), manual composition
@@ -60,7 +61,7 @@ services.AddAuditLogging();
 services.AddSqlServerAuditStore(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
-    options.SchemaName = "compliance";
+    options.SchemaName = "audit";   // matches the schema 001_CreateAuditSchema.sql creates
     options.EnableHashChain = true;
 });
 
@@ -242,7 +243,9 @@ var appEvents = await _auditStore.QueryAsync(query, ct);
 
 :::tip
 
-`ApplicationName` is set automatically from `ApplicationContext.ApplicationName` when not provided explicitly on the `AuditEvent`. Configure it once via hosting and all audit events will carry the application identity.
+`ApplicationName` is whatever you set on the `AuditEvent`. **It is not populated for you** — an event stored
+without one is stored with `NULL`. Set it explicitly if you share an audit backend between applications, so
+that chain scoping and filtering can tell them apart.
 :::
 
 ### Filter by Resource
@@ -303,9 +306,11 @@ Audit queries are optimized for indexed fields:
 | EventType | Yes | Filter by category |
 | ResourceClassification | Yes | Sensitive data access |
 
-### Performance Target
+### Query Shape
 
-Queries should complete in under 5 seconds for 1M records when using indexed fields:
+The indexes are shaped for time-bounded, actor-scoped reads. **No query-latency figure is published here** —
+none is measured in this framework's own suite, and the number that matters is the one your data volume and
+your hardware produce:
 
 ```csharp
 var query = new AuditQuery
@@ -519,23 +524,23 @@ only some of its properties reach the sweep. Set the retention window on `AuditR
 | `AuditRetentionOptions.RetentionPeriod` | The cutoff the scheduled sweep deletes behind. |
 | `AuditRetentionOptions.CleanupInterval` | How often the sweep runs. |
 | `AuditRetentionOptions.EnableRetentionEnforcement` | Honoured; `true` by default. |
-| `AuditRetentionOptions.BatchSize` | Reported by `GetRetentionPolicyAsync`; not passed to the store's delete. |
 | `SqlServerAuditOptions.Retention.EnableRetentionEnforcement` | Projected onto the option above, so setting either works. |
+| `SqlServerAuditOptions.Retention.RetentionPeriod` | Projected onto the option above, so setting either works. |
+| `SqlServerAuditOptions.Retention.CleanupInterval` | Projected onto the option above, so setting either works. |
 | `SqlServerAuditOptions.Retention.CleanupBatchSize` | The SQL Server store's own delete batch size. |
-| `SqlServerAuditOptions.Retention.RetentionPeriod` | **No effect.** Set `AuditRetentionOptions.RetentionPeriod` instead. |
-| `SqlServerAuditOptions.Retention.CleanupInterval` | **No effect.** Set `AuditRetentionOptions.CleanupInterval` instead. |
 
-The last two rows are the trap: they sit in the provider options block next to the connection
-string, which is where a retention window looks like it belongs, and the sweep never reads them.
-A host that sets only those keeps every audit event for the built-in default of seven years.
+Each projection carries a value only when it differs from the SQL Server block's own default, so
+registering the store never replaces a window you already set on `AuditRetentionOptions`. If you set the
+same property to a non-default value in **both** places, the registration you call **last** wins — so set
+each value in exactly one place.
 
 ### A store that cannot delete fails loudly
 
 The sweep resolves `IAuditPurgeCapability` from the registered store. A store that does not provide
 it causes enforcement to throw rather than log a completed pass, because a retention control that
-reports success while deleting nothing is a worse outcome than one that stops. SQL Server is
-currently the only audit store that provides this capability; the Postgres audit store does not, so
-scheduled retention against it fails on every sweep. `AddAuditRetention`
+reports success while deleting nothing is a worse outcome than one that stops. SQL Server and PostgreSQL both provide this
+capability, so scheduled retention works against either. A store that does not provide it — including the
+in-memory store — is what causes enforcement to throw. `AddAuditRetention`
 additionally installs a startup gate that fails closed on a volatile (in-memory) audit store,
 unless the host opts in with `AuditLoggingOptions.AllowVolatileAuditStore = true`.
 
@@ -582,18 +587,22 @@ tenant in the range. Its result attests the integrity of the whole chain, not of
 do not present it to a tenant as evidence about their own data, and treat it as an operator-level operation
 regardless of who can currently call it.
 
-Whether that breadth is intended is not stated in the contract, and unlike the dead-letter queue there is no
-separate administrative interface here that would mark an estate-wide operation as deliberate. Until that is
-settled, assume the narrower thing: restrict who can call it.
+**The scope is a property of the store, and it is stated per store** in the package's `ARCHITECTURE.md`:
+estate-wide, enumerated per partition, on the SQL Server and PostgreSQL stores; confined to the ambient
+tenant on the in-memory store. So the breadth is deliberate on the two production stores, and the default
+in-memory store behaves differently from both — do not infer one from the other.
+
+To restrict who may call it, register `AddRbacAuditStore()`, which requires `ComplianceOfficer` or above and
+writes a meta-audit record of every verification.
 
 **What conformance enforces.** The shipped audit-store conformance kit exercises tenant scoping on
-`QueryAsync` — that an unscoped query does not return another tenant's events, that naming another tenant
-does not reach it, and that a scoped caller still receives its **own** events — plus `GetLastEventAsync`.
-Those arms run against real SQL Server and PostgreSQL containers.
+`QueryAsync` — that an unscoped query does not return another tenant's events, and that a scoped caller
+still receives its **own** — plus `GetLastEventAsync` and `GetByIdAsync` (another tenant's event reported as
+not found, a caller's own event still returned). A caller cannot name a tenant on a query at all: `AuditQuery`
+has no tenant member, so there is no such arm and no such call.
 
-The kit also exercises tenant scoping on `GetByIdAsync` — that another tenant's event is reported as not
-found, and that a caller's **own** event is still returned. No arm exercises `VerifyChainIntegrityAsync`,
-which takes no tenant argument.
+Chain verification **is** covered, by five arms — including one over an intact trail interleaving two
+tenants. Every arm above runs against real SQL Server and PostgreSQL containers.
 :::
 
 Each tenant has an isolated hash chain:
@@ -619,94 +628,30 @@ var result = await _auditStore.VerifyChainIntegrityAsync(
 
 ### SQL Server
 
-```sql
-CREATE SCHEMA [audit];
+The shipped provisioning script is the single source for this schema:
+`Excalibur.AuditLogging.SqlServer/Scripts/001_CreateAuditSchema.sql`. **Run it rather than copying DDL
+out of this page** — an earlier revision of this page carried a copy that had drifted, and the warning
+below exists because consumers provisioned from it.
 
--- Filtered indexes (those with a WHERE clause) require QUOTED_IDENTIFIER ON, and sqlcmd
--- defaults it OFF. Without this the filtered indexes below fail with Msg 1934 and are
--- simply absent from your database.
-SET ANSI_NULLS ON;
-SET QUOTED_IDENTIFIER ON;
-GO
+What the script creates, so you know what to expect:
 
-CREATE TABLE [audit].[AuditEvents] (
-    -- Identity and ordering
-    [SequenceNumber] BIGINT IDENTITY(1,1) NOT NULL,
-    [EventId] NVARCHAR(64) NOT NULL,
-
-    -- Event classification
-    [EventType] INT NOT NULL,
-    [Action] NVARCHAR(100) NOT NULL,
-    [Outcome] INT NOT NULL,
-    [Timestamp] DATETIMEOFFSET(7) NOT NULL,
-
-    -- Actor information
-    [ActorId] NVARCHAR(256) NOT NULL,
-    [ActorType] NVARCHAR(50) NULL,
-
-    -- Resource information
-    [ResourceId] NVARCHAR(256) NULL,
-    [ResourceType] NVARCHAR(100) NULL,
-    [ResourceClassification] INT NULL,
-
-    -- Context and correlation
-    -- Binary collation, and NOT NULL. The server default is typically case-insensitive, under
-    -- which 'Acme' = 'acme' and a tenant-scoped read returns another tenant's rows with no error.
-    [TenantId] NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
-    [ApplicationName] NVARCHAR(256) NULL,
-    [CorrelationId] NVARCHAR(64) NULL,
-    [SessionId] NVARCHAR(64) NULL,
-
-    -- Source information
-    [IpAddress] NVARCHAR(45) NULL,
-    [UserAgent] NVARCHAR(500) NULL,
-
-    -- Additional context
-    [Reason] NVARCHAR(1000) NULL,
-    [Metadata] NVARCHAR(MAX) NULL, -- JSON
-
-    -- Hash chain integrity
-    [PreviousEventHash] NVARCHAR(512) NULL, -- keyed integrity tag: v1:{keyId}:{base64-hmac}
-    [EventHash] NVARCHAR(512) NOT NULL, -- keyed integrity tag: v1:{keyId}:{base64-hmac}
-
-    CONSTRAINT [PK_AuditEvents] PRIMARY KEY CLUSTERED ([SequenceNumber] ASC),
-    CONSTRAINT [UQ_AuditEvents_EventId] UNIQUE NONCLUSTERED ([EventId])
-);
-
--- Performance indices
-CREATE INDEX [IX_AuditEvents_Timestamp]
-ON [audit].[AuditEvents] ([Timestamp] DESC)
-INCLUDE ([EventId], [EventType], [ActorId], [Outcome]);
-
-CREATE INDEX [IX_AuditEvents_ActorId_Timestamp]
-ON [audit].[AuditEvents] ([ActorId], [Timestamp] DESC)
-INCLUDE ([EventType], [Action], [ResourceId]);
-
--- Deliberately unfiltered, unlike the indexes below it. [TenantId] is NOT NULL and untenanted rows
--- carry the '__untenanted__' sentinel, so a WHERE [TenantId] IS NOT NULL filter would exclude no
--- row while making the index unusable for the untenanted partition's own scoped reads. If you
--- provisioned this table from an earlier version of this page, drop and recreate this index without
--- the filter.
-CREATE INDEX [IX_AuditEvents_TenantId_Timestamp]
-ON [audit].[AuditEvents] ([TenantId], [Timestamp] DESC);
-
-CREATE INDEX [IX_AuditEvents_ApplicationName_Timestamp]
-ON [audit].[AuditEvents] ([ApplicationName], [Timestamp] DESC)
-WHERE [ApplicationName] IS NOT NULL;
-
-CREATE INDEX [IX_AuditEvents_ResourceId_Timestamp]
-ON [audit].[AuditEvents] ([ResourceId], [Timestamp] DESC)
-WHERE [ResourceId] IS NOT NULL;
-
-CREATE INDEX [IX_AuditEvents_CorrelationId]
-ON [audit].[AuditEvents] ([CorrelationId])
-WHERE [CorrelationId] IS NOT NULL;
-```
+- An `[audit]` schema, an `[AuditEvents]` table and an `[AuditAnnotations]` table.
+- `TenantId` `NOT NULL` with an explicit untenanted sentinel default and a binary collation, so
+  "global" and "the caller forgot" stay distinguishable.
+- `PreviousEventHash` and `EventHash` as `NVARCHAR(512)` — see the warning below for why the width
+  matters.
+- Indexes on `(ActorId, Timestamp DESC)`, `(TenantId, Timestamp DESC)`, `(ApplicationName, …)`,
+  `(ResourceId, …)`, `(CorrelationId)`, `(EventType, …)`, `(ResourceClassification, …)`, the
+  sequence/hash pair used by chain verification, and a cleanup index on `Timestamp`.
+- A foreign key from `[AuditAnnotations].[EventId]` to `[AuditEvents].[EventId]` with
+  `ON DELETE CASCADE`. **That constraint is what makes annotation tenancy sound** — annotations carry
+  no `TenantId` of their own and derive it by joining the event — so it is a correctness constraint,
+  not housekeeping. Do not provision the annotation table without it.
 
 :::warning `PreviousEventHash` and `EventHash` are not SHA-256 hex digests
 
 They hold a versioned, keyed tag of the form `v1:{keyId}:{base64-encoded HMAC-SHA256}` — at minimum
-52 characters, and unbounded on the high end because `{keyId}` is supplied by your key provider (a
+49 characters (`v1:` + a one-character key id + `:` + the 44-character base64 MAC), and unbounded on the high end because `{keyId}` is supplied by your key provider (a
 KMS key ARN or Key Vault URI can run well past 100 characters). `NVARCHAR(512)` is the width the
 shipped provisioning script (`Excalibur.AuditLogging.SqlServer/Scripts/001_CreateAuditSchema.sql`)
 actually uses.
@@ -735,6 +680,9 @@ covering an unrepaired gap, not a clean trail.
 ```csharp
 public class AuditMiddleware : IDispatchMiddleware
 {
+    // Stage has no default on the interface — a middleware that omits it does not compile.
+    public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PostProcessing;
+
     private readonly IAuditStore _auditStore;
 
     public async ValueTask<IMessageResult> InvokeAsync(
@@ -750,8 +698,8 @@ public class AuditMiddleware : IDispatchMiddleware
             EventId = Guid.NewGuid().ToString(),
             EventType = DetermineEventType(message),
             Action = message.GetType().Name,
-            ActorId = context.UserId,
-            Outcome = result.IsSuccess
+            ActorId = context.GetUserId() ?? "system",
+            Outcome = result.Succeeded
                 ? AuditOutcome.Success
                 : AuditOutcome.Failure,
             Timestamp = DateTimeOffset.UtcNow,
@@ -805,7 +753,8 @@ public class AuditingOrderService : IOrderService
 public async Task Should_Query_Events_By_Date_Range()
 {
     // Arrange
-    var store = new InMemoryAuditStore();
+    var store = new ServiceCollection().AddLogging().AddAuditLogging()
+        .BuildServiceProvider().GetRequiredService<IAuditStore>();
     var now = DateTimeOffset.UtcNow;
 
     await store.StoreAsync(new AuditEvent
@@ -845,7 +794,8 @@ public async Task Should_Query_Events_By_Date_Range()
 public async Task Should_Detect_Tampering()
 {
     // Arrange
-    var store = new InMemoryAuditStore();
+    var store = new ServiceCollection().AddLogging().AddAuditLogging()
+        .BuildServiceProvider().GetRequiredService<IAuditStore>();
     // ... store events ...
 
     // Tamper with an event
@@ -889,9 +839,16 @@ Elasticsearch and OpenSearch are **audit sinks** -- write-only, search-optimized
 
 Only backends that can guarantee monotonic sequencing, document immutability, and transactional atomicity qualify as `IAuditStore` implementations:
 
+**What the framework provides is detection, not prevention.** Both SQL stores chain each record to its
+predecessor with a keyed HMAC over a database-generated sequence, so a modified, inserted or removed record
+is *detectable* by `VerifyChainIntegrityAsync`. Preventing writes in the first place is a database
+permission decision you make — the shipped provisioning scripts create the tables and indexes and grant
+nothing; neither issues a `DENY` or `REVOKE`.
+
 | Backend | Role | Hash Chain | Tamper-Evident | Compliance-Grade |
 |---------|------|-----------|----------------|------------------|
-| **SQL Server** | `IAuditStore` | Yes | Yes (IDENTITY + DENY) | Yes |
+| **SQL Server** | `IAuditStore` | Yes | Yes (keyed HMAC chain over an `IDENTITY` sequence) | Yes |
+| **PostgreSQL** | `IAuditStore` | Yes | Yes (keyed HMAC chain over a `BIGSERIAL` sequence) | Yes |
 | **Elasticsearch** | Audit Sink | No | No (mutable documents) | No |
 | **OpenSearch** | Audit Sink | No | No (mutable documents) | No |
 
@@ -945,11 +902,13 @@ services.AddSqlServerAuditAnnotationStore(options =>
     options.CommandTimeoutSeconds = 30;  // default
 });
 
-// With RBAC enforcement. BOTH registrations are required: the decorator resolves the
-// caller's role through IAuditRoleProvider, and the framework ships NO implementation
-// of it — you supply one, because a role is a property of your caller's identity.
+// RBAC is not opt-in. AddAuditAnnotations() always binds IAuditAnnotationStore to the
+// access-checking decorator, so "I forgot to add it" is not a reachable state.
+// What you must supply is the role provider: the decorator resolves the caller's role
+// through IAuditRoleProvider, and the framework ships NO implementation of it, because
+// a role is a property of your caller's identity. A host without one fails at startup.
 services.AddScoped<IAuditRoleProvider, ClaimsBasedRoleProvider>();
-services.AddRbacAuditAnnotationStore();
+services.AddAuditAnnotations();
 ```
 
 :::warning Registering the RBAC store without a role provider is not a partial configuration — it is a broken one
@@ -1060,7 +1019,8 @@ AuditAnnotations result = await _annotations.GetAnnotationsAsync(eventId, ct);
 
 ### RBAC Enforcement
 
-When `AddRbacAuditAnnotationStore()` is registered, annotation access is controlled by `AuditLogRole`:
+Annotation access is always controlled by `AuditLogRole` — the access-checking decorator is registered by
+`AddAuditAnnotations()` and cannot be omitted:
 
 | Role | Tag | Bookmark | Annotate | View Others' Annotations |
 |------|-----|----------|----------|--------------------------|
@@ -1085,11 +1045,12 @@ tenant boundary at all.** The tenant boundary is a separate mechanism, described
 the tenancy of the event it describes. That join is applied on every read and every write, using a
 `NULL`-safe predicate so untenanted rows resolve to the reserved untenanted partition rather than vanishing.
 
-**On the in-memory annotation store there is no tenant term at all**, and it is the default before a
-database provider is registered. Authorship scoping still applies there, but it is orthogonal to tenancy: a
-caller reading **shared** annotations reads every tenant's shared annotations. Annotations are auditor commentary — which events your compliance staff flagged, and why — so
-treat that as more sensitive than the audited events themselves, and do not run the in-memory store in a
-multi-tenant host.
+**The in-memory annotation store is tenant-partitioned too.** It keys annotations by tenant and event,
+resolving the tenant from the ambient context, and its cross-event query compares the tenant term before
+evaluating anything else; authorship scoping applies on top of that. It remains a development store because
+it is volatile — not because of tenancy. Annotations are auditor commentary — which events your compliance
+staff flagged, and why — so treat them as more sensitive than the audited events themselves wherever you
+store them.
 
 :::
 
@@ -1097,24 +1058,19 @@ Annotation creation automatically emits a meta-audit event (`AuditEventType.Admi
 
 ### Annotations Database Schema
 
+The annotation table is created by the same shipped script as the events table
+(`Excalibur.AuditLogging.SqlServer/Scripts/001_CreateAuditSchema.sql`). Run it rather than copying DDL.
+
+The one thing to know before provisioning by any other route: the table carries **no `TenantId` column**,
+and derives its tenancy by joining the annotated event. That join is only sound because the script declares
+
 ```sql
-CREATE TABLE [audit].[AuditAnnotations] (
-    [Id] NVARCHAR(32) NOT NULL,
-    [EventId] NVARCHAR(64) NOT NULL,
-    [AnnotationType] INT NOT NULL,        -- 0=Tag, 1=Bookmark, 2=Note
-    [Content] NVARCHAR(MAX) NOT NULL,
-    [ActorId] NVARCHAR(256) NOT NULL,
-    [CreatedAt] DATETIMEOFFSET(7) NOT NULL,
-    [Visibility] INT NOT NULL,            -- 0=Personal, 1=Shared
-    CONSTRAINT [PK_AuditAnnotations] PRIMARY KEY ([Id])
-);
-
-CREATE INDEX [IX_AuditAnnotations_EventId]
-ON [audit].[AuditAnnotations] ([EventId]);
-
-CREATE INDEX [IX_AuditAnnotations_ActorId]
-ON [audit].[AuditAnnotations] ([ActorId]);
+CONSTRAINT [FK_AuditAnnotations_AuditEvents] FOREIGN KEY ([EventId])
+    REFERENCES [audit].[AuditEvents] ([EventId]) ON DELETE CASCADE
 ```
+
+An annotation table without that foreign key can hold rows whose event no longer exists, and those rows sit
+outside every tenant boundary this page describes.
 
 :::tip
 
@@ -1142,7 +1098,7 @@ services.AddAuditContext(options =>
 
 :::note
 
-`AddAuditContext()` registers `AuditContextMiddleware` which populates scope context before handler execution. Requires an `IAuditActorProvider` implementation and an `IAuditStore` registration.
+`AddAuditContext()` registers `AuditContextMiddleware` which populates scope context before handler execution. It requires an `IAuditStore` registration. An `IAuditActorProvider` is **optional** — without one, or if one throws, the actor is recorded as `"system"`.
 :::
 
 ### Assertions
@@ -1150,11 +1106,11 @@ services.AddAuditContext(options =>
 `AssertAsync` records an audit event only when the condition is `true`. When `false`, it returns `null` with zero I/O overhead.
 
 ```csharp
-public class ProcessOrderHandler : IMessageHandler<ProcessOrder>
+public sealed class ProcessOrderHandler : IDispatchHandler<ProcessOrder>
 {
     private readonly IAuditContext _audit;
 
-    public async Task HandleAsync(
+    public async Task<IMessageResult> HandleAsync(
         ProcessOrder message,
         IMessageContext context,
         CancellationToken ct)

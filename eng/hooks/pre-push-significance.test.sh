@@ -62,7 +62,7 @@ echo "-- SAFETY: internal tooling and process artifacts do not"
 expect_not_significant "eng/ci/some-gate.sh"
 expect_not_significant "eng/hooks/pre-push"
 expect_not_significant ".claude/rules/process/some-rule.md"
-expect_not_significant "management/architecture/adr-999-something.md"
+expect_not_significant "management/architecture/adr-999-something.md"  # pragma: allowlist internal-ref
 expect_not_significant "management/sprints/plan.md"
 expect_not_significant "tests/unit/Something/SomethingShould.cs"
 

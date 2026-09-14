@@ -33,6 +33,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 {
 	private readonly IServiceBusSenderSeam _sender;
 	private readonly ILogger _logger;
+	private static bool _priorityUnsupportedWarned;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -80,7 +81,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 
 		try
 		{
-			var serviceBusMessage = CreateServiceBusMessage(message);
+			var serviceBusMessage = CreateServiceBusMessage(message, _logger);
 
 			// Check for scheduled delivery
 			if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.ScheduledTime, out var scheduledObj) &&
@@ -129,7 +130,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 			var sbMessages = new List<ServiceBusMessage>(messages.Count);
 			foreach (var message in messages)
 			{
-				sbMessages.Add(CreateServiceBusMessage(message));
+				sbMessages.Add(CreateServiceBusMessage(message, _logger));
 			}
 
 			var overflowIndices = await _sender.SendBatchAsync(sbMessages, cancellationToken).ConfigureAwait(false);
@@ -214,7 +215,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 		GC.SuppressFinalize(this);
 	}
 
-	private static ServiceBusMessage CreateServiceBusMessage(TransportMessage message)
+	private static ServiceBusMessage CreateServiceBusMessage(TransportMessage message, ILogger logger)
 	{
 		var sbMessage = new ServiceBusMessage(message.Body)
 		{
@@ -258,6 +259,18 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 			sbMessage.ApplicationProperties["message-type"] = message.MessageType;
 		}
 
+		// Say so when a priority cannot be honoured, once per process. Service Bus has no native
+		// priority, and the loop below drops every dispatch.-prefixed key, so a caller who sets one was
+		// previously ignored in silence -- honoured on RabbitMQ, dropped here, with nothing to
+		// distinguish the two. Warn rather than throw: the message is still delivered correctly, only
+		// unordered by priority, so failing the send would be a larger break than the defect.
+		if (message.Properties.ContainsKey(TransportTelemetryConstants.PropertyKeys.Priority)
+			&& !_priorityUnsupportedWarned)
+		{
+			_priorityUnsupportedWarned = true;
+			LogPriorityNotSupported(logger);
+		}
+
 		// Copy custom properties
 		foreach (var (key, value) in message.Properties)
 		{
@@ -286,6 +299,13 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 	[LoggerMessage(AzureServiceBusEventId.TransportSenderSendFailed, LogLevel.Error,
 		"Service Bus transport sender: failed to send message {MessageId} to {Destination}")]
 	private partial void LogSendFailed(string messageId, string destination, Exception exception);
+
+	[LoggerMessage(AzureServiceBusEventId.TransportSenderPriorityNotSupported, LogLevel.Warning,
+		"Service Bus transport sender: a message set a delivery priority, which Azure Service Bus cannot "
+		+ "express -- it has no native priority field. The message is sent normally and delivered, but "
+		+ "priority is ignored; on RabbitMQ the same message would be prioritised. To order by priority "
+		+ "here, use a queue per priority level and drain them highest-first. Logged once per process.")]
+	private static partial void LogPriorityNotSupported(ILogger logger);
 
 	[LoggerMessage(AzureServiceBusEventId.TransportSenderBatchSent, LogLevel.Debug,
 		"Service Bus transport sender: batch of {Count} messages sent to {Destination}, {SuccessCount} succeeded")]

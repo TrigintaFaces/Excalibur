@@ -67,11 +67,37 @@ public sealed class CacheOptions
 	public string[] DefaultTags { get; set; } = [];
 
 	/// <summary>
-	/// Gets or sets the maximum number of key-to-tag entries tracked by the in-memory tag tracker.
-	/// When exceeded, new registrations are silently skipped. Default is 10,000.
+	/// Gets or sets the maximum number of distinct tags tracked by the in-memory tag tracker.
+	/// Default is 10,000.
 	/// </summary>
-	/// <value>The maximum number of tracked key-to-tag mappings.</value>
+	/// <value>The maximum number of tracked tag version stamps.</value>
 	public int TagTrackerCapacity { get; set; } = 10_000;
+
+	/// <summary>
+	/// Gets or sets how long a resolved tag version stamp is trusted before a tag tracker re-checks
+	/// its backend for a newer one. Default is 5 seconds. This interval is the bound on how long an
+	/// invalidation made on one instance can take to be observed by another.
+	/// </summary>
+	/// <value>The refresh interval for a tag tracker's per-tag version stamp memo.</value>
+	public TimeSpan TagStampRefreshInterval { get; set; } = DefaultTagStampRefreshInterval;
+
+	/// <summary>
+	/// Gets or sets how long a tag's version stamp record is retained in the distributed cache
+	/// backend. Default is 1000 days. Must be strictly greater than <see cref="CacheBehaviorOptions.DefaultExpiration"/>
+	/// so that a cache entry can never outlive the tag stamp record it was written against.
+	/// </summary>
+	/// <value>The retention period for a tag's version stamp record.</value>
+	public TimeSpan TagStampLifetime { get; set; } = DefaultTagStampLifetime;
+
+	/// <summary>
+	/// The default value of <see cref="TagStampRefreshInterval"/>.
+	/// </summary>
+	internal static readonly TimeSpan DefaultTagStampRefreshInterval = TimeSpan.FromSeconds(5);
+
+	/// <summary>
+	/// The default value of <see cref="TagStampLifetime"/>.
+	/// </summary>
+	internal static readonly TimeSpan DefaultTagStampLifetime = TimeSpan.FromDays(1000);
 
 	/// <summary>
 	/// Gets or sets the global cache policy to apply to all cacheable operations. Can be overridden per operation.
@@ -84,12 +110,6 @@ public sealed class CacheOptions
 	/// </summary>
 	/// <value>The cache key builder used to generate cache keys.</value>
 	public ICacheKeyBuilder? CacheKeyBuilder { get; set; }
-
-	/// <summary>
-	/// Gets or sets memory cache specific options. Only used when CacheMode is Memory or Hybrid.
-	/// </summary>
-	/// <value>Memory cache specific options.</value>
-	public DispatchMemoryCacheOptions Memory { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets distributed cache specific options. Only used when CacheMode is Distributed or Hybrid.

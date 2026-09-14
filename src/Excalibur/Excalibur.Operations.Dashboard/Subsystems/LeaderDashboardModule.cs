@@ -71,12 +71,13 @@ internal sealed class LeaderDashboardModule : IDashboardEndpointModule
 			ILeaderElection? election,
 			IFencingTokenProvider? fencing,
 			string? resource,
+			TimeProvider timeProvider,
 			CancellationToken ct) =>
 		{
 			if (election is null)
 			{
 				return Results.Json(
-					new LeaderView { Configured = false, CapturedAt = DateTimeOffset.UtcNow },
+					new LeaderView { Configured = false, CapturedAt = timeProvider.GetUtcNow() },
 					LeaderJsonContext.Default.LeaderView);
 			}
 
@@ -94,7 +95,7 @@ internal sealed class LeaderDashboardModule : IDashboardEndpointModule
 				CurrentLeaderId = election.CurrentLeaderId,
 				FencingToken = token,
 				Resource = string.IsNullOrWhiteSpace(resource) ? null : resource,
-				CapturedAt = DateTimeOffset.UtcNow,
+				CapturedAt = timeProvider.GetUtcNow(),
 			};
 			return Results.Json(view, LeaderJsonContext.Default.LeaderView);
 		});

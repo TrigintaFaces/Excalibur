@@ -91,7 +91,7 @@ public sealed class RabbitMqMessageBusPublishShould : UnitTestBase
 				Microsoft.Extensions.Options.Options.Create(options),
 				logger,
 				cloudEventBridge: null,
-				cloudEventMapper: null,
+				cloudEventEncoder: null,
 				cloudEventOptions: cloudOptions,
 				topologyInitializer: null);
 

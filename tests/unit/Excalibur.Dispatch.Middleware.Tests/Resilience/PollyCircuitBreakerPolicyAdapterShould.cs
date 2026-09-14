@@ -78,7 +78,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	}
 
 	[Fact]
-	public void UseDefaultCircuitNameWhenNotSpecified()
+	public async Task UseDefaultCircuitNameWhenNotSpecified()
 	{
 		// Arrange
 		var adapter = new PollyCircuitBreakerPolicyAdapter(new CircuitBreakerOptions());
@@ -89,7 +89,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		adapter.StateChanged += (_, args) => eventArgs = args;
 
 		// Force manual reset to trigger event
-		adapter.Reset();
+		await adapter.ResetAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - adapter should be created without throwing
 		((int)adapter.State).ShouldBe((int)CircuitState.Closed);
@@ -186,7 +186,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		await adapter.FailAsync().ConfigureAwait(false);
 
 		// Act
-		adapter.Reset();
+		await adapter.ResetAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		((int)adapter.State).ShouldBe((int)CircuitState.Closed);
@@ -199,8 +199,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 2,
-			OpenDuration = TimeSpan.FromSeconds(30),
+			MinimumThroughput = 2,
+			BreakDuration = TimeSpan.FromSeconds(30),
 		};
 		var adapter = CreateAdapter(options);
 
@@ -220,7 +220,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		eventCount = 0; // Reset count before our test
 
 		// Act
-		adapter.Reset();
+		await adapter.ResetAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		((int)await adapter.WaitForStateAsync(CircuitState.Closed).ConfigureAwait(false))
@@ -228,7 +228,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	}
 
 	[Fact]
-	public void NotRaiseStateChangedEventOnResetWhenAlreadyClosed()
+	public async Task NotRaiseStateChangedEventOnResetWhenAlreadyClosed()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
@@ -236,7 +236,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		adapter.StateChanged += (_, _) => eventRaised = true;
 
 		// Act
-		adapter.Reset();
+		await adapter.ResetAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		eventRaised.ShouldBeFalse();
@@ -248,8 +248,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 2,
-			OpenDuration = TimeSpan.FromMinutes(5),
+			MinimumThroughput = 2,
+			BreakDuration = TimeSpan.FromMinutes(5),
 		};
 		var adapter = CreateAdapter(options);
 
@@ -289,7 +289,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		circuitOpened.ShouldBeTrue();
 
 		// Act
-		adapter.Reset();
+		await adapter.ResetAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		var recovered = false;
@@ -441,8 +441,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 2,
-			OpenDuration = TimeSpan.FromSeconds(30),
+			MinimumThroughput = 2,
+			BreakDuration = TimeSpan.FromSeconds(30),
 		};
 		var adapter = CreateAdapter(options, "test-service");
 
@@ -473,13 +473,13 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	}
 
 	[Fact]
-	public void IncludeCircuitNameInException()
+	public async Task IncludeCircuitNameInException()
 	{
 		// Arrange - Polly v8 requires MinimumThroughput >= 2
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 2,
-			OpenDuration = TimeSpan.FromMinutes(1),
+			MinimumThroughput = 2,
+			BreakDuration = TimeSpan.FromMinutes(1),
 		};
 		var adapter = CreateAdapter(options, "my-named-circuit");
 
@@ -487,7 +487,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		CircuitStateChangedEventArgs? eventArgs = null;
 		adapter.StateChanged += (_, args) => eventArgs = args;
 
-		adapter.Reset(); // Won't raise event since already closed
+		await adapter.ResetAsync(CancellationToken.None).ConfigureAwait(false); // Won't raise event since already closed
 		((int)adapter.State).ShouldBe((int)CircuitState.Closed);
 	}
 
@@ -501,8 +501,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Arrange - Polly v8 requires MinimumThroughput >= 2 and BreakDuration >= 500ms
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 2,
-			OpenDuration = TimeSpan.FromMilliseconds(500),
+			MinimumThroughput = 2,
+			BreakDuration = TimeSpan.FromMilliseconds(500),
 		};
 		var adapter = CreateAdapter(options);
 		var eventsReceived = new List<CircuitStateChangedEventArgs>();

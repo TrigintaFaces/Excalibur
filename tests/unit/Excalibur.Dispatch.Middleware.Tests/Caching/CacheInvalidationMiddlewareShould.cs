@@ -211,13 +211,11 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task InvokeAsync_MemoryMode_FallsBackToMemoryCache_WhenHybridCacheIsNull()
+	public async Task InvokeAsync_MemoryMode_BumpsTagTrackerStamp_WhenHybridCacheIsNull()
 	{
 		// Arrange
 		var memoryCache = A.Fake<IMemoryCache>();
 		var tagTracker = A.Fake<ICacheTagTracker>();
-		A.CallTo(() => tagTracker.GetKeysByTagsAsync(A<string[]>._, _ct))
-			.Returns(new HashSet<string> { "cached-key-1" });
 
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions
 		{
@@ -234,18 +232,17 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		// Act
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert
-		A.CallTo(() => memoryCache.Remove("cached-key-1")).MustHaveHappenedOnceExactly();
+		// Assert -- no key resolution against the memory cache; the tag's version stamp is bumped so a
+		// tagged entry is discovered stale lazily, on its next read.
+		A.CallTo(() => tagTracker.BumpStampAsync("fallback-tag", _ct)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
-	public async Task InvokeAsync_DistributedMode_FallsBackToMemoryCache_WhenHybridCacheIsNull()
+	public async Task InvokeAsync_DistributedMode_BumpsTagTrackerStamp_WhenHybridCacheIsNull()
 	{
-		// Arrange -- unified path: tracker resolves tags → keys, memory cache removes
+		// Arrange -- unified path: tag invalidation is a single-key version stamp bump, no key resolution
 		var memoryCache = A.Fake<IMemoryCache>();
 		var tagTracker = A.Fake<ICacheTagTracker>();
-		A.CallTo(() => tagTracker.GetKeysByTagsAsync(A<string[]>._, _ct))
-			.Returns(new HashSet<string> { "cached-key-1" });
 
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions
 		{
@@ -263,8 +260,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
 		// Assert
-		A.CallTo(() => memoryCache.Remove("cached-key-1")).MustHaveHappenedOnceExactly();
-		A.CallTo(() => tagTracker.UnregisterKeyAsync("cached-key-1", _ct)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => tagTracker.BumpStampAsync("fallback-tag", _ct)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]

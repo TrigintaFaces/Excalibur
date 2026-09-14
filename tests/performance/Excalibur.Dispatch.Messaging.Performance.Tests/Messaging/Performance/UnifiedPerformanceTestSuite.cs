@@ -187,7 +187,7 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 
 		processedMessages.Count.ShouldBe(500);
 		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
-		tasks.All(t => t.Result.IsSuccess).ShouldBeTrue();
+		tasks.All(t => t.Result.Succeeded).ShouldBeTrue();
 		#pragma warning restore RS0030
 	}
 
@@ -651,7 +651,7 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 
 		processedMessages.Count.ShouldBe(300);
 		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
-		tasks.All(t => t.Result.IsSuccess).ShouldBeTrue();
+		tasks.All(t => t.Result.Succeeded).ShouldBeTrue();
 		#pragma warning restore RS0030
 
 		// Verify structured logs were emitted
@@ -936,7 +936,7 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 
 		processedMessages.Count.ShouldBe(200);
 		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
-		concurrentTasks.All(t => t.Result.IsSuccess).ShouldBeTrue();
+		concurrentTasks.All(t => t.Result.Succeeded).ShouldBeTrue();
 		#pragma warning restore RS0030
 
 		// CI-friendly: Trace context assertions are conditional - some may be dropped under load

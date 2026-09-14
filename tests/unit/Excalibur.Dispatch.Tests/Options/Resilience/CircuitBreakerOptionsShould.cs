@@ -11,8 +11,9 @@ public sealed class CircuitBreakerOptionsShould
     {
         var options = new CircuitBreakerOptions();
 
-        options.FailureThreshold.ShouldBe(5);
-        options.OpenDuration.ShouldBe(TimeSpan.FromSeconds(30));
+        options.ConsecutiveFailureThreshold.ShouldBe(5);
+        options.MinimumThroughput.ShouldBe(5);
+        options.BreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
         options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(5));
         options.CircuitKeySelector.ShouldBeNull();
     }
@@ -22,14 +23,16 @@ public sealed class CircuitBreakerOptionsShould
     {
         var options = new CircuitBreakerOptions
         {
-            FailureThreshold = 10,
-            OpenDuration = TimeSpan.FromMinutes(1),
+            ConsecutiveFailureThreshold = 10,
+            MinimumThroughput = 10,
+            BreakDuration = TimeSpan.FromMinutes(1),
             OperationTimeout = TimeSpan.FromSeconds(10),
             CircuitKeySelector = _ => "test-key",
         };
 
-        options.FailureThreshold.ShouldBe(10);
-        options.OpenDuration.ShouldBe(TimeSpan.FromMinutes(1));
+        options.ConsecutiveFailureThreshold.ShouldBe(10);
+        options.MinimumThroughput.ShouldBe(10);
+        options.BreakDuration.ShouldBe(TimeSpan.FromMinutes(1));
         options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(10));
         options.CircuitKeySelector.ShouldNotBeNull();
     }

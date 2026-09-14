@@ -8,9 +8,9 @@ namespace Excalibur.Dispatch.Middleware.Validation;
 /// Result of message validation.
 /// </summary>
 /// <remarks> Creates a new message validation result. </remarks>
-public sealed class MessageValidationResult(bool isValid, IEnumerable<ValidationError> errors)
+public sealed class MessageValidationResult(bool isValid, IEnumerable<MessageValidationError> errors)
 {
-	private static readonly IReadOnlyList<ValidationError> EmptyErrors = Array.Empty<ValidationError>();
+	private static readonly IReadOnlyList<MessageValidationError> EmptyErrors = Array.Empty<MessageValidationError>();
 
 	/// <summary>
 	/// Gets a value indicating whether validation passed.
@@ -24,7 +24,7 @@ public sealed class MessageValidationResult(bool isValid, IEnumerable<Validation
 	/// <value>
 	/// The validation errors, if any.
 	/// </value>
-	public IReadOnlyList<ValidationError> Errors { get; } = CreateErrors(errors);
+	public IReadOnlyList<MessageValidationError> Errors { get; } = CreateErrors(errors);
 
 	/// <summary>
 	/// Creates a successful validation result.
@@ -34,40 +34,40 @@ public sealed class MessageValidationResult(bool isValid, IEnumerable<Validation
 	/// <summary>
 	/// Creates a failed validation result with errors.
 	/// </summary>
-	public static MessageValidationResult Failure(params ValidationError[] errors) => new(isValid: false, errors);
+	public static MessageValidationResult Failure(params MessageValidationError[] errors) => new(isValid: false, errors);
 
-	private static IReadOnlyList<ValidationError> CreateErrors(IEnumerable<ValidationError>? errors)
+	private static IReadOnlyList<MessageValidationError> CreateErrors(IEnumerable<MessageValidationError>? errors)
 	{
 		if (errors is null)
 		{
 			return EmptyErrors;
 		}
 
-		if (errors is ValidationError[] errorArray)
+		if (errors is MessageValidationError[] errorArray)
 		{
 			if (errorArray.Length == 0)
 			{
 				return EmptyErrors;
 			}
 
-			var copiedArray = new ValidationError[errorArray.Length];
+			var copiedArray = new MessageValidationError[errorArray.Length];
 			Array.Copy(errorArray, copiedArray, errorArray.Length);
 			return copiedArray;
 		}
 
-		if (errors is ICollection<ValidationError> errorCollection)
+		if (errors is ICollection<MessageValidationError> errorCollection)
 		{
 			if (errorCollection.Count == 0)
 			{
 				return EmptyErrors;
 			}
 
-			var copiedArray = new ValidationError[errorCollection.Count];
+			var copiedArray = new MessageValidationError[errorCollection.Count];
 			errorCollection.CopyTo(copiedArray, 0);
 			return copiedArray;
 		}
 
-		var buffer = new List<ValidationError>();
+		var buffer = new List<MessageValidationError>();
 		foreach (var error in errors)
 		{
 			buffer.Add(error);
@@ -78,7 +78,7 @@ public sealed class MessageValidationResult(bool isValid, IEnumerable<Validation
 			return EmptyErrors;
 		}
 
-		var copied = new ValidationError[buffer.Count];
+		var copied = new MessageValidationError[buffer.Count];
 		buffer.CopyTo(copied, 0);
 		return copied;
 	}

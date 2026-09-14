@@ -4,6 +4,10 @@
 using Excalibur.Domain;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+
+using OpenTelemetry.Metrics;
 
 namespace Excalibur.Hosting.Tests.Core;
 
@@ -208,6 +212,31 @@ public sealed class HostApplicationBuilderExtensionsShould : UnitTestBase
 
 		// Assert
 		builder.Services.Count.ShouldBeGreaterThan(initialCount);
+	}
+
+	[Fact]
+	public void ConfigureExcaliburMetrics_ReadsTheResourceIdentityFromOptionsRatherThanTheProcessWideStatic()
+	{
+		// Arrange -- options are configured, the static deliberately is NOT. Every other test in this region calls
+		// ConfigureApplicationContext() first, and that is the tell: the registration used to read ApplicationSystemName off
+		// the static EAGERLY, so an uninitialised static threw InvalidConfigurationException at registration time.
+		//
+		// This asserts a proxy for the real property -- "the static is never consulted" is not directly observable, so the arm
+		// tests "this works with no static at all", which is only true if nothing reads it.
+		var builder = Host.CreateApplicationBuilder();
+		_ = builder.Configuration.AddInMemoryCollection(
+			new Dictionary<string, string?> { ["ApplicationContext:ApplicationSystemName"] = "options-system-name" });
+		_ = builder.Services.AddApplicationContext(builder.Configuration);
+		ApplicationContext.Reset();
+
+		// Act
+		_ = builder.ConfigureExcaliburMetrics();
+
+		// Assert -- and build the provider, which is what actually runs the deferred callback that resolves the options.
+		using var services = builder.Services.BuildServiceProvider();
+		_ = Should.NotThrow(() => services.GetRequiredService<MeterProvider>());
+		services.GetRequiredService<IOptions<ApplicationContextOptions>>().Value.ApplicationSystemName
+			.ShouldBe("options-system-name");
 	}
 
 	#endregion

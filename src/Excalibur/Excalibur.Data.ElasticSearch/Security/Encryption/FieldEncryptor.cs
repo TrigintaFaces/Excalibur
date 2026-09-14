@@ -4,11 +4,13 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Security;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+
+using Excalibur.Compliance;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,9 +21,19 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// Production implementation of field-level encryption for Elasticsearch documents with enterprise-grade security features and
 /// comprehensive audit capabilities.
 /// </summary>
+/// <remarks>
+/// Field-encryption key material never crosses into this package. Every key resolution, algorithm choice, and cryptographic
+/// operation is delegated to <see cref="IKeyManagementProvider"/> and <see cref="IEncryptionProviderRegistry"/> -- this class
+/// never sees a raw key byte. That is the same envelope-encryption model <c>Excalibur.Compliance.CryptoShredding.FieldEncryptor</c>
+/// already uses; a cloud KMS or HSM-backed provider can therefore back Elasticsearch field encryption without ever exporting
+/// key material to this process.
+/// </remarks>
 public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, IAsyncDisposable
 {
-	private readonly IElasticsearchKeyProvider _keyProvider;
+	private const string DefaultPurpose = "elasticsearch-field-encryption";
+
+	private readonly IKeyManagementProvider _keyProvider;
+	private readonly IEncryptionProviderRegistry _registry;
 	private readonly ILogger<FieldEncryptor> _logger;
 	private readonly EncryptionOptions _settings;
 	private readonly Dictionary<ElasticSearchDataClassification, Regex> _classificationPatterns;
@@ -40,25 +52,30 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FieldEncryptor" /> class.
 	/// </summary>
-	/// <param name="keyProvider"> The key management provider for encryption keys. </param>
+	/// <param name="keyProvider"> The key management provider that resolves and rotates encryption keys, without ever exposing key material. </param>
+	/// <param name="registry"> The encryption provider registry used to encrypt and decrypt field values. </param>
 	/// <param name="options"> The encryption configuration options. </param>
 	/// <param name="logger"> The logger for security and operational events. </param>
 	/// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
 	public FieldEncryptor(
-		IElasticsearchKeyProvider keyProvider,
+		IKeyManagementProvider keyProvider,
+		IEncryptionProviderRegistry registry,
 		IOptions<EncryptionOptions> options,
 		ILogger<FieldEncryptor> logger)
 	{
 		_keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
+		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_settings = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_classificationPatterns = BuildClassificationPatterns();
 		_encryptionSemaphore = new SemaphoreSlim(Environment.ProcessorCount * 2, Environment.ProcessorCount * 2);
 
-		// Initialize key rotation timer if supported. Arm only the first (clamped) chunk and re-arm from the
-		// callback — a configured interval longer than Timer's max would otherwise throw at construction.
-		if (_keyProvider.SupportsKeyRotation && _settings.KeyManagement.KeyRotationInterval > TimeSpan.Zero)
+		// Initialize key rotation timer. Every IKeyManagementProvider supports RotateKeyAsync as a first-class
+		// interface member, so arming depends only on a positive configured interval. Arm only the first
+		// (clamped) chunk and re-arm from the callback -- a configured interval longer than Timer's max would
+		// otherwise throw at construction.
+		if (_settings.KeyManagement.KeyRotationInterval > TimeSpan.Zero)
 		{
 			_keyRotationInterval = _settings.KeyManagement.KeyRotationInterval;
 			_nextKeyRotationDueUtc = DateTimeOffset.UtcNow + _keyRotationInterval;
@@ -67,8 +84,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		}
 
 		_logger.LogInformation(
-			"FieldEncryptor initialized with algorithm {Algorithm} and {RuleCount} classification rules",
-			_settings.EncryptionAlgorithm, _settings.ClassificationRules.Count);
+			"FieldEncryptor initialized with {RuleCount} classification rules",
+			_settings.ClassificationRules.Count);
 	}
 
 	/// <inheritdoc />
@@ -81,10 +98,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	public event EventHandler<EncryptionKeyRotatedEventArgs>? KeyRotated;
 
 	/// <inheritdoc />
-	public IReadOnlyCollection<string> SupportedAlgorithms { get; } = new[] { "AES-256-GCM", "AES-192-GCM", "AES-128-GCM", };
+	public IReadOnlyCollection<string> SupportedAlgorithms { get; } = ["AES-256-GCM"];
 
 	/// <inheritdoc />
-	public bool SupportsKeyRotation => _keyProvider.SupportsKeyRotation;
+	public bool SupportsKeyRotation => true;
 
 	/// <inheritdoc />
 	public bool SupportsIntegrityValidation => true;
@@ -198,57 +215,63 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 		try
 		{
-			var algorithm = _settings.EncryptionAlgorithm;
 			var plaintext = JsonSerializer.Serialize(fieldValue);
 			var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
 
-			// Get encryption key for the classification level
 			var keyName = GetKeyNameForClassification(classification);
-			var keyData = await _keyProvider.GetSecretAsync(keyName, cancellationToken).ConfigureAwait(false);
+			var keyMetadata = await _keyProvider.GetKeyAsync(keyName, cancellationToken).ConfigureAwait(false);
 
-			if (string.IsNullOrEmpty(keyData))
+			if (keyMetadata is null)
 			{
-				// Generate new key if it doesn't exist
-				var keyResult = await _keyProvider.GenerateEncryptionKeyAsync(
-					keyName, EncryptionKeyType.Aes, 256, null, cancellationToken).ConfigureAwait(false);
+				// First use for this classification: create the key. RotateKeyAsync creates-or-rotates, so an
+				// absent key is created here rather than through a separate "generate" seam.
+				var creation = await _keyProvider.RotateKeyAsync(
+					keyName, EncryptionAlgorithm.Aes256Gcm, purpose: DefaultPurpose, expiresAt: null, cancellationToken)
+					.ConfigureAwait(false);
 
-				if (!keyResult.Success)
-				{
-					throw new SecurityException($"Failed to generate encryption key: {keyResult.ErrorMessage}");
-				}
-
-				keyData = await _keyProvider.GetSecretAsync(keyName, cancellationToken).ConfigureAwait(false);
+				keyMetadata = creation.NewKey
+					?? throw new SecurityException($"Failed to create encryption key '{keyName}': {creation.ErrorMessage}");
 			}
 
-			// Resolve the real current key version so decryption can address it after rotation. A hardcoded version
-			// would make pre-rotation ciphertext unrecoverable once the key rotates.
-			var keyVersion = await _keyProvider.GetCurrentVersionAsync(keyName, cancellationToken).ConfigureAwait(false)
-				?? throw new SecurityException($"Current key version could not be resolved for encryption key '{keyName}'.");
+			var algorithmName = AlgorithmToWireName(keyMetadata.Algorithm);
 
-			var encryptedData = await PerformEncryptionAsync(
-				plaintextBytes,
-				keyData ?? throw new InvalidOperationException($"Key provider returned null for encryption key '{keyName}'."),
-				algorithm,
-				BuildFieldAssociatedData(fieldName, keyVersion, algorithm, classification)).ConfigureAwait(false);
+			// Bind the field's crypto context (fieldName|keyVersion|algorithm|classification) as Associated
+			// Authenticated Data. The AAD is authenticated but not encrypted; decryption with a different
+			// context fails the auth tag -- preventing ciphertext-swapping between fields (e.g. moving an
+			// encrypted salary blob into a notes field and decrypting it).
+			var keyVersionText = keyMetadata.Version.ToString(CultureInfo.InvariantCulture);
+			var context = new EncryptionContext
+			{
+				KeyId = keyName,
+				KeyVersion = keyMetadata.Version,
+				Algorithm = keyMetadata.Algorithm,
+				AssociatedData = BuildFieldAssociatedData(fieldName, keyVersionText, algorithmName, classification),
+			};
+
+			var encrypted = await _registry.GetPrimary().EncryptAsync(plaintextBytes, context, cancellationToken).ConfigureAwait(false);
 
 			var result = new EncryptedFieldResult(
-				Convert.ToBase64String(encryptedData.EncryptedBytes),
-				algorithm,
-				keyVersion,
-				Convert.ToBase64String(encryptedData.IV),
-				Convert.ToBase64String(encryptedData.AuthTag),
+				Convert.ToBase64String(encrypted.Ciphertext),
+				algorithmName,
+				keyVersionText,
+				Convert.ToBase64String(encrypted.Iv),
+				encrypted.AuthTag is { } authTag ? Convert.ToBase64String(authTag) : null,
 				classification,
 				EncryptedFieldResult.CurrentFormatVersion);
 
 			// Raise encryption event for auditing
 			FieldEncrypted?.Invoke(this, new FieldEncryptedEventArgs(
-				fieldName, classification, algorithm, keyVersion, DateTimeOffset.UtcNow));
+				fieldName, classification, algorithmName, keyVersionText, DateTimeOffset.UtcNow));
 
 			_logger.LogDebug(
 				"Field {FieldName} encrypted with classification {Classification} using {Algorithm}",
-				fieldName, classification, algorithm);
+				fieldName, classification, algorithmName);
 
 			return result;
+		}
+		catch (SecurityException)
+		{
+			throw;
 		}
 		catch (Exception ex)
 		{
@@ -282,35 +305,16 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 					$"Unknown encrypted-field format version '{encryptedField.FormatVersion}' for field {fieldName}; expected '{EncryptedFieldResult.CurrentFormatVersion}'.");
 			}
 
-			// No separate integrity pre-check: the AES-GCM decrypt below authenticates the ciphertext against
+			// No separate integrity pre-check: the AEAD decrypt below authenticates the ciphertext against
 			// its tag and throws on a mismatch. Verifying first would decrypt the field twice to learn the same
 			// thing. ValidateIntegrityAsync exists for callers that want that answer WITHOUT the plaintext.
+			var (envelope, context) = BuildDecryptionEnvelope(fieldName, encryptedField);
 
-			// Resolve the decryption key by the EXACT version stamped on the ciphertext, not the current key. After a
-			// rotation the current key cannot authenticate pre-rotation ciphertext, so version-addressed retrieval is
-			// what keeps already-encrypted data recoverable.
-			var keyName = GetKeyNameForClassification(encryptedField.Classification);
-			var keyData = await _keyProvider
-				.GetSecretVersionAsync(keyName, encryptedField.KeyVersion, cancellationToken).ConfigureAwait(false);
+			var provider = _registry.FindDecryptionProvider(envelope)
+				?? throw new SecurityException(
+					$"No registered encryption provider supports algorithm '{encryptedField.Algorithm}' for field {fieldName}.");
 
-			if (string.IsNullOrEmpty(keyData))
-			{
-				throw new SecurityException(
-					$"Decryption key not found for field {fieldName} (key '{keyName}', version '{encryptedField.KeyVersion}')");
-			}
-
-			var encryptedBytes = Convert.FromBase64String(encryptedField.EncryptedValue);
-			var iv = Convert.FromBase64String(encryptedField.InitializationVector!);
-			var authTag = Convert.FromBase64String(encryptedField.AuthenticationTag!);
-
-			var decryptedBytes = await PerformDecryptionAsync(
-					encryptedBytes,
-					keyData,
-					iv,
-					authTag,
-					encryptedField.Algorithm,
-					BuildFieldAssociatedData(fieldName, encryptedField.KeyVersion, encryptedField.Algorithm, encryptedField.Classification))
-				.ConfigureAwait(false);
+			var decryptedBytes = await provider.DecryptAsync(envelope, context, cancellationToken).ConfigureAwait(false);
 			var decryptedJson = Encoding.UTF8.GetString(decryptedBytes);
 			var decryptedValue = JsonSerializer.Deserialize<object>(decryptedJson);
 
@@ -322,6 +326,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			_logger.LogDebug("Field {FieldName} decrypted successfully", fieldName);
 
 			return decryptedValue!;
+		}
+		catch (SecurityException)
+		{
+			throw;
 		}
 		catch (Exception ex)
 		{
@@ -408,51 +416,29 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			return false;
 		}
 
-		byte[]? plaintext = null;
-
 		try
 		{
 			// Address the key by the exact version stamped on the envelope, as decryption does. The current key
 			// cannot authenticate pre-rotation ciphertext.
-			var keyName = GetKeyNameForClassification(encryptedField.Classification);
-			var keyData = await _keyProvider
-				.GetSecretVersionAsync(keyName, encryptedField.KeyVersion, cancellationToken).ConfigureAwait(false);
+			var (envelope, context) = BuildDecryptionEnvelope(fieldName, encryptedField);
 
-			if (string.IsNullOrEmpty(keyData))
+			var provider = _registry.FindDecryptionProvider(envelope);
+			if (provider is null)
 			{
 				_logger.LogWarning(
-					"Integrity validation could not resolve key '{KeyName}' version '{KeyVersion}' for field {FieldName}",
-					keyName, encryptedField.KeyVersion, fieldName);
+					"Integrity validation could not resolve a provider for field {FieldName} algorithm {Algorithm}",
+					fieldName, encryptedField.Algorithm);
 				return false;
 			}
 
-			var ciphertext = Convert.FromBase64String(encryptedField.EncryptedValue);
-			var iv = Convert.FromBase64String(encryptedField.InitializationVector);
-			var authTag = Convert.FromBase64String(encryptedField.AuthenticationTag!);
-
 			// The AEAD decrypt IS the verification: it recomputes the tag over the ciphertext and the associated
 			// data and throws unless the stored tag matches. Nothing short of this authenticates anything -- a
-			// well-formed tag that was never computed from this ciphertext fails here.
-			plaintext = await PerformDecryptionAsync(
-					ciphertext,
-					keyData,
-					iv,
-					authTag,
-					encryptedField.Algorithm,
-					BuildFieldAssociatedData(fieldName, encryptedField.KeyVersion, encryptedField.Algorithm, encryptedField.Classification))
-				.ConfigureAwait(false);
+			// well-formed tag that was never computed from this ciphertext fails here. The recovered plaintext
+			// is discarded; callers wanting the value use DecryptFieldAsync.
+			_ = await provider.DecryptAsync(envelope, context, cancellationToken).ConfigureAwait(false);
 
 			_logger.LogDebug("Integrity validated for field {FieldName}", fieldName);
 			return true;
-		}
-		catch (CryptographicException)
-		{
-			// Tag mismatch: a substituted or recomputed tag, altered ciphertext or IV, or a ciphertext replayed
-			// under a different field name. This is the answer the method exists to give, not a fault.
-			_logger.LogWarning(
-				"Integrity validation FAILED for field {FieldName}: the authentication tag does not verify against the ciphertext",
-				fieldName);
-			return false;
 		}
 		catch (FormatException)
 		{
@@ -461,20 +447,11 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 				fieldName);
 			return false;
 		}
-		catch (SecurityException ex)
+		catch (EncryptionException ex)
 		{
-			// Unsupported algorithm, or a malformed key from the provider -- integrity was never established.
-			_logger.LogWarning(ex, "Integrity validation could not be performed for field {FieldName}", fieldName);
+			// Tag mismatch, an unresolvable key, or an unsupported algorithm -- integrity was never established.
+			_logger.LogWarning(ex, "Integrity validation FAILED for field {FieldName}", fieldName);
 			return false;
-		}
-		finally
-		{
-			// Verification necessarily recovers the plaintext. Callers asked whether the field is intact, not for
-			// its value, so the buffer does not outlive the check.
-			if (plaintext is not null)
-			{
-				CryptographicOperations.ZeroMemory(plaintext);
-			}
 		}
 	}
 
@@ -483,37 +460,35 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		ElasticSearchDataClassification classification,
 		CancellationToken cancellationToken)
 	{
-		if (!_keyProvider.SupportsKeyRotation)
-		{
-			return EncryptionKeyRotationResult.CreateFailure(classification, "Key rotation not supported by provider");
-		}
-
 		try
 		{
 			var keyName = GetKeyNameForClassification(classification);
-			var rotationResult = await _keyProvider.RotateEncryptionKeyAsync(keyName, cancellationToken).ConfigureAwait(false);
+			var previous = await _keyProvider.GetKeyAsync(keyName, cancellationToken).ConfigureAwait(false);
 
-			if (rotationResult.Success)
+			var rotation = await _keyProvider.RotateKeyAsync(
+				keyName, EncryptionAlgorithm.Aes256Gcm, purpose: DefaultPurpose, expiresAt: null, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (!rotation.Success || rotation.NewKey is null)
 			{
-				// Raise key rotation event
-				var newVersion = rotationResult.NewKeyVersion ?? throw new InvalidOperationException("Key rotation succeeded but NewKeyVersion is null.");
-				var previousVersion = rotationResult.PreviousKeyVersion ?? throw new InvalidOperationException("Key rotation succeeded but PreviousKeyVersion is null.");
-
-				// Raise key rotation event
-				KeyRotated?.Invoke(this, new EncryptionKeyRotatedEventArgs(
-					classification, newVersion, previousVersion,
-					0, DateTimeOffset.UtcNow)); // Document count would need separate tracking
-
-				_logger.LogInformation(
-					"Encryption key rotated for classification {Classification}, new version {NewVersion}",
-					classification, newVersion);
-
-				return EncryptionKeyRotationResult.CreateSuccess(
-					classification,
-					newVersion, previousVersion);
+				return EncryptionKeyRotationResult.CreateFailure(classification, rotation.ErrorMessage ?? "Unknown error");
 			}
 
-			return EncryptionKeyRotationResult.CreateFailure(classification, rotationResult.ErrorMessage ?? "Unknown error");
+			var newVersion = rotation.NewKey.Version.ToString(CultureInfo.InvariantCulture);
+			var previousKey = rotation.PreviousKey ?? previous;
+			var previousVersion = previousKey?.Version.ToString(CultureInfo.InvariantCulture)
+				?? throw new InvalidOperationException("Key rotation succeeded but no previous key version is available.");
+
+			// Raise key rotation event
+			KeyRotated?.Invoke(this, new EncryptionKeyRotatedEventArgs(
+				classification, newVersion, previousVersion,
+				0, DateTimeOffset.UtcNow)); // Document count would need separate tracking
+
+			_logger.LogInformation(
+				"Encryption key rotated for classification {Classification}, new version {NewVersion}",
+				classification, newVersion);
+
+			return EncryptionKeyRotationResult.CreateSuccess(classification, newVersion, previousVersion);
 		}
 		catch (Exception ex)
 		{
@@ -566,45 +541,41 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <summary>
-	/// Performs the actual encryption operation using the specified algorithm.
+	/// Builds the envelope and matching context to decrypt (or verify) a persisted encrypted field, reconstructing
+	/// the exact associated data bound at encryption time from the envelope's own stamped values.
 	/// </summary>
-	/// <exception cref="NotSupportedException"></exception>
-	/// <exception cref="SecurityException"></exception>
-	private static async Task<(byte[] EncryptedBytes, byte[] IV, byte[] AuthTag)> PerformEncryptionAsync(
-		byte[] plaintext, string keyData, string algorithm, byte[] associatedData)
+	private static (EncryptedData Envelope, EncryptionContext Context) BuildDecryptionEnvelope(
+		string fieldName, EncryptedFieldResult encryptedField)
 	{
-		var key = Convert.FromBase64String(keyData);
+		var keyName = GetKeyNameForClassification(encryptedField.Classification);
+		var keyVersion = int.Parse(encryptedField.KeyVersion, CultureInfo.InvariantCulture);
+		var algorithm = WireNameToAlgorithm(encryptedField.Algorithm);
+		var associatedData = BuildFieldAssociatedData(
+			fieldName, encryptedField.KeyVersion, encryptedField.Algorithm, encryptedField.Classification);
 
-		return algorithm.ToUpperInvariant() switch
+		var envelope = new EncryptedData
 		{
-			"AES-256-GCM" or "AES-192-GCM" or "AES-128-GCM" => await EncryptAesGcmAsync(plaintext, key, associatedData).ConfigureAwait(false),
-			_ => throw new SecurityException($"Unsupported encryption algorithm: {algorithm}"),
+			Ciphertext = Convert.FromBase64String(encryptedField.EncryptedValue),
+			KeyId = keyName,
+			KeyVersion = keyVersion,
+			Algorithm = algorithm,
+			Iv = Convert.FromBase64String(encryptedField.InitializationVector!),
+			AuthTag = encryptedField.AuthenticationTag is { } tag ? Convert.FromBase64String(tag) : null,
 		};
+
+		var context = new EncryptionContext
+		{
+			KeyId = keyName,
+			KeyVersion = keyVersion,
+			Algorithm = algorithm,
+			AssociatedData = associatedData,
+		};
+
+		return (envelope, context);
 	}
 
 	/// <summary>
-	/// Performs AES-GCM encryption with authenticated encryption.
-	/// </summary>
-	private static Task<(byte[] EncryptedBytes, byte[] IV, byte[] AuthTag)> EncryptAesGcmAsync(byte[] plaintext, byte[] key, byte[] associatedData)
-	{
-		using var aes = new AesGcm(key, 16); // 128-bit tag size
-		var iv = new byte[12]; // 96-bit IV for GCM
-		var ciphertext = new byte[plaintext.Length];
-		var authTag = new byte[16]; // 128-bit authentication tag
-
-		RandomNumberGenerator.Fill(iv);
-
-		// Bind the field's crypto context (fieldName|keyVersion|algorithm|classification) as AES-GCM Associated
-		// Authenticated Data. The AAD is authenticated but not encrypted; decryption with a different context
-		// fails the auth tag — preventing ciphertext-swapping between fields (e.g. moving an encrypted salary
-		// blob into a notes field and decrypting it).
-		aes.Encrypt(iv, plaintext, ciphertext, authTag, associatedData);
-
-		return Task.FromResult((ciphertext, iv, authTag));
-	}
-
-	/// <summary>
-	/// Builds the AES-GCM Associated Authenticated Data for a field, byte-identical on encrypt and decrypt.
+	/// Builds the Associated Authenticated Data for a field, byte-identical on encrypt and decrypt.
 	/// The four components are concatenated without a delimiter, so distinct contexts whose concatenations
 	/// coincide produce the same associated data; changing the encoding would invalidate every stored
 	/// envelope and so belongs to a format-version change rather than to this method.
@@ -616,54 +587,28 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		ElasticSearchDataClassification classification) =>
 		Encoding.UTF8.GetBytes(
 			string.Create(
-				System.Globalization.CultureInfo.InvariantCulture,
-				$"{fieldName}{keyVersion}{algorithm}{(int)classification}"));
+				CultureInfo.InvariantCulture,
+				$"{fieldName}{keyVersion}{algorithm}{(int)classification}"));
 
 	/// <summary>
-	/// Performs the actual decryption operation using the specified algorithm.
+	/// Maps a Compliance encryption algorithm to the wire name persisted on <see cref="EncryptedFieldResult"/>.
 	/// </summary>
-	/// <exception cref="NotSupportedException"></exception>
-	/// <exception cref="SecurityException"></exception>
-	private static async Task<byte[]> PerformDecryptionAsync(
-		byte[] ciphertext, string keyData, byte[] iv, byte[] authTag, string algorithm, byte[] associatedData)
+	private static string AlgorithmToWireName(EncryptionAlgorithm algorithm) => algorithm switch
 	{
-		var key = Convert.FromBase64String(keyData);
-
-		return algorithm.ToUpperInvariant() switch
-		{
-			"AES-256-GCM" or "AES-192-GCM" or "AES-128-GCM" => await DecryptAesGcmAsync(ciphertext, key, iv, authTag, associatedData).ConfigureAwait(false),
-			_ => throw new SecurityException($"Unsupported encryption algorithm: {algorithm}"),
-		};
-	}
+		EncryptionAlgorithm.Aes256Gcm => "AES-256-GCM",
+		EncryptionAlgorithm.Aes256CbcHmac => "AES-256-CBC-HMAC",
+		_ => throw new SecurityException($"Unsupported encryption algorithm: {algorithm}"),
+	};
 
 	/// <summary>
-	/// Performs AES-GCM decryption with authentication verification.
+	/// Maps a wire name persisted on <see cref="EncryptedFieldResult"/> back to a Compliance encryption algorithm.
 	/// </summary>
-	private static Task<byte[]> DecryptAesGcmAsync(byte[] ciphertext, byte[] key, byte[] iv, byte[] authTag, byte[] associatedData)
+	private static EncryptionAlgorithm WireNameToAlgorithm(string algorithm) => algorithm.ToUpperInvariant() switch
 	{
-		using var aes = new AesGcm(key, 16); // 128-bit tag size
-		var plaintext = new byte[ciphertext.Length];
-
-		// The AAD must be byte-identical to the value bound at encryption; a mismatch (tampered key
-		// version/classification, or a field-swapped ciphertext) fails the auth tag and throws.
-		aes.Decrypt(iv, ciphertext, authTag, plaintext, associatedData);
-
-		return Task.FromResult(plaintext);
-	}
-
-	/// <summary>
-	/// Extracts the actual value from a JsonElement.
-	/// </summary>
-	private static object GetJsonElementValue(JsonElement element) =>
-		element.ValueKind switch
-		{
-			JsonValueKind.String => element.GetString()!,
-			JsonValueKind.Number => element.TryGetInt32(out var intVal) ? intVal : element.GetDouble(),
-			JsonValueKind.True => true,
-			JsonValueKind.False => false,
-			JsonValueKind.Null => null!,
-			_ => element.GetRawText(),
-		};
+		"AES-256-GCM" => EncryptionAlgorithm.Aes256Gcm,
+		"AES-256-CBC-HMAC" => EncryptionAlgorithm.Aes256CbcHmac,
+		_ => throw new SecurityException($"Unsupported encryption algorithm: {algorithm}"),
+	};
 
 	/// <summary>
 	/// Checks if a field name indicates personally identifiable information.
@@ -749,11 +694,6 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 					index++;
 				}
 
-				if (!string.IsNullOrEmpty(prefix))
-				{
-					// This is a top-level array, we need to handle it appropriately
-				}
-
 				break;
 			case JsonValueKind.Undefined:
 			case JsonValueKind.String:
@@ -766,6 +706,20 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 				break;
 		}
 	}
+
+	/// <summary>
+	/// Extracts the actual value from a JsonElement.
+	/// </summary>
+	private static object GetJsonElementValue(JsonElement element) =>
+		element.ValueKind switch
+		{
+			JsonValueKind.String => element.GetString()!,
+			JsonValueKind.Number => element.TryGetInt32(out var intVal) ? intVal : element.GetDouble(),
+			JsonValueKind.True => true,
+			JsonValueKind.False => false,
+			JsonValueKind.Null => null!,
+			_ => element.GetRawText(),
+		};
 
 	/// <summary>
 	/// Builds regex patterns for field classification based on configuration rules.

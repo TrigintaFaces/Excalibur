@@ -200,7 +200,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 			options.Adaptive.UseAdaptiveTimeouts = true;
 			options.Adaptive.MinimumSampleSize = 25; // Lower sample size for faster adaptation
 			options.Adaptive.AdaptiveTimeoutPercentile = 90; // Slightly lower percentile for better performance
-			options.Observability.LogTimeoutEvents = true;
 		});
 
 		// Register the time-aware scheduled message service
@@ -294,7 +293,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 
 		_ = services.Configure<TimePolicyOptions>(static options =>
 		{
-			options.Observability.LogTimeoutEvents = true;
 		});
 
 		return services;

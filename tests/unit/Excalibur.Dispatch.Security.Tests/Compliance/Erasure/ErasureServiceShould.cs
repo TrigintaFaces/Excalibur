@@ -50,7 +50,8 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
-			_dataInventoryService);
+			_dataInventoryService,
+			null);
 	}
 
 	#region Constructor Tests
@@ -65,6 +66,7 @@ public sealed class ErasureServiceShould
 			_options,
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
+			null,
 			null,
 			null));
 	}
@@ -81,6 +83,7 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			null,
+			null,
 			null));
 	}
 
@@ -95,37 +98,39 @@ public sealed class ErasureServiceShould
 			null!,
 			TestDataSubjectHasher.Instance,
 			null,
+			null,
 			null));
 	}
 
 	[Fact]
-	public void Constructor_AcceptsNullLegalHoldService()
+	public void Constructor_ThrowsArgumentNullException_WhenLegalHoldServiceIsNull()
 	{
-		// Act & Assert - should not throw
-		var service = new ErasureService(
+		// Erasure must not be able to skip the legal-hold check by omission: a deployment that
+		// operates no holds says so with a service that reports none, never with a null.
+		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
 			_store,
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-			legalHoldService: null,
-			dataInventoryService: null);
-
-		_ = service.ShouldNotBeNull();
+			legalHoldService: null!,
+			dataInventoryService: null,
+			keyEscrowService: null));
 	}
 
 	[Fact]
 	public void Constructor_AcceptsNullDataInventoryService()
 	{
-		// Act & Assert - should not throw
+		// Act & Assert - the inventory service stays optional; only the legal-hold service is required.
 		var service = new ErasureService(
 			_store,
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-			legalHoldService: null,
-			dataInventoryService: null);
+			_legalHoldService,
+			dataInventoryService: null,
+			keyEscrowService: null);
 
 		_ = service.ShouldNotBeNull();
 	}
@@ -322,28 +327,6 @@ public sealed class ErasureServiceShould
 	}
 
 	[Fact]
-	public async Task RequestErasureAsync_SkipsLegalHoldCheck_WhenServiceNotConfigured()
-	{
-		// Arrange
-		var service = new ErasureService(
-			_store,
-			_keyAdmin,
-			_options,
-			NullLogger<ErasureService>.Instance,
-			TestDataSubjectHasher.Instance,
-			legalHoldService: null,
-			dataInventoryService: null);
-
-		var request = CreateValidRequest();
-
-		// Act
-		var result = await service.RequestErasureAsync(request, CancellationToken.None);
-
-		// Assert
-		result.Status.ShouldBe(ErasureRequestStatus.Scheduled);
-	}
-
-	[Fact]
 	public async Task RequestErasureAsync_IncludesInventorySummary_WhenAutoDiscoveryEnabled()
 	{
 		// Arrange
@@ -372,7 +355,7 @@ public sealed class ErasureServiceShould
 			],
 			AssociatedKeys =
 			[
-				new KeyReference { KeyId = "key-1", KeyScope = EncryptionKeyScope.User, RecordCount = 1 }
+				new KeyReference { KeyId = "key-1", KeyScope = EncryptionKeyScope.User, EncryptedFieldValueCount = 1 }
 			]
 		};
 
@@ -404,6 +387,7 @@ public sealed class ErasureServiceShould
 			options,
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
+			_legalHoldService,
 			null,
 			null);
 
@@ -456,6 +440,7 @@ public sealed class ErasureServiceShould
 			options,
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
+			_legalHoldService,
 			null,
 			null);
 
@@ -488,6 +473,7 @@ public sealed class ErasureServiceShould
 			options,
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
+			_legalHoldService,
 			null,
 			null);
 

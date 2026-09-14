@@ -58,6 +58,11 @@ var messagingConfig = builder.Configuration.GetSection("CloudMessaging");
 
 // Register Dispatch with assembly scanning - discovers all handlers implementing
 // IActionHandler<>, IEventHandler<>, IDocumentHandler<>
+// Serialization is the application's choice, so a transport package never registers one -- and every
+// transport message bus needs it. AddPluggableSerialization seats the built-in System.Text.Json
+// serializer; register your own IPayloadSerializer instead to choose a different wire format.
+builder.Services.AddPluggableSerialization();
+
 builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);

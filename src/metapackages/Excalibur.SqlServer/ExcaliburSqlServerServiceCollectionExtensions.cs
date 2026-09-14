@@ -109,7 +109,7 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 		_ = services.AddDispatchWithSqlServer(options.ConnectionString, options.DispatchConfiguration);
 
 		// Inbox (builder API)
-		if (options.UseInbox)
+		if (options.UseInboxStore)
 		{
 			_ = services.AddExcaliburInbox(inbox =>
 				inbox.UseSqlServer(sql =>
@@ -156,7 +156,13 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 			});
 		}
 
-		// Compliance (Key Escrow + Erasure)
+		// Compliance (key escrow + erasure + legal hold + data inventory)
+		//
+		// The whole set, not escrow and erasure alone. Erasure consults legal holds through an OPTIONAL
+		// dependency and skips the check when it is absent, so wiring erasure without holds produces a
+		// pipeline that destroys data irreversibly and never consults the records that exist to stop it.
+		// AddLegalHoldService supplies the service the erasure path actually asks for; the store alone does
+		// not, and a store without it is the configuration most easily mistaken for protection.
 		if (options.UseCompliance)
 		{
 			_ = services.AddSqlServerKeyEscrow(escrow =>
@@ -170,6 +176,10 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 				erasure.ConnectionString = options.ConnectionString;
 				options.ErasureConfiguration?.Invoke(erasure);
 			});
+
+			_ = services.AddSqlServerLegalHoldStore(hold => hold.ConnectionString = options.ConnectionString);
+			_ = services.AddSqlServerDataInventoryStore(inventory => inventory.ConnectionString = options.ConnectionString);
+			_ = services.AddLegalHoldService();
 		}
 
 		// Data Access

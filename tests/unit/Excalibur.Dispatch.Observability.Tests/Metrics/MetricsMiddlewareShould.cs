@@ -52,7 +52,7 @@ public sealed class MetricsMiddlewareShould
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
-		A.CallTo(() => expectedResult.IsSuccess).Returns(true);
+		A.CallTo(() => expectedResult.Succeeded).Returns(true);
 
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(expectedResult);
 
@@ -75,7 +75,7 @@ public sealed class MetricsMiddlewareShould
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
-		A.CallTo(() => failedResult.IsSuccess).Returns(false);
+		A.CallTo(() => failedResult.Succeeded).Returns(false);
 		A.CallTo(() => failedResult.ProblemDetails).Returns(A.Fake<IMessageProblemDetails>());
 
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(failedResult);

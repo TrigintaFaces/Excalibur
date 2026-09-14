@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # duplicate-xml-doc-tags.harness-lock.sh — INDEPENDENT (author≠impl) lock for duplicate-xml-doc-tags.sh
 #
-# HOME: .claude/harness/ (S883). Bead: qcizyz (enforcement arm for b9dwlt). S890.
+# Independent enforcement arm for eng/ci/duplicate-xml-doc-tags.sh (author is not the gate's implementer).
 # Author: TestsDeveloper — INDEPENDENT of the impl author (who wrote both the gate and its .test.sh).
-#         This is the author≠impl seat the S890 Non-negotiable requires ("every harness deliverable =
+#         This is the author≠impl seat the harness policy requires ("every harness deliverable =
 #         impl + non-vacuous self-test + independent author≠impl *.harness-lock.sh"), carried OPEN
 #         during IMPLEMENT because TestsDeveloper's session was dead. Filled now the seat is live.
 #
@@ -18,7 +18,7 @@
 #     3. It certifies the sprint's core property — the gate cannot report CLEAN(0) it did not earn, and
 #        cannot cry VIOLATION(1) on clean input — and PROVES ITS OWN ARMS NON-VACUOUS against mutant
 #        gates (always-clean / always-violation). A lock that also passes an always-clean mutant is the
-#        S889 vacuity defect; this one fails the mutants, on purpose, and asserts that it does.
+#        vacuity defect; this one fails the mutants, on purpose, and asserts that it does.
 #
 # CONTRACT under test (duplicate-xml-doc-tags.sh):
 #   0  clean            — no doc block carries a duplicate <summary>/<remarks>/<value>

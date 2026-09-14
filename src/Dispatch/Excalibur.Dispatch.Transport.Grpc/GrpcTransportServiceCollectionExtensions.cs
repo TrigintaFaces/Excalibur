@@ -145,14 +145,14 @@ public static class GrpcTransportServiceCollectionExtensions
 		{
 			var channel = sp.GetRequiredKeyedService<GrpcChannel>(name);
 			var logger = sp.GetRequiredService<ILogger<GrpcTransportSender>>();
-			return new GrpcTransportSender(channel, NamedOptions(sp, name), logger);
+			return new GrpcTransportSender(channel, NamedOptions(sp, name), logger).WithCloudEventEncoding();
 		});
 
 		services.AddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
 		{
 			var channel = sp.GetRequiredKeyedService<GrpcChannel>(name);
 			var logger = sp.GetRequiredService<ILogger<GrpcTransportReceiver>>();
-			return new GrpcTransportReceiver(channel, NamedOptions(sp, name), logger);
+			return new GrpcTransportReceiver(channel, NamedOptions(sp, name), logger).WithCloudEventDecoding(CloudEventBinding.StructuredOnly);
 		});
 
 		services.AddKeyedSingleton<ITransportSubscriber>(name, (sp, _) =>

@@ -28,21 +28,21 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 	/// Initializes a new instance of the <see cref="ExponentialBackoffCalculator" /> class with default options.
 	/// </summary>
 	public ExponentialBackoffCalculator()
-		: this(new RetryPolicyOptions())
+		: this(new RetryOptions())
 	{
 	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ExponentialBackoffCalculator" /> class.
 	/// </summary>
-	/// <param name="options"> The retry policy options containing backoff configuration. </param>
-	public ExponentialBackoffCalculator(RetryPolicyOptions options)
+	/// <param name="options"> The retry options containing backoff configuration. </param>
+	public ExponentialBackoffCalculator(RetryOptions options)
 		: this(
-			options?.Backoff.BaseDelay ?? TimeSpan.FromSeconds(1),
-			options?.Backoff.MaxDelay ?? TimeSpan.FromMinutes(30),
-			options?.Backoff.BackoffMultiplier ?? 2.0,
-			options?.Backoff.EnableJitter ?? false,
-			options?.Backoff.JitterFactor ?? 0.1)
+			options?.BaseDelay ?? TimeSpan.FromSeconds(1),
+			options?.MaxDelay ?? TimeSpan.FromMinutes(30),
+			options?.BackoffMultiplier ?? 2.0,
+			options?.UseJitter ?? false,
+			options?.JitterFactor ?? 0.1)
 	{
 	}
 

@@ -158,9 +158,42 @@ public record ControlSection
 	public IReadOnlyList<TestResult>? TestResults { get; init; }
 
 	/// <summary>
-	/// Section compliance status.
+	/// Whether this criterion was assessed, and if so what was concluded.
 	/// </summary>
-	public required bool IsMet { get; init; }
+	/// <remarks>
+	/// <para>
+	/// This was a <see langword="bool"/>, so a criterion nobody assessed and a criterion assessed
+	/// and found wanting produced the same output: <b>Not Met</b>. Validators are opt-in, so a
+	/// consumer without one registered for every criterion is the ordinary case rather than an
+	/// error, and the unassessed criterion lowered their compliance percentage and could move the
+	/// auditor's opinion on evidence that does not exist.
+	/// </para>
+	/// <para>
+	/// Uses the same vocabulary as <see cref="CriterionStatus.Outcome"/> deliberately: one enum for
+	/// one idea across the report and the status model, rather than a second spelling of it.
+	/// </para>
+	/// </remarks>
+	public required CriterionOutcome Outcome { get; init; }
+
+	/// <summary>
+	/// The per-control validation verdicts this section's <see cref="Outcome"/> was derived from.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Without this, a section could report <see cref="CriterionOutcome.NotMet"/> and carry no evidence
+	/// of WHY. The only per-control channel was <see cref="TestResult.Outcome"/>, which answers a
+	/// different question -- what a test found -- so the effectiveness verdict was smuggled through it
+	/// and the two facts corrupted each other: forcing a verdict into the test outcome made every
+	/// control look like an exception, and reporting the test honestly as not-performed made a failing
+	/// criterion report no findings at all.
+	/// </para>
+	/// <para>
+	/// Separating them lets each be honest: the test outcome says no sample was drawn, and the
+	/// verdict here says which controls were found ineffective. A section reporting
+	/// <see cref="CriterionOutcome.NotMet"/> is therefore always able to name a cause.
+	/// </para>
+	/// </remarks>
+	public IReadOnlyList<ControlValidationResult> ValidationResults { get; init; } = [];
 }
 
 /// <summary>
@@ -265,9 +298,15 @@ public record TestResult
 	public required int SampleSize { get; init; }
 
 	/// <summary>
-	/// Exceptions found.
+	/// How many exceptions the test found, or <see langword="null"/> when no test ran.
 	/// </summary>
-	public required int ExceptionsFound { get; init; }
+	/// <remarks>
+	/// A count of findings asserts that a search happened and returned that many. Where no test ran
+	/// there is no such number, and zero would be the most favourable reading available — the one an
+	/// assessor is most likely to act on. Absent is the honest value. Compare <see cref="SampleSize"/>,
+	/// where zero is a true statement about how many items were examined and needs no other state.
+	/// </remarks>
+	public int? ExceptionsFound { get; init; }
 
 	/// <summary>
 	/// Test result.
@@ -295,7 +334,15 @@ public enum TestOutcome
 	SignificantExceptions,
 
 	/// <summary>Control not operating effectively.</summary>
-	ControlFailure
+	ControlFailure,
+
+	/// <summary>
+	/// The control was never exercised, so nothing is known about its effectiveness.
+	/// <b>This is not a failure</b>: it must not be reported to an assessor as a control that was
+	/// tested and failed, and it must not be counted as evidence of effectiveness. The accompanying
+	/// <see cref="TestResult.Notes"/> states why no test ran.
+	/// </summary>
+	NotTested
 }
 
 /// <summary>
@@ -333,9 +380,21 @@ public record ReportException
 	public required TrustServicesCriterion Criterion { get; init; }
 
 	/// <summary>
-	/// Affected control.
+	/// The control this exception is about, or <see langword="null"/> when the finding is about the
+	/// criterion as a whole and names no single control.
 	/// </summary>
-	public required string ControlId { get; init; }
+	/// <value>
+	/// A control identifier, or <see langword="null"/> for a criterion-level finding.
+	/// </value>
+	/// <remarks>
+	/// Optional because a finding is not always attributable to one control: a criterion whose controls
+	/// are collectively insufficient is a real finding that names none of them individually. Before this
+	/// was expressible the producers wrote the string <c>"N/A"</c>, which a reader takes as a control
+	/// whose identifier is literally "N/A" rather than as the absence of one — and a report is read by
+	/// people and tools that cannot tell those apart. <see langword="null"/> is the absence; it is not a
+	/// placeholder standing in for a value that exists.
+	/// </remarks>
+	public string? ControlId { get; init; }
 
 	/// <summary>
 	/// Exception description.

@@ -29,6 +29,18 @@ namespace Excalibur.Compliance.Pdf;
 /// </remarks>
 internal sealed class QuestPdfSoc2PdfRenderer : ISoc2PdfRenderer
 {
+	/// <summary>
+	/// Renders a section outcome for the PDF. Mirrors the exporter's renderer deliberately: the two
+	/// packages cannot share a private helper, so the wording is duplicated on purpose rather than
+	/// each format inventing its own label for the third state.
+	/// </summary>
+	private static string SectionStatusText(CriterionOutcome outcome) => outcome switch
+	{
+		CriterionOutcome.Met => "MET",
+		CriterionOutcome.NotMet => "NOT MET",
+		_ => "NOT ASSESSED"
+	};
+
 	private readonly TimeProvider _timeProvider;
 
 	/// <summary>
@@ -297,14 +309,27 @@ internal sealed class QuestPdfSoc2PdfRenderer : ISoc2PdfRenderer
 					// Section header with status indicator
 					sectionCol.Item().Row(headerRow =>
 					{
+						// Amber, not red, for an unassessed criterion. A red block beside a criterion nobody
+						// examined is a visual accusation, and in a PDF handed to an assessor the colour is read
+						// before the words are.
 						_ = headerRow.AutoItem().Width(10).Height(10)
-							.Background(section.IsMet ? Colors.Green.Medium : Colors.Red.Medium);
+							.Background(section.Outcome switch
+							{
+								CriterionOutcome.Met => Colors.Green.Medium,
+								CriterionOutcome.NotMet => Colors.Red.Medium,
+								_ => Colors.Amber.Medium
+							});
 						_ = headerRow.RelativeItem().PaddingLeft(5).Text($"[{section.Criterion}] {section.Description}")
 							.SemiBold();
 					});
 
-					_ = sectionCol.Item().Text($"Status: {(section.IsMet ? "MET" : "NOT MET")}")
-						.FontSize(10).FontColor(section.IsMet ? Colors.Green.Darken2 : Colors.Red.Darken2);
+					_ = sectionCol.Item().Text($"Status: {SectionStatusText(section.Outcome)}")
+						.FontSize(10).FontColor(section.Outcome switch
+						{
+							CriterionOutcome.Met => Colors.Green.Darken2,
+							CriterionOutcome.NotMet => Colors.Red.Darken2,
+							_ => Colors.Amber.Darken2
+						});
 
 					// Controls table
 					if (section.Controls.Count > 0)

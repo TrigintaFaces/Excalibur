@@ -113,6 +113,7 @@ Excalibur.LeaderElection.Watch.LeaderWatchOptions.IncludeHeartbeats.set -> void
 Excalibur.LeaderElection.Watch.LeaderWatchOptions.LeaderWatchOptions() -> void
 Excalibur.LeaderElection.Watch.LeaderWatchOptions.PollInterval.get -> System.TimeSpan
 Excalibur.LeaderElection.Watch.LeaderWatchOptions.PollInterval.set -> void
+Microsoft.Extensions.DependencyInjection.FencingOptOutServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionHealthChecksBuilderExtensions
@@ -121,6 +122,8 @@ Microsoft.Extensions.DependencyInjection.OutboxBuilderLeaderElectionExtensions
 static Excalibur.Dispatch.LeaderElection.TenantLeaderElectionFactoryExtensions.CreateTenantScopedElection(this Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory! factory, Excalibur.Dispatch.ITenantContext! tenantContext, string! resourceName, string? candidateId = null) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 static Excalibur.Dispatch.LeaderElection.TenantLeaderElectionFactoryExtensions.CreateTenantScopedHealthBasedElection(this Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory! factory, Excalibur.Dispatch.ITenantContext! tenantContext, string! resourceName, string? candidateId = null) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
 static Excalibur.Dispatch.LeaderElection.TenantLeaderElectionFactoryExtensions.TenantScopedResourceName(this Excalibur.Dispatch.ITenantContext! tenantContext, string! resourceName) -> string!
+static Microsoft.Extensions.DependencyInjection.FencingOptOutServiceCollectionExtensions.WithoutFencingTokens(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
+static Microsoft.Extensions.DependencyInjection.FencingOptOutServiceCollectionExtensions.WithoutFencingTokens(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithFencingTokens(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithHealthChecks(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithOptions(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!

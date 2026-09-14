@@ -47,7 +47,7 @@ Already aligned. No changes needed.
 | `EventBridgeSchedulerOptions.cs` | Transport.AwsSqs | `MaxRetries` |
 | `DlqOptions.cs` | Transport.AwsSqs | `MaxRetries` |
 | `RetryPolicyOptions.cs` | Transport.AwsSqs | `MaxRetries` |
-| `RetryOptions.cs` | Resilience.Polly | `MaxRetries` |
+| ~~`RetryOptions.cs` (now `PollyRetryOptions.cs`)~~ | Resilience.Polly | Renamed `MaxAttempts` -> `MaxRetryAttempts` (superseding the earlier alignment to `Options.Resilience.RetryOptions`'s old `MaxAttempts` spelling: that spelling was itself the collision this convention exists to prevent, and `RetryOptions.MaxAttempts` has now been renamed to `MaxRetryAttempts` to match) — done, off this list |
 | `OutboxMiddlewareRetryOptions.cs` | Dispatch | `MaxRetries` |
 | `OutboxConfigurationOptions.cs` | Dispatch | `MaxRetries` |
 | `InboxOptions.cs` (Configuration) | Dispatch | `MaxRetries` |
@@ -75,3 +75,8 @@ Since this is a pre-release framework with no consumers, all renames are safe bi
 1. **Sprint 681**: Document convention (this file), rename transport Options properties
 2. **Next sprint**: Rename remaining packages (Dispatch core, Patterns, Resilience.Polly, Saga, LeaderElection, ElasticSearch)
 3. **Follow-up**: Update `PublicAPI.Shipped.txt` baseline files for all affected packages
+4. **Done**: `Excalibur.Dispatch.Options.Resilience.RetryOptions.MaxAttempts`, `RetryAttribute.MaxAttempts`, and
+   `Excalibur.Dispatch.Resilience.Polly.PollyRetryOptions.MaxAttempts` renamed to `MaxRetryAttempts`, closing
+   the collision this convention names in its Semantic Distinction section above -- these three were the
+   `MaxAttempts` spelling the earlier `PollyRetryOptions` alignment (row above) had matched itself to.
+   `*REMOVED*` entries recorded in each package's `PublicAPI.Unshipped.txt`; `PublicAPI.Shipped.txt` untouched.

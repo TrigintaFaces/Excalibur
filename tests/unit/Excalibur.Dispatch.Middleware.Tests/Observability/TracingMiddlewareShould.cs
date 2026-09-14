@@ -128,7 +128,7 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		var result = await _middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -144,7 +144,7 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		var result = await _middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]

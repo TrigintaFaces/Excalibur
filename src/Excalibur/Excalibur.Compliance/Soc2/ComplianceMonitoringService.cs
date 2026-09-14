@@ -264,7 +264,7 @@ internal sealed partial class ComplianceMonitoringService : BackgroundService
 	{
 		foreach (var (criterion, criterionStatus) in status.CriterionStatuses)
 		{
-			var isCompliant = criterionStatus.IsMet;
+			var isCompliant = criterionStatus.Outcome == CriterionOutcome.Met;
 
 			if (_previousCriterionStatus.TryGetValue(criterion, out var wasCompliant))
 			{
@@ -381,7 +381,7 @@ internal sealed partial class ComplianceMonitoringService : BackgroundService
 		// Reset failure counters for controls that are now passing
 		foreach (var (criterion, criterionStatus) in status.CriterionStatuses)
 		{
-			if (criterionStatus.IsMet)
+			if (criterionStatus.Outcome == CriterionOutcome.Met)
 			{
 				var categoryKey = $"CAT-{criterion.GetCategory()}";
 				_ = _validationFailures.TryRemove(categoryKey, out _);

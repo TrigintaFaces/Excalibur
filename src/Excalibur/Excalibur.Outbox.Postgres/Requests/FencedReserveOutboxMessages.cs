@@ -135,7 +135,17 @@ internal sealed class FencedReserveOutboxMessages : DataRequest<IEnumerable<IOut
 		var parameters = new DynamicParameters();
 		parameters.Add("ScopeKey", outboxTableName, direction: ParameterDirection.Input);
 		parameters.Add("Token", fencingToken, direction: ParameterDirection.Input);
-		parameters.Add("DispatcherId", dispatcherId, direction: ParameterDirection.Input);
+		// Per-call CLAIM identity, the composite shape the whole outbox family uses:
+		// {dispatcherId}:{claimId}. The dispatcher half answers WHICH PROCESS holds the row -- bulk release
+		// and orphan recovery match it by PREFIX -- and the claim half answers WHICH CLAIM, which is the
+		// half a completion is judged against. A per-process value cannot distinguish two cycles of the same
+		// process, and a claim that lapsed while a dispatch hung is exactly that case.
+		//
+		// Match this by PREFIX, never by splitting on the separator: the dispatcher half itself contains
+		// colons, so a split would take the wrong segment.
+		var claimIdentity = FormattableString.Invariant($"{dispatcherId}:{Guid.NewGuid():N}");
+
+		parameters.Add("DispatcherId", claimIdentity, direction: ParameterDirection.Input);
 		parameters.Add("ReservationTimeout", reservationTimeout, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds,

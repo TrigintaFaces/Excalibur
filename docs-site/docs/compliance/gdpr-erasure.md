@@ -13,7 +13,8 @@ GDPR Article 17 ("Right to be Forgotten") requires organizations to delete perso
 - **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Security
+  dotnet add package Excalibur.Compliance
+  # plus Excalibur.Compliance.SqlServer or Excalibur.Compliance.Postgres for the stores below
   ```
 - Familiarity with [encryption architecture](../security/encryption-architecture.md) and [data masking](./data-masking.md)
 
@@ -56,11 +57,24 @@ services.AddInMemoryErasureStore();
 services.AddInMemoryLegalHoldStore();
 services.AddLegalHoldService();
 services.AddErasureScheduler();
+
+// Development only — see the two startup gates described below.
+services.Configure<KeyDurabilityOptions>(o => o.AllowVolatileKeyProvider = true);
 ```
 
 :::tip Minimal wiring
 
-`AddGdprErasure(...)` `TryAdd`-registers a default `IKeyManagementAdmin` (the in-memory `InMemoryKeyManagementProvider`), so the call above is sufficient for a working minimal wiring in samples, tests, or local development. When you need a real KMS provider, call `AddComplianceEncryption(...)` — an explicit registration takes precedence over the `TryAdd` default.
+`AddGdprErasure(...)` `TryAdd`-registers a default `IKeyManagementAdmin` (the in-memory `InMemoryKeyManagementProvider`). When you need a real KMS provider, call `AddComplianceEncryption(...)` — an explicit registration takes precedence over the `TryAdd` default.
+
+**The block above is not yet a host that starts.** Two startup gates refuse it, both deliberately:
+
+- **No discovery source.** Erasure refuses to start with neither an `IDataInventoryService` nor an explicit
+  opt-in, because a completion certificate would otherwise be issued over coverage nobody verified. Register
+  `AddDataInventoryService()`, or set `options.KeyShredOnlyErasure = true` to accept key-destruction-only
+  erasure (certificates then report a coverage basis of key destruction rather than store-verified coverage).
+- **A volatile key provider.** Erasure works by destroying keys, so a durability gate refuses the in-memory
+  provider unless the host says so explicitly: `services.Configure<KeyDurabilityOptions>(o =>
+  o.AllowVolatileKeyProvider = true);`. A production host registers a durable provider instead.
 
 The in-memory provider holds keys in process memory and does not persist them. **It is not suitable for production**, where a restart would lose the keys required to read crypto-shredded data.
 :::
@@ -74,7 +88,33 @@ services.AddSqlServerErasureStore(options =>
     options.ConnectionString = connectionString;
     options.SchemaName = "compliance";
 });
+services.AddSqlServerLegalHoldStore(options =>
+{
+    options.ConnectionString = connectionString;
+    options.SchemaName = "compliance";
+});
+services.AddLegalHoldService();
 ```
+
+:::caution Erasure refuses to start without a legal-hold service
+
+Registering an erasure store on its own is **not** a working configuration. Erasure consults legal holds
+through an optional dependency and skips the check when no legal-hold service is registered — correct for a
+deployment that has no holds, and irreversible for one that does. Because the absence cannot be distinguished
+from a misconfiguration, it must be declared rather than inferred, so the host **fails at startup** when
+erasure is registered with no legal-hold service.
+
+Register one, as the block above does.
+
+A deployment that genuinely operates no legal holds declares that explicitly instead, with
+`ErasureOptions.OperatesNoLegalHolds` — see [Legal Holds](#legal-holds) for that declaration and for which
+released versions carry it.
+
+The `AddExcaliburPostgres` and `AddExcaliburSqlServer` metapackages register the full compliance set,
+including the legal-hold service, so a host composed through either of those needs neither the registration
+above nor the flag.
+
+:::
 
 :::info The compliance stores require a tenant context — the registrations supply it
 
@@ -233,16 +273,19 @@ switch (status?.Status)
 
 ### Statutory deadline
 
-`ErasureStatus.DaysUntilDeadline` reports the days remaining against the one-month response deadline in Article 12(3), measured from `RequestedAt` and floored at zero. Use it to surface requests approaching the limit:
+`ErasureStatus.DaysUntilDeadline(asOf)` is a **method**, not a property: it reports the days remaining against the one-month response deadline in Article 12(3), measured from `RequestedAt` as of the instant you pass, and floored at zero. Use it to surface requests approaching the limit:
 
 ```csharp
-var status = await _erasureQueryStore.GetStatusAsync(requestId, ct);
+// GetStatusAsync is on IErasureStore. IErasureQueryStore carries only the two
+// list-shaped members (GetScheduledRequestsAsync, ListRequestsAsync).
+var status = await _erasureStore.GetStatusAsync(requestId, ct);
+var remaining = status?.DaysUntilDeadline(DateTimeOffset.UtcNow);
 
-if (!status.IsExecuted && status.DaysUntilDeadline <= 5)
+if (status is { IsExecuted: false } && remaining <= 5)
 {
     _logger.LogWarning(
         "Erasure {RequestId} has {Days} days remaining against the statutory deadline",
-        requestId, status.DaysUntilDeadline);
+        requestId, remaining);
 }
 ```
 
@@ -261,17 +304,26 @@ If your retention obligation is longer than the configured period, raise it befo
 
 :::warning Partial Completion Is Structural, Not Just On Failure
 
-An erasure reaches `Completed` **only** when every discovered personal-data location is *covered* **and** no contributor reported an error. Two distinct conditions force `PartiallyCompleted`:
+An erasure reaches `Completed` **only** when every discovered personal-data location is *covered* **and** no contributor reported an error. **Three** distinct conditions prevent it:
 
 1. **A contributor erasure fails** (an error is reported), or
-2. **A discovered location is left _uncovered_** — its store holds personal data but no mechanism erases it (no crypto-shred key, no covering `IErasureContributor`, no declared exemption).
+2. **A discovered location is left _uncovered_** — its store holds personal data but no mechanism erases it (no crypto-shred key, no covering `IErasureContributor`, no declared exemption), or
+3. **A `[PersonalData]` category matches no discovered location at all** — annotated personal data the inventory never located. A `Completed` certificate over silently-skipped annotated data is deliberately made inexpressible.
 
-A coverage gap forces `PartiallyCompleted` **even when nothing threw** — the framework will not report `Completed` over a store it never erased. See [Erasure Coverage Model](#erasure-coverage-model) below. Monitor the `ErasurePartiallyCompleted` event (ID 92729) and investigate uncovered stores and failed contributors.
+Any of the three forces a non-`Completed` outcome **even when nothing threw** — the framework will not report `Completed` over a store it never erased.
+
+**Which non-`Completed` status you get depends on whether anything succeeded.** If at least one key was deleted or at least one record was affected, the request is `PartiallyCompleted`. **If nothing succeeded at all — a pure coverage gap with zero deletions — the request is `Failed`, not `PartiallyCompleted`.** Handle both; a `switch` that treats coverage problems as always-partial will fall through on the pure-gap case.
+
+See [Erasure Coverage Model](#erasure-coverage-model) below. Monitor the `ErasurePartiallyCompleted` event (ID 92729) and investigate uncovered stores and failed contributors.
 :::
 
 ### 5. Compliance Certificate
 
-Generate cryptographic proof of erasure:
+Generate cryptographic proof of erasure. **A certificate can only be produced for a request whose status is
+exactly `Completed`:** `GenerateCertificateAsync` throws `InvalidOperationException` for any other status —
+including the `PartiallyCompleted` and `Failed` outcomes described directly above — and `KeyNotFoundException`
+for a request id it does not know. So the cases most in need of documentation are the ones that cannot be
+certified; evidence them from the status and its error summary instead.
 
 ```csharp
 var certificate = await _erasureService.GenerateCertificateAsync(requestId, ct);
@@ -279,10 +331,13 @@ var certificate = await _erasureService.GenerateCertificateAsync(requestId, ct);
 // Certificate contains:
 // - Request details (RequestId, anonymized DataSubjectReference)
 // - Execution timestamp (CompletedAt) and Method (e.g. CryptographicErasure)
-// - Summary.KeysDeleted / RecordsAffected / DataCategories
+// - Summary.KeysDeleted / RecordsAffected
+// - Summary.DataCategories is present on the type but is NOT populated: both paths that build a
+//   certificate summary set it to an empty list, so do not rely on it
 // - Verification.Verified + Verification.DeletedKeyIds (the specific key IDs proven gone)
 // - Exceptions: stores deliberately retained under Article 17(3) (e.g. the audit store), with legal Basis
-// - SHA-256 Signature
+// - Signature: an HMAC-SHA256 over the certificate data, keyed with your configured signing key
+//   (a keyed MAC, not a bare digest — an unkeyed SHA-256 would attest nothing about origin)
 ```
 
 The verification summary records the **specific** deleted key IDs (`Verification.DeletedKeyIds`) and is non-vacuous: if the summary claims `KeysDeleted > 0` but no deleted key can be confirmed gone — or a discovered location was left uncovered — `Verification.Verified` is `false` rather than a blanket `true`.
@@ -295,7 +350,7 @@ Erasure breadth is governed by a **three-state coverage gate**. Every personal-d
 |-------|---------|------------------|
 | **Covered** | A mechanism erases this location: its per-subject encryption key was deleted (crypto-shred), **or** a registered `IErasureContributor` declares its store kind. | Does not block `Completed`. |
 | **Exempt** | A declared, documented retention exemption with a legal basis (e.g. the audit/security store). | Enumerated on the certificate (`Exceptions`), but **non-blocking**. |
-| **Uncovered** | Neither covered nor exempt — a genuine gap. | **Forces `PartiallyCompleted`**, naming the uncovered store. |
+| **Uncovered** | Neither covered nor exempt — a genuine gap. | **Forces a non-`Completed` outcome** — `PartiallyCompleted` if anything succeeded, `Failed` if nothing did — naming the uncovered store. |
 
 `Completed` is reachable **only** when there are zero uncovered locations and zero errors. This is enforced structurally — the framework cannot report `Completed` over a store it never erased.
 
@@ -345,6 +400,28 @@ Article 17(3) exceptions prevent erasure for:
 - Regulatory investigations
 - Legal obligations
 
+:::info Not in any published version yet
+The startup refusal and `ErasureOptions.OperatesNoLegalHolds` described in this section are **not present
+in `10.0.0-alpha.10` or any earlier release** — verified against the published assembly. On a released
+package, erasure starts with no legal-hold service registered and **silently skips the hold check**. Until
+a release carries this, register `AddLegalHoldService()` yourself and do not rely on a startup error to
+tell you it is missing. When a release does carry it, this note will name that version.
+:::
+
+Erasure **refuses to start** unless a legal-hold service is registered, because the hold check is
+skipped when the service is absent and erasure is irreversible. Registering only an `ILegalHoldStore`
+is rejected as well — that is the configuration most easily mistaken for protection, since holds would
+be written and readable but never enforced. Register `AddLegalHoldService()` alongside the store.
+
+If a deployment genuinely operates no legal holds, declare it rather than leaving it to be inferred:
+
+```csharp
+services.AddNoLegalHolds();
+```
+
+`AddNoLegalHolds()` is one call that does both halves: it registers the service that reports no holds, and it records the declaration. **Setting `ErasureOptions.OperatesNoLegalHolds` on its own fails at startup** — the wiring validator has no early return for it, and refuses with a message naming this call. Declaring no holds accepts that no erasure request will ever be blocked by one. The
+absence of the check has to be a decision, so there is no configuration that silently skips it.
+
 ### Register a Legal Hold Store
 
 Holds are persisted through `ILegalHoldStore`, which is a separate registration from the erasure store —
@@ -373,8 +450,11 @@ services.AddPostgresLegalHoldStore(options =>
 Both providers also expose an `…FromConfiguration` overload that binds the options from a configuration
 section instead of a lambda.
 
-`AutoCreateSchema` behaves here exactly as it does for the erasure store — see
-[Database Schema](#database-schema).
+`AutoCreateSchema` has the same meaning here as for the erasure store — same default of `false`, same
+create-versus-verify semantics — but **not the same timing.** Only the erasure store registers a startup
+validator. The legal-hold store (and the data-inventory store below) verify their schema **lazily, on first
+use**, so a missing or wrong table surfaces on the first erasure-related operation rather than at startup.
+See [Database Schema](#database-schema).
 
 ### Check for Holds
 
@@ -496,17 +576,16 @@ locations discovery finds — so it has a table-name option for each.
 The `IDataInventoryService` provides registration and discovery of personal data locations across your system, enabling comprehensive erasure and Records of Processing Activities (RoPA) documentation.
 :::
 
-:::caution Known gap: no tenant-capable data inventory provider yet
-`IDataInventoryStore` is a tenant-owned contract, so if your host also calls
+:::caution The in-memory data-inventory store is not tenant-capable
+`IDataInventoryStore` is a tenant-owned contract. The **SQL Server and PostgreSQL** data-inventory stores
+both attest a tenant capability, so they work alongside
 [`AddMultiTenancy`](../multi-tenancy.md#first-class-persistence-isolation-addmultitenancy) with the
-`RowDiscriminator` strategy, registration fails fast at startup — no provider shipped with the framework
-currently attests a tenant capability for this store, including the in-memory store shown above. This is
-a startup refusal, not a silent leak: you will see it immediately in a local run, not in production.
+`RowDiscriminator` strategy.
 
-Until a capable provider ships, either register your data inventory store in a container that does not
-also call `AddMultiTenancy(RowDiscriminator)`, or select a different tenant-isolation strategy. See
-[First-class persistence isolation: `AddMultiTenancy`](../multi-tenancy.md#first-class-persistence-isolation-addmultitenancy)
-for the full list of stores in the same position.
+The **in-memory** store shown above does not attest one, so a host that registers it *and* calls
+`AddMultiTenancy(RowDiscriminator)` fails fast at startup. That is a startup refusal, not a silent leak —
+you see it immediately in a local run, not in production. Register a durable data-inventory store, or keep
+the in-memory one out of a container that configures row-discriminator tenancy.
 :::
 
 ## Verification
@@ -536,7 +615,8 @@ switch (status?.Status)
 ### List Requests
 
 ```csharp
-// Inject IErasureQueryStore (ISP sub-interface of IErasureStore)
+// Inject IErasureQueryStore — a separate, list-shaped contract. It does NOT inherit IErasureStore;
+// request-addressed members such as GetStatusAsync live on IErasureStore.
 var requests = await _erasureQueryStore.ListRequestsAsync(
     status: ErasureRequestStatus.Completed,
     tenantId: "tenant-abc",
@@ -547,7 +627,7 @@ var requests = await _erasureQueryStore.ListRequestsAsync(
     ct);
 ```
 
-Results are paged. `pageNumber` is 1-based and `pageSize` accepts 1–1000; both are required, and values outside those ranges are rejected. Page through the result set rather than requesting an unbounded list — an erasure-request table on a busy tenant grows without bound until certificates age out.
+Results are paged. `pageNumber` is 1-based and `pageSize` accepts 1–1000; both are required, and values outside those ranges are rejected. Page through the result set rather than requesting an unbounded list — **nothing prunes the erasure-request table.** Certificate cleanup deletes from the certificates table only, so on a busy tenant the request table grows without bound and is yours to archive.
 
 ## Background Scheduler
 
@@ -701,6 +781,30 @@ public interface IEventStoreErasure
         CancellationToken cancellationToken);
 }
 ```
+
+
+
+:::info Tenant confinement
+
+Both erasure operations are confined to the ambient tenant established for the store instance:
+`EraseEventsAsync` tombstones only that tenant's stream for the given aggregate, and `IsErasedAsync`
+answers only for it. The confinement is structural, and the mechanism differs by provider family.
+The relational stores bind an unconditional tenant term on every erase and existence check, routed
+through a partition type with no empty inhabitant, so a tenant-less erase cannot be constructed. The
+document and in-memory stores address a key whose leading segment is the owning tenant, so another
+tenant's stream is unaddressable rather than merely filtered out.
+
+**Where a provider composes the tenant into a key, the composition is injective.** Erasure is
+destructive and irreversible — a confinement failure here would destroy another tenant's history rather
+than disclose it — so the tenant and the record identifier are encoded rather than concatenated: no pair
+of identifiers can compose to another pair's key, whatever characters they contain. **Identifiers
+containing the separator are supported and need no special handling by you.** A store presenting no
+tenant capability marker is not confined by the framework at all.
+
+Stated here because an assessor reading this page is entitled to know both what the framework
+guarantees and what, if anything, it requires of you — and for these operations the answer to the
+second is nothing.
+:::
 
 Event store providers that support GDPR erasure implement this interface. Ask the store for the
 capability with `GetService(typeof(IEventStoreErasure))` — do **not** test its type. A store is

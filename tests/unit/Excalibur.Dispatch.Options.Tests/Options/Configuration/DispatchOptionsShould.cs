@@ -52,7 +52,6 @@ public sealed class DispatchOptionsShould
 		var options = new DispatchOptions();
 
 		// Assert
-		options.Features.EnableStructuredLogging.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -316,12 +315,11 @@ public sealed class DispatchOptionsShould
 		// Act
 		var options = new DispatchOptions
 		{
-			Features = { EnableMetrics = true, EnableStructuredLogging = true, EnableAuthorization = true, EnableVersioning = true },
+			Features = { EnableMetrics = true, EnableAuthorization = true, EnableVersioning = true },
 		};
 
 		// Assert
 		options.Features.EnableMetrics.ShouldBeTrue();
-		options.Features.EnableStructuredLogging.ShouldBeTrue();
 		options.Features.EnableAuthorization.ShouldBeTrue();
 	}
 

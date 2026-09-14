@@ -383,13 +383,13 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 						JitterFactor = 0.1,
 					},
 				CircuitBreaker =
-					new CircuitBreakerOptions
+					new ElasticsearchCircuitBreakerOptions
 					{
 						Enabled = true,
 						MinimumThroughput = circuitBreakerMinimumThroughput,
 						BreakDuration = TimeSpan.FromSeconds(5),
 						SamplingDuration = TimeSpan.FromSeconds(30),
-						FailureRateThreshold = 0.5,
+						FailureRatio = 0.5,
 					},
 				Timeouts = new TimeoutOptions
 				{

@@ -51,12 +51,14 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : Unit
 	public void AddJsonSerialization_WithConfigure_AppliesOptions()
 	{
 		// Arrange & Act
-		_ = Services.AddJsonSerialization(opt => opt.SerializerOptions.WriteIndented = true);
+		_ = Services.AddJsonSerialization(opt => opt.ConfigureSerializer = json => json.WriteIndented = true);
 		BuildServiceProvider();
 
 		// Assert
-		var options = GetRequiredService<Microsoft.Extensions.Options.IOptions<DispatchPatternsJsonOptions>>().Value;
-		options.SerializerOptions.WriteIndented.ShouldBeTrue();
+		// Assert on the SERIALIZER: reading the value back off the options object would pass even if
+		// the registration discarded it.
+		var serializer = GetRequiredService<DispatchJsonSerializer>();
+		serializer.Serialize(new { Name = "x" }).ShouldContain(": ", Case.Sensitive);
 	}
 
 	[Fact]
@@ -102,8 +104,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : Unit
 
 		// Assert
 		var options = GetRequiredService<Microsoft.Extensions.Options.IOptions<DispatchPatternsJsonOptions>>().Value;
-		options.SerializerOptions.ShouldNotBeNull();
+		options.ConfigureSerializer.ShouldBeNull();
 		options.SerializerContext.ShouldBeNull();
-		options.SerializerOptions.WriteIndented.ShouldBeFalse();
 	}
 }

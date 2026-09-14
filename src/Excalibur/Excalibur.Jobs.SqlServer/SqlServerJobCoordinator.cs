@@ -37,6 +37,29 @@ namespace Excalibur.Jobs.SqlServer;
 /// inherit a scope from the coordination row that scheduled it.
 /// </para>
 /// <para>
+/// <b>The election has named consequences, stated here rather than left implicit.</b> The split is
+/// per TABLE, not per package: <c>Locks</c> and <c>Instances</c> are the global-infrastructure election
+/// above; <c>Queue</c> and <c>Completions</c> carry the caller's payload but are dispatch-internal, with no
+/// consumer-facing read path today -- that is a live, re-checkable fact, not a permanent exemption.
+/// </para>
+/// <list type="number">
+/// <item><description>
+/// <c>Locks.JobKey</c> is caller-supplied and is the whole primary key, so two hosts using the same
+/// job-key string contend for one lock regardless of tenant. In a shared deployment one tenant's
+/// scheduled job can therefore BLOCK another tenant's identically-named job indefinitely -- a denial
+/// shape, invisible to the loser, who simply never acquires.
+/// </description></item>
+/// <item><description>
+/// <see cref="GetActiveInstancesAsync"/> returns every host in the deployment to any caller; the returned
+/// <see cref="Excalibur.Jobs.Coordination.JobInstanceInfo"/> carries no tenant field because an instance
+/// is a machine identity (<c>Environment.MachineName + "_" + Environment.ProcessId</c>), not a tenant one.
+/// </description></item>
+/// <item><description>
+/// Instance unregistration and the stale-instance sweep act on instance identity and heartbeat age alone,
+/// with no further scope -- correct for a registry of hosts, not of tenants.
+/// </description></item>
+/// </list>
+/// <para>
 /// Recorded here because absence is not self-documenting: a reader who greps this package for a tenant
 /// term and finds none cannot tell a considered decision from a forgotten one, and adding a term to make
 /// the grep uniform is how a coordination table stops coordinating.

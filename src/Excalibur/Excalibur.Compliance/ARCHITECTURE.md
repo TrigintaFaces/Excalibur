@@ -1,4 +1,4 @@
-# Architecture — Excalibur.Compliance (erasure and legal hold)
+# Architecture — Excalibur.Compliance (erasure, legal hold, and SOC 2 attestation)
 
 This document states what the erasure and legal-hold subsystem guarantees, how it achieves it, and —
 just as importantly — what it does **not** yet prove. It is a contract, not a description: every claim
@@ -36,6 +36,48 @@ A tenant must see it, because it blocks that tenant's erasures. A tenant must no
 matching an estate-wide row would let one tenant re-home an estate-wide preservation order into its own
 partition, silently lifting it for every other tenant — whose next erasure then proceeds and reports
 success. Reads use *owned-or-estate-wide*; mutations use strict ownership.
+
+### SOC 2 attestation — what a generated report may be read to assert
+
+**Guarantee: a generated report attests only to criteria that a registered validator actually assessed.
+Every other criterion is reported as not assessed, is excluded from the compliance percentage — from the
+numerator and the denominator both — and does not move the auditor opinion.**
+
+This section previously read `UNVERIFIED` in its stronger sense: the behaviour had been *measured to
+contradict* the target. That measurement is no longer current. The value set can now hold the fact, the
+aggregation honours it, and two arms bind the one-token mutant that would undo it.
+
+**How it is achieved.** `CriterionOutcome` carries three states — `NotAssessed`, `Met`, `NotMet` — and
+`ControlSection.Outcome` is typed by it (`Soc2Report.cs`), replacing a `bool` in which "nobody assessed
+this" and "we assessed it and it failed" were the same value. `Soc2ReportGenerator` derives the state from
+whether any validation result exists at all, rather than from whether the results were favourable; the
+compliance percentage is computed over assessed sections only; the exception loop takes `NotMet` sections
+and skips both `NoExceptions` and `NotTested`, so a criterion nobody examined raises no finding against
+the consumer; and an unassessed criterion instead receives an entry whose text attributes the gap to this
+framework's coverage rather than to the consumer's controls. Where nothing at all was assessed the report
+is `Unknown`, not `NonCompliant` — the latter reached an adverse opinion for a host that had simply
+registered no validators.
+
+**The enforcing arms, and the one-token mutant they bind.** The violating mutant named below was applied
+and measured, not predicted: collapsing the three-state derivation back to `validationResults.Count > 0
+&& …` — which maps the not-assessed state onto the failing one — turns
+`Soc2ReportGeneratorShould.Report_an_unassessed_criterion_as_NotAssessed_rather_than_NotMet` and
+`Soc2ReportGeneratorDepthShould.Section_is_not_assessed_rather_than_not_met_when_no_validator_is_registered`
+RED, and only those. Both directions of the biconditional are covered: a criterion with no registered
+validator is reported not-assessed, and a criterion whose validator ran and failed is still reported
+not-met.
+
+**Consumer obligations.** Validators are opt-in. A report generated with none registered for a criterion
+is not a deficient report — it is a report that says, in the document handed to an assessor, that this
+framework did not assess that criterion. Substantiating it is the consumer's to arrange.
+
+**Known gap, stated because it bounds the guarantee above.** The guarantee covers the criterion layer.
+One layer below it, a control validator reports effectiveness as a `bool`, so a validator whose own check
+could not run — it threw, or had nothing in scope — has no way to say so and must spell the outcome as
+either effective or deficient. Both spellings assert something that was not established. The criterion
+layer is therefore honest about *coverage* and not yet fully honest about *the confidence of an individual
+control's verdict*; treat a single control's effectiveness as a weaker claim than the criterion-level
+outcome until that type carries the third state too.
 
 ## How it is achieved
 
@@ -108,22 +150,35 @@ same provisioning type, so the floor and the startup check report the same condi
 
 ## Evidence
 
-- **SQL Server, both contracts:** tenant-isolation suites run against a real SQL Server container, with
+- **SQL Server and PostgreSQL, both contracts** — `SqlServerErasureStoreTenantIsolationShould`,
+  `SqlServerLegalHoldStoreTenantIsolationShould`, `PostgresErasureStoreTenantIsolationShould`,
+  `PostgresLegalHoldStoreTenantIsolationShould`: tenant-isolation suites run against real containers, with
   safety arms (a tenant that owns nothing must read nothing) and liveness arms (the owning tenant must
   read its own row — a store that returns nothing to everybody passes safety trivially).
 - **Non-vacuity:** the safety arms were verified RED against a one-token revert of the deployment-mode
   flag, and the read/mutation asymmetry against a revert of the mutation predicate to the read form. Both
   cycles rebuilt the implementation and test projects explicitly; a run against a stale binary proves
   nothing.
-- **Duplicate discrimination, both SQL providers, real containers:** a genuine duplicate must raise the
+- **Duplicate discrimination, both SQL providers, real containers** — `PostgresErasureDuplicateTranslationShould`,
+  `SqlServerErasureDuplicateTranslationShould`, `InMemoryLegalHoldStoreDuplicateSignalShould`: a genuine duplicate must raise the
   specific type and preserve the provider's own exception as its inner exception (liveness), while a
   provider failure that is not a uniqueness violation must not be translated at all (safety). The paired
   arms fail both a blanket catch and a filter narrowed until it never fires.
-- **Provisioning faults, both SQL providers, real containers:** an unprovisioned store must raise the
+- **Provisioning faults, both SQL providers, real containers** — `PostgresErasureProvisioningFaultShould`,
+  `SqlServerErasureProvisioningFaultShould`: an unprovisioned store must raise the
   provisioning type, and that type must not be assignable to `InvalidOperationException` (safety), while a
   provisioned store must still start and still store (liveness). The startup arms resolve the hosted
   service through the real registration path rather than constructing it, so a registration that
   contributes no validator fails rather than passing quietly.
+
+- **SOC 2 attestation: NO EVIDENCE EXISTS, and the distinction matters.** No conformance arm, unit test
+  or governance check RED-detects a report that asserts a verdict on a criterion nothing assessed. This
+  is **not** the ordinary "unverified" case — a guarantee we believe and have not yet proven. It has been
+  **measured false**: the behaviour described under the attestation guarantee above was reproduced by
+  reading the enumeration and aggregation paths, and the affected set is the default configuration rather
+  than an exotic one. Treat every statement a generated report makes about an unassessed criterion as
+  unsupported until an arm exists that fails when the report asserts one. **Do not cite this subsystem's
+  reports as evidence of coverage.**
 
 ## Known gaps
 

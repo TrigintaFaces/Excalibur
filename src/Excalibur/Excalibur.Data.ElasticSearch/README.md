@@ -113,6 +113,26 @@ services.Configure<ElasticsearchConfigurationOptions>(options =>
 });
 ```
 
+## Security
+
+Two distinct secret-handling capabilities live in this package, and they are deliberately separate abstractions:
+
+### Connection-credential storage
+
+`IElasticsearchKeyStorage` stores the opaque credentials this package uses to authenticate to Elasticsearch
+itself -- OAuth tokens, service-account secrets, passwords, API keys. An in-memory development store is wired
+by default; call `AddAzureKeyVaultCredentialStorage(configuration)` before registering authentication to back
+it with Azure Key Vault instead.
+
+### Field-level encryption key management
+
+Field-level encryption (`AddFieldEncryption()`) delegates key resolution and cryptographic operations entirely
+to `Excalibur.Compliance`'s `IKeyManagementProvider` and `IEncryptionProviderRegistry` -- this package never
+sees a raw encryption key. Call `AddKeyManagement(configuration)` to select a provider:
+
+- `Local` -- the in-process development provider (`Excalibur.Compliance`'s `AddDevEncryption()`). Keys are lost on restart; never use in production.
+- `AzureKeyVault` / `AwsKms` / `GoogleCloudKms` / `HashiCorpVault` -- register the corresponding `Excalibur.Compliance.Azure` / `.Aws` / `.Vault` package's key-management extension (e.g. `services.AddEncryption(e => e.UseKeyManagement<AzureKeyVaultProvider>())`) *before* calling `AddKeyManagement`; it is refused otherwise, so a cloud selection can never silently fall back to the development provider.
+
 ## Index Management
 
 ### Index Lifecycle Management
@@ -259,11 +279,10 @@ services.Configure<ElasticsearchConfigurationOptions>(options =>
         CircuitBreaker = new CircuitBreakerOptions
         {
             Enabled = true,
-            FailureThreshold = 5,          // Open after 5 failures
             MinimumThroughput = 10,        // Minimum requests before evaluation
             BreakDuration = TimeSpan.FromSeconds(30),
             SamplingDuration = TimeSpan.FromSeconds(60),
-            FailureRateThreshold = 0.5     // 50% failure rate
+            FailureRatio = 0.5             // opens at a 50% failure ratio
         }
     };
 });

@@ -81,7 +81,8 @@ public sealed record AuditEvent
 	/// </summary>
 	/// <remarks>
 	/// Enables filtering and chain scoping in shared audit backends.
-	/// When null, defaults to <c>ApplicationContext.ApplicationName</c> via post-configure.
+	/// It is NOT populated for you: an event stored without one is stored with a null application name.
+	/// Set it explicitly when a single audit backend is shared between applications.
 	/// </remarks>
 	public string? ApplicationName { get; init; }
 

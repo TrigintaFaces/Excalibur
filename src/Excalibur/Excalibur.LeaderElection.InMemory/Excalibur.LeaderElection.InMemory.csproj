@@ -22,6 +22,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.LeaderElection.Tests" />
+  </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.LeaderElection.Abstractions\Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
   </ItemGroup>

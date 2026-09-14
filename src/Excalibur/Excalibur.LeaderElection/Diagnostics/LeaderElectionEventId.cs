@@ -42,6 +42,12 @@ internal static class LeaderElectionEventId
 	/// <summary>Error during lease renewal for resource.</summary>
 	public const int InMemoryRenewalError = 180006;
 
+	/// <summary>A monotonic fencing token was minted on in-memory leadership acquisition.</summary>
+	public const int InMemoryFencingTokenIssued = 180007;
+
+	/// <summary>In-memory fencing token domain exhausted; leadership relinquished (fail-closed).</summary>
+	public const int InMemoryFencingTokenExhausted = 180008;
+
 	// ========================================
 	// 181000-181999: Consul
 	// ========================================

@@ -22,14 +22,12 @@ public sealed class RetryBackoffLadderShould
 {
 	private static readonly TimeSpan Base = TimeSpan.FromMilliseconds(100);
 
-	private static RetryPolicyOptions Options(double multiplier = 2.0) => new()
+	private static RetryOptions Options(double multiplier = 2.0) => new()
 	{
-		Backoff = new RetryBackoffOptions
-		{
-			BaseDelay = Base,
-			MaxDelay = TimeSpan.FromMinutes(30),
-			BackoffMultiplier = multiplier,
-		},
+		BaseDelay = Base,
+		MaxDelay = TimeSpan.FromMinutes(30),
+		BackoffMultiplier = multiplier,
+		UseJitter = false, // Deterministic strategies below are pinned to exact values.
 	};
 
 	[Fact]
@@ -72,10 +70,7 @@ public sealed class RetryBackoffLadderShould
 	{
 		// Zero is a legal configuration -- "retry without waiting" -- and every strategy must honour it
 		// rather than reject it on the retry path, where the throw would surface as a failed dispatch.
-		var options = new RetryPolicyOptions
-		{
-			Backoff = new RetryBackoffOptions { BaseDelay = TimeSpan.Zero, MaxDelay = TimeSpan.Zero },
-		};
+		var options = new RetryOptions { BaseDelay = TimeSpan.Zero, MaxDelay = TimeSpan.Zero };
 
 		var calc = BackoffCalculatorFactory.Create(strategy, options);
 
@@ -87,10 +82,7 @@ public sealed class RetryBackoffLadderShould
 	public void RefuseANegativeDelay()
 	{
 		// The liveness arm above would also be satisfied by a calculator that validates nothing at all.
-		var options = new RetryPolicyOptions
-		{
-			Backoff = new RetryBackoffOptions { BaseDelay = TimeSpan.FromMilliseconds(-1), MaxDelay = Base },
-		};
+		var options = new RetryOptions { BaseDelay = TimeSpan.FromMilliseconds(-1), MaxDelay = Base };
 
 		_ = Should.Throw<ArgumentOutOfRangeException>(
 			() => BackoffCalculatorFactory.Create(BackoffStrategy.Exponential, options));
@@ -121,7 +113,7 @@ public sealed class RetryBackoffLadderShould
 	{
 		// The ceiling is the property that stops an exponential ladder from becoming an outage.
 		var options = Options();
-		options.Backoff.MaxDelay = TimeSpan.FromMilliseconds(250);
+		options.MaxDelay = TimeSpan.FromMilliseconds(250);
 		var calc = BackoffCalculatorFactory.Create(BackoffStrategy.Exponential, options);
 
 		Enumerable.Range(1, 8).Select(a => calc.CalculateDelay(a).TotalMilliseconds)

@@ -37,4 +37,4 @@ Use `UseValidation()` plus an explicit resolver as the default. Add `UseValidati
 want problem-details mapping for handler/downstream-middleware exceptions. Either way, catch
 `Excalibur.Dispatch.Exceptions.ValidationException` around the dispatch call (or handle it at the host
 boundary — `Excalibur.Hosting.Web`'s `GlobalExceptionHandler` does this for ASP.NET Core hosts) to observe
-a validation failure; it is not visible via `IMessageResult.IsSuccess`.
+a validation failure; it is not visible via `IMessageResult.Succeeded`.

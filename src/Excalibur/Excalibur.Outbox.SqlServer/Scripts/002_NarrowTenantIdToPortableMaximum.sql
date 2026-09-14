@@ -318,18 +318,41 @@ BEGIN
             THROW 50002, @dmsg, 1;
         END
 
-        IF EXISTS (SELECT * FROM sys.key_constraints
-                   WHERE parent_object_id = OBJECT_ID(N'[dbo].[DeadLetterQueue]')
-                     AND name = N'PK_DeadLetterQueue' AND type = N'PK')
-        BEGIN
-            ALTER TABLE [dbo].[DeadLetterQueue] DROP CONSTRAINT PK_DeadLetterQueue;
-        END
+        -- The drop, the alter and the rebuild are ONE unit of work. The refusals above rule out
+        -- the failure this script can name -- a value too long to fit -- but not the ones it
+        -- cannot: a NULL in TenantId, or another index or constraint on the column that this
+        -- block does not know to drop, both fail the ALTER COLUMN after the key is already gone.
+        -- Without the transaction that leaves the dead-letter table with no key, so an entry
+        -- could be stored twice under one id and a redrive would replay it once per copy.
+        BEGIN TRANSACTION;
 
-        ALTER TABLE [dbo].[DeadLetterQueue]
-            ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+        BEGIN TRY
+            IF EXISTS (SELECT * FROM sys.key_constraints
+                       WHERE parent_object_id = OBJECT_ID(N'[dbo].[DeadLetterQueue]')
+                         AND name = N'PK_DeadLetterQueue' AND type = N'PK')
+            BEGIN
+                ALTER TABLE [dbo].[DeadLetterQueue] DROP CONSTRAINT PK_DeadLetterQueue;
+            END
 
-        ALTER TABLE [dbo].[DeadLetterQueue]
-            ADD CONSTRAINT PK_DeadLetterQueue PRIMARY KEY (Id, TenantId);
+            ALTER TABLE [dbo].[DeadLetterQueue]
+                ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+
+            ALTER TABLE [dbo].[DeadLetterQueue]
+                ADD CONSTRAINT PK_DeadLetterQueue PRIMARY KEY (Id, TenantId);
+
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            -- The table keeps the column width and the key it had, which is the same "Nothing
+            -- has been changed" contract the refusals above state. Re-raise so a failed
+            -- migration cannot be read as a success.
+            IF XACT_STATE() <> 0
+            BEGIN
+                ROLLBACK TRANSACTION;
+            END;
+
+            THROW;
+        END CATCH
 
         PRINT '002: [dbo].[DeadLetterQueue].TenantId narrowed to NVARCHAR(64) and PK_DeadLetterQueue rebuilt.';
     END

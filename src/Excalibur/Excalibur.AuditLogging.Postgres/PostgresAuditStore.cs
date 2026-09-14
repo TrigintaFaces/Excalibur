@@ -28,14 +28,18 @@ namespace Excalibur.AuditLogging.Postgres;
 ///   under <c>scripts/</c> in this package
 /// </para>
 /// <para>
-/// Not provided by this type, so that the absence is explicit rather than inferred: it implements no
-/// retention or purge path — it exposes no <c>EnforceRetentionAsync</c> and no purge capability, so a host
-/// that needs audit retention on PostgreSQL must delete by its own policy. It also offers no batch or bulk
-/// insert; <c>StoreAsync</c> writes one event per call, which the hash chain requires in order to link each
-/// event to the tag preceding it.
+/// Retention is offered as a capability, not a member of <see cref="IAuditStore"/>: this store implements
+/// <see cref="IAuditPurgeCapability"/>, discoverable via <see cref="IServiceProvider.GetService(Type)"/>,
+/// which permanently removes events older than a caller-supplied cutoff, either estate-wide or confined to
+/// one tenant partition.
+/// </para>
+/// <para>
+/// Not provided by this type, so that the absence is explicit rather than inferred: it offers no batch or
+/// bulk insert; <c>StoreAsync</c> writes one event per call, which the hash chain requires in order to link
+/// each event to the tag preceding it.
 /// </para>
 /// </remarks>
-public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore, IDisposable
+public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore, IAuditPurgeCapability, IDisposable
 {
 	private readonly PostgresAuditOptions _options;
 	private readonly IAuditIntegrityStrategy _integrity;
@@ -359,18 +363,30 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// Resolved once, before anything reads records, and then carried into every statement below. See
+		// ReadRangeBoundsAsync for why re-deriving them per statement reports an intact trail as broken.
+		var bounds = await ReadRangeBoundsAsync(connection, startDate, endDate, cancellationToken)
+			.ConfigureAwait(false);
+		if (bounds is null)
+		{
+			return AuditIntegrityResult.NoEventsInScope(startDate, endDate);
+		}
+
+		var (lowerBound, upperBound) = bounds.Value;
+
 		// Selected by sequence bounds rather than on the timestamp directly. Records are chained in write
 		// order, so a record written between two in-range records but stamped outside them is still a link in
 		// the chain; selecting on the timestamp alone would leave a hole indistinguishable from a deletion.
 		var sql = $@"
 			SELECT {IntegrityColumnsSql}
 			FROM {_options.FullyQualifiedTableName}
-			WHERE sequence_number >= ({RangeLowerBoundSql})
-			  AND sequence_number <= ({RangeUpperBoundSql})
+			WHERE sequence_number >= @LowerBound
+			  AND sequence_number <= @UpperBound
 			ORDER BY sequence_number ASC";
 
 		var rows = await connection.QueryAsync<AuditEventRow>(
-				new CommandDefinition(sql, new { StartDate = startDate, EndDate = endDate }, commandTimeout: _options.CommandTimeoutSeconds,
+				new CommandDefinition(sql, new { LowerBound = lowerBound, UpperBound = upperBound },
+					commandTimeout: _options.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -380,7 +396,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 			return AuditIntegrityResult.NoEventsInScope(startDate, endDate);
 		}
 
-		var partitions = await BuildVerificationPartitionsAsync(connection, events, startDate, endDate, cancellationToken)
+		var partitions = await BuildVerificationPartitionsAsync(connection, events, lowerBound, upperBound, cancellationToken)
 			.ConfigureAwait(false);
 
 		var result = await AuditChainVerifier
@@ -400,20 +416,52 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 	}
 
 	/// <summary>
-	/// The lowest sequence number in the verified window. Shared between the record selection and the anchor
-	/// lookup so the two cannot drift onto different left edges.
+	/// Reads the sequence-number edges of the verified window, once, for every statement the verification
+	/// issues.
 	/// </summary>
-	private string RangeLowerBoundSql =>
-		$@"SELECT MIN(sequence_number) FROM {_options.FullyQualifiedTableName}
-		   WHERE timestamp >= @StartDate AND timestamp <= @EndDate";
+	/// <returns>The window's inclusive lower and upper sequence bounds, or <see langword="null"/> when no
+	/// record falls inside it.</returns>
+	/// <remarks>
+	/// Read once and carried, rather than restated as a subquery in each statement. Sharing the query text
+	/// shares the definition of the edge, not the edge: every statement that re-evaluates it observes the
+	/// table at its own instant, so a record appended between two of them moves the edge underneath the
+	/// verification. The record selection then holds one right edge while the successor lookup resolves
+	/// against a later one, and the successor it returns was written to follow a record the selection never
+	/// saw. Its stored prior tag names that record, the walk reaches the end of the range without it, and
+	/// the chain is reported broken - a store that is merely busy accuses its own trail of having records
+	/// removed from the end. Two longs read once cannot disagree with themselves.
+	/// </remarks>
+	private async Task<(long Lower, long Upper)?> ReadRangeBoundsAsync(
+		NpgsqlConnection connection,
+		DateTimeOffset startDate,
+		DateTimeOffset endDate,
+		CancellationToken cancellationToken)
+	{
+		var sql = $@"
+			SELECT MIN(sequence_number) AS LowerBound, MAX(sequence_number) AS UpperBound
+			FROM {_options.FullyQualifiedTableName}
+			WHERE timestamp >= @StartDate AND timestamp <= @EndDate";
 
-	/// <summary>
-	/// The highest sequence number in the verified window. Shared between the record selection and the
-	/// successor lookup so the two cannot drift onto different right edges.
-	/// </summary>
-	private string RangeUpperBoundSql =>
-		$@"SELECT MAX(sequence_number) FROM {_options.FullyQualifiedTableName}
-		   WHERE timestamp >= @StartDate AND timestamp <= @EndDate";
+		var bounds = await connection.QuerySingleAsync<RangeBoundsRow>(
+				new CommandDefinition(
+					sql,
+					new { StartDate = startDate, EndDate = endDate },
+					commandTimeout: _options.CommandTimeoutSeconds,
+					cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
+
+		// Both aggregates are NULL over an empty window, and neither is NULL otherwise - MIN and MAX are
+		// taken over the same rows - so the pair is present or absent together.
+		return bounds.LowerBound is { } lower && bounds.UpperBound is { } upper ? (lower, upper) : null;
+	}
+
+	/// <summary>The verified window's sequence-number edges, as one row.</summary>
+	private sealed class RangeBoundsRow
+	{
+		public long? LowerBound { get; set; }
+
+		public long? UpperBound { get; set; }
+	}
 
 	/// <summary>
 	/// The integrity-covered columns, in one place. The in-range records and the successor that pins the
@@ -441,15 +489,14 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 	/// </remarks>
 	private async Task<Dictionary<AuditChainKey, string?>> LoadChainAnchorsAsync(
 		NpgsqlConnection connection,
-		DateTimeOffset startDate,
-		DateTimeOffset endDate,
+		long lowerBound,
 		CancellationToken cancellationToken)
 	{
 		var sql = $@"
 			SELECT DISTINCT ON ({CanonicalTenantSql}, {CanonicalApplicationSql})
 				   tenant_id AS TenantId, application_name AS ApplicationName, event_hash AS EventHash
 			FROM {_options.FullyQualifiedTableName}
-			WHERE sequence_number < ({RangeLowerBoundSql})
+			WHERE sequence_number < @LowerBound
 			ORDER BY {CanonicalTenantSql}, {CanonicalApplicationSql}, sequence_number DESC";
 
 		var anchorRows = await connection.QueryAsync<ChainAnchorRow>(
@@ -457,8 +504,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 					sql,
 					new
 					{
-						StartDate = startDate,
-						EndDate = endDate,
+						LowerBound = lowerBound,
 						UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId,
 						NoApplicationSentinel = string.Empty
 					},
@@ -489,15 +535,14 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 	/// </remarks>
 	private async Task<Dictionary<AuditChainKey, AuditEvent>> LoadChainSuccessorsAsync(
 		NpgsqlConnection connection,
-		DateTimeOffset startDate,
-		DateTimeOffset endDate,
+		long upperBound,
 		CancellationToken cancellationToken)
 	{
 		var sql = $@"
 			SELECT DISTINCT ON ({CanonicalTenantSql}, {CanonicalApplicationSql})
 				   {IntegrityColumnsSql}
 			FROM {_options.FullyQualifiedTableName}
-			WHERE sequence_number > ({RangeUpperBoundSql})
+			WHERE sequence_number > @UpperBound
 			ORDER BY {CanonicalTenantSql}, {CanonicalApplicationSql}, sequence_number ASC";
 
 		var successorRows = await connection.QueryAsync<AuditEventRow>(
@@ -505,8 +550,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 					sql,
 					new
 					{
-						StartDate = startDate,
-						EndDate = endDate,
+						UpperBound = upperBound,
 						UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId,
 						NoApplicationSentinel = string.Empty
 					},
@@ -549,8 +593,8 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 	private async Task<List<AuditChainPartition>> BuildVerificationPartitionsAsync(
 		NpgsqlConnection connection,
 		List<AuditEvent> events,
-		DateTimeOffset startDate,
-		DateTimeOffset endDate,
+		long lowerBound,
+		long upperBound,
 		CancellationToken cancellationToken)
 	{
 		if (!_options.EnableHashChain)
@@ -559,8 +603,8 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 				.ConvertAll(e => AuditChainPartition.FromList(anchorPriorTag: null, events: [e], successor: null));
 		}
 
-		var anchors = await LoadChainAnchorsAsync(connection, startDate, endDate, cancellationToken).ConfigureAwait(false);
-		var successors = await LoadChainSuccessorsAsync(connection, startDate, endDate, cancellationToken).ConfigureAwait(false);
+		var anchors = await LoadChainAnchorsAsync(connection, lowerBound, cancellationToken).ConfigureAwait(false);
+		var successors = await LoadChainSuccessorsAsync(connection, upperBound, cancellationToken).ConfigureAwait(false);
 		return BuildChainPartitions(events, anchors, successors);
 	}
 
@@ -617,9 +661,116 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 	}
 
 	/// <inheritdoc />
-	public async Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
+	public async Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken)
 	{
-		return await GetLastEventInternalAsync(tenantId, applicationName: null, cancellationToken).ConfigureAwait(false);
+		return await GetLastEventInternalAsync(applicationName: null, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	public async Task<int> PurgeExpiredAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
+		// Estate-wide: no tenant fragment. This is the ONLY way to express an unscoped purge on this store,
+		// and it is reachable only by naming this method -- never by omitting or widening an argument to the
+		// tenant-scoped one. The empty fragment is supplied here, at the site whose name declares the intent.
+		await PurgeCoreAsync(cutoff, tenant: null, cancellationToken).ConfigureAwait(false);
+
+	/// <inheritdoc />
+	public async Task<int> PurgeTenantAsync(
+		DateTimeOffset cutoff,
+		KeyedTenantPartition tenant,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(tenant);
+
+		return await PurgeCoreAsync(cutoff, tenant, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Shared body of both purge members. The tenant fragment is DERIVED from <paramref name="tenant"/> here
+	/// rather than passed alongside it, mirroring <c>SqlServerAuditStore.PurgeCoreAsync</c>: two independently
+	/// supplied arguments that had to agree once let a tenant-scoped call whose fragment was empty silently
+	/// delete every tenant's rows, and a single derived value makes that state unrepresentable.
+	/// </summary>
+	/// <param name="cutoff">Events older than this instant are removed.</param>
+	/// <param name="tenant">
+	/// The partition to confine the purge to, or <see langword="null"/> for the estate-wide retention sweep.
+	/// The null is written at exactly one named entry point (<c>PurgeExpiredAsync</c>) and cannot arrive by
+	/// omission: this parameter has no default.
+	/// </param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>The number of audit events removed.</returns>
+	private async Task<int> PurgeCoreAsync(
+		DateTimeOffset cutoff,
+		KeyedTenantPartition? tenant,
+		CancellationToken cancellationToken)
+	{
+		// NULL-safe by necessity: a bare tenant_id = @TenantId never matches a row whose tenant column is
+		// NULL, so every row written before this table had a tenant column would be unpurgeable -- retained
+		// past policy, invisibly. Folding NULL onto the reserved sentinel is how the keyed partition type
+		// defines a stored value that cannot name a real tenant. Mirrors CanonicalTenantSql above; not reused
+		// directly because that helper also binds UntenantedSentinel/TenantId into a shared DynamicParameters
+		// builder this method does not use.
+		var tenantPredicate = tenant is null
+			? string.Empty
+			: "\n\t\t\t  AND COALESCE(tenant_id, @UntenantedSentinel) = @TenantId";
+
+		await using var connection = new NpgsqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// No annotation cascade: unlike SqlServer, this package ships no Postgres-specific audit-annotation
+		// store (IAuditAnnotationStore's only durable implementation is SqlServerAuditAnnotationStore), so
+		// there is nothing here that can reference event_id and become orphaned by this delete. If a Postgres
+		// annotation store is ever added, its cascade belongs in this statement, in the same transaction as
+		// the event delete -- see SqlServerAuditStore.PurgeCoreAsync for why that must not be a separate step.
+		//
+		// ctid-subquery batching is the Postgres equivalent of SQL Server's DELETE TOP (@BatchSize): Postgres
+		// has no LIMIT on a bare DELETE, so the batch is selected by an inner query and the outer DELETE
+		// matches on physical row identity. The WITH ... RETURNING form runs as one statement, so Postgres's
+		// own implicit per-statement transaction makes the delete and the count atomic without an explicit
+		// BEGIN/COMMIT.
+		var sql = $@"
+			WITH expired AS (
+				DELETE FROM {_options.FullyQualifiedTableName}
+				WHERE ctid IN (
+					SELECT ctid FROM {_options.FullyQualifiedTableName}
+					WHERE timestamp < @CutoffDate{tenantPredicate}
+					ORDER BY ctid
+					LIMIT @BatchSize
+				)
+				RETURNING event_id
+			)
+			SELECT COUNT(*) FROM expired;";
+
+		var totalDeleted = 0;
+		int deleted;
+
+		do
+		{
+			deleted = await connection.ExecuteScalarAsync<int>(
+					new CommandDefinition(
+						sql,
+						new
+						{
+							BatchSize = _options.Retention.CleanupBatchSize,
+							CutoffDate = cutoff,
+							// Bound unconditionally. Dapper ignores parameters the statement does not
+							// reference, so the estate-wide path simply never uses these -- the alternative
+							// (branching the parameter set) would give the two paths two shapes to diverge in.
+							TenantId = tenant?.TenantId,
+							UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId,
+						},
+						commandTimeout: _options.CommandTimeoutSeconds,
+						cancellationToken: cancellationToken))
+				.ConfigureAwait(false);
+
+			totalDeleted += deleted;
+
+			if (deleted > 0)
+			{
+				LogDeletedExpiredEvents(deleted, cutoff);
+			}
+		} while (deleted == _options.Retention.CleanupBatchSize);
+
+		return totalDeleted;
 	}
 
 	/// <inheritdoc />
@@ -674,7 +825,6 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 	}
 
 	private async Task<AuditEvent?> GetLastEventInternalAsync(
-		string? tenantId,
 		string? applicationName,
 		CancellationToken cancellationToken)
 	{
@@ -684,8 +834,10 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 		var whereClauses = new List<string>();
 		var parameters = new DynamicParameters();
 
-		// SECURITY: scope, not filter — bound unconditionally from ambient context. The caller-supplied
-		// tenantId is deliberately not consulted: passing null widened this read to every tenant.
+		// SECURITY: scope, not filter — bound unconditionally from ambient context. The interface no
+		// longer accepts a caller-supplied tenant id at all (it was never consulted here even when it
+		// did: passing null previously widened this read to every tenant), so the scoping belief the
+		// parameter invited is now unformable.
 		AddTenantScope(whereClauses, parameters);
 
 		if (!string.IsNullOrEmpty(applicationName))
@@ -864,6 +1016,9 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 		int eventCount,
 		DateTimeOffset startDate,
 		DateTimeOffset endDate);
+
+	[LoggerMessage(LogLevel.Information, "Deleted {Count} audit events older than {CutoffDate}")]
+	private partial void LogDeletedExpiredEvents(int count, DateTimeOffset cutoffDate);
 
 	[System.Diagnostics.CodeAnalysis.SuppressMessage(
 		"Performance",

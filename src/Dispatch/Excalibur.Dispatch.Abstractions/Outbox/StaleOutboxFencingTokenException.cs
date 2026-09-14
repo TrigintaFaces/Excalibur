@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch;
 /// This is a fail-closed signal: the caller MUST treat this as an abort of the protected operation, not as
 /// a transient error to retry with the same token.
 /// </remarks>
-public sealed class StaleOutboxFencingTokenException : Exception
+public sealed class StaleOutboxFencingTokenException : OutboxFenceRefusedException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="StaleOutboxFencingTokenException"/> class.

@@ -10,6 +10,8 @@ using Excalibur.Domain.Concurrency;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -93,7 +95,34 @@ internal static class AuditServiceCollectionExtensions
 		// so a singleton descriptor here would be a captive dependency ValidateOnBuild
 		// rejects. TryAddEnumerable avoids double-registration when this extension is
 		// called more than once.
-		services.TryAddEnumerable(ServiceDescriptor.Scoped<IDispatchMiddleware, AuditMiddleware>());
+		// Registered through a FACTORY rather than by type, and that is load-bearing rather than stylistic.
+		// A type-keyed descriptor is statically analysed by ValidateOnBuild, which reaches the missing
+		// IAuditMessagePublisher first and fails the whole container with its own "unable to resolve
+		// service" text -- before any startup validation gets to run. The consumer then sees the platform
+		// complaining about an interface, with nothing tying it back to the audit registration. A factory
+		// is opaque to that analysis, so the container builds and the curated check below is what speaks.
+		// The two-type-argument overload matters: a bare factory descriptor reports its implementation
+		// type as the SERVICE type, and TryAddEnumerable then refuses it as indistinguishable from any
+		// other IDispatchMiddleware. Naming AuditMiddleware explicitly restores the de-duplication key,
+		// so calling this extension twice still registers one middleware.
+		services.TryAddEnumerable(ServiceDescriptor.Scoped<IDispatchMiddleware, AuditMiddleware>(static sp =>
+			new AuditMiddleware(
+				sp.GetService<IAuditMessagePublisher>()
+					?? throw new InvalidOperationException(AuditPublisherPrerequisite.MissingPublisherMessage),
+				sp.GetRequiredService<IOutboxDispatcher>(),
+				sp.GetRequiredService<IServiceScopeFactory>(),
+				sp.GetRequiredService<ILogger<AuditMiddleware>>())));
+
+		// The publisher is the ONE sibling this extension will not default: the destination for an audit
+		// record is a product decision, not a framework one. That makes it a non-defaultable prerequisite,
+		// and a prerequisite nobody checks is indistinguishable from a missing default until the first
+		// auditable command is dispatched -- at which point the consumer gets the container's own
+		// "unable to resolve" text, which names the interface but never names AddExcaliburAudit as the
+		// thing that required it. Validate at startup instead, so the failure arrives where the
+		// registration was made.
+		_ = services.AddOptions<AuditWiringOptions>().ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditWiringOptions>, AuditPublisherPrerequisiteValidator>());
 
 		return services;
 	}

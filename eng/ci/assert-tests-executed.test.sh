@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 # SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 #
-# Non-vacuous self-test for assert-tests-executed.sh (bead 885jxd).
+# Non-vacuous self-test for assert-tests-executed.sh.
 #
 # Both arms, because a zero-match detector that only proves it PASSES a real run is
 # satisfied by a script that passes everything — the exact vacuous-green it exists to
@@ -18,7 +18,7 @@ fail() { echo "SELF-TEST FAIL: $1" >&2; exit 1; }
 # Fixtures — verbatim shapes of real `dotnet test` console output.
 
 # A multi-project run where the filter matched NOTHING anywhere: every project prints the
-# "No test matches" line and dotnet exits 0. This is the 885jxd false green.
+# "No test matches" line and dotnet exits 0. This is the empty-filter false green.
 zero_match_output='Test run for ProjA.dll (.NETCoreApp,Version=v10.0)
 No test matches the given testcase filter `FullyQualifiedName~Typo_zzz` in ProjA.dll
 Test run for ProjB.dll (.NETCoreApp,Version=v10.0)

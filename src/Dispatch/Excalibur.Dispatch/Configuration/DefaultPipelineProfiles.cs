@@ -12,6 +12,14 @@ using Excalibur.Dispatch.Middleware.Transaction;
 using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Middleware.Versioning;
 
+using Excalibur.Dispatch.Options.Middleware;
+using Excalibur.Dispatch.Serialization;
+
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>
@@ -62,23 +70,92 @@ public static class DefaultPipelineProfiles
 		// would silently no-op when a consumer selects "Default" without wiring auth — a silent authorization
 		// bypass. Authorization is opt-in via the Strict profile, which the consumer deliberately selects.
 		// Every entry states its criticality EXPLICITLY, for the same reason as the strict profile: a
-		// shipped profile must not depend on the MiddlewareEntry default.
-		//
-		// All seven are Optional, and that is not a weakening. This profile is what a consumer gets from
-		// a bare registration with no configuration at all, and it declares no security boundary — the
-		// comment above records that AuthorizationMiddleware is deliberately absent precisely so that
-		// selecting "default" cannot look like authorization. Marking these Required would stop every
-		// zero-configuration host from starting while protecting nothing, because the protection a
-		// consumer must opt into is not declared here in the first place.
-		profile.AddMiddleware<TenantIdentityMiddleware>(1, MiddlewareCriticality.Optional); // 1. TenantIdentityMiddleware (All)
-		profile.AddMiddleware<ContractVersionCheckMiddleware>(2, MiddlewareCriticality.Optional); // 2. ContractVersionCheckMiddleware (Event|Document)
-		profile.AddMiddleware<ValidationMiddleware>(3, MiddlewareCriticality.Optional); // 3. ValidationMiddleware (Action)
-		profile.AddMiddleware<TimeoutMiddleware>(4, MiddlewareCriticality.Optional); // 4. TimeoutMiddleware (Action|Event)
-		profile.AddMiddleware<TransactionMiddleware>(5, MiddlewareCriticality.Optional); // 5. TransactionMiddleware (Action)
-		profile.AddMiddleware<OutboxStagingMiddleware>(6, MiddlewareCriticality.Optional); // 6. OutboxStagingMiddleware (Action|Event)
-		profile.AddMiddleware<MetricsLoggingMiddleware>(7, MiddlewareCriticality.Optional); // 7. MetricsLoggingMiddleware (All)
+		// shipped profile must not depend on the MiddlewareEntry default. See DefaultProfileMiddleware
+		// below for the membership, the criterion that decides it, and why all entries are Optional.
+		foreach (var entry in DefaultProfileMiddleware)
+		{
+			profile.AddMiddleware(entry.MiddlewareType, entry.Order, entry.Criticality);
+		}
 
 		return profile;
+	}
+
+	/// <summary>
+	/// The single source of the default profile's membership: what it declares AND what
+	/// <c>AddDispatch()</c> registers are both read from this list.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A default-profile entry that the container does not receive is not a bug to be detected — it is
+	/// a state that cannot be written down. Declaration and registration are two fields of one element,
+	/// so they cannot disagree; adding an entry here registers it, and removing one un-registers it.
+	/// </para>
+	/// <para>
+	/// Membership is decided by a criterion, not by a list somebody maintains: an entry belongs here if
+	/// and only if it can be constructed from a bare service collection after <c>AddDispatch()</c> alone,
+	/// with the consumer registering no infrastructure of their own. That is why
+	/// <c>TransactionMiddleware</c> is absent — it requires a consumer-supplied transaction service, and
+	/// seating it by default would make a zero-configuration host fail to dispatch. It stays available to
+	/// any profile a consumer deliberately selects, exactly as authorization does.
+	/// </para>
+	/// <para>
+	/// Each entry registers itself through an explicit closed generic rather than a reflected
+	/// <see cref="Type"/>, so the set stays trim-safe and ahead-of-time friendly.
+	/// </para>
+	/// </remarks>
+	internal static readonly DefaultMiddlewareEntry[] DefaultProfileMiddleware =
+	[
+		new(typeof(TenantIdentityMiddleware), 1, static s => s.TryAddScoped<TenantIdentityMiddleware>()),
+		new(typeof(TimeoutMiddleware), 2, static s => s.TryAddScoped<TimeoutMiddleware>()),
+		new(typeof(MetricsLoggingMiddleware), 3, static s => s.TryAddScoped<MetricsLoggingMiddleware>()),
+		new(typeof(OutboxStagingMiddleware), 4, static s => s.TryAddScoped(static sp => new OutboxStagingMiddleware(
+			sp.GetRequiredService<IOptions<OutboxStagingOptions>>(),
+			sp.GetService<IOutboxStore>(),
+			sp.GetRequiredService<DispatchJsonSerializer>(),
+			sp.GetRequiredService<ILogger<OutboxStagingMiddleware>>()))),
+	];
+
+	// Measured against a bare service collection, not reasoned about. These three fail the criterion
+	// today because a dependency of theirs is not supplied by AddDispatch(), and the container throws
+	// rather than returning null when a registered middleware's own dependency cannot resolve:
+	//
+	//   ContractVersionCheckMiddleware  needs IContractVersionService
+	//   ValidationMiddleware            needs IMessageValidationService
+	// OutboxStagingMiddleware WAS listed here, and it did not belong. Its parameter is genuinely nullable
+	// and its body already self-gates on the store, so it failed the criterion only on a DI-resolution
+	// technicality -- constructor injection will not pass null for a parameter with no default, so the
+	// container threw where GetService would have returned null. That is a registration detail, not a
+	// missing infrastructure dependency, and filing it beside the two real ones above is what kept outbox
+	// staging off the default pipeline. It is now seated through a factory that asks GetService, and it is
+	// inert when no store answers.
+	//
+	// They remain available to any profile a consumer deliberately selects. Supplying framework defaults
+	// for those services would move them back across the criterion, and that is a real improvement worth
+	// making on its own terms — it is deliberately not bundled here, because each default is a design
+	// decision about what the framework validates and versions on a consumer's behalf.
+
+	/// <summary>
+	/// One entry of the default profile: the type the profile declares, its order, and the registration
+	/// that seats it in the container.
+	/// </summary>
+	/// <param name="MiddlewareType"> The middleware type the profile declares. </param>
+	/// <param name="Order"> Position in the canonical ordering. </param>
+	/// <param name="Register"> Seats the middleware in the container, using try-add semantics so a consumer registration wins. </param>
+	internal sealed record DefaultMiddlewareEntry(
+		Type MiddlewareType,
+		int Order,
+		Action<IServiceCollection> Register)
+	{
+		/// <summary>
+		/// Gets the criticality every default-profile entry carries.
+		/// </summary>
+		/// <remarks>
+		/// Optional, and stated here once rather than per entry. This profile declares no security
+		/// boundary — the comment above records that authorization is deliberately absent precisely so
+		/// that selecting "default" cannot look like authorization — so a Required entry would stop a
+		/// host from starting while protecting nothing.
+		/// </remarks>
+		public MiddlewareCriticality Criticality => MiddlewareCriticality.Optional;
 	}
 
 	/// <summary>

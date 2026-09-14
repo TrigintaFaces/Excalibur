@@ -127,6 +127,22 @@ if [ "$MODE" = "--staged" ]; then
         st_base="$(basename "$st")"
         # A bare or very short name would match half the tree; require enough signal to be meaningful.
         [ "${#st_base}" -ge 6 ] || continue
+        # A basename can name SEVERAL tracked files -- three trees here ship an "audit-logging.md".
+        # For those, a bare basename hit cannot say which one is referenced, and a reference to the
+        # other tree's copy is not a coupling: it flagged a correct docs commit whose only inbound
+        # reference pointed at the published site's same-named page. So when the basename is
+        # ambiguous, require the reference to resolve to THIS path. Unique basenames keep the
+        # relative-path tolerance this arm was built for.
+        # The full path must be matched with a LEFT BOUNDARY, not as a substring: the whole point is
+        # that "docs/x/y.md" is a tail of "docs-site/docs/x/y.md", so a plain fixed-string search for
+        # the former still hits the latter and the narrowing buys nothing. A reference starts at a
+        # non-path character.
+        st_needle="$st_base"
+        st_anchored=0
+        if [ "$(git ls-files -- "*/$st_base" "$st_base" 2>/dev/null | head -2 | wc -l)" -gt 1 ]; then
+            st_needle="$(printf '%s' "$st" | sed 's/\./\\./g')"   # only "." is a metacharacter here
+            st_anchored=1
+        fi
         for d in "${DIRTY[@]}"; do
             [ -n "$d" ] || continue
             [ "$d" = "$st" ] && continue
@@ -139,7 +155,7 @@ if [ "$MODE" = "--staged" ]; then
             case "$d" in
                 .beads/*|.beads-backup-*/*|*/.beads/*) continue ;;
             esac
-            if grep -Fqs -- "$st_base" "$d" 2>/dev/null; then
+            if { [ "$st_anchored" -eq 1 ]                     && grep -Eqs -- "(^|[^A-Za-z0-9_./-])$st_needle" "$d" 2>/dev/null; }                || { [ "$st_anchored" -eq 0 ]                     && grep -Fqs -- "$st_needle" "$d" 2>/dev/null; }; then
                 if [ "$refs" -eq 0 ]; then
                     echo "[committed-sha-build-gate] COUPLED SET SPLIT — a file OUTSIDE this commit references a file INSIDE it." >&2
                     echo "  The committed tree will contain one half of a pair that refers to the other:" >&2
@@ -258,6 +274,36 @@ if [ -f "$SOLUTION_FILE" ]; then
 else
     echo "[committed-sha-build-gate] no solution file found; gating every touched project."
 fi
+
+# ── SHARED BUILD INPUTS ────────────────────────────────────────────────────────────────────────────
+#
+# A shared build input is owned by NO project, so owning_project_dir returns nothing for it and it
+# contributes NOTHING to the build set above. The commit is then judged by whichever unrelated project
+# it also happened to touch -- and if it touched none, by nothing at all.
+#
+# That is not hypothetical. A commit made the root Directory.Build.props XML-invalid (a double hyphen
+# inside a comment); this gate reported "PASS - 1 project(s) compile" on the strength of an unrelated
+# project, and committed HEAD stayed unbuildable for the four projects that import it across six later
+# commits. The file every project reads was the one file the gate could not see.
+#
+# So: a change to a shared input maps to the SOLUTION, which is the only set guaranteed to include
+# every importer. It is the whole solution rather than a sampled project per import chain because the
+# import graph is what changed -- sampling it would be reasoning from the thing under test.
+for f in "${CHANGED[@]}"; do
+    case "$(basename "$f")" in
+        Directory.Build.props|Directory.Build.targets|Directory.Packages.props|global.json)
+            if [ -f "$SOLUTION_FILE" ]; then
+                echo "[committed-sha-build-gate] $f is a shared build input owned by no project — gating the whole solution."
+                PROJECTS=()
+                PROJECTS["$(basename "$SOLUTION_FILE")"]=1
+            else
+                echo "[committed-sha-build-gate] CANNOT EVALUATE — $f is a shared build input and no solution file was found to gate it against." >&2
+                exit "$E_ENV"
+            fi
+            break
+            ;;
+    esac
+done
 
 if [ "${#PROJECTS[@]}" -eq 0 ]; then
     echo "[committed-sha-build-gate] $SHA touches no project the solution builds — nothing to build."

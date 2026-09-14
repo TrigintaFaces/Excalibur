@@ -88,7 +88,7 @@ public sealed partial class LoggingMiddleware(
 			// Log completion
 			if (_options.LogCompletion)
 			{
-				if (result.IsSuccess)
+				if (result.Succeeded)
 				{
 					LogSuccess(messageTypeName, messageId, (long)(stopwatch?.ElapsedMilliseconds ?? 0));
 				}

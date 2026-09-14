@@ -124,6 +124,61 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 	}
 
 	/// <summary>
+	/// LIVENESS. The pending read is not confined to a subset of tenants: two messages staged into one
+	/// partition under DIFFERENT tenants must both come back.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This arm exists because the interface predicts the exact failure it catches.</b>
+	/// <c>ICloudNativeOutboxStore</c> states that <c>GetPendingAsync</c> takes no tenant, that ownership
+	/// is carried on the row, and that "a store confining these reads to an ambient tenant would read that
+	/// tenant as absent on the trigger path, return the empty set, and stall publication for every
+	/// tenant." Nothing here asserted that, so the prediction was unenforced on all three cloud-native
+	/// providers.
+	/// </para>
+	/// <para>
+	/// <b>It varies the MESSAGE, never the host.</b> Tenancy on this contract belongs to the row, so an
+	/// arm that instead resolved an ambient tenant would be asserting a property the contract forbids -
+	/// and a store built to satisfy that reading is precisely what produces the stall above. The
+	/// partition key is held constant for the same reason: it is physical placement, not tenancy, and
+	/// varying it would test partitioning while appearing to test tenants.
+	/// </para>
+	/// <para>
+	/// <b>It is a liveness arm with no safety twin, and that is deliberate.</b> The safety reading -
+	/// "tenant B must not see tenant A's row" - is satisfied by a store that returns nothing to anybody,
+	/// which is the stall itself wearing a passing assertion. On this contract the dangerous direction is
+	/// under-returning, so the arm that can fail is the one that demands both.
+	/// </para>
+	/// </remarks>
+	public virtual async Task GetPendingAsync_MustReturnMessagesFromEveryTenant()
+	{
+		RecordArmExecuted(nameof(GetPendingAsync_MustReturnMessagesFromEveryTenant));
+
+		var store = await CreateStoreAsync().ConfigureAwait(false);
+		var partitionKey = CreatePartitionKey();
+
+		var first = CreateTestMessage(partitionKey) with { TenantId = "conformance-tenant-a" };
+		var second = CreateTestMessage(partitionKey) with { TenantId = "conformance-tenant-b" };
+
+		_ = await store.AddAsync(first, partitionKey, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.AddAsync(second, partitionKey, CancellationToken.None).ConfigureAwait(false);
+
+		var pending = await store.GetPendingAsync(partitionKey, 100, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var sawFirst = pending.Documents.Any(m => m.MessageId == first.MessageId);
+		var sawSecond = pending.Documents.Any(m => m.MessageId == second.MessageId);
+
+		Assert(
+			sawFirst && sawSecond,
+			"The pending read is confined to a subset of tenants. Two messages were staged into ONE "
+			+ $"partition under different tenants and the read returned tenant-a={sawFirst}, "
+			+ $"tenant-b={sawSecond}. One publisher serves every tenant on this contract, so a read that "
+			+ "drops a tenant stalls publication for it permanently while the row stays pending and no "
+			+ "other assertion fails.");
+	}
+
+	/// <summary>
 	/// Round-trip fidelity: every canonical field on a staged message survives being read back - not just
 	/// the identifier.
 	/// </summary>

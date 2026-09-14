@@ -4,6 +4,8 @@
 using System.Globalization;
 using System.Text;
 
+using Excalibur.Compliance.Soc2.Validators;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -234,8 +236,23 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 			return ComplianceLevel.Unknown;
 		}
 
-		var metCount = sections.Count(s => s.IsMet);
-		var percentage = metCount * 100 / sections.Count;
+		// Over ASSESSED sections only, numerator AND denominator. Counting an unassessed criterion as
+		// a failure understated the consumer's posture on evidence nobody gathered; dropping it from
+		// the numerator alone would overstate it. Both halves move together or the percentage lies in
+		// one direction or the other.
+		var assessed = sections.Where(s => s.Outcome != CriterionOutcome.NotAssessed).ToList();
+		var metCount = assessed.Count(s => s.Outcome == CriterionOutcome.Met);
+		// Sections exist but NONE was assessed. This method already returns Unknown for an empty
+		// section list and did not reach this case, so a zero percentage fell through to NonCompliant
+		// and on to an ADVERSE auditor opinion -- the worst verdict available, handed to a consumer who
+		// simply had not registered a validator. Unknown is the state that already exists for exactly
+		// this, and nothing needed inventing.
+		if (assessed.Count == 0)
+		{
+			return ComplianceLevel.Unknown;
+		}
+
+		var percentage = metCount * 100 / assessed.Count;
 
 		return percentage switch
 		{
@@ -260,37 +277,124 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 	{
 		var exceptions = new List<ReportException>();
 
-		foreach (var section in sections.Where(s => !s.IsMet))
+		// NotMet only. An unassessed criterion is handled below, separately, because an entry in the
+		// exception list reads as a finding against the CONSUMER and "we never looked" is a gap in
+		// OURS. Merging them is what reported a criterion with no validator as a control failure.
+		foreach (var section in sections.Where(s => s.Outcome == CriterionOutcome.NotMet))
 		{
+			// The criterion is NotMet because of these controls, so these are the findings. This used to be
+			// derived from TestResult.Outcome, which answers "what did the test find" -- a different
+			// question. While the verdict was forced into that field every control read as an exception;
+			// once the field said not-tested honestly, a failing criterion produced NO findings at all. The
+			// predicate mirrors the one that set Outcome, so a NotMet section can never be silent.
+			var failing = section.ValidationResults
+				.Where(r => !r.IsEffective || r.EffectivenessScore < Soc2EffectivenessScore.MetThreshold)
+				.ToList();
+
+			// A control with real test exceptions is already reported below, with the richer evidence (how
+			// many items, out of how many sampled). Emitting the verdict for it as well would list the
+			// same control twice in the auditor's exception table, which reads as two separate findings.
+			var reportedByTest = section.TestResults is null
+				? new HashSet<string>(StringComparer.Ordinal)
+				: section.TestResults
+					.Where(t => t.Outcome is not (TestOutcome.NoExceptions or TestOutcome.NotTested))
+					.Select(t => t.ControlId)
+					.ToHashSet(StringComparer.Ordinal);
+
+			foreach (var verdict in failing.Where(v => !reportedByTest.Contains(v.ControlId)))
+			{
+				exceptions.Add(new ReportException
+				{
+					ExceptionId = $"EXC-{Guid.NewGuid():N}"[..12],
+					Criterion = section.Criterion,
+					ControlId = verdict.ControlId,
+					Description = verdict.ConfigurationIssues.Count > 0
+						? string.Join(" ", verdict.ConfigurationIssues)
+						: $"Control {verdict.ControlId} was assessed and did not meet the effectiveness threshold "
+							+ $"(scored {verdict.EffectivenessScore.ToString(CultureInfo.InvariantCulture)}).",
+					ManagementResponse = null,
+					RemediationPlan = null
+				});
+			}
+
 			if (section.TestResults is not null)
 			{
-				foreach (var test in section.TestResults.Where(t => t.Outcome != TestOutcome.NoExceptions))
+				// This predicate read a FIVE-VALUED enum as a binary: anything that was not NoExceptions became
+				// an entry in the auditor's EXCEPTION LIST. NotTested is not a finding -- it says no test was
+				// performed, which is a limitation on OUR coverage, not a defect in the consumer's control
+				// environment. Reporting it as an exception tells an assessor the customer failed a control we
+				// never examined.
+				//
+				// KNOWN GAP, stated rather than hidden by this filter: Soc2Report has no scope-limitation
+				// section, so an untested control is now absent from the exception list and appears nowhere
+				// else. Silent is better than falsely accused, and it is not the end state.
+				foreach (var test in section.TestResults.Where(t =>
+					t.Outcome is not (TestOutcome.NoExceptions or TestOutcome.NotTested)))
 				{
 					exceptions.Add(new ReportException
 					{
 						ExceptionId = $"EXC-{Guid.NewGuid():N}"[..12],
 						Criterion = section.Criterion,
 						ControlId = test.ControlId,
-						Description = $"Control {test.ControlId} had {test.ExceptionsFound} exception(s) " +
-									  $"out of {test.SampleSize} samples tested",
+						// The counts are optional now. Interpolating an absent one rendered a BLANK -- "had
+						// exception(s) out of 0 samples tested" -- which reads as a missing number rather than as a
+						// measurement nobody took.
+						Description = test.ExceptionsFound is { } found
+							? $"Control {test.ControlId} had {found} exception(s) out of {test.SampleSize} samples tested"
+							: $"Control {test.ControlId} was assessed and found ineffective; no sample was drawn, so no "
+								+ "exception count is available",
 						ManagementResponse = null,
 						RemediationPlan = test.Notes
 					});
 				}
 			}
-			else
+			else if (failing.Count == 0)
 			{
-				// Type I report - no test results, just mark design issues
+				// Type I report - no test results. Only reached when the verdicts named nothing, so this
+				// generic design finding never duplicates a specific one.
 				exceptions.Add(new ReportException
 				{
 					ExceptionId = $"EXC-{Guid.NewGuid():N}"[..12],
 					Criterion = section.Criterion,
-					ControlId = "N/A",
+					// No single control: the finding is that this criterion's controls are collectively
+					// insufficient, so there is none to name. Null says that; "N/A" said there was a
+					// control whose identifier is the letters N/A.
+					ControlId = null,
 					Description = $"Criterion {section.Criterion.GetDisplayName()} controls not suitably designed",
 					ManagementResponse = null,
 					RemediationPlan = "Review control design and implementation"
 				});
 			}
+		}
+
+		// Criteria nobody assessed. They are NOT merged into the loop above, because an entry there
+		// reads as a finding against the consumer's controls -- and the text that branch used to
+		// produce, "controls not suitably designed", is a design judgement about controls that were
+		// never examined. They are also not dropped: silence would overstate compliance, which is the
+		// one direction that is never acceptable in an auditor's document.
+		//
+		// The text attributes the gap to THIS FRAMEWORK. Until the report type carries a
+		// scope-limitation section of its own, the exception list is the only place it can appear, and
+		// the wording has to do the work the structure cannot.
+		foreach (var section in sections.Where(s => s.Outcome == CriterionOutcome.NotAssessed))
+		{
+			exceptions.Add(new ReportException
+			{
+				ExceptionId = $"EXC-{Guid.NewGuid():N}"[..12],
+				Criterion = section.Criterion,
+				// Nothing was examined, so no control is named. This entry leaves the exception list
+				// entirely in the follow-on change -- a limitation of the assessment is not a finding
+				// against the consumer's controls -- but while it is here it must not invent a control.
+				ControlId = null,
+				Description =
+					$"Criterion {section.Criterion.GetDisplayName()} was NOT ASSESSED: no control validator is "
+					+ "registered for it, so this framework examined nothing and reaches no conclusion about "
+					+ "these controls. This is a limitation of the assessment, not a deficiency in the controls, "
+					+ "and the criterion is excluded from the compliance percentage above.",
+				ManagementResponse = null,
+				RemediationPlan =
+					"Register a control validator for this criterion, or obtain independent attestation for it."
+			});
 		}
 
 		return exceptions;
@@ -413,9 +517,16 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 						cancellationToken).ConfigureAwait(false);
 				}
 
-				var isMet = validationResults.Count > 0 &&
-							validationResults.All(r => r.IsEffective) &&
-							validationResults.Average(r => r.EffectivenessScore) >= 80;
+				// An empty result set means no validator is registered for this criterion -- NOT that its
+				// controls failed. Those are different facts and the section type can now hold both.
+				var outcome = validationResults.Count == 0
+					? CriterionOutcome.NotAssessed
+					// The WORST control, not the mean. Averaging let a fully effective control pay for a failing
+					// one, so a criterion carrying a control scored Unverified still reported Met.
+					: validationResults.All(r => r.IsEffective)
+						&& validationResults.Min(r => r.EffectivenessScore) >= Soc2EffectivenessScore.MetThreshold
+							? CriterionOutcome.Met
+							: CriterionOutcome.NotMet;
 
 				sections.Add(new ControlSection
 				{
@@ -423,7 +534,8 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 					Description = criterion.GetDisplayName(),
 					Controls = controls,
 					TestResults = testResults,
-					IsMet = isMet
+					Outcome = outcome,
+					ValidationResults = validationResults
 				});
 			}
 		}

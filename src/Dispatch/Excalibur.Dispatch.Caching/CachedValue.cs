@@ -42,6 +42,30 @@ public sealed class CachedValue
 	public string? TypeName { get; init; }
 
 	/// <summary>
+	/// Gets the version stamp each of this entry's tags had at the moment this entry was written, or
+	/// <see langword="null" /> for an entry written before this mechanism existed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// These are write-time stamps, frozen once and never refreshed: an entry is written once and read
+	/// many times, so the value baked in here is simply the tag's version at the moment of the write,
+	/// which is already known then. A read compares each of these against the tag's <em>current</em>
+	/// stamp (fetched fresh from the tracker, never cached alongside the entry) to decide whether the
+	/// entry has since been invalidated.
+	/// </para>
+	/// <para>
+	/// A tag with no stamp yet in the tracker's backend (a tag nothing has ever invalidated) and an
+	/// entry with no recorded stamp for one of its own tags (typically an entry serialized before this
+	/// property existed) are different conditions and must not be treated the same way: the former has
+	/// nothing to compare against because nothing has happened to the tag yet, and is safe to treat as
+	/// still valid; the latter has nothing to compare against because the entry itself is missing the
+	/// information needed to prove validity, and must be treated as invalidated. Read this dictionary
+	/// as absent-means-unprovable, not absent-means-valid.
+	/// </para>
+	/// </remarks>
+	public IReadOnlyDictionary<string, string>? TagStamps { get; init; }
+
+	/// <summary>
 	/// Gets the identity of the action type that stored this entry, or <see langword="null" /> when it
 	/// could not be determined.
 	/// </summary>

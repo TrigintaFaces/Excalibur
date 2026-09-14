@@ -16,6 +16,14 @@
 -- Each block swallows only the "already applied" error and re-raises anything else, so running this
 -- repeatedly is safe.
 
+-- Anything this script re-raises must be visible to an unattended runner. Without this directive
+-- SQL*Plus exits 0 even when a block raises, so a pipeline records a FAILED upgrade as applied and
+-- runs the next step against a table that was never changed. SQLcl and SQL Developer honour it too;
+-- drivers that execute statements directly ignore client directives.
+-- An operator running this inside an interactive session is ended by that non-zero exit;
+-- to keep the session, issue WHENEVER SQLERROR CONTINUE before @-ing the file.
+WHENEVER SQLERROR EXIT FAILURE ROLLBACK
+
 -- ---------------------------------------------------------------------------------------------
 -- Upgrade path for a SAGATIMEOUTS table created by an earlier version of this script. The CREATE
 -- above is unguarded, so these statements are the supported way to bring an existing table to the

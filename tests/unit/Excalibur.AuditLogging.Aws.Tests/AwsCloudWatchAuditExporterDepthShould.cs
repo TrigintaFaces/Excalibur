@@ -196,36 +196,6 @@ public sealed class AwsCloudWatchAuditExporterDepthShould : IDisposable
 	}
 
 	[Fact]
-	public async Task ExportAsync_RetryTransientFailures_UsesConfiguredRetryBudget()
-	{
-		_options.MaxRetryAttempts = 1;
-		_options.RetryBaseDelay = TimeSpan.Zero;
-		_handler.SetResponse(HttpStatusCode.ServiceUnavailable, "service unavailable");
-		var sut = CreateExporter();
-
-		var result = await sut.ExportAsync(CreateAuditEvent(), CancellationToken.None);
-
-		result.Success.ShouldBeFalse();
-		result.IsTransientError.ShouldBeTrue();
-		_handler.RequestCount.ShouldBe(2);
-	}
-
-	[Fact]
-	public async Task ExportAsync_RetryHttpRequestException_UsesConfiguredRetryBudget()
-	{
-		_options.MaxRetryAttempts = 1;
-		_options.RetryBaseDelay = TimeSpan.Zero;
-		_handler.SetException(new HttpRequestException("transient network"));
-		var sut = CreateExporter();
-
-		var result = await sut.ExportAsync(CreateAuditEvent(), CancellationToken.None);
-
-		result.Success.ShouldBeFalse();
-		result.IsTransientError.ShouldBeTrue();
-		_handler.RequestCount.ShouldBe(2);
-	}
-
-	[Fact]
 	public void SourceGeneratedJsonContext_CanRoundTripPayloadTypeInfo()
 	{
 		var payloadType = typeof(AwsCloudWatchAuditExporter).GetNestedType(

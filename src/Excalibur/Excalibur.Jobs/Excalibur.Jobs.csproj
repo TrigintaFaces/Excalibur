@@ -10,7 +10,11 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <PublishAot>true</PublishAot>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <IsTrimmable>true</IsTrimmable>
+    <!-- IsTrimmable is NOT asserted here. This project does not declare IsAotCompatible, so it inherits
+         false, and it carries reflective paths the trimmer cannot follow. Asserting trimmability anyway
+         told a consumer's trimmer it was safe to strip code we had never analysed. The analyzer above
+         stays on: dropping the claim must not drop the analysis. If the evidence later supports the
+         claim, Invoke-AotCoverageGate is what produces it. See the policy in src/Directory.Build.props. -->
     <TrimMode>full</TrimMode>
     <InvariantGlobalization>false</InvariantGlobalization>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>

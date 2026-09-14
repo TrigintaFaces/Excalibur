@@ -78,11 +78,9 @@ dotnet run
 
 ## Sample Certification and Badge Policy
 
-Sample certification is governed by:
-
-- `eng/governance/framework-governance.json`
-- `pwsh eng/validate-samples.ps1`
-- `pwsh eng/ci/validate-framework-governance.ps1 -Mode Governance -Enforce:$true`
+Every sample carries a badge, and a badge is earned rather than asserted: a sample is certified only
+after it builds clean in Release and runs its smoke profile, and that check runs on every change we make.
+A sample that stops meeting the bar loses its badge rather than keeping it quietly.
 
 Badge meanings:
 

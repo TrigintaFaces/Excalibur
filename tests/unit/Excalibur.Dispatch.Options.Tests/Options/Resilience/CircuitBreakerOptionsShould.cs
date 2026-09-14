@@ -20,13 +20,23 @@ public sealed class CircuitBreakerOptionsShould
 	#region Default Values Tests
 
 	[Fact]
-	public void Default_FailureThresholdIsFive()
+	public void Default_ConsecutiveFailureThresholdIsFive()
 	{
 		// Arrange & Act
 		var options = new CircuitBreakerOptions();
 
 		// Assert
-		options.FailureThreshold.ShouldBe(5);
+		options.ConsecutiveFailureThreshold.ShouldBe(5);
+	}
+
+	[Fact]
+	public void Default_MinimumThroughputIsFive()
+	{
+		// Arrange & Act
+		var options = new CircuitBreakerOptions();
+
+		// Assert
+		options.MinimumThroughput.ShouldBe(5);
 	}
 
 	[Fact]
@@ -45,7 +55,7 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Assert
-		options.OpenDuration.ShouldBe(TimeSpan.FromSeconds(30));
+		options.BreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -82,42 +92,62 @@ public sealed class CircuitBreakerOptionsShould
 	#region Property Setter Tests
 
 	[Fact]
-	public void FailureThreshold_CanBeSet()
+	public void ConsecutiveFailureThreshold_CanBeSet()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.FailureThreshold = 10;
+		options.ConsecutiveFailureThreshold = 10;
 
 		// Assert
-		options.FailureThreshold.ShouldBe(10);
+		options.ConsecutiveFailureThreshold.ShouldBe(10);
 	}
 
 	[Fact]
-	public void FailureThreshold_CanBeSetToOne()
+	public void MinimumThroughput_CanBeSet()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.FailureThreshold = 1;
+		options.MinimumThroughput = 10;
 
 		// Assert
-		options.FailureThreshold.ShouldBe(1);
+		options.MinimumThroughput.ShouldBe(10);
 	}
 
 	[Fact]
-	public void FailureThreshold_CanBeSetToZero()
+	public void ConsecutiveFailureThreshold_CanBeSetToOne()
 	{
+		// One consecutive failure is a legal trigger: it opens the circuit on the first failure.
+		// This is the case a ratio-based provider cannot express, which is why the two settings
+		// are separate properties rather than one integer read differently by each provider.
+
 		// Arrange
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.FailureThreshold = 0;
+		options.ConsecutiveFailureThreshold = 1;
 
 		// Assert
-		options.FailureThreshold.ShouldBe(0);
+		options.ConsecutiveFailureThreshold.ShouldBe(1);
+	}
+
+	[Fact]
+	public void ConsecutiveFailureThreshold_CanBeSetToZero()
+	{
+		// The POCO stores whatever it is given; the range is enforced by the validator at startup,
+		// not by the setter. This arm pins that division of labour.
+
+		// Arrange
+		var options = new CircuitBreakerOptions();
+
+		// Act
+		options.ConsecutiveFailureThreshold = 0;
+
+		// Assert
+		options.ConsecutiveFailureThreshold.ShouldBe(0);
 	}
 
 	[Fact]
@@ -149,10 +179,10 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.OpenDuration = TimeSpan.FromMinutes(1);
+		options.BreakDuration = TimeSpan.FromMinutes(1);
 
 		// Assert
-		options.OpenDuration.ShouldBe(TimeSpan.FromMinutes(1));
+		options.BreakDuration.ShouldBe(TimeSpan.FromMinutes(1));
 	}
 
 	[Fact]
@@ -162,10 +192,10 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.OpenDuration = TimeSpan.Zero;
+		options.BreakDuration = TimeSpan.Zero;
 
 		// Assert
-		options.OpenDuration.ShouldBe(TimeSpan.Zero);
+		options.BreakDuration.ShouldBe(TimeSpan.Zero);
 	}
 
 	[Fact]
@@ -257,15 +287,17 @@ public sealed class CircuitBreakerOptionsShould
 		// Act
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 10,
-			OpenDuration = TimeSpan.FromMinutes(1),
+			ConsecutiveFailureThreshold = 10,
+			MinimumThroughput = 20,
+			BreakDuration = TimeSpan.FromMinutes(1),
 			OperationTimeout = TimeSpan.FromSeconds(15),
 			CircuitKeySelector = selector,
 		};
 
 		// Assert
-		options.FailureThreshold.ShouldBe(10);
-		options.OpenDuration.ShouldBe(TimeSpan.FromMinutes(1));
+		options.ConsecutiveFailureThreshold.ShouldBe(10);
+		options.MinimumThroughput.ShouldBe(20);
+		options.BreakDuration.ShouldBe(TimeSpan.FromMinutes(1));
 		options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(15));
 		options.CircuitKeySelector.ShouldBe(selector);
 	}

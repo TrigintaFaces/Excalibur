@@ -77,10 +77,8 @@ public static class ClaimCheckServiceCollectionExtensions
 	/// Use this method to register a custom IClaimCheckProvider implementation with configuration-based options.
 	/// For built-in providers (Azure, AWS, GCP), use the provider-specific packages.
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static IServiceCollection AddClaimCheck<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(
 		this IServiceCollection services,
 		IConfiguration configuration,

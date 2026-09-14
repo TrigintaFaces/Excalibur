@@ -158,7 +158,7 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -189,9 +189,9 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var result3 = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result1.IsSuccess.ShouldBeTrue();
-		result2.IsSuccess.ShouldBeTrue();
-		result3.IsSuccess.ShouldBeTrue();
+		result1.Succeeded.ShouldBeTrue();
+		result2.Succeeded.ShouldBeTrue();
+		result3.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -226,7 +226,7 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -255,7 +255,7 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var result1 = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert first request
-		result1.IsSuccess.ShouldBeTrue();
+		result1.Succeeded.ShouldBeTrue();
 
 		// Second request should be rate limited
 		_ = await Should.ThrowAsync<RateLimitExceededException>(
@@ -309,8 +309,8 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var result2 = await middleware.InvokeAsync(_message, context2, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result1.IsSuccess.ShouldBeTrue();
-		result2.IsSuccess.ShouldBeTrue();
+		result1.Succeeded.ShouldBeTrue();
+		result2.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -354,7 +354,7 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion

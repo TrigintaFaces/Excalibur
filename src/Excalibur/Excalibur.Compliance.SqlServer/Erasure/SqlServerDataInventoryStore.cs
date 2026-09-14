@@ -512,13 +512,22 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
 
-		// Runs on BOTH paths, and the auto-create path is the one that needs it. CreateSchemaIfNotExists
-		// guards on table EXISTENCE, so against a database provisioned before the tenant discriminator
-		// existed it creates nothing and reports success — the table is there, it is simply the wrong
-		// shape. Verify likewise only ever asked whether the table exists. Neither notices a missing
-		// column, so without this check a store carrying every tenant-scoped statement would initialize
-		// cleanly and then fail on first use with a raw "Invalid column name" far from its cause.
+		// Both checks below run on BOTH paths, and the auto-create path is the one that needs them.
+		// CreateSchemaIfNotExists guards on table EXISTENCE, so against a database provisioned before a
+		// column was added it creates nothing and reports success — the table is there, it is simply the
+		// wrong shape. Neither this nor the verify-disabled call above notices a missing column on the
+		// auto-create path unless it runs here too.
+		//
+		// The tenant-discriminator check runs first because it names the one specific, shipped migration
+		// script for the single most likely historical gap; VerifySchemaExistsAsync's full-shape check
+		// (which the auto-create path would otherwise never reach) then covers every other column with a
+		// general "run the migration scripts" message.
 		await VerifyTenantDiscriminatorAsync(cancellationToken).ConfigureAwait(false);
+
+		if (_options.AutoCreateSchema)
+		{
+			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>
@@ -563,39 +572,89 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 	}
 
 	/// <summary>
-	/// Confirms the required tables exist when automatic provisioning is disabled.
+	/// Confirms the required tables exist, and carry every column this store's statements bind, when
+	/// automatic provisioning is disabled.
 	/// </summary>
 	/// <remarks>
-	/// Initialization must never complete without either creating the schema or verifying it. Marking the store
-	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
-	/// provider error far from its cause. This method is the verification half of that guarantee.
+	/// <para>
+	/// Reading the COLUMN catalogue rather than the table catalogue is the whole point of this method. A
+	/// probe that asks only whether the table exists reports healthy on precisely the database that is
+	/// broken: one provisioned before a column was added, where the table is present and the wrong shape.
+	/// The consumer then gets a dead store plus a check that told them it was fine, and the real failure
+	/// arrives later as a raw "Invalid column name" far from its cause. Automatic schema creation does not
+	/// repair that database either — CREATE TABLE guards on table EXISTENCE only.
+	/// </para>
 	/// </remarks>
-	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	/// <exception cref="InvalidOperationException">
+	/// A required table is absent, or is present but missing columns this store's statements bind.
+	/// </exception>
 	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
 	{
-		const string ExistsSql = "SELECT CASE WHEN OBJECT_ID(@TableName, 'U') IS NULL THEN 0 ELSE 1 END";
+		const string ColumnsSql = "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID(@TableName, 'U')";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		foreach (var tableName in new[] { _options.FullRegistrationsTableName, _options.FullDiscoveredLocationsTableName })
+		foreach (var (tableName, requiredColumns) in RequiredSchema)
 		{
-			var exists = await connection.ExecuteScalarAsync<bool>(
+			var actualColumns = (await connection.QueryAsync<string>(
 				new CommandDefinition(
-					ExistsSql,
+					ColumnsSql,
 					new { TableName = tableName },
 					cancellationToken: cancellationToken,
-					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false)).ToList();
 
-			if (!exists)
+			// No columns at all means no such table: OBJECT_ID returns NULL for a table that does not
+			// exist, so the same query answers both questions and they stay in step.
+			if (actualColumns.Count == 0)
 			{
 				throw new InvalidOperationException(
 					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
 					$"Either create the schema out of band, or set {nameof(SqlServerDataInventoryStoreOptions)}."
 					+ $"{nameof(SqlServerDataInventoryStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
 			}
+
+			// Named, not counted. An operator reading this at startup needs to know WHICH columns are absent
+			// to choose the migration; "the schema is stale" sends them to diff it by hand. Case-insensitive:
+			// SQL Server's default collation folds identifier comparisons, so a catalogue read should match
+			// the same way the engine itself resolves a column reference.
+			var missing = requiredColumns
+				.Where(required => !actualColumns.Contains(required, StringComparer.OrdinalIgnoreCase))
+				.ToList();
+
+			if (missing.Count > 0)
+			{
+				throw new InvalidOperationException(
+					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
+					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
+					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
+					+ "that path only creates tables that are absent. Run the shipped migration script "
+					+ "'004_MakeDataInventoryTenantTotal.sql' against this database, then restart.");
+			}
 		}
 	}
+
+	/// <summary>
+	/// Gets the columns every statement this store issues binds, per table.
+	/// </summary>
+	/// <remarks>
+	/// Kept beside the statements it mirrors: a column added to a CREATE/INSERT above without a line here
+	/// is a column the verification stops covering, which returns this check to the existence-only
+	/// behaviour it exists to replace.
+	/// </remarks>
+	private IEnumerable<(string TableName, string[] RequiredColumns)> RequiredSchema =>
+	[
+		(_options.FullRegistrationsTableName,
+		[
+			"TableName", "FieldName", "DataCategory", "DataSubjectIdColumn", "IdType", "KeyIdColumn",
+			"TenantIdColumn", "TenantId", "Description", "CreatedAt", "UpdatedAt",
+		]),
+		(_options.FullDiscoveredLocationsTableName,
+		[
+			"DataSubjectIdHash", "TableName", "FieldName", "RecordId", "DataCategory", "KeyId",
+			"IsAutoDiscovered", "TenantId", "CreatedAt", "UpdatedAt",
+		]),
+	];
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)
 	{
@@ -611,6 +670,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 				WHERE s.name = '{_options.SchemaName}' AND t.name = '{_options.RegistrationsTableName}')
 			BEGIN
 				CREATE TABLE {_options.FullRegistrationsTableName} (
+					RegistrationId BIGINT IDENTITY(1,1) NOT NULL,
 					TableName NVARCHAR(256) NOT NULL,
 					FieldName NVARCHAR(256) NOT NULL,
 					DataCategory NVARCHAR(256) NOT NULL,
@@ -631,7 +691,18 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					-- TenantId is part of the KEY, not merely a column: without it two tenants registering
 					-- the same table and field are ONE row, and the second write silently destroys the
 					-- first — taking with it the erasure path's only record that the field exists.
-					CONSTRAINT PK_{_options.RegistrationsTableName} PRIMARY KEY (TableName, FieldName, TenantId),
+					-- The natural key is 1152 bytes of NVARCHAR against SQL Server's 900-byte CLUSTERED limit, so
+					-- it cannot be the clustered key. CREATE TABLE would SUCCEED on it, emitting only a warning,
+					-- and the table would then refuse any insert whose key values exceed 900 with Msg 1946 -- a
+					-- failure that depends on the DATA, not the schema, so it survives provisioning and every
+					-- smoke test and arrives on a real registration with a long table or field name.
+					--
+					-- A surrogate carries the clustered key and the natural key becomes a UNIQUE constraint:
+					-- same columns, same uniqueness, different physical ordering. 1152 is inside the 1700-byte
+					-- NONCLUSTERED bound, so this is the ordinary remedy. Matches what the shipped repair
+					-- migration produces, so the two provisioning paths agree.
+					CONSTRAINT PK_{_options.RegistrationsTableName} PRIMARY KEY CLUSTERED (RegistrationId),
+					CONSTRAINT UQ_{_options.RegistrationsTableName}_Key UNIQUE (TableName, FieldName, TenantId),
 					INDEX IX_{_options.RegistrationsTableName}_DataCategory (DataCategory)
 				)
 			END";
@@ -642,6 +713,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 				WHERE s.name = '{_options.SchemaName}' AND t.name = '{_options.DiscoveredLocationsTableName}')
 			BEGIN
 				CREATE TABLE {_options.FullDiscoveredLocationsTableName} (
+					LocationId BIGINT IDENTITY(1,1) NOT NULL,
 					DataSubjectIdHash NVARCHAR(128) NOT NULL,
 					TableName NVARCHAR(256) NOT NULL,
 					FieldName NVARCHAR(256) NOT NULL,
@@ -658,8 +730,36 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					UpdatedAt DATETIMEOFFSET NOT NULL,
 					-- TenantId is in the KEY: two tenants discovering the same record for the same data
 					-- subject are two distinct findings, not one overwriting the other.
-					CONSTRAINT PK_{_options.DiscoveredLocationsTableName}
-						PRIMARY KEY (DataSubjectIdHash, TableName, FieldName, RecordId, TenantId),
+					-- 1920 bytes: over the 900-byte CLUSTERED limit AND over the 1700-byte NONCLUSTERED one, so
+					-- unlike the registrations table no index can carry this key directly. Narrowing was rejected:
+					-- DataSubjectIdHash's width is not ours to choose -- the value comes from a consumer-supplied
+					-- hasher -- so shortening it would break any consumer whose digest is longer than ours.
+					--
+					-- Uniqueness is therefore enforced on a persisted SHA-256 of the natural key. Every component
+					-- is LENGTH-PREFIXED so the framing cannot manufacture a collision: a delimiter-joined
+					-- encoding could, since ('ab','c') and ('a','bc') collapse to one string for any delimiter a
+					-- value may contain. DATALENGTH rather than LEN, because LEN ignores trailing spaces and the
+					-- prefix would stop being injective for exactly the values it exists to separate.
+					--
+					-- The trade, stated rather than implied: uniqueness becomes CRYPTOGRAPHIC rather than EXACT.
+					-- A SHA-256 collision would present as a spurious duplicate-key error on insert -- not as
+					-- silent data loss and not as one row overwriting another. The natural columns are retained
+					-- as real columns; the hash is the uniqueness mechanism, not the identity.
+					--
+					-- An indexed computed column constrains the SESSION SETTINGS OF EVERY CONNECTION THAT WRITES
+					-- here, not only the one that created it: a session with QUOTED_IDENTIFIER OFF is refused with
+					-- Msg 1934. SqlClient turns it ON when it connects, so the store's own writes are unaffected;
+					-- ad-hoc sqlcmd repair, a bulk import or an ETL job must set it, and the error names the
+					-- setting rather than the cause.
+					NaturalKeyHash AS CAST(HASHBYTES('SHA2_256',
+							CAST(DATALENGTH(DataSubjectIdHash) AS BINARY(4)) + CAST(DataSubjectIdHash AS VARBINARY(4000))
+						+ CAST(DATALENGTH(TableName)         AS BINARY(4)) + CAST(TableName         AS VARBINARY(4000))
+						+ CAST(DATALENGTH(FieldName)         AS BINARY(4)) + CAST(FieldName         AS VARBINARY(4000))
+						+ CAST(DATALENGTH(RecordId)          AS BINARY(4)) + CAST(RecordId          AS VARBINARY(4000))
+						+ CAST(DATALENGTH(TenantId)          AS BINARY(4)) + CAST(TenantId          AS VARBINARY(4000))
+							) AS BINARY(32)) PERSISTED,
+					CONSTRAINT PK_{_options.DiscoveredLocationsTableName} PRIMARY KEY CLUSTERED (LocationId),
+					CONSTRAINT UQ_{_options.DiscoveredLocationsTableName}_Key UNIQUE (NaturalKeyHash),
 					INDEX IX_{_options.DiscoveredLocationsTableName}_DataSubject (DataSubjectIdHash),
 					INDEX IX_{_options.DiscoveredLocationsTableName}_Table (TableName, FieldName)
 				)

@@ -18,9 +18,10 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 /// </summary>
 /// <remarks>
 /// The emulator is heavy and unavailable on some CI hosts; <see cref="IsInitialized"/> degrades to
-/// <see langword="false"/> when it can't start. The lock treats that as a HARD failure
-/// (<c>IsInitialized.ShouldBeTrue</c>) rather than a silent skip — a real-infra exactly-once lock that never
-/// runs is exactly the coverage gap that let the <c>UpsertItem</c> double-execute ship.
+/// <see langword="false"/> when it can't start. <see cref="EnsureAvailable"/> then FAILS the test rather
+/// than skipping it — a real-infra exactly-once lock that never runs is exactly the coverage gap that let
+/// the <c>UpsertItem</c> double-execute ship. That decision lives here, on the fixture, so every suite
+/// using it answers an unavailable emulator the same way.
 /// </remarks>
 public sealed class CosmosDbTransactionalInboxExactlyOnceFixture : IAsyncLifetime, IDisposable
 {
@@ -43,6 +44,35 @@ public sealed class CosmosDbTransactionalInboxExactlyOnceFixture : IAsyncLifetim
 
 	/// <summary>Diagnostic: the init failure reason when the emulator could not start.</summary>
 	public string? InitError { get; private set; }
+
+	/// <summary>
+	/// Asserts that the emulator is available, throwing when it is not.
+	/// </summary>
+	/// <remarks>
+	/// THE FIXTURE OWNS THE AVAILABILITY POLICY, so every suite on this fixture answers "what
+	/// happens when the emulator is not there" the same way. Delegating the decision is what let
+	/// two suites against this same emulator answer it in OPPOSITE ways, leaving the honesty of a
+	/// given guarantee to depend on which convention its author happened to copy.
+	/// <para>
+	/// The policy is HARD FAILURE, not a skip: an un-run lock must not contribute a pass it did
+	/// not earn. A host that genuinely cannot run this belongs in the reviewed, expiring
+	/// suppression list -- named, owned and evidenced -- not in a per-test skip nobody can audit.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">The emulator is not available.</exception>
+	public void EnsureAvailable()
+	{
+		if (IsInitialized)
+		{
+			return;
+		}
+
+		throw new InvalidOperationException(
+			"CosmosDbTransactionalInboxExactlyOnceFixture: the Cosmos emulator is not available, so this test cannot exercise the "
+			+ "real system it exists to verify. Reporting a pass here would certify a guarantee "
+			+ "nothing checked. Underlying initialization failure: "
+			+ (InitError ?? "(none recorded -- InitializeAsync did not run)"));
+	}
 
 	/// <summary>Gets the emulator connection string (fed to the store options).</summary>
 	public string ConnectionString => _container.GetConnectionString();

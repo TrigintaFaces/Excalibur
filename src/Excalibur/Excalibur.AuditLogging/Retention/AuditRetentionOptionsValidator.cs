@@ -27,11 +27,6 @@ internal sealed class AuditRetentionOptionsValidator : IValidateOptions<AuditRet
 			failures.Add($"{nameof(AuditRetentionOptions.CleanupInterval)} must be greater than zero.");
 		}
 
-		if (options.BatchSize < 1)
-		{
-			failures.Add($"{nameof(AuditRetentionOptions.BatchSize)} must be greater than zero.");
-		}
-
 		return failures.Count > 0
 			? ValidateOptionsResult.Fail(failures)
 			: ValidateOptionsResult.Success;

@@ -40,9 +40,9 @@ public static class AvroSerializationExtensions
 	/// </para>
 	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Apache.Avro compiles schemas at run time and AvroSerializer uses Activator.CreateInstance for ISpecificRecord deserialization. No configuration or options binding is involved. AOT consumers should supply a source-generated serializer instead.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Apache.Avro compiles schemas at run time and AvroSerializer uses Activator.CreateInstance for ISpecificRecord deserialization. No configuration or options binding is involved. AOT consumers should supply a source-generated serializer instead.")]
 	public static IServiceCollection AddAvroSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -59,9 +59,9 @@ public static class AvroSerializationExtensions
 	/// <param name="configure"> Configuration delegate for Avro serialization options. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Apache.Avro compiles schemas at run time and AvroSerializer uses Activator.CreateInstance for ISpecificRecord deserialization. No configuration or options binding is involved. AOT consumers should supply a source-generated serializer instead.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Apache.Avro compiles schemas at run time and AvroSerializer uses Activator.CreateInstance for ISpecificRecord deserialization. No configuration or options binding is involved. AOT consumers should supply a source-generated serializer instead.")]
 	public static IServiceCollection AddAvroSerializer(
 		this IServiceCollection services,
 		Action<AvroSerializationOptions> configure)

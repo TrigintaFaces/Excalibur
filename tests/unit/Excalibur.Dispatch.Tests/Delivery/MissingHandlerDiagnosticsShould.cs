@@ -213,7 +213,7 @@ public sealed class MissingHandlerDiagnosticsShould
 
 		var result = await dispatcher.DispatchAsync(action, new MessageContext(action, provider), TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeTrue("a cache hit is served from the context and must not require a registered handler");
+		result.Succeeded.ShouldBeTrue("a cache hit is served from the context and must not require a registered handler");
 	}
 
 	[Theory]
@@ -291,7 +291,7 @@ public sealed class MissingHandlerDiagnosticsShould
 
 		var result = await dispatcher.DispatchAsync(new BoomAction(), TestContext.Current.CancellationToken);
 
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 	private static ServiceProvider BuildWithRetryCounting(AttemptCounter counter, int maxAttempts)
 	{
@@ -308,7 +308,7 @@ public sealed class MissingHandlerDiagnosticsShould
 		});
 		_ = services.Configure<RetryOptions>(options =>
 		{
-			options.MaxAttempts = maxAttempts;
+			options.MaxRetryAttempts = maxAttempts;
 
 			// The arms count attempts rather than waiting on them, so a real backoff would only make them slow.
 			options.BaseDelay = TimeSpan.Zero;
@@ -356,6 +356,7 @@ public sealed class MissingHandlerDiagnosticsShould
 		_ = await Should.ThrowAsync<TimeoutException>(
 			() => dispatcher.DispatchAsync(new OrphanAction(), TestContext.Current.CancellationToken));
 
-		counter.Attempts.ShouldBe(3, "a transient fault must still be retried to the configured cap");
+		// MaxRetryAttempts is retries AFTER the first, so exhaustion is one more try than that value.
+		counter.Attempts.ShouldBe(4, "a transient fault must still be retried to the configured cap");
 	}
 }

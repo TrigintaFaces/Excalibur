@@ -24,6 +24,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 	private readonly ILogger _logger;
 	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 	private readonly string _checkpointKey;
+	private readonly ChangeFeedCheckpointFailureTracker _checkpointFailures;
 	private readonly CancellationTokenSource _cts = new();
 
 	private bool _isActive;
@@ -51,6 +52,11 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_checkpointStore = checkpointStore;
+		// A mocked/faked IChangeFeedOptions (e.g. a test double) does not honor the interface's default
+		// implementation and reports 0 rather than the documented default of 10, so fall back explicitly
+		// instead of trusting the interface value blindly.
+		_checkpointFailures = new ChangeFeedCheckpointFailureTracker(
+			_options.MaxConsecutiveCheckpointFailures > 0 ? _options.MaxConsecutiveCheckpointFailures : 10);
 
 		// Stable, restart-invariant checkpoint key (NOT SubscriptionId, which carries a per-process Guid).
 		_checkpointKey = $"outbox-cf-{container.Id}";
@@ -65,6 +71,12 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 
 	/// <inheritdoc/>
 	public string? CurrentContinuationToken { get; private set; }
+
+	/// <inheritdoc/>
+	public bool IsCheckpointDegraded => _checkpointFailures.IsDegraded;
+
+	/// <inheritdoc/>
+	public TimeSpan? CheckpointLag => _checkpointFailures.CheckpointLag;
 
 	/// <inheritdoc/>
 	public Task StartAsync(CancellationToken cancellationToken)
@@ -191,10 +203,28 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 			// Persist AFTER the whole page has been yielded to (and processed by) the consumer, so progress
 			// survives a restart without ever advancing past an unprocessed change. No-op when no store is
 			// configured (prior in-memory-only behavior).
+			//
+			// Fails open: a checkpoint-save failure is purely a resumption-optimization failure -- the
+			// page's messages were already yielded above, so it protects nothing here. The feed's
+			// at-least-once guarantee already requires idempotent handlers, and losing this checkpoint only
+			// widens a future restart's replay, it does not lose data. Tracked and escalated by
+			// _checkpointFailures rather than left silent.
 			if (_checkpointStore is not null && !string.IsNullOrEmpty(pageContinuationToken))
 			{
-				await _checkpointStore.SaveAsync(_checkpointKey, pageContinuationToken, linkedToken)
-					.ConfigureAwait(false);
+				try
+				{
+					await _checkpointStore.SaveAsync(_checkpointKey, pageContinuationToken, linkedToken)
+						.ConfigureAwait(false);
+					_checkpointFailures.RecordSuccess();
+				}
+				catch (Exception ex) when (ex is not OperationCanceledException)
+				{
+					LogCheckpointSaveFailed(SubscriptionId, ex);
+					if (_checkpointFailures.RecordFailure())
+					{
+						LogCheckpointDegraded(SubscriptionId, _checkpointFailures.ConsecutiveFailureCount);
+					}
+				}
 			}
 		}
 	}

@@ -70,6 +70,7 @@ public sealed class AuditIntegrityRealElasticsearchShould(ElasticsearchContainer
 			MsOptions.Create(new SecurityMonitoringOptions()),
 			BuildStrategy(KeyOne),
 			sanitizer: null,
+			TimeProvider.System,
 			LoggerFactory.CreateLogger<SecurityAuditor>()))
 		{
 			var authEvent = new AuthenticationEvent(

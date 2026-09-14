@@ -7,6 +7,7 @@
       "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
       "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
       "tests\\unit\\Excalibur.A3.Governance.Tests\\Excalibur.A3.Governance.Tests.csproj",
+      "tests\\unit\\Excalibur.A3.AspNetCore.Tests\\Excalibur.A3.AspNetCore.Tests.csproj",
       "tests\\unit\\Excalibur.A3.Tests\\Excalibur.A3.Tests.csproj",
       "tests\\unit\\Excalibur.Application.Tests\\Excalibur.Application.Tests.csproj",
       "tests\\unit\\Excalibur.Caching.Tests\\Excalibur.Caching.Tests.csproj",

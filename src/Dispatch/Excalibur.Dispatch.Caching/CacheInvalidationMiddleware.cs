@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Caching;
 /// <param name="options"> Configuration options that control middleware behavior. </param>
 /// <param name="keyBuilder"> Cache key builder used to fold direct invalidation keys into stored cache keys. </param>
 /// <param name="logger"> Logger for fail-open invalidation diagnostics. </param>
-/// <param name="tagTracker"> Tag tracker for resolving tag-to-key mappings across all modes. </param>
+/// <param name="tagTracker"> Tag tracker for invalidating tags by bumping their version stamp, across all modes. </param>
 /// <param name="memoryCache"> Memory cache instance (fallback when HybridCache is unavailable). </param>
 /// <param name="hybridCache"> Hybrid cache instance (preferred for all invalidation operations). </param>
 internal sealed partial class CacheInvalidationMiddleware(
@@ -188,7 +188,7 @@ internal sealed partial class CacheInvalidationMiddleware(
 				_keysInvalidatedCounter.Add(storageKeys.Count);
 			}
 
-			// Unified invalidation: L1 native tags + tracker-based L2 + direct keys
+			// Unified invalidation: L1 native tags + tracker-based tag version bump + direct keys
 			await InvalidateAsync(tags, storageKeys, cancellationToken).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException)
@@ -284,7 +284,7 @@ internal sealed partial class CacheInvalidationMiddleware(
 
 	/// <summary>
 	/// Unified cache invalidation across all modes (Memory, Distributed, Hybrid).
-	/// Three-step flow: L1 native tag removal, tracker-based L2 key resolution + removal, direct key removal.
+	/// Three-step flow: L1 native tag removal, tracker-based tag version bump, direct key removal.
 	/// </summary>
 	private async Task InvalidateAsync(List<string> tags, List<string> keys, CancellationToken cancellationToken)
 	{
@@ -295,24 +295,15 @@ internal sealed partial class CacheInvalidationMiddleware(
 			await _hybridCache.RemoveByTagAsync(distinctTags, cancellationToken).ConfigureAwait(false);
 		}
 
-		// Step 2: Tracker-based L2 invalidation -- resolves tags to keys, removes each key
+		// Step 2: Tracker-based L2 invalidation -- bump each tag's version stamp. No key resolution and
+		// no physical deletion: every entry that recorded the tag's OLD stamp stops matching on its next
+		// read and is evicted lazily at that point (see ICacheTagTracker's remarks).
 		if (_tagTracker is not null && tags.Count > 0)
 		{
 			var distinctTags = tags.Distinct(StringComparer.Ordinal).ToArray();
-			var trackedKeys = await _tagTracker.GetKeysByTagsAsync(distinctTags, cancellationToken).ConfigureAwait(false);
-
-			foreach (var trackedKey in trackedKeys)
+			foreach (var tag in distinctTags)
 			{
-				if (_hybridCache is not null)
-				{
-					await _hybridCache.RemoveAsync(trackedKey, cancellationToken).ConfigureAwait(false);
-				}
-				else if (_memoryCache is not null)
-				{
-					_memoryCache.Remove(trackedKey);
-				}
-
-				await _tagTracker.UnregisterKeyAsync(trackedKey, cancellationToken).ConfigureAwait(false);
+				await _tagTracker.BumpStampAsync(tag, cancellationToken).ConfigureAwait(false);
 			}
 		}
 

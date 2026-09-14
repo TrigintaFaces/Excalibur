@@ -47,13 +47,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # EVERY transport the conformance suite is written for runs here. The suite exists to hold
+        # providers to ONE contract, so a matrix that lists a subset does not report partial
+        # coverage -- it reports green, and a green that covers one in-memory implementation is
+        # indistinguishable from one that verified the providers. That green has previously been
+        # cited as evidence that another job's failures were environmental.
+        #
+        # Each arm drives a real broker through TestContainers, so all of them need Docker on the
+        # runner and none of them need cloud credentials. Six arms, six tests each.
+        #
+        # Do not comment an entry out to get a build through. Removing an arm removes the only
+        # check that provider keeps the contract, silently. If one must be disabled, say here which
+        # transport is unverified and why, so the gap is readable from the matrix itself.
         transport:
           - InMemory
-          # - AzureServiceBus
-          # - AwsSqs
-          # - Kafka
-          # - RabbitMq
-          # - GooglePubSub
+          - AzureServiceBus
+          - AwsSqs
+          - Kafka
+          - RabbitMq
+          - GooglePubSub
 
     steps:
       - name: Checkout repository

@@ -49,7 +49,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 		var context = CreateFakeContext(items);
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		// Act
@@ -71,7 +71,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 		// No HandlerType in Items
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		// Act
@@ -91,7 +91,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
-		A.CallTo(() => failedResult.IsSuccess).Returns(false);
+		A.CallTo(() => failedResult.Succeeded).Returns(false);
 		var pd = A.Fake<IMessageProblemDetails>();
 		A.CallTo(() => pd.Type).Returns("timeout_error");
 		A.CallTo(() => failedResult.ProblemDetails).Returns(pd);
@@ -112,7 +112,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
-		A.CallTo(() => failedResult.IsSuccess).Returns(false);
+		A.CallTo(() => failedResult.Succeeded).Returns(false);
 		var pd = A.Fake<IMessageProblemDetails>();
 		A.CallTo(() => pd.Type).ReturnsLazily(() => (string)null!);
 		A.CallTo(() => failedResult.ProblemDetails).Returns(pd);
@@ -133,7 +133,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
-		A.CallTo(() => failedResult.IsSuccess).Returns(false);
+		A.CallTo(() => failedResult.Succeeded).Returns(false);
 		A.CallTo(() => failedResult.ProblemDetails).Returns(null);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(failedResult);
 
@@ -171,7 +171,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
 
 		// Act

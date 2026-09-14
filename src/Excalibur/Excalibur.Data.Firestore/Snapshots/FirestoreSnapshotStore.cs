@@ -582,7 +582,12 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		}
 
 		_disposed = true;
-		// FirestoreDb doesn't implement IDisposable - connections are managed internally
+
+		// FirestoreDb doesn't implement IDisposable - connections are managed internally. The init lock
+		// DOES, and the SYNC path has to release it for the same reason the async one does: a consumer
+		// writing `using` rather than `await using` reaches only this method, and SemaphoreSlim.Dispose is
+		// synchronous, so nothing about it required the async path in the first place.
+		_initLock?.Dispose();
 	}
 
 	/// <summary>

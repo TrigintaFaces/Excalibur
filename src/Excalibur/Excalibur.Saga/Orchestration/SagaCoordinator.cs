@@ -18,6 +18,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Polly;
+using Polly.Retry;
+using Polly.Timeout;
+
 namespace Excalibur.Saga.Orchestration;
 
 /// <summary>
@@ -160,49 +164,61 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 
 	/// <summary>
 	/// Executes the saga dispatch under the configured <see cref="SagaOptions.DefaultTimeout"/> and bounded
-	/// retry (<see cref="SagaOptions.MaxRetryAttempts"/> / <see cref="SagaOptions.RetryDelay"/>). A per-attempt
-	/// timeout cancels a hung handler; caller-driven cancellation is never retried.
+	/// retry (<see cref="SagaOptions.MaxAttempts"/> / <see cref="SagaOptions.RetryDelay"/>). A per-attempt
+	/// timeout cancels a hung handler and is retried; caller-driven (ambient) cancellation is never retried.
 	/// </summary>
+	/// <exception cref="Polly.Timeout.TimeoutRejectedException">
+	/// Every attempt hit <see cref="SagaOptions.DefaultTimeout"/> and the retry budget is exhausted. Distinct
+	/// from ambient cancellation, which throws <see cref="OperationCanceledException"/> instead -- "this
+	/// operation timed out" and "you cancelled it" are different events and are no longer conflated.
+	/// </exception>
 	private async Task RunWithTimeoutAndRetryAsync(
 		Func<CancellationToken, Task> action,
 		string eventType,
 		CancellationToken cancellationToken)
 	{
-		var maxAttempts = Math.Max(1, _options.MaxRetryAttempts);
-		for (var attempt = 1; ; attempt++)
+		var maxAttempts = Math.Max(1, _options.MaxAttempts);
+
+		var builder = new ResiliencePipelineBuilder();
+
+		// Retry OUTER, Timeout INNER (strategies run outer->inner in the order added): each retry gets a
+		// fresh per-attempt timeout, matching the prior per-attempt CancellationTokenSource.CreateLinkedTokenSource
+		// + CancelAfter. Polly's own cancellation handling propagates an OperationCanceledException tied to
+		// the AMBIENT cancellationToken (passed to ExecuteAsync below) without invoking ShouldHandle or
+		// retrying it -- the same "caller-driven shutdown is not a retryable saga failure" distinction the
+		// prior explicit catch made, for free. A per-attempt TIMEOUT is a DIFFERENT exception
+		// (TimeoutRejectedException, not OperationCanceledException) precisely because it is tied to the
+		// Timeout strategy's own inner token, not the ambient one -- so it IS handled and retried below.
+		if (maxAttempts > 1)
 		{
-			using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-			if (_options.DefaultTimeout > TimeSpan.Zero)
+			_ = builder.AddRetry(new RetryStrategyOptions
 			{
-				timeoutCts.CancelAfter(_options.DefaultTimeout);
-			}
-
-			try
-			{
-				await action(timeoutCts.Token).ConfigureAwait(false);
-				return;
-			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-			{
-				// Caller-driven cancellation (shutdown) — not a retryable saga failure.
-				throw;
-			}
-			catch (Exception ex) when (attempt < maxAttempts)
-			{
-				logger.LogWarning(
-					ex,
-					"Saga event {EventType} processing attempt {Attempt}/{MaxAttempts} failed; retrying after {RetryDelay}.",
-					eventType,
-					attempt,
-					maxAttempts,
-					_options.RetryDelay);
-
-				if (_options.RetryDelay > TimeSpan.Zero)
+				ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+				MaxRetryAttempts = maxAttempts - 1,
+				Delay = _options.RetryDelay,
+				BackoffType = DelayBackoffType.Constant,
+				OnRetry = args =>
 				{
-					await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
-				}
-			}
+					logger.LogWarning(
+						args.Outcome.Exception,
+						"Saga event {EventType} processing attempt {Attempt}/{MaxAttempts} failed; retrying after {RetryDelay}.",
+						eventType,
+						args.AttemptNumber + 1,
+						maxAttempts,
+						_options.RetryDelay);
+					return default;
+				},
+			});
 		}
+
+		if (_options.DefaultTimeout > TimeSpan.Zero)
+		{
+			_ = builder.AddTimeout(new TimeoutStrategyOptions { Timeout = _options.DefaultTimeout });
+		}
+
+		await builder.Build()
+			.ExecuteAsync(static (act, ct) => new ValueTask(act(ct)), action, cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -223,6 +239,7 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	/// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when saga cannot be instantiated or state cannot be managed. </exception>
 	[RequiresUnreferencedCode("Uses reflection to instantiate saga types")]
+	[RequiresDynamicCode("Configuration binding and options validation use reflection, which requires runtime code generation. Use source-generated registration when targeting Native AOT.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
 		Justification = "Saga types are preserved through configuration and DI registration")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with RequiresDynamicCodeAttribute may break when trimming",

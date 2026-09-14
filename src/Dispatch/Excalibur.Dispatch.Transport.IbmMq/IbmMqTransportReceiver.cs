@@ -199,16 +199,87 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 			}
 		}
 
+		// IBM MQ carries the CloudEvents binary-mode ce-* attributes as message properties (RFH2) --
+		// previously discarded here, which made binary-mode CloudEvents structurally undetectable on
+		// receive. "%" is IBM MQ's documented wildcard for "every property name". Any
+		// structured-mode marker a producer sets is captured the same way, in Properties.
+		//
+		// CORRECTION, and it matters because this comment previously named a property IBM MQ cannot accept:
+		// the example given here used to be a hyphenated "content-type". MQ validates property names as
+		// Java identifiers -- "." is permitted, a hyphen is not -- so setting that name fails with
+		// MQRC_PROPERTY_NAME_ERROR (2442). The settable spelling is the underscore form, and it is declared
+		// once on the sender as ContentTypePropertyName so both sides cannot drift.
+		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
+
+		// The MQMD transfer format, under a name that says what it is. It used to be reported as the
+		// message's ContentType, which is a different concept; keeping it here preserves it for the
+		// deployments that switch on it without letting it impersonate a media type.
+		if (!string.IsNullOrWhiteSpace(mqMessage.Format))
+		{
+			properties[MqFormatPropertyName] = mqMessage.Format;
+		}
+
+		var propertyNames = mqMessage.GetPropertyNames("%");
+		while (propertyNames.MoveNext())
+		{
+			if (propertyNames.Current is not string name)
+			{
+				continue;
+			}
+
+			var value = mqMessage.GetObjectProperty(name);
+			if (value is not null)
+			{
+				properties[name] = value;
+			}
+		}
+
 		return new TransportReceivedMessage
 		{
 			Id = id,
 			Body = body,
+			ContentType = ResolveContentType(properties),
 			CorrelationId = correlationId,
 			Source = Source,
 			DeliveryCount = mqMessage.BackoutCount + 1,
 			EnqueuedAt = DateTimeOffset.UtcNow,
+			Properties = properties,
 		};
 	}
+
+	/// <summary>The property carrying MQ's own transfer-format tag, which is not a media type.</summary>
+	internal const string MqFormatPropertyName = "ibmmq.format";
+
+	/// <summary>
+	/// The MIME content type the producer declared, or <see langword="null"/> when it declared none.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The MQMD wire-format tag is NOT a fallback for this field, and returning it was a lie.</b> That tag
+	/// is drawn from MQ's own closed set of transfer formats (<c>MQSTR</c>, <c>MQHRF2</c>,
+	/// <c>MQFMT_NONE</c>); it describes how the queue manager should convert the payload, not what the
+	/// payload IS. Reporting it in a field whose contract is a media type hands every caller a value that
+	/// can never parse as one, and it does so on EVERY message, because the tag is always present. A caller
+	/// cannot tell that answer apart from a real one.
+	/// </para>
+	/// <para>
+	/// <b>Null is the honest answer for a producer that declared nothing</b>, and it is what the rest of the
+	/// framework already expects: the content type is optional on a transport message everywhere else. This
+	/// also makes the structured-mode CloudEvents identifier meaningful here for the first time — that mode
+	/// is recognised by its media type ALONE, so a transport that overwrote the media type with a
+	/// wire-format tag could not carry one however it was encoded.
+	/// </para>
+	/// <para>
+	/// The tag is not discarded. It stays available in <c>Properties</c> under its own name for the
+	/// deployments that read it, where it is correctly labelled as MQ wire information rather than
+	/// impersonating a media type.
+	/// </para>
+	/// </remarks>
+	private static string? ResolveContentType(Dictionary<string, object> properties) =>
+		properties.TryGetValue(IbmMqTransportSender.ContentTypePropertyName, out var declared)
+			&& declared is string { Length: > 0 } contentType
+				? contentType
+				: null;
 
 	private void Settle(string id, bool commit)
 	{

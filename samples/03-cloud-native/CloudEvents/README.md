@@ -45,7 +45,7 @@ Each transport package provides CloudEvents serialization for wire-level interop
 | AWS SQS | `services.AddAwsSqsCloudEvents()` |
 | Google Pub/Sub | `services.AddGooglePubSubCloudEvents()` |
 
-Transport packages register `ICloudEventMapper<T>`, `ICloudEventEnvelopeConverter`, and `IEnvelopeCloudEventBridge` automatically.
+Transport packages register `ICloudEventEncoder<T>`, `ICloudEventEnvelopeConverter`, and `IEnvelopeCloudEventBridge` automatically.
 
 ## Running the Sample
 

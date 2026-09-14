@@ -60,7 +60,12 @@ public sealed class UpdateAggregateStatusRequest : DataRequestBase<IDbConnection
 				ELSE Status
 			END,
 			SentAt = CASE WHEN @AllSent = 1 THEN SYSDATETIMEOFFSET() ELSE SentAt END
-			WHERE Id = @MessageId;
+			WHERE Id = @MessageId
+			  -- Sent and DeadLettered are terminal. This statement recomputes the parent status from
+			  -- the per-transport rows, and an all-failed transport set would otherwise return a
+			  -- dead-lettered message to the failed set, which is claimable -- reopening a message
+			  -- whose delivery outcome was already decided.
+			  AND Status NOT IN (2, 5);
 			""";
 
 		var parameters = new DynamicParameters();

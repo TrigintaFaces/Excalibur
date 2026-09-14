@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
@@ -165,7 +165,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		ArgumentNullException.ThrowIfNull(requests);
 
@@ -216,7 +215,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		ArgumentNullException.ThrowIfNull(requests);
 		ArgumentNullException.ThrowIfNull(transactionScope);
@@ -229,10 +227,14 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		return await _retryPolicy.ExecuteAsync(async () => await PostgresPersistenceMetrics.MeasureOperationAsync(
 			async () =>
 			{
-				using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-
-				// Enlist the connection in the transaction
+				// Connection lifecycle passes to the transaction scope at enlistment: the scope BEGAN its
+				// transaction on this connection, so disposing it here completes that transaction and
+				// discards every write the caller has not committed yet. The scope owns disposal, not this
+				// method. Matches SqlServerPersistenceProvider, which has always done it this way.
+#pragma warning disable CA2000
+				var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 				await transactionScope.EnlistConnectionAsync(connection, cancellationToken).ConfigureAwait(false);
+#pragma warning restore CA2000
 
 				var results = new List<object>();
 
@@ -259,7 +261,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		ArgumentNullException.ThrowIfNull(bulkRequest);
 
@@ -286,7 +287,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		ArgumentNullException.ThrowIfNull(storedProcedureRequest);
 
@@ -310,7 +310,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 	public async Task<IDictionary<string, object>> GetDatabaseStatisticsAsync(CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		var stats = new Dictionary<string, object>(StringComparer.Ordinal);
 
@@ -400,7 +399,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
@@ -619,7 +617,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		ArgumentNullException.ThrowIfNull(request);
 
@@ -637,7 +634,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		ArgumentNullException.ThrowIfNull(request);
 		ArgumentNullException.ThrowIfNull(transactionScope);
@@ -647,10 +643,13 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 
 		return await _retryPolicy.ExecuteAsync(async () =>
 		{
-			using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-
-			// Enlist the connection in the transaction
+			// Connection lifecycle passes to the transaction scope at enlistment: the scope BEGAN its
+			// transaction on this connection, so disposing it here completes that transaction and discards
+			// every write the caller has not committed yet. The scope owns disposal, not this method.
+#pragma warning disable CA2000
+			var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 			await transactionScope.EnlistConnectionAsync(connection, cancellationToken).ConfigureAwait(false);
+#pragma warning restore CA2000
 
 			return await request.ResolveAsync(connection).ConfigureAwait(false);
 		}).ConfigureAwait(false);
@@ -664,7 +663,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		where TConnection : IDisposable
 	{
 		ThrowIfDisposed();
-		ThrowIfNotInitialized();
 
 		ArgumentNullException.ThrowIfNull(request);
 		ArgumentNullException.ThrowIfNull(transactionScope);
@@ -674,10 +672,13 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 
 		return await _retryPolicy.ExecuteAsync(async () =>
 		{
-			using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-
-			// Enlist the connection in the transaction
+			// Connection lifecycle passes to the transaction scope at enlistment: the scope BEGAN its
+			// transaction on this connection, so disposing it here completes that transaction and discards
+			// every write the caller has not committed yet. The scope owns disposal, not this method.
+#pragma warning disable CA2000
+			var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 			await transactionScope.EnlistConnectionAsync(connection, cancellationToken).ConfigureAwait(false);
+#pragma warning restore CA2000
 
 			return await request.ResolveAsync((TConnection)connection).ConfigureAwait(false);
 		}).ConfigureAwait(false);
@@ -815,6 +816,24 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 		return metrics;
 	}
 	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// An optional eager warm-up, not a precondition. Every operation opens its own connection, and the
+	/// options are validated in the constructor, so nothing an operation does depends on this having run:
+	/// the provider answers as soon as it is constructed, the way its SQL Server and MySQL siblings do.
+	/// </para>
+	/// <para>
+	/// What it adds is a startup connection test that populates the reported database version and latches
+	/// availability, and a fail-fast for a host that would rather learn at startup than on first use. It is
+	/// idempotent: a second call is a no-op.
+	/// </para>
+	/// <para>
+	/// Requiring it was the defect. A host whose database was briefly unreachable at startup could never
+	/// recover -- the hosted-service initializer logs that failure and lets the application start, so the
+	/// provider stayed permanently unusable for the life of the process -- and a consumer resolving the
+	/// provider outside a host, as a serverless entry point does, had no supported way to run it at all.
+	/// </para>
+	/// </remarks>
 	public async Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
@@ -1043,13 +1062,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistence
 
 	private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
-	private void ThrowIfNotInitialized()
-	{
-		if (!_initialized)
-		{
-			throw new InvalidOperationException("Postgres persistence provider not initialized. Call InitializeAsync first.");
-		}
-	}
 
 	#region Dapper Query DTOs
 

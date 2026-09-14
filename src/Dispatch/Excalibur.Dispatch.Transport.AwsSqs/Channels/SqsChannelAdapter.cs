@@ -11,6 +11,9 @@ using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.Logging;
 
+using Polly;
+using Polly.Retry;
+
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
@@ -404,11 +407,36 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 			MessageAttributeNames = ["All"],
 		};
 
+		// The poll's error backoff is Polly's, not ours. Its attempt counter resets on a successful poll,
+		// so the delay reflects CONSECUTIVE failures -- where the hand-rolled version keyed off a lifetime
+		// error count modulo ten, which silently reset the backoff to one second every tenth failure while
+		// the fault was still present. Same 1s..32s exponential ladder otherwise.
+		var pollRetry = new ResiliencePipelineBuilder()
+			.AddRetry(new RetryStrategyOptions
+			{
+				ShouldHandle = new PredicateBuilder().Handle<Exception>(static ex => ex is not OperationCanceledException),
+				MaxRetryAttempts = int.MaxValue,
+				BackoffType = DelayBackoffType.Exponential,
+				Delay = TimeSpan.FromSeconds(1),
+				MaxDelay = TimeSpan.FromSeconds(32),
+				UseJitter = false,
+				OnRetry = args =>
+				{
+					_ = Interlocked.Increment(ref _receiveErrors);
+					LogPollerError(pollerIndex, args.Outcome.Exception!);
+					return default;
+				},
+			})
+			.Build();
+
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
-				await _pollingSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+				await pollRetry.ExecuteAsync(
+					async ct =>
+					{
+				await _pollingSemaphore.WaitAsync(ct).ConfigureAwait(false);
 
 				try
 				{
@@ -431,20 +459,13 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 				{
 					_ = _pollingSemaphore.Release();
 				}
+					},
+					cancellationToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				// Expected during shutdown
 				break;
-			}
-			catch (Exception ex)
-			{
-				_ = Interlocked.Increment(ref _receiveErrors);
-				LogPollerError(pollerIndex, ex);
-
-				// Exponential backoff on error
-				await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, Math.Min(5, _receiveErrors % 10))), cancellationToken)
-					.ConfigureAwait(false);
 			}
 		}
 

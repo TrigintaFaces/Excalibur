@@ -99,6 +99,18 @@ internal sealed partial class CedarAuthorizationEvaluator : IAuthorizationEvalua
 			LogCedarConnectionFailure(ex.Message);
 			return FailureDecision($"Cedar connection failed: {ex.Message}", subject, action, resource);
 		}
+		catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+		{
+			// Everything else the engine call can throw -- a malformed/truncated response body from
+			// CedarResponseParser, an unparseable endpoint configuration (UriFormatException), and any
+			// other failure mode -- must route through the SAME fail-closed/fail-open decision point as a
+			// timeout or a connection failure. Letting it propagate instead would bypass FailClosed
+			// entirely: a deployment configured fail-closed believes every engine failure denies, while a
+			// parser failure would have thrown into the caller unfiltered. The caller-cancellation filter
+			// above preserves cooperative cancellation -- it must never be swallowed into a Deny.
+			LogCedarUnexpectedFailure(ex.GetType().Name, ex.Message);
+			return FailureDecision($"Cedar evaluation failed unexpectedly ({ex.GetType().Name}): {ex.Message}", subject, action, resource);
+		}
 	}
 
 	private AuthorizationDecision FailureDecision(
@@ -141,4 +153,8 @@ internal sealed partial class CedarAuthorizationEvaluator : IAuthorizationEvalua
 	[LoggerMessage(3205, LogLevel.Warning,
 		"Cedar FAIL-OPEN: PERMITTING actor={ActorId} action={ActionName} resourceType={ResourceType} because the policy engine was unreachable (FailClosed=false). Reason: {Reason}")]
 	private partial void LogCedarFailOpenPermit(string actorId, string actionName, string resourceType, string reason);
+
+	[LoggerMessage(3206, LogLevel.Warning,
+		"Cedar evaluation failed unexpectedly ({ExceptionType}): {ErrorMessage}. Applying fail-closed/fail-open policy.")]
+	private partial void LogCedarUnexpectedFailure(string exceptionType, string errorMessage);
 }

@@ -107,7 +107,7 @@ public static class ExcaliburPostgresServiceCollectionExtensions
 		_ = services.AddDispatchWithPostgres(options.ConnectionString, options.DispatchConfiguration);
 
 		// Inbox (builder API)
-		if (options.UseInbox)
+		if (options.UseInboxStore)
 		{
 			_ = services.AddExcaliburInbox(inbox =>
 				inbox.UsePostgres(pg =>
@@ -153,9 +153,18 @@ public static class ExcaliburPostgresServiceCollectionExtensions
 			});
 		}
 
-		// Compliance (Erasure)
+		// Compliance (erasure + legal hold + data inventory)
+		//
+		// The whole set, not the erasure store alone. Erasure consults legal holds through an OPTIONAL
+		// dependency and skips the check when it is absent, so wiring erasure without holds produces a
+		// pipeline that destroys data irreversibly and never consults the records that exist to stop it.
+		// The provider's own aggregate registers all three stores; AddLegalHoldService supplies the service
+		// the erasure path actually asks for, which the stores alone do not.
 		if (options.UseCompliance)
 		{
+			_ = services.AddPostgresCompliance(compliance => compliance.ConnectionString(options.ConnectionString));
+			_ = services.AddLegalHoldService();
+
 			_ = services.AddPostgresErasureStore(erasure =>
 			{
 				erasure.ConnectionString = options.ConnectionString;

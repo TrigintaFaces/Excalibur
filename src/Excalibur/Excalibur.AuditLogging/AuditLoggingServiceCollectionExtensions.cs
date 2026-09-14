@@ -406,6 +406,13 @@ public static class AuditLoggingServiceCollectionExtensions
 		// distinct "I require a durable trail" composition, per the audit-funnel finding.
 		_ = services.AddAuditDurabilityGate();
 
+		// Same shape, for the other half of what enforcement needs: DefaultAuditRetentionService resolves
+		// IAuditPurgeCapability and throws when the store does not offer it, but without this gate that
+		// throw only surfaces on the first CleanupInterval elapsing (a day, by default) rather than at
+		// startup. Fails closed here instead, naming the store type.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditRetentionOptions>, AuditPurgeCapabilityValidator>());
+
 		return services;
 	}
 
@@ -441,6 +448,13 @@ public static class AuditLoggingServiceCollectionExtensions
 		// The bare AddAuditLogging() default stays gate-free (dev/MediatR-replacement) — retention is the
 		// distinct "I require a durable trail" composition, per the audit-funnel finding.
 		_ = services.AddAuditDurabilityGate();
+
+		// Same shape, for the other half of what enforcement needs: DefaultAuditRetentionService resolves
+		// IAuditPurgeCapability and throws when the store does not offer it, but without this gate that
+		// throw only surfaces on the first CleanupInterval elapsing (a day, by default) rather than at
+		// startup. Fails closed here instead, naming the store type.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditRetentionOptions>, AuditPurgeCapabilityValidator>());
 
 		return services;
 	}

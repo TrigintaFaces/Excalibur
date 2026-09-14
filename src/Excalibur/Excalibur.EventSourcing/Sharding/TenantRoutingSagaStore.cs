@@ -7,6 +7,8 @@ using Excalibur.Data.Sharding;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing.Sharding;
 
 /// <summary>
@@ -65,6 +67,8 @@ internal sealed class TenantRoutingSagaStore : ISagaStore
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Delegates to a saga store whose serializer may require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("Delegates to a saga store that serializes with a reflection-based serializer generating converters at run time.")]
 	public async Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState
 	{

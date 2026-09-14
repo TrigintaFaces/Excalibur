@@ -20,7 +20,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
-  </ItemGroup>
+      <PackageReference Include="Polly" />
+</ItemGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />

@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using MongoDB.Driver;
+using Excalibur.Data;
 
 namespace Excalibur.EventSourcing.MongoDB;
 
@@ -494,17 +495,14 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
+		// Delegates to IDomainEvent.CorrelationId (checks OutboxHeaderNames.CorrelationId, the
+		// framework declared key, then the legacy PascalCase/camelCase spellings) rather than
+		// re-implementing the key-priority chain here.
 		foreach (var @event in events)
 		{
-			if (@event.Metadata == null)
+			if (@event.CorrelationId is { } correlationId)
 			{
-				continue;
-			}
-
-			if (@event.Metadata.TryGetValue("CorrelationId", out var correlationId) ||
-				@event.Metadata.TryGetValue("correlationId", out correlationId))
-			{
-				return correlationId?.ToString();
+				return correlationId;
 			}
 		}
 
@@ -557,7 +555,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 	/// <param name="aggregateId">The caller-supplied aggregate identifier.</param>
 	/// <returns>The stream identifier as stored on the document.</returns>
 	private string BuildStreamId(string aggregateId) =>
-		$"{TenantKeyPrefix}{TenantScope.FromContext(_tenantContext).TenantId}:{aggregateId}";
+		TenantScopedKey.Compose(TenantScope.FromContext(_tenantContext).TenantId, aggregateId);
 
 	/// <summary>
 	/// Refuses when the events collection still holds a document written under the untenanted stream

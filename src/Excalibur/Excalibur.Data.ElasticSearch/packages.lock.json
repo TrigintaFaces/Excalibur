@@ -11,15 +11,6 @@
           "Azure.Core": "1.53.0"
         }
       },
-      "Azure.Security.KeyVault.Keys": {
-        "type": "Direct",
-        "requested": "[4.9.0, )",
-        "resolved": "4.9.0",
-        "contentHash": "CBuyErsNqLTbICquZa0b6Qy4ZPuxXnNjL7ucJRIbnchq9KgqYWwj9t73rio5upmg3SHjgnrrJKI3bh8xYtXXSw==",
-        "dependencies": {
-          "Azure.Core": "1.51.1"
-        }
-      },
       "Azure.Security.KeyVault.Secrets": {
         "type": "Direct",
         "requested": "[4.10.0, )",
@@ -583,6 +574,7 @@
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
           "OpenTelemetry.Extensions.Hosting": "[1.15.3, )",
+          "Polly": "[8.6.6, )",
           "System.IO.Hashing": "[10.0.7, )"
         }
       },

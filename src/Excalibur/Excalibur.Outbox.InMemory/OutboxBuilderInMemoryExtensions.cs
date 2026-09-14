@@ -95,7 +95,10 @@ public static class OutboxBuilderInMemoryExtensions
 		// The store's constructor is internal (it is not part of the consumer contract), and
 		// ActivatorUtilities only considers public constructors -- so the type must be created by an
 		// explicit factory here rather than by TryAddSingleton<T>()'s implementation-type activation.
-		builder.Services.TryAddSingleton(static sp => new InMemoryOutboxStore(
+		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
+		// the store registration: InMemoryOutboxStore implements ITenantPartitionedStore because it persists
+		// TenantId on every message and hands it back on drain rather than reading an ambient ITenantContext.
+		builder.Services.AddTenantAwareStore<IOutboxStore, InMemoryOutboxStore>(static sp => new InMemoryOutboxStore(
 			sp.GetRequiredService<IOptions<InMemoryOutboxOptions>>(),
 			sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<InMemoryOutboxStore>>()));
 		builder.Services.AddKeyedSingleton<IOutboxStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemoryOutboxStore>());

@@ -132,7 +132,7 @@ public sealed class CachingMiddlewareCacheDecisionShould : IDisposable
 	[Fact]
 	public async Task NotCache_WhenICacheableShouldCacheIsFalse_w4181o()
 	{
-		// Arrange — a message whose ICacheable<T>.ShouldCache returns false. Post-fix the interface decision
+		// Arrange — a message whose ICacheable.ShouldCache returns false. Post-fix the interface decision
 		// is honored → result NOT cached → handler runs again on the second request. Pre-fix only the policy
 		// drove the decision (default true) → cached → second request served from cache (handler runs once).
 		var middleware = CreateMiddleware();
@@ -149,7 +149,7 @@ public sealed class CachingMiddlewareCacheDecisionShould : IDisposable
 		_ = await middleware.InvokeAsync(message, NewContext(), next, CancellationToken.None);
 
 		// Assert — ShouldCache=false suppresses caching, so BOTH requests execute the handler
-		calls.ShouldBe(2, "ICacheable<T>.ShouldCache=false must suppress caching on the interface path");
+		calls.ShouldBe(2, "ICacheable.ShouldCache=false must suppress caching on the interface path");
 	}
 
 	/// <summary>

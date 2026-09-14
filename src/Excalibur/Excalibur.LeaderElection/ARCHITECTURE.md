@@ -33,7 +33,7 @@ Sub-guarantees:
 | **PostgreSQL** | `pg_try_advisory_lock` on a dedicated, non-pooled session — the advisory lock *is* the claim | Connection-session scoped; verified by re-reading the lock's presence for this backend | Present, minted from a dedicated `SEQUENCE` inside the acquire path before leadership is declared; fail-closed | Strict comparison against elapsed monotonic time. Deliberately has **no** accelerate path, so grace is the sole bound |
 | **Redis** | `SET key value NX PX ttl` — the single-shot set-if-absent is the claim | **Server-side TTL** is the real expiry; renewal is an owner-token compare-then-extend script, so a non-owner cannot extend | Present, minted by incrementing a separate counter key **after** the claim succeeds; fail-closed — the just-acquired lock is released if the mint fails | Expiry safety rests entirely on the Redis server's TTL and never on a client clock; the client-side grace only governs how quickly a candidate self-demotes after a renewal fault |
 | **Consul** | Session-scoped KV acquire — the Consul server enforces one holder per session | Session TTL, renewed on a timer, plus a lock delay that defers reacquisition after invalidation | Present, minted by a bounded compare-and-swap on a separate counter key after the acquire succeeds; fail-closed | Grace period, enforced client-side on the renewal and monitor paths, on top of the Consul server's session TTL and lock delay |
-| **InMemory** | First-come-first-served insert into a process-local dictionary, taken **only while the candidate is running** — the acquisition re-reads its own lifecycle state after the insert and hands the resource straight back if it stopped in between, because the timer callback and the start path can both be racing a shutdown and an entry check cannot establish the invariant. Release is a **compare-and-remove against the releasing candidate's own id**, so a candidate can only ever relinquish its own tenure — its shutdown, dispose, and unhealthy step-down paths are separate and none excludes the others, so a release that merely removed *the resource* could delete a successor's record | **None** — leadership ends only on stop, dispose, or the unhealthy step-down path | **None.** The tenure's fencing token is always null, by design for a single-process implementation | Not applicable — no lease timestamp exists |
+| **InMemory** | First-come-first-served insert into a process-local dictionary, taken **only while the candidate is running** — the acquisition re-reads its own lifecycle state after the insert and hands the resource straight back if it stopped in between, because the timer callback and the start path can both be racing a shutdown and an entry check cannot establish the invariant. Release is a **compare-and-remove against the releasing candidate's own id**, so a candidate can only ever relinquish its own tenure — its shutdown, dispose, and unhealthy step-down paths are separate and none excludes the others, so a release that merely removed *the resource* could delete a successor's record | **None** — leadership ends only on stop, dispose, or the unhealthy step-down path | **Present, minted in-process.** A per-resource `long` counter in the shared process state (`InMemoryLeaderElectionSharedState.FencingTokens`), incremented atomically per mint (`ConcurrentDictionary.AddOrUpdate`); fail-closed at `long.MaxValue`. The provider and the process are the same thing here, so an in-process counter is a genuinely correct arbiter — not a weaker stand-in for the distributed providers' external counters | Not applicable — no lease timestamp exists |
 
 **Fencing co-atomicity is a spectrum, and it matters.** Kubernetes advances its token in the same write that
 transfers leadership. SQL Server, PostgreSQL, Consul, Redis, and MongoDB's default path mint the token in a
@@ -48,8 +48,10 @@ property than the Kubernetes case.
   tenure, carry its fencing token into every write, and require the downstream store to reject a stale token.
   Checking a boolean "am I leader" before acting is not sufficient: the answer can be stale by the time the
   write lands.
-- **Do not use the in-memory provider to protect anything shared.** It has no expiry and no fencing token, and
-  its mutual exclusion is process-local — two processes each elect their own leader.
+- **Do not use the in-memory provider to protect anything shared.** It has no expiry, and its mutual exclusion
+  is process-local — two processes each elect their own leader. It does carry a fencing token (an in-process
+  counter — see F1 above), which fences a stale in-process leader against a live one in the same process, but
+  that is not a substitute for cross-process protection.
 - **Set the grace period below the tolerance of whatever you are protecting.** It is the upper bound on how
   long a candidate that has lost contact may still believe it leads.
 - **Prefer idempotent leader-only work.** Every provider's guarantee has an expiry-plus-grace window; idempotent
@@ -63,12 +65,13 @@ under concurrent contention (safety) *and* acquisition, renewal-over-time, and t
 | Guarantee | Conformance arm |
 |---|---|
 | M1 mutual exclusion | `ConcurrentContention_OnlyOneLeader` — of four concurrent starters, exactly one leads |
-| M1 agreement | `ConcurrentContention_AllCandidatesAgreeOnLeader` |
+| M1 agreement | `ConcurrentContention_AllCandidatesAgreeOnLeader`. **Provider-conditional:** where the claim IS a lock (`sp_getapplock`, `pg_try_advisory_lock`) the lock carries no holder identity, so a follower cannot name the leader and is not asked to. Those providers override this arm to assert what the primitive does guarantee — exactly one leader, and the leader can name itself |
 | M2 acquisition | `StartAsync_AcquiresLeadership_WhenNoCompetition` |
 | M2 renewal | `Leader_MaintainsLeadership_OverTime`, plus `Leader_DoesNotRaiseLostLeadership_WhileRenewing` as its safety twin |
 | M2 transfer | `LeaderChange_NewCandidateBecomesLeader_WhenCurrentLeaderStops`, `LeaderChange_CompetitorReceivesLeaderChangedEvent` |
 | Release | `StopAsync_RelinquishesLeadership`, `StopAsync_RaisesLostLeadershipEvent` |
 | Idempotence | `StartAsync_IsIdempotent`, `StopAsync_IsIdempotent`, `StopAsync_BeforeStart_DoesNotThrow` |
+| M1 + M2 **through the public registration** | `SqlServerLeaderElectionMutualExclusionEndToEndShould` — two independently composed hosts contend for one resource against real SQL Server, exactly one leads, and the other takes over when it stops. Every kit binding above constructs its candidate directly, which proves the provider behaves when handed its dependencies and cannot observe whether a consumer's own registration yields a working election at all |
 
 **The in-memory provider carries one additional arm outside the shared kit**, because it is the only
 provider whose release paths are not serialised by a backing system:

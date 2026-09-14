@@ -4,11 +4,12 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Patterns;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 using Excalibur.Dispatch.Serialization;
 
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -23,9 +24,15 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services">The service collection to configure.</param>
 	/// <param name="configure">
-	/// Optional delegate to customize <see cref="DispatchPatternsJsonOptions" />, including serializer options and source-generated contexts.
+	/// Optional delegate to customize <see cref="DispatchPatternsJsonOptions" />, including the serializer
+	/// configuration delegate and a source-generated context.
 	/// </param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddJsonSerialization(o =&gt; o.ConfigureSerializer = json =&gt; json.WriteIndented = true);
+	/// </code>
+	/// </example>
 	public static IServiceCollection AddJsonSerialization(
 		this IServiceCollection services,
 		Action<DispatchPatternsJsonOptions>? configure = null)
@@ -33,42 +40,27 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		// No ValidateOnStart(): DispatchPatternsJsonOptions has nothing an IValidateOptions<T> could
-		// reject (SerializerOptions is always non-null from the constructor; SerializerContext is
-		// legitimately nullable). ValidateOnStart() with no attached validator runs the pipeline but
-		// validates nothing, which is false safety.
-		var optionsBuilder = services.AddOptions<DispatchPatternsJsonOptions>().ValidateOnStart();
+		// reject (both members are legitimately nullable). ValidateOnStart() with no attached validator
+		// runs the pipeline but validates nothing, which is false safety.
+		var optionsBuilder = services.AddOptions<DispatchPatternsJsonOptions>();
 		if (configure is not null)
 		{
 			_ = optionsBuilder.Configure(configure);
 		}
 
-		services.TryAddSingleton<DispatchJsonSerializer>();
-		return services;
-	}
+		// Construct through a factory so the configured delegate and context actually reach the
+		// serializer. It layers ConfigureSerializer over its own transport defaults, so a plain
+		// TryAddSingleton<DispatchJsonSerializer>() would resolve the parameterless path and discard
+		// everything the caller configured.
+		services.TryAddSingleton(static sp =>
+		{
+			var options = sp.GetRequiredService<IOptions<DispatchPatternsJsonOptions>>().Value;
+			return new DispatchJsonSerializer(
+				options.ConfigureSerializer,
+				options.SerializerContext,
+				sp.GetService<IPooledBufferService>());
+		});
 
-	/// <summary>
-	/// Registers the System.Text.Json-based <see cref="DispatchJsonSerializer" /> for Excalibur.Dispatch.Patterns hosting scenarios
-	/// using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="services">The service collection to configure.</param>
-	/// <param name="configuration">The configuration section to bind JSON serialization options from.</param>
-	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddJsonSerialization(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		// No ValidateOnStart() -- see the no-configure overload above for why.
-		_ = services.AddOptions<DispatchPatternsJsonOptions>()
-			.Bind(configuration);
-
-		services.TryAddSingleton<DispatchJsonSerializer>();
 		return services;
 	}
 

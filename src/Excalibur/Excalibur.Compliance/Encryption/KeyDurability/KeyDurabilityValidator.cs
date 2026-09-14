@@ -42,7 +42,7 @@ internal sealed class KeyDurabilityValidator : IValidateOptions<KeyDurabilityOpt
 		// resolves the provider that actually won registration (through any decorator, which forwards the
 		// query), so registration order and wrapping do not matter.
 		var provider = _services.GetService<IKeyManagementProvider>();
-		if (provider?.GetService(typeof(IDurableKeyProvider)) is not null)
+		if (provider?.GetService(typeof(IDurableKeyProvider)) is IDurableKeyProvider)
 		{
 			return ValidateOptionsResult.Success;
 		}

@@ -4,6 +4,7 @@
 using Excalibur.Domain;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -31,7 +32,6 @@ public static class ObservabilityHostApplicationBuilderExtensions
 
 		_ = builder.Services.AddOpenTelemetry().WithMetrics(meterOptions =>
 		{
-			_ = meterOptions.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(ApplicationContext.ApplicationSystemName));
 			_ = meterOptions.AddMeter($"{builder.Environment.ApplicationName}_Metrics");
 			_ = meterOptions.AddMeter("Excalibur.Metrics"); // Add our custom meter
 			_ = meterOptions.AddAspNetCoreInstrumentation();
@@ -42,6 +42,17 @@ public static class ObservabilityHostApplicationBuilderExtensions
 
 			configureMetrics?.Invoke(meterOptions);
 		});
+
+		// The resource identity comes from the bound options -- the value the host validated at startup -- rather than from
+		// the process-wide static, which a host configuring through the options pipeline never gets to influence. It has to be
+		// deferred because a registration-time callback has no service provider to resolve the options from.
+		//
+		// ConfigureResource, not SetResourceBuilder: it AUGMENTS whatever resource builder is in effect instead of replacing
+		// it, so a consumer who supplied their own through configureMetrics keeps it.
+		builder.Services.ConfigureOpenTelemetryMeterProvider(static (provider, meterOptions) =>
+			_ = meterOptions.ConfigureResource(resource =>
+				_ = resource.AddService(
+					provider.GetRequiredService<IOptions<ApplicationContextOptions>>().Value.ApplicationSystemName)));
 
 		return builder;
 	}
@@ -61,12 +72,17 @@ public static class ObservabilityHostApplicationBuilderExtensions
 
 		_ = builder.Services.AddOpenTelemetry().WithTracing(tracerOptions =>
 		{
-			_ = tracerOptions.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(ApplicationContext.ApplicationSystemName));
 			_ = tracerOptions.AddAspNetCoreInstrumentation();
 			_ = tracerOptions.AddConsoleExporter();
 
 			configureTracing?.Invoke(tracerOptions);
 		});
+
+		// See ConfigureExcaliburMetrics for why this is deferred and why it augments rather than replaces.
+		builder.Services.ConfigureOpenTelemetryTracerProvider(static (provider, tracerOptions) =>
+			_ = tracerOptions.ConfigureResource(resource =>
+				_ = resource.AddService(
+					provider.GetRequiredService<IOptions<ApplicationContextOptions>>().Value.ApplicationSystemName)));
 
 		return builder;
 	}

@@ -68,6 +68,25 @@ pwsh eng/validate-samples.ps1
 <Version>X.Y.Z</Version>
 ```
 
+### Template Version Pin (stable cut only)
+
+The scaffolding templates under `templates/**` default `$(ExcaliburDispatchVersion)` to a floating
+prerelease (`10.0.0-*`) so `dotnet new` always resolves the newest prerelease during the alpha/beta/rc
+line. **This step applies only when THIS release is the first stable `10.0.0` tag** — do not perform it
+on an alpha, beta, or rc release, and do not perform it early:
+
+- [ ] Every `templates/**/*.csproj` default for `$(ExcaliburDispatchVersion)` is switched from the
+      prerelease-floating form (`10.0.0-*`) to the stable-floating form (`10.*`), so a fresh scaffold
+      keeps resolving the newest version but stops silently picking up a prerelease once one exists.
+- [ ] After switching, `dotnet new` + `dotnet restore` is run for at least one template per family and
+      the resolved package versions are confirmed to carry no prerelease suffix.
+
+Getting this ordering wrong in either direction breaks `dotnet new` for every consumer: switching to
+`10.*` before a stable `10.0.0` exists on the feed means NuGet resolves `>= 10.0.0` against a feed that
+has none, and every fresh scaffold fails to restore before a consumer writes a line of code; leaving the
+prerelease-floating default in place after `10.0.0` ships stable means a fresh scaffold keeps silently
+resolving prerelease packages instead of the stable line just released.
+
 ---
 
 ## Automated Pipeline

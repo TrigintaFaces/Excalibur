@@ -217,22 +217,6 @@ public sealed class DeliveryOptionsShould
 		options.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
-	// --- InMemoryInboxOptions ---
-
-	[Fact]
-	public void InMemoryInboxOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new InMemoryInboxOptions();
-
-		// Assert
-		options.MaxEntries.ShouldBe(10_000);
-		options.EnableAutomaticCleanup.ShouldBeTrue();
-		options.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(5));
-		options.RetentionPeriod.ShouldBe(TimeSpan.FromHours(1));
-		options.CleanupBatchSize.ShouldBe(100);
-	}
-
 	// --- OutboxDeliveryGuarantee ---
 
 	[Fact]

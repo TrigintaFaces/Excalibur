@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.RabbitMQ
 
-RabbitMQ transport implementation for the Excalibur framework, providing reliable message queuing with advanced features including dead letter handling, CloudEvents support, and automatic recovery.
+RabbitMQ transport implementation for the Excalibur framework, providing reliable message queuing with advanced features including dead letter handling, CloudEvents publishing and decoding, and automatic recovery.
 
 ## Part Of
 
@@ -17,7 +17,7 @@ This package is included in the following metapackages:
 This package provides RabbitMQ integration for Excalibur.Dispatch, enabling:
 
 - **Message Publishing & Consuming**: Full support for exchanges, queues, and routing
-- **CloudEvents Support**: DoD-compliant structured and binary mode CloudEvents. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
+- **CloudEvents Support**: DoD-compliant structured and binary mode CloudEvents on outbound messages. Inbound messages are decoded automatically. On the send path, registering the bundled encoder is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventEncoder<TOutbound>` over a source-generated serializer to avoid the requirement. Inbound decoding is trim-safe and ahead-of-time-safe, attaches the decoded event to the message rather than replacing it, and delivers every message in the batch — a malformed one arrives carrying a decode error instead of a decoded event, never dropped.
 - **Reliability Features**: Dead letter queues, publisher confirms, automatic recovery
 - **Batching**: Configurable batch processing for high-throughput scenarios
 
@@ -144,7 +144,9 @@ one is configured).
 
 #### CloudEvents Support
 
-Enable CloudEvents for interoperable event-driven architectures:
+Enable CloudEvents formatting on published messages, for interoperable event-driven architectures.
+Inbound messages are decoded automatically and need no registration — this call configures the
+send path only:
 
 ```csharp
 services.AddCloudEventsForRabbitMq(rabbitMq =>

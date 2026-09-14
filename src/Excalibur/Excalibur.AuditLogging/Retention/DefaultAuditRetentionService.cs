@@ -94,7 +94,7 @@ public sealed partial class DefaultAuditRetentionService : IAuditRetentionServic
 				+ "cannot delete must not report success.");
 		}
 
-		LogRetentionEnforcementStarted(cutoffDate, _options.BatchSize);
+		LogRetentionEnforcementStarted(cutoffDate);
 
 		// Estate-wide by contract: retention governs how long anything may be kept, which is a property of
 		// the data and its policy rather than of who may read it. Sweeping a single partition would leave
@@ -123,16 +123,14 @@ public sealed partial class DefaultAuditRetentionService : IAuditRetentionServic
 		{
 			RetentionPeriod = _options.RetentionPeriod,
 			CleanupInterval = _options.CleanupInterval,
-			BatchSize = _options.BatchSize,
 			ArchiveBeforeDelete = _options.ArchiveBeforeDelete
 		};
 
 		return Task.FromResult(policy);
 	}
 
-	[LoggerMessage(LogLevel.Information,
-		"Starting retention enforcement. Cutoff date: {CutoffDate}, Batch size: {BatchSize}")]
-	private partial void LogRetentionEnforcementStarted(DateTimeOffset cutoffDate, int batchSize);
+	[LoggerMessage(LogLevel.Information, "Starting retention enforcement. Cutoff date: {CutoffDate}")]
+	private partial void LogRetentionEnforcementStarted(DateTimeOffset cutoffDate);
 
 	[LoggerMessage(LogLevel.Debug, "No expired audit events found")]
 	private partial void LogNoExpiredEventsFound();

@@ -10,7 +10,9 @@ namespace Excalibur.Data.ElasticSearch.Security;
 public enum ThreatType
 {
 	/// <summary>
-	/// No threat detected.
+	/// No threat detected. The default value: nothing in this codebase constructs it explicitly, but it
+	/// is what an uninitialized or default-valued <see cref="ThreatType" /> reads as, and CA1008 requires
+	/// every enum to name its zero value for exactly that reason.
 	/// </summary>
 	None = 0,
 

@@ -163,10 +163,9 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
-		var document = MongoDbInboxDocument.FromInboxEntry(entry);
-		// Tenant-scope the unique _id and stamp the row so dedup + every keyed read isolate per tenant.
-		document.Id = ScopedId(entry.MessageId, entry.HandlerType);
-		document.TenantId = StampTenant(entry.TenantId);
+		// The ambient tenant is REQUIRED by FromInboxEntry, so the unique _id it returns is already
+		// tenant-scoped from construction -- there is no tenant-less document to accidentally persist.
+		var document = MongoDbInboxDocument.FromInboxEntry(entry, CurrentTenantScope.TenantId);
 
 		try
 		{

@@ -21,3 +21,6 @@ yarn-error.log*
 
 # Generated at deploy time so the published site can be verified; never committed.
 static/build-stamp.txt
+
+# Isolated output from scripts/build-verify.sh; never committed.
+/build-verify-*

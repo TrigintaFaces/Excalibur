@@ -1,0 +1,177 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+
+using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Validation;
+
+namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
+
+/// <summary>
+/// Unit tests for <see cref="MessageValidationError"/>.
+/// </summary>
+/// <remarks>
+/// Tests the validation error data class.
+/// </remarks>
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
+[Trait("Priority", "0")]
+public sealed class MessageValidationErrorShould
+{
+	#region Constructor Tests
+
+	[Fact]
+	public void Constructor_WithValidParameters_CreatesInstance()
+	{
+		// Arrange & Act
+		var error = new MessageValidationError("Email", "Email is required");
+
+		// Assert
+		_ = error.ShouldNotBeNull();
+		error.PropertyName.ShouldBe("Email");
+		error.ErrorMessage!.ShouldBe("Email is required");
+	}
+
+	[Fact]
+	public void Constructor_WithEmptyPropertyName_CreatesInstance()
+	{
+		// Arrange & Act
+		var error = new MessageValidationError(string.Empty, "Error occurred");
+
+		// Assert
+		error.PropertyName.ShouldBe(string.Empty);
+	}
+
+	[Fact]
+	public void Constructor_WithEmptyErrorMessage_CreatesInstance()
+	{
+		// Arrange & Act
+		var error = new MessageValidationError("PropertyName", string.Empty);
+
+		// Assert
+		error.ErrorMessage!.ShouldBe(string.Empty);
+	}
+
+	[Fact]
+	public void Constructor_WithNullPropertyName_ThrowsArgumentNullException()
+	{
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() => new MessageValidationError(null!, "Error message"));
+	}
+
+	[Fact]
+	public void Constructor_WithNullErrorMessage_ThrowsArgumentNullException()
+	{
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() => new MessageValidationError("PropertyName", null!));
+	}
+
+	#endregion
+
+	#region PropertyName Tests
+
+	[Fact]
+	public void PropertyName_ReturnsCorrectValue()
+	{
+		// Arrange
+		var error = new MessageValidationError("FirstName", "Name is required");
+
+		// Act
+		var result = error.PropertyName;
+
+		// Assert
+		result.ShouldBe("FirstName");
+	}
+
+	[Theory]
+	[InlineData("Email")]
+	[InlineData("PhoneNumber")]
+	[InlineData("Address.Street")]
+	[InlineData("Items[0].Quantity")]
+	public void PropertyName_WithVariousNames_ReturnsCorrectValue(string propertyName)
+	{
+		// Arrange
+		var error = new MessageValidationError(propertyName, "Validation failed");
+
+		// Act & Assert
+		error.PropertyName.ShouldBe(propertyName);
+	}
+
+	#endregion
+
+	#region ErrorMessage Tests
+
+	[Fact]
+	public void ErrorMessage_ReturnsCorrectValue()
+	{
+		// Arrange
+		var error = new MessageValidationError("Email", "Invalid email format");
+
+		// Act
+		var result = error.ErrorMessage;
+
+		// Assert
+		result.ShouldBe("Invalid email format");
+	}
+
+	[Theory]
+	[InlineData("Field is required")]
+	[InlineData("Value must be greater than 0")]
+	[InlineData("Invalid format")]
+	[InlineData("Maximum length exceeded")]
+	public void ErrorMessage_WithVariousMessages_ReturnsCorrectValue(string message)
+	{
+		// Arrange
+		var error = new MessageValidationError("Field", message);
+
+		// Act & Assert
+		error.ErrorMessage!.ShouldBe(message);
+	}
+
+	[Fact]
+	public void ErrorMessage_WithUnicodeCharacters_Works()
+	{
+		// Arrange
+		var error = new MessageValidationError("Name", "名前は必須です (Name is required)");
+
+		// Act & Assert
+		error.ErrorMessage!.ShouldBe("名前は必須です (Name is required)");
+	}
+
+	[Fact]
+	public void ErrorMessage_WithLongMessage_Works()
+	{
+		// Arrange
+		var longMessage = new string('x', 10000);
+		var error = new MessageValidationError("Field", longMessage);
+
+		// Act & Assert
+		error.ErrorMessage!.ShouldBe(longMessage);
+		error.ErrorMessage.Length.ShouldBe(10000);
+	}
+
+	#endregion
+
+	#region Immutability Tests
+
+	[Fact]
+	public void PropertyName_IsReadOnly()
+	{
+		// Arrange
+		var error = new MessageValidationError("Email", "Error");
+
+		// Assert - Properties should be get-only (verified by type system)
+		error.PropertyName.ShouldBe("Email");
+	}
+
+	[Fact]
+	public void ErrorMessage_IsReadOnly()
+	{
+		// Arrange
+		var error = new MessageValidationError("Email", "Error");
+
+		// Assert - Properties should be get-only (verified by type system)
+		error.ErrorMessage!.ShouldBe("Error");
+	}
+
+	#endregion
+}

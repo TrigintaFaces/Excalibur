@@ -20,7 +20,7 @@ public sealed class RetryAttributeShould
 		var attribute = new RetryAttribute();
 
 		// Assert
-		attribute.MaxAttempts.ShouldBe(3);
+		attribute.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -85,10 +85,10 @@ public sealed class RetryAttributeShould
 		var attribute = new RetryAttribute();
 
 		// Act
-		attribute.MaxAttempts = maxAttempts;
+		attribute.MaxRetryAttempts = maxAttempts;
 
 		// Assert
-		attribute.MaxAttempts.ShouldBe(maxAttempts);
+		attribute.MaxRetryAttempts.ShouldBe(maxAttempts);
 	}
 
 	[Theory]
@@ -232,7 +232,7 @@ public sealed class RetryAttributeShould
 		// Arrange & Act
 		var attribute = new RetryAttribute
 		{
-			MaxAttempts = 5,
+			MaxRetryAttempts = 5,
 			BaseDelayMs = 500,
 			MaxDelayMs = 60000,
 			BackoffStrategy = BackoffStrategy.Linear,
@@ -241,7 +241,7 @@ public sealed class RetryAttributeShould
 		};
 
 		// Assert
-		attribute.MaxAttempts.ShouldBe(5);
+		attribute.MaxRetryAttempts.ShouldBe(5);
 		attribute.BaseDelayMs.ShouldBe(500);
 		attribute.MaxDelayMs.ShouldBe(60000);
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Linear);
@@ -256,10 +256,10 @@ public sealed class RetryAttributeShould
 		var attribute = new RetryAttribute();
 
 		// Act
-		attribute.MaxAttempts = 0;
+		attribute.MaxRetryAttempts = 0;
 
 		// Assert
-		attribute.MaxAttempts.ShouldBe(0);
+		attribute.MaxRetryAttempts.ShouldBe(0);
 	}
 
 	[Fact]
@@ -294,7 +294,7 @@ public sealed class RetryAttributeShould
 		// Arrange & Act - Aggressive retry for important operations
 		var attribute = new RetryAttribute
 		{
-			MaxAttempts = 10,
+			MaxRetryAttempts = 10,
 			BaseDelayMs = 100,
 			MaxDelayMs = 5000,
 			BackoffStrategy = BackoffStrategy.ExponentialWithJitter,
@@ -303,7 +303,7 @@ public sealed class RetryAttributeShould
 		};
 
 		// Assert
-		attribute.MaxAttempts.ShouldBe(10);
+		attribute.MaxRetryAttempts.ShouldBe(10);
 		attribute.BaseDelayMs.ShouldBe(100);
 		attribute.MaxDelayMs.ShouldBe(5000);
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.ExponentialWithJitter);
@@ -317,7 +317,7 @@ public sealed class RetryAttributeShould
 		// Arrange & Act - Conservative retry for non-critical operations
 		var attribute = new RetryAttribute
 		{
-			MaxAttempts = 2,
+			MaxRetryAttempts = 2,
 			BaseDelayMs = 5000,
 			MaxDelayMs = 10000,
 			BackoffStrategy = BackoffStrategy.Fixed,
@@ -325,7 +325,7 @@ public sealed class RetryAttributeShould
 		};
 
 		// Assert
-		attribute.MaxAttempts.ShouldBe(2);
+		attribute.MaxRetryAttempts.ShouldBe(2);
 		attribute.BaseDelayMs.ShouldBe(5000);
 		attribute.MaxDelayMs.ShouldBe(10000);
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Fixed);
@@ -343,11 +343,11 @@ public sealed class RetryAttributeShould
 
 		// Assert
 		attribute.ShouldNotBeNull();
-		attribute.MaxAttempts.ShouldBe(5);
+		attribute.MaxRetryAttempts.ShouldBe(5);
 		attribute.BaseDelayMs.ShouldBe(500);
 	}
 
-	[Retry(MaxAttempts = 5, BaseDelayMs = 500)]
+	[Retry(MaxRetryAttempts = 5, BaseDelayMs = 500)]
 	private sealed class SampleRetryDecoratedClass
 	{
 	}

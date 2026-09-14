@@ -6,7 +6,6 @@ using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
-using Excalibur.Dispatch.ZeroAlloc;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -68,10 +67,10 @@ public class MemoryOptimizationBenchmarks
 		_ = pooledServices.AddTransient<TestCommandHandler>();
 		_ = pooledServices.AddTransient<IActionHandler<TestCommand>, TestCommandHandler>();
 
-		_ = pooledServices.AddDispatch(builder =>
-		{
-			_ = builder.UseZeroAllocation();
-		});
+		// UseZeroAllocation() was removed: every registration it performed was already the
+		// unconditional default. The builder-lambda overload is kept so this arm still calls Build(),
+		// matching what it measured before.
+		_ = pooledServices.AddDispatch(builder => { });
 
 		_ = pooledServices.AddMiddleware<LoggingMiddleware>();
 		_ = pooledServices.AddMiddleware<ValidationMiddleware>();

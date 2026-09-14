@@ -166,7 +166,7 @@ public sealed class InputSanitizationMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		// Message should NOT be sanitized when disabled
 		message.Name.ShouldContain("<script>");
 	}
@@ -394,7 +394,7 @@ public sealed class InputSanitizationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		message.Name.ShouldBe(cleanName);
 	}
 
@@ -551,7 +551,7 @@ public sealed class InputSanitizationMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -587,7 +587,7 @@ public sealed class InputSanitizationMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion

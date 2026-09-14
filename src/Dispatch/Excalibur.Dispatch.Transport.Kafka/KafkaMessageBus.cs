@@ -7,7 +7,9 @@ using System.Text;
 using Confluent.Kafka;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
@@ -23,8 +25,9 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <param name="serializer"> Payload serializer for message body serialization with pluggable format support. </param>
 /// <param name="options"> Kafka configuration options. </param>
 /// <param name="logger"> Logger for diagnostics. </param>
-/// <param name="cloudEventMapper"> Optional CloudEvents mapper for structured events. </param>
+/// <param name="cloudEventEncoder"> Optional CloudEvents encoder for structured events. </param>
 /// <param name="cloudEventOptions"> Optional CloudEvents options for Kafka-specific behavior. </param>
+/// <param name="cloudEventBridge"> Optional envelope-to-CloudEvent bridge; when supplied with <paramref name="cloudEventEncoder"/>, every publish is emitted as a CloudEvent instead of the native envelope format. </param>
 /// <remarks>
 /// <para>
 /// This message bus uses <see cref="IPayloadSerializer"/> for message body serialization,
@@ -47,8 +50,9 @@ internal sealed partial class KafkaMessageBus(
 		IPayloadSerializer serializer,
 		IOptions<KafkaOptions> options,
 		ILogger<KafkaMessageBus> logger,
-		ICloudEventMapper<Message<string, string>>? cloudEventMapper = null,
-		KafkaCloudEventOptions? cloudEventOptions = null) : IMessageBus, IAsyncDisposable
+		ICloudEventEncoder<Message<string, string>>? cloudEventEncoder = null,
+		KafkaCloudEventOptions? cloudEventOptions = null,
+		IEnvelopeCloudEventBridge? cloudEventBridge = null) : IMessageBus, IAsyncDisposable
 {
 	private static readonly TimeSpan TransactionTimeout = TimeSpan.FromSeconds(30);
 
@@ -61,7 +65,8 @@ internal sealed partial class KafkaMessageBus(
 	private readonly ILogger<KafkaMessageBus> _logger =
 			logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly KafkaCloudEventOptions? _cloudEventOptions = cloudEventOptions;
-	private readonly ICloudEventMapper<Message<string, string>>? _cloudEventMapper = cloudEventMapper;
+	private readonly ICloudEventEncoder<Message<string, string>>? _cloudEventEncoder = cloudEventEncoder;
+	private readonly IEnvelopeCloudEventBridge? _cloudEventBridge = cloudEventBridge;
 
 	private readonly string _topic = !string.IsNullOrWhiteSpace(options.Value.Topic)
 			? options.Value.Topic
@@ -88,9 +93,10 @@ internal sealed partial class KafkaMessageBus(
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
 
-		if (_cloudEventMapper is not null && _logger.IsEnabled(LogLevel.Trace))
+		if (_cloudEventBridge is not null && _cloudEventEncoder is not null)
 		{
-			LogCloudEventMapperResolved();
+			await PublishWithCloudEventsAsync(action, context, LogSentAction, cancellationToken).ConfigureAwait(false);
+			return;
 		}
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
@@ -115,6 +121,12 @@ internal sealed partial class KafkaMessageBus(
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
 
+		if (_cloudEventBridge is not null && _cloudEventEncoder is not null)
+		{
+			await PublishWithCloudEventsAsync(evt, context, LogPublishedEvent, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = _serializer.SerializeObject(evt, evt.GetType());
 		await PublishInternalAsync(
@@ -136,6 +148,12 @@ internal sealed partial class KafkaMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+
+		if (_cloudEventBridge is not null && _cloudEventEncoder is not null)
+		{
+			await PublishWithCloudEventsAsync(doc, context, LogSentDocument, cancellationToken).ConfigureAwait(false);
+			return;
+		}
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = _serializer.SerializeObject(doc, doc.GetType());
@@ -164,14 +182,6 @@ internal sealed partial class KafkaMessageBus(
 			Action<string> logAction,
 			CancellationToken cancellationToken)
 	{
-		if (string.IsNullOrWhiteSpace(_topic))
-		{
-			throw new InvalidOperationException("Kafka topic is not configured.");
-		}
-
-		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.Kafka, _topic, context.MessageId);
-
 		var traceParent = context.GetTraceParent();
 		var message = new Message<string, byte[]>
 		{
@@ -184,6 +194,93 @@ internal sealed partial class KafkaMessageBus(
 		{
 			message.Headers.Add("traceparent", Encoding.UTF8.GetBytes(traceParent));
 		}
+
+		await SendMessageAsync(message, context, messageType, logAction, cancellationToken).ConfigureAwait(false);
+	}
+
+	private static MessageEnvelope CreateEnvelope(IDispatchMessage message, IMessageContext context)
+	{
+		// The declared name, not the CLR FullName -- mirrors RabbitMqMessageBus/AwsSqsMessageBus's
+		// CreateEnvelope for the same reason (it becomes the outgoing CloudEvent type attribute).
+		var messageClrType = message.GetType();
+
+		var envelope = new MessageEnvelope(message)
+		{
+			MessageId = context.MessageId ?? Uuid7Extensions.GenerateString(),
+			ExternalId = context.GetExternalId(),
+			UserId = context.GetUserId(),
+			CorrelationId = context.CorrelationId,
+			CausationId = context.CausationId,
+			TraceParent = context.GetTraceParent(),
+			TenantId = context.GetTenantId(),
+			MessageType = context.GetMessageType()
+				?? MessageNameHelper.GetDeclaredName(messageClrType)
+				?? messageClrType.FullName,
+			ContentType = context.GetContentType() ?? "application/json",
+			DeliveryCount = context.GetDeliveryCount(),
+			ReceivedTimestampUtc = context.GetReceivedTimestampUtc() ?? DateTimeOffset.UtcNow,
+			SentTimestampUtc = context.GetSentTimestampUtc(),
+		};
+
+		foreach (var item in context.Items)
+		{
+			envelope.SetItem(item.Key, item.Value);
+		}
+
+		return envelope;
+	}
+
+	private async Task PublishWithCloudEventsAsync(
+			IDispatchMessage dispatchMessage,
+			IMessageContext context,
+			Action<string> logAction,
+			CancellationToken cancellationToken)
+	{
+		var envelope = CreateEnvelope(dispatchMessage, context);
+		Message<string, byte[]> message;
+		try
+		{
+			var cloudEventMessage = await _cloudEventBridge!
+				.ToTransportAsync<Message<string, string>>(envelope, _cloudEventEncoder!.Options.DefaultMode, cancellationToken)
+				.ConfigureAwait(false);
+
+			// The producer is fixed to IProducer<string, byte[]> -- the mapper's Message<string, string>
+			// carries the same key/headers, only the value needs re-encoding to bytes.
+			message = new Message<string, byte[]>
+			{
+				Key = cloudEventMessage.Key,
+				Value = Encoding.UTF8.GetBytes(cloudEventMessage.Value ?? string.Empty),
+				Headers = cloudEventMessage.Headers ?? [],
+			};
+		}
+		finally
+		{
+			envelope.Dispose();
+		}
+
+		if (_logger.IsEnabled(LogLevel.Trace))
+		{
+			LogCloudEventEncoderResolved(dispatchMessage.GetType().Name);
+		}
+
+		await SendMessageAsync(message, context, dispatchMessage.GetType().Name, logAction, cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	private async Task SendMessageAsync(
+			Message<string, byte[]> message,
+			IMessageContext context,
+			string messageType,
+			Action<string> logAction,
+			CancellationToken cancellationToken)
+	{
+		if (string.IsNullOrWhiteSpace(_topic))
+		{
+			throw new InvalidOperationException("Kafka topic is not configured.");
+		}
+
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.Kafka, _topic, context.MessageId);
 
 		await EnsureTopicExistsAsync(_topic, cancellationToken).ConfigureAwait(false);
 
@@ -321,9 +418,9 @@ internal sealed partial class KafkaMessageBus(
 			"Sent document to Kafka: {Doc}")]
 	private partial void LogSentDocument(string doc);
 
-	[LoggerMessage(KafkaEventId.CloudEventMapperResolved, LogLevel.Trace,
-			"Kafka CloudEvents mapper resolved for action publish path.")]
-	private partial void LogCloudEventMapperResolved();
+	[LoggerMessage(KafkaEventId.CloudEventEncoderResolved, LogLevel.Trace,
+			"Kafka CloudEvents mapper used to encode {MessageType} on the publish path.")]
+	private partial void LogCloudEventEncoderResolved(string messageType);
 
 	[LoggerMessage(KafkaEventId.TransactionInitialized, LogLevel.Debug,
 			"Kafka transaction initialization complete.")]

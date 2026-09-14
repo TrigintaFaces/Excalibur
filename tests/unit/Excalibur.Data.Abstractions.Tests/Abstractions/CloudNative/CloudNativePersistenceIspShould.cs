@@ -4,6 +4,7 @@
 using System.Reflection;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.Tests.Abstractions.CloudNative;
 
@@ -436,7 +437,7 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 	[Fact]
 	public void CloudAppendResult_CreateFailure_ReturnFailedResult()
 	{
-		var result = CloudAppendResult.CreateFailure("Something went wrong", 0.5);
+		var result = CloudAppendResult.CreateFailure("Something went wrong", 0.5, MessageFailureKind.Transient);
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeFalse();
@@ -447,6 +448,16 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 			+ "back as an expectedVersion and create a stream that already holds events");
 		result.RequestCharge.ShouldBe(0.5);
 		result.ErrorMessage!.ShouldBe("Something went wrong");
+		result.FailureKind.ShouldBe(MessageFailureKind.Transient);
+	}
+
+	[Fact]
+	public void CloudAppendResult_CreateSuccess_ReportsNoFailureKind()
+	{
+		var result = CloudAppendResult.CreateSuccess(nextExpectedVersion: 3, requestCharge: 1.0);
+
+		result.FailureKind.ShouldBeNull(
+			"FailureKind classifies a CreateFailure outcome; a success has nothing to classify.");
 	}
 
 	#endregion

@@ -39,12 +39,6 @@ internal sealed partial class DispatchStartupFilter(
 			?? throw new InvalidOperationException(
 				$"Required service '{nameof(IDispatcher)}' is not registered. Register it via AddDispatch().");
 
-		// Verify at least one middleware is registered
-		var middlewares = serviceProvider.GetServices<IDispatchMiddleware>();
-		if (!middlewares.Any())
-		{
-			LogEmptyPipeline(logger);
-		}
 
 		// Outbox enabled with no store is unrecoverable and silent: every staged message is accepted and
 		// never persisted, so the loss surfaces as missing downstream messages long after the fact and far
@@ -62,6 +56,16 @@ internal sealed partial class DispatchStartupFilter(
 
 		// Detect keyed service configuration for DI collision prevention
 		ValidateKeyedServiceRegistrations();
+
+		// An empty pipeline dispatches straight to the handler. That is legal and occasionally
+		// intended, but it also means nothing registered -- no retry, no logging, no validation, no
+		// authorization -- which is indistinguishable at runtime from a registration that silently did
+		// not take. The type's own summary said this was logged; it was not, so a host whose middleware
+		// registration never ran started clean and behaved as though the middleware were absent by choice.
+		if (serviceProvider.GetServices<IDispatchMiddleware>().Any() is false)
+		{
+			LogEmptyPipeline(logger);
+		}
 
 		// Check if observability is configured
 		var meterFactory = serviceProvider.GetService<System.Diagnostics.Metrics.IMeterFactory>();
@@ -101,13 +105,16 @@ internal sealed partial class DispatchStartupFilter(
 		}
 	}
 
-	[LoggerMessage(2601, LogLevel.Warning,
-		"No dispatch middleware registered. The pipeline is empty. Register middleware via AddDispatch(builder => builder.UseMiddleware<T>()) or enable pipeline synthesis.")]
-	private static partial void LogEmptyPipeline(ILogger logger);
 
 	[LoggerMessage(2603, LogLevel.Debug,
 		"Keyed service '{ServiceName}' resolved to '{ImplementationType}' via \"default\" key.")]
 	private static partial void LogKeyedServiceResolved(ILogger logger, string serviceName, string implementationType);
+
+	[LoggerMessage(2606, LogLevel.Warning,
+		"No IDispatchMiddleware is registered, so the dispatch pipeline is empty and every message goes "
+		+ "straight to its handler. If that is deliberate this is safe to ignore; if it is not, a middleware "
+		+ "registration did not run.")]
+	private static partial void LogEmptyPipeline(ILogger logger);
 
 	[LoggerMessage(2605, LogLevel.Information,
 		"No IMeterFactory registered. Dispatch metrics and tracing are disabled. " +

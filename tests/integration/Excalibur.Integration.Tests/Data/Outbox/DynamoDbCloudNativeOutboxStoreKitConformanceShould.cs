@@ -91,6 +91,10 @@ public sealed class DynamoDbCloudNativeOutboxStoreKitConformanceShould
 	public Task AddAsync_PreservesCanonicalFields_OnRoundTrip_Test() => AddAsync_PreservesCanonicalFields_OnRoundTrip();
 
 	[Fact]
+	public Task GetPendingAsync_MustReturnMessagesFromEveryTenant_Test() =>
+		GetPendingAsync_MustReturnMessagesFromEveryTenant();
+
+	[Fact]
 	public Task GetPendingAsync_EmptyPartition_ReturnsEmpty_Test() => GetPendingAsync_EmptyPartition_ReturnsEmpty();
 
 	[Fact]

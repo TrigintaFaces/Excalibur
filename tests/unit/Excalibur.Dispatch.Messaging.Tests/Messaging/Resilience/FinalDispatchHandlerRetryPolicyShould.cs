@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 
 /// <summary>
 /// Integration tests for FinalDispatchHandler with IRetryPolicy implementations.
-/// Sprint 44: Verifies behavioral equivalence between DefaultRetryPolicy and NoOpRetryPolicy.
+/// Verifies FinalDispatchHandler behaves equivalently under a retrying policy and a no-op one.
 /// Task: Excalibur.Dispatch-4n0b
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -88,8 +88,8 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		var options = new TestMessageBusOptions { Name = "Local", EnableRetries = false };
 		_busOptionsMap["Local"] = options;
 
-		var retryPolicy = new DefaultRetryPolicy(
-			new RetryPolicyOptions { MaxRetryAttempts = 5 });
+		var retryPolicy = new TestRetryPolicy(
+			new RetryOptions { MaxRetryAttempts = 5 });
 		var handler = CreateHandler(retryPolicy);
 		var action = A.Fake<IDispatchAction>();
 		var context = CreateContext();
@@ -136,20 +136,20 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 
 	#endregion NoOpRetryPolicy Tests
 
-	#region DefaultRetryPolicy Tests
+	#region Retrying-policy Tests
 
 	[Fact]
-	public async Task RetryWithDefaultRetryPolicyOnTransientFailure()
+	public async Task RetryWithARetryingPolicyOnTransientFailure()
 	{
 		// Arrange
 		var options = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
 		_busOptionsMap["Local"] = options;
 
-		var retryPolicy = new DefaultRetryPolicy(
-			new RetryPolicyOptions
+		var retryPolicy = new TestRetryPolicy(
+			new RetryOptions
 			{
 				MaxRetryAttempts = 3,
-				Backoff = { BaseDelay = TimeSpan.FromMilliseconds(10) },
+				BaseDelay = TimeSpan.FromMilliseconds(10),
 			});
 		var handler = CreateHandler(retryPolicy);
 		var action = A.Fake<IDispatchAction>();
@@ -162,7 +162,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 				invocationCount++;
 				if (invocationCount < 3)
 				{
-					throw new InvalidOperationException($"Transient failure {invocationCount}");
+					throw new TimeoutException($"Transient failure {invocationCount}");
 				}
 			})
 			.Returns(Task.CompletedTask);
@@ -182,11 +182,11 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		var options = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
 		_busOptionsMap["Local"] = options;
 
-		var retryPolicy = new DefaultRetryPolicy(
-			new RetryPolicyOptions
+		var retryPolicy = new TestRetryPolicy(
+			new RetryOptions
 			{
 				MaxRetryAttempts = 3,
-				Backoff = { BaseDelay = TimeSpan.FromMilliseconds(5) },
+				BaseDelay = TimeSpan.FromMilliseconds(5),
 			});
 		var handler = CreateHandler(retryPolicy);
 		var action = A.Fake<IDispatchAction>();
@@ -197,7 +197,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 			.Invokes(() =>
 			{
 				invocationCount++;
-				throw new InvalidOperationException($"Persistent failure {invocationCount}");
+				throw new TimeoutException($"Persistent failure {invocationCount}");
 			})
 			.Returns(Task.CompletedTask);
 
@@ -209,7 +209,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		invocationCount.ShouldBe(3);
 	}
 
-	#endregion DefaultRetryPolicy Tests
+	#endregion Retrying-policy Tests
 
 	#region Integration Event Tests
 
@@ -220,11 +220,11 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		var options = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
 		_busOptionsMap["Local"] = options;
 
-		var retryPolicy = new DefaultRetryPolicy(
-			new RetryPolicyOptions
+		var retryPolicy = new TestRetryPolicy(
+			new RetryOptions
 			{
 				MaxRetryAttempts = 2,
-				Backoff = { BaseDelay = TimeSpan.FromMilliseconds(5) },
+				BaseDelay = TimeSpan.FromMilliseconds(5),
 			});
 		var handler = CreateHandler(retryPolicy);
 		var integrationEvent = A.Fake<IIntegrationEvent>();
@@ -237,7 +237,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 				invocationCount++;
 				if (invocationCount == 1)
 				{
-					throw new InvalidOperationException("Transient failure");
+					throw new TimeoutException("Transient failure");
 				}
 			})
 			.Returns(Task.CompletedTask);
@@ -261,11 +261,11 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		var options = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
 		_busOptionsMap["Local"] = options;
 
-		var retryPolicy = new DefaultRetryPolicy(
-			new RetryPolicyOptions
+		var retryPolicy = new TestRetryPolicy(
+			new RetryOptions
 			{
 				MaxRetryAttempts = 2,
-				Backoff = { BaseDelay = TimeSpan.FromMilliseconds(5) },
+				BaseDelay = TimeSpan.FromMilliseconds(5),
 			});
 		var handler = CreateHandler(retryPolicy);
 		var document = A.Fake<IDispatchDocument>();
@@ -278,7 +278,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 				invocationCount++;
 				if (invocationCount == 1)
 				{
-					throw new InvalidOperationException("Transient failure");
+					throw new TimeoutException("Transient failure");
 				}
 			})
 			.Returns(Task.CompletedTask);
@@ -327,11 +327,11 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		var options = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
 		_busOptionsMap["Local"] = options;
 
-		var retryPolicy = new DefaultRetryPolicy(
-			new RetryPolicyOptions
+		var retryPolicy = new TestRetryPolicy(
+			new RetryOptions
 			{
 				MaxRetryAttempts = 5,
-				Backoff = { BaseDelay = TimeSpan.FromSeconds(10) }, // Long delay
+				BaseDelay = TimeSpan.FromSeconds(10), // Long delay
 			});
 		var handler = CreateHandler(retryPolicy);
 		var action = A.Fake<IDispatchAction>();
@@ -376,8 +376,8 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		var noOpContext = CreateContext();
 		var noOpResult = await noOpHandler.HandleAsync(action, noOpContext, CancellationToken.None).ConfigureAwait(false);
 
-		// Test with DefaultRetryPolicy
-		var defaultHandler = CreateHandler(new DefaultRetryPolicy(new RetryPolicyOptions()));
+		// Test with a retrying policy
+		var defaultHandler = CreateHandler(new TestRetryPolicy(new RetryOptions()));
 		var defaultContext = CreateContext();
 		var defaultResult = await defaultHandler.HandleAsync(action, defaultContext, CancellationToken.None).ConfigureAwait(false);
 
@@ -407,8 +407,8 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		// Clear options to use NoOp fallback
 		_busOptionsMap.Clear();
 
-		// Test with DefaultRetryPolicy but EnableRetries = false (falls back to NoOp)
-		var defaultHandler = CreateHandler(new DefaultRetryPolicy(new RetryPolicyOptions { MaxRetryAttempts = 1 }));
+		// Test with a retrying policy but EnableRetries = false (falls back to NoOp)
+		var defaultHandler = CreateHandler(new TestRetryPolicy(new RetryOptions { MaxRetryAttempts = 1 }));
 		var defaultContext = CreateContext();
 		var defaultResult = await defaultHandler.HandleAsync(action, defaultContext, CancellationToken.None).ConfigureAwait(false);
 
@@ -424,4 +424,52 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 	/// Test message bus options.
 	/// </summary>
 	private sealed class TestMessageBusOptions : MessageBusOptions;
+}
+
+/// <summary>
+/// A retrying <see cref="IRetryPolicy"/> local to these tests.
+/// </summary>
+/// <remarks>
+/// These tests are about how <c>FinalDispatchHandler</c> behaves when it is GIVEN a policy that
+/// retries -- not about any particular policy implementation. They previously used a production type
+/// that nothing registered; a local fake states that intent and stops handler coverage from depending
+/// on which policy the framework happens to ship. It counts MaxRetryAttempts as TOTAL attempts, which
+/// is what the assertions below were written against.
+/// </remarks>
+internal sealed class TestRetryPolicy(RetryOptions options) : IRetryPolicy
+{
+	public async Task<TResult> ExecuteAsync<TResult>(
+		Func<CancellationToken, Task<TResult>> action,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(action);
+
+		var attempt = 0;
+		while (true)
+		{
+			attempt++;
+			try
+			{
+				return await action(cancellationToken).ConfigureAwait(false);
+			}
+			// Cancellation is the caller's decision, never a transient fault -- it must propagate on the
+			// first occurrence rather than being retried.
+			catch (Exception ex) when (ex is not OperationCanceledException && attempt < options.MaxRetryAttempts)
+			{
+				// Retry until the attempt cap; the final failure propagates to the caller. A real policy
+				// observes cancellation while awaiting its backoff delay, so check it here rather than
+				// sleeping -- same observable behaviour, no wall-clock time in the suite.
+				cancellationToken.ThrowIfCancellationRequested();
+			}
+		}
+	}
+
+	public async Task ExecuteAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(action);
+
+		_ = await ExecuteAsync<object?>(
+			async ct => { await action(ct).ConfigureAwait(false); return null; },
+			cancellationToken).ConfigureAwait(false);
+	}
 }

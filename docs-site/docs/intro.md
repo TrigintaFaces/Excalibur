@@ -186,7 +186,7 @@ public class OrderController : ControllerBase
         var action = new CreateOrderAction(request.CustomerId, request.Items);
         var result = await _dispatcher.DispatchAsync(action, cancellationToken);
 
-        if (result.IsSuccess)
+        if (result.Succeeded)
             return Ok();
 
         return Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);

@@ -193,7 +193,19 @@ public sealed class MarkMessageFailedRequestShould : UnitTestBase
 
 		// Assert — a stale processor must not mark-failed a row a peer has re-claimed: the update only affects
 		// the row when it is unleased or still leased by this processor.
-		request.Command.CommandText.ShouldContain("LeasedBy IS NULL OR LeasedBy = @LeasedBy");
+		// Asserted ARM BY ARM rather than as one contiguous string. The guard is composed across lines, so a
+		// single-string assertion pins the FORMATTING and fails on a reflow that changes nothing -- which is
+		// exactly what it did. Each arm separately still fails if an arm is REMOVED, which is the property
+		// worth binding: unleased rows remain markable, the owner remains able to mark, and ownership is
+		// matched by the claim PREFIX because the claim stamps "{processorId}:{claimId}" rather than the
+		// bare identity this request is handed.
+		var sql = request.Command.CommandText;
+		sql.ShouldContain("LeasedBy IS NULL", Case.Sensitive, "an unleased row must stay markable.");
+		sql.ShouldContain("LeasedBy = @LeasedBy", Case.Sensitive, "a row leased under the bare identity must stay markable.");
+		sql.ShouldContain(
+			"LEFT(LeasedBy, @LeasedByPrefixLength) = @LeasedByPrefix",
+			Case.Sensitive,
+			"ownership must be matched by the claim prefix, or a claimed row can never be marked by its owner.");
 	}
 
 	#endregion

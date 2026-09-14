@@ -32,12 +32,12 @@ trap 'rm -rf "$WORK"' EXIT
 new_repo() {
 	local d="$WORK/$1"
 	mkdir -p "$d"
-	git -C "$d" init -q
-	git -C "$d" config user.email t@example.com
-	git -C "$d" config user.name t
+	git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" init -q
+	git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" config user.email t@example.com
+	git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" config user.name t
 	echo "root" >"$d/README.md"
-	git -C "$d" add -A >/dev/null 2>&1
-	git -C "$d" commit -qm init >/dev/null 2>&1
+	git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" add -A >/dev/null 2>&1
+	git -C "${d:?path is empty -- an empty -C runs in the CURRENT directory}" commit -qm init >/dev/null 2>&1
 	echo "$d"
 }
 
@@ -61,7 +61,7 @@ run_gate "$R"
 R="$(new_repo clean)"
 mkdir -p "$R/proj"
 echo '{"version":1,"dependencies":{"net10.0":{}}}' >"$R/proj/packages.lock.json"
-git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm lock >/dev/null 2>&1
+git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" add -A >/dev/null 2>&1; git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" commit -qm lock >/dev/null 2>&1
 run_gate "$R"
 [ "$RC" -eq 0 ] && pass "LIVENESS: committed, unmodified lock file PASSES (exit 0)" \
 	|| { fail "LIVENESS arm — expected 0, got $RC"; sed 's/^/        /' "$WORK/out.log"; }
@@ -79,7 +79,7 @@ R="$(new_repo clones)"
 mkdir -p "$R/.claude/worktrees/agent-x/proj" "$R/.dts/wt-y/proj"
 echo '{}' >"$R/.claude/worktrees/agent-x/proj/packages.lock.json"
 echo '{}' >"$R/.dts/wt-y/proj/packages.lock.json"
-git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm clones >/dev/null 2>&1
+git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" add -A >/dev/null 2>&1; git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" commit -qm clones >/dev/null 2>&1
 run_gate "$R"
 [ "$RC" -eq 2 ] && pass "SCOPE: worktree clones do not count as coverage (exit 2)" \
 	|| { fail "SCOPE arm — expected 2, got $RC"; sed 's/^/        /' "$WORK/out.log"; }
@@ -88,7 +88,7 @@ run_gate "$R"
 R="$(new_repo counted)"
 mkdir -p "$R/a" "$R/b"
 echo '{}' >"$R/a/packages.lock.json"; echo '{}' >"$R/b/packages.lock.json"
-git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm two >/dev/null 2>&1
+git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" add -A >/dev/null 2>&1; git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" commit -qm two >/dev/null 2>&1
 run_gate "$R"
 EXECUTED=$((EXECUTED + 1))
 if grep -q "lock files CHECKED : 2" "$WORK/out.log"; then

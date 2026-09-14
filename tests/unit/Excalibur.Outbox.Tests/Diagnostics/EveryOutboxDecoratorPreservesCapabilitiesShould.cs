@@ -67,10 +67,15 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 		typeof(IMultiTransportOutboxStore),
 		typeof(IMultiTransportOutboxStoreAdmin),
 		typeof(IFencedOutboxStore),
+		typeof(IFencedOutboxStoreDiagnostics),
 		typeof(IOutboxStoreBatch),
 		typeof(IDeadLetterableOutboxStore),
 		typeof(IBackoffSchedulableOutboxStore),
 		typeof(ICloudNativeOutboxStoreBatch),
+		typeof(IClaimScopedOutboxStore),
+		typeof(IFencedClaimScopedOutboxStore),
+		typeof(IFencedDeadLetterableOutboxStore),
+		typeof(IOutboxStoreCapabilities),
 	];
 
 	public static TheoryData<Type> ProbedCapabilities()
@@ -108,13 +113,55 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	/// **Two different contracts, and asserting one property over both is how a lock indicts correct code.**
 	/// </para>
 	/// </remarks>
-	public static TheoryData<Type> MirrorTheInnerCapabilities() =>
+	/// <summary>The single source of truth for the mirror property. The theory data and the classification guard both read this.</summary>
+	private static readonly Type[] MirroredCapabilityTypes =
 	[
 		typeof(IOutboxStoreAdmin),
 		typeof(IMultiTransportOutboxStore),
 		typeof(IMultiTransportOutboxStoreAdmin),
 		typeof(IFencedOutboxStore),
+		typeof(IFencedOutboxStoreDiagnostics),
+
+		// Forwarded rather than declared, so its presence is the inner store's presence: the decorator
+		// answers the probe only when the store beneath it does. A consumer whose store lacks the combined
+		// capability must SEE that absence, because the drain's fenced route is chosen by this probe and a
+		// decorator advertising what the inner cannot honour would route a fenced completion into nothing.
+		typeof(IFencedClaimScopedOutboxStore),
+
+		// Same forwarded-not-declared shape: presence must be the inner store's presence, because the drain
+		// chooses the fenced TERMINAL route from this probe, and a decorator advertising what the inner
+		// cannot honour would route an irreversible transition into nothing.
+		typeof(IFencedDeadLetterableOutboxStore),
+
+		// Forwarded by the encrypting decorator (it is in ForwardableCapabilitySet) and carries no message
+		// payload, so its presence must likewise be the inner store's presence. FOUND BY THE
+		// CLASSIFICATION GUARD BELOW ON ITS FIRST RUN: it was locked and probed but asserted nowhere, so
+		// nothing said what a decorated store over a non-claim-scoped inner must report. The drain picks
+		// the claim-scoped completion route from this probe, and a decorator answering true over an inner
+		// that cannot honour it sends a completion into nothing -- the same hazard as its fenced sibling
+		// above, which was locked while this one was not.
+		typeof(IClaimScopedOutboxStore),
+
+		// Forwarded, and the mirror property matters here for a different reason than the others: this
+		// capability reports on the STORE'S OWN SHAPE -- whether it tracks sent messages or deletes them on
+		// send. A decorator that answers it for the store underneath is not merely advertising something it
+		// cannot honour, it is giving a WRONG answer about someone else. Denied, it read as absent, and a
+		// delete-on-sent store became indistinguishable from a sent-tracking one for every consumer who
+		// enabled crypto-shredding.
+		typeof(IOutboxStoreCapabilities),
 	];
+
+	public static TheoryData<Type> MirrorTheInnerCapabilities()
+	{
+		var data = new TheoryData<Type>();
+
+		foreach (var capability in MirroredCapabilityTypes)
+		{
+			data.Add(capability);
+		}
+
+		return data;
+	}
 
 	/// <summary>
 	/// SAFETY, with the capability set DERIVED FROM THE INNER INSTANCE — no list to forget.
@@ -272,7 +319,7 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	/// fail-closed: a decorator answers <c>GetService</c> with a wrapper when the inner is capable and
 	/// <see langword="null"/> when it is not. There is no longer a declaration on which to hang a degradation. The
 	/// degradation did not disappear — it MOVED to the consumer that was always entitled to choose it
-	/// (<c>OutboxProcessor.MarkFailedWithBackoffOrFallbackAsync:817</c>, <c>OutboxStoreExtensions</c>'s per-id
+	/// (<c>OutboxProcessor.MarkFailedForClaimAsync:817</c>, <c>OutboxStoreExtensions</c>'s per-id
 	/// loop). Advertising a capability and then quietly degrading inside the decorator hid that choice from the
 	/// only component qualified to make it.
 	/// </para>
@@ -413,6 +460,110 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 			"MirrorTheInnerCapabilities if a consumer must see its absence), or exclude it with a written " +
 			"justification. Unlocked: " + string.Join(", ", unlocked) + ".");
 	}
+
+	/// <summary>
+	/// Every probed capability must EITHER mirror the inner store OR be listed as declared-unconditionally
+	/// with its degradation. Forgetting to classify one must fail here rather than ship.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This closes the one list in this file that nothing enforced.</b> The probed population already
+	/// defends itself: a source scan discovers every capability production code tests with <c>is</c>/<c>as</c>
+	/// and fails when one is neither locked nor excluded. <c>MirrorTheInnerCapabilities</c> had no such
+	/// arm — it was consumed only as theory data — so a capability could be locked, probed, forwarded, and
+	/// silently omitted from the mirror property with nothing going red.
+	/// </para>
+	/// <para>
+	/// <b>The omission is not cosmetic, and the fencing guarantee is what pays for it.</b> The mirror
+	/// property is what stops a decorator advertising a capability its inner store cannot honour. The drain
+	/// selects its fenced route from that probe, so a decorator that answers <see langword="true"/> over an
+	/// inner store lacking the capability routes an irreversible completion into nothing — which is
+	/// precisely the mutation a superseded leader is not allowed to perform.
+	/// </para>
+	/// <para>
+	/// <b>The default is MIRROR.</b> A capability is exempt only by being written into the list below with
+	/// a reason, so the failure mode of forgetting is a red test rather than a silent hole. That is the
+	/// same shape as <c>DocumentedExclusions</c> above, applied to the list that lacked it.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void Classify_every_probed_capability_as_mirrored_or_documented_as_unconditional()
+	{
+		var mirrored = MirroredCapabilityTypes
+			.Select(static t => t.Name)
+			.ToHashSet(StringComparer.Ordinal);
+
+		// Non-vacuity: the mirror list must contain something we know is in it. An empty read would make
+		// every capability look unclassified and the assertion below would fail for the wrong reason.
+		mirrored.ShouldContain(
+			nameof(IFencedOutboxStore),
+			"The mirror list read back empty or malformed, so this arm is measuring nothing.");
+
+		var unclassified = CapabilityTypes
+			.Select(static t => t.Name)
+			.Where(name => !mirrored.Contains(name)
+						&& !DeclaredUnconditionally.Contains(name)
+						&& !DeniedByIsolation.Contains(name))
+			.OrderBy(static n => n, StringComparer.Ordinal)
+			.ToList();
+
+		unclassified.ShouldBeEmpty(
+			"These capabilities are locked by this file but are neither asserted to MIRROR the inner store " +
+			"nor documented as declared-unconditionally-with-a-degradation. A capability in neither list " +
+			"has no asserted behaviour when the inner store lacks it, which is exactly how a decorator comes " +
+			"to advertise something it cannot honour. Add each to MirrorTheInnerCapabilities, or to " +
+			"DeclaredUnconditionally with the degradation it performs. Unclassified: "
+			+ string.Join(", ", unclassified) + ".");
+	}
+
+	/// <summary>
+	/// Capabilities the encrypting decorator declares UNCONDITIONALLY, each with the degradation it performs.
+	/// </summary>
+	/// <remarks>
+	/// These answer the probe with <see langword="true"/> even when the inner store lacks the capability, so
+	/// asserting the mirror property over them would indict correct code. Each entry states what it does
+	/// instead, because an unconditional declaration with no documented degradation is indistinguishable
+	/// from a bug.
+	/// </remarks>
+	/// <summary>
+	/// Capabilities the ISOLATING (encrypting) decorator denies outright, with the measured reason.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// These cannot satisfy the mirror property because the two decorators under test answer them
+	/// differently by design. The telemetry decorator derives from the base, whose <c>GetService</c>
+	/// delegates to the inner store, so it mirrors. The encrypting decorator derives from the isolating
+	/// one, which is deny-by-default: anything outside its forwardable set resolves to <see langword="null"/>
+	/// even when the inner store has it.
+	/// </para>
+	/// <para>
+	/// <b>Denial here is deliberate, not an oversight</b> -- but it is a real capability loss for a consumer
+	/// who enables crypto-shredding, and whether denial is the right treatment rather than wrapping is
+	/// tracked separately. This list records what the code does; it does not bless it.
+	/// </para>
+	/// </remarks>
+	private static readonly HashSet<string> DeniedByIsolation = new(StringComparer.Ordinal)
+	{
+		// MEASURED, not assumed: absent from EncryptingOutboxStoreDecorator entirely (0 occurrences), so
+		// the isolating deny-by-default applies. Its AddBatchAsync takes CloudOutboxMessage values, so
+		// forwarding it unmediated would hand the inner store plaintext payloads -- the one thing the
+		// encrypting decorator exists to prevent. It is denied rather than wrapped.
+		nameof(ICloudNativeOutboxStoreBatch),
+	};
+
+	private static readonly HashSet<string> DeclaredUnconditionally = new(StringComparer.Ordinal)
+	{
+		// FAIL-OPEN: falls back to MarkFailedAsync, so the decorator never regresses behaviour relative to
+		// an undecorated store.
+		nameof(IBackoffSchedulableOutboxStore),
+
+		// FAIL-LOUD: throws NotSupportedException. A silent fallback would leave the message re-claimable
+		// forever, so the failure is made audible rather than absorbed.
+		nameof(IDeadLetterableOutboxStore),
+
+		// CONDITIONAL FORWARD to a batch-capable inner store.
+		nameof(IOutboxStoreBatch),
+	};
 
 	/// <summary>Capabilities that are probed but deliberately not locked here, each with its reason.</summary>
 	/// <remarks>
@@ -556,10 +707,15 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 			.Implements<IMultiTransportOutboxStore>()
 			.Implements<IMultiTransportOutboxStoreAdmin>()
 			.Implements<IFencedOutboxStore>()
+			.Implements<IFencedOutboxStoreDiagnostics>()
 			.Implements<IOutboxStoreBatch>()
 			.Implements<IDeadLetterableOutboxStore>()
 			.Implements<IBackoffSchedulableOutboxStore>()
-			.Implements<ICloudNativeOutboxStoreBatch>());
+			.Implements<ICloudNativeOutboxStoreBatch>()
+			.Implements<IClaimScopedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>()
+			.Implements<IFencedDeadLetterableOutboxStore>()
+			.Implements<IOutboxStoreCapabilities>());
 
 		A.CallTo(() => fake.GetService(A<Type>._))
 			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(fake) ? fake : null);

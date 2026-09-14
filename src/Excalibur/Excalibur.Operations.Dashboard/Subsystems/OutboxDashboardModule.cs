@@ -68,12 +68,12 @@ internal sealed class OutboxDashboardModule : IDashboardEndpointModule
 	{
 		ArgumentNullException.ThrowIfNull(group);
 
-		group.MapGet("/outbox", static async (IOutboxStoreAdmin? admin, CancellationToken ct) =>
+		group.MapGet("/outbox", static async (IOutboxStoreAdmin? admin, TimeProvider timeProvider, CancellationToken ct) =>
 		{
 			if (admin is null)
 			{
 				return Results.Json(
-					new OutboxView { Configured = false, CapturedAt = DateTimeOffset.UtcNow },
+					new OutboxView { Configured = false, CapturedAt = timeProvider.GetUtcNow() },
 					OutboxJsonContext.Default.OutboxView);
 			}
 

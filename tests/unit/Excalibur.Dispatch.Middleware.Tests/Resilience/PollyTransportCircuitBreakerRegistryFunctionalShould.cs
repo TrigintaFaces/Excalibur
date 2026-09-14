@@ -20,8 +20,8 @@ public sealed class PollyTransportCircuitBreakerRegistryFunctionalShould : IDisp
 	{
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 3,
-			OpenDuration = TimeSpan.FromSeconds(5),
+			MinimumThroughput = 3,
+			BreakDuration = TimeSpan.FromSeconds(5),
 		};
 		_sut = new PollyTransportCircuitBreakerRegistry(options, null);
 	}
@@ -73,8 +73,8 @@ public sealed class PollyTransportCircuitBreakerRegistryFunctionalShould : IDisp
 	{
 		var customOptions = new CircuitBreakerOptions
 		{
-			FailureThreshold = 10,
-			OpenDuration = TimeSpan.FromMinutes(1),
+			MinimumThroughput = 10,
+			BreakDuration = TimeSpan.FromMinutes(1),
 		};
 
 		var cb = _sut.GetOrCreate("custom-transport", customOptions);
@@ -149,13 +149,13 @@ public sealed class PollyTransportCircuitBreakerRegistryFunctionalShould : IDisp
 	}
 
 	[Fact]
-	public void Reset_all_circuit_breakers()
+	public async Task Reset_all_circuit_breakers()
 	{
 		_sut.GetOrCreate("kafka");
 		_sut.GetOrCreate("rabbitmq");
 
 		// Should not throw
-		_sut.ResetAll();
+		await _sut.ResetAllAsync(CancellationToken.None).ConfigureAwait(false);
 	}
 
 	[Fact]

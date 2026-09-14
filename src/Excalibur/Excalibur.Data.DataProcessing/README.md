@@ -15,6 +15,13 @@ dotnet add package Excalibur.Data.DataProcessing
 - Data transformation
 - Bulk operations
 
+## Tenancy
+
+The data task queue is a global, type-wide sweep: it runs outside any tenant scope, and its enqueue and
+drain surfaces (`IDataOrchestrationManager.AddDataTaskForRecordTypeAsync`, the pending-task drain) accept
+no tenant identity. If your `IRecordFetcher` records are tenant-owned, your fetcher must apply the tenant
+predicate itself -- the queue applies none.
+
 ## License
 
 This project is multi-licensed under:

@@ -67,8 +67,7 @@ public static class DispatchServiceCollectionExtensions
 		// settable, the promise is documented, and nothing ever freezes.
 		services.TryAddSingleton<IDispatchCacheManager>(static sp => new DispatchCacheManager(
 			sp.GetService<ILogger<DispatchCacheManager>>(),
-			freezeLockTimeout: null,
-			sp.GetService<IPipelineProfileRegistry>()));
+			freezeLockTimeout: null));
 		// Constructed by factory, not by the activator: the lifetime is optional (a container composed
 		// without a generic host has none) and the activator cannot supply a missing constructor argument.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DispatchCacheOptimizationHostedService>(static sp =>
@@ -148,6 +147,29 @@ public static class DispatchServiceCollectionExtensions
 		// Default no-op telemetry sanitizer — overridden by AddDispatchObservability() with HashingTelemetrySanitizer
 		services.TryAddSingleton<Excalibur.Dispatch.Telemetry.ITelemetrySanitizer>(
 			static _ => Excalibur.Dispatch.Telemetry.NullTelemetrySanitizer.Instance);
+
+		// Logging is infrastructure this registration owns, not something the consumer must remember.
+		// AddHttpClient() calls AddLogging() for exactly this reason: every component it seats takes an
+		// ILogger, so the extension that seats them makes ILogger resolvable. AddLogging is try-add based
+		// and idempotent, so a host that has already configured logging — or that uses a Host builder —
+		// is unaffected. This ENABLES logging; it is not a null-logger fallback, which would silence a
+		// host that merely forgot the call.
+		_ = services.AddLogging();
+
+		// Default no-op message metrics, the sibling of the sanitizer above and for the same reason:
+		// recording is a cross-cutting concern and must never be why a message fails to dispatch.
+		// Any consumer registration replaces this one.
+		services.TryAddSingleton<Excalibur.Dispatch.Diagnostics.IMessageMetrics>(
+			static _ => Excalibur.Dispatch.Diagnostics.NullMessageMetrics.Instance);
+
+		// Seat the default profile's middleware. Read from the same list the profile declares itself
+		// from, so "declared but not registered" is not a state this framework can be in: a zero-config
+		// AddDispatch() yields a pipeline that runs, rather than one that warns seven times and does
+		// nothing. Try-add semantics throughout, so a consumer's own registration always wins.
+		foreach (var entry in DefaultPipelineProfiles.DefaultProfileMiddleware)
+		{
+			entry.Register(services);
+		}
 
 		// Register telemetry provider by default so metrics and traces are emitted
 		// automatically when the consumer adds OpenTelemetry with AddDispatchInstrumentation().
@@ -283,14 +305,6 @@ public static class DispatchServiceCollectionExtensions
 			"The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of "
 			+ "them is already referenced by the registration that put it in the collection, so trimming keeps it and its "
 			+ "constructors: this method reads types the composition root named, never types it discovered.")]
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2062:Value passed to parameter 'messageType' of method 'HandlerRegistry.Register' can not be statically determined.",
-		Justification =
-			"The message type is a generic argument of a handler interface the composition root itself named -- reading "
-			+ "IActionHandler<TMessage, TResponse> back off the descriptor cannot reach a type the registration did not "
-			+ "already reference. Trimming therefore keeps the message type and the action interface it implements, which "
-			+ "is the whole of what the annotation on the parameter asks for.")]
 	public static IServiceCollection AddDispatchHandlers(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -322,7 +336,8 @@ public static class DispatchServiceCollectionExtensions
 						if (handlerType is { IsAbstract: false, IsInterface: false })
 						{
 							var expectsResponse = genericDef == typeof(IActionHandler<,>);
-							registry.Register(messageType, handlerType, expectsResponse);
+							var responseType = expectsResponse ? descriptor.ServiceType.GetGenericArguments()[1] : null;
+							registry.Register(messageType, handlerType, expectsResponse, responseType);
 						}
 					}
 				}
@@ -390,7 +405,7 @@ public static class DispatchServiceCollectionExtensions
 	/// Assemblies containing handlers. When none are supplied, handlers are discovered from the entry
 	/// assembly.
 	/// </param>
-	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
+	/// <returns> The <see cref="IDispatchBuilder" />, so components can be chained directly off this call. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> is <c> null </c>. </exception>
 	/// <remarks>
 	/// Handlers discovered from the entry assembly are registered as transient, and never replace a
@@ -408,7 +423,7 @@ public static class DispatchServiceCollectionExtensions
 	/// </example>
 	[RequiresUnreferencedCode("Discovers handlers by scanning assemblies, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	[RequiresDynamicCode("Discovers handlers by scanning assemblies and constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	public static IServiceCollection AddDispatch(this IServiceCollection services, params Assembly[]? assembliesToScan)
+	public static IDispatchBuilder AddDispatch(this IServiceCollection services, params Assembly[]? assembliesToScan)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -445,7 +460,7 @@ public static class DispatchServiceCollectionExtensions
 		// skip — the builder path already materialized the pipeline.
 		if (services.Any(static d => d.ServiceType == typeof(DispatchBuilderSentinel)))
 		{
-			return services;
+			return new DispatchBuilder(services);
 		}
 
 		// Apply default performance promotion without calling Build().
@@ -455,7 +470,18 @@ public static class DispatchServiceCollectionExtensions
 		_ = services.Configure<DispatchOptions>(static opt =>
 			opt.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = true);
 
-		return services;
+		// A builder over the same collection: the composition state lives with the collection, so this
+		// continues the composition rather than starting one beside it.
+		var builder = new DispatchBuilder(services);
+
+		// This route deliberately never calls Build() (see the comment above), so it must reach the two
+		// registrations Build() would otherwise apply directly -- otherwise a composition assembled through
+		// this overload validates nothing at start-up and gets neither the empty-composition warning nor the
+		// fail-closed authorization guard that AddDispatch(configure) callers receive.
+		builder.RegisterOptions();
+		builder.RegisterStartupSafetyNets();
+
+		return builder;
 	}
 
 	/// <summary>
@@ -464,7 +490,7 @@ public static class DispatchServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configure"> An optional action to configure the <see cref="IDispatchBuilder" />. </param>
-	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
+	/// <returns> The <see cref="IDispatchBuilder" />, so components can be chained directly off this call. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> is <c> null </c>. </exception>
 	/// <example>
 	/// <code>
@@ -476,14 +502,34 @@ public static class DispatchServiceCollectionExtensions
 	/// </code>
 	/// </example>
 	/// <remarks>
+	/// <para>
 	/// <paramref name="configure" /> has no default value, so a no-argument <c> AddDispatch() </c> call
 	/// resolves to <see cref="AddDispatch(IServiceCollection, Assembly[])" /> rather than to this overload.
 	/// That overload discovers handlers from the entry assembly when none were named; this one registers
-	/// exactly the handlers <paramref name="configure" /> names, so it stays free of assembly scanning and
-	/// is safe to call from a trimmed or ahead-of-time compiled application. A composition that names no
-	/// handler at all still starts, and logs a warning at start-up naming the calls that register some.
+	/// exactly the handlers <paramref name="configure" /> names, so it introduces no assembly scanning of
+	/// its own. A composition that names no handler at all still starts, and logs a warning at start-up
+	/// naming the calls that register some.
+	/// </para>
+	/// <para>
+	/// Ahead-of-time compilation is supported and trimming on its own is not, which is one distinction
+	/// rather than two. Publishing ahead-of-time makes dynamic code unavailable, and the pipeline selects
+	/// a source-generated invoker in that configuration; the reflective one is removed from the
+	/// application entirely, so nothing it would have reflected over needs preserving.
+	/// </para>
+	/// <para>
+	/// Publishing trimmed <em>without</em> ahead-of-time compilation is the case to plan for. Dynamic code
+	/// remains available there, so the pipeline keeps the reflective invoker, and the handler types it
+	/// resolves at run time may already have been trimmed away. Root those handler types, or publish
+	/// ahead-of-time, if you trim.
+	/// </para>
+	/// <para>
+	/// What is true of this call is not true of everything reached through it: what
+	/// <paramref name="configure" /> registers determines whether the composition stays scanning-free.
+	/// Registering handlers by name keeps it so; discovering them from an assembly does not, whatever this
+	/// overload does.
+	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddDispatch(
+	public static IDispatchBuilder AddDispatch(
 		this IServiceCollection services,
 		Action<IDispatchBuilder>? configure)
 	{
@@ -508,7 +554,7 @@ public static class DispatchServiceCollectionExtensions
 		// AddDispatch(configure) exactly once per service collection.
 		if (services.Any(static d => d.ServiceType == typeof(DispatchBuilderSentinel)))
 		{
-			return services;
+			return new DispatchBuilder(services);
 		}
 
 		// Mark that a builder-based configuration was applied, preventing subsequent
@@ -517,7 +563,7 @@ public static class DispatchServiceCollectionExtensions
 
 		// Create builder and apply default performance promotion BEFORE configure,
 		// so consumers can opt out via configure action if desired.
-		using var builder = new DispatchBuilder(services);
+		var builder = new DispatchBuilder(services);
 		EnableDefaultPerformancePromotion(builder);
 		configure?.Invoke(builder);
 
@@ -532,23 +578,13 @@ public static class DispatchServiceCollectionExtensions
 		// has no default value, so overload resolution sends it to AddDispatch(params Assembly[]), which
 		// discovers the entry assembly and carries the honest annotation for doing so.
 		//
-		// A composition that reaches here and names no handler is not an error — a send-only host is a
-		// supported shape — but it is far more often a mistake, and an expensive one to find later:
-		// an action or query with no handler throws on the first dispatch, while an EVENT with no handler
-		// only logs, so a broken composition can run for a long time quietly dropping events. Say so once,
-		// at start-up, and name both remedies.
-		//
-		// Registered unconditionally, and it re-reads the handler registry when the host starts rather
-		// than trusting what the builder knew here: a consumer may register handlers after this call
-		// returns, and a warning that fired for them would be the kind of false alarm that teaches people
-		// to filter the category out.
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IHostedService, NoHandlersRegisteredStartupWarning>());
-
-		// Materialize pipelines — without this call, ConfigurePipeline() configurations are silently lost
+		// Materialize pipelines — without this call, ConfigurePipeline() configurations are silently lost.
+		// Build() also registers the empty-composition warning and the fail-closed authorization guard
+		// (DispatchBuilder.RegisterStartupSafetyNets()) — the params route (AddDispatch(Assembly[]), which
+		// deliberately never calls Build()) reaches the same two registrations by calling that method directly.
 		_ = builder.Build();
 
-		return services;
+		return builder;
 	}
 
 	/// <summary>
@@ -583,9 +619,11 @@ public static class DispatchServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(handlerAssembly);
 
-		return services.AddDispatch(dispatch => dispatch
+		_ = services.AddDispatch(dispatch => dispatch
 			.AddHandlersFromAssembly(handlerAssembly)
 			.WithDefaults());
+
+		return services;
 	}
 
 	private static void EnableDefaultPerformancePromotion(IDispatchBuilder builder)
@@ -625,10 +663,9 @@ public static class DispatchServiceCollectionExtensions
 		var handlerTypes = assemblies
 			.SelectMany(static a => a.GetLoadableTypes())
 			.Where(static t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false })
-			.Select(static t => new
-			{
-				Type = t,
-				Interfaces = t.GetInterfaces()
+			.Select(static t => (
+				Type: t,
+				Interfaces: t.GetInterfaces()
 					.Where(static i =>
 						i.IsGenericType &&
 						(
@@ -636,9 +673,12 @@ public static class DispatchServiceCollectionExtensions
 							i.GetGenericTypeDefinition() == typeof(IActionHandler<>) ||
 							i.GetGenericTypeDefinition() == typeof(IEventHandler<>) ||
 							i.GetGenericTypeDefinition() == typeof(IDocumentHandler<>)
-						)),
-			})
-			.Where(static x => x.Interfaces.Any());
+						))
+					.ToArray()))
+			.Where(static x => x.Interfaces.Length > 0)
+			.ToList();
+
+		RegisterAmbiguousSingleHandlerScanWarnings(services, handlerTypes);
 
 		// Register each handler against the DI container
 		foreach (var handler in handlerTypes)
@@ -669,6 +709,69 @@ public static class DispatchServiceCollectionExtensions
 					services.TryAdd(descriptor);
 				}
 			}
+		}
+	}
+
+	/// <summary>
+	/// Detects when a single assembly scan discovers more than one handler for a message type that takes
+	/// exactly one -- <see cref="IActionHandler{TMessage}" />, <see cref="IActionHandler{TMessage,TResponse}" />
+	/// or <see cref="IDocumentHandler{TMessage}" /> -- and arranges for it to be reported once at start-up
+	/// via <see cref="AmbiguousHandlerScanFinding" />/<see cref="AmbiguousHandlerScanStartupWarning" />.
+	/// Which of the colliding handlers <c>TryAdd</c> keeps depends on <see cref="Assembly.GetTypes" />
+	/// enumeration order, which is neither documented nor stable, so silently picking one is never a safe
+	/// default -- the ambiguity is the defect, not the choice of winner. Two handlers for one EVENT type is
+	/// legitimate fan-out and is excluded: only interfaces whose message type does not implement
+	/// <see cref="IDispatchEvent" /> are considered. This is scanned-versus-scanned only; a consumer
+	/// registration made before the scan still wins via the existing <c>TryAdd</c> yield-to-caller
+	/// behavior and never reaches here.
+	/// </summary>
+	private static void RegisterAmbiguousSingleHandlerScanWarnings(
+		IServiceCollection services, List<(Type Type, Type[] Interfaces)> handlerTypes)
+	{
+		Dictionary<Type, List<Type>>? handlersByInterface = null;
+
+		foreach (var handler in handlerTypes)
+		{
+			foreach (var iface in handler.Interfaces)
+			{
+				if (typeof(IDispatchEvent).IsAssignableFrom(iface.GetGenericArguments()[0]))
+				{
+					continue;
+				}
+
+				handlersByInterface ??= [];
+				if (!handlersByInterface.TryGetValue(iface, out var handlersForInterface))
+				{
+					handlersForInterface = [];
+					handlersByInterface[iface] = handlersForInterface;
+				}
+
+				handlersForInterface.Add(handler.Type);
+			}
+		}
+
+		if (handlersByInterface is null)
+		{
+			return;
+		}
+
+		var foundAmbiguity = false;
+		foreach (var (iface, handlersForInterface) in handlersByInterface)
+		{
+			if (handlersForInterface.Count < 2)
+			{
+				continue;
+			}
+
+			foundAmbiguity = true;
+			services.AddSingleton(new AmbiguousHandlerScanFinding(
+				iface.GetGenericArguments()[0], iface.Name, handlersForInterface));
+		}
+
+		if (foundAmbiguity)
+		{
+			services.TryAddEnumerable(
+				ServiceDescriptor.Singleton<IHostedService, AmbiguousHandlerScanStartupWarning>());
 		}
 	}
 

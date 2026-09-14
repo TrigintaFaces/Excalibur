@@ -47,4 +47,23 @@ public sealed class InMemoryInboxStoreConformanceShould : InboxStoreConformanceT
 		// InMemoryInboxStore is disposed in DisposeAsync by base class
 		return Task.CompletedTask;
 	}
+
+	/// <summary>
+	/// 2mek4x's durability fault-injection arm is N/A here, not merely unwired: the in-memory store IS the
+	/// record, with no external persistence layer that can fail independently of the process. There is no
+	/// fault to inject that would not just be "throw on purpose" -- which the base's throw-not-no-op
+	/// contract already holds trivially for any store, in-memory or not, since it never no-ops. This is a
+	/// deliberate, documented override, not a skip: the test runs and asserts the (true) fact that no such
+	/// fault exists to prove, rather than the base's default hard failure meant for a real provider that
+	/// has not yet wired real infrastructure.
+	/// </summary>
+	public override async Task ThrowNotNoOpOnPersistenceFailure()
+	{
+		// Sanctioned by the base: this store has no external persistence layer to fault. But the base
+		// sanctions the OVERRIDE, not a bare Task.CompletedTask -- a completed task is indistinguishable
+		// from an arm that silently stopped verifying. Assert the fact the override rests on: there is
+		// genuinely nothing here to fault, which is why the base's default refuses to pretend otherwise.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			async () => await InjectPersistenceFaultAsync());
+	}
 }

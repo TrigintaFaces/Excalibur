@@ -179,16 +179,6 @@ public sealed class TimePolicyOptionsShould
 		options.Overrides.HandlerTypeTimeouts.ShouldBeEmpty();
 	}
 
-	[Fact]
-	public void Default_LogTimeoutEventsIsTrue()
-	{
-		// Arrange & Act
-		var options = new TimePolicyOptions();
-
-		// Assert
-		options.Observability.LogTimeoutEvents.ShouldBeTrue();
-	}
-
 	#endregion
 
 	#region Property Setter Tests

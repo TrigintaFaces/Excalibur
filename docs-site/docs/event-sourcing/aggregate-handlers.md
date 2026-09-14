@@ -6,7 +6,7 @@ description: Route dispatched commands to event-sourced aggregates with the Deci
 
 # Aggregate Handlers & Cascading
 
-`Excalibur.EventSourcing.Handlers` provides a **Decider** registration that wires a dispatched command straight to an event-sourced aggregate — load, decide, save with optimistic concurrency — without hand-writing a handler class. An optional **cascading** convention lets a handler return follow-up messages that are reliably staged to the outbox.
+`Excalibur.EventSourcing.Handlers` provides a **Decider** registration that wires a dispatched command straight to an event-sourced aggregate — load, decide, save with optimistic concurrency — without hand-writing a handler class. An optional **cascading** convention lets a handler return follow-up messages that `UseOutbox()` stages to the outbox.
 
 ## Before You Start
 
@@ -45,7 +45,31 @@ The identity resolver and decision are supplied explicitly (not reflected off th
 
 ## Cascading follow-up messages
 
-A handler can emit follow-up messages that are **automatically staged to the outbox** by returning a result that implements `ICascade`. This is opt-in by return-type convention — any result that does not implement `ICascade` produces no cascade.
+A handler can emit follow-up messages that are staged to the outbox by returning a result that implements `ICascade`. **Two conditions must both hold, and the return type is only one of them:**
+
+1. The handler's result implements `ICascade` — a result that does not produces no cascade.
+2. The pipeline includes the cascade step, which `UseOutbox()` adds.
+
+**The cascade step is not part of any shipped pipeline profile.** A host that configures its pipeline from a profile alone stages no cascades, even though those profiles do stage the handler's own outbox messages — so the follow-up messages are silently dropped rather than reported as an error. Call `UseOutbox()` explicitly:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseOutbox(); // outbox staging and the cascade step
+});
+```
+
+The cascade step costs nothing when you are not using it: it returns immediately for any result that does not implement `ICascade`.
+
+**How to tell whether cascading is live.** Dispatch a message whose handler returns a non-empty `ICascade` result and read the logs:
+
+| what you see | what it means |
+|---|---|
+| `Cascade: staged N follow-up message(s)` (Debug) | working |
+| `Cascade: handler ... returned N cascaded message(s) but no outbox is staged` (Warning) | the cascade step is in the pipeline but no outbox staging is — the messages were **not** dispatched |
+| neither line | the cascade step is not in your pipeline at all — call `UseOutbox()` |
+
+The third row is the silent case, and it is the one to check first: nothing is logged because the middleware never runs.
 
 ```csharp
 using Excalibur.Dispatch;

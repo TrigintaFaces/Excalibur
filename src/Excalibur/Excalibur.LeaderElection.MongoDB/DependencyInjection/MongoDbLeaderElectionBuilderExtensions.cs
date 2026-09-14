@@ -145,5 +145,19 @@ public static class MongoDbLeaderElectionBuilderExtensions
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("mongodb"));
+
+		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
+		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
+		// provider rather than requiring a second, easily-forgotten AddMongoDbFencingTokenProvider() +
+		// WithFencingTokens() call. WithoutFencingTokens() opts out.
+		builder.Services.TryAddDefaultFencingTokenProvider(sp =>
+			ActivatorUtilities.CreateInstance<MongoDbFencingTokenProvider>(sp));
+
+		// Matches Consul/Kubernetes/InMemory/Postgres/SqlServer, all of which register this here. Without
+		// it a consumer wiring UseMongoDB() + an outbox hits the outbox's own startup refusal (an outbox
+		// with a leader election registered and no explicit single-writer opt-out refuses to start rather
+		// than draining unfenced) for no reason a MongoDB consumer would expect versus the other five
+		// providers.
+		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(builder.Services);
 	}
 }

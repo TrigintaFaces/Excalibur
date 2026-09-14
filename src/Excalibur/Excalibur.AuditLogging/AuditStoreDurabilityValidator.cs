@@ -52,7 +52,7 @@ internal sealed class AuditStoreDurabilityValidator : IValidateOptions<AuditLogg
 		// forwards the query), so registration order and wrapping are irrelevant — the object that
 		// serves traffic is the object that is inspected.
 		var store = _services.GetService<IAuditStore>();
-		if (store?.GetService(typeof(IDurableAuditStore)) is not null)
+		if (store?.GetService(typeof(IDurableAuditStore)) is IDurableAuditStore)
 		{
 			return ValidateOptionsResult.Success;
 		}

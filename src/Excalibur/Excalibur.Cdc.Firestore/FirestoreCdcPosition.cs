@@ -26,12 +26,6 @@ namespace Excalibur.Cdc.Firestore;
 /// </remarks>
 public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreCdcPosition>
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false,
-
-	};
 
 	/// <summary>
 	/// Gets the collection path being watched.
@@ -185,10 +179,6 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this Firestore position instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this Firestore position instead.")]
 	public override string ToToken() => ToBase64();
 
 	/// <inheritdoc/>
@@ -208,8 +198,6 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 	/// This method is used for interoperability with the core <c>CdcPositionResetEventArgs</c>
 	/// which uses byte arrays for position storage.
 	/// </remarks>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public byte[] ToBytes()
 	{
 		var data = new PositionData
@@ -220,7 +208,7 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 			Timestamp = Timestamp,
 		};
 
-		var json = JsonSerializer.Serialize(data, JsonOptions);
+		var json = JsonSerializer.Serialize(data, FirestoreCdcPositionSerializerContext.Default.PositionData);
 		return Encoding.UTF8.GetBytes(json);
 	}
 
@@ -230,8 +218,6 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 	/// <param name="bytes">The byte array.</param>
 	/// <returns>The deserialized position.</returns>
 	/// <exception cref="FormatException">Thrown if the byte array format is invalid.</exception>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static FirestoreCdcPosition FromBytes(byte[] bytes)
 	{
 		ArgumentNullException.ThrowIfNull(bytes);
@@ -239,7 +225,7 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 		try
 		{
 			var json = Encoding.UTF8.GetString(bytes);
-			var data = JsonSerializer.Deserialize<PositionData>(json, JsonOptions);
+			var data = JsonSerializer.Deserialize(json, FirestoreCdcPositionSerializerContext.Default.PositionData);
 
 			ArgumentNullException.ThrowIfNull(data, nameof(bytes));
 
@@ -259,8 +245,6 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 	/// Serializes this position to a base64 string for storage.
 	/// </summary>
 	/// <returns>A base64-encoded string representation.</returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public string ToBase64()
 	{
 		// Deliberately NOT including Timestamp. A position's token must be a function of the position: two
@@ -277,7 +261,7 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 			LastDocumentId = LastDocumentId,
 		};
 
-		var json = JsonSerializer.Serialize(data, JsonOptions);
+		var json = JsonSerializer.Serialize(data, FirestoreCdcPositionSerializerContext.Default.PositionData);
 		return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
 
 	}
@@ -288,8 +272,6 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 	/// <param name="base64">The base64-encoded string.</param>
 	/// <returns>The deserialized position.</returns>
 	/// <exception cref="FormatException">Thrown if the string format is invalid.</exception>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static FirestoreCdcPosition FromBase64(string base64)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(base64);
@@ -297,7 +279,7 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 		try
 		{
 			var json = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
-			var data = JsonSerializer.Deserialize<PositionData>(json, JsonOptions);
+			var data = JsonSerializer.Deserialize(json, FirestoreCdcPositionSerializerContext.Default.PositionData);
 
 			ArgumentNullException.ThrowIfNull(data, nameof(base64));
 
@@ -324,8 +306,6 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 	/// <param name="base64">The base64-encoded string.</param>
 	/// <param name="position">The deserialized position if successful.</param>
 	/// <returns><see langword="true"/> if parsing succeeded; otherwise, <see langword="false"/>.</returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static bool TryFromBase64(string? base64, out FirestoreCdcPosition? position)
 	{
 		if (string.IsNullOrWhiteSpace(base64))
@@ -383,7 +363,7 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 	/// <summary>
 	/// Internal data structure for JSON serialization.
 	/// </summary>
-	private sealed class PositionData
+	internal sealed class PositionData
 	{
 		[JsonPropertyName("collectionPath")]
 		public string? CollectionPath { get; set; }
@@ -398,3 +378,24 @@ public sealed class FirestoreCdcPosition : ChangePosition, IEquatable<FirestoreC
 		public DateTimeOffset? Timestamp { get; set; }
 	}
 }
+
+/// <summary>
+/// Source-generated serializer for the Firestore position's persisted token.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Source-generated rather than reflection-based so the token can be written and read under trimming and
+/// ahead-of-time compilation without the position type advertising a reflection requirement. The base
+/// <c>ChangePosition.ToToken</c> carries no such requirement, and provider positions that never reflect
+/// must not be made to; removing the reflection is what lets the override match the base honestly.
+/// </para>
+/// <para>
+/// <b>Nulls are written, and that is load-bearing rather than an oversight.</b> This position's token has
+/// always carried an explicit null timestamp, so suppressing it would rewrite every token already
+/// persisted by a consumer. The sibling DynamoDB position OMITS its nulls; the two configurations are
+/// deliberately different and must not be shared.
+/// </para>
+/// </remarks>
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(FirestoreCdcPosition.PositionData))]
+internal sealed partial class FirestoreCdcPositionSerializerContext : JsonSerializerContext;

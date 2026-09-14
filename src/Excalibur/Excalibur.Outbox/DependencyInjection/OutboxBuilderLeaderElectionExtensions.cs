@@ -78,11 +78,11 @@ public static class OutboxBuilderProcessingGateExtensions
 	/// <para>
 	/// Fencing is <b>on by default</b> for a framework-protected outbox: registering a leader election is the
 	/// multi-instance signal, so the drain is fenced. On stores that record the fencing high-water durably
-	/// (PostgreSQL, Oracle, MongoDB) a superseded leader cannot claim or complete messages it no longer owns.
-	/// The SQL Server store derives its high-water from the outbox rows instead of a dedicated fence record, so
-	/// a cleanup that purges sent rows resets it and the advance overwrites rather than taking the maximum —
-	/// its leadership fence is best-effort, though the per-message lease still prevents two processors claiming
-	/// the same message. This method is the explicit, positive topology assertion — "I am the single active
+	/// (PostgreSQL, Oracle, SQL Server, MongoDB) a superseded leader cannot claim or complete messages it no
+	/// longer owns: each keeps a dedicated fence record that cleanup never deletes, so the mark survives a
+	/// purge of sent rows. Stores that cannot express an atomic high-water do not implement the fenced
+	/// contract at all, and startup refuses rather than degrading silently. This method is the explicit,
+	/// positive topology assertion — "I am the single active
 	/// writer, I own the exactly-once guarantee" — for a deployment where a leader election is registered for
 	/// <i>other</i> resources (leases, scheduled jobs) but exactly one process drains this outbox.
 	/// </para>

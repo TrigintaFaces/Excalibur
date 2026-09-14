@@ -2,7 +2,7 @@
 
 **Framework:** Excalibur
 **Purpose:** Visual navigation for compliance documentation
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-09-12
 
 ---
 
@@ -48,8 +48,8 @@ flowchart TD
     Install --> ChooseChecklist{Which<br/>framework?}
 
     ChooseChecklist -->|FedRAMP| FedRAMPChecklist[checklists/fedramp.md<br/>9-week plan]
-    ChooseChecklist -->|GDPR| GDPRChecklist[checklists/gdpr.md<br/>7-week plan]
-    ChooseChecklist -->|SOC 2| SOC2Checklist[checklists/soc2.md<br/>7-week plan]
+    ChooseChecklist -->|GDPR| GDPRChecklist[checklists/gdpr.md<br/>9-week plan]
+    ChooseChecklist -->|SOC 2| SOC2Checklist[checklists/soc2.md<br/>9-week plan]
     ChooseChecklist -->|HIPAA| HIPAAChecklist[checklists/hipaa.md<br/>12-week plan]
 
     FedRAMPChecklist --> Evidence
@@ -89,7 +89,7 @@ graph TD
     Scripts --> Audit[export-audit-samples.sh<br/>Audit logs]
     Scripts --> RoPA[generate-ropa-template.sh<br/>GDPR RoPA]
 
-    FedRAMPDocs --> FedREADME[README.md<br/>14/14 Controls]
+    FedRAMPDocs --> FedREADME[README.md<br/>12 of 14 Controls]
     FedRAMPDocs --> SBOM[CM-8-SBOM.md<br/>Component Inventory]
 
     FedRAMP -.->|References| FedREADME
@@ -162,9 +162,8 @@ flowchart LR
 flowchart TD
     subgraph CI[CI/CD Pipeline<br/>.github/workflows/]
         Build[Build & Test<br/>dotnet build, test] --> SAST[Security Scanning<br/>CodeQL, Gitleaks]
-        SAST --> DAST[DAST<br/>OWASP ZAP]
-        DAST --> Container[Container Scan<br/>Trivy]
-        Container --> SBOM[SBOM Generation<br/>CycloneDX]
+        SAST --> Deps[Dependency Scanning]
+        Deps --> SBOM[SBOM Generation<br/>CycloneDX<br/>official build and release only]
     end
 
     subgraph Artifacts[GitHub Actions Artifacts<br/>90-day retention]
@@ -313,7 +312,7 @@ gantt
 |----------|-------------|----------|------------------|-------------------|-----------|
 | **1. Preparation** | Risk assessment, scope | DPIA, scope | Scope definition | Type I complete | Engage specialist |
 | **2. Install** | 2 weeks | 2 weeks | 2 weeks | N/A | 2 weeks |
-| **3. Implement** | 9 weeks (14 controls) | 7 weeks (Articles 17, 30, 32) | 8 weeks (Security + optional) | N/A | 12 weeks (§164.312) |
+| **3. Implement** | 9 weeks (14 controls) | 7 weeks (Articles 17, 30, 32) | 6 weeks of control phases (CC1-CC9, A1-A3, PI1-PI3, C1-C3) | N/A | 12 weeks (§164.312) |
 | **4. Policies** | SSP, SAR | Privacy policy, RoPA | System description | N/A | Security + Privacy policies |
 | **5. Tests** | Opt-in conformance arms | Opt-in conformance arms | Automated validators | N/A | Opt-in conformance arms |
 | **6. Evidence** | SBOM, scans, audit logs | Erasure certs, RoPA | Reports, logs | Continuous | Audit logs, BAAs |
@@ -337,7 +336,7 @@ gantt
 3. Timeline: [Certification Roadmap](#5-certification-timeline)
 
 **Auditors:**
-1. Evidence: `eng/compliance/collect-evidence.*`
+1. Evidence: [Evidence Automation](index.md#evidence-automation) — `eng/compliance/collect-evidence.*` in the [framework repository](https://github.com/TrigintaFaces/Excalibur)
 2. Conformance: the arms you wrapped and ran (Audit, Erasure, LegalHold, DataInventory)
 3. Reports: Type I/II generation (SOC 2), SBOM artifacts (FedRAMP)
 
@@ -365,7 +364,7 @@ gantt
 
 **"I need to collect evidence"**
 → [Evidence Automation](index.md#evidence-automation)
-→ `eng/compliance/collect-evidence.*`
+→ `eng/compliance/collect-evidence.*` in the [framework repository](https://github.com/TrigintaFaces/Excalibur)
 
 **"I need to understand what the framework provides"**
 → [Framework Capabilities](index.md#framework-features)
@@ -400,9 +399,8 @@ gantt
 
 ---
 
-**Last Updated:** 2026-01-01
-**Next Review:** 2026-04-01
-**Framework:** Excalibur 1.0.0
+**Last Updated:** 2026-09-12
+**Framework:** Excalibur 10.0.0 prerelease
 
 ## See Also
 

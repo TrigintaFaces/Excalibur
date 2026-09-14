@@ -58,7 +58,7 @@ public sealed class SagaOptions
 	/// </summary>
 	/// <value>The maximum retry attempts, default is 3.</value>
 	[Range(0, 100)]
-	public int MaxRetryAttempts { get; set; } = 3;
+	public int MaxAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the delay between retry attempts.

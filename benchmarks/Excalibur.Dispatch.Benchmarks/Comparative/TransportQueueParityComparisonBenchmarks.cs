@@ -32,7 +32,10 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// <summary>
 /// Queued/bus end-to-end parity benchmark across Dispatch remote routing, Wolverine Send/Publish, and MassTransit Publish.
 /// </summary>
-[MemoryDiagnoser]
+/// Allocation is NOT measured under this config. It runs one invocation per iteration, so an
+/// Allocated column would report per-iteration setup rather than per-operation cost -- measured at a
+/// ~30% swing across identical consecutive runs, which is not a figure anyone can publish or gate on.
+/// The warm-path subclass carries the memory diagnoser instead, where the number resolves.
 [Config(typeof(ComparativeBenchmarkConfig))]
 public class TransportQueueParityComparisonBenchmarks
 {

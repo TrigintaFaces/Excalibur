@@ -156,11 +156,10 @@ Use the fluent builder pattern to configure leader election with your chosen pro
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// SQL Server with health checks
+// SQL Server with health checks. Fencing tokens are already on by default — see "Fencing tokens" below.
 services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
     .UseSqlServer(connectionString, "my-app-leader")
-    .WithHealthChecks()
-    .WithFencingTokens()));
+    .WithHealthChecks()));
 
 // Postgres (5 canonical connection overloads)
 services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
@@ -270,7 +269,8 @@ The pre-built options overload uses `Options.Create()` directly, which bypasses 
 | `UseConsul(Action<ILeaderElectionConsulBuilder>)` | `Excalibur.LeaderElection.Consul` | Consul session-based leader election |
 | `UseKubernetes(opts?)` | `Excalibur.LeaderElection.Kubernetes` | Kubernetes Lease-based leader election |
 | `WithHealthChecks()` | `Excalibur.LeaderElection` | Registers health check integration |
-| `WithFencingTokens()` | `Excalibur.LeaderElection` | Registers fencing token middleware |
+| `WithFencingTokens()` | `Excalibur.LeaderElection` | Registers fencing support for a consumer-supplied `ILeaderElection`. Built-in providers already fence by default — see "Fencing tokens" below |
+| `WithoutFencingTokens()` | `Excalibur.LeaderElection` | Opts a built-in provider out of its on-by-default fencing-token provider |
 | `WithOptions(configure)` | `Excalibur.LeaderElection` | Configures `LeaderElectionOptions` |
 
 :::note
@@ -1301,31 +1301,59 @@ Each candidate exposes health information:
 
 A fencing token is a strictly monotonic number minted on each leadership acquisition. Passing it to a shared resource lets that resource **reject a write from a stale leader** — one that was paused (GC, network partition) long enough to lose leadership without noticing — because the stale leader's token is lower than the token the resource has already seen. Fencing tokens are the standard defence against the split-brain write hazard.
 
-Enable them through the builder, and register the backend's fencing-token provider:
+### Fencing is on by default
+
+Every built-in provider — Consul, Kubernetes, MongoDB, Postgres, Redis, SQL Server, and in-memory — registers its own arbitrated `IFencingTokenProvider` automatically as part of `Use*()` / `Add*LeaderElection()`. You do not need to call `WithFencingTokens()` or `Add*FencingTokenProvider()` yourself:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Kubernetes leader election with fencing tokens
+// Fencing tokens are already active here — no extra call needed.
 services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
-    .UseKubernetes(opts => opts.Namespace("default"))
-    .WithFencingTokens()));
-
-services.AddKubernetesFencingTokenProvider();
+    .UseKubernetes(opts => opts.Namespace("default"))));
 ```
 
-Each backend ships a matching registration:
+The default exists because the alternative failure mode is silent: a leader election with no fencing lets a stalled ex-leader's writes land after a new leader has already taken over, with no exception anywhere to notice. Opt out only for a deployment that genuinely does not need fencing:
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UseKubernetes(opts => opts.Namespace("default"))
+    .WithoutFencingTokens()));
+```
+
+After opting out, `IFencingTokenProvider` does not resolve (`GetService<IFencingTokenProvider>()` returns `null`), and the election runs in non-fencing mode.
+
+A consumer-supplied `ILeaderElection` — one that is not a built-in provider — still uses the explicit opt-in shown below; `Add*FencingTokenProvider()` and `WithFencingTokens()` remain available for that case, and composing them with a built-in provider's default registration is harmless (each uses `TryAdd`, so whichever registers first wins):
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .WithFencingTokens()));
+
+services.AddFencingTokenSupport<MyCustomFencingTokenProvider>();
+```
+
+Each backend ships a matching manual registration, for the consumer-supplied scenario above or for overriding the default provider with your own:
 
 | Extension | Package |
 |-----------|---------|
 | `AddConsulFencingTokenProvider()` | `Excalibur.LeaderElection.Consul` |
 | `AddKubernetesFencingTokenProvider()` | `Excalibur.LeaderElection.Kubernetes` |
 | `AddMongoDbFencingTokenProvider()` | `Excalibur.LeaderElection.MongoDB` |
+| `AddPostgresFencingTokenProvider(connectionString)` | `Excalibur.LeaderElection.Postgres` |
+| `AddRedisFencingTokenProvider()` | `Excalibur.LeaderElection.Redis` |
+| `AddSqlServerFencingTokenProvider(connectionString)` | `Excalibur.LeaderElection.SqlServer` |
+| `AddInMemoryFencingTokenProvider()` | `Excalibur.LeaderElection.InMemory` |
 
-Consul, Kubernetes, MongoDB, Postgres, Redis, and SQL Server leader election all accept an optional `IFencingTokenProvider`.
+Consul, Kubernetes, MongoDB, Postgres, Redis, SQL Server, and in-memory leader election all accept an `IFencingTokenProvider` — supplying your own via `TryAddSingleton<IFencingTokenProvider, T>()` before the provider's `Use*()`/`Add*LeaderElection()` call overrides the default.
 
 :::note MongoDB fences durably by default
-MongoDB leader election defaults to a **durable per-resource fencing counter** — a separate, TTL-free collection — when you don't supply your own provider. This is deliberate: a token stored in the lock document itself would be reset when the lock document is deleted on graceful release or expired by its TTL index, letting a stale token from a restarted instance validate as current (split-brain). The durable counter never resets. Registering `AddMongoDbFencingTokenProvider()` or supplying any `IFencingTokenProvider` overrides the default.
+MongoDB leader election defaults to a **durable per-resource fencing counter** — a separate, TTL-free collection — when you don't supply your own provider. This is deliberate: a token stored in the lock document itself would be reset when the lock document is deleted on graceful release or expired by its TTL index, letting a stale token from a restarted instance validate as current (split-brain). The durable counter never resets.
+:::
+
+:::note In-memory fencing is process-local
+The in-memory provider mints its fencing token from an in-process counter, because the election, the provider, and the counter are all in the same process. It fences a stale in-process leader against a live one in the same process, but it is not a substitute for cross-process protection — do not use in-memory leader election to protect anything shared between processes.
 :::
 
 ### Token exhaustion fails closed

@@ -41,10 +41,30 @@ public abstract record DomainEvent : IDomainEvent
 	public virtual IDictionary<string, object>? Metadata { get; init; }
 
 	/// <inheritdoc/>
-	public virtual string? CorrelationId { get; init; }
+	/// <remarks>
+	/// Computed from <see cref="Metadata"/>, not an independent init-only field. An independent
+	/// backing field used to exist here and was a second, unread carrier: <see cref="WithCorrelationId(string?)"/>
+	/// wrote to it while every real consumer (<c>EventSourcedRepository</c>'s Activity-context enrichment,
+	/// and all six event-store <c>ExtractCorrelationId</c> implementations) reads <see cref="Metadata"/>
+	/// only. Re-declared here (rather than left to <see cref="IDomainEvent"/>'s default implementation) so
+	/// a <see cref="DomainEvent"/>-typed reference can still read it directly; the get body matches the
+	/// interface default exactly (same key priority — see <see cref="IDomainEvent.CorrelationId"/>), so
+	/// this is a pure, non-divergent projection of <see cref="Metadata"/>.
+	/// </remarks>
+	public virtual string? CorrelationId =>
+		Metadata?.TryGetValue(OutboxHeaderNames.CorrelationId, out var v1) == true ? v1?.ToString() :
+		Metadata?.TryGetValue("CorrelationId", out var v2) == true ? v2?.ToString() :
+		Metadata?.TryGetValue("correlationId", out var v3) == true ? v3?.ToString() : null;
 
 	/// <inheritdoc/>
-	public virtual string? CausationId { get; init; }
+	/// <remarks>
+	/// Computed from <see cref="Metadata"/>. See <see cref="CorrelationId"/> for why this is redeclared
+	/// rather than left to the interface default.
+	/// </remarks>
+	public virtual string? CausationId =>
+		Metadata?.TryGetValue(OutboxHeaderNames.CausationId, out var v1) == true ? v1?.ToString() :
+		Metadata?.TryGetValue("CausationId", out var v2) == true ? v2?.ToString() :
+		Metadata?.TryGetValue("causationId", out var v3) == true ? v3?.ToString() : null;
 
 	/// <summary>
 	/// Adds metadata to this event.
@@ -83,7 +103,7 @@ public abstract record DomainEvent : IDomainEvent
 	public DomainEvent WithCorrelationId(Guid correlationId)
 	{
 		return correlationId != Guid.Empty
-			? this with { CorrelationId = correlationId.ToString() }
+			? WithMetadata(OutboxHeaderNames.CorrelationId, correlationId.ToString())
 			: this;
 	}
 
@@ -95,7 +115,7 @@ public abstract record DomainEvent : IDomainEvent
 	public DomainEvent WithCorrelationId(string? correlationId)
 	{
 		return !string.IsNullOrEmpty(correlationId)
-			? this with { CorrelationId = correlationId }
+			? WithMetadata(OutboxHeaderNames.CorrelationId, correlationId)
 			: this;
 	}
 
@@ -107,7 +127,7 @@ public abstract record DomainEvent : IDomainEvent
 	public DomainEvent WithCausationId(string? causationId)
 	{
 		return !string.IsNullOrEmpty(causationId)
-			? this with { CausationId = causationId }
+			? WithMetadata(OutboxHeaderNames.CausationId, causationId)
 			: this;
 	}
 }

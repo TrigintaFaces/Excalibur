@@ -255,7 +255,7 @@ public sealed partial class InMemorySnapshotStore : ISnapshotStore, IAsyncDispos
 	private string GetKey(string aggregateId, string aggregateType)
 	{
 		var scope = CurrentTenantScope;
-		return $"t:{scope.TenantId}:{aggregateType}:{aggregateId}";
+		return TenantScopedKey.Compose(scope.TenantId, aggregateType, aggregateId);
 	}
 
 	/// <summary>

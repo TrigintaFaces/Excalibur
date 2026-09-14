@@ -128,29 +128,75 @@ public sealed class AzureBlobColdEventStoreLostUpdateShould : IAsyncLifetime
 		Version: version,
 		Timestamp: DateTimeOffset.UtcNow);
 
+	/// <summary>
+	/// Number of independent aggregates raced in one run.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <strong>One race is not enough, and that is measured rather than assumed.</strong> A single
+	/// superset/subset pair only loses data when the SUBSET happens to commit second, which is a scheduling
+	/// accident. Measured on the sibling Google Cloud Storage lock with the conditional write deliberately
+	/// removed, one pair reproduced the loss in 1 of 5 runs; this many pairs reproduced it in 5 of 5. A lock
+	/// that detects its own defect a fifth of the time reports green on a broken store four times out of five.
+	/// </para>
+	/// <para>
+	/// Distinct aggregates address distinct objects, so they do not contend with each other - each pair is an
+	/// INDEPENDENT trial of the same race. Racing this many pairs turns a coin flip into a near-certainty
+	/// while still costing one container and a couple of seconds.
+	/// </para>
+	/// <para>
+	/// This also repairs what the green MEANS. With one pair, a green run is equally consistent with an
+	/// emulator that enforces the conditional write and one that ignores it - both are green most of the time.
+	/// Across this many pairs, an emulator that ignored the condition could not keep every aggregate whole, so
+	/// passing is itself evidence that the primitive under test is really being enforced.
+	/// </para>
+	/// </remarks>
+	private const int RaceCount = 25;
+
 	[Fact]
 	public async Task Preserve_a_racing_writers_events_under_concurrent_same_aggregate_archive()
 	{
 		_available.ShouldBeTrue(
 			"Azurite must be available - real-infra lost-update lock is never skipped. Initialization error: "
-			+ (_initError ?? "(none recorded — InitializeAsync did not run)"));
-
-		var aggregateId = $"agg-{Guid.NewGuid():N}";
+			+ (_initError ?? "(none recorded - InitializeAsync did not run)"));
 		var ct = CancellationToken.None;
+		var aggregateIds = Enumerable.Range(0, RaceCount).Select(_ => $"agg-{Guid.NewGuid():N}").ToArray();
 
-		await _store!.WriteAsync(Tenant, aggregateId, [Event(aggregateId, 0), Event(aggregateId, 1), Event(aggregateId, 2)], ct);
+		// Seed each aggregate with a committed prefix v0..v2.
+		foreach (var aggregateId in aggregateIds)
+		{
+			_ = await _store!.WriteAsync(
+				Tenant, aggregateId, [Event(aggregateId, 0), Event(aggregateId, 1), Event(aggregateId, 2)], ct);
+		}
 
-		var subset = new StoredEvent[] { Event(aggregateId, 3), Event(aggregateId, 4) };
-		var superset = new StoredEvent[] { Event(aggregateId, 3), Event(aggregateId, 4), Event(aggregateId, 5), Event(aggregateId, 6) };
+		// Concurrent superset/subset archive, per aggregate. Every writer is started before any is awaited,
+		// so the pairs genuinely overlap rather than running one pair at a time.
+		await Task.WhenAll(aggregateIds.SelectMany(aggregateId => new[]
+		{
+			_store!.WriteAsync(Tenant, aggregateId, [Event(aggregateId, 3), Event(aggregateId, 4)], ct),
+			_store.WriteAsync(
+				Tenant,
+				aggregateId,
+				[Event(aggregateId, 3), Event(aggregateId, 4), Event(aggregateId, 5), Event(aggregateId, 6)],
+				ct),
+		})).ConfigureAwait(false);
 
-		await Task.WhenAll(
-			_store.WriteAsync(Tenant, aggregateId, subset, ct),
-			_store.WriteAsync(Tenant, aggregateId, superset, ct)).ConfigureAwait(false);
+		// Report EVERY aggregate that lost an event, not just the first. Which ones lost is the difference
+		// between "the conditional write is missing" and "one aggregate hit something else".
+		var expected = Enumerable.Range(0, 7).Select(i => (long)i).ToArray();
+		var lost = new List<string>();
+		foreach (var aggregateId in aggregateIds)
+		{
+			var versions = (await _store!.ReadAsync(Tenant, aggregateId, ct)).Select(e => e.Version).ToArray();
+			if (!versions.SequenceEqual(expected))
+			{
+				lost.Add($"{aggregateId}: [{string.Join(",", versions)}]");
+			}
+		}
 
-		var read = await _store.ReadAsync(Tenant, aggregateId, ct);
-
-		read.Select(e => e.Version).ShouldBe(
-			Enumerable.Range(0, 7).Select(i => (long)i),
-			"a concurrent archive must never drop events a racing writer already committed (v0..v6 all survive)");
+		// The optimistic conditional-write retry merges both writers - no committed event is ever dropped.
+		lost.ShouldBeEmpty(
+			$"a concurrent archive must never drop events a racing writer already committed: {lost.Count} of "
+			+ $"{RaceCount} raced aggregates did not end at v0..v6. {string.Join(" | ", lost)}");
 	}
 }

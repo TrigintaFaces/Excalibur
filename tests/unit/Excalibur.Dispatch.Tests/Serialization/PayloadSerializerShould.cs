@@ -21,6 +21,41 @@ public sealed class PayloadSerializerShould
 
 	#region Serialization Tests
 
+	/// <summary>
+	/// The framed layout is exactly [magic byte][payload] and nothing else -- the property the wire
+	/// format depends on, and the one an allocation change to the framing could silently break.
+	/// The expectation is built INDEPENDENTLY of how Serialize frames it (serialize the same value
+	/// through the registry's own serializer, prepend the id by hand), so this asserts the format
+	/// rather than restating the implementation. It is what makes writing the magic byte and the
+	/// payload into one buffer safe: a truncated, misordered or overlapping write fails here.
+	/// </summary>
+	[Fact]
+	public void Serialize_FramesMagicByteThenExactPayload_AndRoundTrips()
+	{
+		// Arrange
+		var registry = CreateRegistryWithSystemTextJson();
+		var sut = new PayloadSerializer(registry, _logger);
+		// A payload long enough that a partial copy would not coincidentally still match.
+		var message = new TestMessage { Name = new string('x', 5000), Value = 42 };
+
+		var (expectedId, serializer) = registry.GetCurrent();
+		var expectedPayload = serializer.SerializeToBytes(message);
+
+		// Act
+		var result = sut.Serialize(message);
+
+		// Assert -- length, prefix, and every payload byte in order.
+		result.Length.ShouldBe(
+			expectedPayload.Length + 1,
+			"the framed payload must be exactly the serialized bytes plus the one-byte serializer id.");
+		result[0].ShouldBe(expectedId, "the first byte must be the current serializer's id.");
+		result.AsSpan(1).SequenceEqual(expectedPayload).ShouldBeTrue(
+			"the bytes after the magic byte must be the payload, unmodified and in order.");
+
+		// Liveness: the framing is not merely well-shaped, it is still readable.
+		sut.Deserialize<TestMessage>(result).Name.ShouldBe(message.Name);
+	}
+
 	[Fact]
 	public void Serialize_PrependsCorrectMagicByte()
 	{

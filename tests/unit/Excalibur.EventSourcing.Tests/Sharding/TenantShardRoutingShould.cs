@@ -309,6 +309,139 @@ public sealed class TenantShardRoutingShould
 			() => new TenantRoutingEventStore(resolver, null!));
 	}
 
+	// -----------------------------------------------------------------------------------------------
+	// Erasure (rjxf95). The router must forward IEventStoreErasure to the AMBIENT TENANT'S OWN SHARD,
+	// never a fixed inner — mirroring how Load/Append already route. A plain type test would read this
+	// class's unconditional interface declaration and claim erasure over every shard, including one
+	// whose own store cannot; the probe must instead answer for the resolved shard.
+	// -----------------------------------------------------------------------------------------------
+
+	[Fact]
+	public async Task RouteEraseEventsToCorrectShardStore()
+	{
+		var shardStore = A.Fake<IEventStore>();
+		var erasure = A.Fake<IEventStoreErasure>();
+		var requestId = Guid.NewGuid();
+		A.CallTo(() => shardStore.GetService(typeof(IEventStoreErasure))).Returns(erasure);
+		_ = A.CallTo(() => erasure.EraseEventsAsync("agg-1", "Order", requestId, A<CancellationToken>._))
+			.Returns(3);
+
+		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
+		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(shardStore);
+
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
+		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
+
+		var erased = await routingStore.EraseEventsAsync("agg-1", "Order", requestId, CancellationToken.None);
+
+		erased.ShouldBe(3);
+		A.CallTo(() => resolver.Resolve("tenant-a")).MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task RouteIsErasedToCorrectShardStore()
+	{
+		var shardStore = A.Fake<IEventStore>();
+		var erasure = A.Fake<IEventStoreErasure>();
+		A.CallTo(() => shardStore.GetService(typeof(IEventStoreErasure))).Returns(erasure);
+		_ = A.CallTo(() => erasure.IsErasedAsync("agg-1", "Order", A<CancellationToken>._)).Returns(true);
+
+		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
+		_ = A.CallTo(() => resolver.Resolve("tenant-b")).Returns(shardStore);
+
+		var tenantId = new MutableTenantContext { TenantId = "tenant-b" };
+		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
+
+		var result = await routingStore.IsErasedAsync("agg-1", "Order", CancellationToken.None);
+
+		result.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task ThrowNotSupported_WhenResolvedShardCannotErase()
+	{
+		var shardStore = A.Fake<IEventStore>();
+		A.CallTo(() => shardStore.GetService(typeof(IEventStoreErasure))).Returns(null);
+
+		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
+		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(shardStore);
+
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
+		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
+
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			async () => await routingStore.EraseEventsAsync("agg-1", "Order", Guid.NewGuid(), CancellationToken.None));
+	}
+
+	[Theory]
+	[InlineData("")]
+	[InlineData(null)]
+	[InlineData("   ")]
+	public async Task ThrowTenantRequired_WhenEraseHasNoAmbientTenant(string? unresolved)
+	{
+		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
+		var tenantId = new MutableTenantContext { TenantId = unresolved! };
+		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
+
+		_ = await Should.ThrowAsync<TenantRequiredException>(
+			async () => await routingStore.EraseEventsAsync("agg-1", "Order", Guid.NewGuid(), CancellationToken.None));
+
+		A.CallTo(() => resolver.Resolve(A<string>._)).MustNotHaveHappened();
+	}
+
+	/// <summary>
+	/// Safety, and the reported defect (rjxf95): before this fix, the router implemented only
+	/// <see cref="IEventStore"/>, so <see cref="IEventStore.GetService"/>'s default answered
+	/// <see langword="null"/> for EVERY shard regardless of what it could actually do — erasure was
+	/// silently unreachable through a sharded deployment.
+	/// </summary>
+	[Fact]
+	public void AnswerNullForTheErasureProbe_WhenTheResolvedShardCannotErase()
+	{
+		var shardStore = A.Fake<IEventStore>();
+		A.CallTo(() => shardStore.GetService(typeof(IEventStoreErasure))).Returns(null);
+
+		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
+		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(shardStore);
+
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
+		IEventStore routingStore = new TenantRoutingEventStore(resolver, tenantId);
+
+		routingStore.GetService(typeof(IEventStoreErasure)).ShouldBeNull(
+			"a router over a shard that cannot erase must not claim it can");
+	}
+
+	/// <summary>
+	/// Liveness. Without this, a probe that answered null for everything would satisfy the arm above.
+	/// </summary>
+	[Fact]
+	public void AnswerWithItselfForTheErasureProbe_WhenTheResolvedShardCanErase()
+	{
+		var shardStore = A.Fake<IEventStore>();
+		var erasure = A.Fake<IEventStoreErasure>();
+		A.CallTo(() => shardStore.GetService(typeof(IEventStoreErasure))).Returns(erasure);
+
+		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
+		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(shardStore);
+
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
+		IEventStore routingStore = new TenantRoutingEventStore(resolver, tenantId);
+
+		routingStore.GetService(typeof(IEventStoreErasure)).ShouldBeSameAs(
+			routingStore,
+			"the erase must be reached through the router so it keeps routing to the correct shard");
+	}
+
+	[Fact]
+	public void ThrowTenantRequired_WhenTheErasureProbeHasNoAmbientTenant()
+	{
+		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
+		var tenantId = new MutableTenantContext { TenantId = null };
+		IEventStore routingStore = new TenantRoutingEventStore(resolver, tenantId);
+
+		_ = Should.Throw<TenantRequiredException>(() => routingStore.GetService(typeof(IEventStoreErasure)));
+	}
+
 	#endregion
 
 	#region TenantRoutingProjectionStore

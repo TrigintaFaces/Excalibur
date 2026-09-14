@@ -41,18 +41,18 @@ Microsoft.Extensions.DependencyInjection.PersistenceHealthChecksBuilderExtension
 Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions
 const Excalibur.Data.Exceptions.ResourceAlreadyExistsException.DefaultMessage = "The specified resource was not found." -> string!
 const Excalibur.Data.Exceptions.ResourceAlreadyExistsException.DefaultStatusCode = 404 -> int
-static Excalibur.Data.ActivityContextExtensions.ApplicationName(this Excalibur.Domain.IActivityContext! context) -> string!
+static Excalibur.Data.ActivityContextExtensions.ApplicationName(this Excalibur.Domain.IActivityContext! context) -> string?
 static Excalibur.Data.ActivityContextExtensions.ClientAddress(this Excalibur.Domain.IActivityContext! context) -> string?
 static Excalibur.Data.ActivityContextExtensions.Configuration(this Excalibur.Domain.IActivityContext! context) -> Microsoft.Extensions.Configuration.IConfiguration!
-static Excalibur.Data.ActivityContextExtensions.CorrelationId(this Excalibur.Domain.IActivityContext! context) -> System.Guid
+static Excalibur.Data.ActivityContextExtensions.CorrelationId(this Excalibur.Domain.IActivityContext! context) -> System.Guid?
 static Excalibur.Data.ActivityContextExtensions.DomainDb(this Excalibur.Domain.IActivityContext! context) -> Excalibur.Data.IDomainDb!
 static Excalibur.Data.ActivityContextExtensions.ETag(this Excalibur.Domain.IActivityContext! context) -> string?
 static Excalibur.Data.ActivityContextExtensions.ETag(this Excalibur.Domain.IActivityContext! context, string? newETag) -> void
-static Excalibur.Data.ActivityContextExtensions.Get<T>(this Excalibur.Domain.IActivityContext! context, string! key) -> T
+static Excalibur.Data.ActivityContextExtensions.Get<T>(this Excalibur.Domain.IActivityContext! context, string! key) -> T?
 static Excalibur.Data.ActivityContextExtensions.LatestETag(this Excalibur.Domain.IActivityContext! context) -> string?
 static Excalibur.Data.ActivityContextExtensions.ServiceProvider(this Excalibur.Domain.IActivityContext! context) -> System.IServiceProvider!
-static Excalibur.Data.ActivityContextExtensions.TenantId(this Excalibur.Domain.IActivityContext! context) -> string!
+static Excalibur.Data.ActivityContextExtensions.TenantId(this Excalibur.Domain.IActivityContext! context) -> string?
 static Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions.Default.get -> System.Text.Json.JsonSerializerOptions!
 static Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions.IgnoreStream.get -> System.Text.Json.JsonSerializerOptions!
-static Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions.AddPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PersistenceHealthChecksBuilderExtensions.AddPersistenceHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! providerKey, string! name = "persistence", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions.AddPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -259,9 +259,7 @@ public sealed class InboxProcessorDrainInvariantsShould
 			}
 		}
 
-		public void Reset()
-		{
-		}
+		public Task ResetAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
 	/// <summary>Hands the processor one breaker, whatever message type it asks for.</summary>

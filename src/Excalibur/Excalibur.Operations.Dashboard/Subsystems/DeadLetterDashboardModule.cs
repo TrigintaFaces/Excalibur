@@ -69,6 +69,14 @@ public sealed class DeadLetterEntryView
 	/// <summary>Gets the instant the entry was replayed, if applicable.</summary>
 	/// <value>The replay timestamp, or <see langword="null"/>.</value>
 	public DateTimeOffset? ReplayedAt { get; init; }
+
+	/// <summary>Gets the tenant the dead-lettered message belonged to, if the host is multi-tenant.</summary>
+	/// <value>
+	/// The tenant id, or <see langword="null"/> when the host is not multi-tenant or when sensitive data
+	/// is not exposed. A tenant id names a customer, so it is redacted on an unauthenticated read on the
+	/// same terms as the saga endpoint's owning tenant.
+	/// </value>
+	public string? TenantId { get; init; }
 }
 
 /// <summary>
@@ -90,18 +98,18 @@ internal sealed class DeadLetterDashboardModule : IDashboardEndpointModule
 		var maxPageSize = options.MaxPageSize;
 		var exposeSensitive = options.ExposeSensitiveData;
 
-		group.MapGet("/dlq", static async (IDeadLetterQueue? dlq, CancellationToken ct) =>
+		group.MapGet("/dlq", static async (IDeadLetterQueue? dlq, TimeProvider timeProvider, CancellationToken ct) =>
 		{
 			if (dlq is null)
 			{
 				return Results.Json(
-					new DeadLetterView { Configured = false, CapturedAt = DateTimeOffset.UtcNow },
+					new DeadLetterView { Configured = false, CapturedAt = timeProvider.GetUtcNow() },
 					DeadLetterJsonContext.Default.DeadLetterView);
 			}
 
 			var count = await dlq.GetCountAsync(ct).ConfigureAwait(false);
 			return Results.Json(
-				new DeadLetterView { Configured = true, Count = count, CapturedAt = DateTimeOffset.UtcNow },
+				new DeadLetterView { Configured = true, Count = count, CapturedAt = timeProvider.GetUtcNow() },
 				DeadLetterJsonContext.Default.DeadLetterView);
 		});
 
@@ -134,6 +142,7 @@ internal sealed class DeadLetterDashboardModule : IDashboardEndpointModule
 				SourceQueue = e.SourceQueue,
 				IsReplayed = e.IsReplayed,
 				ReplayedAt = e.ReplayedAt,
+				TenantId = exposeSensitive ? e.TenantId : null,
 			}).ToArray();
 
 			return Results.Json(views, DeadLetterJsonContext.Default.DeadLetterEntryViewArray);

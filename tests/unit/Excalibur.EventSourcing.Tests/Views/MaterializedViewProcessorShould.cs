@@ -562,9 +562,11 @@ public sealed class MaterializedViewProcessorShould
     #region Error Handling
 
     [Fact]
-    public async Task CatchUpAsync_ContinueProcessingAfterIndividualEventFailure()
+    public async Task CatchUpAsync_HaltAtAnUninterpretableEventInsteadOfProcessingPastIt()
     {
-        // Arrange
+        // Also reversed. This arm previously asserted that a bad event in the middle of a batch was skipped
+        // and the events after it still applied. That is precisely the silent gap the ruling forbids: the
+        // view ends up missing the bad event forever with no signal.
         var builder = new OrderSummaryViewBuilder();
         var processor = CreateProcessor(CreateRegistrations(builder));
 
@@ -578,14 +580,14 @@ public sealed class MaterializedViewProcessorShould
             new OrderCreatedEvent("order-1", "First", 10m));
         _eventSerializer.RegisterEvent(goodEvent2.EventData,
             new OrderCreatedEvent("order-2", "Third", 30m));
-        // badEvent type resolution will throw — processor should continue
 
-        // Act — should not throw
-        await processor.CatchUpAsync("OrderSummary", CancellationToken.None);
+        _ = await Should.ThrowAsync<MaterializedViewPoisonEventException>(
+            () => processor.CatchUpAsync("OrderSummary", CancellationToken.None));
 
-        // Assert — good events processed, bad event skipped
+        // The event BEFORE the poison one was applied and is not rolled back; the one after is not reached.
         _viewStore.GetView<OrderSummaryView>("OrderSummary", "order-1").ShouldNotBeNull();
-        _viewStore.GetView<OrderSummaryView>("OrderSummary", "order-2").ShouldNotBeNull();
+        _viewStore.GetView<OrderSummaryView>("OrderSummary", "order-2").ShouldBeNull(
+            "the replay halted at the poison event, so nothing after it was applied");
     }
 
     [Fact]
@@ -691,6 +693,77 @@ public sealed class MaterializedViewProcessorShould
 
     #endregion View Delivery Semantics Contract (iqx3x3)
 
+    #region Checkpoint Unit
+
+    [Fact]
+    public async Task CatchUpAsync_CheckpointTheGlobalPositionNotTheAggregateVersion()
+    {
+        // Arrange -- two aggregates, so the per-aggregate Version restarts and diverges from the
+        // store's global position. When the two coincide (one aggregate, versions 1..n) a processor
+        // that checkpoints the wrong one is indistinguishable from a correct one, which is how this
+        // went unnoticed.
+        var builder = new OrderSummaryViewBuilder();
+        var processor = CreateProcessor(CreateRegistrations(builder));
+
+        var e1 = CreateStoredEvent("order-1", nameof(OrderCreatedEvent), version: 1, globalPosition: 101);
+        var e2 = CreateStoredEvent("order-2", nameof(OrderCreatedEvent), version: 1, globalPosition: 102);
+        var e3 = CreateStoredEvent("order-2", nameof(OrderCreatedEvent), version: 2, globalPosition: 103);
+
+        _globalStreamQuery.SetEvents([e1, e2, e3]);
+        _eventSerializer.RegisterType<OrderCreatedEvent>(nameof(OrderCreatedEvent));
+
+        // Every event must deserialize: the replay now HALTS at one it cannot interpret, so an
+        // unregistered payload here would stop the run before the checkpoint this arm is measuring.
+        _eventSerializer.RegisterEvent(e1.EventData, new OrderCreatedEvent("order-1", "First", 10m));
+        _eventSerializer.RegisterEvent(e2.EventData, new OrderCreatedEvent("order-2", "Second", 20m));
+        _eventSerializer.RegisterEvent(e3.EventData, new OrderCreatedEvent("order-2", "Third", 30m));
+
+        // Act
+        await processor.CatchUpAsync("OrderSummary", CancellationToken.None);
+
+        // Assert -- the global position of the last event, not its version (which is 2).
+        var position = await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None);
+        position.ShouldBe(103);
+    }
+
+    [Fact]
+    public async Task CatchUpAsync_HaltAtAnEventWhoseTypeCannotBeResolvedRatherThanAdvancePastIt()
+    {
+        // REVERSED DELIBERATELY. An earlier version of this arm asserted the replay ADVANCED past an
+        // unresolvable event and checkpointed 103. That is the behaviour the architecture ruling rejected:
+        // advancing leaves a permanent gap in the view, which then reads as healthy while being wrong, and
+        // nothing reports it. Every other replay loop in this package already halts for that reason.
+        var builder = new OrderSummaryViewBuilder();
+        var processor = CreateProcessor(CreateRegistrations(builder));
+
+        var good1 = CreateStoredEvent("order-1", nameof(OrderCreatedEvent), version: 1, globalPosition: 101);
+        var poison = CreateStoredEvent("order-1", "Some.Moved.Assembly.OrderAmendedEvent", version: 2, globalPosition: 102);
+        var good2 = CreateStoredEvent("order-2", nameof(OrderCreatedEvent), version: 1, globalPosition: 103);
+
+        _globalStreamQuery.SetEvents([good1, poison, good2]);
+        _eventSerializer.RegisterType<OrderCreatedEvent>(nameof(OrderCreatedEvent));
+
+        // The events either side must deserialize, so the halt is attributable to the poison one at 102
+        // rather than to an unrelated fixture gap at 101.
+        _eventSerializer.RegisterEvent(good1.EventData, new OrderCreatedEvent("order-1", "First", 10m));
+        _eventSerializer.RegisterEvent(good2.EventData, new OrderCreatedEvent("order-2", "Third", 30m));
+
+        var failure = await Should.ThrowAsync<MaterializedViewPoisonEventException>(
+            () => processor.CatchUpAsync("OrderSummary", CancellationToken.None));
+
+        // The diagnostic must identify the event well enough to act on without reading the store.
+        failure.GlobalPosition.ShouldBe(102);
+        failure.EventType.ShouldBe("Some.Moved.Assembly.OrderAmendedEvent");
+        failure.ViewName.ShouldBe("OrderSummary");
+
+        // And the checkpoint must NOT have moved past it -- that is the whole point of halting.
+        var position = await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None);
+        (position ?? 0).ShouldBeLessThan(102);
+    }
+
+    #endregion Checkpoint Unit
+
+
     #region Helpers
 
     private MaterializedViewProcessor CreateProcessor(
@@ -725,7 +798,13 @@ public sealed class MaterializedViewProcessorShould
         ];
     }
 
-    private static StoredEvent CreateStoredEvent(string aggregateId, string eventType, long version)
+        /// <summary>
+        /// Builds a stored event. globalPosition defaults to the version so existing
+        /// arms are unaffected, but the two are DISTINCT: global position is the store identity
+        /// column and version is per-aggregate. Pass it whenever the difference matters.
+        /// </summary>
+        private static StoredEvent CreateStoredEvent(
+            string aggregateId, string eventType, long version, long? globalPosition = null)
     {
         return new StoredEvent(
             EventId: Guid.NewGuid().ToString(),
@@ -735,7 +814,10 @@ public sealed class MaterializedViewProcessorShould
             EventData: System.Text.Encoding.UTF8.GetBytes($"{{\"{eventType}\":\"{aggregateId}\"}}"),
             Metadata: null,
             Version: version,
-            Timestamp: DateTimeOffset.UtcNow);
+                Timestamp: DateTimeOffset.UtcNow)
+            {
+                GlobalPosition = globalPosition ?? version,
+            };
     }
 
     #endregion Helpers
@@ -922,14 +1004,14 @@ public sealed class MaterializedViewProcessorShould
             _options,
             capturingLogger);
 
-        // Registered with no type mapping -> FakeEventSerializer.ResolveType throws.
         _globalStreamQuery.SetEvents([CreateStoredEvent("order-1", "UnregisteredEvent", 1)]);
 
-        await processor.CatchUpAsync("OrderSummary", CancellationToken.None);
+        _ = await Should.ThrowAsync<MaterializedViewPoisonEventException>(
+            () => processor.CatchUpAsync("OrderSummary", CancellationToken.None));
 
         capturingLogger.Entries
             .Where(e => e.Level >= LogLevel.Error)
-            .ShouldNotBeEmpty("genuine corruption must still surface as a processing error");
+            .ShouldNotBeEmpty("genuine corruption must still surface as a processing error, not only as a throw");
     }
 
     #endregion Erased (tombstoned) events
@@ -1030,8 +1112,18 @@ public sealed class MaterializedViewProcessorShould
         public long LastRequestedPosition { get; private set; }
         public int LastRequestedMaxCount { get; private set; }
 
+        /// <summary>Bounds a non-advancing processor so it fails rather than hangs.</summary>
+        public int MaxReadAllCalls { get; set; } = 20;
+
         public void SetEvents(IReadOnlyList<StoredEvent> events) => _events = events;
 
+        /// <summary>
+        /// Serves the global stream the way the real query does: filter on global position, ordered,
+        /// capped at maxCount, and keep serving. It deliberately does NOT stop after one call -- a
+        /// processor that checkpoints correctly terminates on its own because the next read starts past
+        /// the last event, so termination is a RESULT here rather than something the double arranges.
+        /// The call cap turns a processor that never advances into a clear failure instead of a hang.
+        /// </summary>
         public ValueTask<IReadOnlyList<StoredEvent>> ReadAllAsync(
             GlobalStreamPosition position, int maxCount, CancellationToken cancellationToken)
         {
@@ -1040,18 +1132,20 @@ public sealed class MaterializedViewProcessorShould
             LastRequestedPosition = position.Position;
             LastRequestedMaxCount = maxCount;
 
-            // Return events with Version >= position, up to maxCount
-            // Only return events once (simulate catch-up: first call returns events, second returns empty)
-            if (ReadAllCallCount == 1)
+            if (ReadAllCallCount > MaxReadAllCalls)
             {
-                var result = _events
-                    .Where(e => e.Version >= position.Position)
-                    .Take(maxCount)
-                    .ToList();
-                return new ValueTask<IReadOnlyList<StoredEvent>>(result);
+                throw new InvalidOperationException(
+                    $"The global stream was read {ReadAllCallCount} times without the processor reaching the end. "
+                    + $"It is not advancing its checkpoint; it keeps asking from position {position.Position}.");
             }
 
-            return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+            var result = _events
+                .Where(e => e.GlobalPosition >= position.Position)
+                .OrderBy(e => e.GlobalPosition)
+                .Take(maxCount)
+                .ToList();
+
+            return new ValueTask<IReadOnlyList<StoredEvent>>(result);
         }
 
         public ValueTask<IReadOnlyList<StoredEvent>> ReadByEventTypeAsync(

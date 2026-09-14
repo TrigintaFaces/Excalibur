@@ -64,11 +64,11 @@ public sealed class AzureEventHubsCloudEventAdapterShould
 		var parsed = await _adapter.FromTransportMessageAsync(transport, CancellationToken.None);
 
 		// Assert
-		transport.Properties.ShouldContainKey("ce-specversion");
-		transport.Properties.ShouldContainKey("ce-type");
-		transport.Properties.ShouldContainKey("ce-source");
-		transport.Properties.ShouldContainKey("ce-id");
-		transport.Properties.ShouldContainKey("ce-attempt");
+		transport.Properties.ShouldContainKey("cloudEvents_specversion");
+		transport.Properties.ShouldContainKey("cloudEvents_type");
+		transport.Properties.ShouldContainKey("cloudEvents_source");
+		transport.Properties.ShouldContainKey("cloudEvents_id");
+		transport.Properties.ShouldContainKey("cloudEvents_attempt");
 
 		parsed.Type.ShouldBe("orders.completed");
 		parsed.Id.ShouldBe("event-1");
@@ -137,6 +137,9 @@ public sealed class AzureEventHubsCloudEventAdapterShould
 		{
 			ContentType = "text/plain",
 		};
+		// Deliberately the LEGACY "ce-" spelling: this adapter now EMITS "cloudEvents_" per the AMQP
+		// binding, but must still READ what earlier versions put on consumers' queues. Changing these
+		// three keys to the new prefix would delete the only coverage of that compatibility.
 		transport.Properties["ce-specversion"] = "1.0";
 		transport.Properties["ce-type"] = "orders.created";
 		transport.Properties["ce-source"] = "https://source.excalibur.io";

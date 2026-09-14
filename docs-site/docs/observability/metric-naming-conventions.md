@@ -73,7 +73,6 @@ Google Pub/Sub components share a single consolidated meter name via `GooglePubS
 |------------|---------|-----------------|
 | `Excalibur.Data.Cdc` | `Excalibur.Data.SqlServer` | `CdcTelemetryConstants.MeterName` |
 | `Excalibur.Data.Audit` | `Excalibur.Data.ElasticSearch` | `AuditTelemetryConstants.MeterName` |
-| `Excalibur.Data.Persistence` | `Excalibur.Data` | String literal in `DefaultPersistenceMetrics` |
 | `Excalibur.Data.SqlServer.Persistence` | `Excalibur.Data.SqlServer` | String literal in `SqlServerPersistenceMetrics` |
 | `Excalibur.Data.Postgres.Persistence` | `Excalibur.Data.Postgres` | String literal in `PostgresPersistenceMetrics` |
 | `Excalibur.Data.Postgres.Outbox` | `Excalibur.Outbox.Postgres` | String literal in `PostgresOutboxStoreMetrics` |
@@ -183,7 +182,6 @@ The following meters use ad-hoc string literals instead of shared constants clas
 
 | Meter Name | Issue |
 |------------|-------|
-| `Excalibur.Data.Persistence` | Uses string literal in `DefaultPersistenceMetrics`, no constants class |
 | `Excalibur.Data.SqlServer.Persistence` | Uses string literal in `SqlServerPersistenceMetrics`, no constants class |
 | `Excalibur.Data.Postgres.Persistence` | Uses string literal in `PostgresPersistenceMetrics`, no constants class |
 | `Excalibur.Data.Postgres.Outbox` | Uses string literal in `PostgresOutboxStoreMetrics`, no constants class |

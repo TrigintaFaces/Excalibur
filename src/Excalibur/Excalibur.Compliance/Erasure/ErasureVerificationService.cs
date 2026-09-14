@@ -532,8 +532,30 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 
 		if (keyIds.Count == 0)
 		{
-			// No keys to verify - this might be a warning but not a failure
-			return new KmsVerificationResult { Success = true, ConfirmedKeyIds = new List<string>(), Failures = [] };
+			// Nothing was checked, so nothing is confirmed. This used to return Success = true, which
+			// reaches the public report as VerificationStep.Passed with "Confirmed 0 keys deleted" --
+			// read by an auditor as a pass. For an erasure report the absence of any recorded key
+			// deletion IS the finding: key destruction is the mechanism that makes erasure
+			// irreversible, and if none is on record it cannot be evidenced.
+			return new KmsVerificationResult
+			{
+				Success = false,
+				ConfirmedKeyIds = [],
+				Failures =
+				[
+					new VerificationFailure
+					{
+						Subject = "key-deletions",
+						// Warning, not Error: the type already distinguishes these and documents Warning as
+						// "erasure likely complete but cannot fully verify", which is exactly this case.
+						Severity = VerificationSeverity.Warning,
+						Reason =
+							"No key deletions were on record for this erasure, so key destruction could not be "
+							+ "verified. This is not a confirmed failure to delete; it is an absence of evidence "
+							+ "that deletion happened."
+					}
+				]
+			};
 		}
 
 		foreach (var keyId in keyIds)

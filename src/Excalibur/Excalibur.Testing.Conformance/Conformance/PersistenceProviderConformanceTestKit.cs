@@ -7,6 +7,7 @@
 using System.Data;
 
 using Excalibur.Data;
+using Excalibur.Data.CloudNative;
 using Excalibur.Data.Persistence;
 using Excalibur.Data.Resilience;
 
@@ -271,6 +272,292 @@ public abstract class PersistenceProviderConformanceTestKit : ConformanceTestKit
 				+ "ISqlPersistenceProvider documents the batch as all-or-nothing, so a caller that retries "
 				+ "the whole batch double-applies it, and one that does not is left with a partial write "
 				+ "nothing reports.");
+		}
+	}
+
+	/// <summary>
+	/// Supplies an OPEN connection the arm may enlist in a scope and then observe after the scope is
+	/// disposed. Returns <see langword="null"/> by default, which declines the arm.
+	/// </summary>
+	/// <param name="provider">The provider under test.</param>
+	/// <returns>An open connection owned by the caller, or <see langword="null"/> to decline.</returns>
+	/// <remarks>
+	/// The connection type is provider-specific and <see cref="IPersistenceProviderConnection"/> exposes
+	/// only a connection string, so the kit cannot construct one. The ARM owns the returned connection
+	/// precisely so it can still observe it after the scope has been disposed — which is the whole point:
+	/// a connection the scope failed to release is only detectable by something still holding a handle.
+	/// </remarks>
+	protected virtual Task<IDbConnection?> CreateEnlistableConnectionAsync(IPersistenceProvider provider) =>
+		Task.FromResult<IDbConnection?>(null);
+
+	/// <summary>
+	/// Verifies that disposing a transaction scope SYNCHRONOUSLY releases the connections it enlisted.
+	/// </summary>
+	/// <returns>A task that represents the asynchronous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// <see cref="ITransactionScope"/> derives from BOTH <see cref="IAsyncDisposable"/> and
+	/// <see cref="IDisposable"/>, so <c>using</c> is as supported as <c>await using</c> and a consumer may
+	/// pick either. A scope that releases its connections on only one of those paths leaks a pooled
+	/// connection every time a consumer picks the other one.
+	/// </para>
+	/// <para>
+	/// This arm exists because that is not hypothetical: correcting the providers to stop disposing the
+	/// enlisted connection — right, because the connection must outlive the method for the caller's commit
+	/// to work — moves the release obligation onto the scope, and a scope that implements it on the async
+	/// path only turns a fixed bug into a quieter one. A leak reports nothing at all until the pool is
+	/// exhausted, by which time the stack trace names an innocent caller.
+	/// </para>
+	/// <para>
+	/// LIVENESS FIRST, for the reason every arm in this kit does it: "the connection is closed after
+	/// disposal" is trivially satisfied by a connection that was never open, and the probe returning a
+	/// closed connection would make the safety assertion below read as a pass it did not earn.
+	/// </para>
+	/// </remarks>
+	public virtual async Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections()
+	{
+		using var provider = CreateProvider();
+
+		if (TryGetTransaction(provider) is not { } transaction)
+		{
+			return;
+		}
+
+		var connection = await CreateEnlistableConnectionAsync(provider).ConfigureAwait(false);
+		if (connection is null)
+		{
+			return;
+		}
+
+		try
+		{
+			// LIVENESS. If the probe handed back a connection that is not open, the assertion after
+			// disposal cannot distinguish "the scope released it" from "there was nothing to release".
+			if (connection.State != ConnectionState.Open)
+			{
+				throw new TestFixtureAssertionException(
+					"The probe supplied a connection that is not open, so this arm cannot observe a "
+					+ "release: a closed connection satisfies the assertion below without the scope having "
+					+ "done anything. Fix the probe — it must hand back an OPEN connection.");
+			}
+
+			var scope = transaction.CreateTransactionScope();
+			await scope.EnlistConnectionAsync(connection, CancellationToken.None).ConfigureAwait(false);
+
+			// SYNCHRONOUS disposal specifically. The async path is exercised by every other arm here that
+			// uses `await using`; this one is the path those arms never touch.
+			scope.Dispose();
+
+			if (connection.State == ConnectionState.Open)
+			{
+				throw new TestFixtureAssertionException(
+					"A connection enlisted in a transaction scope is still OPEN after that scope was "
+					+ "disposed synchronously. The provider no longer disposes it — deliberately, because "
+					+ "it must outlive the method — so the scope owns the release, and on this disposal "
+					+ "path the scope is not performing it. Every consumer using `using` rather than "
+					+ "`await using` leaks a pooled connection per scope, silently, until the pool is "
+					+ "exhausted.");
+			}
+		}
+		finally
+		{
+			connection.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Supplies a batch whose requests ALL SUCCEED, plus a way to observe whether their effect is visible
+	/// to an outside reader, so the enlistment of
+	/// <see cref="ISqlPersistenceProvider.ExecuteBatchInTransactionAsync"/> in the caller's scope can be
+	/// checked. Returns <see langword="null"/> by default, which declines the arm.
+	/// </summary>
+	/// <param name="provider">The SQL provider under test.</param>
+	/// <returns>A probe, or <see langword="null"/> when this suite cannot express a batch.</returns>
+	/// <remarks>
+	/// Called ONCE PER ARM HALF, and each call must hand back an independent effect — the commit half and
+	/// the rollback half must not be able to observe each other, or a committed row from the first would
+	/// read as a failed rollback in the second.
+	/// </remarks>
+	protected virtual Task<(IReadOnlyList<IDataRequest<IDbConnection, object>> Requests, Func<Task<bool>> EffectVisibleAsync)?>
+		CreateScopedBatchProbeAsync(ISqlPersistenceProvider provider) =>
+		Task.FromResult<(IReadOnlyList<IDataRequest<IDbConnection, object>>, Func<Task<bool>>)?>(null);
+
+	/// <summary>
+	/// Verifies a batch executed in a caller-supplied transaction scope is actually ENLISTED in it: the
+	/// caller's rollback must undo it, and the caller's commit must keep it.
+	/// </summary>
+	/// <returns>A task that represents the asynchronous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// This arm deliberately does NOT assert who rolls back on failure.
+	/// <see cref="ISqlPersistenceProvider.ExecuteBatchAsync"/> documents its own all-or-nothing guarantee;
+	/// its transactional sibling documents no failure semantics at all, so an arm asserting them would be
+	/// certifying a guess. What IS stated is the scope's own contract —
+	/// <see cref="ITransactionScope.RollbackAsync"/> "rolls back the transaction across all enlisted
+	/// providers" — and that contract is worth nothing if the batch never enlisted. This arm holds the
+	/// batch to the half the interfaces actually state.
+	/// </para>
+	/// <para>
+	/// The defect it catches is a provider that opens its own connection, ignores the scope, and lets every
+	/// statement autocommit. Such a provider passes every other arm here — including the three that assert
+	/// a scope is returned non-null, which a scope that commits nothing also satisfies.
+	/// </para>
+	/// <para>
+	/// LIVENESS RUNS FIRST, for the reason its sibling arm records: if the probe's requests never take
+	/// effect at all, "rolled back" and "never ran" are the same observation, and the safety half below
+	/// would report a rollback it did not cause.
+	/// </para>
+	/// </remarks>
+	public virtual async Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope()
+	{
+		using var provider = CreateProvider();
+
+		if (provider is not ISqlPersistenceProvider sqlProvider)
+		{
+			return;
+		}
+
+		if (TryGetTransaction(provider) is not { } transaction)
+		{
+			return;
+		}
+
+		// LIVENESS. A committed scope must leave the batch's effect behind.
+		var committed = await CreateScopedBatchProbeAsync(sqlProvider).ConfigureAwait(false);
+		if (committed is null)
+		{
+			return;
+		}
+
+		await using (var scope = transaction.CreateTransactionScope())
+		{
+			_ = await sqlProvider.ExecuteBatchInTransactionAsync(
+				committed.Value.Requests, scope, CancellationToken.None).ConfigureAwait(false);
+			await scope.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+		}
+
+		if (!await committed.Value.EffectVisibleAsync().ConfigureAwait(false))
+		{
+			throw new TestFixtureAssertionException(
+				"A batch executed in a transaction scope left no trace after the caller COMMITTED that "
+				+ "scope. Either the batch never ran or the commit did not reach it; in both cases the "
+				+ "rollback assertion that follows would observe an absence it did not cause, so this arm "
+				+ "cannot report on enlistment at all.");
+		}
+
+		// SAFETY. A rolled-back scope must leave nothing behind.
+		var rolledBack = await CreateScopedBatchProbeAsync(sqlProvider).ConfigureAwait(false);
+		if (rolledBack is null)
+		{
+			throw new TestFixtureAssertionException(
+				"The probe supplied an effect for the commit half and declined the rollback half. The arm "
+				+ "cannot run on one half only — it would assert liveness and silently skip safety.");
+		}
+
+		await using (var scope = transaction.CreateTransactionScope())
+		{
+			_ = await sqlProvider.ExecuteBatchInTransactionAsync(
+				rolledBack.Value.Requests, scope, CancellationToken.None).ConfigureAwait(false);
+			await scope.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+		}
+
+		if (await rolledBack.Value.EffectVisibleAsync().ConfigureAwait(false))
+		{
+			throw new TestFixtureAssertionException(
+				"A batch executed in a transaction scope is still committed after the caller ROLLED THAT "
+				+ "SCOPE BACK. The batch did not enlist, so the statements autocommitted as they ran: the "
+				+ "caller's scope governs nothing it did, and a caller that rolls back on an error is left "
+				+ "with a partial write that no rollback can reach.");
+		}
+	}
+
+	/// <summary>
+	/// Supplies a batch of <see cref="ICloudBatchOperation"/>s whose SECOND operation fails, plus a way to
+	/// observe whether the FIRST operation's effect persisted, so the atomicity guarantee documented on
+	/// <see cref="ICloudNativePersistenceBatchOperations.ExecuteBatchAsync"/> ("transactional batch") can be
+	/// checked. Returns <see langword="null"/> by default, which declines the arm.
+	/// </summary>
+	/// <param name="batchOperations">The cloud-native batch capability under test.</param>
+	/// <returns>A probe, or <see langword="null"/> when this suite cannot express one.</returns>
+	/// <remarks>
+	/// The operations and the visibility checks are necessarily provider-specific (a document type, a
+	/// partition key shape, a read-back call), so the kit cannot write them. Declining is correct for a
+	/// suite whose provider does not offer <see cref="ICloudNativePersistenceBatchOperations"/> at all —
+	/// most of them — and costs those suites no change whatsoever.
+	/// </remarks>
+	protected virtual Task<(IPartitionKey PartitionKey, IReadOnlyList<ICloudBatchOperation> Operations, Func<Task<bool>> FirstEffectVisibleAsync, Func<Task<bool>> FirstEffectPersistsWhenBatchSucceedsAsync)?>
+		CreateCloudNativeBatchAtomicityProbeAsync(ICloudNativePersistenceBatchOperations batchOperations) =>
+		Task.FromResult<(IPartitionKey, IReadOnlyList<ICloudBatchOperation>, Func<Task<bool>>, Func<Task<bool>>)?>(null);
+
+	/// <summary>
+	/// Verifies a cloud-native transactional batch containing a failing operation leaves NOTHING behind.
+	/// </summary>
+	/// <returns>A task that represents the asynchronous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// The cloud-native twin of <see cref="ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted"/>,
+	/// which exercises <see cref="ISqlPersistenceProvider"/> only — every cloud-native provider (Cosmos DB,
+	/// DynamoDB, Firestore) declines that interface, so that arm returns without asserting for all three and
+	/// their <see cref="ICloudNativePersistenceBatchOperations"/> atomicity was, until this arm, unexercised
+	/// by any shared suite. <c>ICloudNativePersistenceBatchOperations</c> is discoverable via
+	/// <see cref="IPersistenceProvider.GetService"/>, matching how the three providers advertise it, rather
+	/// than by casting.
+	/// </para>
+	/// <para>
+	/// Failure here is signalled by <see cref="CloudBatchResult.Success"/>, not by an exception: a
+	/// transactional batch reports its outcome on the response, it does not throw for an operation the
+	/// server rejected (a client-side argument error is a different, already-covered failure shape).
+	/// Asserting only that <c>Success</c> is <see langword="false"/> would NOT be an atomicity test on its
+	/// own — see the liveness-first ordering below.
+	/// </para>
+	/// </remarks>
+	public virtual async Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted()
+	{
+		using var provider = CreateProvider();
+
+		// GetService, not a cast: this is how the three cloud-native providers actually advertise the
+		// capability, and a suite whose provider declines it (every non-cloud-native one) is not the
+		// suite this arm is for.
+		if (provider.GetService(typeof(ICloudNativePersistenceBatchOperations)) is not ICloudNativePersistenceBatchOperations batchOperations)
+		{
+			return;
+		}
+
+		var probe = await CreateCloudNativeBatchAtomicityProbeAsync(batchOperations).ConfigureAwait(false);
+		if (probe is null)
+		{
+			return;
+		}
+
+		var result = await batchOperations.ExecuteBatchAsync(
+			probe.Value.PartitionKey, probe.Value.Operations, CancellationToken.None).ConfigureAwait(false);
+
+		if (result.Success)
+		{
+			throw new TestFixtureAssertionException(
+				"ExecuteBatchAsync reported success for a batch containing a failing operation. The caller "
+				+ "cannot distinguish a batch that applied from one that did not.");
+		}
+
+		// LIVENESS FIRST. Without this the arm passes whenever the FIRST operation also fails -- nothing is
+		// written, nothing is visible, and "rolled back" is indistinguishable from "never ran". Same
+		// reasoning as the SQL arm above: a probe whose observation is broken reads as atomicity either way.
+		if (!await probe.Value.FirstEffectPersistsWhenBatchSucceedsAsync().ConfigureAwait(false))
+		{
+			throw new TestFixtureAssertionException(
+				"The probe's first operation left no trace even when a batch containing only it succeeded, "
+				+ "so the atomicity assertion below cannot observe anything: it would report a rollback for "
+				+ "an operation that never took effect. Fix the probe -- its operations must actually "
+				+ "participate in the batch.");
+		}
+
+		if (await probe.Value.FirstEffectVisibleAsync().ConfigureAwait(false))
+		{
+			throw new TestFixtureAssertionException(
+				"The first operation in the batch is still committed after a later operation failed. "
+				+ "ICloudNativePersistenceBatchOperations documents ExecuteBatchAsync as a transactional "
+				+ "batch, so a caller that retries the whole batch double-applies it, and one that does not "
+				+ "is left with a partial write nothing reports.");
 		}
 	}
 

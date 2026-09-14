@@ -31,7 +31,7 @@ public sealed class ExcaliburPostgresOptionsShould : UnitTestBase
     public void HaveUseInboxTrueByDefault()
     {
         var sut = new ExcaliburPostgresOptions();
-        sut.UseInbox.ShouldBeTrue();
+        sut.UseInboxStore.ShouldBeTrue();
     }
 
     [Fact]

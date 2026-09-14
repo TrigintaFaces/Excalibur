@@ -3,6 +3,7 @@
 
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Stores.InMemory;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Tests.A3.Authorization.Stores.InMemory;
 
@@ -400,17 +401,53 @@ public sealed class InMemoryGrantStoreShould : UnitTestBase
 		grant.GrantedBy.ShouldBe("admin");
 	}
 
+	/// <summary>
+	/// LIVENESS. A genuinely untenanted grant keys under the reserved sentinel and reads back by it.
+	/// </summary>
+	/// <remarks>
+	/// This replaced an arm named <c>..._NullTenantId_UsesEmptyKey</c>, and the rename is the larger half
+	/// of the change. That arm passed <see langword="null"/> — which the store's own signature declares
+	/// non-nullable — and asserted that it produced a usable empty key. So it documented a defined benign
+	/// outcome for a contract violation, and said so in its NAME, which is how a violation comes to read
+	/// as a supported scenario.
+	/// <para>
+	/// The untenanted partition is a VALUE, never an absence, so this is what the old arm was reaching for
+	/// and could not express. It is also the first coverage the untenanted grant path has had.
+	/// </para>
+	/// </remarks>
 	[Fact]
-	public async Task InsertActivityGroupGrant_NullTenantId_UsesEmptyKey()
+	public async Task InsertActivityGroupGrant_UntenantedSentinel_KeysUnderTheUntenantedPartition()
 	{
 		// Act
 		await _sut.InsertActivityGroupGrantAsync(
-			"user-1", "John", null, "activity-group", "orders", null, "admin", _ct);
+			"user-1", "John", TenantScope.UntenantedSentinel, "activity-group", "orders", null, "admin", _ct);
 
 		// Assert
-		var grant = await _sut.GetGrantAsync("user-1", string.Empty, "activity-group", "orders", _ct);
+		var grant = await _sut.GetGrantAsync(
+			"user-1", TenantScope.UntenantedSentinel, "activity-group", "orders", _ct);
 		grant.ShouldNotBeNull();
+
+		// The partition is the sentinel and nothing else: a real tenant must not reach an untenanted grant,
+		// and an empty term — the shape the previous arm asserted — must not resolve it either.
+		(await _sut.GetGrantAsync("user-1", "tenant-1", "activity-group", "orders", _ct)).ShouldBeNull();
+		(await _sut.GetGrantAsync("user-1", string.Empty, "activity-group", "orders", _ct)).ShouldBeNull();
 	}
+
+	/// <summary>
+	/// SAFETY. An unresolved tenant fails closed rather than folding to some other partition.
+	/// </summary>
+	/// <remarks>
+	/// The pair to the arm above, and the reason it matters is that the two inputs look alike and mean
+	/// opposite things. The sentinel says "no tenancy is in play" and is a legitimate partition; a null
+	/// says "multi-tenancy is active and the tenant was never resolved", and binding a term there would
+	/// address a partition the caller never chose. Without this arm, a future change that folded null onto
+	/// the sentinel would satisfy the liveness arm above and silently merge the two.
+	/// </remarks>
+	[Fact]
+	public async Task InsertActivityGroupGrant_NullTenantId_FailsClosed() =>
+		await Should.ThrowAsync<ArgumentNullException>(() =>
+			_sut.InsertActivityGroupGrantAsync(
+				"user-1", "John", null!, "activity-group", "orders", null, "admin", _ct));
 
 	#endregion
 

@@ -136,7 +136,6 @@ public static class Program
 		{
 			options.ServiceName = "ECommerce.OrderProcessing";
 			options.ServiceVersion = "1.0.0";
-			options.EnableEnhancedStoreObservability = true;
 			options.EnableMetrics = true;
 			options.EnableTracing = true;
 		});

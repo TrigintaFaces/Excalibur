@@ -58,7 +58,10 @@ dotnet add package Excalibur.Testing
 This package provides:
 
 - **`AggregateTestFixture<T>`** — Fluent Given-When-Then API for aggregate testing
-- **Conformance Test Kits** — Verify custom provider implementations against contracts
+- **Test doubles and in-memory infrastructure** — shared fakes for handler and repository tests
+
+The **conformance test kits** are a separate package — `Excalibur.Testing.Conformance`. See the
+[conformance toolkit](conformance-toolkit.md).
 
 ## Test Framework Compatibility
 

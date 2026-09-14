@@ -158,6 +158,9 @@ public sealed class ErasureStatusShould
 	[Fact]
 	public void Calculate_days_until_deadline()
 	{
+		// Fixed RequestedAt + an explicit asOf, not ambient UtcNow: DaysUntilDeadline is a pure function of
+		// the two dates and must be exercisable without waiting on, or being flaky against, the wall clock.
+		var requestedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var erasureStatus = new ErasureStatus
 		{
 			RequestId = Guid.NewGuid(),
@@ -167,16 +170,17 @@ public sealed class ErasureStatusShould
 			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
 			Status = ErasureRequestStatus.Scheduled,
 			RequestedBy = "admin",
-			RequestedAt = DateTimeOffset.UtcNow,
-			UpdatedAt = DateTimeOffset.UtcNow
+			RequestedAt = requestedAt,
+			UpdatedAt = requestedAt
 		};
 
-		erasureStatus.DaysUntilDeadline.ShouldBeInRange(29, 30);
+		erasureStatus.DaysUntilDeadline(requestedAt.AddDays(10)).ShouldBe(20);
 	}
 
 	[Fact]
 	public void Return_zero_days_when_past_deadline()
 	{
+		var requestedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var erasureStatus = new ErasureStatus
 		{
 			RequestId = Guid.NewGuid(),
@@ -186,11 +190,11 @@ public sealed class ErasureStatusShould
 			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
 			Status = ErasureRequestStatus.Scheduled,
 			RequestedBy = "admin",
-			RequestedAt = DateTimeOffset.UtcNow.AddDays(-60),
-			UpdatedAt = DateTimeOffset.UtcNow
+			RequestedAt = requestedAt,
+			UpdatedAt = requestedAt
 		};
 
-		erasureStatus.DaysUntilDeadline.ShouldBe(0);
+		erasureStatus.DaysUntilDeadline(requestedAt.AddDays(40)).ShouldBe(0);
 	}
 }
 

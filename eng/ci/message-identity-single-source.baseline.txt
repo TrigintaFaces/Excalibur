@@ -1,10 +1,6 @@
 # Sites that still derive a message identity from the CLR type instead of the declared name.
 # SHRINK-ONLY: entries may be removed as they are fixed; a new one fails the gate.
 # Each is tracked for burn-down -- see the message-identity beads.
-src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs
-src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/RabbitMqMessageBus.cs
-src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageHandler.cs
-src/Dispatch/Excalibur.Dispatch/Middleware/Timeout/TimeoutMiddleware.cs
 
 # Routing name, not a stored event identity: MessageTypeCache.GetTypeName feeds
 # context.SetMessageType for dispatch routing. Whether any of it reaches durable storage

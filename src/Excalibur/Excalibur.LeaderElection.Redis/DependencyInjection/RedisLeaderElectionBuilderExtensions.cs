@@ -144,7 +144,27 @@ public static class RedisLeaderElectionBuilderExtensions
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("redis"));
+
+		RegisterDefaultFencingTokenProvider(builder.Services);
+
+		// Matches Consul/Kubernetes/InMemory/Postgres/SqlServer, all of which register this here. Without
+		// it a consumer wiring UseRedis() + an outbox hits the outbox's own startup refusal (an outbox
+		// with a leader election registered and no explicit single-writer opt-out refuses to start rather
+		// than draining unfenced) for no reason a Redis consumer would expect versus the other five
+		// providers.
+		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(builder.Services);
 	}
+
+	/// <summary>
+	/// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is elected
+	/// is silent data corruption, so the safe posture is auto-registering the store's arbitrated provider
+	/// rather than requiring a second, easily-forgotten <c>AddRedisFencingTokenProvider()</c> +
+	/// <c>WithFencingTokens()</c> call. <c>WithoutFencingTokens()</c> opts out. Split out of
+	/// <see cref="RegisterOptionsAndServices"/> to keep that method's class coupling (CA1506) in bounds.
+	/// </summary>
+	private static void RegisterDefaultFencingTokenProvider(IServiceCollection services) =>
+		services.TryAddDefaultFencingTokenProvider(sp =>
+			ActivatorUtilities.CreateInstance<RedisFencingTokenProvider>(sp));
 
 	/// <summary>
 	/// Registers the <see cref="RedisLeaderElection"/> singleton, resolving its optional collaborators

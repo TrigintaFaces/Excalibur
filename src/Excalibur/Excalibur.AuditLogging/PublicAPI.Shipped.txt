@@ -58,7 +58,6 @@ Excalibur.AuditLogging.DefaultAuditLogger
 Excalibur.AuditLogging.DefaultAuditLogger.DefaultAuditLogger(Excalibur.Compliance.IAuditStore! auditStore, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.DefaultAuditLogger!>! logger) -> void
 Excalibur.AuditLogging.DefaultAuditLogger.LogAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEventId>!
 Excalibur.AuditLogging.DefaultAuditLogger.VerifyIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!
-Excalibur.AuditLogging.DurableAuditStoreRegistration
 Excalibur.AuditLogging.Encryption.AuditEncryptionOptions
 Excalibur.AuditLogging.Encryption.AuditEncryptionOptions.AuditEncryptionOptions() -> void
 Excalibur.AuditLogging.Encryption.AuditEncryptionOptions.EncryptActorId.get -> bool
@@ -75,7 +74,7 @@ Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore
 Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore.CountAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore.EncryptingAuditEventStore(Excalibur.Compliance.IAuditStore! inner, Excalibur.Compliance.IEncryptionProvider! encryption, Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.Encryption.AuditEncryptionOptions!>! options) -> void
 Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore.GetByIdAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
-Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore.GetLastEventAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
+Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore.GetLastEventAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
 Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore.QueryAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>!>!
 Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore.StoreAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEventId>!
 Excalibur.AuditLogging.Encryption.EncryptingAuditEventStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!
@@ -86,16 +85,15 @@ Excalibur.AuditLogging.IAuditRoleProvider.GetCurrentRoleAsync(System.Threading.C
 Excalibur.AuditLogging.RbacAuditStore
 Excalibur.AuditLogging.RbacAuditStore.CountAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.AuditLogging.RbacAuditStore.GetByIdAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
-Excalibur.AuditLogging.RbacAuditStore.GetLastEventAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
+Excalibur.AuditLogging.RbacAuditStore.GetLastEventAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
 Excalibur.AuditLogging.RbacAuditStore.QueryAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>!>!
+Excalibur.AuditLogging.RbacAuditStore.RbacAuditStore(Excalibur.Compliance.IAuditStore! innerStore, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.RbacAuditStore!>! logger) -> void
 Excalibur.AuditLogging.RbacAuditStore.StoreAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEventId>!
 Excalibur.AuditLogging.RbacAuditStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!
 Excalibur.AuditLogging.Retention.AuditRetentionOptions
 Excalibur.AuditLogging.Retention.AuditRetentionOptions.ArchiveBeforeDelete.get -> bool
 Excalibur.AuditLogging.Retention.AuditRetentionOptions.ArchiveBeforeDelete.set -> void
 Excalibur.AuditLogging.Retention.AuditRetentionOptions.AuditRetentionOptions() -> void
-Excalibur.AuditLogging.Retention.AuditRetentionOptions.BatchSize.get -> int
-Excalibur.AuditLogging.Retention.AuditRetentionOptions.BatchSize.set -> void
 Excalibur.AuditLogging.Retention.AuditRetentionOptions.CleanupInterval.get -> System.TimeSpan
 Excalibur.AuditLogging.Retention.AuditRetentionOptions.CleanupInterval.set -> void
 Excalibur.AuditLogging.Retention.AuditRetentionOptions.EnableRetentionEnforcement.get -> bool
@@ -105,8 +103,6 @@ Excalibur.AuditLogging.Retention.AuditRetentionOptions.RetentionPeriod.set -> vo
 Excalibur.AuditLogging.Retention.AuditRetentionPolicy
 Excalibur.AuditLogging.Retention.AuditRetentionPolicy.ArchiveBeforeDelete.get -> bool
 Excalibur.AuditLogging.Retention.AuditRetentionPolicy.ArchiveBeforeDelete.init -> void
-Excalibur.AuditLogging.Retention.AuditRetentionPolicy.BatchSize.get -> int
-Excalibur.AuditLogging.Retention.AuditRetentionPolicy.BatchSize.init -> void
 Excalibur.AuditLogging.Retention.AuditRetentionPolicy.CleanupInterval.get -> System.TimeSpan
 Excalibur.AuditLogging.Retention.AuditRetentionPolicy.CleanupInterval.init -> void
 Excalibur.AuditLogging.Retention.AuditRetentionPolicy.RetentionPeriod.get -> System.TimeSpan
@@ -123,8 +119,8 @@ Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions
 static Excalibur.AuditLogging.AuditChainKey.For(string? tenantId, string? applicationName) -> Excalibur.AuditLogging.AuditChainKey
 static Excalibur.AuditLogging.AuditChainKey.SignedTenantId(string? storedTenantId) -> string?
 static Excalibur.AuditLogging.AuditChainPartition.FromList(string? anchorPriorTag, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>! events, Excalibur.Compliance.AuditEvent? successor) -> Excalibur.AuditLogging.AuditChainPartition
+static Excalibur.AuditLogging.AuditChainVerifier.VerifyAsync(Excalibur.AuditLogging.IAuditIntegrityStrategy! integrity, System.Collections.Generic.IReadOnlyList<Excalibur.AuditLogging.AuditChainPartition>! partitions, System.DateTimeOffset startDate, System.DateTimeOffset endDate, bool isHashChained, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!
 static Excalibur.AuditLogging.AuditEventCanonicalizer.Canonicalize(Excalibur.Compliance.AuditEvent! auditEvent) -> byte[]!
-static Excalibur.AuditLogging.DurableAuditStoreRegistration.AddAuditDurabilityGate(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingHealthChecksBuilderExtensions.AddAuditStoreHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "audit-store", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAlerting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAlerting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Alerting.AuditAlertOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -145,5 +141,3 @@ static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExt
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.UseAuditLogEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Encryption.AuditEncryptionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.UseAuditStore<TAuditStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.InnerAuditAnnotationStoreKey -> string!
-Excalibur.AuditLogging.RbacAuditStore.RbacAuditStore(Excalibur.Compliance.IAuditStore! innerStore, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.RbacAuditStore!>! logger) -> void
-static Excalibur.AuditLogging.AuditChainVerifier.VerifyAsync(Excalibur.AuditLogging.IAuditIntegrityStrategy! integrity, System.Collections.Generic.IReadOnlyList<Excalibur.AuditLogging.AuditChainPartition>! partitions, System.DateTimeOffset startDate, System.DateTimeOffset endDate, bool isHashChained, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!

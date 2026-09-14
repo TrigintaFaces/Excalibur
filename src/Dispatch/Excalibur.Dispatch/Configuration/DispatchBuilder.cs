@@ -27,11 +27,15 @@ namespace Excalibur.Dispatch.Configuration;
 /// </summary>
 public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 {
-	private readonly Dictionary<string, Action<IPipelineBuilder>> _pipelineConfigurations = [];
-	private readonly Dictionary<string, ITransportAdapter> _transportAdapters = [];
-	private readonly List<Action<IBindingConfigurationBuilder>> _bindingConfigurations = [];
-	private readonly List<Type> _globalMiddleware = [];
-	private readonly DispatchOptions _options = new();
+	// Aliases into the collection-held state, not per-builder collections. See DispatchBuilderState:
+	// the composition must stay continuable after this builder is gone, so every builder over one
+	// service collection accumulates into the same objects.
+	private readonly DispatchBuilderState _state;
+	private readonly Dictionary<string, Action<IPipelineBuilder>> _pipelineConfigurations;
+	private readonly Dictionary<string, ITransportAdapter> _transportAdapters;
+	private readonly List<Action<IBindingConfigurationBuilder>> _bindingConfigurations;
+	private readonly List<Type> _globalMiddleware;
+	private readonly DispatchOptions _options;
 	private readonly PipelineProfileRegistry _profileRegistry;
 	private readonly TransportBindingRegistry _bindingRegistry;
 	private volatile bool _disposed;
@@ -40,7 +44,11 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 	/// Gets a value indicating whether any handler registrations have been made via
 	/// <c>AddHandlersFromAssembly</c>.
 	/// </summary>
-	internal bool HasHandlerRegistrations { get; set; }
+	internal bool HasHandlerRegistrations
+	{
+		get => _state.HasHandlerRegistrations;
+		set => _state.HasHandlerRegistrations = value;
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DispatchBuilder"/> class.
@@ -49,8 +57,17 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 	public DispatchBuilder(IServiceCollection services)
 	{
 		Services = services ?? throw new ArgumentNullException(nameof(services));
-		_profileRegistry = new PipelineProfileRegistry();
-		_bindingRegistry = new TransportBindingRegistry();
+
+		// One state per service collection. A second builder over the same collection continues the same
+		// composition rather than starting an invisible one beside it.
+		_state = DispatchBuilderState.GetOrAdd(services);
+		_pipelineConfigurations = _state.PipelineConfigurations;
+		_transportAdapters = _state.TransportAdapters;
+		_bindingConfigurations = _state.BindingConfigurations;
+		_globalMiddleware = _state.GlobalMiddleware;
+		_options = _state.Options;
+		_profileRegistry = _state.ProfileRegistry;
+		_bindingRegistry = _state.BindingRegistry;
 
 		// Register core services — first-wins TryAdd semantics so a consumer's
 		// explicit pre-registration of any of these services survives a
@@ -103,6 +120,37 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			_ = Services.Replace(
 				ServiceDescriptor.Singleton<IPipelineProfileRegistry>(_profileRegistry));
 		}
+
+		// The transport binding registry needs the identical treatment, for the identical reason, and did
+		// not have it. AddDispatchPipeline TryAdd-registers TransportBindingRegistry as a TYPE, so the
+		// TryAddSingleton of the builder's instance above is a no-op and the container activates a second,
+		// empty registry. Anything resolving TransportBindingRegistry from the container therefore saw none
+		// of the bindings the builder configured -- and a binding that resolves from nothing does not fail,
+		// it just never matches, so the pipeline profile a received message selects is silently the default.
+		//
+		// Same discriminator as above: replace ONLY the framework's own type registration. A consumer who
+		// supplied an instance, a factory, or their own implementation type owns the registry and is left
+		// untouched.
+		var existingBindings = Services.FirstOrDefault(
+			static d => d.ServiceType == typeof(TransportBindingRegistry));
+		var bindingsAreFrameworkDefault =
+			existingBindings is not null
+			&& existingBindings.GetImplementationInstance() is null
+			&& existingBindings.GetImplementationFactory() is null
+			&& existingBindings.GetImplementationType() == typeof(TransportBindingRegistry);
+		if (existingBindings is null || bindingsAreFrameworkDefault)
+		{
+			_ = Services.Replace(ServiceDescriptor.Singleton(_bindingRegistry));
+		}
+
+		// Registered from the constructor so it is present on EVERY composition route, and resolved at
+		// start-up so it reads the FINISHED composition. The equivalent check inside Build() runs while the
+		// composition is still being written, so it cannot see middleware a consumer chains on afterwards --
+		// which is the normal shape now that AddDispatch hands the builder back.
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AuthorizationFeatureWiringValidator>());
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, AuthorizationFeatureWiringValidator>());
 	}
 
 	/// <inheritdoc />
@@ -221,6 +269,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		Services.TryAddSingleton<PipelineProfileSynthesizer>();
 
 		RegisterOptions();
+		RegisterStartupSafetyNets();
 
 		// Fail closed at startup: authorization was explicitly wired into the pipeline
 		// (UseAuthorization() → AuthorizationMiddleware in the global middleware set) but its activating
@@ -304,11 +353,21 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			return;
 		}
 
-		_bindingRegistry?.Dispose();
+		// The binding registry is owned by the container (TryAddSingleton in the constructor) and shared
+		// by every builder over this collection, so disposing it here would tear down live state a later
+		// builder -- or the running host -- still reads.
 		_disposed = true;
 	}
 
-	private void RegisterOptions()
+	/// <summary>
+	/// Registers <see cref="DispatchOptions"/> validation and the option types it composes. Internal, not
+	/// private: both the builder route (<c>AddDispatch(configure)</c>, via <see cref="Build"/>) and the
+	/// legacy params route (<c>AddDispatch(Assembly[])</c>, which deliberately never calls <see cref="Build"/>
+	/// so later <c>AddDispatchMiddleware&lt;T&gt;()</c> calls stay visible to the legacy
+	/// <c>GetServices&lt;IDispatchMiddleware&gt;()</c> discovery path) must reach this registration — a
+	/// composition assembled through either route is expected to validate at start-up, not just one of them.
+	/// </summary>
+	internal void RegisterOptions()
 	{
 		Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
@@ -329,9 +388,6 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<Options.Core.InMemoryBusOptions>, Options.Core.InMemoryBusOptionsValidator>());
 
-		Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<Options.Core.CompressionOptions>, Options.Core.CompressionOptionsValidator>());
-
 		_ = Services.AddOptions<DispatchOptions>()
 			.Configure(opt =>
 			{
@@ -340,8 +396,28 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 				opt.UseLightMode = _options.UseLightMode;
 				opt.MessageBufferSize = _options.MessageBufferSize;
 				opt.EnablePipelineSynthesis = _options.EnablePipelineSynthesis;
-				opt.Features = _options.Features;
-				opt.CrossCutting = _options.CrossCutting;
+				// Mutate the existing Features/CrossCutting instances in place, and only where the builder was
+				// actually asked to change something -- never swap the reference, and never blindly overwrite a
+				// property with the builder's own untouched default. A consumer's Configure<DispatchOptions>()
+				// registered before AddDispatch (the framework's own default-promotion call among them) may
+				// already have mutated a property on these SAME objects; only WithOptions()-expressed intent
+				// (a value that differs from the type default) is entitled to override it here.
+				var featureDefaults = new DispatchFeatureOptions();
+				CopyIfChanged(_options.Features.EnableCorrelation, featureDefaults.EnableCorrelation, v => opt.Features.EnableCorrelation = v);
+				CopyIfChanged(_options.Features.EnableMetrics, featureDefaults.EnableMetrics, v => opt.Features.EnableMetrics = v);
+				CopyIfChanged(_options.Features.ValidateMessageSchemas, featureDefaults.ValidateMessageSchemas, v => opt.Features.ValidateMessageSchemas = v);
+				CopyIfChanged(_options.Features.EnableMultiTenancy, featureDefaults.EnableMultiTenancy, v => opt.Features.EnableMultiTenancy = v);
+				CopyIfChanged(_options.Features.EnableVersioning, featureDefaults.EnableVersioning, v => opt.Features.EnableVersioning = v);
+				CopyIfChanged(_options.Features.EnableAuthorization, featureDefaults.EnableAuthorization, v => opt.Features.EnableAuthorization = v);
+				CopyIfChanged(_options.Features.EnableTransactions, featureDefaults.EnableTransactions, v => opt.Features.EnableTransactions = v);
+
+				var performanceDefaults = new PerformanceOptions();
+				CopyIfChanged(_options.CrossCutting.Performance.EnableTypeMetadataCaching, performanceDefaults.EnableTypeMetadataCaching, v => opt.CrossCutting.Performance.EnableTypeMetadataCaching = v);
+				CopyIfChanged(_options.CrossCutting.Performance.MessagePoolSize, performanceDefaults.MessagePoolSize, v => opt.CrossCutting.Performance.MessagePoolSize = v);
+				CopyIfChanged(_options.CrossCutting.Performance.UseAllocationFreeExecution, performanceDefaults.UseAllocationFreeExecution, v => opt.CrossCutting.Performance.UseAllocationFreeExecution = v);
+				CopyIfChanged(_options.CrossCutting.Performance.AutoFreezeOnStart, performanceDefaults.AutoFreezeOnStart, v => opt.CrossCutting.Performance.AutoFreezeOnStart = v);
+				CopyIfChanged(_options.CrossCutting.Performance.EmitDirectLocalResultMetadata, performanceDefaults.EmitDirectLocalResultMetadata, v => opt.CrossCutting.Performance.EmitDirectLocalResultMetadata = v);
+				CopyIfChanged(_options.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton, performanceDefaults.AutoPromoteStatelessHandlersToSingleton, v => opt.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = v);
 
 				opt.Inbox.Enabled = _options.Inbox.Enabled;
 				opt.Inbox.DeduplicationExpiryHours = _options.Inbox.DeduplicationExpiryHours;
@@ -362,6 +438,55 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 				opt.Consumer.MaxRetries = _options.Consumer.MaxRetries;
 			})
 			.ValidateOnStart();
+
+		static void CopyIfChanged<T>(T current, T defaultValue, Action<T> assign)
+			where T : IEquatable<T>
+		{
+			if (!current.Equals(defaultValue))
+			{
+				assign(current);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Registers the start-up hosted services/validators that warn or fail closed on a mis-composed
+	/// dispatcher, rather than letting the gap surface later as a silent runtime drop.
+	/// </summary>
+	/// <remarks>
+	/// Internal, not private, for the same reason as <see cref="RegisterOptions"/>: the params route
+	/// (<c>AddDispatch(Assembly[])</c>) never calls <see cref="Build"/> and must call this directly so a
+	/// composition assembled that way gets the same start-up safety net as the builder route. <c>TryAdd</c>/
+	/// <c>TryAddEnumerable</c> throughout, so calling this more than once per service collection (builder
+	/// route via <see cref="Build"/>, plus a direct call from the params route) registers each validator once.
+	/// </remarks>
+	internal void RegisterStartupSafetyNets()
+	{
+		// A composition that reaches here and names no handler is not an error — a send-only host is a
+		// supported shape — but it is far more often a mistake, and an expensive one to find later:
+		// an action or query with no handler throws on the first dispatch, while an EVENT with no handler
+		// only logs, so a broken composition can run for a long time quietly dropping events. Say so once,
+		// at start-up, and name both remedies.
+		//
+		// Registered unconditionally, and it re-reads the handler registry when the host starts rather
+		// than trusting what the builder knew here: a consumer may register handlers after this call
+		// returns, and a warning that fired for them would be the kind of false alarm that teaches people
+		// to filter the category out.
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, NoHandlersRegisteredStartupWarning>());
+
+		// The fail-closed authorization guard. It throws at start-up when the DEFAULT profile declares the
+		// authorization stage but no AuthorizationMiddleware is resolvable -- messages would otherwise be
+		// routed through that profile with authorization silently absent.
+		//
+		// BOTH lifecycle contracts, deliberately. An IHostedService fires only when something calls
+		// IHost.StartAsync, so a serverless entry point or a manual BuildServiceProvider() would never
+		// trigger it -- leaving the guarantee silently inert for the hosts least able to afford it.
+		// IStartupPrerequisiteValidator is what ValidateStartupGates() reaches on the host-less path.
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AuthorizationWiringPrerequisiteValidator>());
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, AuthorizationWiringPrerequisiteValidator>());
 	}
 
 	private DispatchRuntimeState BuildRuntimeState(IServiceProvider serviceProvider)
@@ -458,6 +583,36 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			_ = pipelineBuilder.Use(
 				middlewareType,
 				sp => (IDispatchMiddleware)sp.GetRequiredService(middlewareType));
+		}
+
+		// Union in middleware registered directly as IDispatchMiddleware (services.TryAddEnumerable(
+		// ServiceDescriptor.Singleton<IDispatchMiddleware, T>()) -- e.g. AddOrderingValidation()), not
+		// just _globalMiddleware (the Use<T>() list). Without this, that documented registration path
+		// is silently inert here: the legacy AddDispatch(Assembly) entry point already composes its
+		// pipeline from serviceProvider.GetServices<IDispatchMiddleware>() (see
+		// DispatchServiceCollectionExtensions.AddDispatchPipeline), but the modern AddDispatch(configure)
+		// path -- reached only through THIS method -- never read that registration at all. No exception,
+		// no log: a consumer's validation middleware simply never ran.
+		//
+		// Sourced through the same serviceProvider this whole method already resolves _globalMiddleware
+		// from, so it is the identical single resolution path the invoker above depends on (:307-315) --
+		// not a second, divergent one. Deduplicated by concrete type against _globalMiddleware, so a
+		// middleware registered both ways (Use<T>() AND TryAddEnumerable) runs once, not twice.
+		//
+		// ORDER: DispatchPipeline sorts the final list by each middleware's own declared Stage (see
+		// DispatchPipeline.cs), so where an entry lands in THIS list only breaks a tie between two
+		// middleware sharing the identical Stage -- it does not by itself decide execution order.
+		// Appended AFTER _globalMiddleware, so an explicit Use<T>() registration wins that tie over a
+		// DI-only one, which was already the effective behavior for _globalMiddleware relative to itself
+		// (registration order) and is the more explicit of the two registration paths.
+		foreach (var middleware in serviceProvider.GetServices<IDispatchMiddleware>())
+		{
+			if (_globalMiddleware.Contains(middleware.GetType()))
+			{
+				continue;
+			}
+
+			_ = pipelineBuilder.Use(middleware.GetType(), _ => middleware);
 		}
 
 		configure(pipelineBuilder);

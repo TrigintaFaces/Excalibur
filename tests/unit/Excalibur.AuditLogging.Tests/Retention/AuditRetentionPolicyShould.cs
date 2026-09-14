@@ -14,13 +14,11 @@ public sealed class AuditRetentionPolicyShould
         {
             RetentionPeriod = TimeSpan.FromDays(365),
             CleanupInterval = TimeSpan.FromHours(1),
-            BatchSize = 1000,
             ArchiveBeforeDelete = true
         };
 
         policy.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
         policy.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
-        policy.BatchSize.ShouldBe(1000);
         policy.ArchiveBeforeDelete.ShouldBeTrue();
     }
 
@@ -31,7 +29,6 @@ public sealed class AuditRetentionPolicyShould
         {
             RetentionPeriod = TimeSpan.FromDays(365),
             CleanupInterval = TimeSpan.FromHours(1),
-            BatchSize = 1000,
             ArchiveBeforeDelete = false
         };
 
@@ -39,7 +36,6 @@ public sealed class AuditRetentionPolicyShould
         {
             RetentionPeriod = TimeSpan.FromDays(365),
             CleanupInterval = TimeSpan.FromHours(1),
-            BatchSize = 1000,
             ArchiveBeforeDelete = false
         };
 
@@ -53,7 +49,6 @@ public sealed class AuditRetentionPolicyShould
         {
             RetentionPeriod = TimeSpan.FromDays(365),
             CleanupInterval = TimeSpan.FromHours(1),
-            BatchSize = 1000,
             ArchiveBeforeDelete = false
         };
 

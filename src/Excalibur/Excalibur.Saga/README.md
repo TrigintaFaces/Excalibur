@@ -40,7 +40,7 @@ services.AddExcalibur(x => x.AddSagas(options =>
 {
     options.MaxConcurrency = 10;
     options.DefaultTimeout = TimeSpan.FromMinutes(30);
-    options.MaxRetryAttempts = 3;
+    options.MaxAttempts = 3;
     options.RetryDelay = TimeSpan.FromMinutes(1);
 }));
 
@@ -262,7 +262,7 @@ public class SagaOptions
     /// Maximum retry attempts before dead letter.
     /// Default: 3
     /// </summary>
-    public int MaxRetryAttempts { get; set; } = 3;
+    public int MaxAttempts { get; set; } = 3;
 
     /// <summary>
     /// Delay between retry attempts.

@@ -204,7 +204,7 @@ public sealed class InboxStoreLeaseArmsBindShould
 		// The arms not running is only half of it. A runner reports three passes either way, so the run
 		// has to say somewhere that nothing was verified -- otherwise "did not run" and "passed" remain
 		// the same observation, which is the defect this whole file exists to remove.
-		var unverified = ConformanceArmLedger.Skipped.Select(static s => s.Arm).ToList();
+		var unverified = probe.Skips.Select(static s => s.Arm).ToList();
 
 		unverified.ShouldContain(nameof(InboxStoreConformanceTestKit.ExpiredLease_MustBeReclaimableByAnotherProcessor));
 		unverified.ShouldContain(nameof(InboxStoreConformanceTestKit.LiveLease_MustNotBeReclaimableByAnotherProcessor));
@@ -277,6 +277,22 @@ public sealed class InboxStoreLeaseArmsBindShould
 		public ArmProbe(IInboxStore store) => _store = store;
 
 		protected override IInboxStore CreateStore() => _store;
+
+		private readonly List<ConformanceArmSkip> _skips = [];
+
+		/// <summary>
+		/// The skips THIS probe recorded, kept off the process-global ledger on purpose.
+		/// </summary>
+		/// <remarks>
+		/// These meta-tests drive stores that decline the lease protocol DELIBERATELY, so their skips are
+		/// evidence that the kit reports a declined protocol correctly -- not evidence that a real run
+		/// verified nothing. Left on <see cref="ConformanceArmLedger"/> they are indistinguishable from the
+		/// latter, and <c>ConformanceArmLivenessGate</c> reads that ledger at assembly teardown and fails
+		/// the whole run. The kit exposes this hook for exactly this case.
+		/// </remarks>
+		public IReadOnlyList<ConformanceArmSkip> Skips => _skips;
+
+		protected override void OnArmSkipped(ConformanceArmSkip skip) => _skips.Add(skip);
 
 		/// <summary>
 		/// Drives the clock instead of waiting, so every cell here is decided rather than timed.

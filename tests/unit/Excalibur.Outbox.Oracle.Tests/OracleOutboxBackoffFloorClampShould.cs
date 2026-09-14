@@ -50,7 +50,8 @@ namespace Excalibur.Outbox.Oracle.Tests;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "Oracle")]
-public sealed class OracleOutboxBackoffFloorClampShould : IClassFixture<OracleOutboxStoreContainerFixture>
+[Collection(OracleOutboxCollection.Name)]
+public sealed class OracleOutboxBackoffFloorClampShould
 {
 	/// <summary>The configured floor F. Long enough that an unclamped ~1s backoff is unambiguously inside it.</summary>
 	private const int FloorSeconds = 30;

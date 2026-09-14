@@ -12,6 +12,12 @@ public sealed class DeadLetterQueryFilter
 	/// <summary>
 	/// Gets or sets the message type to filter by.
 	/// </summary>
+	/// <remarks>
+	/// This is the message's declared name, the same identity the event store, outbox and CloudEvents
+	/// surfaces use. A message type that declares no name falls back to its CLR full name, and entries
+	/// captured before a type declared a name are still stored under the CLR full name -- both remain
+	/// resolvable, so filter by whichever name the entry was captured under.
+	/// </remarks>
 	public string? MessageType { get; set; }
 
 	/// <summary>

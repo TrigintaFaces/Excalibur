@@ -223,6 +223,12 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			[
 				new TermQuery { Field = "status", Value = (int)OutboxStatus.Staged },
 				new TermQuery { Field = "status", Value = (int)OutboxStatus.Failed },
+
+				// A message with delivery work outstanding is claimable; one with none is not. Partially
+				// failed means at least one transport still failed, so the work IS outstanding and the
+				// message must be re-drained. Omitting it here stranded such a message permanently, while
+				// the relational stores re-drain it -- the same property, reached by their own idiom.
+				new TermQuery { Field = "status", Value = (int)OutboxStatus.PartiallyFailed },
 			],
 			MinimumShouldMatch = 1,
 		};
@@ -327,6 +333,15 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 				throw new InvalidOperationException($"Outbox message already sent with ID '{messageId}'.");
 			}
 
+			// DeadLettered is terminal too. Excluding only Sent lets a completion arriving after the
+			// message was dead-lettered record it as delivered, so the outbox and the dead-letter record
+			// disagree about the same message and the operator is told delivery succeeded.
+			if (get.Source.Status == (int)OutboxStatus.DeadLettered)
+			{
+				throw new InvalidOperationException(
+					$"Outbox message '{messageId}' was dead-lettered and cannot be marked sent.");
+			}
+
 			var doc = get.Source;
 			doc.Status = (int)OutboxStatus.Sent;
 			doc.SentAt = _timeProvider.GetUtcNow();
@@ -415,11 +430,11 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 
 		var applied = await TryApplyNonSuccessTransitionAsync(
 			messageId,
-			// Deliberately not ownership-guarded: dead-lettering is the terminal decision that a message cannot
-			// succeed, and it must stay possible regardless of which dispatcher holds the lease. That is safe
-			// precisely because it is terminal - it removes the message from the claim rather than returning it,
-			// so it cannot enable a concurrent second delivery the way an unguarded release would.
-			requiredLeaseOwner: null,
+			// Ownership-guarded, like every other completion. The previous reasoning here -- that dead-lettering
+			// is safe unguarded BECAUSE it is terminal -- had it backwards: terminal is what makes an
+			// unauthorized one unrecoverable. A dispatcher that no longer holds the claim can otherwise end a
+			// message the current holder is still delivering, and no later correction can undo it.
+			GetProcessorId(),
 			(int)OutboxStatus.DeadLettered,
 			reason,
 			// Dead-lettering records no attempt count of its own and needs no floor: the message is terminal,
@@ -902,11 +917,10 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	/// </summary>
 	/// <param name="messageId">The message being transitioned.</param>
 	/// <param name="requiredLeaseOwner">
-	/// The dispatcher identity that must hold the lease for the transition to be applied, or
-	/// <see langword="null"/> to apply it regardless of ownership. A message with no lease at all always
-	/// proceeds: it was never claimed, so there is no successor whose claim could be disturbed. Ownership
-	/// is re-checked against every fresh read rather than once up front, so a caller that lost its lease
-	/// between the first read and a concurrency retry is not admitted on the strength of the stale one.
+	/// The claim identity that must hold this message for the transition to be applied. Non-nullable on
+	/// purpose: there is no value meaning "apply regardless of ownership", so a caller cannot opt out of
+	/// the guard, and the previous null-means-unguarded contract is now unrepresentable rather than merely
+	/// discouraged.
 	/// </param>
 	/// <param name="status">The <see cref="OutboxStatus"/> to record.</param>
 	/// <param name="lastError">The failure or dead-letter reason to record.</param>
@@ -930,7 +944,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	/// </remarks>
 	private async Task<bool> TryApplyNonSuccessTransitionAsync(
 		string messageId,
-		string? requiredLeaseOwner,
+		string requiredLeaseOwner,
 		int status,
 		string lastError,
 		int? monotonicRetryCount,
@@ -948,18 +962,28 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 				return false;
 			}
 
-			if (get.Source.Status == (int)OutboxStatus.Sent)
+			if (get.Source.Status is (int)OutboxStatus.Sent or (int)OutboxStatus.DeadLettered)
 			{
-				// Never resurrect a delivered message: a stale failure report must not re-queue it.
+				// Never resurrect a TERMINAL message. Sent was already excluded here; DeadLettered was not, and
+				// it is the same defect: the failed status is claimable, so returning a dead-lettered message to
+				// it delivers a message we had decided to stop delivering. Neither exclusion depends on who the
+				// caller is -- it holds for the current claim holder as much as a stale one.
 				LogTerminalTransitionSkippedForSentMessage(messageId);
 				return false;
 			}
 
 			// The == operator on string is an ordinal comparison, which is what a dispatcher identity wants:
 			// it is an opaque token, never culture-sensitive text.
-			if (requiredLeaseOwner is not null
-				&& get.Source.LeasedBy is not null
-				&& get.Source.LeasedBy != requiredLeaseOwner)
+			// THREE states, not two. A bare inequality collapses the first into the third:
+			//
+			//   nobody holds it   LeasedBy null   ACCEPT -- a message can fail before it is ever claimed
+			//   the caller holds it               ACCEPT
+			//   another holds it                  REFUSE -- their delivery is still in flight
+			//
+			// Refusing the unclaimed case made MarkFailedAsync a silent no-op for a message that failed
+			// before anyone claimed it: it stayed Staged, took no backoff floor, stayed immediately
+			// re-claimable, and never appeared in a failed-message query or in the statistics counts.
+			if (!string.IsNullOrEmpty(get.Source.LeasedBy) && get.Source.LeasedBy != requiredLeaseOwner)
 			{
 				// The caller is not entitled to this transition. Silent, like the absent case: such a report is
 				// stale rather than erroneous, and the message is left exactly as its owner holds it.

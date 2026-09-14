@@ -37,9 +37,11 @@ internal sealed class MarkBatchFailedRequest : DataRequestBase<IDbConnection, in
 	/// <param name="errorMessage">The error message.</param>
 	/// <param name="retryCount">The current retry count.</param>
 	/// <param name="leasedBy">
-	/// Identifier of the processor marking the messages failed (the same value written to <c>LeasedBy</c> when
-	/// the rows were claimed). The update only affects rows that are unleased or still leased by this
-	/// processor, so a stale processor cannot overwrite messages a peer has since re-claimed.
+	/// BARE processor identity of the caller marking the messages failed. This is deliberately NOT the value
+	/// stored in <c>LeasedBy</c>: the claim stamps a per-call <c>{processorId}:{claimId}</c>, so an equality
+	/// test against a bare identity matches no claimed row at all. The guard matches it by PREFIX, and the
+	/// update still only affects rows that are unleased or leased by THIS processor, so a stale processor
+	/// cannot overwrite messages a peer has since re-claimed.
 	/// </param>
 	/// <param name="floorSeconds">
 	/// The failure-anchored visibility floor F, in seconds. <c>NextAttemptAt</c> is set to
@@ -77,7 +79,7 @@ internal sealed class MarkBatchFailedRequest : DataRequestBase<IDbConnection, in
 		parameters.Add("@Ids", messageIds);
 		parameters.Add("@ErrorMessage", errorMessage);
 		parameters.Add("@RetryCount", retryCount);
-		parameters.Add("@LeasedBy", leasedBy);
+		OutboxFailureMark.AddLeaseOwnership(parameters, leasedBy);
 		parameters.Add("@LastAttemptAt", DateTimeOffset.UtcNow);
 		parameters.Add("@FloorSeconds", floorSeconds);
 

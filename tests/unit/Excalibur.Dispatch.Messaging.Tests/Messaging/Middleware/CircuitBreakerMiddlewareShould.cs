@@ -146,28 +146,28 @@ public sealed class CircuitBreakerMiddlewareShould
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task RecordFailure_WhenDelegateReturnsFailed()
 	{
 		// Arrange
-		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 5 });
+		var options = MsOptions.Create(new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5 });
 		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act
 		var result = await middleware.InvokeAsync(_message, _context, _failureDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task RecordFailure_WhenDelegateThrowsException_AndRethrowTheOriginal()
 	{
 		// Arrange
-		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 5 });
+		var options = MsOptions.Create(new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5 });
 		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act — the breaker observes the fault and lets it through; it does not restate somebody else's
@@ -189,8 +189,8 @@ public sealed class CircuitBreakerMiddlewareShould
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions
 		{
-			FailureThreshold = 3,
-			OpenDuration = TimeSpan.FromSeconds(30)
+			ConsecutiveFailureThreshold = 3,
+			BreakDuration = TimeSpan.FromSeconds(30)
 		});
 		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
@@ -204,7 +204,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("CircuitBreakerOpen");
 		result.ProblemDetails.ErrorCode.ShouldBe(503);
@@ -216,8 +216,8 @@ public sealed class CircuitBreakerMiddlewareShould
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions
 		{
-			FailureThreshold = 3,
-			OpenDuration = TimeSpan.FromSeconds(30)
+			ConsecutiveFailureThreshold = 3,
+			BreakDuration = TimeSpan.FromSeconds(30)
 		});
 		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
@@ -233,7 +233,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		result.ProblemDetails.Type.ShouldBe("CircuitBreakerOpen");
 	}
 
@@ -248,7 +248,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		var counter = 0;
 		var options = MsOptions.Create(new CircuitBreakerOptions
 		{
-			FailureThreshold = 3,
+			ConsecutiveFailureThreshold = 3,
 			// Use a custom key selector that assigns different circuit keys
 			CircuitKeySelector = _ => counter < 3 ? "circuit1" : "circuit2"
 		});
@@ -267,7 +267,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -276,7 +276,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions
 		{
-			FailureThreshold = 3,
+			ConsecutiveFailureThreshold = 3,
 			CircuitKeySelector = msg => "shared-circuit"
 		});
 		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
@@ -294,7 +294,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		var result = await middleware.InvokeAsync(message2, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		result.ProblemDetails.Type.ShouldBe("CircuitBreakerOpen");
 	}
 
@@ -306,7 +306,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	public async Task ResetFailureCount_OnSuccess()
 	{
 		// Arrange
-		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 3 });
+		var options = MsOptions.Create(new CircuitBreakerOptions { ConsecutiveFailureThreshold = 3 });
 		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act - Cause 2 failures then 1 success
@@ -322,7 +322,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -333,7 +333,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	public async Task ReturnCircuitBreakerOpenProblemDetails_WhenCircuitIsOpen()
 	{
 		// Arrange
-		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 1 });
+		var options = MsOptions.Create(new CircuitBreakerOptions { ConsecutiveFailureThreshold = 1 });
 		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Open the circuit
@@ -343,7 +343,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("CircuitBreakerOpen");
 		result.ProblemDetails.Title.ShouldBe("Circuit Breaker Open");
@@ -378,7 +378,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	public async Task RespectFailureThresholdConfiguration()
 	{
 		// Arrange
-		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 10 });
+		var options = MsOptions.Create(new CircuitBreakerOptions { ConsecutiveFailureThreshold = 10 });
 		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act - Cause 9 failures (one less than threshold)
@@ -391,7 +391,7 @@ public sealed class CircuitBreakerMiddlewareShould
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion

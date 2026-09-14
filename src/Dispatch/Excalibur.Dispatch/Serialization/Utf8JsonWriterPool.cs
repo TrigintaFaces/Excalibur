@@ -8,7 +8,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Serialization;
 
@@ -36,6 +35,14 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private const int MaximumPoolSize = 8192;
 	private const double HighWaterMarkRatio = 0.8;
 	private const double LowWaterMarkRatio = 0.2;
+
+	/// <summary>
+	/// The number of distinct <see cref="JsonWriterOptions"/> shapes the global pool will keep a queue for.
+	/// Options shapes come from configuration rather than from message content, so a handful is the normal
+	/// case; the cap exists so an application that builds a fresh encoder per call cannot grow the pool's
+	/// key set without limit.
+	/// </summary>
+	private const int MaxOptionShapes = 16;
 	private readonly ConcurrentDictionary<int, ConcurrentQueue<Utf8JsonWriter>> _globalPool;
 	private readonly ThreadLocal<WriterCache> _threadLocalCache;
 	private readonly JsonWriterOptions _defaultOptions;
@@ -464,7 +471,24 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			writer.Reset(DetachedBuffer);
 
 			var key = GetOptionsHashCode(writer.Options);
-			var queue = _globalPool.BoundedGetOrAdd(key, static _ => new ConcurrentQueue<Utf8JsonWriter>(), maxEntries: 16);
+
+			if (!_globalPool.TryGetValue(key, out var queue))
+			{
+				if (_globalPool.Count >= MaxOptionShapes)
+				{
+					// No queue exists for this writer's options and there is no room to open one. The writer
+					// cannot be pooled, and saying otherwise would lose it twice over: the caller stops
+					// treating it as its own and never disposes it, and the size counter keeps the increment
+					// for a writer the pool is not holding. That drift only grows, and once it reaches
+					// MaxPoolSize the check above refuses every later return -- a pool that reports itself
+					// full while holding nothing.
+					_ = Interlocked.Decrement(ref _currentPoolSize);
+					return false;
+				}
+
+				queue = _globalPool.GetOrAdd(key, static _ => new ConcurrentQueue<Utf8JsonWriter>());
+			}
+
 			queue.Enqueue(writer);
 
 			// Update peak size

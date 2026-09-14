@@ -61,6 +61,25 @@ Enforces `CHANGELOG.md [Unreleased]` update when pushing significant changes.
 
 **Why this exists:** We once accumulated four sprints of shipping changes, 36 dep bumps, 60 public-API promotions, and multiple source fixes without a single CHANGELOG entry. This hook enforces the update at push time so drift is caught before it compounds.
 
+### post-commit
+
+Refreshes the local knowledge graph after a commit, so a question about the codebase is answered
+against the tree as it is now rather than as it was.
+
+**It is inert unless you have opted in.** It does nothing at all unless `graphify` is installed and
+this working tree already holds a `graphify-out/` directory. If you have neither, the hook exits
+immediately having done nothing, and you can ignore this section entirely. The graph directory is
+gitignored, so opting in is per-machine and nothing about it is shared.
+
+**It never blocks a commit.** A rebuild takes minutes, so it is detached and always exits `0` --
+a knowledge-graph refresh must never be able to fail a commit or hold one open. Output goes to
+`graphify-out/.graphify_hook.log`, not your terminal.
+
+**It never runs twice at once.** Two overlapping extractions write the same files, so a second run
+is skipped while the first holds `graphify-out/.graphify_hook.lock`. A lock older than an hour is
+treated as abandoned rather than trusted, so a killed run cannot wedge the hook off permanently.
+
+
 ## Installation
 
 Run the installer. **Do not copy hooks by hand** — see the warning below.

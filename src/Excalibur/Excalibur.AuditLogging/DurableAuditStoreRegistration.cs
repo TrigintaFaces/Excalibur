@@ -15,7 +15,7 @@ namespace Excalibur.AuditLogging;
 /// <see cref="Excalibur.Compliance.IDurableAuditStore" /> through <see cref="IServiceProvider.GetService(Type)" />,
 /// so no separate attestation is registered and a store cannot be advertised as durable without being it.
 /// </remarks>
-public static class DurableAuditStoreRegistration
+internal static class DurableAuditStoreRegistration
 {
 	/// <summary>
 	/// Adds the boot-time gate that fails startup when audit logging is left on a volatile store without the
@@ -39,7 +39,7 @@ public static class DurableAuditStoreRegistration
 	/// <see cref="AuditLoggingOptions.AllowVolatileAuditStore" /> deliberately.
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddAuditDurabilityGate(this IServiceCollection services)
+	internal static IServiceCollection AddAuditDurabilityGate(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

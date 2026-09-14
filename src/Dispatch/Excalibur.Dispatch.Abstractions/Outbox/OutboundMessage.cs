@@ -162,6 +162,30 @@ public sealed class OutboundMessage
 	public DateTimeOffset? LastAttemptAt { get; set; }
 
 	/// <summary>
+	/// Gets or sets the identifier of the claim under which this message was handed to the caller.
+	/// </summary>
+	/// <value>
+	/// The claim stamp recorded on the row when this message was claimed, or <see langword="null"/> when the
+	/// message was not obtained through a claim.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// This identifies the CLAIM, not the process. Two claims made by the same processor -- a message whose
+	/// lease lapsed while a dispatch hung, then re-claimed by the next drain cycle -- carry different values,
+	/// which is the whole point: a completion reported against a claim that has since been superseded must be
+	/// distinguishable from one reported by the current holder, and a per-process identity cannot tell them
+	/// apart.
+	/// </para>
+	/// <para>
+	/// Callers pass it back on the completion members so the store can decline a write from a caller that no
+	/// longer holds the claim. It travels ON the claimed message deliberately: a lookup keyed by message id
+	/// would be overwritten by the re-claim, and the stale caller would then read the winner's stamp and pass
+	/// the very guard it is meant to fail.
+	/// </para>
+	/// </remarks>
+	public string? DispatcherId { get; set; }
+
+	/// <summary>
 	/// Gets or sets the correlation identifier for tracing.
 	/// </summary>
 	/// <value> Correlation ID for distributed tracing and message flow tracking. </value>

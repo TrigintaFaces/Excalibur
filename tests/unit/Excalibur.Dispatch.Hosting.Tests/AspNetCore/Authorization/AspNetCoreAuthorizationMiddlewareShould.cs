@@ -167,7 +167,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -196,7 +196,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -213,7 +213,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -226,7 +226,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -242,7 +242,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(403);
 	}
@@ -256,7 +256,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -268,7 +268,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(403);
 	}
@@ -287,7 +287,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -300,7 +300,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(403);
 		result.ProblemDetails.Detail.ShouldContain("AdminOnly");
@@ -333,7 +333,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<ClaimsPrincipal>._, A<object?>._, "DefaultPolicy"))
 			.MustHaveHappenedOnceExactly();
@@ -354,7 +354,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<ClaimsPrincipal>._, A<object?>._, "CanCreateOrders"))
 			.MustHaveHappenedOnceExactly();
@@ -374,7 +374,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Detail.ShouldContain("IsActive");
 	}
@@ -392,7 +392,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -404,7 +404,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Detail.ShouldContain("Admin");
 	}
@@ -418,7 +418,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -430,7 +430,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	#endregion
@@ -448,7 +448,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<ClaimsPrincipal>._, A<object?>._, "HandlerPolicy"))
 			.MustHaveHappenedOnceExactly();
@@ -466,7 +466,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		// Both policies should be evaluated (AND logic across message + handler)
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<ClaimsPrincipal>._, A<object?>._, "AdminOnly"))
@@ -497,7 +497,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 		// returned 403 + raw "Service error" → RED; GREEN on the CreateServerErrorResult fix. (Literal is
 		// hardcoded: this project is not in the middleware's InternalsVisibleTo set — keep in sync with
 		// AspNetCoreAuthorizationMiddleware.ServerErrorDetail.)
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(500);
 		result.ProblemDetails.Status.ShouldBe(500);
@@ -547,7 +547,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		var pd = result.ProblemDetails;
 		_ = pd.ShouldNotBeNull();
 		pd.Title.ShouldBe("Authorization Failed");

@@ -16,9 +16,9 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Retry_transient_failures_up_to_max_retries()
 	{
-		var options = new RetryOptions
+		var options = new PollyRetryOptions
 		{
-			MaxRetries = 3,
+			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(10),
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
@@ -44,9 +44,9 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Propagate_exception_when_max_retries_exhausted()
 	{
-		var options = new RetryOptions
+		var options = new PollyRetryOptions
 		{
-			MaxRetries = 2,
+			MaxRetryAttempts = 2,
 			BaseDelay = TimeSpan.FromMilliseconds(5),
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
@@ -67,9 +67,9 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Respect_should_retry_predicate()
 	{
-		var options = new RetryOptions
+		var options = new PollyRetryOptions
 		{
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			BaseDelay = TimeSpan.FromMilliseconds(5),
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
@@ -91,9 +91,9 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Execute_void_action_with_retries()
 	{
-		var options = new RetryOptions
+		var options = new PollyRetryOptions
 		{
-			MaxRetries = 2,
+			MaxRetryAttempts = 2,
 			BaseDelay = TimeSpan.FromMilliseconds(5),
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
@@ -118,9 +118,9 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Use_exponential_backoff_with_increasing_delays()
 	{
-		var options = new RetryOptions
+		var options = new PollyRetryOptions
 		{
-			MaxRetries = 3,
+			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(50),
 			BackoffStrategy = BackoffStrategy.Exponential,
 			UseJitter = false,
@@ -155,9 +155,9 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Succeed_on_first_attempt_without_retries()
 	{
-		var options = new RetryOptions
+		var options = new PollyRetryOptions
 		{
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			BaseDelay = TimeSpan.FromMilliseconds(100),
 		};
 		var adapter = new PollyRetryPolicyAdapter(Opt(options));
@@ -176,7 +176,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Throw_argument_null_for_null_action_typed()
 	{
-		var adapter = new PollyRetryPolicyAdapter(Opt(new RetryOptions()));
+		var adapter = new PollyRetryPolicyAdapter(Opt(new PollyRetryOptions()));
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => adapter.ExecuteAsync<int>(null!, CancellationToken.None));
@@ -185,7 +185,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Throw_argument_null_for_null_action_void()
 	{
-		var adapter = new PollyRetryPolicyAdapter(Opt(new RetryOptions()));
+		var adapter = new PollyRetryPolicyAdapter(Opt(new PollyRetryOptions()));
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => adapter.ExecuteAsync(null!, CancellationToken.None));
@@ -194,9 +194,9 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Support_cancellation_during_retry_delays()
 	{
-		var options = new RetryOptions
+		var options = new PollyRetryOptions
 		{
-			MaxRetries = 10,
+			MaxRetryAttempts = 10,
 			BaseDelay = TimeSpan.FromSeconds(30), // Very long delay
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
@@ -213,6 +213,6 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 			}, cts.Token));
 	}
 
-	private static Microsoft.Extensions.Options.IOptions<RetryOptions> Opt(RetryOptions options)
+	private static Microsoft.Extensions.Options.IOptions<PollyRetryOptions> Opt(PollyRetryOptions options)
 		=> Microsoft.Extensions.Options.Options.Create(options);
 }

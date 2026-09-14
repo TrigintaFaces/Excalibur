@@ -45,12 +45,12 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddJsonSerialization(o => o.SerializerOptions.WriteIndented = true);
+		services.AddJsonSerialization(o => o.ConfigureSerializer = json => json.WriteIndented = true);
 		using var sp = services.BuildServiceProvider();
 
-		// Assert
-		var options = sp.GetRequiredService<IOptions<DispatchPatternsJsonOptions>>().Value;
-		options.SerializerOptions.WriteIndented.ShouldBeTrue();
+		// Assert -- on the SERIALIZER, so a registration that drops the delegate fails here.
+		var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
+		serializer.Serialize(new { Name = "x" }).ShouldContain(": ", Case.Sensitive);
 	}
 
 	[Fact]
@@ -64,8 +64,8 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 		using var sp = services.BuildServiceProvider();
 
 		// Assert
-		var options = sp.GetRequiredService<IOptions<DispatchPatternsJsonOptions>>().Value;
-		options.SerializerOptions.WriteIndented.ShouldBeFalse();
+		var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
+		serializer.Serialize(new { Name = "x" }).ShouldNotContain(": ", Case.Sensitive);
 	}
 
 	[Fact]

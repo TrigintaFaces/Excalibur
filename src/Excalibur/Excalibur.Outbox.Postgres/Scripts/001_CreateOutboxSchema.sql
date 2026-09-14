@@ -17,8 +17,10 @@
 -- quotes both identifiers when it builds a qualified name, so an override that differs only
 -- by case must be created quoted here too.
 --
--- Every statement is guarded with IF NOT EXISTS, so the script is safe to re-run and safe to
--- apply to a database whose outbox table was created by an earlier version.
+-- Every statement is guarded, so the script is safe to re-run. It also UPGRADES an outbox
+-- table created by an earlier version: CREATE TABLE IF NOT EXISTS alone is a no-op against an
+-- existing table, so the additive per-column block below is what brings an older table to the
+-- current shape. Its one limit is stated there.
 
 -- ---------------------------------------------------------------------------
 -- Outbox messages
@@ -72,6 +74,52 @@ CREATE TABLE IF NOT EXISTS public.outbox (
     -- ceiling is deferred until this instant, so a failure cannot hot-loop the drain.
     next_attempt_at     TIMESTAMPTZ
 );
+
+-- ---------------------------------------------------------------------------
+-- Additive upgrade, for an outbox table created by an earlier version
+-- ---------------------------------------------------------------------------
+-- CREATE TABLE IF NOT EXISTS is a NO-OP against a table that already exists, so on its own it
+-- cannot bring an older table to the current shape. A database provisioned before tenant_id and
+-- destination existed would still lack both columns and the drain would fail on its first poll
+-- with 42703 (column does not exist) -- and the indexes below name some of these columns, so they
+-- would fail the same way before the store ever ran. This block is what closes that.
+--
+-- It enumerates EVERY column rather than only the two that arrived most recently. Which columns a
+-- given database already has depends on the version it was provisioned under, and enumerating all
+-- of them is what makes the outcome independent of that. Each ADD is guarded per column, so this
+-- is a no-op on a converged database.
+--
+-- tenant_id arrives NOT NULL carrying the reserved untenanted key as its default, so existing rows
+-- are anchored to that key by the ADD itself. That is the same value 002_MakeOutboxTenantTotal.sql
+-- backfills to, and 002 then correctly reports nothing to do, because the column it converges is
+-- already total. Run 001 first for that reason.
+--
+-- occurred_on carries NOW() as its default, so if it is genuinely absent every existing row is
+-- stamped with the instant of the upgrade rather than when the message was produced. There is no
+-- better value available: the column did not exist, so the original instant was never recorded.
+--
+-- message_type and message_body are deliberately NOT here. Both are NOT NULL with no default, so
+-- ADD COLUMN would fail outright against a table that has rows -- and both have existed since this
+-- table's first revision, so a table missing either is not an earlier outbox but a name collision
+-- with something else. Failing loudly is the right outcome for that case.
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS message_metadata   TEXT;
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS tenant_id          VARCHAR(64)  NOT NULL DEFAULT '__untenanted__';
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS destination        VARCHAR(500);
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS correlation_id     VARCHAR(255);
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS causation_id       VARCHAR(255);
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS priority           INT          NOT NULL DEFAULT 0;
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS scheduled_at       TIMESTAMPTZ;
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS partition_key      VARCHAR(255);
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS group_key          VARCHAR(255);
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS sequence_number    BIGINT       NOT NULL DEFAULT 0;
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS target_transports  VARCHAR(500);
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS is_multi_transport BOOLEAN      NOT NULL DEFAULT FALSE;
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS occurred_on        TIMESTAMPTZ  NOT NULL DEFAULT NOW();
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS attempts           INT          NOT NULL DEFAULT 0;
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS error_message      TEXT;
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS dispatcher_id      VARCHAR(100);
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS dispatcher_timeout TIMESTAMPTZ;
+ALTER TABLE public.outbox ADD COLUMN IF NOT EXISTS next_attempt_at    TIMESTAMPTZ;
 
 -- All four timestamp columns are TIMESTAMPTZ, not TIMESTAMP. The store binds them as true
 -- timestamptz values; a column created WITHOUT time zone is silently shifted by the session

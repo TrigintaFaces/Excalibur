@@ -69,10 +69,13 @@ services.AddDispatch(dispatch =>
 ```csharp
 services.AddJsonSerialization(options =>
 {
-    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-    options.SerializerOptions.WriteIndented = false;
-    options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.ConfigureSerializer = json =>
+    {
+        json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        json.WriteIndented = false;
+        json.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        json.Converters.Add(new JsonStringEnumConverter());
+    };
 });
 ```
 
@@ -140,8 +143,11 @@ Compression can be configured via serialization options:
 ```csharp
 services.AddJsonSerialization(options =>
 {
-    // Configure compression settings on JSON options
-    options.SerializerOptions.WriteIndented = false; // Compact output
+    options.ConfigureSerializer = json =>
+    {
+        // Configure compression settings on JSON options
+        json.WriteIndented = false; // Compact output
+    };
 });
 
 // Or configure compression at the transport level via the builder
@@ -205,7 +211,10 @@ public partial class AppJsonContext : JsonSerializerContext { }
 
 services.AddJsonSerialization(options =>
 {
-    options.SerializerOptions.TypeInfoResolver = AppJsonContext.Default;
+    options.ConfigureSerializer = json =>
+    {
+        json.TypeInfoResolver = AppJsonContext.Default;
+    };
 });
 ```
 

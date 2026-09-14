@@ -42,11 +42,27 @@ public interface IDomainEvent : IDispatchEvent
 	/// Gets the correlation ID for tracking a chain of related operations across services.
 	/// </summary>
 	/// <value>The correlation ID, or <see langword="null"/> if not set.</value>
-	string? CorrelationId => Metadata?.TryGetValue("CorrelationId", out var v) == true ? v?.ToString() : null;
+	/// <remarks>
+	/// Reads <see cref="OutboxHeaderNames.CorrelationId"/> (the framework's declared key, and what every
+	/// framework write path now writes), falling back to the legacy "CorrelationId"/"correlationId" spellings
+	/// for events persisted before those two keys were unified with this one.
+	/// </remarks>
+	string? CorrelationId =>
+		Metadata?.TryGetValue(OutboxHeaderNames.CorrelationId, out var v1) == true ? v1?.ToString() :
+		Metadata?.TryGetValue("CorrelationId", out var v2) == true ? v2?.ToString() :
+		Metadata?.TryGetValue("correlationId", out var v3) == true ? v3?.ToString() : null;
 
 	/// <summary>
 	/// Gets the causation ID identifying the command or event that directly caused this event.
 	/// </summary>
 	/// <value>The causation ID, or <see langword="null"/> if not set.</value>
-	string? CausationId => Metadata?.TryGetValue("CausationId", out var v) == true ? v?.ToString() : null;
+	/// <remarks>
+	/// Reads <see cref="OutboxHeaderNames.CausationId"/> (the framework's declared key, and what every
+	/// framework write path now writes), falling back to the legacy "CausationId"/"causationId" spellings
+	/// for events persisted before those two keys were unified with this one.
+	/// </remarks>
+	string? CausationId =>
+		Metadata?.TryGetValue(OutboxHeaderNames.CausationId, out var v1) == true ? v1?.ToString() :
+		Metadata?.TryGetValue("CausationId", out var v2) == true ? v2?.ToString() :
+		Metadata?.TryGetValue("causationId", out var v3) == true ? v3?.ToString() : null;
 }

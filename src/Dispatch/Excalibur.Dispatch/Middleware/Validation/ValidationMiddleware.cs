@@ -14,7 +14,7 @@ using Excalibur.Dispatch.Options.Middleware;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-// Aliased rather than imported wholesale: Excalibur.Dispatch.Validation also declares a ValidationError,
+// Aliased rather than imported wholesale: Excalibur.Dispatch.Validation also declares a MessageValidationError,
 // and an unqualified reference in this file must keep resolving to the middleware's own type.
 using AbstractionsValidationError = Excalibur.Dispatch.Validation.ValidationError;
 
@@ -241,9 +241,9 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
 			"Data Annotations validation is optional and only used when UseDataAnnotations is true. Message types used with validation are registered at startup and preserved through DI. In AOT builds, validation should be implemented via custom IMessageValidationService.")]
-	private static List<ValidationError> ValidateWithDataAnnotations(IDispatchMessage message)
+	private static List<MessageValidationError> ValidateWithDataAnnotations(IDispatchMessage message)
 	{
-		var errors = new List<ValidationError>();
+		var errors = new List<MessageValidationError>();
 		var validationContext = new ValidationContext(message);
 		var validationResults = new List<ValidationResult>();
 
@@ -254,7 +254,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 			for (var i = 0; i < validationResults.Count; i++)
 			{
 				var validationResult = validationResults[i];
-				errors.Add(new ValidationError(
+				errors.Add(new MessageValidationError(
 					string.Join(", ", validationResult.MemberNames),
 					validationResult.ErrorMessage ?? "Validation error"));
 			}
@@ -288,7 +288,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		MessageValidationContext validationContext,
 		CancellationToken cancellationToken)
 	{
-		var errors = new List<ValidationError>();
+		var errors = new List<MessageValidationError>();
 
 		// Every source ACCUMULATES; none of them short-circuits another. A message carrying both a
 		// registered validator and [Required] attributes is subject to both, which is how ASP.NET Core
@@ -352,14 +352,14 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 	/// points, so a third-party implementation can return that combination. Dropping it would fail OPEN --
 	/// a validator would have rejected the message and the pipeline would dispatch it anyway.
 	/// </remarks>
-	private static void AddOrSubstitute(List<ValidationError> errors, IEnumerable<ValidationError> mapped)
+	private static void AddOrSubstitute(List<MessageValidationError> errors, IEnumerable<MessageValidationError> mapped)
 	{
 		var countBefore = errors.Count;
 		errors.AddRange(mapped);
 
 		if (errors.Count == countBefore)
 		{
-			errors.Add(new ValidationError(string.Empty, ValidationRejectedWithoutDetailMessage));
+			errors.Add(new MessageValidationError(string.Empty, ValidationRejectedWithoutDetailMessage));
 		}
 	}
 
@@ -375,17 +375,17 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 	/// <see cref="AbstractionsValidationError"/>; anything else is still surfaced rather than dropped,
 	/// because silently discarding an error would report a message as valid when a validator rejected it.
 	/// </remarks>
-	private static IEnumerable<ValidationError> MapResolverErrors(IReadOnlyCollection<object> resolverErrors)
+	private static IEnumerable<MessageValidationError> MapResolverErrors(IReadOnlyCollection<object> resolverErrors)
 	{
 		foreach (var error in resolverErrors)
 		{
 			if (error is AbstractionsValidationError typed)
 			{
-				yield return new ValidationError(typed.PropertyName ?? string.Empty, typed.Message);
+				yield return new MessageValidationError(typed.PropertyName ?? string.Empty, typed.Message);
 			}
 			else if (error is not null)
 			{
-				yield return new ValidationError(string.Empty, error.ToString() ?? string.Empty);
+				yield return new MessageValidationError(string.Empty, error.ToString() ?? string.Empty);
 			}
 		}
 	}
@@ -399,14 +399,14 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 	/// A null <see cref="AbstractionsValidationError.PropertyName"/> becomes an empty key, matching how
 	/// ASP.NET Core's ModelState represents an error that belongs to the object rather than to one field.
 	/// </remarks>
-	private static IEnumerable<ValidationError> MapAbstractionErrors(
+	private static IEnumerable<MessageValidationError> MapAbstractionErrors(
 		IReadOnlyList<AbstractionsValidationError> abstractionErrors)
 	{
 		foreach (var error in abstractionErrors)
 		{
 			if (error is not null)
 			{
-				yield return new ValidationError(error.PropertyName ?? string.Empty, error.Message);
+				yield return new MessageValidationError(error.PropertyName ?? string.Empty, error.Message);
 			}
 		}
 	}
@@ -421,7 +421,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 			?? throw new InvalidOperationException(Resources.ValidationMiddleware_LoggerNotInitialized);
 	}
 
-	private static string BuildErrorSummary(IReadOnlyList<ValidationError> errors)
+	private static string BuildErrorSummary(IReadOnlyList<MessageValidationError> errors)
 	{
 		if (errors.Count == 0)
 		{
@@ -457,7 +457,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		});
 	}
 
-	private static string BuildDetailedErrorSummary(IReadOnlyList<ValidationError> errors)
+	private static string BuildDetailedErrorSummary(IReadOnlyList<MessageValidationError> errors)
 	{
 		if (errors.Count == 0)
 		{

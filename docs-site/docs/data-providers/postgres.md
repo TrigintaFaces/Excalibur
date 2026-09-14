@@ -42,7 +42,7 @@ services.AddPostgresDataExecutors(() => new NpgsqlConnection(connectionString));
 | `le.UsePostgres(Action<IPostgresLeaderElectionBuilder>)` | `ILeaderElection` | Builder with 5 connection + LockKey |
 | `cdc.UsePostgres(Action<IPostgresCdcBuilder>)` | CDC processor | Builder with 5 connection + PublicationName, ReplicationSlotName |
 | `compliance.UsePostgres(Action<IPostgresComplianceBuilder>)` | Erasure + DataInventory + LegalHold | Builder with 5 connection overloads |
-| `audit.UsePostgres(Action<IPostgresAuditLoggingBuilder>)` | `IAuditStore` | Builder with 5 connection + SchemaName, TableName |
+| `AddPostgresAuditStore(Action<PostgresAuditOptions>)` / `AddPostgresAuditStore(IConfiguration)` | `IAuditStore` | `PostgresAuditOptions` (connection, schema, table) |
 | `AddPostgresProjectionStore<T>(opts)` | `IProjectionStore<T>` | `ConnectionString`, `TableName` |
 
 The event store writes each event's declared `[MessageName]` -- not its CLR type name -- to the stored event-type field, and resolves that name back to a CLR type through the registered event-type registry on read. See [Stable Message Names](../event-sourcing/domain-events.md#stable-message-names).

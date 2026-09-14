@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using StackExchange.Redis;
+using Excalibur.Data;
 
 namespace Excalibur.EventSourcing.Redis;
 
@@ -324,7 +325,7 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 	private string GetSnapshotKey(string aggregateType, string aggregateId)
 	{
 		var scope = CurrentTenantScope;
-		return $"{_options.KeyPrefix}:t:{scope.TenantId}:{aggregateType}:{aggregateId}";
+		return $"{_options.KeyPrefix}:" + TenantScopedKey.Compose(scope.TenantId, aggregateType, aggregateId);
 	}
 
 	[LoggerMessage(RedisEventSourcingEventId.SnapshotLoaded, LogLevel.Debug,

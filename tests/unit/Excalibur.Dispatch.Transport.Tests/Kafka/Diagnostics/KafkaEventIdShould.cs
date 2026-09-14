@@ -106,7 +106,7 @@ public sealed class KafkaEventIdShould : UnitTestBase
 		KafkaEventId.CommitOffsetsError.ShouldBeInRange(22100, 22199);
 		KafkaEventId.MessageConversionError.ShouldBeInRange(22100, 22199);
 		KafkaEventId.MessageRejected.ShouldBeInRange(22100, 22199);
-		KafkaEventId.CloudEventMapperResolved.ShouldBeInRange(22100, 22199);
+		KafkaEventId.CloudEventEncoderResolved.ShouldBeInRange(22100, 22199);
 		KafkaEventId.ConsumeError.ShouldBeInRange(22100, 22199);
 		KafkaEventId.OffsetCommitFailed.ShouldBeInRange(22100, 22199);
 		KafkaEventId.PartitionEof.ShouldBeInRange(22100, 22199);
@@ -347,7 +347,7 @@ public sealed class KafkaEventIdShould : UnitTestBase
 			KafkaEventId.CommitOffsetsError,
 			KafkaEventId.MessageConversionError,
 			KafkaEventId.MessageRejected,
-			KafkaEventId.CloudEventMapperResolved,
+			KafkaEventId.CloudEventEncoderResolved,
 			KafkaEventId.ConsumeError,
 			KafkaEventId.OffsetCommitFailed,
 			KafkaEventId.PartitionEof,

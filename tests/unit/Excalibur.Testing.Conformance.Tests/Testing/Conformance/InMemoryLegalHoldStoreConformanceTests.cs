@@ -107,6 +107,10 @@ public sealed class InMemoryLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 		GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
 
 	[Fact]
+	public Task GetActiveHoldsForDataSubjectAsync_EmptyTenantId_ShouldBehaveAsUnspecified_Test() =>
+		GetActiveHoldsForDataSubjectAsync_EmptyTenantId_ShouldBehaveAsUnspecified();
+
+	[Fact]
 	public Task GetActiveHoldsForDataSubjectAsync_NullDataSubjectIdHash_ShouldThrowArgumentException_Test() =>
 		GetActiveHoldsForDataSubjectAsync_NullDataSubjectIdHash_ShouldThrowArgumentException();
 

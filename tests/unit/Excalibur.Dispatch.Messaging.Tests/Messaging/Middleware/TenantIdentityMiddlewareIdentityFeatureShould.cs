@@ -56,7 +56,7 @@ public sealed class TenantIdentityMiddlewareIdentityFeatureShould
 
 		// Assert -- liveness: the rest of the pipeline, and every reader downstream of it, sees the
 		// tenant this middleware resolved.
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		tenantSeenDownstream.ShouldBe("tenant-abc");
 		context.GetTenantId().ShouldBe("tenant-abc");
 		context.GetIdentityFeature().ShouldNotBeNull().TenantId.ShouldBe("tenant-abc");
@@ -97,7 +97,7 @@ public sealed class TenantIdentityMiddlewareIdentityFeatureShould
 		// Assert -- liveness: the pipeline still runs. Without this arm, a middleware that threw on
 		// every message would satisfy the safety assertion below.
 		reachedNext.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 
 		// Assert -- safety: no tenant was fabricated.
 		context.GetTenantId().ShouldBeNull();

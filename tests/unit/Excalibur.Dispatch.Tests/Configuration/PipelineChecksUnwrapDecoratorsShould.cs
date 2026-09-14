@@ -28,47 +28,6 @@ public sealed class PipelineChecksUnwrapDecoratorsShould
 {
 	private const DispatchMiddlewareStage SharedStage = DispatchMiddlewareStage.PreProcessing;
 
-	[Fact]
-	public async Task NotReportADuplicateForTwoDistinctMiddlewaresSharingADecoratorAndStage()
-	{
-		var description = await DescribeHealth(
-			Decorate(new FirstMiddleware()),
-			Decorate(new SecondMiddleware()));
-
-		description.ShouldNotContain("Duplicate middleware");
-	}
-
-	/// <summary>
-	/// Liveness arm: unwrapping must not disable duplicate detection. A middleware genuinely registered
-	/// twice at one stage is still a duplicate, decorated or not.
-	/// </summary>
-	[Fact]
-	public async Task StillReportADuplicateWhenOneMiddlewareIsRegisteredTwiceAtAStage()
-	{
-		var description = await DescribeHealth(
-			Decorate(new FirstMiddleware()),
-			Decorate(new FirstMiddleware()));
-
-		description.ShouldContain("Duplicate middleware");
-		description.ShouldContain(nameof(FirstMiddleware));
-	}
-
-	/// <summary>
-	/// The inverse of the reported defect: while the decorator hid two middlewares behind one type, the
-	/// stage-conflict check could not see that the stage held two different middlewares at all.
-	/// </summary>
-	[Fact]
-	public async Task ReportAStageConflictBetweenTwoDistinctMiddlewaresSharingADecorator()
-	{
-		var description = await DescribeHealth(
-			Decorate(new FirstMiddleware()),
-			Decorate(new SecondMiddleware()));
-
-		description.ShouldContain("Multiple middleware at stage");
-		description.ShouldContain(nameof(FirstMiddleware));
-		description.ShouldContain(nameof(SecondMiddleware));
-	}
-
 	/// <summary>
 	/// The startup guard fails closed when a profile declares authorization and none is resolvable.
 	/// A decorated <see cref="AuthorizationMiddleware" /> IS resolvable, so the guard must not fire.
@@ -123,23 +82,7 @@ public sealed class PipelineChecksUnwrapDecoratorsShould
 	private static IDispatchMiddleware Decorate(IDispatchMiddleware inner) =>
 		new StageOverrideMiddleware(inner, SharedStage);
 
-	private static async Task<string> DescribeHealth(params IDispatchMiddleware[] middlewares)
-	{
-		var services = new ServiceCollection();
-		foreach (var middleware in middlewares)
-		{
-			_ = services.AddSingleton(middleware);
-		}
-
-		var check = new PipelineIntegrityHealthCheck(services.BuildServiceProvider());
-		var result = await check
-			.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None)
-			.ConfigureAwait(true);
-
-		return result.Description ?? string.Empty;
-	}
-
-	private static PipelineValidationHostedService CreateValidationService(
+	private static AuthorizationWiringPrerequisiteValidator CreateValidationService(
 		bool profileDeclaresAuthorization,
 		IReadOnlyList<IDispatchMiddleware> middlewares)
 	{
@@ -162,8 +105,7 @@ public sealed class PipelineChecksUnwrapDecoratorsShould
 
 		_ = services.AddSingleton(registry);
 
-		return new PipelineValidationHostedService(
-			services.BuildServiceProvider(), NullLogger<PipelineValidationHostedService>.Instance);
+		return new AuthorizationWiringPrerequisiteValidator(services.BuildServiceProvider());
 	}
 
 	private static AuthorizationMiddleware CreateAuthorizationMiddleware() =>

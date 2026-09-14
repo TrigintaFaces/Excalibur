@@ -45,6 +45,9 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 	/// </remarks>
 	internal const string ActionTypeNamePropertyName = "ActionTypeName";
 
+	/// <summary>JSON property name for the <see cref="CachedValue.TagStamps"/> field.</summary>
+	internal const string TagStampsPropertyName = "TagStamps";
+
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage(
 		"Trimming",
@@ -66,6 +69,7 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 		var hasExecuted = false;
 		string? typeName = null;
 		string? actionTypeName = null;
+		Dictionary<string, string>? tagStamps = null;
 
 		while (reader.Read())
 		{
@@ -95,6 +99,11 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 					break;
 				case ActionTypeNamePropertyName:
 					actionTypeName = reader.GetString();
+					break;
+				case TagStampsPropertyName:
+					tagStamps = reader.TokenType == JsonTokenType.Null
+						? null
+						: JsonSerializer.Deserialize<Dictionary<string, string>>(ref reader, options);
 					break;
 				case ValuePropertyName:
 					if (reader.TokenType == JsonTokenType.Null)
@@ -141,6 +150,7 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 			HasExecuted = hasExecuted,
 			TypeName = typeName,
 			ActionTypeName = actionTypeName,
+			TagStamps = tagStamps,
 		};
 	}
 
@@ -168,6 +178,12 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 		if (value.ActionTypeName != null)
 		{
 			writer.WriteString(ActionTypeNamePropertyName, value.ActionTypeName);
+		}
+
+		if (value.TagStamps != null)
+		{
+			writer.WritePropertyName(TagStampsPropertyName);
+			JsonSerializer.Serialize(writer, value.TagStamps, options);
 		}
 
 		writer.WritePropertyName(ValuePropertyName);

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Net.Http.Headers;
@@ -13,6 +13,8 @@ using Excalibur.Domain;
 using Excalibur.Domain.Exceptions;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 using IAuthorizationPolicyProvider = Excalibur.A3.Authorization.IAuthorizationPolicyProvider;
 
@@ -78,6 +80,17 @@ public static class A3ServiceCollectionExtensions
 	{
 		services.TryAddScoped<IGrantRepository, GrantRepository>();
 
+		// Authorization grants are cached under keys that identify a user but not an application, so an
+		// application-scoped cache is a prerequisite rather than an enhancement. The components already
+		// depend on it by service key, which makes an unscoped composition fail to resolve; this turns that
+		// failure into a start-up error naming the call to add.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, AuthorizationCachePrerequisiteValidator>(
+				_ => new AuthorizationCachePrerequisiteValidator(services)));
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AuthorizationCachePrerequisiteValidator>(
+				_ => new AuthorizationCachePrerequisiteValidator(services)));
+
 		_ = services
 			.AddSingleton<Activities>()
 			.AddTransient<ActivityGroups>()
@@ -85,9 +98,12 @@ public static class A3ServiceCollectionExtensions
 			.AddScoped<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>()
 			.AddScoped<IAuthorizationPolicy>(static container =>
 				ResolvePolicySynchronously(container.GetRequiredService<IAuthorizationPolicyProvider>()))
-			.AddHttpClient<IActivityGroupService, ActivityGroupService>(static client =>
+			.AddHttpClient<IActivityGroupService, ActivityGroupService>(static (provider, client) =>
 			{
-				client.BaseAddress = new Uri(ApplicationContext.AuthorizationServiceEndpoint);
+				// Read the bound options rather than the process-wide static: the endpoint is per-host
+				// configuration, and this lambda already runs against a built provider.
+				client.BaseAddress = new Uri(
+					provider.GetRequiredService<IOptions<ApplicationContextOptions>>().Value.AuthorizationServiceEndpoint);
 				client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 			});
 
@@ -104,13 +120,29 @@ public static class A3ServiceCollectionExtensions
 	public static IServiceCollection AddA3DispatchServices(this IServiceCollection services)
 	{
 		_ = services.AddDispatchPipeline();
-		_ = services.AddDispatchHandlers(typeof(AuthorizationPolicy).Assembly);
 
-		// AddExcaliburAudit registers AuditMiddleware together with the IActivityContext it resolves.
-		// Registering the middleware again here is what re-opened the captive dependency it fixed: a
-		// second descriptor at a different lifetime, de-duplicated by implementation type, so which
-		// lifetime survived was decided by call order rather than by either registration.
-		_ = services.AddExcaliburAudit();
+		// Assembly marker for the reflection scan below. AuthorizationPolicy moved to Excalibur.A3.Core
+		// (it needed to be reachable from the lightweight AddExcaliburA3Core() composition),
+		// so typeof(AuthorizationPolicy).Assembly would now resolve to A3.Core and silently stop scanning
+		// this (full) assembly's own handlers. Anchor on a type that is declared here and stays here.
+		_ = services.AddDispatchHandlers(typeof(A3ServiceCollectionExtensions).Assembly);
+
+		// AUDIT IS NOT REGISTERED HERE, DELIBERATELY. It used to be, and that made an opt-in feature a
+		// prerequisite of authorization: AuditMiddleware takes an IAuditMessagePublisher, which this
+		// framework registers nowhere and the consumer must supply, so every A3 consumer had to provide
+		// an audit destination or fail to build a container. The middleware then returns straight through
+		// for anything that is not IAmAuditable, so most of them were supplying a destination for a
+		// pipeline step they never trigger.
+		//
+		// It also carried a trimming requirement past its own declaration. AuditMiddleware.InvokeAsync and
+		// ActivityAudit's Request getter are [RequiresUnreferencedCode]/[RequiresDynamicCode] -- audit
+		// serializes the request reflectively -- and four suppressions on those members justify themselves
+		// by saying the requirement reaches the consumer at AddAudit, "which registers this type". That was
+		// false while this method also registered it, and it was false through an internal extension that
+		// carries no annotation of its own, so the analyzer had nothing to attach the requirement to.
+		//
+		// Consumers who want auditing call the documented opt-in, which is annotated:
+		//     services.AddExcalibur(x => x.AddAudit());
 		_ = services.AddExcaliburAuthorization();
 
 		return services;
@@ -128,9 +160,12 @@ public static class A3ServiceCollectionExtensions
 	{
 		try
 		{
-			_ = services.AddHttpClient<IAuthenticationTokenProvider, AuthenticationTokenProvider>(static client =>
+			_ = services.AddHttpClient<IAuthenticationTokenProvider, AuthenticationTokenProvider>(static (provider, client) =>
 			{
-				client.BaseAddress = new Uri(ApplicationContext.AuthenticationServiceEndpoint);
+				// Read the bound options rather than the process-wide static: the endpoint is per-host
+				// configuration, and this lambda already runs against a built provider.
+				client.BaseAddress = new Uri(
+					provider.GetRequiredService<IOptions<ApplicationContextOptions>>().Value.AuthenticationServiceEndpoint);
 				client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 			});
 		}

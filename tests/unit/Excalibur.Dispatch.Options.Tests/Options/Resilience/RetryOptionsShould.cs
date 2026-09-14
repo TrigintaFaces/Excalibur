@@ -26,7 +26,7 @@ public sealed class RetryOptionsShould
 		var options = new RetryOptions();
 
 		// Assert
-		options.MaxAttempts.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -150,10 +150,10 @@ public sealed class RetryOptionsShould
 		var options = new RetryOptions();
 
 		// Act
-		options.MaxAttempts = 5;
+		options.MaxRetryAttempts = 5;
 
 		// Assert
-		options.MaxAttempts.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 	}
 
 	[Fact]
@@ -163,10 +163,10 @@ public sealed class RetryOptionsShould
 		var options = new RetryOptions();
 
 		// Act
-		options.MaxAttempts = 0;
+		options.MaxRetryAttempts = 0;
 
 		// Assert
-		options.MaxAttempts.ShouldBe(0);
+		options.MaxRetryAttempts.ShouldBe(0);
 	}
 
 	[Fact]
@@ -176,10 +176,10 @@ public sealed class RetryOptionsShould
 		var options = new RetryOptions();
 
 		// Act
-		options.MaxAttempts = 1;
+		options.MaxRetryAttempts = 1;
 
 		// Assert
-		options.MaxAttempts.ShouldBe(1);
+		options.MaxRetryAttempts.ShouldBe(1);
 	}
 
 	[Fact]
@@ -438,7 +438,7 @@ public sealed class RetryOptionsShould
 		// Act
 		var options = new RetryOptions
 		{
-			MaxAttempts = 5,
+			MaxRetryAttempts = 5,
 			BaseDelay = TimeSpan.FromMilliseconds(500),
 			MaxDelay = TimeSpan.FromMinutes(2),
 			BackoffStrategy = BackoffStrategy.Linear,
@@ -448,7 +448,7 @@ public sealed class RetryOptionsShould
 		};
 
 		// Assert
-		options.MaxAttempts.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.BaseDelay.ShouldBe(TimeSpan.FromMilliseconds(500));
 		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(2));
 		options.BackoffStrategy.ShouldBe(BackoffStrategy.Linear);

@@ -54,6 +54,22 @@ public sealed class KeyDurabilityGateShould
 		// The unsafe state must not be reachable by omission.
 		new KeyDurabilityOptions().AllowVolatileKeyProvider.ShouldBeFalse();
 
+	[Fact]
+	public void Refuse_a_provider_that_answers_the_capability_with_the_wrong_type()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddKeyDurabilityGate();
+		_ = services.AddSingleton<IKeyManagementProvider, FakeMisreportingKeyProvider>();
+
+		using var provider = services.BuildServiceProvider();
+
+		_ = Should.Throw<OptionsValidationException>(
+			() => Resolve(provider),
+			"a non-null answer of the WRONG TYPE is not the capability. A probe that tests only for null "
+			+ "reports durability for a provider that has none, and the gate then admits a host whose key "
+			+ "material still vanishes on restart.");
+	}
+
 	// ---------- LIVENESS ----------
 
 	[Fact]
@@ -327,6 +343,34 @@ public sealed class KeyDurabilityGateShould
 	/// <see cref="IDurableKeyProvider" />, so it answers null for the durability capability. This is the
 	/// provider the gate must refuse when the host states no durability intention.
 	/// </summary>
+	/// <summary>
+	/// Answers the durability query with a non-null object of the wrong type.
+	/// </summary>
+	/// <remarks>
+	/// This is the subject a null-only probe cannot tell apart from a durable provider, and it is not a
+	/// contrived shape: a mocking framework's fake answers every <c>GetService</c> call with a non-null
+	/// proxy, so any host wiring a faked provider satisfied the old check by construction.
+	/// </remarks>
+	private sealed class FakeMisreportingKeyProvider : IKeyManagementProvider
+	{
+		// Deliberately NOT an IDurableKeyProvider. The interface's default implementation would answer null
+		// here; overriding it is what makes this subject reachable at all.
+		public object? GetService(Type serviceType) => new object();
+
+		public Task<KeyMetadata?> GetKeyAsync(string keyId, CancellationToken cancellationToken) =>
+			Task.FromResult<KeyMetadata?>(null);
+
+		public Task<KeyMetadata?> GetKeyVersionAsync(string keyId, int version, CancellationToken cancellationToken) =>
+			Task.FromResult<KeyMetadata?>(null);
+
+		public Task<KeyMetadata?> GetActiveKeyAsync(string? purpose, CancellationToken cancellationToken) =>
+			Task.FromResult<KeyMetadata?>(null);
+
+		public Task<KeyRotationResult> RotateKeyAsync(string keyId, EncryptionAlgorithm algorithm,
+			string? purpose, DateTimeOffset? expiresAt, CancellationToken cancellationToken) =>
+			Task.FromResult(new KeyRotationResult { Success = true });
+	}
+
 	private sealed class FakeVolatileKeyProvider : IKeyManagementProvider
 	{
 		public Task<KeyMetadata?> GetKeyAsync(string keyId, CancellationToken cancellationToken) =>

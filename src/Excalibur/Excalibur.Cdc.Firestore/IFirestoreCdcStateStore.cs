@@ -36,16 +36,6 @@ public interface IFirestoreCdcStateStore : ICdcStateStore, IAsyncDisposable, IDi
 		string processorName,
 		FirestoreCdcPosition position,
 		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Deletes the saved position for a processor.
-	/// </summary>
-	/// <param name="processorName">The unique processor name.</param>
-	/// <param name="cancellationToken">A token to observe for cancellation requests.</param>
-	/// <returns>A task representing the asynchronous operation.</returns>
-	new Task DeletePositionAsync(
-		string processorName,
-		CancellationToken cancellationToken);
 }
 
 /// <summary>

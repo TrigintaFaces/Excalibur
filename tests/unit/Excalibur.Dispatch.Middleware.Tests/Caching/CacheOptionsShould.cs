@@ -32,16 +32,6 @@ public sealed class CacheOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveDefaultMemoryConfiguration()
-	{
-		// Arrange & Act
-		var options = new CacheOptions();
-
-		// Assert
-		options.Memory.ShouldNotBeNull();
-	}
-
-	[Fact]
 	public void HaveDefaultDistributedConfiguration()
 	{
 		// Arrange & Act
@@ -237,20 +227,6 @@ public sealed class CacheOptionsShould : UnitTestBase
 
 		// Assert
 		options.Behavior.EnableStatistics.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AllowSettingMemoryConfiguration()
-	{
-		// Arrange
-		var options = new CacheOptions();
-		var memoryConfig = new DispatchMemoryCacheOptions();
-
-		// Act
-		options.Memory = memoryConfig;
-
-		// Assert
-		options.Memory.ShouldBe(memoryConfig);
 	}
 
 	[Fact]

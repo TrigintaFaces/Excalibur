@@ -83,12 +83,12 @@ internal sealed class SagaDashboardModule : IDashboardEndpointModule
 		var maxPageSize = options.MaxPageSize;
 		var exposeSensitive = options.ExposeSensitiveData;
 
-		group.MapGet("/saga", static async (ISagaStoreAdmin? admin, CancellationToken ct) =>
+		group.MapGet("/saga", static async (ISagaStoreAdmin? admin, TimeProvider timeProvider, CancellationToken ct) =>
 		{
 			if (admin is null)
 			{
 				return Results.Json(
-					new SagaView { Configured = false, CapturedAt = DateTimeOffset.UtcNow },
+					new SagaView { Configured = false, CapturedAt = timeProvider.GetUtcNow() },
 					SagaJsonContext.Default.SagaView);
 			}
 

@@ -10,4 +10,4 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <summary>
 /// Maps CloudEvents to <see cref="EventData" /> instances for Azure Event Hubs and back.
 /// </summary>
-public interface IAzureEventHubsCloudEventAdapter : ICloudEventMapper<EventData>;
+public interface IAzureEventHubsCloudEventAdapter : ICloudEventEncoder<EventData>;

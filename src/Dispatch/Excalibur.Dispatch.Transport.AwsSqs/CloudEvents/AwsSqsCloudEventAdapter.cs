@@ -22,9 +22,9 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
-/// AWS SQS implementation of <see cref="ICloudEventMapper{TTransportMessage}" /> that supports both structured and binary CloudEvents encodings.
+/// AWS SQS implementation of <see cref="ICloudEventEncoder{TOutbound}" /> that supports both structured and binary CloudEvents encodings.
 /// </summary>
-internal sealed class AwsSqsCloudEventAdapter : ICloudEventMapper<SendMessageRequest>
+internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRequest>
 {
 	private const string CloudEventsStructuredContentType = "application/cloudevents+json";
 	private const string StructuredContentTypeAttribute = "contentType";
@@ -148,46 +148,6 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventMapper<SendMessageReq
 		return await Task.FromResult(request).ConfigureAwait(false);
 	}
 
-	/// <inheritdoc />
-	public async Task<CloudEvent> FromTransportMessageAsync(
-		SendMessageRequest transportMessage,
-		CancellationToken cancellationToken)
-	{
-		ArgumentNullException.ThrowIfNull(transportMessage);
-		cancellationToken.ThrowIfCancellationRequested();
-
-		var sqsMessage = ConvertToSqsMessage(transportMessage);
-		var mode = await TryDetectMode(sqsMessage, cancellationToken).ConfigureAwait(false)
-				   ?? Options.DefaultMode;
-
-		var cloudEvent = mode switch
-		{
-			CloudEventMode.Structured => await ParseStructuredModeAsync(sqsMessage).ConfigureAwait(false),
-			CloudEventMode.Binary => ParseBinaryMode(sqsMessage),
-			_ => throw new NotSupportedException($"CloudEvent mode '{mode}' is not supported for AWS SQS."),
-		};
-
-		EnrichFromAttributes(cloudEvent, sqsMessage.MessageAttributes);
-
-		_logger.LogDebug(
-			"Converted SQS transport message to CloudEvent {EventId} using {Mode} mode",
-			cloudEvent.Id,
-			mode);
-
-		return cloudEvent;
-	}
-
-	/// <inheritdoc />
-	public ValueTask<CloudEventMode?> TryDetectMode(
-		SendMessageRequest transportMessage,
-		CancellationToken cancellationToken)
-	{
-		ArgumentNullException.ThrowIfNull(transportMessage);
-
-		var message = ConvertToSqsMessage(transportMessage);
-		return TryDetectMode(message, cancellationToken);
-	}
-
 	/// <summary>
 	/// Converts a CloudEvent into an SQS <see cref="SendMessageRequest" /> targeted at the provided queue URL.
 	/// </summary>
@@ -306,33 +266,6 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventMapper<SendMessageReq
 
 	private static MessageAttributeValue CreateStringAttribute(string value) =>
 		new() { DataType = StringAttributeType, StringValue = value };
-
-	private static Message ConvertToSqsMessage(SendMessageRequest request)
-	{
-		var message = new Message
-		{
-			Body = request.MessageBody,
-			MessageAttributes = CloneAttributes(request.MessageAttributes),
-			Attributes = new Dictionary<string, string>(StringComparer.Ordinal),
-		};
-
-		if (!string.IsNullOrEmpty(request.MessageGroupId))
-		{
-			message.Attributes[nameof(request.MessageGroupId)] = request.MessageGroupId;
-		}
-
-		if (!string.IsNullOrEmpty(request.MessageDeduplicationId))
-		{
-			message.Attributes[nameof(request.MessageDeduplicationId)] = request.MessageDeduplicationId;
-		}
-
-		if (request.DelaySeconds.HasValue && request.DelaySeconds.Value > 0)
-		{
-			message.Attributes[nameof(request.DelaySeconds)] = request.DelaySeconds.Value.ToString(CultureInfo.InvariantCulture);
-		}
-
-		return message;
-	}
 
 	private static Dictionary<string, MessageAttributeValue> CloneAttributes(
 		IDictionary<string, MessageAttributeValue>? source)

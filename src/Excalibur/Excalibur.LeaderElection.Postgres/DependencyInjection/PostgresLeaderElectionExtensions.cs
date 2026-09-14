@@ -88,7 +88,8 @@ public static class PostgresLeaderElectionExtensions
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
-			// optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
+			// optional fencing-token provider (fencing is on by default; null only when the consumer
+			// called WithoutFencingTokens() → no fencing).
 			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
 			return new PostgresLeaderElection(pgOptions, electionOptions, logger, fencingTokenProvider);
 		});
@@ -118,6 +119,13 @@ public static class PostgresLeaderElectionExtensions
 		// to provide, silently absent. Idempotent via TryAdd, so an explicit outbox.WithLeaderElection()
 		// composes with it. A single-active-writer topology opts the outbox out with AsSingleWriter().
 		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
+
+		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
+		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
+		// provider rather than requiring a second, easily-forgotten AddPostgresFencingTokenProvider() +
+		// WithFencingTokens() call. WithoutFencingTokens() opts out.
+		services.TryAddDefaultFencingTokenProvider(sp =>
+			new PostgresFencingTokenProvider(sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>().Value.ConnectionString));
 
 		return services;
 	}

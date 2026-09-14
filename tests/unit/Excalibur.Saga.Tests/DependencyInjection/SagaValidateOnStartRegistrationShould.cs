@@ -41,7 +41,7 @@ public sealed class SagaValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddExcaliburSaga(opts =>
 		{
-			opts.MaxRetryAttempts = 5;
+			opts.MaxAttempts = 5;
 			opts.MaxConcurrency = 10;
 			opts.DefaultTimeout = TimeSpan.FromMinutes(5);
 		});
@@ -52,7 +52,7 @@ public sealed class SagaValidateOnStartRegistrationShould
 
 		// Assert - accessing .Value triggers validation
 		var value = options.Value;
-		value.MaxRetryAttempts.ShouldBe(5);
+		value.MaxAttempts.ShouldBe(5);
 		value.MaxConcurrency.ShouldBe(10);
 	}
 
@@ -80,7 +80,7 @@ public sealed class SagaValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddExcaliburSaga(opts =>
 		{
-			opts.MaxRetryAttempts = 3;
+			opts.MaxAttempts = 3;
 			opts.RetryDelay = TimeSpan.FromMinutes(60);
 			opts.DefaultTimeout = TimeSpan.FromMinutes(30);
 		});

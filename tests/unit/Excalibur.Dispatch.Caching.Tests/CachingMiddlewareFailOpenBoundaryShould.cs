@@ -117,19 +117,21 @@ public sealed class CachingMiddlewareFailOpenBoundaryShould : IDisposable
 			+ "(which would silently mask data corruption as a cache miss).");
 	}
 
-	// yy57cu (S856 REVIEW_CODE BLOCKING, P0): the tag-registration backend write in
-	// CompleteCacheOperationAsync (`tagTracker.RegisterKeyAsync`) runs OUTSIDE the yi59t5 fail-open scope —
-	// its sibling backend write `RemovePoisonMarkerAsync` IS wrapped fail-open, and the asymmetry is the gap.
-	// A cross-cutting cache MUST fail open: a tag-store (Redis / IDistributedCache) outage must never break
-	// core dispatch (Microsoft-first cross-cutting-cache mandate; the same guarantee yi59t5 makes for the
-	// GetOrCreateAsync backend write). RED on current code (RegisterKeyAsync throws straight out of
-	// InvokeAsync); GREEN once the await is wrapped in `catch (ex is not OperationCanceledException) { log }`.
+	// yy57cu (originally S856 REVIEW_CODE BLOCKING, P0; re-bound to the per-tag version-stamp model): the
+	// tag-freshness check in CompleteCacheOperationAsync (`tagTracker.GetOrCreateStampAsync`, called from
+	// CheckTaggedEntryFreshnessAsync) runs OUTSIDE the yi59t5 fail-open scope — its sibling backend write
+	// `EvictAsync` IS wrapped fail-open, and the asymmetry would be the same gap under the new model too. A
+	// cross-cutting cache MUST fail open: a tag-store (Redis / IDistributedCache) outage must never break
+	// core dispatch. A genuine cache HIT for a tagged entry, where the tag tracker's backend is down, must
+	// still return a result to the caller (falling through to the handler), never propagate the tracker's
+	// exception out of InvokeAsync.
 	[Fact]
-	public async Task FailOpenToHandlerResult_WhenTagTrackerRegisterKeyThrows_TagStoreOutageNeverBreaksDispatch()
+	public async Task FailOpenToHandlerResult_WhenTagTrackerGetOrCreateStampThrows_TagStoreOutageNeverBreaksDispatch()
 	{
 		var options = new CacheOptions { Enabled = true, CacheMode = CacheMode.Distributed };
 
-		// A cache HIT with a cacheable, non-null value → reaches the tag-registration block (tags + ShouldCache).
+		// A genuine cache HIT (no "Dispatch:OriginalResult") with a cacheable, non-null value and a
+		// recorded stamp for its own tag → reaches the tag-freshness check.
 		A.CallTo(_fakeCache)
 			.Where(c => c.Method.Name == nameof(HybridCache.GetOrCreateAsync))
 			.WithReturnType<ValueTask<CachedValue>>()
@@ -139,11 +141,12 @@ public sealed class CachingMiddlewareFailOpenBoundaryShould : IDisposable
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "ok",
+				TagStamps = new Dictionary<string, string> { ["yy57cu-tag"] = "some-recorded-stamp" },
 			}));
 
-		// The separate tag-store backend is DOWN — RegisterKeyAsync throws a non-cancellation error.
+		// The separate tag-store backend is DOWN — GetOrCreateStampAsync throws a non-cancellation error.
 		var tagTracker = A.Fake<ICacheTagTracker>();
-		A.CallTo(() => tagTracker.RegisterKeyAsync(A<string>._, A<string[]>._, A<CancellationToken>._))
+		A.CallTo(() => tagTracker.GetOrCreateStampAsync(A<string>._, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("yy57cu: tag-store backend down"));
 
 		var middleware = CreateMiddleware(options, tagTracker);
@@ -151,20 +154,161 @@ public sealed class CachingMiddlewareFailOpenBoundaryShould : IDisposable
 		var message = new TaggedCacheableMessage();
 		var context = A.Fake<IMessageContext>();
 		var expected = A.Fake<IMessageResult>();
-		// "Dispatch:OriginalResult" present ⇒ HandleCachedResultAsync returns the original result cleanly, so the
-		// assertion isolates the TAG-WRITE fail-open (not result handling).
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object> { ["Dispatch:OriginalResult"] = expected });
+		// No "Dispatch:OriginalResult" ⇒ this is a genuine hit (not a fresh execution), so the tag-freshness
+		// check actually runs.
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
 
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(expected);
 
-		// Act — a tag-store outage must NOT propagate out of InvokeAsync (fail-open).
+		// Act — a tag-store outage must NOT propagate out of InvokeAsync (fail-open); the entry is treated
+		// as stale (fail-closed on the READ, but the REQUEST still falls open to the handler).
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert — dispatch still returned its result, and the tag-write was genuinely attempted (non-vacuous).
+		// Assert — dispatch fell through to the handler, and the freshness check was genuinely attempted (non-vacuous).
 		result.ShouldBe(expected,
-			"yy57cu: a tag-tracker RegisterKeyAsync backend failure must fail OPEN — a cross-cutting cache must "
-			+ "never break core dispatch (parity with yi59t5's GetOrCreateAsync fail-open + the sibling RemovePoisonMarkerAsync).");
-		A.CallTo(() => tagTracker.RegisterKeyAsync(A<string>._, A<string[]>._, A<CancellationToken>._)).MustHaveHappened();
+			"yy57cu: a tag-tracker backend failure while checking a hit's freshness must fail OPEN to the handler — "
+			+ "a cross-cutting cache must never break core dispatch (parity with yi59t5's GetOrCreateAsync fail-open).");
+		A.CallTo(() => tagTracker.GetOrCreateStampAsync("yy57cu-tag", A<CancellationToken>._)).MustHaveHappened();
+	}
+
+	// r7ptim: the per-tag version-stamp read-side freshness check (CheckTaggedEntryFreshnessAsync) is the
+	// highest-risk piece of this design -- a stale-but-served entry is a correctness bug, and a
+	// valid-but-evicted entry is a silent perf regression. Both arms are bound here, independently of the
+	// fail-open test above (which only reaches the tracker-THROWS branch, before either comparison runs).
+
+	// Liveness arm: a matching stamp means nothing invalidated the tag since this entry was written --
+	// it must be served from cache, not re-executed.
+	[Fact]
+	public async Task ServeFromCache_WhenTaggedEntryStampMatchesCurrentTagStamp()
+	{
+		var options = new CacheOptions { Enabled = true, CacheMode = CacheMode.Distributed };
+
+		A.CallTo(_fakeCache)
+			.Where(c => c.Method.Name == nameof(HybridCache.GetOrCreateAsync))
+			.WithReturnType<ValueTask<CachedValue>>()
+			.Returns(new ValueTask<CachedValue>(new CachedValue
+			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(TaggedCacheableMessage)),
+				HasExecuted = true,
+				ShouldCache = true,
+				Value = "ok",
+				TagStamps = new Dictionary<string, string> { ["yy57cu-tag"] = "stamp-a" },
+			}));
+
+		var tagTracker = A.Fake<ICacheTagTracker>();
+		A.CallTo(() => tagTracker.GetOrCreateStampAsync("yy57cu-tag", A<CancellationToken>._)).Returns("stamp-a");
+
+		var middleware = CreateMiddleware(options, tagTracker);
+
+		var message = new TaggedCacheableMessage();
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>()); // genuine hit, not a fresh execution.
+
+		var handlerRan = false;
+		DispatchRequestDelegate next = (_, _, _) =>
+		{
+			handlerRan = true;
+			return new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
+		};
+
+		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
+
+		handlerRan.ShouldBeFalse(
+			"a matching version stamp means the entry has not been invalidated -- it must be served from "
+			+ "cache, not re-executed (the liveness arm: a valid entry is not needlessly evicted).");
+		A.CallTo(() => _fakeCache.RemoveAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	// Safety arm: a mismatched stamp means the tag was invalidated since this entry was written -- it must
+	// NOT be served, and the stale entry is evicted so the next request repopulates it.
+	[Fact]
+	public async Task FallThroughToHandler_WhenTaggedEntryStampDoesNotMatchCurrentTagStamp()
+	{
+		var options = new CacheOptions { Enabled = true, CacheMode = CacheMode.Distributed };
+
+		A.CallTo(_fakeCache)
+			.Where(c => c.Method.Name == nameof(HybridCache.GetOrCreateAsync))
+			.WithReturnType<ValueTask<CachedValue>>()
+			.Returns(new ValueTask<CachedValue>(new CachedValue
+			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(TaggedCacheableMessage)),
+				HasExecuted = true,
+				ShouldCache = true,
+				Value = "ok",
+				TagStamps = new Dictionary<string, string> { ["yy57cu-tag"] = "stamp-a" },
+			}));
+
+		var tagTracker = A.Fake<ICacheTagTracker>();
+		// The tag was bumped since this entry was written -- its current stamp no longer matches.
+		A.CallTo(() => tagTracker.GetOrCreateStampAsync("yy57cu-tag", A<CancellationToken>._)).Returns("stamp-b");
+
+		var middleware = CreateMiddleware(options, tagTracker);
+
+		var message = new TaggedCacheableMessage();
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+
+		var handlerRan = false;
+		var expected = A.Fake<IMessageResult>();
+		DispatchRequestDelegate next = (_, _, _) =>
+		{
+			handlerRan = true;
+			return new ValueTask<IMessageResult>(expected);
+		};
+
+		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
+
+		handlerRan.ShouldBeTrue(
+			"a mismatched version stamp means the tag was invalidated -- the stale entry must NOT be served "
+			+ "(the safety arm: a stale entry is never returned as if it were valid).");
+		result.ShouldBe(expected);
+		A.CallTo(() => _fakeCache.RemoveAsync("boundary-key", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
+
+	// Safety arm (the two-different-absences distinction): an entry with NO recorded stamp for its own tag
+	// is malformed -- it has nothing to prove its own validity with, and must be treated as invalidated,
+	// never conflated with a tag that simply has no stamp in the backend yet.
+	[Fact]
+	public async Task FallThroughToHandler_WhenTaggedEntryHasNoRecordedStampForItsOwnTag()
+	{
+		var options = new CacheOptions { Enabled = true, CacheMode = CacheMode.Distributed };
+
+		A.CallTo(_fakeCache)
+			.Where(c => c.Method.Name == nameof(HybridCache.GetOrCreateAsync))
+			.WithReturnType<ValueTask<CachedValue>>()
+			.Returns(new ValueTask<CachedValue>(new CachedValue
+			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(TaggedCacheableMessage)),
+				HasExecuted = true,
+				ShouldCache = true,
+				Value = "ok",
+				TagStamps = null, // e.g. an entry serialized before this mechanism existed.
+			}));
+
+		var tagTracker = A.Fake<ICacheTagTracker>();
+		var middleware = CreateMiddleware(options, tagTracker);
+
+		var message = new TaggedCacheableMessage();
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+
+		var handlerRan = false;
+		var expected = A.Fake<IMessageResult>();
+		DispatchRequestDelegate next = (_, _, _) =>
+		{
+			handlerRan = true;
+			return new ValueTask<IMessageResult>(expected);
+		};
+
+		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
+
+		handlerRan.ShouldBeTrue(
+			"an entry with no recorded stamp for its own tag cannot be proven valid and must be treated as "
+			+ "invalidated -- never conflated with a tag that simply has no stamp in the backend yet.");
+		result.ShouldBe(expected);
+		// Never even needs to ask the tracker for the tag's current stamp: there is nothing to compare it to.
+		A.CallTo(() => tagTracker.GetOrCreateStampAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => _fakeCache.RemoveAsync("boundary-key", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	private CachingMiddleware CreateMiddleware(CacheOptions options, ICacheTagTracker? tagTracker = null)
@@ -185,12 +329,12 @@ public sealed class CachingMiddlewareFailOpenBoundaryShould : IDisposable
 
 	// Interface-cacheable WITH tags. GetCacheTags is EXPLICITLY implemented so the middleware's reflection
 	// invocation on the ICacheable<T> interface slot dispatches to this body (a class-level `public` method
-	// would NOT — ICacheable<T>.GetCacheTags is a default interface method, not virtual to the class).
+	// would NOT — ICacheable.GetCacheTags is a default interface method, not virtual to the class).
 	private sealed class TaggedCacheableMessage : ICacheable<string>
 	{
 		public string GetCacheKey() => "yy57cu:1";
 
-		string[]? ICacheable<string>.GetCacheTags() => ["yy57cu-tag"];
+		string[]? ICacheable.GetCacheTags() => ["yy57cu-tag"];
 
 		public bool ShouldCache(object? result) => true;
 	}

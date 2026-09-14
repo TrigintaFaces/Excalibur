@@ -30,13 +30,38 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	/// </summary>
 	/// <remarks>
 	/// <see cref="IDeadLetterableOutboxStore"/> and <see cref="IBackoffSchedulableOutboxStore"/> move message
-	/// identifiers, reasons, and retry counts. Neither derives from <see cref="IOutboxStore"/>, so neither
-	/// inherits its payload-bearing surface. Every other capability is denied or wrapped.
+	/// identifiers, reasons, and retry counts. <see cref="IFencedOutboxStoreDiagnostics"/> moves only a
+	/// fencing high-water token -- an administrative sequence number, never message content.
+	/// <see cref="IClaimScopedOutboxStore"/> moves identifiers, an error string, a retry count, a next-
+	/// attempt time and a claim identity -- no payload on either member.
+	/// <see cref="IFencedClaimScopedOutboxStore"/> moves the same, plus a fencing token -- an administrative
+	/// sequence number, never message content. None of the five derives from
+	/// <see cref="IOutboxStore"/>, so none inherits its payload-bearing surface. That is why the fenced
+	/// <see cref="IFencedDeadLetterableOutboxStore"/> moves an identifier, a reason and a fencing token.
+	/// The fenced
+	/// claim-scoped contract deliberately declares NO base interfaces: deriving it from the fencing contract
+	/// would have pulled the payload-bearing surface in transitively and forced it out of this set, and a
+	/// capability denied here is silently absent for precisely the consumers who enabled encryption. Every
+	/// other capability is denied or wrapped.
+	/// <para>
+	/// <see cref="IOutboxStoreCapabilities"/> carries a single boolean and no base interface, so it clears the
+	/// test above trivially. <b>It was absent, and its absence did the specific harm the sentence above
+	/// predicts.</b> The capability answers whether the store tracks sent messages or deletes them on send;
+	/// denied, a delete-on-sent store became indistinguishable from a sent-tracking one for any consumer who
+	/// enabled crypto-shredding, so callers and the conformance kit went looking for a row that store had
+	/// deleted. A capability describing the store's own SHAPE is exactly what a decorator must not silently
+	/// answer for, because it reports on the thing underneath rather than on anything the decorator does.
+	/// </para>
 	/// </remarks>
 	private static readonly HashSet<Type> ForwardableCapabilitySet =
 	[
 		typeof(IDeadLetterableOutboxStore),
-		typeof(IBackoffSchedulableOutboxStore)
+		typeof(IBackoffSchedulableOutboxStore),
+		typeof(IFencedOutboxStoreDiagnostics),
+		typeof(IClaimScopedOutboxStore),
+		typeof(IFencedClaimScopedOutboxStore),
+		typeof(IFencedDeadLetterableOutboxStore),
+		typeof(IOutboxStoreCapabilities)
 	];
 
 	private readonly IEncryptionProviderRegistry _registry;

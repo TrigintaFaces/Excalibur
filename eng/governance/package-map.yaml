@@ -150,6 +150,8 @@ packages:
   # ─────────────────────────────────────────────────────────────────────────
   - id: Excalibur.A3
     category: Excalibur
+  - id: Excalibur.A3.AspNetCore
+    category: Excalibur
   - id: Excalibur.A3.Core
     category: Excalibur
   - id: Excalibur.A3.Governance

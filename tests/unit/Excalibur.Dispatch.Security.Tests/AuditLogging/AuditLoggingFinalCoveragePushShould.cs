@@ -192,7 +192,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 
 		// Act & Assert
 		await Should.ThrowAsync<OperationCanceledException>(
-			() => store.GetLastEventAsync(null, cts.Token)).ConfigureAwait(false);
+			() => store.GetLastEventAsync(cts.Token)).ConfigureAwait(false);
 	}
 
 	#endregion
@@ -309,7 +309,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_GetLastEventAsync_ReturnsNullForUnknownTenant()
 	{
 		var store = AuditStoreTenantScope.Untenanted();
-		var result = await store.GetLastEventAsync("unknown-tenant", CancellationToken.None).ConfigureAwait(false);
+		var result = await store.GetLastEventAsync(CancellationToken.None).ConfigureAwait(false);
 		result.ShouldBeNull();
 	}
 
@@ -779,7 +779,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 			DateTimeOffset startDate, DateTimeOffset endDate, CancellationToken cancellationToken = default)
 			=> Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId = null, CancellationToken cancellationToken = default)
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken = default)
 			=> Task.FromResult<AuditEvent?>(null);
 	}
 

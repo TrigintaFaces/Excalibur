@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Net;
 using System.Text.Json;
 
 using Microsoft.Azure.Cosmos;
@@ -60,6 +61,35 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 			+ "problem — the emulator never came up. Underlying initialization failure: "
 			+ (InitError ?? "(none recorded — InitializeAsync did not run)"));
 
+	/// <summary>
+	/// Asserts that the emulator is available, throwing when it is not.
+	/// </summary>
+	/// <remarks>
+	/// THE FIXTURE OWNS THE AVAILABILITY POLICY, so every suite on this fixture answers "what
+	/// happens when the emulator is not there" the same way. Delegating the decision is what let
+	/// two suites against this same emulator answer it in OPPOSITE ways, leaving the honesty of a
+	/// given guarantee to depend on which convention its author happened to copy.
+	/// <para>
+	/// The policy is HARD FAILURE, not a skip: an un-run lock must not contribute a pass it did
+	/// not earn. A host that genuinely cannot run this belongs in the reviewed, expiring
+	/// suppression list -- named, owned and evidenced -- not in a per-test skip nobody can audit.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">The emulator is not available.</exception>
+	public void EnsureAvailable()
+	{
+		if (IsInitialized)
+		{
+			return;
+		}
+
+		throw new InvalidOperationException(
+			"CosmosDbSagaStoreContainerFixture: the Cosmos emulator is not available, so this test cannot exercise the "
+			+ "real system it exists to verify. Reporting a pass here would certify a guarantee "
+			+ "nothing checked. Underlying initialization failure: "
+			+ (InitError ?? "(none recorded -- InitializeAsync did not run)"));
+	}
+
 	/// <summary>Gets the emulator connection string (also fed to options to satisfy Validate()).</summary>
 	public string ConnectionString => _container.GetConnectionString();
 
@@ -86,7 +116,7 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 				.Build();
 
 			// The injected-client store path does NOT create the database — the fixture owns that.
-			_ = await client.CreateDatabaseIfNotExistsAsync(DatabaseName).ConfigureAwait(false);
+			await WaitForDataPlaneReadyAsync(client).ConfigureAwait(false);
 
 			// Published ONLY once the database round-trip has succeeded. Assigning before this point is
 			// what let a client belonging to a failed init escape to consumers.
@@ -101,6 +131,75 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 			InitError = ex.ToString();
 			_client = null;
 		}
+	}
+
+	/// <summary>
+	/// Polls the data plane until it accepts a request, rather than assuming a started container is a
+	/// ready one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>THE RACE.</b> <c>StartAsync</c> returns when the Testcontainers wait strategy is satisfied — the
+	/// container is up and the gateway answers. The vNext emulator's data plane is served by a
+	/// <c>pgcosmos</c> extension still initialising at that moment, so the first request is rejected with
+	/// <c>503 ServiceUnavailable</c> and the reason string <c>"pgcosmos extension is still starting; retry
+	/// request shortly"</c>. Container-ready and data-plane-ready are two different states and only the
+	/// first one was waited on.
+	/// </para>
+	/// <para>
+	/// <b>WHY NOTHING ELSE COVERED IT.</b> This fixture does not derive from <c>ContainerFixtureBase</c>,
+	/// whose retry classifier already treats that message as retriable, so it inherited none of that
+	/// protection. The client's own <c>WithThrottlingRetryOptions</c> does not help either: it governs
+	/// <c>429</c> throttling, not <c>503</c>. And because this fixture's availability policy is a
+	/// deliberate HARD FAILURE, losing the race did not degrade one test — it failed every test in the
+	/// suite with an error naming the emulator rather than the timing.
+	/// </para>
+	/// <para>
+	/// <b>THE PREDICATE IS DELIBERATELY NARROW.</b> Only <c>503</c> is retried, so a malformed connection
+	/// string, a bad endpoint or an auth fault still fails on its first attempt with its own error instead
+	/// of being masked for the whole budget and then reported as a readiness timeout. On exhaustion the
+	/// last <see cref="CosmosException"/> is preserved as the inner exception — a wait that reported only
+	/// "timed out" would reproduce the undiagnosable failure this fixture was already once repaired for.
+	/// </para>
+	/// </remarks>
+	private async Task WaitForDataPlaneReadyAsync(CosmosClient client)
+	{
+		using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+		var pollInterval = TimeSpan.FromSeconds(2);
+		var attempts = 0;
+		CosmosException? lastTransient = null;
+
+		while (!budget.IsCancellationRequested)
+		{
+			attempts++;
+			try
+			{
+				_ = await client.CreateDatabaseIfNotExistsAsync(DatabaseName, cancellationToken: budget.Token)
+					.ConfigureAwait(false);
+				return;
+			}
+			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.ServiceUnavailable)
+			{
+				lastTransient = ex;
+			}
+
+			try
+			{
+				// Backoff INSIDE a poll loop, not a sync-wait before an assertion: the loop polls the real
+				// condition (the data-plane call succeeding) and is bounded by the budget above.
+				await Task.Delay(pollInterval, budget.Token).ConfigureAwait(false); // delay-ok: poll-loop backoff, not a sync-wait
+			}
+			catch (OperationCanceledException)
+			{
+				break;
+			}
+		}
+
+		throw new InvalidOperationException(
+			$"CosmosDB emulator data plane was not ready after {attempts} attempt(s): the emulator kept "
+			+ "returning 503 ServiceUnavailable. The container started, so this is the emulator's internal "
+			+ "startup exceeding the fixture's budget, not a Docker failure. See the inner exception.",
+			lastTransient);
 	}
 
 	/// <inheritdoc/>

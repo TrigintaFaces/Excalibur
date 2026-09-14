@@ -50,7 +50,7 @@ internal sealed class OutboxDeadLetterCapabilityValidator : IValidateOptions<Out
 		return ValidateOptionsResult.Fail(
 			$"The registered outbox store '{_outboxStore.GetType().FullName}' does not implement " +
 			$"'{nameof(IDeadLetterableOutboxStore)}'. The polling outbox transitions a retry-exhausted message to the " +
-			"terminal DeadLettered status so it is never re-claimed; without the capability the message would stay " +
+			"terminal DeadLettered status so it is not claimed again; without the capability the message would stay " +
 			"Failed, be re-claimed after its lease expires, and be re-delivered and re-dead-lettered indefinitely. " +
 			"Register an outbox store that supports terminal dead-lettering, or implement IDeadLetterableOutboxStore " +
 			"on your custom outbox store. Not every store provides the capability, so this is not necessarily a " +

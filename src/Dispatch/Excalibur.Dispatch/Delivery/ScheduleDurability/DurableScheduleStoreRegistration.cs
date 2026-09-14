@@ -75,7 +75,7 @@ public static class DurableScheduleStoreRegistration
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The same <see cref="IServiceCollection" /> for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> <paramref name="services" /> is <see langword="null" />. </exception>
-	public static IServiceCollection AddScheduleDurabilityGate(this IServiceCollection services)
+	internal static IServiceCollection AddScheduleDurabilityGate(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

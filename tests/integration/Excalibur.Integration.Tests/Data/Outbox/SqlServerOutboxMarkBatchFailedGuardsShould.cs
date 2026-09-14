@@ -103,15 +103,15 @@ public sealed class SqlServerOutboxMarkBatchFailedGuardsShould : IClassFixture<S
 
 		// proc-1 claims both, so both rows are leased by proc-1.
 		_ = (await proc1.GetUnsentMessagesAsync(10, ct).ConfigureAwait(false)).ToList();
-		(await ReadRowAsync(held.Id).ConfigureAwait(false)).LeasedBy.ShouldBe("proc-1");
+		(await ReadRowAsync(held.Id).ConfigureAwait(false)).LeasedBy.ShouldStartWith("proc-1:");
 
 		// proc-2 attempts to settle a batch containing a message it does not hold.
 		await proc2.MarkBatchFailedAsync([held.Id], "hijack", 9, ct).ConfigureAwait(false);
 
 		// SAFETY -- the foreign batch mark matched no rows.
 		var afterForeign = await ReadRowAsync(held.Id).ConfigureAwait(false);
-		afterForeign.LeasedBy.ShouldBe(
-			"proc-1",
+		afterForeign.LeasedBy.ShouldStartWith(
+			"proc-1:", Case.Sensitive,
 			"a batch mark from a processor that does not hold the lease must not clear a lease it does not " +
 			"own. The single-message path guards on ownership; the batch path reaching the same contract " +
 			"without it meant the guarantee depended on which overload the processor happened to call.");

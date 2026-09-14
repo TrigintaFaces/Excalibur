@@ -58,7 +58,10 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 		_logger = logger ?? NullLogger.Instance;
 		_manualControl = new CircuitBreakerManualControl();
 
-		PollyCircuitBreakerConstraints.ThrowIfNotExpressible(options, _circuitName);
+		// No range check here on purpose. MinimumThroughput carries its own floor of 2, enforced by the
+		// options validator at startup. Re-checking it at construction would reject a value the options
+		// type admits, which is a precondition this provider alone imposes and the caller cannot see --
+		// and it would surface on the first message through a transport rather than at configuration.
 
 		// Create Polly resilience pipeline with circuit breaker strategy
 		_pipeline = new ResiliencePipelineBuilder()
@@ -66,8 +69,8 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 			{
 				FailureRatio = options.FailureRatio,
 				SamplingDuration = options.SamplingDuration,
-				MinimumThroughput = options.FailureThreshold,
-				BreakDuration = options.OpenDuration,
+				MinimumThroughput = options.MinimumThroughput,
+				BreakDuration = options.BreakDuration,
 				ManualControl = _manualControl,
 				ShouldHandle = new PredicateBuilder()
 					.Handle<Exception>(ex => ex is not (OperationCanceledException or TaskCanceledException)),
@@ -241,11 +244,6 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 	}
 
 	/// <inheritdoc />
-	/// <remarks>
-	/// <see cref="ICoreCircuitBreakerPolicy.Reset"/> is synchronous while Polly's manual control API is
-	/// asynchronous; this method triggers close without blocking.
-	/// </remarks>
-	/// <inheritdoc />
 	public async Task<TResult> ExecuteAsync<TResult>(
 		Func<CancellationToken, Task<TResult>> action,
 		Func<TResult, bool> isFailure,
@@ -293,33 +291,35 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 	}
 
 	/// <inheritdoc />
-	public void Reset()
+	public async Task ResetAsync(CancellationToken cancellationToken)
 	{
 		lock (_lock)
 		{
 			_consecutiveFailures = 0;
 		}
 
-		// ManualControl.CloseAsync is asynchronous and this member is not, so the close is observed
-		// rather than discarded. Writing Closed here optimistically would report a circuit that had
-		// not closed yet, and would hide a fault in the close entirely; Polly's own OnClosed callback
-		// updates the state and raises the transition once the circuit has actually closed.
-		_ = ObserveResetAsync();
-	}
+		// The close is AWAITED, not started-and-abandoned. The previous synchronous signature could not
+		// do this -- it had to kick off CloseAsync and return, so a caller had no way to learn when the
+		// circuit was actually back in service, and an operator was left polling State.
+		await _manualControl.CloseAsync(cancellationToken).ConfigureAwait(false);
 
-	private async Task ObserveResetAsync()
-	{
-		try
+		// Publishing Closed HERE is what makes the interface postcondition true, and it is only sound
+		// because the close above has already succeeded: recording it is now a FACT, not the optimistic
+		// prediction the old comment on this member rightly refused to make. Polly's OnClosed callback
+		// remains the writer for transitions this method does not initiate; both paths take _lock and
+		// assign the same value, so the redundancy is idempotent rather than racy. A failed close no
+		// longer becomes a log line -- it faults the returned task and reaches the caller.
+		CircuitState previous;
+		lock (_lock)
 		{
-			await _manualControl.CloseAsync().ConfigureAwait(false);
+			previous = _currentState;
+			_currentState = CircuitState.Closed;
 		}
-		catch (ObjectDisposedException)
+
+		if (previous != CircuitState.Closed)
 		{
-			// The adapter was disposed while the close was in flight; nothing left to close.
-		}
-		catch (Exception ex)
-		{
-			LogResetFailed(ex);
+			LogCircuitClosed(_circuitName);
+			RaiseStateChanged(previous, CircuitState.Closed, null);
 		}
 	}
 
@@ -354,8 +354,4 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 	[LoggerMessage(ResilienceEventId.CircuitBreakerHalfOpen, LogLevel.Information,
 		"Circuit breaker half-open: {CircuitName}")]
 	private partial void LogCircuitHalfOpen(string circuitName);
-
-	[LoggerMessage(ResilienceEventId.CircuitBreakerResetFailed, LogLevel.Warning,
-		"Circuit breaker reset did not complete; the circuit may still be open")]
-	private partial void LogResetFailed(Exception exception);
 }

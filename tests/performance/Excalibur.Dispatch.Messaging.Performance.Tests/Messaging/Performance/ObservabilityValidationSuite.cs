@@ -180,7 +180,7 @@ public sealed class ObservabilityValidationSuite : IDisposable
 
 		// Verify both messages completed successfully
 		results.Length.ShouldBe(2);
-		results.ShouldAllBe(r => r.IsSuccess);
+		results.ShouldAllBe(r => r.Succeeded);
 
 		// Note: delegateCalls may be 1 (bulk optimized) or 2 (individual processing)
 		// depending on batching behavior, so we just verify at least 1 call was made

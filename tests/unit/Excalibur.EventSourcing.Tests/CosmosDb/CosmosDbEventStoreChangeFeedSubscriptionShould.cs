@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Threading.Channels;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Data.CosmosDb;
 using Excalibur.EventSourcing.CosmosDb;
 
 using Microsoft.Azure.Cosmos;
@@ -58,6 +59,52 @@ public sealed class CosmosDbEventStoreChangeFeedSubscriptionShould : UnitTestBas
 		await sut.DisposeAsync();
 
 		await sut.StopAsync(CancellationToken.None);
+	}
+
+	/// <summary>tmd249 item 6 — SAFETY: a second checkpointing subscription for the same container is refused.</summary>
+	[Fact]
+	public async Task Constructor_ThrowInvalidOperationException_WhenAnotherCheckpointingSubscriptionForTheSameContainerIsActive()
+	{
+		var container = A.Fake<Container>();
+		_ = A.CallTo(() => container.Id).Returns($"container-{Guid.NewGuid():N}");
+		var options = new CosmosDbEventStoreOptions();
+		var checkpointStore = A.Fake<IChangeFeedCheckpointStore>();
+
+		await using var first = new CosmosDbEventStoreChangeFeedSubscription(container, options, NullLogger.Instance, checkpointStore);
+
+		Should.Throw<InvalidOperationException>(
+			() => new CosmosDbEventStoreChangeFeedSubscription(container, options, NullLogger.Instance, checkpointStore),
+			"two subscriptions checkpointing under the same container-derived key would silently clobber each other's saved position.");
+	}
+
+	/// <summary>tmd249 item 6 — LIVENESS: disposing the first releases the key, so a new one can be constructed.</summary>
+	[Fact]
+	public async Task Constructor_Succeed_AfterThePriorCheckpointingSubscriptionForTheSameContainerIsDisposed()
+	{
+		var container = A.Fake<Container>();
+		_ = A.CallTo(() => container.Id).Returns($"container-{Guid.NewGuid():N}");
+		var options = new CosmosDbEventStoreOptions();
+		var checkpointStore = A.Fake<IChangeFeedCheckpointStore>();
+
+		var first = new CosmosDbEventStoreChangeFeedSubscription(container, options, NullLogger.Instance, checkpointStore);
+		await first.DisposeAsync();
+
+		await using var second = new CosmosDbEventStoreChangeFeedSubscription(container, options, NullLogger.Instance, checkpointStore);
+		second.ShouldNotBeNull();
+	}
+
+	/// <summary>tmd249 item 6 — LIVENESS: two NON-checkpointing subscriptions for the same container never collide (nothing to corrupt).</summary>
+	[Fact]
+	public async Task Constructor_Succeed_ForTwoNonCheckpointingSubscriptionsOnTheSameContainer()
+	{
+		var container = A.Fake<Container>();
+		_ = A.CallTo(() => container.Id).Returns($"container-{Guid.NewGuid():N}");
+		var options = new CosmosDbEventStoreOptions();
+
+		await using var first = new CosmosDbEventStoreChangeFeedSubscription(container, options, NullLogger.Instance);
+		await using var second = new CosmosDbEventStoreChangeFeedSubscription(container, options, NullLogger.Instance);
+
+		second.ShouldNotBeNull();
 	}
 
 	[Fact]

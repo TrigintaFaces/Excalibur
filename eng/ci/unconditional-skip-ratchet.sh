@@ -132,6 +132,22 @@ self_test() {
   if [ "$rc" -eq 0 ]; then printf '  L3 PASS  shrink below baseline passes\n'
   else printf '  L3 FAIL  shrink rejected (rc=%s)\n' "$rc"; fails=$((fails+1)); fi
 
+  # J1 — --regenerate re-measures the COUNT and carries the JUSTIFICATION and header forward. The
+  # count is recoverable by scanning; the reason a skip was accepted is not, so a regenerate that
+  # drops it destroys the only record distinguishing a declared exemption from a silenced test.
+  # This arm exists because the first implementation did exactly that while reporting success: it
+  # read the old file via `awk -v`, which escape-processes the value, so a path containing
+  # backslashes silently resolved to nothing and every justification was dropped.
+  mk "$tmp/regen" 2
+  printf '# header\n1 T.cs why this one is accepted\n' > "$tmp/regen.txt"
+  SKIP_RATCHET_SCAN_ROOT="$tmp/regen" SKIP_RATCHET_BASELINE="$tmp/regen.txt" bash "$self" --regenerate >/dev/null 2>&1
+  if grep -q '^# header$' "$tmp/regen.txt" && grep -q '^2 T\.cs why this one is accepted$' "$tmp/regen.txt"; then
+    printf '  J1 PASS  regenerate re-measures the count and keeps the justification + header\n'
+  else
+    printf '  J1 FAIL  regenerate lost the justification or header: %s\n' "$(tr '\n' '|' < "$tmp/regen.txt")"
+    fails=$((fails+1))
+  fi
+
   # R1 REFUSE — no .cs files at all means nothing was measured. Must REFUSE(2), never PASS(0).
   mkdir -p "$tmp/empty"; : > "$tmp/empty.txt"
   SKIP_RATCHET_SCAN_ROOT="$tmp/empty" SKIP_RATCHET_BASELINE="$tmp/empty.txt" bash "$self" >/dev/null 2>&1; rc=$?
@@ -146,8 +162,24 @@ self_test() {
 case "${1:-}" in
   --self-test) self_test; exit $? ;;
   --regenerate)
-    scan > "$BASELINE"
-    echo "Baseline written: ${BASELINE#"$REPO"/} ($(wc -l < "$BASELINE") file(s), $(awk '{s+=$1} END{print s+0}' "$BASELINE") skip(s))"
+    # A regenerate re-measures the COUNTS. It must not discard the JUSTIFICATIONS. A scan can always
+    # recover how many unconditional skips a file has; nothing can recover why they were accepted.
+    # A plain `scan > baseline` silently turns a file of declared exemptions back into bare numbers,
+    # so the leading comment block and each row's justification are carried forward, keyed by path.
+    # The old baseline is passed as a FILE ARGUMENT and joined on the first pass (FNR==NR), never via
+    # `awk -v`: awk applies escape processing to a -v value, so a path containing backslashes loses
+    # them (a Windows temp path's \L and \T vanish) and the read silently yields nothing -- the join
+    # would then drop every justification while reporting success.
+    { awk '/^#/ || /^[[:space:]]*$/ { print; next } { exit }' "$BASELINE" 2>/dev/null
+      scan | awk '
+        FNR == NR {
+          if ($0 ~ /^#/ || NF == 0) { next }
+          if (NF >= 3) { j = $3; for (i = 4; i <= NF; i++) { j = j " " $i } ; J[$2] = j }
+          next
+        }
+        { print ($2 in J) ? $0 " " J[$2] : $0 }' "$BASELINE" -
+    } > "$BASELINE.regen" && mv "$BASELINE.regen" "$BASELINE"
+    echo "Baseline written: ${BASELINE#"$REPO"/} ($(grep -cvE '^#|^[[:space:]]*$' "$BASELINE") file(s), $(awk '!/^#/ && NF { s += $1 } END { print s+0 }' "$BASELINE") skip(s))"
     exit 0 ;;
 esac
 

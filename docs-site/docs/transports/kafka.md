@@ -43,6 +43,8 @@ Note: The Kafka transport uses `[RequiresUnreferencedCode]` and `[RequiresDynami
 
 ### Using the Dispatch Builder (Recommended)
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
+
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -58,6 +60,8 @@ services.AddDispatch(dispatch =>
 
 ### Standalone Registration
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
+
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -88,6 +92,7 @@ For most applications, the Quick Start above is all you need. The fluent builder
 Configure producer, consumer, CloudEvents, and topic settings using the fluent builder:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport(kafka =>
 {
     kafka.BootstrapServers("broker1:9093,broker2:9093")
@@ -121,6 +126,7 @@ whose security protocol would carry credentials and message payloads in the clea
 a deployment that configures nothing does not silently connect in plaintext, it fails where it is wired.
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport(kafka =>
 {
     kafka.BootstrapServers("broker:9093")
@@ -201,6 +207,7 @@ The consumer's partition assignment strategy is configurable via `options.Consum
 Configure CloudEvents via `ConfigureCloudEvents()` on the transport builder for delivery guarantees, partitioning, and topic creation:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport(kafka =>
 {
     kafka.BootstrapServers("localhost:9092")
@@ -225,7 +232,7 @@ Alternatively, use the standalone extension method:
 The CloudEvents mapper bundled with this transport serializes the message payload with
 reflection-based JSON, so these registrations carry `[RequiresUnreferencedCode]` and
 `[RequiresDynamicCode]`. A host that trims or publishes ahead of time gets a warning at the
-call. To compose without the requirement, register your own `ICloudEventMapper<TTransportMessage>`
+call. To compose without the requirement, register your own `ICloudEventEncoder<TOutbound>`
 backed by a source-generated serializer.
 :::
 
@@ -241,6 +248,7 @@ services.AddCloudEventsForKafka(options =>
 Enable transactional publishing for exactly-once semantics:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport(kafka =>
 {
     kafka.BootstrapServers("localhost:9092")
@@ -286,6 +294,7 @@ services.AddOpenTelemetry()
 Add schema validation, evolution, and Confluent wire format interoperability with `UseConfluentSchemaRegistry()`:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport("events", kafka =>
 {
     kafka.BootstrapServers("localhost:9092")

@@ -26,7 +26,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />

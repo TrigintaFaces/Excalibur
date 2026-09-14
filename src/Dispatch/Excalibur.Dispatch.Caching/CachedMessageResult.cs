@@ -39,6 +39,9 @@ internal sealed class CachedMessageResult<T> : IMessageResult<T>
 	public bool CacheHit { get; }
 
 	/// <inheritdoc />
+	public MessageDisposition Disposition => MessageDisposition.ServedFromCache;
+
+	/// <inheritdoc />
 	public IMessageProblemDetails? ProblemDetails { get; }
 
 	/// <inheritdoc />
@@ -92,6 +95,9 @@ internal sealed class CachedObjectMessageResult : IMessageResult
 
 	/// <inheritdoc />
 	public bool CacheHit { get; }
+
+	/// <inheritdoc />
+	public MessageDisposition Disposition => MessageDisposition.ServedFromCache;
 
 	/// <inheritdoc />
 	public IMessageProblemDetails? ProblemDetails { get; }

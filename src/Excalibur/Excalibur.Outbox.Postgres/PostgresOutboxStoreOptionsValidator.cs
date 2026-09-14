@@ -81,6 +81,22 @@ internal sealed class PostgresOutboxStoreOptionsValidator(
 					$"Dead letter table name '{options.DeadLetterTableName}' contains invalid characters. Only alphanumeric characters and underscores are allowed.");
 		}
 
+		// The fence control table is interpolated into statement text by QualifiedFenceTableName exactly as
+		// the two above are, so it carries the same requirement. It was omitted here while they were checked
+		// -- the failure mode of a validation convention held per-property rather than enforced. The
+		// double-quoting in QualifiedFenceTableName is not a substitute for the allowlist; a '"' closes the
+		// quote.
+		if (string.IsNullOrWhiteSpace(options.FenceTableName))
+		{
+			return ValidateOptionsResult.Fail("Fence table name cannot be null or empty.");
+		}
+
+		if (!IsValidIdentifier(options.FenceTableName))
+		{
+			return ValidateOptionsResult.Fail(
+					$"Fence table name '{options.FenceTableName}' contains invalid characters. Only alphanumeric characters and underscores are allowed.");
+		}
+
 		// Validate reservation timeout
 		if (options.ReservationTimeout <= 0)
 		{

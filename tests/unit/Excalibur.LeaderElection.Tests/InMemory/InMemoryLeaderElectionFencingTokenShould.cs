@@ -10,10 +10,12 @@ namespace Excalibur.LeaderElection.Tests.InMemory;
 //   strictly-monotonic provider. An in-band 0 is the bug this locks against — a consumer that reads a 0 as
 //   "a valid low token" would present it to a fencing store and defeat split-brain protection.
 //
-// InMemoryLeaderElection genuinely has NO fencing provider (single-process, no durable monotonic source), so
-// it is the crisp unit witness for the "unavailable => null, never 0" half of the invariant: a leader here
-// holds a real leadership record whose FencingToken is deliberately null. The ">= 1 when available + monotonic
-// on takeover" half requires a durable provider and is covered by the MongoDb/SqlServer takeover integration
+// This lock constructs InMemoryLeaderElection directly with NO fencing provider (as opposed to going through
+// Add InMemoryLeaderElection()/UseInMemory(), which auto-registers InMemoryFencingTokenProvider by default
+// since b8ht6u), so it is the crisp unit witness for the "unconfigured => null, never 0" half of the
+// invariant: a leader here holds a real leadership record whose FencingToken is deliberately null. The
+// ">= 1 when available + monotonic on takeover" half is covered by InMemoryLeaderElectionFencingShould
+// (constructs with a real InMemoryFencingTokenProvider) alongside the MongoDb/SqlServer takeover integration
 // locks.
 //
 // SAFETY + LIVENESS (testing-patterns §3): asserting only "token is null" is satisfied vacuously by a provider
@@ -50,12 +52,13 @@ public sealed class InMemoryLeaderElectionFencingTokenShould : UnitTestBase
 			"a leader must hold a Leadership record — the point of this lock is that the record EXISTS and its " +
 			"token is deliberately null, not that leadership is absent.");
 
-		// SAFETY (the 4cyuud invariant): no fencing provider => token is NULL, never an in-band 0. A regression to
-		// `new Leadership(FencingToken: 0, ...)` reintroduces the in-band-zero bug and fails here.
+		// SAFETY (the 4cyuud invariant): no fencing provider configured on this instance => token is NULL,
+		// never an in-band 0. A regression to `new Leadership(FencingToken: 0, ...)` reintroduces the
+		// in-band-zero bug and fails here.
 		leadership.Value.FencingToken.ShouldBeNull(
-			"InMemoryLeaderElection has no durable monotonic fencing source, so 'no fence' MUST be null — never 0. " +
-			"An in-band 0 reads to a consumer as a valid low token and would be presented to a fencing store, " +
-			"defeating the split-brain guard. null is the honest 'unfenced' signal; 0 is a lie.");
+			"No IFencingTokenProvider was passed to this instance's constructor, so 'no fence' MUST be null " +
+			"— never 0. An in-band 0 reads to a consumer as a valid low token and would be presented to a " +
+			"fencing store, defeating the split-brain guard. null is the honest 'non-fencing-mode' signal; 0 is a lie.");
 	}
 
 	[Fact]

@@ -262,7 +262,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IDurableGrantStore,
 		foreach (var doc in documents)
 		{
 			var grant = doc.ToGrant();
-			var key = $"{grant.TenantId}:{grant.GrantType}:{grant.Qualifier}";
+			var key = GrantKeyFormat.ComposeScope(grant.TenantId, grant.GrantType, grant.Qualifier);
 			result[key] = grant;
 		}
 

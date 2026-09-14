@@ -23,11 +23,11 @@ Dispatch includes five built-in profiles optimized for common scenarios:
 
 | Profile | Use Case | Middleware Count |
 |---------|----------|------------------|
-| `default` | Standard message processing | 7 middleware |
+| `default` | Standard message processing | 3 middleware |
 | `strict` | External/partner inputs — declares the full middleware set (see the security note below) | 13 middleware |
 | `internal-event` | Trusted internal event processing | 5 middleware |
-| `batch` | High-throughput batch operations | 3 middleware |
-| `hot-path` | Ultra-low-latency message processing | 0 middleware |
+| `batch` | High-throughput batch operations | 2 middleware |
+| `direct` | Ultra-low-latency message processing | 0 middleware |
 
 ## Using Pipeline Profiles
 
@@ -78,18 +78,19 @@ The standard pipeline profile with canonical middleware ordering. Suitable for m
 :::info The default profile runs by default
 `AddDispatch` selects the `default` profile for the standard dispatch path **without any explicit `ConfigurePipeline`/`UseProfile` call**. You configure a profile only to choose a *different* one (e.g. `strict`).
 
-**Selecting a profile is not the same as activating its middleware.** A profile entry runs only if its type is resolvable from the service provider, and the framework does not register the profile's middleware types for you — each has its own registration call (see the table below). On a zero-config `AddDispatch`, **none** of the `default` profile's seven entries materialize.
+**Selecting a profile is not the same as activating its middleware.** A profile entry runs only if its type is resolvable from the service provider. `AddDispatch` registers the `default` profile's own entries for you, so a zero-config `AddDispatch` runs them; every other profile entry has its own registration call (see the table below) and materializes only once you make it. The `default` profile contains exactly the middleware `AddDispatch` can construct on its own — entries that need infrastructure only you can supply are reached through the `Use…()` call that registers their service, or through a profile you select deliberately.
 
-Every profile entry declares a **criticality**, and that is what decides the outcome when the entry cannot be constructed. An `Optional` entry is skipped and emits a debug log (`InvokerMiddlewareSkipped`, event ID 10024) rather than failing the dispatch. A `Required` entry fails the build instead, naming what is missing. All seven `default` entries are `Optional`, so a zero-config `AddDispatch` starts cleanly with an empty pipeline.
+Every profile entry declares a **criticality**, and that is what decides the outcome when the entry cannot be constructed. An `Optional` entry is skipped and logged at `Warning` (`InvokerMiddlewareSkipped`, event ID 10024) rather than failing the dispatch. A `Required` entry fails the build instead, naming what is missing. The `default` entries are `Optional`, so a profile entry whose registration you have replaced or removed degrades to a skip rather than a startup failure.
 
 An entry can fail to materialize in two ways, and criticality governs both alike: the middleware was never registered, **or** it was registered but its own dependency was not — `OutboxStagingMiddleware`, for example, resolves once you add the outbox.
 :::
 
 :::info Which entries are enforced, and which are best-effort
 
-`Optional` entries are skipped — silently, at Debug — when they cannot be constructed, **including when you
-have registered the middleware but not the service it depends on.** The pipeline builds successfully and
-reports nothing at Warning or above. Treat an `Optional` entry as best-effort: it is in the pipeline only
+`Optional` entries are skipped when they cannot be constructed, **including when you
+have registered the middleware but not the service it depends on.** The pipeline builds successfully, and
+each skip is logged at `Warning` — so a skipped entry is visible in a default logging configuration rather
+than silent. Treat an `Optional` entry as best-effort: it is in the pipeline only
 if everything it needs is present.
 
 `Required` entries are not best-effort. If one cannot be materialized, `Build()` throws and names it, so a
@@ -168,41 +169,54 @@ The failure path is the same one a `Required` profile entry takes. An explicit `
 `Required` profile entry are enforced identically; the difference is only where the entry was declared.
 :::
 
-**Declared middleware order**, and what registers each entry. The framework does not register these for
-you — on a zero-config `AddDispatch`, none of them materialize:
+**Declared middleware order**, and what registers each entry. `AddDispatch()` registers every entry the
+`default` profile declares, so a zero-configuration host dispatches through a pipeline that runs:
 
 | # | Middleware | Purpose | Registered by |
 |---|---|---|---|
-| 1 | `TenantIdentityMiddleware` | Multi-tenancy context | `UseTenantIdentity()` |
-| 2 | `ContractVersionCheckMiddleware` | Event/document versioning | `AddUpcastingMessageBusDecorator()` |
-| 3 | `ValidationMiddleware` | Input validation | `UseValidationStack()`, `UseDevelopmentMiddleware()`, or `UseFullMiddleware()` |
-| 4 | `TimeoutMiddleware` | Processing timeouts | register the type yourself |
-| 5 | `TransactionMiddleware` | Transaction management | register the type yourself |
-| 6 | `OutboxStagingMiddleware` | Outbox pattern support | `AddUpcastingMessageBusDecorator()` |
-| 7 | `MetricsLoggingMiddleware` | Observability | register the type yourself |
+| 1 | `TenantIdentityMiddleware` | Multi-tenancy context | `AddDispatch()` |
+| 2 | `TimeoutMiddleware` | Processing timeouts | `AddDispatch()` |
+| 3 | `MetricsLoggingMiddleware` | Observability | `AddDispatch()` |
+| 4 | `OutboxStagingMiddleware` | Staging outbox writes | `AddDispatch()` |
+
+The `default` profile contains exactly the middleware that can be constructed from `AddDispatch()` alone.
+That is a rule, not a list somebody keeps up to date: what the profile declares and what `AddDispatch()`
+registers are read from one source, so an entry it declares is always an entry you get.
+
+Middleware needing infrastructure only you can supply is therefore **not** in `default` — it would make a
+zero-configuration host fail to dispatch rather than start cleanly:
+
+| Middleware | Needs from you | Available via |
+|---|---|---|
+| `ContractVersionCheckMiddleware` | an `IContractVersionService` | `UseContractVersioning()` |
+| `ValidationMiddleware` | an `IMessageValidationService` | `UseValidation()` |
+| `TransactionMiddleware` | an `ITransactionService` | `UseTransaction()` |
+
+Registering one and adding it to a profile — or selecting a profile that declares it — enables it. Every
+registration `AddDispatch()` performs uses try-add semantics, so your own registration always wins.
+
+`OutboxStagingMiddleware` is in `default` and is the one entry whose behaviour depends on something you
+register. A store **activates** it rather than admitting it: with an `IOutboxStore` registered it stages, and
+with none it stays inert and dispatch is unaffected, so a zero-configuration host is never penalised for an
+outbox it does not use. You do not need `UseOutbox()` to get staging — registering a store is enough.
+
+The one case that still fails is a handler that writes through `IOutboxWriter` on a host with no store: that
+write has nowhere to go, and it raises an error naming `IOutboxStore` and the registration you are missing.
+If you call `UseOutbox()` explicitly you are stating that this host uses the outbox, so the missing store is
+reported at **startup** instead of at the first write.
 
 > `AuthorizationMiddleware` is **not** part of the `default` profile, and every `default` entry is
 > `Optional`. Selecting `default` declares no security boundary; if you need authorization, select `strict`
 > or add it with an explicit `UseAuthorization()` call.
 
-```csharp
-// Equivalent to:
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    dispatch.ConfigurePipeline("Default", pipeline =>
-    {
-        pipeline.Use<TenantIdentityMiddleware>();
-        pipeline.Use<ContractVersionCheckMiddleware>();
-        pipeline.Use<ValidationMiddleware>();
-        pipeline.Use<TimeoutMiddleware>();
-        pipeline.Use<TransactionMiddleware>();
-        pipeline.Use<OutboxStagingMiddleware>();
-        pipeline.Use<MetricsLoggingMiddleware>();
-    });
-});
-```
+:::caution `pipeline.Use<T>()` is not a way to spell out this profile
+Listing those types with `pipeline.Use<T>()` produces a **different** pipeline, not the same one.
+`Use<T>()` declares each entry **`Required`** and resolves it with `GetRequiredService<T>()` — it does not
+register anything. Every `default` entry is `Optional`, so the hand-written version fails to build on the
+first type you have not registered, where selecting the profile skips it with a warning. To declare
+entries yourself with their criticality, use `PipelineProfile.AddMiddleware<T>(order, criticality)` — see
+[Creating Custom Profiles](#creating-custom-profiles).
+:::
 
 ### Strict Profile
 
@@ -212,7 +226,7 @@ identity, input sanitization, and authorization. The other eight are `Optional` 
 absence degrades behavior without removing a boundary you asked for.
 
 **Declared middleware order.** `Required` entries fail the build when they cannot be materialized;
-`Optional` entries are skipped and logged at Debug.
+`Optional` entries are skipped and logged at Warning.
 
 | # | Middleware | Purpose | Criticality |
 |---|---|---|---|
@@ -285,9 +299,8 @@ builder.Services.AddDispatch(dispatch =>
 Optimized for high-throughput batch processing and data backfill operations. Includes batching and bulk optimization middleware.
 
 **Declared middleware order** (each entry runs only if it and its dependencies are registered):
-1. `BatchingMiddleware` - Group messages for bulk processing
-2. `BulkOptimizationMiddleware` - Optimize bulk operations
-3. `MetricsLoggingMiddleware` - Observability
+1. `UnifiedBatchingMiddleware` - Group messages for bulk processing
+2. `MetricsLoggingMiddleware` - Observability
 
 **When to Use:**
 - Data imports/exports
@@ -307,7 +320,7 @@ builder.Services.AddDispatch(dispatch =>
 });
 ```
 
-### Hot-Path Profile
+### Direct Profile
 
 Zero-middleware profile for ultra-low-latency message processing. Correlation and context management is handled directly in the Dispatcher, allowing maximum throughput at the framework's lowest allocation floor (96 B per dispatch, of which 72 B is the ambient-context `ExecutionContext` copy and scales with your application's async-local density -- see the [benchmarks](/docs/performance/competitor-comparison)).
 
@@ -326,14 +339,14 @@ builder.Services.AddDispatch(dispatch =>
 
     dispatch.ConfigurePipeline("Default", pipeline =>
     {
-        pipeline.UseProfile("hot-path");
+        pipeline.UseProfile("direct");
     });
 });
 ```
 
 :::warning Performance Trade-off
 
-The hot-path profile bypasses all middleware including validation, authorization, and error handling. Only use for trusted, pre-validated messages where latency is critical.
+The `direct` profile bypasses all middleware including validation, authorization, and error handling. Only use for trusted, pre-validated messages where latency is critical.
 :::
 
 ## Creating Custom Profiles
@@ -349,7 +362,7 @@ out of a profile to get it enforced.
 
 - `MiddlewareCriticality.Required` — the pipeline fails to build if the entry cannot be materialized,
   naming the middleware and the service that is missing.
-- `MiddlewareCriticality.Optional` — the entry is skipped and logged at Debug, and the pipeline builds
+- `MiddlewareCriticality.Optional` — the entry is skipped and logged at Warning, and the pipeline builds
   without it.
 
 **A `MiddlewareEntry` constructed without a criticality is `Required`.** Naming a middleware and omitting
@@ -383,7 +396,7 @@ var profile = new PipelineProfile("my-custom-profile", MessageKinds.All)
 // that service, instead of producing a pipeline without authorization.
 profile.AddMiddleware<AuthorizationMiddleware>(1, MiddlewareCriticality.Required);
 
-// Optional: skipped and logged at Debug when it cannot be materialized.
+// Optional: skipped and logged at Warning when it cannot be materialized.
 profile.AddMiddleware<CustomLoggingMiddleware>(2, MiddlewareCriticality.Optional);
 profile.AddMiddleware<ValidationMiddleware>(3, MiddlewareCriticality.Optional);
 ```
@@ -424,21 +437,27 @@ check, and is still filtered out for that kind.
 
 ### Register Custom Profiles
 
+Register the profile on the dispatch builder, then select it by name inside the pipeline:
+
 ```csharp
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
+    // Registration takes an instance, and it belongs on the dispatch builder — the pipeline
+    // builder only selects profiles, it does not hold the registry.
+    dispatch.RegisterProfile(new MyCustomProfile());
+
     dispatch.ConfigurePipeline("Default", pipeline =>
     {
-        // Register the custom profile
-        pipeline.RegisterProfile<MyCustomProfile>();
-
-        // Use it
         pipeline.UseProfile("my-custom-profile");
     });
 });
 ```
+
+`UseProfile(string)` throws when the name is not registered, so register before you select. If you do not
+need the profile addressable by name, pass the instance straight to the overload —
+`pipeline.UseProfile(new MyCustomProfile())` — and skip the registry entirely.
 
 ### Extend Built-in Profiles
 
@@ -470,7 +489,7 @@ builder.Services.AddDispatch(dispatch =>
 | Internal microservice calls | `default` |
 | Domain event handlers | `internal-event` |
 | Data migration jobs | `batch` |
-| High-frequency sensors | `hot-path` |
+| High-frequency sensors | `direct` |
 
 ### Consider Security Requirements
 
@@ -500,8 +519,8 @@ public async Task DefaultProfile() =>
     await _dispatcherWithDefault.DispatchAsync(new TestAction());
 
 [Benchmark]
-public async Task HotPathProfile() =>
-    await _dispatcherWithHotPath.DispatchAsync(new TestAction());
+public async Task DirectProfile() =>
+    await _dispatcherWithDirect.DispatchAsync(new TestAction());
 ```
 
 ## IPipelineProfile Interface
@@ -536,19 +555,19 @@ public interface IPipelineProfile
     /// Gets the message kinds this profile is optimized for.
     /// </summary>
     MessageKinds SupportedMessageKinds { get; }
+}
+```
 
+Message matching is a separate contract. Implement `IPipelineProfileMatcher` alongside `IPipelineProfile`
+when a profile needs to accept or reject individual messages:
+
+```csharp
+public interface IPipelineProfileMatcher
+{
     /// <summary>
     /// Validates whether a message is compatible with this profile.
     /// </summary>
     bool IsCompatible(IDispatchMessage message);
-
-    /// <summary>
-    /// Gets middleware applicable to the specified message kind.
-    /// </summary>
-
-    /// <summary>
-    /// Gets middleware applicable to the message kind and enabled features.
-    /// </summary>
 }
 ```
 

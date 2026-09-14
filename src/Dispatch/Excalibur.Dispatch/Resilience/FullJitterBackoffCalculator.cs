@@ -33,19 +33,19 @@ internal sealed class FullJitterBackoffCalculator : IBackoffCalculator
 	/// Initializes a new instance of the <see cref="FullJitterBackoffCalculator"/> class with default options.
 	/// </summary>
 	public FullJitterBackoffCalculator()
-		: this(new RetryPolicyOptions())
+		: this(new RetryOptions())
 	{
 	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FullJitterBackoffCalculator"/> class.
 	/// </summary>
-	/// <param name="options"> The retry policy options containing backoff configuration. </param>
-	public FullJitterBackoffCalculator(RetryPolicyOptions options)
+	/// <param name="options"> The retry options containing backoff configuration. </param>
+	public FullJitterBackoffCalculator(RetryOptions options)
 		: this(
-			options?.Backoff.BaseDelay ?? TimeSpan.FromSeconds(1),
-			options?.Backoff.MaxDelay ?? TimeSpan.FromMinutes(30),
-			options?.Backoff.BackoffMultiplier ?? 2.0)
+			options?.BaseDelay ?? TimeSpan.FromSeconds(1),
+			options?.MaxDelay ?? TimeSpan.FromMinutes(30),
+			options?.BackoffMultiplier ?? 2.0)
 	{
 	}
 

@@ -271,7 +271,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// limitation of IMessageResult<object>). So the stored Value is the boxed 42.
 		_capturedFactoryValue.Value.ShouldBe(42);
 		// CreateCacheValueAsync honors BOTH the registered policy AND the message's own
-		// ICacheable<T>.ShouldCache: shouldCache = ShouldCache(...) && cacheableInfo.ShouldCache(...).
+		// ICacheable.ShouldCache: shouldCache = ShouldCache(...) && cacheableInfo.ShouldCache(...).
 		// The message returns ShouldCache=false, so the result is NOT cacheable.
 		_capturedFactoryValue.ShouldCache.ShouldBeFalse();
 		// A freshly-executed non-cacheable (ShouldCache=false) marker is evicted so the next identical
@@ -769,8 +769,6 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Arrange - memory mode fallback (no hybridCache) with both keys and tags
 		var memoryCache = A.Fake<IMemoryCache>();
 		var tagTracker = A.Fake<ICacheTagTracker>();
-		A.CallTo(() => tagTracker.GetKeysByTagsAsync(A<string[]>._, _ct))
-			.Returns(new HashSet<string> { "tag-key-1" });
 
 		var options = MsOptions.Options.Create(new CacheOptions
 		{
@@ -789,8 +787,8 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert - both tag-resolved keys and direct keys should be removed
-		A.CallTo(() => memoryCache.Remove("tag-key-1")).MustHaveHappened();
+		// Assert - the tag's version stamp is bumped (no key resolution); the direct key is still removed
+		A.CallTo(() => tagTracker.BumpStampAsync("tag1", _ct)).MustHaveHappenedOnceExactly();
 		A.CallTo(() => memoryCache.Remove("sk:direct-key")).MustHaveHappened();
 	}
 
@@ -800,8 +798,6 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Arrange - distributed mode fallback (no hybridCache) with both keys and tags
 		var memoryCache = A.Fake<IMemoryCache>();
 		var tagTracker = A.Fake<ICacheTagTracker>();
-		A.CallTo(() => tagTracker.GetKeysByTagsAsync(A<string[]>._, _ct))
-			.Returns(new HashSet<string> { "tag-key-1" });
 
 		var options = MsOptions.Options.Create(new CacheOptions
 		{
@@ -820,9 +816,8 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert -- tracker resolves tags to keys, memory cache removes all
-		A.CallTo(() => memoryCache.Remove("tag-key-1")).MustHaveHappened();
-		A.CallTo(() => tagTracker.UnregisterKeyAsync("tag-key-1", _ct)).MustHaveHappened();
+		// Assert -- the tag's version stamp is bumped; the direct key is still removed
+		A.CallTo(() => tagTracker.BumpStampAsync("tag1", _ct)).MustHaveHappenedOnceExactly();
 		A.CallTo(() => memoryCache.Remove("sk:direct-key")).MustHaveHappened();
 	}
 

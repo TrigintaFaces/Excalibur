@@ -108,30 +108,30 @@ rc=0
 # Invariant 1: KEEP cases and DISCARD cases in the same run. A load failure
 # makes every one of these print DISCARD, so the KEEP rows are the control.
 run_case KEEP    PINNED ".cs XML doc comment" \
-    'src/X/Bar.cs:10:/// per ADR-056' || rc=1
+    'src/X/Bar.cs:10:/// per ADR-056' || rc=1  # pragma: allowlist internal-ref
 
 run_case KEEP    PINNED ".cs string literal" \
-    'src/X/Bar.cs:11:    throw new Exception("per ADR-057");' || rc=1
+    'src/X/Bar.cs:11:    throw new Exception("per ADR-057");' || rc=1  # pragma: allowlist internal-ref
 
 run_case KEEP    PINNED "package README" \
-    'src/X/README.md:3:see ADR-058' || rc=1
+    'src/X/README.md:3:see ADR-058' || rc=1  # pragma: allowlist internal-ref
 
 run_case DISCARD PINNED ".cs non-doc comment" \
-    'src/X/Bar.cs:12:// internal note ADR-059' || rc=1
+    'src/X/Bar.cs:12:// internal note ADR-059' || rc=1  # pragma: allowlist internal-ref
 
 # Surfaces the rule names as public that the gate does not yet keep.
 # Expected KEEP so the day they are closed this fixture turns green by itself.
 run_case KEEP    GAP    ".csproj <Description>" \
-    'src/X/Foo.csproj:6:  <Description>see ADR-055</Description>' || rc=1
+    'src/X/Foo.csproj:6:  <Description>see ADR-055</Description>' || rc=1  # pragma: allowlist internal-ref
 
 run_case KEEP    GAP    ".resx <value>" \
-    'src/X/Resources.resx:12:  <value>per ADR-054</value>' || rc=1
+    'src/X/Resources.resx:12:  <value>per ADR-054</value>' || rc=1  # pragma: allowlist internal-ref
 
 # A plain .md under src/ is discarded while src/**/README.md is kept — only the
 # path differs. This surface includes ARCHITECTURE.md, which the project mandates
 # for guarantee-critical subsystems and explicitly places under this rule.
 run_case KEEP    GAP    "src/**/ARCHITECTURE.md" \
-    'src/X/ARCHITECTURE.md:4:the duplicate window is bounded per ADR-060' || rc=1
+    'src/X/ARCHITECTURE.md:4:the duplicate window is bounded per ADR-060' || rc=1  # pragma: allowlist internal-ref
 
 printf '\n'
 if [ "$rc" -eq 0 ]; then

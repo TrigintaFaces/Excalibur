@@ -89,7 +89,7 @@ public sealed class MessageFlowScenarioShould : FunctionalTestBase
             correlationId)
             .ConfigureAwait(false);
 
-        commandResult.IsSuccess.ShouldBeTrue($"command dispatch failed: {commandResult.ErrorMessage}");
+        commandResult.Succeeded.ShouldBeTrue($"command dispatch failed: {commandResult.ErrorMessage}");
 
         // Assert AC-T1.1 (staged) — the event is observable as a staged outbox entry, NOT yet projected.
         var staged = await WaitForConditionAsync(
@@ -140,8 +140,8 @@ public sealed class MessageFlowScenarioShould : FunctionalTestBase
         var second = await harness.DeliverEventViaInboxAsync(evt, messageId).ConfigureAwait(false);
 
         // Assert AC-T1.2 — both deliveries report success, but the handler effect happened once.
-        first.IsSuccess.ShouldBeTrue($"first delivery failed: {first.ErrorMessage}");
-        second.IsSuccess.ShouldBeTrue($"duplicate delivery should be deduped to a success result: {second.ErrorMessage}");
+        first.Succeeded.ShouldBeTrue($"first delivery failed: {first.ErrorMessage}");
+        second.Succeeded.ShouldBeTrue($"duplicate delivery should be deduped to a success result: {second.ErrorMessage}");
 
         harness.Handlers.OrderPlacedHandleCount(orderId).ShouldBe(1,
             "the projection handler must execute EXACTLY ONCE across two identical deliveries");
@@ -155,7 +155,7 @@ public sealed class MessageFlowScenarioShould : FunctionalTestBase
         var otherResult = await harness.DeliverEventViaInboxAsync(otherEvt, $"msg-{Guid.NewGuid():N}")
             .ConfigureAwait(false);
 
-        otherResult.IsSuccess.ShouldBeTrue();
+        otherResult.Succeeded.ShouldBeTrue();
         harness.Handlers.OrderPlacedHandleCount(otherOrderId).ShouldBe(1,
             "a distinct message id must NOT be deduped — confirms dedup keys on the id, not a blanket skip");
     }
@@ -344,7 +344,7 @@ internal sealed class MessageFlowHarness : IAsyncDisposable
         {
             var evt = DeserializeEvent(message);
             var result = await DeliverEventViaInboxAsync(evt, message.Id).ConfigureAwait(false);
-            if (result.IsSuccess)
+            if (result.Succeeded)
             {
                 Outbox.MarkSent(message.Id);
                 delivered++;
@@ -383,7 +383,7 @@ internal sealed class MessageFlowHarness : IAsyncDisposable
                     var result = await dispatcher.DispatchAsync(poison, context, CancellationToken.None)
                         .ConfigureAwait(false);
 
-                    if (result.IsSuccess)
+                    if (result.Succeeded)
                     {
                         succeeded = true;
                         Outbox.MarkSent(message.Id);

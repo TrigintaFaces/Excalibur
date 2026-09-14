@@ -37,6 +37,14 @@ namespace Excalibur.Dispatch.Tests.Smoke;
 /// Uses in-memory event store for test isolation (no Docker required).
 /// </summary>
 [Trait("Category", "Smoke")]
+// The two classes below BOTH reset and read PipelineCreateOrderHandler.LastOrderId, which is a
+// public static field. Neither carried a [Collection] attribute, so xUnit placed each in its own
+// collection and ran them in PARALLEL - letting one class null the field between the other's
+// dispatch and its assertion. That produced a fast, intermittent assertion failure that appeared
+// only under a whole-shard run and passed every time in isolation, because a filtered run has no
+// competitor to race. Sharing one collection serialises them and closes the window.
+// If a THIRD class ever touches that field it must join this collection, or the race returns.
+[Collection("Pipeline Static Capture")]
 [Trait("Component", "Pipeline")]
 public sealed class PipelineScenarioTests
 {

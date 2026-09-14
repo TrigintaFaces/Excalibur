@@ -19,6 +19,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- ProjectReferences from all merged middleware test projects -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Testing\Excalibur.Dispatch.Testing.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Caching\Excalibur.Dispatch.Caching.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />

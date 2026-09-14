@@ -182,10 +182,14 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 			var messageType = handler.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var handlerType = handler.HandlerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var expectsResponse = handler.ResponseType != null;
+			var responseTypeArg = expectsResponse
+				? $"typeof({handler.ResponseType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)})"
+				: "null";
 
 			_ = sb.AppendLine($" registry.Register(typeof({messageType}),");
 			_ = sb.AppendLine($" typeof({handlerType}),");
-			_ = sb.AppendLine($" {(expectsResponse ? "true" : "false")});");
+			_ = sb.AppendLine($" {(expectsResponse ? "true" : "false")},");
+			_ = sb.AppendLine($" {responseTypeArg});");
 		}
 
 		_ = sb.AppendLine(" }");

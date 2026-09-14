@@ -32,7 +32,7 @@ namespace Excalibur.Outbox.Postgres;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class coordinates the Dapper request set, outbox message mapping, tenant scoping, and leadership-fencing control-table CAS by design (parity with SqlServerOutboxStore).")]
-public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxStore, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
+public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
 {
 	private readonly IDb _db;
 
@@ -52,7 +52,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 	/// rebuilding the string at each call site — is what makes that agreement structural: the two paths cannot
 	/// drift apart, because there is only one expression.
 	/// </remarks>
-	private static string DispatcherId { get; } = $"dispatcher-{Environment.MachineName}-{Environment.ProcessId}";
+	private static string ProcessDispatcherId { get; } = $"dispatcher-{Environment.MachineName}-{Environment.ProcessId}";
 
 	private readonly PostgresOutboxStoreOptions _options;
 	private readonly ILogger<PostgresOutboxStore> _logger;
@@ -161,38 +161,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 			var durationMs = stopwatch.Elapsed.TotalMilliseconds;
 			_metrics.RecordSaveMessages(durationMs, outboxMessages.Count);
 			LogOperationCompleted(durationMs, "SaveMessages");
-		}
-	}
-
-	/// <summary>
-	/// Releases reservation on outbox messages for a specific dispatcher.
-	/// </summary>
-	/// <param name="dispatcherId"> Identifier of the dispatcher to unreserve messages for. </param>
-	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
-	/// <returns> Number of messages unreserved. </returns>
-	public async Task<int> UnReserveOutboxMessagesAsync(string dispatcherId, CancellationToken cancellationToken)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
-
-		LogUnreserveMessages(dispatcherId);
-
-		var stopwatch = ValueStopwatch.StartNew();
-		try
-		{
-			var req = new ResetOutboxMessageReservation(
-				dispatcherId,
-				_options.QualifiedOutboxTableName,
-				DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken);
-
-			var result = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
-			return result;
-		}
-		finally
-		{
-			var durationMs = stopwatch.Elapsed.TotalMilliseconds;
-			_metrics.RecordUnreserveMessages(durationMs, 0); // Count not available from operation
-			LogOperationCompleted(durationMs, "UnReserveMessages");
 		}
 	}
 
@@ -579,10 +547,11 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		// are never dropped on a convenience path. The propagated TenantId is persisted to the
 		// outbox table's tenant_id column on both the direct (InsertOutboxMessage) and scheduled
 		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled.
-		// Derive the routing destination from the message context — falling back to the message
-		// type name (the convention the other outbox providers use) rather than a hardcoded "default", so
-		// a consumer's configured destination is persisted and honored on dispatch.
-		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().Name;
+		// Derive the routing destination from the message context — falling back to the
+		// namespace-qualified type name (FullName, not the bare Name: two message types with the same
+		// short name in different namespaces must not collapse to one destination) rather than a
+		// hardcoded "default", so a consumer's configured destination is persisted and honored on dispatch.
+		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().FullName ?? message.GetType().Name;
 		var outboundMessage = OutboundMessage.FromContext(
 			message.GetType().Name,
 			serializedPayload,
@@ -611,7 +580,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
 		// Use a fixed dispatcher ID for this interface method - in practice this would need proper session management
-		var dispatcherId = DispatcherId;
+		var dispatcherId = ProcessDispatcherId;
 		var reservedMessages = await ReserveOutboxMessagesAsync(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false);
 
 		return ConvertReservedToOutbound(reservedMessages);
@@ -651,6 +620,10 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 				{
 					Id = msg.MessageId,
 					TenantId = msg.TenantId,
+					// The claim stamp the reserve statement RETURNINGs. It is the caller's only evidence of WHICH
+					// claim handed it this message, and without it every completion the caller reports is
+					// indistinguishable from one reported by a superseded claim of the same processor.
+					DispatcherId = msg.DispatcherId,
 					CorrelationId = contextual?.CorrelationId,
 					CausationId = contextual?.CausationId,
 					Priority = msg.Priority,
@@ -730,7 +703,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		// for every row, so the claim yields a set-based empty result — it MUST NOT throw here
 		// (IFencedOutboxStore claim contract). No explicit BeginTransaction is held on the shared
 		// _db.Connection (which would monopolize/poison it for the rest of the drain).
-		var dispatcherId = DispatcherId;
+		var dispatcherId = ProcessDispatcherId;
 		var request = new FencedReserveOutboxMessages(
 			dispatcherId,
 			batchSize,
@@ -785,6 +758,40 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		}
 	}
 
+	/// <inheritdoc/>
+	public async Task<long?> GetFencingHighWaterAsync(CancellationToken cancellationToken)
+	{
+		var request = new GetOutboxFenceHighWaterRequest(
+			_options.QualifiedFenceTableName,
+			_options.QualifiedOutboxTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		return await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async Task ResetFencingHighWaterAsync(long newHighWater, bool force, CancellationToken cancellationToken)
+	{
+		var request = new ResetOutboxFenceHighWaterRequest(
+			_options.QualifiedFenceTableName,
+			_options.QualifiedOutboxTableName,
+			newHighWater,
+			force,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		var applied = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+		if (!applied)
+		{
+			var current = await GetFencingHighWaterAsync(cancellationToken).ConfigureAwait(false);
+			throw new InvalidOperationException(
+				$"Refusing to lower the fencing high-water mark from {current} to {newHighWater} without " +
+				"force: true. Lowering it re-admits a leader whose token is now below the (lowered) " +
+				"high-water, which is the split-brain the fence exists to prevent.");
+		}
+	}
+
 	/// <summary>
 	/// Durably transitions the specified message to the terminal dead-lettered state.
 	/// </summary>
@@ -834,7 +841,39 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 	/// <param name="retryCount"> Current retry count for the message. </param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
+	/// <remarks>
+	/// The base member cannot verify a claim -- it is handed a message id and nothing else -- so it presents
+	/// this PROCESS identity, which two cycles of one process share. Callers that hold a claim use the
+	/// <see cref="IClaimScopedOutboxStore"/> overload; this one remains for callers that never claimed.
+	/// </remarks>
 	public async ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		// The unscoped route presents no claim, so the ownership term is absent from the statement and the
+		// outcome can only be Applied or MessageNotFound. Discarding it here is not the silent-refusal shape:
+		// there is no refusal this member is capable of producing, and the member it would be reported on
+		// is shipped and returns nothing.
+		_ = await MarkFailedCoreAsync(messageId, errorMessage, retryCount, claimIdentity: null, cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	public ValueTask<OutboxCompletionOutcome> MarkFailedAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		string claimIdentity,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(claimIdentity);
+		return MarkFailedCoreAsync(messageId, errorMessage, retryCount, claimIdentity, cancellationToken);
+	}
+
+	private async ValueTask<OutboxCompletionOutcome> MarkFailedCoreAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		string? claimIdentity,
+		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
@@ -852,18 +891,147 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 			messageId,
 			retryCount,
 			errorMessage,
-			DispatcherId,
+			claimIdentity,
+			ProcessDispatcherId + ':',
 			_options.FailureBackoffFloorSeconds,
 			_options.QualifiedOutboxTableName,
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
+		var result = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
 
 		// The message stays a RETRIEVABLE failed message (error_message set); the dead-letter transition at the
 		// retry ceiling is the OutboxProcessor's job (RouteToDeadLetterQueueAsync, attempts >= MaxAttempts), NOT
 		// the store's — matching the InMemory reference contract (one load-bearing postcondition per family).
+		return Classify(result);
 	}
+
+	/// <inheritdoc />
+	public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset? nextAttemptAt,
+		OutboxWriteAuthority authority,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+		ArgumentOutOfRangeException.ThrowIfNegative(retryCount);
+
+		// BOTH COMPONENTS ARE VALIDATED, and the token check is not defensive noise. A struct's default
+		// cannot be intercepted by any constructor, so default(OutboxWriteAuthority) reaches here carrying a
+		// zero token -- and a zero token is ACCEPTED by the fence on a scope with no recorded mark, because
+		// the statement creates that mark from the presented value and it then equals it. Without this the
+		// only thing refusing a defaulted authority would be the claim term failing for an unrelated reason,
+		// which is one guard doing the other's job by accident rather than a guard that holds.
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(authority.FencingToken);
+		ArgumentException.ThrowIfNullOrWhiteSpace(authority.ClaimIdentity);
+
+		// The schedule travels as a DELAY rather than an instant so the statement re-anchors it on the
+		// server clock, matching the unfenced backoff path; null means no computed schedule at all, which is
+		// a different write rather than a zero delay.
+		var delaySeconds = nextAttemptAt is { } at
+			? (double?)(at - DateTimeOffset.UtcNow).TotalSeconds
+			: null;
+
+		var req = new FencedSetOutboxMessageFailed(
+			messageId,
+			errorMessage,
+			retryCount,
+			delaySeconds,
+			authority.FencingToken,
+			authority.ClaimIdentity,
+			_options.FailureBackoffFloorSeconds,
+			_options.QualifiedOutboxTableName,
+			_options.QualifiedFenceTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		var result = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
+
+		return ClassifyFenced(result, authority.FencingToken);
+	}
+
+	/// <inheritdoc />
+	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
+		string messageId,
+		string reason,
+		long fencingToken,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+
+		// A zero or negative token is refused before it reaches the statement. On a scope with no recorded
+		// mark the fence creates that mark FROM the presented value, so a zero would compare equal to itself
+		// and be accepted -- and on this member an accepted stale token destroys a row. A leadership tenure
+		// always mints a strictly positive token, so nothing legitimate is rejected here.
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fencingToken);
+
+		var req = new FencedMarkMessageDeadLettered(
+			messageId,
+			reason,
+			fencingToken,
+			_options.QualifiedOutboxTableName,
+			_options.QualifiedDeadLetterTableName,
+			_options.QualifiedFenceTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		var result = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
+
+		// ClaimLost is unreachable here: this member carries no claim term, so the store cannot have decided
+		// it. Classify collapses the no-rows-but-row-present case onto ClaimLost, which would be a decision
+		// this statement never made -- hence its own classification rather than the shared one.
+		return result.HighWaterToken != fencingToken
+			? OutboxCompletionOutcome.FenceRefused
+			: result.UpdatedCount > 0
+				? OutboxCompletionOutcome.Applied
+				: OutboxCompletionOutcome.MessageNotFound;
+	}
+
+	/// <summary>
+	/// Reads the four-valued outcome out of the single row the fenced statement returned.
+	/// </summary>
+	/// <remarks>
+	/// <b>The fence is judged FIRST, and the order is load-bearing.</b> A superseded tenure also fails the
+	/// claim term, because the claim it holds was released by whichever tenure superseded it — so testing the
+	/// claim first would report a fence refusal as a lost claim, and the caller would skip one message and
+	/// keep draining when it should have stopped entirely. The two refusals differ in how much work they
+	/// cost, so collapsing them is not a diagnostic nicety.
+	/// </remarks>
+	private static OutboxCompletionOutcome ClassifyFenced(FencedClaimMutationResult result, long presentedToken) =>
+		result.HighWaterToken != presentedToken
+			? OutboxCompletionOutcome.FenceRefused
+			: result.UpdatedCount > 0
+				? OutboxCompletionOutcome.Applied
+				: result.RowExists
+					? OutboxCompletionOutcome.ClaimLost
+					: OutboxCompletionOutcome.MessageNotFound;
+
+	/// <summary>
+	/// Reads the outcome out of the single row the guarded statement returned.
+	/// </summary>
+	/// <remarks>
+	/// <b>Zero rows has two causes and only ONE of them is a refusal</b>, which is why the statement returns
+	/// the row's existence alongside the count rather than a bare rowcount. The row still being there means
+	/// the ownership term is what failed: another cycle holds this claim. The row being gone means a terminal
+	/// transition removed it (this store deletes on terminal) or it was never staged. A bare rowcount cannot
+	/// tell those apart, so it would have to guess — and guessing "no-op" is how a superseded caller is told
+	/// its write succeeded.
+	/// <para>
+	/// Both facts come from the SAME statement, so the classification describes the window the mutation ran
+	/// in. Re-reading the row afterwards would compare a value captured outside that window, and would be
+	/// wrong exactly when the refusal is real.
+	/// </para>
+	/// </remarks>
+	private static OutboxCompletionOutcome Classify(ClaimMutationResult result) =>
+		result.UpdatedCount > 0
+			? OutboxCompletionOutcome.Applied
+			: result.RowExists
+				? OutboxCompletionOutcome.ClaimLost
+				: OutboxCompletionOutcome.MessageNotFound;
 
 	/// <summary>
 	/// Marks a message as failed and records an exponential-backoff schedule so it is not re-claimed for retry
@@ -880,6 +1048,34 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		string errorMessage,
 		int retryCount,
 		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		// Unscoped: no claim presented, so no ownership term and no refusal to report. See MarkFailedAsync.
+		_ = await MarkFailedWithBackoffCoreAsync(
+				messageId, errorMessage, retryCount, nextAttemptAt, claimIdentity: null, cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		string claimIdentity,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(claimIdentity);
+		return MarkFailedWithBackoffCoreAsync(
+			messageId, errorMessage, retryCount, nextAttemptAt, claimIdentity, cancellationToken);
+	}
+
+	private async ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffCoreAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		string? claimIdentity,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -899,7 +1095,11 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 			// failed-state signal the failed-message queries and statistics select on, so a backoff write that
 			// omitted it left a real delivery failure recorded nowhere until the message dead-lettered.
 			errorMessage,
-			DispatcherId,
+			// Null on the IBackoffSchedulableOutboxStore route, which carries no claim; the claim-scoped
+			// overload supplies one. Presenting the PROCESS identity instead would match nothing once the
+			// reserve mints a composite -- the silent no-op this seam exists to prevent.
+			claimIdentity,
+			ProcessDispatcherId + ':',
 			// The floor travels with the computed schedule rather than being displaced by it — see the request
 			// for why binding the caller's instant alone made the preferred path ignore a configured floor.
 			_options.FailureBackoffFloorSeconds,
@@ -907,10 +1107,12 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
+		var result = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
 
 		// The message stays a RETRIEVABLE failed message; the dead-letter transition at the retry ceiling is the
 		// OutboxProcessor's job (RouteToDeadLetterQueueAsync), NOT the store's — matching the InMemory reference.
+		// Same two causes, same discrimination as the plain completion -- see Classify.
+		return Classify(result);
 	}
 
 	/// <summary>
@@ -1112,9 +1314,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		"Reserving up to {BatchSize} outbox messages for dispatcher {DispatcherId}")]
 	private partial void LogReserveMessages(string dispatcherId, int batchSize);
 
-	[LoggerMessage(OutboxPostgresEventId.OutboxUnreserveMessages, LogLevel.Debug,
-		"Unreserving outbox messages for dispatcher {DispatcherId}")]
-	private partial void LogUnreserveMessages(string dispatcherId);
 
 	[LoggerMessage(OutboxPostgresEventId.OutboxDeleteRecord, LogLevel.Debug,
 		"Deleting outbox record {MessageId}")]

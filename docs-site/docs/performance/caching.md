@@ -413,24 +413,24 @@ When the projection handler processes `ProductUpdatedEvent`, the `IProjectionCac
 
 ## Tag Tracking
 
-`HybridCache` (used in Hybrid mode) has native tag-based invalidation support. However, `IMemoryCache` and `IDistributedCache` do not track which cache keys belong to which tags. The `ICacheTagTracker` interface bridges this gap by maintaining key-to-tag mappings so that tag-based invalidation works across all three cache modes.
+`HybridCache` (used in Hybrid mode) has native tag-based invalidation support, but that coverage is L1-only. The `ICacheTagTracker` interface covers the rest: each tag is a single, opaque version stamp. A cache entry written under a tag records that tag's stamp at write time; a read compares the entry's own recorded stamp against the tag's *current* stamp, and invalidating a tag simply replaces its stamp. Every entry that recorded the old stamp stops matching on its next read and is evicted lazily, at that point — there is no key-set to maintain and no key-to-tag mapping to keep in sync.
 
 ### ICacheTagTracker
 
 ```csharp
 public interface ICacheTagTracker
 {
-    Task RegisterKeyAsync(string key, string[] tags, CancellationToken cancellationToken);
-    Task<HashSet<string>> GetKeysByTagsAsync(string[] tags, CancellationToken cancellationToken);
-    Task UnregisterKeyAsync(string key, CancellationToken cancellationToken);
+    Task<string> GetOrCreateStampAsync(string tag, CancellationToken cancellationToken);
+    Task BumpStampAsync(string tag, CancellationToken cancellationToken);
 }
 ```
 
 | Method | Purpose |
 |--------|---------|
-| `RegisterKeyAsync` | Associates a cache key with one or more tags |
-| `GetKeysByTagsAsync` | Returns all cache keys associated with the specified tags |
-| `UnregisterKeyAsync` | Removes tag mappings for a key (called on eviction/expiry) |
+| `GetOrCreateStampAsync` | Resolves a tag's current version stamp, creating one the first time the tag is seen. Used both to embed a tag's stamp into a new entry at write time, and to check an existing entry's recorded stamp against the tag's current one at read time. |
+| `BumpStampAsync` | Invalidates a tag by replacing its version stamp. Every entry that recorded the old stamp is treated as invalidated on its next read. |
+
+A tag with no stamp yet in the backend (nothing has ever invalidated it) and a cache entry with no recorded stamp for one of its own tags (typically an entry written before this mechanism existed) are different conditions: the former is safe to treat as still valid, while the latter cannot be proven valid and is treated as invalidated. Cached data written under the previous key-tracking mechanism requires no migration — it is read as this second, "unprovable" case on its first post-upgrade read (one cache miss), and every subsequent write is stamped normally from then on.
 
 ### Built-in Implementations
 
@@ -439,24 +439,24 @@ The correct implementation is selected automatically based on `CacheMode` and wh
 | Implementation | Selected When | Storage |
 |----------------|---------------|---------|
 | `InMemoryCacheTagTracker` | Memory mode, or Distributed/Hybrid without a real distributed cache | In-process `ConcurrentDictionary`, bounded by `TagTrackerCapacity` |
-| `DistributedCacheTagTracker` | Distributed or Hybrid mode with a real `IDistributedCache` (not `MemoryDistributedCache`) | Stores mappings in the distributed cache alongside cached data |
+| `DistributedCacheTagTracker` | Distributed or Hybrid mode with a real `IDistributedCache` (not `MemoryDistributedCache`) | One key per tag in the distributed cache; resolving or invalidating a tag is a single atomic Get/Set |
 
-You do not need to register `ICacheTagTracker` manually -- `AddDispatchCaching()` and `UseCaching()` handle it automatically.
+You do not need to register `ICacheTagTracker` manually -- `AddDispatchCaching()` and `UseCaching()` handle it automatically. A resolved stamp is memoized per tag for `TagStampRefreshInterval` (default 5 seconds) before the backend is checked again, so steady-state reads cost no backend round trip; that interval is also the bound on how long an invalidation made on one instance takes to be observed by another.
 
 :::info Fail-open and atomicity
 
-Tag registration is a **cross-cutting** concern, so it **fails open**: if the tag-store backend throws while registering a key or removing a poison marker, the error is logged and skipped — it is **never** propagated to the dispatch result, so a tag-store outage cannot break core message handling (cancellation still propagates). `DistributedCacheTagTracker` registration is also **atomic** — a key→tag mapping is written without a non-atomic read-modify-write window.
+Tag stamp resolution and invalidation are **cross-cutting** concerns, so they **fail open**: if the tag-store backend throws while resolving or bumping a stamp, the error is logged and skipped — it is **never** propagated to the dispatch result, so a tag-store outage cannot break core message handling (cancellation still propagates; a request that cannot be served from cache simply falls through to the handler). Resolving or invalidating a tag is a single-key operation, which is **atomic** on every `IDistributedCache` backend — there is no multi-key read-modify-write window.
 :::
 
 ### Capacity Limits
 
-`InMemoryCacheTagTracker` is bounded by `CacheOptions.TagTrackerCapacity` (default: 10,000). When the tracker reaches capacity, new registrations are silently skipped to prevent unbounded memory growth. Increase this value if your application caches more than 10,000 distinct keys with tags:
+`InMemoryCacheTagTracker` is bounded by `CacheOptions.TagTrackerCapacity` (default: 10,000 distinct tags), to prevent unbounded memory growth when tag names are derived from unbounded input. Increase this value if your application uses more than 10,000 distinct tags:
 
 ```csharp
 services.AddDispatchCaching(options =>
 {
     options.Enabled = true;
-    options.TagTrackerCapacity = 50_000; // Allow up to 50,000 tracked entries
+    options.TagTrackerCapacity = 50_000; // Allow up to 50,000 distinct tags
 });
 ```
 
@@ -469,7 +469,9 @@ services.AddDispatchCaching(options =>
 | `Enabled` | `bool` | `false` | Must be explicitly enabled |
 | `CacheMode` | `CacheMode` | `Hybrid` | `Memory`, `Distributed`, or `Hybrid` |
 | `DefaultTags` | `string[]` | `[]` | Tags applied to all cached items |
-| `TagTrackerCapacity` | `int` | `10,000` | Max key-to-tag entries tracked by `InMemoryCacheTagTracker`; new registrations are skipped when full |
+| `TagTrackerCapacity` | `int` | `10,000` | Max distinct tags tracked by `InMemoryCacheTagTracker` |
+| `TagStampRefreshInterval` | `TimeSpan` | 5 sec | How long a resolved tag version stamp is trusted before re-checking the backend; bounds cross-instance invalidation visibility |
+| `TagStampLifetime` | `TimeSpan` | 1000 days | How long a tag's version stamp record is retained in the distributed cache backend; must exceed `DefaultExpiration` |
 | `GlobalPolicy` | `IResultCachePolicy?` | `null` | Cross-cutting cache policy |
 | `CacheKeyBuilder` | `ICacheKeyBuilder?` | `null` | Custom key generation (default: `DefaultCacheKeyBuilder`) |
 
@@ -507,7 +509,7 @@ services.AddDispatchCaching(options =>
 | `Enabled` | `bool` | `true` | Enable cache circuit breaker |
 | `FailureThreshold` | `int` | `5` | Consecutive failures to open circuit |
 | `FailureWindow` | `TimeSpan` | 1 min | Time window for counting failures |
-| `OpenDuration` | `TimeSpan` | 30 sec | How long circuit stays open |
+| `BreakDuration` | `TimeSpan` | 30 sec | How long circuit stays open |
 | `HalfOpenTestLimit` | `int` | `3` | Test requests in half-open state |
 | `HalfOpenSuccessThreshold` | `int` | `2` | Successes needed to close circuit |
 

@@ -10,7 +10,7 @@ This package provides Google Cloud Pub/Sub integration for Excalibur.Dispatch, e
 - **Exactly-Once Delivery**: Guaranteed delivery with deduplication
 - **Message Ordering**: Ordering keys for sequential processing
 - **Dead Letter Topics**: Automatic handling of failed messages
-- **CloudEvents Support**: Standards-compliant structured event formatting. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
+- **CloudEvents Support**: Standards-compliant structured event formatting on outbound messages. Inbound messages are decoded automatically. On the send path, registering the bundled encoder is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventEncoder<TOutbound>` over a source-generated serializer to avoid the requirement. Inbound decoding is trim-safe and ahead-of-time-safe, attaches the decoded event to the message rather than replacing it, and delivers every message in the batch — a malformed one arrives carrying a decode error instead of a decoded event, never dropped.
 - **Cloud Monitoring**: Native Google Cloud observability integration
 - **Emulator Support**: Local development without GCP account
 

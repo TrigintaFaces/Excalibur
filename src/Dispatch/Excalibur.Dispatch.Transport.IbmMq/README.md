@@ -12,6 +12,21 @@ managed .NET client (`IBMMQDotnetClient`).
 
 The dispatch sender/receiver that carry messages over IBM MQ build on `IIbmMqConnectionProvider`.
 
+## CloudEvents
+
+**Inbound CloudEvents are decoded automatically, in binary mode.** Every receiver on this transport is
+wrapped by the framework's decoding decorator, so a message carrying the `ce-` prefixed attributes as MQ
+message properties arrives with the decoded event attached to it. **Structured mode is not recognised
+here**: a structured event is identified by its content type, and this transport reports the MQMD format
+field in its place — an MQ wire-format tag such as `MQSTR`, which cannot be a media type. A structured
+CloudEvent therefore arrives as an ordinary message — the body and properties are untouched, and a message that is not a CloudEvent passes
+through unchanged. Every message in the batch is delivered, including a malformed one: it arrives carrying a
+decode error instead of a decoded event, never dropped. There is nothing to register and no option to set.
+
+**Outbound CloudEvents formatting is not implemented on this transport.** Sending a message emits the
+framework's native transport message, not a CloudEvent. If you need to publish CloudEvents today, transports
+that implement the send path say so in their own README — Kafka and RabbitMQ among them.
+
 ## Usage
 
 ```csharp

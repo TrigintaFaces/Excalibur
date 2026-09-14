@@ -93,12 +93,6 @@ public sealed class DispatchFeatureOptions
 	public bool EnableMetrics { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to enable structured logging.
-	/// </summary>
-	/// <value><see langword="true"/> by default.</value>
-	public bool EnableStructuredLogging { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to validate message schemas.
 	/// </summary>
 	/// <value><see langword="true"/> by default.</value>

@@ -39,7 +39,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	public async Task PerformBatchDatabaseOperationsAsync_MarksSentRetryAndDeadLetterBuckets()
 	{
 		// Arrange
-		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
 
 		// Act
@@ -47,7 +47,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1", "sent-2" },
-			new List<(string, int, bool)> { ("retry-1", 2, false) },
+			new List<(string, string?, int, bool)> { ("retry-1", null, 2, false) },
 			new List<(string, int)> { ("dead-1", 3) },
 			CancellationToken.None);
 
@@ -68,7 +68,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	public async Task PerformBatchDatabaseOperationsAsync_DoesNothing_WhenBucketsAreEmpty()
 	{
 		// Arrange
-		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
 
 		// Act
@@ -76,7 +76,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string>(),
-			new List<(string, int, bool)>(),
+			new List<(string, string?, int, bool)>(),
 			new List<(string, int)>(),
 			CancellationToken.None);
 
@@ -90,7 +90,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	public async Task PerformBatchDatabaseOperationsAsync_ThrowsOperationCanceledException_WhenTokenIsCanceled()
 	{
 		// Arrange
-		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -100,7 +100,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1" },
-			new List<(string, int, bool)>(),
+			new List<(string, string?, int, bool)>(),
 			new List<(string, int)>(),
 			cts.Token));
 
@@ -115,7 +115,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	public async Task PerformBatchDatabaseOperationsAsync_ContinuesAfterStoreException_WhenAnyBucketFails()
 	{
 		// Arrange - T.2: Per-message try/catch prevents partial batch failure cascade
-		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		_ = A.CallTo(() => outboxStore.MarkFailedAsync("retry-1", ErrorConstants.RetryAttempt, 1, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("mark-failed"));
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
@@ -125,7 +125,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1" },
-			new List<(string, int, bool)> { ("retry-1", 1, false) },
+			new List<(string, string?, int, bool)> { ("retry-1", null, 1, false) },
 			new List<(string, int)>(),
 			CancellationToken.None);
 
@@ -196,7 +196,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	{
 		return new OutboxProcessor(
 			options ?? CreateParallelOptions(maxAttempts: 3),
-			outboxStore ?? A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>()),
+			outboxStore ?? CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>()),
 			serializer ?? new DispatchJsonSerializer(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			logger ?? NullLogger<OutboxProcessor>.Instance,
@@ -208,7 +208,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 
 	private static IOutboxStore CreateOutboxStore(OutboundMessage message)
 	{
-		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var fetchCount = 0;
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>

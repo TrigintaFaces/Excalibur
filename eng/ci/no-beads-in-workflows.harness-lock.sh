@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# no-beads-in-workflows.harness-lock.sh — w0jt1b regression lock (independent author≠impl).
+# no-beads-in-workflows.harness-lock.sh — regression lock (independent author≠impl).
 #
 # Operator directive: "anything related to beads must not be referenced in the github workflows."
 # `.github/workflows/ci.yml` is COPIED to a downstream (public) repo. A beads/tracker reference there
-# — a `bd` CLI call, a `.beads/` path, a private gate-script name, or a `bd-xxxxxx` bead id in a
+# — a `bd` CLI call, a `.beads/` path, a private gate-script name, or a `bd-xxxxxx` bead id in a  # pragma: allowlist internal-ref
 # comment — both leaks internal tooling into a shipped file AND breaks the downstream checkout (the
 # private scripts are not copied). The gate-selftests job that carried those references was REMOVED
 # from ci.yml and its enforcement RELOCATED to the dev-only pre-commit hook. This lock guards that:
 #
 #   SAFETY   — grep every .github/workflows/** file for ANY beads/tracker reference -> ZERO hits.
 #   LIVENESS — the relocated enforcement still FIRES on the dev side: eng/hooks/pre-commit invokes the
-#              tracker/bd-durability gates. Absence-from-workflows ALONE is satisfiable by deleting all
+#              tracker-durability gates. Absence-from-workflows ALONE is satisfiable by deleting all
 #              enforcement; the liveness arm proves it MOVED, not vanished.
 #   NON-VACUITY — the SAME safety grep on the pre-unwind ci.yml (commit a1d6041d8, which carried the
 #              gate-selftests beads steps) -> RED. Proves the gate catches a reappearance.
 #
-# Scope is BEADS/tracker tokens only (per SA 28654). Bare sprint ids (S462.4 etc.) are the broader
-# no-internal-refs concern (tracked separately as p1aw5t), NOT this lock's job.
+# Scope is BEADS/tracker tokens only, by design. Bare sprint ids (S999 etc.) are the broader  # pragma: allowlist internal-ref
+# no-internal-refs concern (tracked separately), NOT this lock's job.
 #
 # Run: bash eng/ci/no-beads-in-workflows.harness-lock.sh  (exit 0 = green; nonzero = a lock failed)
 
@@ -28,7 +28,7 @@ PRECOMMIT="${PRECOMMIT_HOOK:-$ROOT/eng/hooks/pre-commit}"
 PRE_UNWIND_REF="${PRE_UNWIND_REF:-a1d6041d8}"
 
 # Beads/tracker reference patterns (ERE). A `bd` command, a .beads path, the private gate-script
-# basenames, or a bd-xxxxxx bead id. `\bbd ` matches the CLI as a word (not "embed"/"forbid ").
+# basenames, or a bd-xxxxxx bead id. `\bbd ` matches the CLI as a word (not "embed"/"forbid ").  # pragma: allowlist internal-ref
 BEADS_RE='(\bbd |\.beads/|bd-status-tokens|bd-export-comments|premise-triage|p0-(denominator|classify)|gate-wiring|bd-[a-z0-9]{6})'
 
 # Mirror-exclusion tokens: the public mirror checkout EXCLUDES these private dirs, so ANY reference
@@ -105,7 +105,7 @@ rm -f "$planted"
 # failed: an absent anchor means this arm did not run, which is neither a pass nor a defect. The
 # hermetic arms above are what hold the property.
 pre_unwind_file="$(mktemp)"
-git -C "$ROOT" show "$PRE_UNWIND_REF:.github/workflows/ci.yml" > "$pre_unwind_file" 2>/dev/null || true
+git -C "${ROOT:?path is empty -- an empty -C runs in the CURRENT directory}" show "$PRE_UNWIND_REF:.github/workflows/ci.yml" > "$pre_unwind_file" 2>/dev/null || true
 if [ ! -s "$pre_unwind_file" ]; then
     printf '  SKIP: historical anchor %s not present in this repository — arm did not run.\n' "$PRE_UNWIND_REF"
     printf '        This is NOT a pass. The hermetic arms above bind the property.\n'

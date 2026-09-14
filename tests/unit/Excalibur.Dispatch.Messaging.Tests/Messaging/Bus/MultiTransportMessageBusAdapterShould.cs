@@ -297,7 +297,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		var result = await adapter.PublishAsync(message, context, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("NoDefaultAdapter");
 	}

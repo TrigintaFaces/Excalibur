@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
@@ -99,22 +100,25 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 
 		var (currentId, currentSerializer) = _registry.GetCurrent();
 
-		byte[] payload;
+		// The magic byte is written into the SAME buffer the payload is serialized into, so the framed
+		// result is built once. Serializing to its own array and then copying it into a second array one
+		// byte larger cost an extra payload-sized allocation and an extra full copy on every publish --
+		// Theta(payload), not the constant a one-byte prefix suggests. ISerializer already exposes the
+		// IBufferWriter overload this needs (the System.Text.Json shape SerializerExtensions documents).
+		var bufferWriter = new ArrayBufferWriter<byte>();
+		bufferWriter.GetSpan(1)[0] = currentId;
+		bufferWriter.Advance(1);
+
 		try
 		{
-			payload = currentSerializer.SerializeToBytes(value);
+			currentSerializer.Serialize(value, bufferWriter);
 		}
 		catch (Exception ex) when (ex is not SerializationException)
 		{
 			throw SerializationException.Wrap<T>("serialize", ex);
 		}
 
-		// Prepend magic byte
-		var result = new byte[payload.Length + 1];
-		result[0] = currentId;
-		Buffer.BlockCopy(payload, 0, result, 1, payload.Length);
-
-		return result;
+		return bufferWriter.WrittenSpan.ToArray();
 	}
 
 	/// <inheritdoc />

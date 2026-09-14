@@ -6,7 +6,10 @@ using Excalibur.A3.Audit;
 using Excalibur.A3.Exceptions;
 using Excalibur.Dispatch.Delivery;
 
+using Excalibur.Dispatch.Caching;
+
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.A3.Authorization.Grants;
 
@@ -19,7 +22,7 @@ namespace Excalibur.A3.Authorization.Grants;
 /// </remarks>
 /// <param name="grantRepository"> The repository for managing grants. </param>
 /// <param name="cache"> The distributed cache for caching grant data. </param>
-internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository, IDistributedCache cache)
+internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository, [FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache)
 	: IActionHandler<AddGrantCommand, AuditableResult<bool>>
 {
 	/// <inheritdoc />

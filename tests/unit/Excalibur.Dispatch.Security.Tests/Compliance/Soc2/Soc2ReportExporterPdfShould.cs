@@ -307,7 +307,7 @@ public sealed class Soc2ReportExporterPdfShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "Large control section",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = controls
 				}
 			]
@@ -573,7 +573,7 @@ public sealed class Soc2ReportExporterPdfShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "COSO Principle 1 - Demonstrates Commitment to Integrity",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = controls
 				}
 			]
@@ -643,7 +643,7 @@ public sealed class Soc2ReportExporterPdfShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "COSO Principle 1",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = controls,
 					TestResults = testResults
 				}
@@ -696,14 +696,14 @@ public sealed class Soc2ReportExporterPdfShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "Section 1 - Security",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = controls1
 				},
 				new ControlSection
 				{
 					Criterion = TrustServicesCriterion.C1_DataClassification,
 					Description = "Section 2 - Confidentiality",
-					IsMet = false,
+					Outcome = CriterionOutcome.NotMet,
 					Controls = controls2
 				}
 			]

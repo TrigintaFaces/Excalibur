@@ -111,7 +111,7 @@ public sealed partial class DataInventoryService : IDataInventoryService
 					{
 						KeyId = keyId,
 						KeyScope = MapKeyScope(keyInfo.Purpose),
-						RecordCount = locations.Count(l => l.KeyId == keyId)
+						EncryptedFieldValueCount = locations.Count(l => l.KeyId == keyId)
 					});
 				}
 			}

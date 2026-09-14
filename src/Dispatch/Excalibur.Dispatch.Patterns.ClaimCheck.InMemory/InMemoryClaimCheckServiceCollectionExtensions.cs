@@ -194,10 +194,10 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 	/// services.AddInMemoryClaimCheck(configuration.GetSection("ClaimCheck"));
 	/// </code>
 	/// </example>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode("Binding IConfiguration to ClaimCheckOptions reflects over the options type, whose members trimming may remove. "
+		+ "Use the AddInMemoryClaimCheck(IServiceCollection, Action<ClaimCheckOptions>, bool) overload to configure the options in code instead.")]
+	[RequiresDynamicCode("Binding IConfiguration to ClaimCheckOptions can require runtime code generation, which native AOT does not support. "
+		+ "Use the AddInMemoryClaimCheck(IServiceCollection, Action<ClaimCheckOptions>, bool) overload to configure the options in code instead.")]
 	public static IServiceCollection AddInMemoryClaimCheck(
 		this IServiceCollection services,
 		IConfiguration configuration,

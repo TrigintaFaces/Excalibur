@@ -29,6 +29,7 @@ Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.ApplicableMessa
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenMiddleware(Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider! provider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware!>! logger) -> void
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMinting
 Excalibur.Dispatch.LeaderElection.Fencing.IFencedResource
 Excalibur.Dispatch.LeaderElection.Fencing.IFencedResource.GuardAsync(long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider
@@ -114,5 +115,7 @@ Excalibur.Dispatch.LeaderElection.Leadership.Leadership(long? FencingToken, Syst
 Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions
 const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingResourceIdKey = "FencingResourceId" -> string!
 const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenKey = "FencingToken" -> string!
+const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMinting.DefaultMaxAttempts = 3 -> int
+static Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMinting.MintWithRetryAsync(Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider! provider, string! resourceId, System.Threading.CancellationToken cancellationToken, int maxAttempts = 3) -> System.Threading.Tasks.Task<long>!
 static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenSupport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider! provider) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenSupport<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

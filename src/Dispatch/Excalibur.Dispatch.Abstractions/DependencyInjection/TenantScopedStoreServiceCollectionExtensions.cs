@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -53,6 +53,16 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// non-default connection or a keyed dependency use the factory overload instead, which preserves the
 /// same fail-closed resolution ahead of the factory call, independent of what the factory body does with
 /// it.
+/// </para>
+/// <para>
+/// <b>The factory overloads carry that guarantee to the constructor, not merely to the container.</b>
+/// Resolving <see cref="ITenantContext"/> ahead of the factory proves the HOST has one; it does not prove
+/// the STORE was given it, because the factory body picks which constructor runs. So an ambient-scoped
+/// store registered through a factory must declare <see cref="ITenantContext"/> on <em>every</em> public
+/// constructor — there is then no constructor left through which a factory could build it untenanted, and
+/// the marker cannot outrun the store. A store that wants a convenience constructor keeps it and
+/// registers through the overload that takes no factory, where the seam passes the context to
+/// construction explicitly and the tenant-blind constructor is equally unreachable.
 /// </para>
 /// </remarks>
 public static class TenantScopedStoreServiceCollectionExtensions
@@ -143,7 +153,10 @@ public static class TenantScopedStoreServiceCollectionExtensions
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// <typeparamref name="TStore"/> has no public instance constructor and does not implement
-	/// <see cref="ITenantPartitionedStore"/>, so its tenancy mechanism cannot be derived.
+	/// <see cref="ITenantPartitionedStore"/>, so its tenancy mechanism cannot be derived; or it reads the
+	/// ambient tenant on some public constructors and not others, which would let
+	/// <paramref name="storeFactory"/> build it without a tenant context while this registration emits a
+	/// tenant-scoping marker for it.
 	/// </exception>
 	public static IServiceCollection AddTenantAwareStore<TContract, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>(
 		this IServiceCollection services,
@@ -280,8 +293,10 @@ public static class TenantScopedStoreServiceCollectionExtensions
 	/// <exception cref="InvalidOperationException">
 	/// <typeparamref name="TStore"/> does not read the ambient tenant — no public constructor accepts an
 	/// <see cref="ITenantContext"/> — so this verb would emit a tenant-scoping marker for a store that
-	/// cannot honour it; or <typeparamref name="TStore"/> has no public constructor at all, leaving its
-	/// mechanism underivable rather than absent.
+	/// cannot honour it; or it accepts one on some public constructors and not others, leaving
+	/// <paramref name="storeFactory"/> free to build it through a constructor that omits the tenant; or
+	/// <typeparamref name="TStore"/> has no public constructor at all, leaving its mechanism underivable
+	/// rather than absent.
 	/// </exception>
 	public static IServiceCollection AddTenantScopedProjectionStore<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore, TCapabilityFamily>(
 		this IServiceCollection services,
@@ -402,9 +417,21 @@ public static class TenantScopedStoreServiceCollectionExtensions
 
 		if (tenantAwareConstructors.Length != 0)
 		{
+			// WHO PICKS THE CONSTRUCTOR decides which failure is possible here, and the two are
+			// mirror images. When the SEAM constructs the store it hands the resolved context to
+			// ActivatorUtilities as an explicit argument, so a constructor omitting the context can
+			// never be selected — the risk left is AMBIGUITY between several that accept one. When
+			// the CALLER constructs it, the seam has no say at all, so the risk is OMISSION: a store
+			// classified from one tenant-aware constructor, built through a sibling that has no
+			// tenant parameter, wearing a marker attesting a discipline it was never given the means
+			// to honour.
 			if (requireConstructor)
 			{
 				RequireUnambiguousConstruction(storeType, tenantAwareConstructors);
+			}
+			else
+			{
+				RequireEveryConstructorTenantAware(storeType, constructors, tenantAwareConstructors);
 			}
 
 			return TenantMechanism.Scoped;
@@ -435,6 +462,58 @@ public static class TenantScopedStoreServiceCollectionExtensions
 		}
 
 		return TenantMechanism.None;
+	}
+
+	/// <summary>
+	/// Fails the registration when a caller-constructed, ambient-scoped store exposes any public
+	/// constructor that omits <see cref="ITenantContext"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// On the factory overloads the caller builds the store, so classification and construction come
+	/// apart: the seam reads the type's constructors to decide the store reads the ambient tenant, and
+	/// the factory body then chooses which constructor actually runs. A store offering both a
+	/// tenant-aware constructor and a convenience one that omits the context can therefore be built
+	/// without a tenant while this registration emits <see cref="ITenantScopingCapability{TContract}"/>
+	/// for it — the marker attesting a mechanism the instance was never handed the means to implement.
+	/// Resolving <see cref="ITenantContext"/> ahead of the factory does not close that: it proves the
+	/// HOST has one, never that the STORE was given it.
+	/// </para>
+	/// <para>
+	/// Requiring the parameter on every public constructor makes the omission inexpressible rather than
+	/// discouraged — there is no constructor left for a factory body to reach for. A store that
+	/// legitimately wants a convenience constructor keeps it and registers through
+	/// <see cref="AddTenantAwareStore{TContract, TStore}(IServiceCollection)"/> instead, where the seam
+	/// passes the context to <see cref="ActivatorUtilities"/> as an explicit argument and construction
+	/// through the tenant-blind constructor is likewise unreachable. Both paths end at the same
+	/// guarantee; they differ only in who is holding the constructor when it is enforced.
+	/// </para>
+	/// </remarks>
+	private static void RequireEveryConstructorTenantAware(
+		Type storeType,
+		ConstructorInfo[] constructors,
+		ConstructorInfo[] tenantAwareConstructors)
+	{
+		if (tenantAwareConstructors.Length == constructors.Length)
+		{
+			return;
+		}
+
+		var blind = Array.FindAll(constructors, c => Array.IndexOf(tenantAwareConstructors, c) < 0);
+		var shapes = string.Join(
+			"; ",
+			Array.ConvertAll(blind, c => "(" + string.Join(", ", Array.ConvertAll(c.GetParameters(), p => p.ParameterType.Name)) + ")"));
+
+		throw new InvalidOperationException(
+			$"'{storeType}' reads the ambient tenant — at least one public constructor accepts an " +
+			$"{nameof(ITenantContext)} — but {blind.Length} of its {constructors.Length} public " +
+			$"constructor(s) omit it: {shapes}. On this overload the factory chooses the constructor, so " +
+			"the store can be built without a tenant context while this registration emits a " +
+			"tenant-scoping capability marker for it. Give every public constructor an " +
+			$"{nameof(ITenantContext)} parameter, so omission is not expressible; or keep the " +
+			"convenience constructor and register through the AddTenantAwareStore overload that takes no " +
+			"factory, which passes the context to construction explicitly and cannot select a " +
+			"constructor that omits it.");
 	}
 
 	/// <summary>

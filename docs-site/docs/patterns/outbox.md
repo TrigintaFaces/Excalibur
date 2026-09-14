@@ -228,14 +228,31 @@ services.AddDispatch(dispatch =>
 {
     dispatch.UseOutbox(outbox =>
     {
-        // Default: messages buffered and staged after handler completes
+        // Default: no startup requirement beyond the outbox itself.
         outbox.ConsistencyMode = OutboxConsistencyMode.EventuallyConsistent;
 
-        // OR: messages written within the ambient transaction (requires IOutboxStore)
+        // OR: refuse to start unless an IOutboxStore and the transaction middleware are registered.
         outbox.ConsistencyMode = OutboxConsistencyMode.Transactional;
     });
 });
 ```
+
+:::caution ConsistencyMode is a startup requirement, not a write-path selector
+
+Setting `ConsistencyMode` to `Transactional` makes startup **fail** unless an `IOutboxStore` and the
+transaction middleware are registered. It does **not** choose how writes are staged, and a configuration
+that starts successfully is not thereby transactional.
+
+For event-sourced aggregates the write path is selected by the **staging strategy on the event-sourcing
+builder**, which prefers the transactional path only when a transactional outbox writer *and* an event
+store that supports transactional staging are both present, and falls back to the eventually-consistent
+path otherwise. That check lives in the event-sourcing packages, so `ConsistencyMode` cannot perform it —
+it can only refuse to start without the parts the dispatch side can see.
+
+If you need transactional staging, configure the staging strategy where your aggregates are registered and
+verify the path your store actually takes; `ConsistencyMode` alone will not give it to you.
+
+:::
 
 | Mode | Behavior | Risk | Requires |
 |------|----------|------|----------|
@@ -370,37 +387,24 @@ on, and it does not change when the CLR type moves. See
 
 The SQL Server store does **not** auto-create tables — create the schema before starting the application. The `IX_OutboxMessages_Claim` index backs the atomic claim predicate (status + retry-visibility) and the partition-ordered delivery guarantee.
 
-```sql
-CREATE TABLE dbo.OutboxMessages (
-    Id               NVARCHAR(255)  NOT NULL PRIMARY KEY,
-    MessageType      NVARCHAR(500)  NOT NULL,
-    Payload          VARBINARY(MAX) NOT NULL,
-    Headers          NVARCHAR(MAX)  NULL,
-    Destination      NVARCHAR(255)  NOT NULL,
-    CreatedAt        DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-    ScheduledAt      DATETIMEOFFSET NULL,
-    SentAt           DATETIMEOFFSET NULL,
-    Status           INT            NOT NULL DEFAULT 0,
-    RetryCount       INT            NOT NULL DEFAULT 0,
-    LastError        NVARCHAR(MAX)  NULL,
-    LastAttemptAt    DATETIMEOFFSET NULL,
-    CorrelationId    NVARCHAR(255)  NULL,
-    CausationId      NVARCHAR(255)  NULL,
-    TenantId         NVARCHAR(64) COLLATE Latin1_General_BIN2  NOT NULL DEFAULT '__untenanted__',
-    Priority         INT            NOT NULL DEFAULT 0,
-    TargetTransports NVARCHAR(MAX)  NULL,
-    IsMultiTransport BIT            NOT NULL DEFAULT 0,
-    LeasedAt         DATETIMEOFFSET NULL,
-    LeasedBy         NVARCHAR(255)  NULL,
-    PartitionKey     NVARCHAR(256)  NULL,   -- ordered delivery: per-partition FIFO
-    GroupKey         NVARCHAR(256)  NULL,   -- logical message grouping
-    SequenceNumber   BIGINT         NOT NULL DEFAULT 0, -- monotonic ordering key
-    NextAttemptAt    DATETIMEOFFSET NULL,   -- retry backoff: not re-claimed until this time
-    FencingToken     BIGINT         NULL,   -- leader-fence high-water mark; drain/mark SQL name it unconditionally
-    INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
-    INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
-);
+`Excalibur.Outbox.SqlServer` packs its DDL as numbered scripts under `scripts/` in the NuGet package.
+Those files are the authority for this schema — the store's own statements are derived from them.
+
+| Script | What it does |
+|--------|--------------|
+| `001_CreateOutboxSchema.sql` | Creates `OutboxMessages`, `OutboxMessageTransports`, `DeadLetterQueue` and `OutboxFence`. Also carries a guarded additive step that converges a legacy table whose `TenantId` is still nullable. |
+| `002_NarrowTenantIdToPortableMaximum.sql` | Narrows `TenantId` to `NVARCHAR(64)` on the three tables `001` owns. Refuses atomically, changing nothing, if any identifier exceeds 64 characters. |
+
+```bash
+# The scripts sit alongside lib/ in the package folder your restore populated.
+ls ~/.nuget/packages/excalibur.outbox.sqlserver/<version>/scripts/
 ```
+
+:::caution Provision from the scripts, not from a transcription of them
+This page used to restate these `CREATE TABLE` statements inline. A restatement drifts from the store
+silently and carries no upgrade path; the packaged scripts are the single copy kept in step with the
+code, and the only copy that is numbered. Provision from them rather than from any restatement.
+:::
 
 :::caution Upgrading a database created by an earlier version
 
@@ -416,9 +420,13 @@ identifiers that differ only after the 64th character are distinct in the wider 
 in the narrower one, and `TenantId` is part of the dead-letter primary key.
 
 If your tenant identifiers are all 64 characters or shorter — which they are unless you set them
-before this limit was introduced — you are unaffected in practice, and a future narrowing script will
-bring the column into line. That script will **refuse and change nothing** if any identifier exceeds
-64 characters, rather than truncating a value that identifies a tenant.
+before this limit was introduced — you are unaffected in practice. **The narrowing script ships:**
+`002_NarrowTenantIdToPortableMaximum.sql`, packed inside `Excalibur.Outbox.SqlServer` under
+`scripts/`. It narrows `TenantId` on all three tables `001` owns, and it **refuses and changes
+nothing** — atomically, across every table, having counted first — if any identifier exceeds 64
+characters, rather than truncating a value that identifies a tenant. The refusal is raised as a
+severity-16 error, so run it with a client that stops on error: a refused migration reported as a
+success leaves the column un-narrowed while the operator believes otherwise.
 :::
 
 :::note Ordering and retry-backoff columns
@@ -427,62 +435,7 @@ bring the column into line. That script will **refuse and change nothing** if an
 
 If you use **multi-transport delivery** (`IsMultiTransport` / per-transport tracking) or the **dead-letter queue**, create those tables too — the store does not auto-create them either:
 
-```sql
-CREATE TABLE dbo.OutboxMessageTransports (
-    Id                NVARCHAR(255)  NOT NULL PRIMARY KEY,
-    MessageId         NVARCHAR(255)  NOT NULL,
-    TransportName     NVARCHAR(255)  NOT NULL,
-    Destination       NVARCHAR(255)  NULL,
-    Status            INT            NOT NULL DEFAULT 0,
-    CreatedAt         DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-    AttemptedAt       DATETIMEOFFSET NULL,
-    SentAt            DATETIMEOFFSET NULL,
-    RetryCount        INT            NOT NULL DEFAULT 0,
-    LastError         NVARCHAR(MAX)  NULL,
-    TransportMetadata NVARCHAR(MAX)  NULL,
-    TenantId          NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
-    CONSTRAINT FK_OutboxMessageTransports_OutboxMessages
-        FOREIGN KEY (MessageId) REFERENCES dbo.OutboxMessages(Id)
-);
-
-CREATE TABLE dbo.DeadLetterQueue (
-    Id                  UNIQUEIDENTIFIER NOT NULL,
-    -- Originating tenant, carried as provenance so a replay re-enters the SAME tenant. NOT NULL
-    -- and part of the primary key: an untenanted entry stores the reserved '__untenanted__'
-    -- sentinel, never NULL, so the untenanted partition can never collide with a real tenant.
-    TenantId            NVARCHAR(64) COLLATE Latin1_General_BIN2  NOT NULL,
-    MessageType         NVARCHAR(500)  NOT NULL,
-    Payload             VARBINARY(MAX) NOT NULL,
-    Reason              INT            NOT NULL,
-    ExceptionMessage    NVARCHAR(MAX)  NULL,
-    ExceptionStackTrace NVARCHAR(MAX)  NULL,
-    EnqueuedAt          DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-    OriginalAttempts    INT            NOT NULL DEFAULT 0,
-    Metadata            NVARCHAR(MAX)  NULL,
-    CorrelationId       NVARCHAR(255)  NULL,
-    CausationId         NVARCHAR(255)  NULL,
-    SourceQueue         NVARCHAR(255)  NULL,
-    IsReplayed          BIT            NOT NULL DEFAULT 0,
-    ReplayedAt          DATETIMEOFFSET NULL,
-    CONSTRAINT PK_DeadLetterQueue PRIMARY KEY (Id, TenantId),
-    INDEX IX_DeadLetterQueue_EnqueuedAt (EnqueuedAt)
-);
-
--- REQUIRED even for a single-instance, non-fenced deployment. The drain and mark-sent statements
--- reference this table unconditionally, and SQL Server resolves object names at BIND time -- so the
--- runtime "no fencing token" short-circuit in the predicate is never reached if the table is absent.
--- Omit it and the very first drain fails with "Invalid object name 'dbo.OutboxFence'", and the outbox
--- never delivers a message.
---
--- One row per outbox table, holding the highest leadership fencing token ever accepted -- the durable
--- high-water mark. Deliberately SEPARATE from OutboxMessages so that routine cleanup, which deletes
--- sent token-bearing rows, can never lower it: a superseded leader's stale token is still rejected
--- after cleanup has purged the rows that carried the tokens.
-CREATE TABLE dbo.OutboxFence (
-    OutboxTable     NVARCHAR(512)  NOT NULL PRIMARY KEY,
-    HighWaterToken  BIGINT         NOT NULL
-);
-```
+Both are created by the same `001_CreateOutboxSchema.sql` — there is no separate script to run.
 
 #### Upgrading an existing outbox table
 
@@ -491,15 +444,8 @@ A nullable tenant lets an un-tenanted row exist, and no tenant-scoped read can e
 becomes unreachable rather than shared. Existing `NULL`s are backfilled to the reserved untenanted
 value first, so the change preserves every row and cannot fail on legacy data:
 
-```sql
-IF EXISTS (SELECT * FROM sys.columns
-           WHERE object_id = OBJECT_ID(N'[dbo].[OutboxMessages]')
-             AND name = N'TenantId' AND is_nullable = 1)
-BEGIN
-    UPDATE [dbo].[OutboxMessages] SET TenantId = '__untenanted__' WHERE TenantId IS NULL;
-    ALTER TABLE [dbo].[OutboxMessages] ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
-END
-```
+Run `001_CreateOutboxSchema.sql`. Its tightening step is additive and guarded on
+`is_nullable`, so it converges a legacy table and does nothing to an already-correct one.
 
 Run this before starting the upgraded application. The framework never writes `NULL` — a message staged
 with no tenant in scope carries the reserved `__untenanted__` value — so the backfill and the application
@@ -619,8 +565,19 @@ CREATE INDEX IF NOT EXISTS ix_outbox_dead_letters_occurred_on ON public.outbox_d
 
 :::tip Run the shipped script instead
 `Excalibur.Outbox.Postgres/Scripts/001_CreateOutboxSchema.sql` is the authority for this schema and
-is reproduced above. Every statement in it is guarded with `IF NOT EXISTS`, so it is safe to re-run
-and safe to apply to a database whose outbox table was created by an earlier version.
+is reproduced above. It is packed inside the NuGet package under `scripts/`.
+
+**It provisions and it upgrades.** The table and index statements are `CREATE ... IF NOT EXISTS`, so
+they do nothing against objects that already exist; the script then runs a guarded
+`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for every outbox column, so a table created by an earlier
+revision gains whichever columns it is missing. When upgrading, run the packaged scripts in order —
+`001`, then `002_MakeOutboxTenantTotal.sql`, then `003_CarryTenantOnDeadLetters.sql` — rather than
+hand-writing the DDL.
+
+Two columns are deliberately left out of the additive step. `message_type` and `message_body` are
+`NOT NULL` with no default, so adding them to a table that already has rows would fail outright, and
+both have existed since this table's first revision — a table missing either is not an earlier outbox
+but a name collision with something else, and failing loudly is the right outcome.
 
 If your table was created from an earlier revision of this page it has a `SERIAL` `id` column and a
 `UNIQUE` constraint on `message_id` instead of a primary key on it. That shape still works -- the
@@ -646,12 +603,11 @@ The table name defaults to `outbox_fence` (override via `PostgresOutboxStoreOpti
 :::
 
 :::note Upgrading an existing Postgres outbox schema
-If you already run an earlier `outbox` schema, add the tenant-isolation and destination columns before deploying — otherwise staged messages fail with `column "tenant_id" does not exist` or `column "destination" does not exist`:
-
-```sql
-ALTER TABLE outbox ADD COLUMN IF NOT EXISTS tenant_id   VARCHAR(64) ;
-ALTER TABLE outbox ADD COLUMN IF NOT EXISTS destination VARCHAR(500);
-```
+If you already run an earlier `outbox` schema, run the packaged `001_CreateOutboxSchema.sql` first —
+otherwise staged messages fail with `column "tenant_id" does not exist` or
+`column "destination" does not exist`. Its additive step adds every column your table is missing,
+including those two, and does nothing to the ones it already has. There is no hand-written DDL to
+apply here any more; the script is the upgrade.
 
 Then converge `tenant_id` onto its total form by running the packaged
 `002_MakeOutboxTenantTotal.sql` (shipped inside the NuGet package). It backfills every `NULL` and

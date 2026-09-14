@@ -39,11 +39,11 @@ public sealed class ElasticsearchResiliencePipelineShould
 				UseExponentialBackoff = false,
 				JitterFactor = 0,
 			},
-			CircuitBreaker = new CircuitBreakerOptions
+			CircuitBreaker = new ElasticsearchCircuitBreakerOptions
 			{
 				Enabled = breakerEnabled,
 				MinimumThroughput = minimumThroughput,
-				FailureRateThreshold = 0.1,
+				FailureRatio = 0.1,
 				SamplingDuration = TimeSpan.FromSeconds(30),
 				BreakDuration = TimeSpan.FromSeconds(30),
 			},

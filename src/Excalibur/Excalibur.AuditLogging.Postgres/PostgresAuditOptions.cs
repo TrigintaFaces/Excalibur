@@ -35,16 +35,9 @@ public sealed class PostgresAuditOptions
 	public int BatchSize { get; set; } = 1000;
 
 	/// <summary>
-	/// Gets or sets the default retention period for audit events.
-	/// Default is 7 years (SOC2 requirement).
+	/// Gets or sets the retention options for audit events.
 	/// </summary>
-	public TimeSpan RetentionPeriod { get; set; } = TimeSpan.FromDays(7 * 365);
-
-	/// <summary>
-	/// Gets or sets the maximum number of events to delete per cleanup batch. Default is 10000.
-	/// </summary>
-	[Range(1, 1000000)]
-	public int RetentionCleanupBatchSize { get; set; } = 10000;
+	public PostgresAuditRetentionOptions Retention { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the command timeout for SQL operations in seconds. Default is 30.

@@ -71,7 +71,7 @@ var result = await sender.SendAsync(
     TransportMessage.FromString("no-correlation"),
     CancellationToken.None);
 
-result.IsSuccess.ShouldBeFalse();
+result.Succeeded.ShouldBeFalse();
 ```
 
 The `OnSend` callback receives each `TransportMessage` and returns a `SendResult`. The message is still recorded in `SentMessages` regardless of the result.

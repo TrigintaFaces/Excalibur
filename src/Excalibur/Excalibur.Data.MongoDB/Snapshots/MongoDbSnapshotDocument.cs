@@ -98,7 +98,7 @@ internal sealed class MongoDbSnapshotDocument
 	/// </param>
 	/// <returns>The document identifier.</returns>
 	public static string CreateId(string aggregateId, string aggregateType, string tenantId) =>
-		$"t:{tenantId}:{aggregateId}:{aggregateType}";
+		TenantScopedKey.Compose(tenantId, aggregateId, aggregateType);
 
 	/// <summary>
 	/// Creates a document from a snapshot.

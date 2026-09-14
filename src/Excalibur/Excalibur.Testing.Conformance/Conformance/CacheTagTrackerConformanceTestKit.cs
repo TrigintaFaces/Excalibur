@@ -13,33 +13,22 @@ namespace Excalibur.Testing.Conformance;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This test kit ensures all <see cref="ICacheTagTracker"/> implementations correctly implement
-/// the tag tracking contract for cache invalidation in scenarios where the underlying cache
-/// doesn't natively support tag-based invalidation.
+/// This test kit ensures all <see cref="ICacheTagTracker"/> implementations correctly implement the
+/// per-tag version-stamp contract: a tag's current stamp can be resolved (creating one the first time
+/// a tag is seen), and a tag can be invalidated by bumping its stamp to a new value.
 /// </para>
 /// <para>
-/// <strong>CACHING INFRASTRUCTURE PATTERN:</strong> ICacheTagTracker provides bi-directional
-/// mapping between cache keys and tags for tag-based cache invalidation.
+/// <strong>KEY PATTERN:</strong> VERSION-STAMP — resolve a tag's current stamp, bump it to invalidate.
+/// Unlike the key-set model this kit previously validated (register a key under tags, query keys by
+/// tag, unregister a key), a tag tracker under this contract never knows which cache keys reference a
+/// tag; it only ever answers "what is this tag's current stamp" and "make this tag's stamp different".
 /// </para>
 /// <para>
-/// <strong>KEY PATTERN:</strong> TAG-TRACKING - Register key with tags, query keys by tags, unregister key.
-/// Unlike DUPLICATE-CHECK (Deduplicator) or ROUND-TRIP (ClaimCheckProvider), this pattern validates
-/// bi-directional mapping between keys and tags.
-/// </para>
-/// <para>
-/// <strong>METHODS TESTED (3 methods - SIMPLEST kit!):</strong>
+/// <strong>METHODS TESTED (2 methods):</strong>
 /// <list type="bullet">
-/// <item><description><c>RegisterKeyAsync</c> - Register cache key with associated tags</description></item>
-/// <item><description><c>GetKeysByTagsAsync</c> - Get all keys for specified tags (UNION)</description></item>
-/// <item><description><c>UnregisterKeyAsync</c> - Remove key-to-tag mappings</description></item>
+/// <item><description><c>GetOrCreateStampAsync</c> - Resolve (or create, if never seen) a tag's current stamp</description></item>
+/// <item><description><c>BumpStampAsync</c> - Invalidate a tag by replacing its stamp</description></item>
 /// </list>
-/// </para>
-/// <para>
-/// <strong>NO SYNC METHODS:</strong> This is the first enterprise integration kit without a sync method.
-/// All methods are Task-based.
-/// </para>
-/// <para>
-/// <strong>GRACEFUL HANDLING:</strong> Empty/null tags return empty results or no-op - no exceptions.
 /// </para>
 /// </remarks>
 /// <example>
@@ -50,8 +39,8 @@ namespace Excalibur.Testing.Conformance;
 ///         new MyCacheTagTracker();
 ///
 ///     [Fact]
-///     public Task RegisterKeyAsync_WithTags_ShouldRegister_Test() =>
-///         RegisterKeyAsync_WithTags_ShouldRegister();
+///     public Task GetOrCreateStampAsync_NewTag_ShouldCreateStamp_Test() =>
+///         GetOrCreateStampAsync_NewTag_ShouldCreateStamp();
 /// }
 /// </code>
 /// </example>
@@ -68,379 +57,289 @@ public abstract class CacheTagTrackerConformanceTestKit : ConformanceTestKit
 	/// </remarks>
 	protected abstract ICacheTagTracker CreateTracker();
 
-	#region RegisterKeyAsync Tests
+	/// <summary>
+	/// Gets a value indicating whether this implementation claims that stamps are shared across
+	/// instances through an external backend, so that two separately constructed trackers observe each
+	/// other's bumps.
+	/// </summary>
+	/// <remarks>
+	/// <see langword="false"/> by default. An in-process implementation (a private, per-instance
+	/// dictionary) does not and must not claim this — two of its instances never share state, so the
+	/// cross-instance arms below would fail for a reason that has nothing to do with a defect. Override
+	/// to <see langword="true"/> only for an implementation backed by a store that is itself shared
+	/// (e.g. Redis, SQL Server) across the instances <see cref="CreateTracker"/> returns.
+	/// </remarks>
+	protected virtual bool SupportsCrossInstanceSharing => false;
 
 	/// <summary>
-	/// Verifies that <c>RegisterKeyAsync</c> with valid tags registers the key correctly.
+	/// The maximum time a cross-instance arm waits for a second instance to observe a change made by the
+	/// first, polling in <see cref="CrossInstancePollInterval"/> steps.
+	/// </summary>
+	/// <remarks>
+	/// Convergence is bounded by the implementation's own refresh interval (memoization), not by this
+	/// kit, so the wait must comfortably exceed any implementation's configured bound rather than assume
+	/// a specific one. Override for an implementation configured with an unusually large refresh window.
+	/// </remarks>
+	protected virtual TimeSpan CrossInstanceConvergenceTimeout => TimeSpan.FromSeconds(10);
+
+	/// <summary>The interval between polls while waiting for cross-instance convergence.</summary>
+	protected virtual TimeSpan CrossInstancePollInterval => TimeSpan.FromMilliseconds(100);
+
+	#region GetOrCreateStampAsync Tests
+
+	/// <summary>
+	/// Verifies that <c>GetOrCreateStampAsync</c> creates a non-empty stamp for a tag never seen before.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task RegisterKeyAsync_WithTags_ShouldRegister()
+	public virtual async Task GetOrCreateStampAsync_NewTag_ShouldCreateStamp()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var tracker = CreateTracker();
-		var key = "user:123";
-		var tags = new[] { "users", "tenant:abc" };
-		var queryTags = new[] { "users" };
 
 		// Act
-		await tracker.RegisterKeyAsync(key, tags, cts.Token).ConfigureAwait(false);
-		var keys = await tracker.GetKeysByTagsAsync(queryTags, cts.Token).ConfigureAwait(false);
+		var stamp = await tracker.GetOrCreateStampAsync("orders", cts.Token).ConfigureAwait(false);
 
 		// Assert
-		if (!keys.Contains(key))
+		if (string.IsNullOrEmpty(stamp))
 		{
 			throw new TestFixtureAssertionException(
-				$"Expected GetKeysByTagsAsync to return key '{key}' after registration");
+				"Expected GetOrCreateStampAsync to return a non-empty stamp for a new tag");
 		}
 	}
 
 	/// <summary>
-	/// Verifies that <c>RegisterKeyAsync</c> with empty tags is a no-op.
+	/// Verifies that <c>GetOrCreateStampAsync</c> called twice for the same tag, with no bump between
+	/// the calls, returns the SAME stamp both times.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task RegisterKeyAsync_EmptyTags_ShouldBeNoOp()
+	public virtual async Task GetOrCreateStampAsync_SameTagNoBump_ShouldReturnSameStamp()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var tracker = CreateTracker();
-		var key = "user:123";
-		var queryTags = new[] { "any-tag" };
-
-		// Act - should not throw
-		await tracker.RegisterKeyAsync(key, [], cts.Token).ConfigureAwait(false);
-
-		// Assert - key should not be found for any tag
-		var keys = await tracker.GetKeysByTagsAsync(queryTags, cts.Token).ConfigureAwait(false);
-		if (keys.Contains(key))
-		{
-			throw new TestFixtureAssertionException(
-				"Expected empty tags registration to be no-op, but key was found");
-		}
-	}
-
-	/// <summary>
-	/// Verifies that <c>RegisterKeyAsync</c> with null tags is a no-op.
-	/// </summary>
-	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task RegisterKeyAsync_NullTags_ShouldBeNoOp()
-	{
-		// Arrange
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-		var tracker = CreateTracker();
-		var key = "user:123";
-		var queryTags = new[] { "any-tag" };
-
-		// Act - should not throw
-		await tracker.RegisterKeyAsync(key, null!, cts.Token).ConfigureAwait(false);
-
-		// Assert - key should not be found for any tag
-		var keys = await tracker.GetKeysByTagsAsync(queryTags, cts.Token).ConfigureAwait(false);
-		if (keys.Contains(key))
-		{
-			throw new TestFixtureAssertionException(
-				"Expected null tags registration to be no-op, but key was found");
-		}
-	}
-
-	/// <summary>
-	/// Verifies that re-registering a key replaces its tags.
-	/// </summary>
-	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task RegisterKeyAsync_ReRegister_ShouldReplaceTags()
-	{
-		// Arrange
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-		var tracker = CreateTracker();
-		var key = "user:123";
-		var firstTags = new[] { "users", "premium" };
-		var secondTags = new[] { "users", "basic" };
-		var queryUsersTags = new[] { "users" };
-		var queryBasicTags = new[] { "basic" };
-
-		// Act - Register with first set of tags
-		await tracker.RegisterKeyAsync(key, firstTags, cts.Token).ConfigureAwait(false);
-
-		// Re-register with different tags
-		await tracker.RegisterKeyAsync(key, secondTags, cts.Token).ConfigureAwait(false);
-
-		// Assert - key should be in "users" and "basic" but not "premium"
-		var usersKeys = await tracker.GetKeysByTagsAsync(queryUsersTags, cts.Token).ConfigureAwait(false);
-		var basicKeys = await tracker.GetKeysByTagsAsync(queryBasicTags, cts.Token).ConfigureAwait(false);
-
-		if (!usersKeys.Contains(key))
-		{
-			throw new TestFixtureAssertionException(
-				"Expected key to be in 'users' tag after re-registration");
-		}
-
-		if (!basicKeys.Contains(key))
-		{
-			throw new TestFixtureAssertionException(
-				"Expected key to be in 'basic' tag after re-registration");
-		}
-
-		// Note: The old "premium" tag mapping may still exist until unregister
-		// This is implementation-specific behavior
-	}
-
-	#endregion
-
-	#region GetKeysByTagsAsync Tests
-
-	/// <summary>
-	/// Verifies that <c>GetKeysByTagsAsync</c> returns keys for a single tag.
-	/// </summary>
-	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task GetKeysByTagsAsync_SingleTag_ShouldReturnKeys()
-	{
-		// Arrange
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-		var tracker = CreateTracker();
-		var usersTags = new[] { "users" };
-		var ordersTags = new[] { "orders" };
-
-		await tracker.RegisterKeyAsync("user:1", usersTags, cts.Token).ConfigureAwait(false);
-		await tracker.RegisterKeyAsync("user:2", usersTags, cts.Token).ConfigureAwait(false);
-		await tracker.RegisterKeyAsync("order:1", ordersTags, cts.Token).ConfigureAwait(false);
 
 		// Act
-		var keys = await tracker.GetKeysByTagsAsync(usersTags, cts.Token).ConfigureAwait(false);
+		var first = await tracker.GetOrCreateStampAsync("orders", cts.Token).ConfigureAwait(false);
+		var second = await tracker.GetOrCreateStampAsync("orders", cts.Token).ConfigureAwait(false);
 
 		// Assert
-		if (!keys.Contains("user:1") || !keys.Contains("user:2"))
+		if (!string.Equals(first, second, StringComparison.Ordinal))
 		{
 			throw new TestFixtureAssertionException(
-				"Expected GetKeysByTagsAsync to return both user keys for 'users' tag");
-		}
-
-		if (keys.Contains("order:1"))
-		{
-			throw new TestFixtureAssertionException(
-				"Expected GetKeysByTagsAsync to NOT return order key for 'users' tag");
+				$"Expected GetOrCreateStampAsync to return a stable stamp absent a bump, got '{first}' then '{second}'");
 		}
 	}
 
 	/// <summary>
-	/// Verifies that <c>GetKeysByTagsAsync</c> returns UNION of keys for multiple tags.
+	/// Verifies that two DIFFERENT tags resolve to different stamps.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task GetKeysByTagsAsync_MultipleTags_ShouldReturnUnion()
+	public virtual async Task GetOrCreateStampAsync_DifferentTags_ShouldReturnDifferentStamps()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var tracker = CreateTracker();
-		var usersTags = new[] { "users" };
-		var ordersTags = new[] { "orders" };
-		var usersPremiumTags = new[] { "users", "premium" };
-		var queryTags = new[] { "users", "orders" };
-
-		await tracker.RegisterKeyAsync("user:1", usersTags, cts.Token).ConfigureAwait(false);
-		await tracker.RegisterKeyAsync("order:1", ordersTags, cts.Token).ConfigureAwait(false);
-		await tracker.RegisterKeyAsync("user:2", usersPremiumTags, cts.Token).ConfigureAwait(false);
-
-		// Act - Get keys for multiple tags (should be UNION)
-		var keys = await tracker.GetKeysByTagsAsync(queryTags, cts.Token).ConfigureAwait(false);
-
-		// Assert - should contain all keys from both tags
-		if (!keys.Contains("user:1") || !keys.Contains("user:2") || !keys.Contains("order:1"))
-		{
-			throw new TestFixtureAssertionException(
-				$"Expected GetKeysByTagsAsync to return UNION of keys, got {keys.Count} keys");
-		}
-	}
-
-	/// <summary>
-	/// Verifies that <c>GetKeysByTagsAsync</c> with empty tags returns empty result.
-	/// </summary>
-	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task GetKeysByTagsAsync_EmptyTags_ShouldReturnEmpty()
-	{
-		// Arrange
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-		var tracker = CreateTracker();
-		var usersTags = new[] { "users" };
-
-		await tracker.RegisterKeyAsync("user:1", usersTags, cts.Token).ConfigureAwait(false);
 
 		// Act
-		var keys = await tracker.GetKeysByTagsAsync([], cts.Token).ConfigureAwait(false);
+		var ordersStamp = await tracker.GetOrCreateStampAsync("orders", cts.Token).ConfigureAwait(false);
+		var usersStamp = await tracker.GetOrCreateStampAsync("users", cts.Token).ConfigureAwait(false);
 
 		// Assert
-		if (keys.Count != 0)
+		if (string.Equals(ordersStamp, usersStamp, StringComparison.Ordinal))
 		{
 			throw new TestFixtureAssertionException(
-				"Expected GetKeysByTagsAsync with empty tags to return empty HashSet");
-		}
-	}
-
-	/// <summary>
-	/// Verifies that <c>GetKeysByTagsAsync</c> with null tags returns empty result.
-	/// </summary>
-	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task GetKeysByTagsAsync_NullTags_ShouldReturnEmpty()
-	{
-		// Arrange
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-		var tracker = CreateTracker();
-		var usersTags = new[] { "users" };
-
-		await tracker.RegisterKeyAsync("user:1", usersTags, cts.Token).ConfigureAwait(false);
-
-		// Act
-		var keys = await tracker.GetKeysByTagsAsync(null!, cts.Token).ConfigureAwait(false);
-
-		// Assert
-		if (keys.Count != 0)
-		{
-			throw new TestFixtureAssertionException(
-				"Expected GetKeysByTagsAsync with null tags to return empty HashSet");
-		}
-	}
-
-	/// <summary>
-	/// Verifies that <c>GetKeysByTagsAsync</c> for non-existent tag returns empty result.
-	/// </summary>
-	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task GetKeysByTagsAsync_NonExistentTag_ShouldReturnEmpty()
-	{
-		// Arrange
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-		var tracker = CreateTracker();
-		var usersTags = new[] { "users" };
-		var queryTags = new[] { "non-existent-tag" };
-
-		await tracker.RegisterKeyAsync("user:1", usersTags, cts.Token).ConfigureAwait(false);
-
-		// Act
-		var keys = await tracker.GetKeysByTagsAsync(queryTags, cts.Token).ConfigureAwait(false);
-
-		// Assert
-		if (keys.Count != 0)
-		{
-			throw new TestFixtureAssertionException(
-				"Expected GetKeysByTagsAsync for non-existent tag to return empty HashSet");
+				"Expected two different tags to resolve to different stamps");
 		}
 	}
 
 	#endregion
 
-	#region UnregisterKeyAsync Tests
+	#region BumpStampAsync Tests
 
 	/// <summary>
-	/// Verifies that <c>UnregisterKeyAsync</c> removes key from all associated tags.
+	/// Verifies that <c>BumpStampAsync</c> changes a tag's stamp to a different value.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task UnregisterKeyAsync_ShouldRemoveFromAllTags()
+	public virtual async Task BumpStampAsync_ShouldChangeStamp()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var tracker = CreateTracker();
-		var key = "user:123";
-		var registerTags = new[] { "users", "premium", "tenant:abc" };
-		var queryUsersTags = new[] { "users" };
-		var queryPremiumTags = new[] { "premium" };
-		var queryTenantTags = new[] { "tenant:abc" };
-
-		await tracker.RegisterKeyAsync(key, registerTags, cts.Token).ConfigureAwait(false);
+		var before = await tracker.GetOrCreateStampAsync("orders", cts.Token).ConfigureAwait(false);
 
 		// Act
-		await tracker.UnregisterKeyAsync(key, cts.Token).ConfigureAwait(false);
+		await tracker.BumpStampAsync("orders", cts.Token).ConfigureAwait(false);
+		var after = await tracker.GetOrCreateStampAsync("orders", cts.Token).ConfigureAwait(false);
 
-		// Assert - key should not be found in any tag
-		var usersKeys = await tracker.GetKeysByTagsAsync(queryUsersTags, cts.Token).ConfigureAwait(false);
-		var premiumKeys = await tracker.GetKeysByTagsAsync(queryPremiumTags, cts.Token).ConfigureAwait(false);
-		var tenantKeys = await tracker.GetKeysByTagsAsync(queryTenantTags, cts.Token).ConfigureAwait(false);
-
-		if (usersKeys.Contains(key) || premiumKeys.Contains(key) || tenantKeys.Contains(key))
+		// Assert
+		if (string.Equals(before, after, StringComparison.Ordinal))
 		{
 			throw new TestFixtureAssertionException(
-				"Expected UnregisterKeyAsync to remove key from ALL tags");
+				"Expected BumpStampAsync to change the tag's stamp");
 		}
 	}
 
 	/// <summary>
-	/// Verifies that <c>UnregisterKeyAsync</c> for non-existent key is safe (no exception).
+	/// Verifies that <c>BumpStampAsync</c> for a tag never previously resolved is safe and gives the
+	/// tag a resolvable stamp afterward.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task UnregisterKeyAsync_NonExistentKey_ShouldBeNoOp()
+	public virtual async Task BumpStampAsync_NeverResolvedTag_ShouldBeSafeAndResolvable()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var tracker = CreateTracker();
 
 		// Act - should not throw
-		await tracker.UnregisterKeyAsync("non-existent-key", cts.Token).ConfigureAwait(false);
+		await tracker.BumpStampAsync("never-seen", cts.Token).ConfigureAwait(false);
+		var stamp = await tracker.GetOrCreateStampAsync("never-seen", cts.Token).ConfigureAwait(false);
 
-		// Assert - just verify no exception was thrown
-		await Task.CompletedTask.ConfigureAwait(false);
+		// Assert
+		if (string.IsNullOrEmpty(stamp))
+		{
+			throw new TestFixtureAssertionException(
+				"Expected the tag to have a resolvable stamp after BumpStampAsync");
+		}
 	}
 
 	/// <summary>
-	/// Verifies that <c>UnregisterKeyAsync</c> cleans up empty tag entries.
+	/// Verifies that bumping one tag does not change a DIFFERENT tag's stamp.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task UnregisterKeyAsync_ShouldCleanupEmptyTagEntries()
+	public virtual async Task BumpStampAsync_ShouldNotAffectOtherTags()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var tracker = CreateTracker();
-		var uniqueTags = new[] { "unique-tag" };
+		_ = await tracker.GetOrCreateStampAsync("orders", cts.Token).ConfigureAwait(false);
+		var usersBefore = await tracker.GetOrCreateStampAsync("users", cts.Token).ConfigureAwait(false);
 
-		// Register single key with a unique tag
-		await tracker.RegisterKeyAsync("single-key", uniqueTags, cts.Token).ConfigureAwait(false);
+		// Act
+		await tracker.BumpStampAsync("orders", cts.Token).ConfigureAwait(false);
+		var usersAfter = await tracker.GetOrCreateStampAsync("users", cts.Token).ConfigureAwait(false);
 
-		// Verify it's registered
-		var beforeKeys = await tracker.GetKeysByTagsAsync(uniqueTags, cts.Token).ConfigureAwait(false);
-		if (!beforeKeys.Contains("single-key"))
-		{
-			throw new TestFixtureAssertionException("Expected key to be registered before unregister");
-		}
-
-		// Act - Unregister the only key for this tag
-		await tracker.UnregisterKeyAsync("single-key", cts.Token).ConfigureAwait(false);
-
-		// Assert - tag should return empty (not error)
-		var afterKeys = await tracker.GetKeysByTagsAsync(uniqueTags, cts.Token).ConfigureAwait(false);
-		if (afterKeys.Count != 0)
+		// Assert
+		if (!string.Equals(usersBefore, usersAfter, StringComparison.Ordinal))
 		{
 			throw new TestFixtureAssertionException(
-				"Expected tag entry to be cleaned up after last key unregistered");
+				"Expected bumping 'orders' to leave 'users' stamp unchanged");
 		}
 	}
 
 	#endregion
 
-	#region Edge Case Tests
+	#region Cross-Instance Sharing Tests
 
 	/// <summary>
-	/// Verifies that a key can be registered with multiple tags.
+	/// Verifies that a bump made through one tracker instance is eventually observed by a SECOND,
+	/// independently constructed instance reading through the same shared backend — the property the
+	/// key-set model this kit previously validated could not hold, and the reason
+	/// <see cref="ICacheTagTracker"/> was redesigned around a per-tag version stamp.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	public virtual async Task RegisterKeyAsync_MultipleTags_ShouldBeFoundInAll()
+	/// <remarks>
+	/// SAFETY arm. Skipped (never failed) via <see cref="ConformanceTestKit.OnArmSkipped"/> for an
+	/// implementation that does not claim <see cref="SupportsCrossInstanceSharing"/> — two in-process
+	/// trackers sharing nothing would fail here for a reason unrelated to any defect.
+	/// </remarks>
+	public virtual async Task CrossInstanceBump_ShouldInvalidateEntriesOnAnotherInstance()
 	{
+		if (!SupportsCrossInstanceSharing)
+		{
+			SkipArm(
+				nameof(CrossInstanceBump_ShouldInvalidateEntriesOnAnotherInstance),
+				typeof(ICacheTagTracker),
+				"This implementation does not claim cross-instance stamp sharing (SupportsCrossInstanceSharing is false).");
+			return;
+		}
+
+		RecordArmExecuted(nameof(CrossInstanceBump_ShouldInvalidateEntriesOnAnotherInstance));
+
 		// Arrange
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-		var tracker = CreateTracker();
-		var key = "user:premium:vip";
-		var tags = new[] { "users", "premium", "vip", "tenant:abc" };
+		using var cts = new CancellationTokenSource(CrossInstanceConvergenceTimeout + TimeSpan.FromSeconds(5));
+		const string tag = "cross-instance-bump";
+		var instanceA = CreateTracker();
+		var instanceB = CreateTracker();
+
+		// instanceB resolves and memoizes the tag's stamp FIRST — this is what makes the arm meaningful.
+		// A cold read after the bump would trivially see the new value from any implementation; the
+		// property under test is that a STALE, already-cached view converges.
+		var stampBeforeOnB = await instanceB.GetOrCreateStampAsync(tag, cts.Token).ConfigureAwait(false);
 
 		// Act
-		await tracker.RegisterKeyAsync(key, tags, cts.Token).ConfigureAwait(false);
+		await instanceA.BumpStampAsync(tag, cts.Token).ConfigureAwait(false);
+		var stampAfterOnA = await instanceA.GetOrCreateStampAsync(tag, cts.Token).ConfigureAwait(false);
 
-		// Assert - key should be found in each tag individually
-		foreach (var tag in tags)
+		// Assert — poll instanceB until it converges to instanceA's post-bump stamp, bounded by
+		// CrossInstanceConvergenceTimeout (an implementation may only refresh its memo periodically).
+		var deadline = DateTime.UtcNow + CrossInstanceConvergenceTimeout;
+		var observedOnB = stampBeforeOnB;
+		while (DateTime.UtcNow < deadline)
 		{
-			var queryTags = new[] { tag };
-			var keys = await tracker.GetKeysByTagsAsync(queryTags, cts.Token).ConfigureAwait(false);
-			if (!keys.Contains(key))
+			observedOnB = await instanceB.GetOrCreateStampAsync(tag, cts.Token).ConfigureAwait(false);
+			if (string.Equals(observedOnB, stampAfterOnA, StringComparison.Ordinal))
 			{
-				throw new TestFixtureAssertionException(
-					$"Expected key to be found in tag '{tag}'");
+				break;
 			}
+
+			await Task.Delay(CrossInstancePollInterval, cts.Token).ConfigureAwait(false);
+		}
+
+		if (!string.Equals(observedOnB, stampAfterOnA, StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected a bump on one tracker instance to be observed by a second instance sharing the "
+				+ $"same backend within {CrossInstanceConvergenceTimeout}, so an entry written under the "
+				+ $"pre-bump stamp on that second instance would be treated as stale. Instance B's stamp "
+				+ $"stayed '{observedOnB}'; instance A's post-bump stamp was '{stampAfterOnA}'.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a tag NOT bumped resolves to the SAME stamp on a second, independently constructed
+	/// instance reading through the same shared backend — a bare cross-instance "hit", proving the two
+	/// instances agree rather than each minting an unrelated stamp for the same tag.
+	/// </summary>
+	/// <returns>A task representing the asynchronous test operation.</returns>
+	/// <remarks>
+	/// LIVENESS arm, paired with <see cref="CrossInstanceBump_ShouldInvalidateEntriesOnAnotherInstance"/>:
+	/// that arm alone would pass against a tracker that treats every entry as stale regardless of any
+	/// bump, so this arm proves an unbumped tag still hits. Skipped for an implementation that does not
+	/// claim <see cref="SupportsCrossInstanceSharing"/>, for the same reason as the safety arm.
+	/// </remarks>
+	public virtual async Task CrossInstanceNoBump_ShouldStillHitOnAnotherInstance()
+	{
+		if (!SupportsCrossInstanceSharing)
+		{
+			SkipArm(
+				nameof(CrossInstanceNoBump_ShouldStillHitOnAnotherInstance),
+				typeof(ICacheTagTracker),
+				"This implementation does not claim cross-instance stamp sharing (SupportsCrossInstanceSharing is false).");
+			return;
+		}
+
+		RecordArmExecuted(nameof(CrossInstanceNoBump_ShouldStillHitOnAnotherInstance));
+
+		// Arrange
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		const string tag = "cross-instance-no-bump";
+		var instanceA = CreateTracker();
+		var instanceB = CreateTracker();
+
+		// Act — resolve on A, then on a SEPARATE instance B; neither bumps the tag.
+		var stampOnA = await instanceA.GetOrCreateStampAsync(tag, cts.Token).ConfigureAwait(false);
+		var stampOnB = await instanceB.GetOrCreateStampAsync(tag, cts.Token).ConfigureAwait(false);
+
+		// Assert
+		if (!string.Equals(stampOnA, stampOnB, StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected an unbumped tag to resolve to the SAME stamp on two instances sharing the same "
+				+ $"backend, so a bump on either would be the only thing that changes it. Got '{stampOnA}' "
+				+ $"on instance A and '{stampOnB}' on instance B.");
 		}
 	}
 
 	#endregion
-
 }

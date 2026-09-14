@@ -1,5 +1,13 @@
 #nullable enable
-Excalibur.A3.Authorization.DurableGrantStoreRegistration
+Excalibur.A3.Authorization.AuthorizationPolicy
+Excalibur.A3.Authorization.AuthorizationPolicy.AuthorizationPolicy(System.Collections.Generic.IDictionary<string!, object!>! grants, System.Collections.Generic.IDictionary<string!, object!>! activityGroups, Excalibur.Dispatch.ITenantContext! tenantContext, string! userId) -> void
+Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant(string! activityName) -> bool
+Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant(string! resourceType, string! resourceId) -> bool
+Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant<TActivity>() -> bool
+Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant<TResourceType>(string! resourceId) -> bool
+Excalibur.A3.Authorization.AuthorizationPolicy.IsAuthorized(string! activityName, string? resourceId) -> bool
+Excalibur.A3.Authorization.AuthorizationPolicy.TenantId.get -> string!
+Excalibur.A3.Authorization.AuthorizationPolicy.UserId.get -> string!
 Excalibur.A3.Authorization.Events.GrantAdded
 Excalibur.A3.Authorization.Events.GrantAdded.ApplicationName.get -> string!
 Excalibur.A3.Authorization.Events.GrantAdded.ApplicationName.init -> void
@@ -133,11 +141,17 @@ Excalibur.A3.Authorization.Grants.GrantScope.Qualifier.init -> void
 Excalibur.A3.Authorization.Grants.GrantScope.TenantId.get -> string!
 Excalibur.A3.Authorization.Grants.GrantScope.TenantId.init -> void
 Excalibur.A3.Authorization.Grants.GrantType
+Excalibur.A3.Authorization.PolicyResult
+Excalibur.A3.Authorization.PolicyResult.HasActivityGrant.get -> bool
+Excalibur.A3.Authorization.PolicyResult.HasActivityGrant.init -> void
+Excalibur.A3.Authorization.PolicyResult.HasResourceGrant.get -> bool
+Excalibur.A3.Authorization.PolicyResult.HasResourceGrant.init -> void
+Excalibur.A3.Authorization.PolicyResult.IsAuthorized.get -> bool
+Excalibur.A3.Authorization.PolicyResult.IsAuthorized.init -> void
 Microsoft.Extensions.DependencyInjection.A3CoreServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions
 override Excalibur.A3.Authorization.Grants.GrantKey.ToString() -> string!
 override Excalibur.A3.Authorization.Grants.GrantScope.ToString() -> string!
-static Excalibur.A3.Authorization.DurableGrantStoreRegistration.AddGrantDurabilityGate(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.A3.Authorization.Grants.Grant.Create(string! id) -> Excalibur.A3.Authorization.Grants.Grant!
 static Excalibur.A3.Authorization.Grants.Grant.FromEvents(string! id, System.Collections.Generic.IEnumerable<Excalibur.Domain.Model.HistoricEvent>! events) -> Excalibur.A3.Authorization.Grants.Grant!
 static Excalibur.A3.Authorization.Grants.GrantScope.FromString(string! scope) -> Excalibur.A3.Authorization.Grants.GrantScope!

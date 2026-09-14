@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using StackExchange.Redis;
+using Excalibur.Data;
 
 namespace Excalibur.EventSourcing.Redis;
 
@@ -295,7 +296,10 @@ public sealed partial class RedisEventStore : IEventStore
 	private string GetStreamKey(string aggregateType, string aggregateId)
 	{
 		var scope = CurrentTenantScope;
-		return $"{_options.StreamKeyPrefix}:t:{scope.TenantId}:{aggregateType}:{aggregateId}";
+		// The store prefix stays raw; everything from the tenant term onward is the shared injective
+		// composition, so no pair of tenant and identifier can address another pair's stream.
+		return $"{_options.StreamKeyPrefix}:"
+			+ TenantScopedKey.Compose(scope.TenantId, aggregateType, aggregateId);
 	}
 
 	// The authoritative per-stream version counter lives in a companion key. The stream key is wrapped

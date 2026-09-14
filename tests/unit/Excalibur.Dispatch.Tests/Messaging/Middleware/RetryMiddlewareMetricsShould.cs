@@ -56,7 +56,7 @@ public sealed class RetryMiddlewareMetricsShould
 		// Transient exception on every attempt ⇒ the retryable-exception path runs and increments attempts.
 		var recorded = await CaptureAsync(
 			(_, _, _) => throw new TimeoutException("transient"),
-			new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
+			new RetryOptions { MaxRetryAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
 
 		Sum(recorded, AttemptsCounter).ShouldBeGreaterThan(0, "the retry-attempts counter must emit on each retry");
 	}
@@ -67,13 +67,13 @@ public sealed class RetryMiddlewareMetricsShould
 		// A persistently transient FAILED RESULT (RFC7807 503) is retried until exhausted, then abandoned
 		// on the last attempt — the reachable terminal path that emits dispatch.retry.exhausted.
 		var transientFailure = A.Fake<IMessageResult>();
-		_ = A.CallTo(() => transientFailure.IsSuccess).Returns(false);
+		_ = A.CallTo(() => transientFailure.Succeeded).Returns(false);
 		_ = A.CallTo(() => transientFailure.Succeeded).Returns(false);
 		_ = A.CallTo(() => transientFailure.ProblemDetails).Returns(new MessageProblemDetails { Status = 503 });
 
 		var recorded = await CaptureAsync(
 			(_, _, _) => new ValueTask<IMessageResult>(transientFailure),
-			new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
+			new RetryOptions { MaxRetryAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
 
 		Sum(recorded, ExhaustedCounter).ShouldBe(1, "the exhausted counter must emit once on terminal failure (failed-result path)");
 	}
@@ -87,7 +87,7 @@ public sealed class RetryMiddlewareMetricsShould
 		// original. RED mutant: move the counter below the rethrow ⇒ unreachable ⇒ exhausted == 0 here.
 		var recorded = await CaptureAsync(
 			(_, _, _) => throw new TimeoutException("transient — never recovers"),
-			new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
+			new RetryOptions { MaxRetryAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
 
 		Sum(recorded, ExhaustedCounter).ShouldBe(1, "the exhausted counter must ALSO emit once on the exception-exhaustion path (qu3182 no-undercount)");
 	}

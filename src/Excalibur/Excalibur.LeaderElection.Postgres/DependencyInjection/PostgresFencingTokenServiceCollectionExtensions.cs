@@ -25,9 +25,11 @@ public static class PostgresFencingTokenServiceCollectionExtensions
 	/// </param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <remarks>
-	/// Uses <c>TryAdd</c> so a consumer-supplied provider takes precedence. Pair with <c>WithFencingTokens()</c>
-	/// on the leader election builder; the startup prerequisite check then passes because a provider is
-	/// registered, and each leadership acquisition advances the fence before declaring leadership (fail-closed).
+	/// Uses <c>TryAdd</c> so a consumer-supplied provider takes precedence. <c>UsePostgres(...)</c> /
+	/// <c>AddPostgresLeaderElection(...)</c> already register this by default (fencing is on by default;
+	/// <c>WithoutFencingTokens()</c> opts out) — this method exists for a consumer composing services
+	/// manually without going through those entry points, and satisfies the startup prerequisite check the
+	/// same way. Each leadership acquisition advances the fence before declaring leadership (fail-closed).
 	/// </remarks>
 	public static IServiceCollection AddPostgresFencingTokenProvider(this IServiceCollection services, string connectionString)
 	{

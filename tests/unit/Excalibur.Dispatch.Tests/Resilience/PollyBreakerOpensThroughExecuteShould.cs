@@ -29,8 +29,8 @@ public sealed class PollyBreakerOpensThroughExecuteShould
 {
 	private static CircuitBreakerOptions Options() => new()
 	{
-		FailureThreshold = 2,
-		OpenDuration = TimeSpan.FromMinutes(5),
+		MinimumThroughput = 2,
+		BreakDuration = TimeSpan.FromMinutes(5),
 		SamplingDuration = TimeSpan.FromSeconds(30),
 	};
 

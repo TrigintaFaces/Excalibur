@@ -15,8 +15,10 @@ public sealed class PostgresAuditOptionsShould
 		options.SchemaName.ShouldBe("audit");
 		options.TableName.ShouldBe("audit_events");
 		options.BatchSize.ShouldBe(1000);
-		options.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
-		options.RetentionCleanupBatchSize.ShouldBe(10000);
+		options.Retention.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
+		options.Retention.EnableRetentionEnforcement.ShouldBeTrue();
+		options.Retention.CleanupInterval.ShouldBe(TimeSpan.FromDays(1));
+		options.Retention.CleanupBatchSize.ShouldBe(10000);
 		options.CommandTimeoutSeconds.ShouldBe(30);
 		options.EnableHashChain.ShouldBeTrue();
 	}
@@ -30,8 +32,11 @@ public sealed class PostgresAuditOptionsShould
 			SchemaName = "custom_schema",
 			TableName = "custom_events",
 			BatchSize = 500,
-			RetentionPeriod = TimeSpan.FromDays(365),
-			RetentionCleanupBatchSize = 5000,
+			Retention = new PostgresAuditRetentionOptions
+			{
+				RetentionPeriod = TimeSpan.FromDays(365),
+				CleanupBatchSize = 5000
+			},
 			CommandTimeoutSeconds = 60,
 			EnableHashChain = false
 		};
@@ -40,8 +45,8 @@ public sealed class PostgresAuditOptionsShould
 		options.SchemaName.ShouldBe("custom_schema");
 		options.TableName.ShouldBe("custom_events");
 		options.BatchSize.ShouldBe(500);
-		options.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
-		options.RetentionCleanupBatchSize.ShouldBe(5000);
+		options.Retention.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
+		options.Retention.CleanupBatchSize.ShouldBe(5000);
 		options.CommandTimeoutSeconds.ShouldBe(60);
 		options.EnableHashChain.ShouldBeFalse();
 	}

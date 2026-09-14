@@ -56,31 +56,10 @@ internal static class QuorumRecoverySeam
 		"but the presented quorum ({1}) is insufficient, tampered, or does not match the escrow's commitment.");
 
 	/// <summary>
-	/// Generates a genuine Shamir quorum: a fresh CSPRNG secret split into <paramref name="custodianCount"/>
-	/// shares recoverable only with <paramref name="threshold"/> of them, plus the SHA-256 commitment the
-	/// caller MUST persist server-side for recovery to verify against.
-	/// </summary>
-	/// <param name="custodianCount">Total number of shares to produce (one per custodian).</param>
-	/// <param name="threshold">Minimum number of shares required to reconstruct the secret.</param>
-	/// <returns>The genuine per-custodian shares and the server-side commitment to persist.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when the parameters violate the Shamir constraints (threshold or count below 2,
-	/// threshold above count, count above 255).
-	/// </exception>
-	public static QuorumGenerationResult GenerateQuorumShares(int custodianCount, int threshold)
-	{
-		var full = GenerateQuorumSharesWithSecret(custodianCount, threshold);
-
-		// Level-1 callers do not bind the secret into key material, so it never outlives generation here.
-		CryptographicOperations.ZeroMemory(full.Secret);
-		return new QuorumGenerationResult(full.Shares, full.SecretCommitment);
-	}
-
-	/// <summary>
-	/// Like <see cref="GenerateQuorumShares"/>, but also returns the freshly-generated quorum <b>secret</b> so a
+	/// Generates a genuine Shamir quorum and also returns the freshly-generated quorum <b>secret</b> so a
 	/// Level-2 (envelope) caller can derive <c>KEK = HKDF(secret)</c> and wrap the escrowed key under it before
 	/// persisting. <b>Ownership of the secret transfers to the caller, which MUST zero it</b> immediately after
-	/// wrapping. Use <see cref="GenerateQuorumShares"/> if you do not bind the secret into key material.
+	/// wrapping. This is the only generation entry point; the secret is always returned so ownership is explicit.
 	/// </summary>
 	/// <param name="custodianCount">Total number of shares to produce (one per custodian).</param>
 	/// <param name="threshold">Minimum number of shares required to reconstruct the secret.</param>
@@ -104,34 +83,7 @@ internal static class QuorumRecoverySeam
 	}
 
 	/// <summary>
-	/// Reconstructs and verifies the quorum secret, failing closed unless a genuine combined quorum of at
-	/// least the threshold reconstructs to a secret whose SHA-256 commitment matches one the store persisted.
-	/// </summary>
-	/// <param name="token">The combined recovery token (produced by <see cref="RecoveryToken.Combine"/>).</param>
-	/// <param name="keyId">The escrowed key identifier, for error attribution.</param>
-	/// <param name="storedCommitments">
-	/// The server-held SHA-256 commitment(s) for the escrow's token batch(es). A reconstructed secret must
-	/// match one of these; an empty or non-matching set fails closed.
-	/// </param>
-	/// <returns>
-	/// The verified quorum secret. Ownership transfers to the caller, which MUST zero it when done. Level-1
-	/// recovery uses it only to gate release and zeroes it immediately; it is returned (not buried) so a
-	/// future KEK-split (Level-2) can bind it into key unwrap without changing this seam.
-	/// </returns>
-	/// <exception cref="ArgumentNullException">Thrown when <paramref name="token"/> is null.</exception>
-	/// <exception cref="KeyEscrowException">
-	/// Thrown (with <see cref="KeyEscrowErrorCode.InsufficientShares"/>) when the token is not a combined
-	/// quorum, the shares are below threshold or tampered, or the reconstructed secret matches no server
-	/// commitment. No key material is derived or returned on any failure path.
-	/// </exception>
-	public static byte[] RecoverAndVerifyQuorumSecret(
-		RecoveryToken token,
-		string keyId,
-		IReadOnlyCollection<byte[]> storedCommitments) =>
-		RecoverAndVerifyQuorumSecretForBatch(token, keyId, storedCommitments).Secret;
-
-	/// <summary>
-	/// Reconstructs and verifies the quorum secret like <see cref="RecoverAndVerifyQuorumSecret"/>, but also
+	/// Reconstructs and verifies the quorum secret, and also
 	/// returns the <b>server-side commitment the reconstruction matched</b>. Level-2 (KEK-envelope) recovery
 	/// needs this to select the correct per-batch key wrap: with multi-recipient escrow each token batch splits
 	/// a distinct secret S_i, so the matched commitment identifies which batch — and thus which
@@ -312,14 +264,6 @@ internal static class QuorumRecoverySeam
 			: new KeyEscrowException(message, inner) { KeyId = keyId, ErrorCode = KeyEscrowErrorCode.InsufficientShares };
 	}
 }
-
-/// <summary>
-/// The output of <see cref="QuorumRecoverySeam.GenerateQuorumShares"/>: the genuine per-custodian Shamir
-/// shares and the SHA-256 commitment the provider MUST persist server-side for recovery to verify against.
-/// </summary>
-/// <param name="Shares">One genuine Shamir share per custodian (1-based index encoded in each share).</param>
-/// <param name="SecretCommitment">SHA-256 of the quorum secret; the store persists this, never a token.</param>
-internal readonly record struct QuorumGenerationResult(byte[][] Shares, byte[] SecretCommitment);
 
 /// <summary>
 /// The output of <see cref="QuorumRecoverySeam.GenerateQuorumSharesWithSecret"/>: the per-custodian shares,

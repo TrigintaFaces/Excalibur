@@ -199,8 +199,6 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("The saga state is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "ISagaStore is implemented by stores that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this cloud store's SaveAsync instead.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ISagaStore is implemented by stores that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this cloud store's SaveAsync instead.")]
 	public async Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState
 	{
@@ -443,7 +441,7 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 	/// <param name="sagaType">The saga state type name.</param>
 	/// <returns>The Firestore document identifier.</returns>
 	private string GetDocumentId(Guid sagaId, string sagaType) =>
-		$"{TenantKeyPrefix}{CurrentTenantScope.TenantId}:{sagaId}_{sagaType}";
+		TenantScopedKey.Compose(CurrentTenantScope.TenantId, $"{sagaId}_{sagaType}");
 
 	/// <summary>
 	/// Returns whether a document belongs to the store's current scope.

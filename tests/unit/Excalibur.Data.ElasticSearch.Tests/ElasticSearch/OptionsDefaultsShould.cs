@@ -12,13 +12,13 @@ public sealed class OptionsDefaultsShould
 	[Fact]
 	public void CircuitBreakerOptionsHaveCorrectDefaults()
 	{
-		var options = new CircuitBreakerOptions();
+		var options = new ElasticsearchCircuitBreakerOptions();
 
 		options.Enabled.ShouldBeTrue();
 		options.MinimumThroughput.ShouldBe(10);
 		options.BreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
 		options.SamplingDuration.ShouldBe(TimeSpan.FromSeconds(60));
-		options.FailureRateThreshold.ShouldBe(0.5);
+		options.FailureRatio.ShouldBe(0.5);
 	}
 
 	[Fact]

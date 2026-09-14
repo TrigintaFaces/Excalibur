@@ -13,7 +13,8 @@ using FakeItEasy;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-// Use alias to avoid namespace collision with Excalibur.Outbox.InboxOptions
+// Named alias: this test project sits under the Excalibur.Outbox namespace, so the short name would
+// bind by namespace nesting rather than by the using below. Spelling it out keeps the binding visible.
 using DeliveryInboxOptions = Excalibur.Dispatch.Options.Delivery.InboxOptions;
 
 namespace Excalibur.Outbox.Tests;

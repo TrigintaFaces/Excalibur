@@ -151,9 +151,6 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				_ownsClient = true;
 			}
 
-				// Created here, so this store owns it and disposes it.
-				_ownsClient = true;
-
 			var database = _client.GetDatabase(_options.DatabaseName);
 
 			if (_options.CreateContainerIfNotExists)

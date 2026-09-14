@@ -53,7 +53,32 @@ cd "$REPO_ROOT" || exit $EXIT_REFUSE
 # repo that ships its worktrees -- and a tree with ZERO real lock files reports PASS on the strength
 # of throwaway copies. So the clone paths are excluded HERE as well, by path, and the two exclusions
 # are independent: trackedness and location. Dropping every entry still REFUSEs below.
-mapfile -t LOCKFILES < <(git ls-files '*packages.lock.json' 	| grep -vE '(^|/)(\.claude/worktrees|\.dts)/')
+# The excluded set is CONFIGURATION, not a constant. A hardcoded path to this repository's own
+# agent scratch directories is meaningless to anyone who clones the published source -- it names
+# tooling they do not have -- and it stops being correct the moment those directories are renamed.
+# Override with a space-separated list of repo-relative directory prefixes; the default names the
+# throwaway worktree/clone directories this repository's own tooling creates.
+LOCKFILE_GATE_EXCLUDE_DIRS="${LOCKFILE_GATE_EXCLUDE_DIRS:-.claude/worktrees .dts}"
+
+# Match by PATH PREFIX, not by a regex composed from configuration. Building a pattern out of a
+# configured value means every value has to be regex-escaped correctly, and a missed escape fails
+# OPEN -- an unescaped '.' matches any character, so the exclusion silently widens and real
+# configuration sites stop being checked. Prefix matching is what is actually meant, `case` does it
+# literally, and there is nothing to escape. An empty list therefore excludes nothing, rather than
+# composing a degenerate pattern that matches everything.
+LOCKFILES=()
+mapfile -t ALL_LOCKFILES < <(git ls-files '*packages.lock.json')
+for f in ${ALL_LOCKFILES+"${ALL_LOCKFILES[@]}"}; do
+	excluded=0
+	for d in $LOCKFILE_GATE_EXCLUDE_DIRS; do
+		d="${d%/}"
+		[ -n "$d" ] || continue
+		case "$f" in
+			"$d"/*|*/"$d"/*) excluded=1; break ;;
+		esac
+	done
+	[ "$excluded" -eq 0 ] && LOCKFILES+=("$f")
+done
 
 if [ "${#LOCKFILES[@]}" -eq 0 ]; then
 	echo "lockfile-drift-gate: REFUSE"

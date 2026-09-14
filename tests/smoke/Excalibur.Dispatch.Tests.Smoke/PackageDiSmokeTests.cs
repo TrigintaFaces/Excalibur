@@ -7,8 +7,10 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 
+using Excalibur.Dispatch.Middleware.PipelineDiagnostics;
 using Excalibur.Dispatch.Serialization.MessagePack;
 using Excalibur.Dispatch.Serialization.Protobuf;
+using Excalibur.Dispatch.Threading;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.CosmosDb;
 using Excalibur.EventSourcing.Postgres;
@@ -168,6 +170,18 @@ public sealed class PackageDiSmokeTests
 		// the in-process one. TryAdd inside AddDistributedMemoryCache, so a package's own still wins.
 		_ = services.AddDistributedMemoryCache();
 
+		// The application SCOPE is a second, distinct consumer choice, and supplying the backend above
+		// does not supply it. Authorization cache keys identify a user but not an application, so a
+		// package needing partitioning depends on the keyed cache and must not silently fall back to the
+		// unkeyed one. TryAddKeyedSingleton inside, so a package registering its own still wins.
+		_ = services.AddApplicationScopedDistributedCache(o => o.Scope = "package-di-smoke");
+
+		// The payload serializer is a consumer choice too: a transport package registers no serializer,
+		// because one that seated a process-wide default would make the wire format depend on which
+		// sibling transport was registered first. TryAdd inside AddPluggableSerialization, so a bundle
+		// that seats its own still wins.
+		_ = services.AddPluggableSerialization();
+
 		TryStub<Excalibur.Dispatch.IOutboxPublisher>(services);
 		TryStub<Excalibur.Dispatch.IOutboxStore>(services);
 		TryStub<Excalibur.Dispatch.IInboxStore>(services);
@@ -181,6 +195,7 @@ public sealed class PackageDiSmokeTests
 		TryStub<Excalibur.Compliance.ILegalHoldStore>(services);
 		TryStub<Excalibur.Compliance.IDataInventoryStore>(services);
 		TryStub<Excalibur.Compliance.IEncryptionProvider>(services);
+		TryStub<Excalibur.Compliance.IEncryptionProviderRegistry>(services);
 		TryStub<Excalibur.A3.Authentication.IAuthenticationToken>(services);
 		TryStub<Excalibur.Dispatch.IEventSerializer>(services);
 		TryStub<Excalibur.Compliance.IAuditStore>(services);
@@ -500,7 +515,8 @@ public sealed class PackageDiSmokeTests
 		// ══════════════════════════════════════════════════════════
 
 		yield return Reg("Excalibur.Data.ElasticSearch [FieldEncryption]", s => s.AddFieldEncryption());
-		yield return Reg("Excalibur.Data.ElasticSearch [LocalKeyProvider]", s => s.AddLocalKeyProvider());
+		yield return Reg("Excalibur.Data.ElasticSearch [AzureKeyVaultCredentialStorage]",
+			s => s.AddAzureKeyVaultCredentialStorage(new ConfigurationBuilder().Build()));
 		yield return Reg("Excalibur.Data.ElasticSearch [SecurityAuditing]", s => s.AddSecurityAuditing());
 		yield return Reg("Excalibur.Data.ElasticSearch [SecurityMonitoring]", s => s.AddSecurityMonitoring());
 
@@ -687,6 +703,61 @@ public sealed class PackageDiSmokeTests
 			s.AddJobCoordinationRedis("localhost:6379"));
 		yield return Reg("Excalibur.Jobs.SqlServer", s =>
 			s.AddSqlServerJobCoordinator(_ => { }));
+
+		// ══════════════════════════════════════════════════════════
+		// SECONDARY FEATURE ENTRY POINTS
+		// ══════════════════════════════════════════════════════════
+		// Every case above is a package's PRIMARY Add*(). These are the feature-level switches a
+		// consumer calls to turn one thing on, and until now none of them was named by any test,
+		// sample, benchmark or doc -- so they sat outside the only gate that catches a registration
+		// whose dependency nothing supplies. A defect here passes every unit test and fails in the
+		// consumer's host at start-up, which is exactly the shape this suite exists to catch.
+
+		yield return Reg("Excalibur.Caching [AdaptiveTtl]", s =>
+		{
+			// AddAdaptiveTtlCache decorates a base IDistributedCache and fails fast without one, so the
+			// base cache is a consumer choice the case must make -- not a dependency the package owes.
+			s.AddDistributedMemoryCache();
+			s.AddAdaptiveTtlCache();
+		});
+		yield return Reg("Excalibur.Data.Abstractions [CdcHealthCheckOptionsValidation]", s =>
+			s.AddCdcHealthCheckOptionsValidation());
+		yield return Reg("Excalibur.Compliance [ErasureSchemaValidation]", s => s.AddErasureSchemaValidation());
+		yield return Reg("Excalibur.Compliance.Postgres [ComplianceBuilder]", s => s.AddPostgresCompliance(_ => { }));
+		yield return Reg("Excalibur.Data.CosmosDb [Authorization]", s =>
+			s.AddCosmosDbAuthorization(_ => { }));
+		yield return Reg("Excalibur.Data.CosmosDb [GrantStore]", s => s.AddCosmosDbGrantStore(_ => { }));
+		yield return Reg("Excalibur.Data.CosmosDb [ActivityGroupGrantStore]", s =>
+			s.AddCosmosDbActivityGroupGrantStore(_ => { }));
+		yield return Reg("Excalibur.Data.MongoDB [Authorization]", s => s.AddMongoDbAuthorization(_ => { }));
+		yield return Reg("Excalibur.Data.MongoDB [GrantStore]", s => s.AddMongoDbGrantStore(_ => { }));
+		yield return Reg("Excalibur.Data.MongoDB [ActivityGroupGrantStore]", s =>
+			s.AddMongoDbActivityGroupGrantStore(_ => { }));
+		yield return Reg("Excalibur.Data.Firestore [Authorization]", s => s.AddFirestoreAuthorization(_ => { }));
+		yield return Reg("Excalibur.Data.SqlServer [SqlHealthCheck]", s =>
+			s.AddHealthChecks().AddSqlHealthCheck(MockConnectionString, "sqlserver-smoke", TimeSpan.FromSeconds(5)));
+		yield return Reg("Excalibur.LeaderElection.SqlServer [HealthCheck]", s =>
+			s.AddHealthChecks().AddSqlServerLeaderElectionHealthCheck());
+		yield return Reg("Excalibur.Outbox [StoreHealthCheck]", s =>
+			s.AddHealthChecks().AddOutboxStoreHealthCheck());
+		yield return Reg("Excalibur.Dispatch [Diagnostics]", s => s.AddDispatch().UseDiagnostics());
+		yield return Reg("Excalibur.Dispatch [ThreadingBuilder]", s => s.AddDispatch().UseThreading());
+		yield return Reg("Excalibur.Dispatch [ThreadingOptions]", s =>
+			s.AddDispatch().UseThreading().WithThreadingOptions(_ => { }));
+		yield return Reg("Excalibur.Dispatch.Transport.AwsSqs [SqsHealthCheck]", s =>
+			s.AddHealthChecks().AddAwsSqsHealthCheck());
+		yield return Reg("Excalibur.Dispatch.Transport.AwsSqs [SnsHealthCheck]", s =>
+			s.AddHealthChecks().AddAwsSnsHealthCheck());
+		yield return Reg("Excalibur.Dispatch.Transport.AzureServiceBus [EventGrid]", s =>
+			s.AddEventGridTransport(eg =>
+			{
+				eg.TopicEndpoint = "https://smoke.eventgrid.azure.net/api/events";
+				eg.AccessKey = "smoke-key";
+			}));
+		yield return Reg("Excalibur.Dispatch.Transport.GooglePubSub [OrderingKey]", s =>
+			s.AddGooglePubSubOrderingKey());
+		yield return Reg("Excalibur.Dispatch.Transport.Kafka [Admin]", s =>
+			s.AddKafkaAdmin(admin => admin.BootstrapServers = "localhost:9092"));
 
 		// ══════════════════════════════
 		// METAPACKAGES

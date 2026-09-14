@@ -13,7 +13,7 @@ Data masking protects sensitive information (PII/PHI) by replacing identifiable 
 - **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Security
+  dotnet add package Excalibur.Compliance
   ```
 - Familiarity with [encryption providers](../security/encryption-providers.md) and [GDPR erasure](./gdpr-erasure.md)
 
@@ -149,7 +149,15 @@ services.AddDataMasking(customRules);
 
 ### Automatic Property Masking
 
-Mark properties with attributes for automatic masking:
+Mark properties with attributes for automatic masking. Note that the attributes select properties **by
+name**; `MaskObject` additionally applies the standard pattern set to every string value in the object, so
+an unannotated property containing a recognised pattern is masked as well.
+
+:::info `MaskObject` is not available under trimming or Native AOT
+`MaskObject` reflects over the type and round-trips through JSON, so it is annotated
+`[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`. In a trimmed or AOT-published application, mask
+strings with `Mask` or `MaskAll` instead.
+:::
 
 ```csharp
 public class CustomerDto
@@ -191,6 +199,9 @@ var masked = _masker.MaskObject(customer);
 ```csharp
 public class MaskingLoggingMiddleware : IDispatchMiddleware
 {
+    // Stage has no default on the interface — a middleware that omits it does not compile.
+    public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
+
     private readonly IDataMasker _masker;
 
     public async ValueTask<IMessageResult> InvokeAsync(
@@ -200,7 +211,7 @@ public class MaskingLoggingMiddleware : IDispatchMiddleware
         CancellationToken ct)
     {
         // Mask message before logging
-        var safeMessage = _masker.MaskObject(message);
+        var safeMessage = _masker.MaskAll(message.ToString() ?? string.Empty);
         _logger.LogInformation("Processing: {@Message}", safeMessage);
 
         return await next(message, context, ct);
@@ -238,7 +249,13 @@ public class MaskingActionFilter : IAsyncActionFilter
 
         if (result.Result is ObjectResult objectResult)
         {
-            objectResult.Value = _masker.MaskObject(objectResult.Value);
+            if (objectResult.Value is CustomerDto dto)
+            {
+                // MaskObject round-trips through JSON, so it needs a CONCRETE class.
+                // Passing a declared `object` returns a JsonElement and loses the typed payload;
+                // passing an interface or abstract type throws NotSupportedException.
+                objectResult.Value = _masker.MaskObject(dto);
+            }
         }
     }
 }
@@ -250,26 +267,35 @@ The masker uses compiled regex patterns with timeout guards for optimal performa
 
 | Metric | Value |
 |--------|-------|
-| Overhead | < 2% per operation |
-| Regex timeout | 100ms (ReDoS protection) |
-| Pattern caching | Static compiled patterns |
+| Overhead | Design target: under 2% per operation. **Not a measured figure** — no masking benchmark ships; measure against your own payloads. |
+| Regex engine | `NonBacktracking` — linear time, ReDoS-resistant by construction |
+| Regex timeout | 2 seconds (a backstop, not the primary defence) |
+| Pattern caching | The six standard patterns are static and compiled once |
 | Thread safety | Fully thread-safe |
 
 ```csharp
-// Patterns are compiled once at startup
-// Safe for concurrent access from multiple threads
+// The standard patterns are compiled once, in a static initializer.
+// Safe for concurrent access from multiple threads.
 var masker = new RegexDataMasker(MaskingRules.Default);
 ```
+
+`MaskObject` additionally builds one property-name pattern per masked property on **every call**, and
+those are not compiled. Prefer `Mask` or `MaskAll` on hot paths.
 
 ## Security Considerations
 
 ### ReDoS Protection
 
-All regex patterns include timeout guards to prevent Regular Expression Denial of Service:
+The standard patterns run on .NET's **non-backtracking** regex engine, which evaluates in time linear in
+the input and so has no catastrophic-backtracking case to trigger. A timeout is set as well, as a backstop
+rather than as the primary defence:
 
 ```csharp
 // Internal implementation uses:
-new Regex(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+new Regex(
+    pattern,
+    RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+    TimeSpan.FromSeconds(2));
 ```
 
 ### Partial Visibility

@@ -124,13 +124,19 @@ public sealed class AuditLogControlValidatorShould
 		integrityEvidence.ShouldNotContain("Passed", Case.Sensitive);
 		integrityEvidence.ShouldContain("no evidence of audit log integrity");
 
-		// Liveness: an unexercised window is still not a control failure, so the control itself must be
-		// reported as effective. Without this arm the assertion above would also be satisfied by a
-		// validator that reported nothing at all.
+		// Liveness: without an arm on the RESULT, the evidence assertions above would also be satisfied
+		// by a validator that reported nothing at all. That concern was right and is kept.
+		//
+		// What this arm used to require was IsEffective == true, on the reasoning that an unexercised
+		// window is not a control failure. The first half is correct and the conclusion does not follow:
+		// "not a failure" is not "a pass". The evidence said the period provides no evidence of
+		// integrity while the verdict said the control was effective at full score, and an auditor reads
+		// the verdict.
 		result.ControlId.ShouldBe("SEC-004");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
-		result.ConfigurationIssues.ShouldBeEmpty();
+		result.IsEffective.ShouldBeFalse();
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("not verified", StringComparison.Ordinal));
 	}
 
 	[Fact]
@@ -144,10 +150,14 @@ public sealed class AuditLogControlValidatorShould
 
 		var result = await sut.ValidateAsync("SEC-004", CancellationToken.None).ConfigureAwait(false);
 
-		// Exception is caught — still passes because logger is configured
+		// The exception is caught, and the logger being configured is genuinely established -- so
+		// IsConfigured stays true. What the check did NOT establish is that the trail is intact: it
+		// threw. This used to assert the control was effective, which reported a full pass for a
+		// verification that failed to run.
 		result.ControlId.ShouldBe("SEC-004");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
 		result.Evidence.ShouldNotBeEmpty();
 	}
 
@@ -159,8 +169,11 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-005", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-005");
+		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
+		// longer says is that the CONTROL operated, because nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
 		result.Evidence.ShouldNotBeEmpty();
 	}
 
@@ -171,9 +184,11 @@ public sealed class AuditLogControlValidatorShould
 
 		var result = await sut.ValidateAsync("SEC-005", CancellationToken.None).ConfigureAwait(false);
 
-		// Still passes — logger alone provides monitoring capability
+		// This comment read "Still passes -- logger alone provides monitoring capability", which is the
+		// substitution in one line: a monitoring CAPABILITY is not monitoring having been performed.
 		result.ControlId.ShouldBe("SEC-005");
-		result.IsEffective.ShouldBeTrue();
+		result.IsConfigured.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -251,9 +266,14 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.RunTestAsync("SEC-004", parameters, CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-004");
-		result.Outcome.ShouldBe(TestOutcome.NoExceptions);
-		result.ItemsTested.ShouldBe(10);
-		result.ExceptionsFound.ShouldBe(0);
+		// The verdict, not NotTested: a validator ran. What did not happen is SAMPLING, which the
+		// item count and the null finding count below carry.
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
+		// Zero, not the requested 10: RunTestAsync forwards a verdict and samples nothing. The
+		// requested size stays available on Parameters, where it is a request rather than a measurement.
+		result.ItemsTested.ShouldBe(0);
+		// Null, not 0: no search ran, so there is no finding count. Zero would assert we looked.
+		result.ExceptionsFound.ShouldBeNull();
 	}
 
 	/// <summary>

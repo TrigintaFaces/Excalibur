@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Collections.Concurrent;
+using System.Text;
 
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
@@ -12,185 +12,131 @@ namespace Excalibur.Dispatch.Caching;
 
 /// <summary>
 /// Distributed implementation of <see cref="ICacheTagTracker"/> using <see cref="IDistributedCache"/>
-/// for cross-instance tag-to-key mapping. Enables tag-based cache invalidation across multiple
-/// application instances sharing the same distributed cache backend (Redis, SQL Server, etc.).
+/// to share per-tag version stamps across application instances (Redis, SQL Server, or any other
+/// <see cref="IDistributedCache"/> backend).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Storage scheme: tag-to-key sets are stored as JSON-serialized <see cref="HashSet{T}"/> under
-/// <c>dispatch:tag:{tagName}</c>; key-to-tag arrays are stored under <c>dispatch:keytags:{cacheKey}</c>.
-/// All entries use a TTL of 2x <see cref="CacheBehaviorOptions.DefaultExpiration"/> to ensure tracker
-/// entries outlive cache entries (self-healing on crash/restart).
+/// Storage scheme: a tag's current stamp is a single opaque string stored under
+/// <c>dispatch:tagver:{tag}</c>. Resolving or invalidating a tag is therefore a single-key read or
+/// write, both of which are atomic on every <see cref="IDistributedCache"/> backend -- unlike the
+/// key-set model this type previously implemented, there is no multi-key read-modify-write and no
+/// possibility of a lost update between concurrent writers.
 /// </para>
 /// <para>
-/// <b>Concurrency limitation:</b> read-modify-write on a tag's key set over <see cref="IDistributedCache"/>
-/// is <b>not atomic</b> (the abstraction exposes only Get/Set/Remove — no atomic set-add or compare-and-swap).
-/// When two instances register <i>different</i> keys under the <i>same</i> tag concurrently, both read the same
-/// prior set and the later <c>SetAsync</c> overwrites the earlier — a key is dropped (last-writer-wins). A dropped
-/// key is then <b>not invalidated</b> when its tag is invalidated, so that entry serves <b>stale data until its
-/// TTL expires</b> — not merely an extra cache miss. For a backend with an atomic set primitive (e.g. Redis
-/// <c>SADD</c>), a backend-specific tracker that uses it avoids this loss entirely.
+/// The stamp record's TTL (<see cref="CacheOptions.TagStampLifetime"/>) is enforced by
+/// <see cref="CacheOptionsValidator"/> to strictly exceed the largest configurable cache entry
+/// expiration. This is what makes it safe to treat a tag whose stamp record is absent from the backend
+/// as still valid (fail open): under that invariant, a cache entry cannot legitimately outlive the tag
+/// record it was written against, so an absent record means either a genuinely new tag (nothing to
+/// invalidate yet) or a backend that lost the record out of band -- in neither case does treating the
+/// referencing entries as pre-emptively invalidated buy any correctness, and doing so would effectively
+/// flush every tagged entry on every cold or newly provisioned backend.
+/// </para>
+/// <para>
+/// Resolution is memoized per tag, per instance, as an in-flight <see cref="Task{TResult}"/> (never as
+/// a completed value) so that concurrent callers for the same tag collapse onto one backend round trip,
+/// and the memo is refreshed on a bounded interval (<see cref="CacheOptions.TagStampRefreshInterval"/>)
+/// so that an invalidation from another instance is observed within a bounded, configurable window
+/// rather than never. In steady state -- no refresh due -- resolving a tag costs one dictionary lookup
+/// and no backend I/O at all.
 /// </para>
 /// </remarks>
 internal sealed class DistributedCacheTagTracker : ICacheTagTracker
 {
-	private const string TagKeyPrefix = "dispatch:tag:";
-	private const string KeyTagsPrefix = "dispatch:keytags:";
+	private const string StampKeyPrefix = "dispatch:tagver:";
 
 	private readonly IDistributedCache _cache;
 	private readonly DistributedCacheEntryOptions _entryOptions;
-	private readonly int _maxKeysPerTag;
+	private readonly TimeSpan _refreshInterval;
+	private readonly TimeProvider _timeProvider;
+	private readonly ConcurrentDictionary<string, StampMemo> _memo = new(StringComparer.Ordinal);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DistributedCacheTagTracker"/> class.
 	/// </summary>
-	/// <param name="cache">The distributed cache backend for storing tag-to-key mappings.</param>
-	/// <param name="options">Cache options providing TTL and capacity configuration.</param>
+	/// <param name="cache">The distributed cache backend storing per-tag version stamps.</param>
+	/// <param name="options">Cache options providing the stamp TTL and refresh interval.</param>
+	/// <param name="timeProvider">
+	/// The time source used to bound the per-tag resolution memo. Defaults to <see cref="TimeProvider.System"/>.
+	/// </param>
 	public DistributedCacheTagTracker(
 		IDistributedCache cache,
-		IOptions<CacheOptions> options)
+		IOptions<CacheOptions> options,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(cache);
 		ArgumentNullException.ThrowIfNull(options);
 
 		_cache = cache;
-		var ttl = options.Value.Behavior.DefaultExpiration * 2;
-		if (ttl <= TimeSpan.Zero)
-		{
-			ttl = TimeSpan.FromMinutes(20);
-		}
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
+		var ttl = options.Value.TagStampLifetime;
 		_entryOptions = new DistributedCacheEntryOptions
 		{
-			AbsoluteExpirationRelativeToNow = ttl,
+			AbsoluteExpirationRelativeToNow = ttl > TimeSpan.Zero ? ttl : CacheOptions.DefaultTagStampLifetime,
 		};
-		_maxKeysPerTag = options.Value.TagTrackerCapacity > 0
-			? options.Value.TagTrackerCapacity
-			: 10_000;
+
+		var refreshInterval = options.Value.TagStampRefreshInterval;
+		_refreshInterval = refreshInterval > TimeSpan.Zero ? refreshInterval : CacheOptions.DefaultTagStampRefreshInterval;
 	}
 
 	/// <inheritdoc />
-	public async Task RegisterKeyAsync(string key, string[] tags, CancellationToken cancellationToken)
+	public Task<string> GetOrCreateStampAsync(string tag, CancellationToken cancellationToken)
 	{
-		if (tags is null || tags.Length == 0)
+		ArgumentException.ThrowIfNullOrEmpty(tag);
+
+		var now = _timeProvider.GetTimestamp();
+
+		if (_memo.TryGetValue(tag, out var existing)
+			&& !existing.StampTask.IsFaulted
+			&& !existing.StampTask.IsCanceled
+			&& _timeProvider.GetElapsedTime(existing.FetchedAt, now) < _refreshInterval)
 		{
-			return;
+			return existing.StampTask;
 		}
 
-		// Store key-to-tags mapping for UnregisterKeyAsync
-		var keyTagsKey = string.Concat(KeyTagsPrefix, key);
-		var tagsJson = JsonSerializer.SerializeToUtf8Bytes(tags, TagTrackerJsonContext.Default.StringArray);
-		await _cache.SetAsync(keyTagsKey, tagsJson, _entryOptions, cancellationToken).ConfigureAwait(false);
-
-		// Add key to each tag's key set
-		foreach (var tag in tags)
-		{
-			var tagKey = string.Concat(TagKeyPrefix, tag);
-			var existingBytes = await _cache.GetAsync(tagKey, cancellationToken).ConfigureAwait(false);
-
-			HashSet<string> keySet;
-			if (existingBytes is not null)
-			{
-				keySet = JsonSerializer.Deserialize(existingBytes, TagTrackerJsonContext.Default.HashSetString)
-						 ?? new HashSet<string>(StringComparer.Ordinal);
-			}
-			else
-			{
-				keySet = new HashSet<string>(StringComparer.Ordinal);
-			}
-
-			// Bounded: skip adding if at capacity
-			if (keySet.Count >= _maxKeysPerTag)
-			{
-				continue;
-			}
-
-			keySet.Add(key);
-
-			var setJson = JsonSerializer.SerializeToUtf8Bytes(keySet, TagTrackerJsonContext.Default.HashSetString);
-			await _cache.SetAsync(tagKey, setJson, _entryOptions, cancellationToken).ConfigureAwait(false);
-		}
+		// Started outside any lock: a cold or expired memo may race with another caller resolving the
+		// same tag concurrently, and both are allowed to hit the backend rather than one blocking the
+		// other -- a lock held across the backend round trip would let a slow tag resolution stall
+		// every other reader/writer waiting on that same tag.
+		var factory = ResolveStampAsync(tag, cancellationToken);
+		_memo[tag] = new StampMemo(factory, now);
+		return factory;
 	}
 
 	/// <inheritdoc />
-	public async Task<HashSet<string>> GetKeysByTagsAsync(string[] tags, CancellationToken cancellationToken)
+	public async Task BumpStampAsync(string tag, CancellationToken cancellationToken)
 	{
-		var result = new HashSet<string>(StringComparer.Ordinal);
+		ArgumentException.ThrowIfNullOrEmpty(tag);
 
-		if (tags is null || tags.Length == 0)
-		{
-			return result;
-		}
+		var stamp = CacheTagStamp.CreateNew();
+		var stampKey = string.Concat(StampKeyPrefix, tag);
+		var bytes = Encoding.UTF8.GetBytes(stamp);
+		await _cache.SetAsync(stampKey, bytes, _entryOptions, cancellationToken).ConfigureAwait(false);
 
-		foreach (var tag in tags)
-		{
-			var tagKey = string.Concat(TagKeyPrefix, tag);
-			var existingBytes = await _cache.GetAsync(tagKey, cancellationToken).ConfigureAwait(false);
-
-			if (existingBytes is not null)
-			{
-				var keySet = JsonSerializer.Deserialize(existingBytes, TagTrackerJsonContext.Default.HashSetString);
-				if (keySet is not null)
-				{
-					result.UnionWith(keySet);
-				}
-			}
-		}
-
-		return result;
+		// This instance can trust its own bump immediately; other instances converge within
+		// _refreshInterval the next time they resolve this tag.
+		_memo[tag] = new StampMemo(Task.FromResult(stamp), _timeProvider.GetTimestamp());
 	}
 
-	/// <inheritdoc />
-	public async Task UnregisterKeyAsync(string key, CancellationToken cancellationToken)
+	private async Task<string> ResolveStampAsync(string tag, CancellationToken cancellationToken)
 	{
-		// Read tags for this key
-		var keyTagsKey = string.Concat(KeyTagsPrefix, key);
-		var tagsBytes = await _cache.GetAsync(keyTagsKey, cancellationToken).ConfigureAwait(false);
+		var stampKey = string.Concat(StampKeyPrefix, tag);
+		var existingBytes = await _cache.GetAsync(stampKey, cancellationToken).ConfigureAwait(false);
 
-		if (tagsBytes is not null)
+		if (existingBytes is { Length: > 0 })
 		{
-			var tags = JsonSerializer.Deserialize(tagsBytes, TagTrackerJsonContext.Default.StringArray);
-
-			if (tags is not null)
-			{
-				// Remove key from each tag's set
-				foreach (var tag in tags)
-				{
-					var tagKey = string.Concat(TagKeyPrefix, tag);
-					var existingBytes = await _cache.GetAsync(tagKey, cancellationToken).ConfigureAwait(false);
-
-					if (existingBytes is not null)
-					{
-						var keySet = JsonSerializer.Deserialize(existingBytes, TagTrackerJsonContext.Default.HashSetString);
-
-						if (keySet is not null)
-						{
-							keySet.Remove(key);
-
-							if (keySet.Count == 0)
-							{
-								await _cache.RemoveAsync(tagKey, cancellationToken).ConfigureAwait(false);
-							}
-							else
-							{
-								var setJson = JsonSerializer.SerializeToUtf8Bytes(keySet, TagTrackerJsonContext.Default.HashSetString);
-								await _cache.SetAsync(tagKey, setJson, _entryOptions, cancellationToken).ConfigureAwait(false);
-							}
-						}
-					}
-				}
-			}
-
-			// Remove the key-to-tags entry
-			await _cache.RemoveAsync(keyTagsKey, cancellationToken).ConfigureAwait(false);
+			return Encoding.UTF8.GetString(existingBytes);
 		}
+
+		// Absent from the backend: either a genuinely new tag, or a stamp record that expired/was
+		// evicted out of band. Either way there is no prior stamp to preserve, so create one now.
+		var stamp = CacheTagStamp.CreateNew();
+		var bytes = Encoding.UTF8.GetBytes(stamp);
+		await _cache.SetAsync(stampKey, bytes, _entryOptions, cancellationToken).ConfigureAwait(false);
+		return stamp;
 	}
+
+	private sealed record StampMemo(Task<string> StampTask, long FetchedAt);
 }
-
-/// <summary>
-/// Source-generated JSON serialization context for tag tracker data structures.
-/// AOT-safe serialization of tag-to-key mappings stored in <see cref="IDistributedCache"/>.
-/// </summary>
-[JsonSerializable(typeof(HashSet<string>))]
-[JsonSerializable(typeof(string[]))]
-internal sealed partial class TagTrackerJsonContext : JsonSerializerContext;

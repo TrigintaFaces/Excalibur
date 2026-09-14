@@ -31,7 +31,15 @@ public static class DispatchRabbitMQServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureRabbitMQ);
 
-		return services.AddDispatch(dispatch =>
+		// The RabbitMQ message bus takes IPayloadSerializer, whose only registration is AddPluggableSerialization.
+		// Nothing else in this bundle seats it, and the transport package deliberately does not -- it
+		// treats the wire format as a consumer choice, because a transport that seated a process-wide
+		// default would make the format depend on which sibling transport happened to be registered
+		// first. This is the batteries-included bundle, so supplying the default is its job. All TryAdd,
+		// so a consumer who registers their own serializer still wins.
+		_ = services.AddPluggableSerialization();
+
+		_ = services.AddDispatch(dispatch =>
 		{
 			dispatch.UseRabbitMQ(configureRabbitMQ);
 			dispatch.UseResilience();
@@ -48,5 +56,7 @@ public static class DispatchRabbitMQServiceCollectionExtensions
 				configureDispatch(dispatch);
 			}
 		});
+
+		return services;
 	}
 }

@@ -20,12 +20,14 @@ Excalibur.Outbox.InMemory.InMemoryOutboxStore.EnqueueAsync(Excalibur.Dispatch.ID
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetAllTenantsFailedMessagesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetAllTenantsScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetAllTenantsStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxStatistics!>
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetFencingHighWaterAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long?>!
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetUnsentMessagesAsync(int batchSize, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkSentAsync(string! messageId, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.ResetFencingHighWaterAsync(long newHighWater, bool force, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Microsoft.Extensions.DependencyInjection.InMemoryOutboxExtensions
 Microsoft.Extensions.DependencyInjection.OutboxBuilderInMemoryExtensions

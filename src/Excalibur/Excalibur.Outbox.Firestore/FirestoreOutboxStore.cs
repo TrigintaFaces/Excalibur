@@ -848,10 +848,10 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 		if (!string.IsNullOrWhiteSpace(_options.EmulatorHost))
 		{
 			// Point this client at the configured emulator directly rather than through the process-wide
-			// FIRESTORE_EMULATOR_HOST variable. That variable is first-write-wins — the helper reports a
-			// conflicting value by returning false — so routing through it means a second store configured
-			// for a different emulator silently talks to the first one's, and keeps doing so after that
-			// endpoint is gone. An explicit endpoint is per-instance and cannot be captured by another
+			// FIRESTORE_EMULATOR_HOST variable. That variable is first-write-wins, so routing through it
+			// means a second store configured for a different emulator silently talks to the first one's,
+			// and keeps doing so after that endpoint is gone. An explicit endpoint is per-instance and
+			// cannot be captured by another
 			// store. This matches how the dependency-injection registration already builds the client.
 			builder.Endpoint = _options.EmulatorHost;
 			builder.ChannelCredentials = ChannelCredentials.Insecure;

@@ -3,7 +3,6 @@
 
 using System.Collections.Concurrent;
 using System.Security;
-using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 
 using Azure;
@@ -16,9 +15,14 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
-/// Azure Key Vault implementation of the Elasticsearch key provider with enterprise-grade security features including HSM support,
-/// automatic rotation, and comprehensive auditing.
+/// Azure Key Vault implementation of the Elasticsearch connection-credential store: OAuth tokens, service-account
+/// secrets, passwords, and API keys used to authenticate to Elasticsearch itself.
 /// </summary>
+/// <remarks>
+/// This is not encryption-key custody. Field-level encryption keys back onto <c>Excalibur.Compliance.Azure</c>'s
+/// own Azure Key Vault-backed <see cref="Excalibur.Compliance.IKeyManagementProvider"/> when a consumer opts in --
+/// a structurally separate abstraction that returns key metadata, never key material.
+/// </remarks>
 public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, IDisposable, IAsyncDisposable
 {
 	private readonly SecretClient _secretClient;
@@ -91,18 +95,6 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 	public event EventHandler<SecretAccessedEventArgs>? SecretAccessed;
 
 	/// <inheritdoc />
-	public event EventHandler<KeyRotatedEventArgs>? KeyRotated;
-
-	/// <inheritdoc />
-	public KeyManagementProviderType ProviderType => KeyManagementProviderType.AzureKeyVault;
-
-	/// <inheritdoc />
-	public bool SupportsHsm => _options.UseHsm;
-
-	/// <inheritdoc />
-	public bool SupportsKeyRotation => true;
-
-	/// <inheritdoc />
 	public async Task<string?> GetSecretAsync(string keyName, CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrWhiteSpace(keyName))
@@ -140,81 +132,10 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 	}
 
 	/// <inheritdoc />
-	public async Task<string?> GetSecretVersionAsync(string keyName, string version, CancellationToken cancellationToken)
-	{
-		if (string.IsNullOrWhiteSpace(keyName))
-		{
-			throw new ArgumentException("Key name cannot be null or empty", nameof(keyName));
-		}
-
-		if (string.IsNullOrWhiteSpace(version))
-		{
-			throw new ArgumentException("Version cannot be null or empty", nameof(version));
-		}
-
-		await _operationSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			var secretName = SanitizeSecretName(keyName);
-
-			// Azure Key Vault retains every prior secret version natively; version-addressed retrieval keeps
-			// pre-rotation ciphertext decryptable after the key has been rotated.
-			var response = await _secretClient
-				.GetSecretAsync(secretName, version, cancellationToken).ConfigureAwait(false);
-
-			SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(
-				keyName, SecretOperation.Read, DateTimeOffset.UtcNow, GetCurrentUserId()));
-
-			_logger.LogDebug("Secret {SecretName} version {Version} retrieved successfully from Azure Key Vault", secretName, version);
-			return response.Value.Value;
-		}
-		catch (RequestFailedException ex) when (ex.Status == 404)
-		{
-			_logger.LogDebug("Secret {KeyName} version {Version} not found in Azure Key Vault", keyName, version);
-			return null;
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Failed to retrieve secret {KeyName} version {Version} from Azure Key Vault", keyName, version);
-			throw new SecurityException($"Failed to retrieve secret {keyName} version {version}", ex);
-		}
-		finally
-		{
-			_ = _operationSemaphore.Release();
-		}
-	}
-
-	/// <inheritdoc />
-	public async Task<string?> GetCurrentVersionAsync(string keyName, CancellationToken cancellationToken)
-	{
-		if (string.IsNullOrWhiteSpace(keyName))
-		{
-			throw new ArgumentException("Key name cannot be null or empty", nameof(keyName));
-		}
-
-		return await GetKeyVersionAsync(keyName, cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <inheritdoc />
-	public Task<bool> SetSecretAsync(
+	public async Task<bool> SetSecretAsync(
 		string keyName,
 		string secretValue,
 		SecretMetadata? metadata,
-		CancellationToken cancellationToken) =>
-		SetSecretCoreAsync(keyName, secretValue, metadata, SecretOperation.Write, cancellationToken);
-
-	/// <summary>
-	/// Stores a secret, optionally raising a <see cref="SecretAccessed"/> record for the store itself.
-	/// </summary>
-	/// <remarks>
-	/// When <c> auditOperation </c> is <see langword="null" /> the caller is a higher-level operation that records
-	/// itself. One operation produces one audit record: a rotation is audited as a rotation, never as a plain write.
-	/// </remarks>
-	private async Task<bool> SetSecretCoreAsync(
-		string keyName,
-		string secretValue,
-		SecretMetadata? metadata,
-		SecretOperation? auditOperation,
 		CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrWhiteSpace(keyName))
@@ -245,11 +166,8 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 			_ = await _secretClient.SetSecretAsync(secret, cancellationToken).ConfigureAwait(false);
 
 			// Raise secret accessed event for auditing
-			if (auditOperation is { } operation)
-			{
-				SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(
-					keyName, operation, DateTimeOffset.UtcNow, GetCurrentUserId()));
-			}
+			SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(
+				keyName, SecretOperation.Write, DateTimeOffset.UtcNow, GetCurrentUserId()));
 
 			_logger.LogInformation("Secret {SecretName} stored successfully in Azure Key Vault", secretName);
 			return true;
@@ -383,144 +301,6 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 		{
 			_logger.LogError(ex, "Failed to retrieve secret metadata for {KeyName} from Azure Key Vault", keyName);
 			throw new SecurityException($"Failed to retrieve secret metadata for {keyName}", ex);
-		}
-		finally
-		{
-			_ = _operationSemaphore.Release();
-		}
-	}
-
-	/// <inheritdoc />
-	public Task<KeyGenerationResult> GenerateEncryptionKeyAsync(
-		string keyName,
-		EncryptionKeyType keyType,
-		int keySize,
-		SecretMetadata? metadata,
-		CancellationToken cancellationToken) =>
-		GenerateEncryptionKeyCoreAsync(keyName, keyType, keySize, metadata, SecretOperation.Write, cancellationToken);
-
-	/// <summary>
-	/// Generates and stores new key material, optionally auditing the store.
-	/// </summary>
-	/// <remarks>
-	/// When <c> auditOperation </c> is <see langword="null" /> the caller audits the operation itself.
-	/// </remarks>
-	private async Task<KeyGenerationResult> GenerateEncryptionKeyCoreAsync(
-		string keyName,
-		EncryptionKeyType keyType,
-		int keySize,
-		SecretMetadata? metadata,
-		SecretOperation? auditOperation,
-		CancellationToken cancellationToken)
-	{
-		if (string.IsNullOrWhiteSpace(keyName))
-		{
-			throw new ArgumentException("Key name cannot be null or empty", nameof(keyName));
-		}
-
-		await _operationSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			var keyData = keyType switch
-			{
-				EncryptionKeyType.Aes => GenerateAesKey(keySize),
-				EncryptionKeyType.Hmac => GenerateHmacKey(keySize),
-				_ => throw new SecurityException($"Unsupported key type: {keyType}"),
-			};
-
-			var keyDataBase64 = Convert.ToBase64String(keyData);
-			var success = await SetSecretCoreAsync(keyName, keyDataBase64, metadata, auditOperation, cancellationToken)
-				.ConfigureAwait(false);
-
-			if (!success)
-			{
-				return KeyGenerationResult.CreateFailure("Failed to store generated key in Azure Key Vault");
-			}
-
-			var keyVersion = await GetKeyVersionAsync(keyName, cancellationToken).ConfigureAwait(false);
-
-			_logger.LogInformation(
-				"Encryption key {KeyName} generated successfully with type {KeyType} and size {KeySize}",
-				keyName, keyType, keySize);
-
-			return KeyGenerationResult.CreateSuccess(keyName, keyType, keySize, keyVersion ?? "1.0");
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Failed to generate encryption key {KeyName}", keyName);
-			return KeyGenerationResult.CreateFailure(ex.Message);
-		}
-		finally
-		{
-			_ = _operationSemaphore.Release();
-		}
-	}
-
-	/// <inheritdoc />
-	public async Task<KeyRotationResult> RotateEncryptionKeyAsync(string keyName, CancellationToken cancellationToken)
-	{
-		if (string.IsNullOrWhiteSpace(keyName))
-		{
-			throw new ArgumentException("Key name cannot be null or empty", nameof(keyName));
-		}
-
-		await _operationSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			// Get current key metadata to determine key type and size
-			var currentMetadata = await GetSecretMetadataAsync(keyName, cancellationToken).ConfigureAwait(false);
-			if (currentMetadata == null)
-			{
-				return KeyRotationResult.CreateFailure(keyName, "Current key not found for rotation");
-			}
-
-			// Parse key type and size from metadata tags
-			var keyTypeStr = currentMetadata.Tags.GetValueOrDefault("KeyType", "Aes");
-			var keySizeStr = currentMetadata.Tags.GetValueOrDefault("KeySize", "256");
-
-			if (!Enum.TryParse<EncryptionKeyType>(keyTypeStr, out var keyType) ||
-				!int.TryParse(keySizeStr, out var keySize))
-			{
-				return KeyRotationResult.CreateFailure(keyName, "Invalid key metadata for rotation");
-			}
-
-			var previousVersion = await GetKeyVersionAsync(keyName, cancellationToken).ConfigureAwait(false) ?? "unknown";
-
-			// Generate new key with same parameters. The store is NOT audited as a Write: a rotation is one
-			// operation and produces one audit record, raised below as SecretOperation.Rotate.
-			var generationResult = await GenerateEncryptionKeyCoreAsync(
-				keyName, keyType, keySize, currentMetadata, auditOperation: null, cancellationToken)
-				.ConfigureAwait(false);
-
-			if (!generationResult.Success)
-			{
-				return KeyRotationResult.CreateFailure(keyName, generationResult.ErrorMessage ?? "Key generation failed");
-			}
-
-			var nextRotationDue = DateTimeOffset.UtcNow.Add(_options.KeyRotationInterval);
-
-			var newKeyVersion = generationResult.KeyVersion ?? throw new InvalidOperationException($"Key generation succeeded for '{keyName}' but KeyVersion is null.");
-
-			// The audit record for the rotation. SecretAccessed carries every operation that touches secret
-			// material, so a consumer auditing key access sees the rotation here rather than inferring it.
-			SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(
-				keyName, SecretOperation.Rotate, DateTimeOffset.UtcNow, GetCurrentUserId()));
-
-			// The lifecycle notification, carrying the new version for cache invalidation and re-wrapping. It is a
-			// separate channel with a separate audience and is not a duplicate of the audit record above.
-			KeyRotated?.Invoke(this, new KeyRotatedEventArgs(
-				keyName, newKeyVersion, DateTimeOffset.UtcNow, nextRotationDue));
-
-			_logger.LogInformation(
-				"Key {KeyName} rotated successfully from version {PreviousVersion} to {NewVersion}",
-				keyName, previousVersion, newKeyVersion);
-
-			return KeyRotationResult.CreateSuccess(keyName, newKeyVersion, previousVersion, nextRotationDue);
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Failed to rotate encryption key {KeyName}", keyName);
-			return KeyRotationResult.CreateFailure(keyName, ex.Message);
 		}
 		finally
 		{
@@ -676,32 +456,6 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 	}
 
 	/// <summary>
-	/// Generates an AES encryption key of the specified size.
-	/// </summary>
-	/// <exception cref="ArgumentException"></exception>
-	private static byte[] GenerateAesKey(int keySize)
-	{
-		if (keySize is not 128 and not 192 and not 256)
-		{
-			throw new ArgumentException("AES key size must be 128, 192, or 256 bits", nameof(keySize));
-		}
-
-		var key = new byte[keySize / 8];
-		RandomNumberGenerator.Fill(key);
-		return key;
-	}
-
-	/// <summary>
-	/// Generates an HMAC key of the specified size.
-	/// </summary>
-	private static byte[] GenerateHmacKey(int keySize)
-	{
-		var key = new byte[keySize / 8];
-		RandomNumberGenerator.Fill(key);
-		return key;
-	}
-
-	/// <summary>
 	/// Gets the current user identifier for audit logging.
 	/// </summary>
 	private static string? GetCurrentUserId() =>
@@ -731,23 +485,6 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 		}
 
 		return new DefaultAzureCredential(options);
-	}
-
-	/// <summary>
-	/// Gets the current version of a key from Azure Key Vault.
-	/// </summary>
-	private async Task<string?> GetKeyVersionAsync(string keyName, CancellationToken cancellationToken)
-	{
-		try
-		{
-			var secretName = SanitizeSecretName(keyName);
-			var response = await _secretClient.GetSecretAsync(secretName, cancellationToken: cancellationToken).ConfigureAwait(false);
-			return response.Value.Properties.Version;
-		}
-		catch
-		{
-			return null;
-		}
 	}
 
 	/// <summary>

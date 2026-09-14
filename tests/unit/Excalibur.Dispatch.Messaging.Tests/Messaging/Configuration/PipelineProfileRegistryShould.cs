@@ -335,41 +335,11 @@ public sealed class PipelineProfileRegistryShould
 
 	#region Profile Selection Cache
 
-	[Fact]
-	public void NotBeFrozenByDefault()
-	{
-		// Assert
-		_sut.IsProfileSelectionCacheFrozen.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void FreezeProfileSelectionCache()
-	{
-		// Arrange — warm the cache
-		var message = A.Fake<IDispatchAction<string>>();
-		_ = _sut.SelectProfile(message);
-
-		// Act
-		_sut.FreezeProfileSelectionCache();
-
-		// Assert
-		_sut.IsProfileSelectionCacheFrozen.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void ReturnSameProfileAfterFreezing()
-	{
-		// Arrange — warm the cache
-		var message = A.Fake<IDispatchAction<string>>();
-		var beforeFreeze = _sut.SelectProfile(message);
-
-		// Act — freeze then re-select
-		_sut.FreezeProfileSelectionCache();
-		var afterFreeze = _sut.SelectProfile(message);
-
-		// Assert
-		afterFreeze.ShouldBe(beforeFreeze);
-	}
+	// Excalibur_Dispatch-zvcdsf: the selection cache is deliberately never frozen. A prior
+	// freeze-to-FrozenDictionary design measured slower at every message-type count tested and
+	// disabled the fall-through for a type first seen after the freeze, forcing that type to re-run
+	// the full profile scan on every subsequent dispatch forever. These tests lock the replacement
+	// behaviour: a plain warm cache that always re-caches a miss, with no freeze cliff to fall into.
 
 	[Fact]
 	public void ReturnConsistentProfileOnRepeatedCalls()
@@ -388,19 +358,33 @@ public sealed class PipelineProfileRegistryShould
 	}
 
 	[Fact]
-	public void BeIdempotentWhenFreezingMultipleTimes()
+	public void CacheAMessageTypeSeenAfterManyOthersInsteadOfRescanningForever()
 	{
-		// Arrange
-		var message = A.Fake<IDispatchAction<string>>();
-		_ = _sut.SelectProfile(message);
+		// Arrange — a strategy whose call count reveals the full profile scan running, since that
+		// scan (SelectProfileCore) is the only caller. A cache hit never reaches it.
+		var strategy = A.Fake<IMiddlewareApplicabilityStrategy>();
+		_ = A.CallTo(() => strategy.DetermineMessageKinds(A<IDispatchMessage>._)).Returns(MessageKinds.Action);
+		var sut = new PipelineProfileRegistry(strategy);
 
-		// Act — freeze twice
-		_sut.FreezeProfileSelectionCache();
-		_sut.FreezeProfileSelectionCache();
+		// Warm the cache with many other message instances first, the way a long-running process
+		// would before encountering a message it has never dispatched before.
+		for (var i = 0; i < 50; i++)
+		{
+			_ = sut.SelectProfile(A.Fake<IDispatchAction<string>>());
+		}
 
-		// Assert — still works
-		_sut.IsProfileSelectionCacheFrozen.ShouldBeTrue();
-		_sut.SelectProfile(message).ShouldNotBeNull();
+		var lateArrival = A.Fake<IDispatchAction<int>>();
+
+		// Act — first call is the cold path (one scan); second must be a cache hit (no scan). Under
+		// the deleted freeze design, a message first seen this late could be stranded outside the
+		// frozen dictionary and re-scan on every subsequent call.
+		_ = sut.SelectProfile(lateArrival);
+		_ = sut.SelectProfile(lateArrival);
+
+		// Assert — exactly one scan for this message, not one per call.
+		A.CallTo(() => strategy.DetermineMessageKinds(
+				A<IDispatchMessage>.That.Matches(m => ReferenceEquals(m, lateArrival))))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	#endregion

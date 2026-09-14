@@ -211,19 +211,43 @@ BEGIN
             THROW 50004, @msg, 1;
         END
 
-        SET @pkName = (SELECT kc.name FROM sys.key_constraints kc
-                       WHERE kc.parent_object_id = OBJECT_ID(N'dispatch.sagas') AND kc.type = N'PK');
+        -- The drop, the alter and the rebuild are ONE unit of work. The refusal above rules out
+        -- the failure this script can name -- a value too long to fit -- but not the ones it
+        -- cannot: a NULL in TenantId, or another index or constraint on the column that this
+        -- block does not know to drop, both fail the ALTER COLUMN after the key is already gone.
+        -- That leaves the sagas table with NO key, and sagas are correlated by a business key, so
+        -- two tenants' Order-123 sagas would both be admitted and one tenant's saga state would be
+        -- read for the other.
+        BEGIN TRANSACTION;
 
-        IF @pkName IS NOT NULL
-        BEGIN
-            EXEC(N'ALTER TABLE dispatch.sagas DROP CONSTRAINT ' + @pkName);
-        END
+        BEGIN TRY
+            SET @pkName = (SELECT kc.name FROM sys.key_constraints kc
+                           WHERE kc.parent_object_id = OBJECT_ID(N'dispatch.sagas') AND kc.type = N'PK');
 
-        ALTER TABLE dispatch.sagas
-            ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+            IF @pkName IS NOT NULL
+            BEGIN
+                EXEC(N'ALTER TABLE dispatch.sagas DROP CONSTRAINT ' + @pkName);
+            END
 
-        ALTER TABLE dispatch.sagas
-            ADD CONSTRAINT PK_dispatch_sagas PRIMARY KEY CLUSTERED (TenantId, SagaId);
+            ALTER TABLE dispatch.sagas
+                ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+
+            ALTER TABLE dispatch.sagas
+                ADD CONSTRAINT PK_dispatch_sagas PRIMARY KEY CLUSTERED (TenantId, SagaId);
+
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            -- The table keeps the column width and the key it had, which is the same "Nothing has
+            -- been changed" contract the refusals above state. Re-raise so a failed migration
+            -- cannot be read as a success.
+            IF XACT_STATE() <> 0
+            BEGIN
+                ROLLBACK TRANSACTION;
+            END;
+
+            THROW;
+        END CATCH
 
         PRINT '03: dispatch.sagas.TenantId narrowed to NVARCHAR(64) and the clustered primary key rebuilt as PK_dispatch_sagas (TenantId, SagaId).';
     END
@@ -270,26 +294,47 @@ BEGIN
             THROW 50004, @tmsg, 1;
         END
 
-        IF EXISTS (SELECT * FROM sys.indexes
-                   WHERE object_id = OBJECT_ID(N'SagaTimeouts') AND name = N'IX_SagaTimeouts_TenantId_SagaId')
-        BEGIN
-            DROP INDEX IX_SagaTimeouts_TenantId_SagaId ON SagaTimeouts;
-        END
+        -- One unit of work for the same reason as the sagas block above, with a smaller
+        -- consequence: nothing on this table is unique, so a failed ALTER COLUMN after the drops
+        -- costs the tenant-leading access paths rather than a correctness guarantee. It is still
+        -- worth the transaction -- the claim and cancel-by-saga statements lead with TenantId, and
+        -- without those indexes they fall back to scanning every tenant's pending timeouts.
+        BEGIN TRANSACTION;
 
-        IF EXISTS (SELECT * FROM sys.indexes
-                   WHERE object_id = OBJECT_ID(N'SagaTimeouts') AND name = N'IX_SagaTimeouts_TenantId_SagaId_TimeoutId')
-        BEGIN
-            DROP INDEX IX_SagaTimeouts_TenantId_SagaId_TimeoutId ON SagaTimeouts;
-        END
+        BEGIN TRY
+            IF EXISTS (SELECT * FROM sys.indexes
+                       WHERE object_id = OBJECT_ID(N'SagaTimeouts') AND name = N'IX_SagaTimeouts_TenantId_SagaId')
+            BEGIN
+                DROP INDEX IX_SagaTimeouts_TenantId_SagaId ON SagaTimeouts;
+            END
 
-        ALTER TABLE SagaTimeouts
-            ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+            IF EXISTS (SELECT * FROM sys.indexes
+                       WHERE object_id = OBJECT_ID(N'SagaTimeouts') AND name = N'IX_SagaTimeouts_TenantId_SagaId_TimeoutId')
+            BEGIN
+                DROP INDEX IX_SagaTimeouts_TenantId_SagaId_TimeoutId ON SagaTimeouts;
+            END
 
-        CREATE INDEX IX_SagaTimeouts_TenantId_SagaId
-            ON SagaTimeouts (TenantId, SagaId);
+            ALTER TABLE SagaTimeouts
+                ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
 
-        CREATE INDEX IX_SagaTimeouts_TenantId_SagaId_TimeoutId
-            ON SagaTimeouts (TenantId, SagaId, TimeoutId);
+            CREATE INDEX IX_SagaTimeouts_TenantId_SagaId
+                ON SagaTimeouts (TenantId, SagaId);
+
+            CREATE INDEX IX_SagaTimeouts_TenantId_SagaId_TimeoutId
+                ON SagaTimeouts (TenantId, SagaId, TimeoutId);
+
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            -- The table keeps the column width and both indexes it had. Re-raise so a failed
+            -- migration cannot be read as a success.
+            IF XACT_STATE() <> 0
+            BEGIN
+                ROLLBACK TRANSACTION;
+            END;
+
+            THROW;
+        END CATCH
 
         PRINT '03: SagaTimeouts.TenantId narrowed to NVARCHAR(64) and the two tenant-leading indexes rebuilt.';
     END

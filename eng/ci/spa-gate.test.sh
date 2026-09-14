@@ -127,7 +127,7 @@ if [ -n "$(git status --porcelain -- "$ENTRY")" ]; then
 fi
 pass "source restored; git status clean for the probed file"
 
-# -------------------------------------------- index.html TEMPLATE-only negative control (sthdvg)
+# -------------------------------------------- index.html TEMPLATE-only negative control
 # A template-only edit -- a CSP <meta>, a <script>/<link>, an inline config block -- changes
 # wwwroot/index.html WITHOUT renaming any hashed asset, so the asset-filename check (1) stays GREEN
 # while a stale index.html ships (e.g. an old CSP header). This arm proves check (2) catches that:

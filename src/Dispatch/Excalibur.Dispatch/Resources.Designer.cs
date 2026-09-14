@@ -134,7 +134,6 @@ namespace Excalibur.Dispatch {
         internal static string MessageBusOutboxPublisher_TransportPublishSummary { get { return ResourceManager.GetString("MessageBusOutboxPublisher_TransportPublishSummary", resourceCulture); } }
         internal static string MessageBusOutboxPublisher_UnknownError { get { return ResourceManager.GetString("MessageBusOutboxPublisher_UnknownError", resourceCulture); } }
         internal static string OutboxStagingMiddleware_FailedToSerializeMessage { get { return ResourceManager.GetString("OutboxStagingMiddleware_FailedToSerializeMessage", resourceCulture); } }
-        internal static string OutboxStagingMiddleware_NoOutboxServices { get { return ResourceManager.GetString("OutboxStagingMiddleware_NoOutboxServices", resourceCulture); } }
         internal static string Serialization_DataCannotBeEmpty { get { return ResourceManager.GetString("Serialization_DataCannotBeEmpty", resourceCulture); } }
         internal static string Serialization_DeserializationResultedInNull { get { return ResourceManager.GetString("Serialization_DeserializationResultedInNull", resourceCulture); } }
         internal static string Serialization_FailedToDeserializeToType { get { return ResourceManager.GetString("Serialization_FailedToDeserializeToType", resourceCulture); } }

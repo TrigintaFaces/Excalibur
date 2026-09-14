@@ -25,7 +25,7 @@
     <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="Excalibur.Saga.Oracle.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Saga.Tests" />
   </ItemGroup>
   <ItemGroup>
     <!-- EXDATA001/002 run on this project's own build. The analyzer ships to consumers bundled

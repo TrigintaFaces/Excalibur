@@ -219,30 +219,24 @@ tenant's store; reach it through a store method that is estate-wide by name.
 
 Sharding is enabled by calling `builder.EnableTenantSharding(...)`. Not calling the method leaves stores registered with their default lifetime and bypasses the tenant-routing decorator entirely.
 
-## Automatic Tenant Placement
+## Tenants Not in the Shard Map
 
-When a new tenant arrives that isn't in the shard map, `ITenantPlacementStrategy` selects which shard to assign it to:
+The shard map is fixed when you register it. There is no automatic placement of a tenant the map does not
+name: a tenant arriving for the first time is routed to `ShardMapOptions.DefaultShardId` if you configured
+one, and otherwise raises `TenantShardNotFoundException`.
 
 ```csharp
-public interface ITenantPlacementStrategy
+builder.EnableTenantSharding(options =>
 {
-    string SelectShard(string tenantId, IReadOnlyCollection<string> availableShardIds);
-}
+    options.DefaultShardId = "shard-1";   // unknown tenants land here
+    // leave it null to refuse an unmapped tenant instead
+});
 ```
 
-Two built-in strategies:
-
-| Strategy | Algorithm | Best For |
-|----------|-----------|----------|
-| `RoundRobinPlacementStrategy` | Cycles through shards sequentially (Interlocked counter) | Even distribution when tenants arrive at steady rate |
-| `LeastLoadedPlacementStrategy` | Picks shard with fewest assigned tenants (atomic find-min + increment) | Balancing when shard sizes vary |
-
-```csharp
-// Register a placement strategy
-services.AddSingleton<ITenantPlacementStrategy, LeastLoadedPlacementStrategy>();
-```
-
-Both implementations are thread-safe and suitable for concurrent request handling.
+Assign a new tenant by adding it to the mapping the shard map is built from, in whatever system of record
+owns your tenant roster. Do that before the tenant's first request, because the choice has to be the same
+in every process and across every restart — a shard chosen per-process would split one tenant's data across
+shards, and nothing downstream would report it.
 
 ## Shared-Shard Tenant Filtering
 

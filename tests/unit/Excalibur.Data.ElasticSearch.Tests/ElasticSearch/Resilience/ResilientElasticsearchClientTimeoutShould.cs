@@ -52,11 +52,11 @@ public sealed class ResilientElasticsearchClientTimeoutShould
 					UseExponentialBackoff = false,
 					JitterFactor = 0,
 				},
-				CircuitBreaker = new CircuitBreakerOptions
+				CircuitBreaker = new ElasticsearchCircuitBreakerOptions
 				{
 					Enabled = false,
 					MinimumThroughput = 2,
-					FailureRateThreshold = 0.5,
+					FailureRatio = 0.5,
 					SamplingDuration = TimeSpan.FromSeconds(30),
 					BreakDuration = TimeSpan.FromSeconds(5),
 				},

@@ -152,9 +152,10 @@ The outbox pattern is the gold standard for producer-side reliability. Most mess
 
 Even with a perfect producer, the consumer must handle redeliveries. The Idempotent Consumer pattern tracks which messages have been processed and skips duplicates.
 
-Excalibur provides this as pipeline middleware. `InboxMiddleware` is registered by `AddDispatch` and
-sits at the pre-processing stage, so registering an `IInboxStore` is all that is needed for every
-message flowing through the pipeline to be deduplicated.
+Excalibur provides this as pipeline middleware, and it is **opt-in**. `AddDispatch` makes
+`InboxMiddleware` resolvable but does not place it in any pipeline — no shipped profile contains it —
+so registering an `IInboxStore` on its own deduplicates nothing. Call `UseInbox()` (or its alias
+`UseIdempotency()`) to place it, as the registration below does.
 
 ## Implementing the Idempotent Consumer
 
@@ -164,9 +165,13 @@ message flowing through the pipeline to be deduplicated.
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    // Places InboxMiddleware in the pipeline. Without this line nothing is deduplicated,
+    // however the store is configured.
+    dispatch.UseInbox();
 });
 
-// Registering a store is what activates deduplication
+// The store is where the deduplication record lives. Both halves are required.
 services.AddSqlServerInboxStore(options => options.ConnectionString = connectionString);
 ```
 

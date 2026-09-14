@@ -79,6 +79,8 @@ public static class SqlServerLeaderElectionBuilderExtensions
 	///     })));
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static ILeaderElectionBuilder UseSqlServer(
 		this ILeaderElectionBuilder builder,
 		Action<ISqlServerLeaderElectionBuilder> configure)
@@ -132,6 +134,17 @@ public static class SqlServerLeaderElectionBuilderExtensions
 		// Determine connection factory based on builder state
 		var connectionFactory = ResolveConnectionFactory(sqlBuilder);
 
+		// Register options with the ConnectionString() builder value, so ResolveConnectionFactory's
+		// options-fallback branch (used whenever the consumer called .ConnectionString(...) rather than
+		// .ConnectionFactory(...) or .ConnectionStringName(...)) has something to read. Without this,
+		// IOptions<SqlServerLeaderElectionOptions> is never configured on the factory path and
+		// connectionFactory(sp) resolves an empty connection string.
+		_ = builder.Services.Configure<SqlServerLeaderElectionOptions>(opt =>
+		{
+			opt.ConnectionString = options.ConnectionString;
+			opt.LockResource = options.LockResource;
+		});
+
 		RegisterFactoryServices(builder, connectionFactory);
 
 		return builder;
@@ -176,9 +189,9 @@ public static class SqlServerLeaderElectionBuilderExtensions
 	/// Registers options, services, and validation for the standard leader election pattern.
 	/// </summary>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+			Justification = "The public entry point that reaches this private helper carries RequiresUnreferencedCode and RequiresDynamicCode, so a caller already receives the trimming and AOT diagnostics at their own call site. Annotating this helper as well adds no signal a consumer can see.")]
+		[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+			Justification = "The public entry point that reaches this private helper carries RequiresUnreferencedCode and RequiresDynamicCode, so a caller already receives the trimming and AOT diagnostics at their own call site. Annotating this helper as well adds no signal a consumer can see.")]
 	private static void RegisterOptionsAndServices(
 		ILeaderElectionBuilder builder,
 		SqlServerLeaderElectionBuilder sqlBuilder,
@@ -257,7 +270,34 @@ public static class SqlServerLeaderElectionBuilderExtensions
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("sqlserver"));
+
+		RegisterDefaultFencingTokenProvider(builder.Services, connectionFactory);
+		RegisterOutboxGate(builder.Services);
 	}
+
+	/// <summary>
+	/// Matches Consul/Kubernetes/InMemory/Postgres/MongoDB/Redis and the sibling
+	/// <c>AddSqlServerHealthBasedLeaderElection()</c>, all of which register this. Without it a consumer
+	/// wiring <see cref="UseSqlServer"/> or <see cref="UseSqlServerFactory"/> plus an outbox hits the
+	/// outbox's own startup refusal for no reason a SQL Server consumer would expect versus the
+	/// health-based path. Split out of the callers to keep their class coupling (CA1506) in bounds, same
+	/// rationale as <see cref="RegisterDefaultFencingTokenProvider"/> below.
+	/// </summary>
+	private static void RegisterOutboxGate(IServiceCollection services) =>
+		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
+
+	/// <summary>
+	/// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is elected
+	/// is silent data corruption, so the safe posture is auto-registering the store's arbitrated provider
+	/// rather than requiring a second, easily-forgotten <c>AddSqlServerFencingTokenProvider()</c> +
+	/// <c>WithFencingTokens()</c> call. <c>WithoutFencingTokens()</c> opts out. Split out of the callers to
+	/// keep their class coupling (CA1506) in bounds.
+	/// </summary>
+	private static void RegisterDefaultFencingTokenProvider(
+		IServiceCollection services,
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactory) =>
+		services.TryAddDefaultFencingTokenProvider(sp =>
+			new SqlServerFencingTokenProvider(ResolveConnectionString(connectionFactory, sp)));
 
 	/// <summary>
 	/// Registers factory services for the multi-election pattern.
@@ -284,5 +324,33 @@ public static class SqlServerLeaderElectionBuilderExtensions
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("sqlserver"));
+
+		RegisterDefaultFencingTokenProvider(builder.Services, connectionFactory);
+
+		// Deliberately NOT wired here, unlike UseSqlServer()/UseMongoDB()/UseRedis(): MEASURED (not
+		// assumed) that the factory pattern registers ONLY a keyed ILeaderElectionFactory
+		// ("sqlserver"/"default") and NEVER an unkeyed ILeaderElection -- there is no single canonical
+		// election for a multi-lock factory to expose. Calling RegisterOutboxGate here would register gate
+		// factories that can NEVER resolve (GetRequiredService<ILeaderElection>() always throws), which is
+		// WORSE than not registering them: the outbox's own startup backstop checks
+		// IServiceProviderIsService, which only asks "is a descriptor registered", not "would resolving it
+		// succeed" -- so a pre-wired-but-unsatisfiable gate would make that clean, actionable startup
+		// refusal disappear, replaced by a raw DI exception the first time the outbox actually drains.
+		// See OutboxLeaderGateAutoRegistersByDefaultShould's negative arm.
+	}
+
+	/// <summary>
+	/// Opens (and immediately disposes) a connection from <paramref name="connectionFactory"/> purely to
+	/// read its resolved connection string, mirroring the pattern the election and factory registrations
+	/// above already use — <see cref="SqlServerFencingTokenProvider"/>'s constructor takes a raw connection
+	/// string, not a factory.
+	/// </summary>
+	private static string ResolveConnectionString(
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
+		IServiceProvider sp)
+	{
+		var createConnection = connectionFactory(sp);
+		using var connection = createConnection();
+		return connection.ConnectionString;
 	}
 }

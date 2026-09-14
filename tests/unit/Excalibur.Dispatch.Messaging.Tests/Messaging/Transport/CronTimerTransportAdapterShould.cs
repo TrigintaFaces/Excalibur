@@ -167,7 +167,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -201,7 +201,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 
 		// Assert -- not running takes precedence, but result is still failed
 		result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	#endregion

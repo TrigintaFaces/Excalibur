@@ -95,16 +95,6 @@ public sealed class CacheOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveMemoryConfiguration_ByDefault()
-	{
-		// Arrange & Act
-		var options = new CacheOptions();
-
-		// Assert
-		options.Memory.ShouldNotBeNull();
-	}
-
-	[Fact]
 	public void HaveDistributedConfiguration_ByDefault()
 	{
 		// Arrange & Act

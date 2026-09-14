@@ -32,6 +32,12 @@ public sealed class ElasticsearchInboxStoreContainerFixture : ContainerFixtureBa
 	public ElasticsearchClient Client { get; private set; } = null!;
 
 	/// <summary>
+	/// Gets the plain-HTTP base URL of the container, for real-infra fault injection that needs a raw
+	/// settings PUT the typed client has no strongly-typed model for (e.g. <c>index.blocks.write</c>).
+	/// </summary>
+	public string Url { get; private set; } = null!;
+
+	/// <summary>
 	/// Gets the unique index name for this fixture's inbox documents.
 	/// </summary>
 	public string IndexName { get; } = $"inbox-test-{Guid.NewGuid():N}";
@@ -60,6 +66,7 @@ public sealed class ElasticsearchInboxStoreContainerFixture : ContainerFixtureBa
 		// connection string defaults to https://, so convert the scheme to avoid SSL handshake failures.
 		var url = _container.GetConnectionString()
 			.Replace("https://", "http://", StringComparison.OrdinalIgnoreCase);
+		Url = url;
 
 		// DEFAULT serializer settings — no custom converter — so the store round-trips through real
 		// infrastructure exactly as a consumer's default client would.

@@ -5,15 +5,12 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-
-using PollyRetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -172,8 +169,8 @@ public static class PollyResilienceServiceCollectionExtensions
 		_ = services.AddOptions<PollyRetryOptions>(name)
 			.Configure(options =>
 			{
-				// Set smart defaults for jitter
-				options.JitterStrategy = JitterStrategy.Equal;
+				// Set smart defaults for jitter. UseJitter is the flag the wired adapter actually reads;
+				// the JitterStrategy write that used to sit here set an option no code consumed.
 				options.UseJitter = true;
 				configureOptions?.Invoke(options);
 			})
@@ -181,8 +178,6 @@ public static class PollyResilienceServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PollyRetryOptions>, RetryOptionsValidator>());
 
-		// Register factory for creating retry policies
-		services.TryAddTransient<RetryPolicy>();
 
 		return services;
 	}

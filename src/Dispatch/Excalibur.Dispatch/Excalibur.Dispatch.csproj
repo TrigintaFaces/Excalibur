@@ -111,26 +111,37 @@
 		     Requirements generation should be handled at solution level, not within individual components. -->
   </ItemGroup>
   <ItemGroup>
-    <!-- BUNDLE the analyzer DLL into this package at analyzers/dotnet/cs (Microsoft pattern, as
-         System.Text.Json bundles its generator) so DISP001-006 auto-flow to consumers of Excalibur.Dispatch.
-         ONE delivery path: this package carries its own copy; do NOT also add a package dependency on the
-         standalone analyzer package (double delivery = duplicate-diagnostic). The ProjectReference above
-         builds the analyzer before pack, so this output DLL exists. -->
-    <None Include="..\Excalibur.Dispatch.SourceGenerators.Analyzers\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.SourceGenerators.Analyzers.dll"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <!-- BUNDLE the source generator the same way, and for the same reason. Without it the
-         generator runs on this project's own build but never reaches a consumer, so the typed
-         DispatchAsync overload it emits does not exist in their compilation and the documented
-         call shape fails to compile against the non-generic IMessageResult. Bundling it also puts
-         every consumer on the zero-reflection handler-resolution path by default rather than as
-         a reward for finding a second package. -->
-    <None Include="..\Excalibur.Dispatch.SourceGenerators\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.SourceGenerators.dll"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- Opts the generated interceptor namespace in for consumers. Travels with the bundled
-         generator above so the two never get separated. -->
+         generator below so the two never get separated. -->
     <None Include="build\Excalibur.Dispatch.props" Pack="true" PackagePath="buildTransitive/Excalibur.Dispatch.props" />
     <None Include="build\Excalibur.Dispatch.props" Pack="true" PackagePath="build/Excalibur.Dispatch.props" />
   </ItemGroup>
+  <!-- BUNDLE the analyzer + source-generator DLLs into this package at analyzers/dotnet/cs (Microsoft
+       pattern, as System.Text.Json bundles its generator) so DISP001-006 and the typed-invoke codegen
+       auto-flow to consumers of Excalibur.Dispatch, with zero extra install. ONE delivery path: this
+       package carries its own copy; do NOT also add a package dependency on the standalone analyzer
+       package (double delivery = duplicate-diagnostic).
+
+       Sourced from @(Analyzer), the item MSBuild itself populated by resolving the two
+       OutputItemType="Analyzer" ProjectReferences above, rather than a hardcoded
+       "bin\$(Configuration)\netstandard2.0\*.dll" literal. A literal path silently stops matching (and the
+       pack ships WITHOUT the analyzer, no error) the moment either project's TFM or output layout changes;
+       @(Analyzer) is resolved by the same build that is about to consume it, so it cannot go stale that way.
+       The trailing Error additionally fails the pack loudly if resolution ever comes back empty, so a
+       genuinely broken reference can't ship silently either. -->
+  <Target Name="_ResolveBundledAnalyzerFiles" BeforeTargets="_GetPackageFiles" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <_BundledAnalyzerOutput Include="@(Analyzer)"
+        Condition="'%(Analyzer.MSBuildSourceProjectFile)' != '' And (
+                     $([System.String]::Copy('%(Analyzer.MSBuildSourceProjectFile)').EndsWith('Excalibur.Dispatch.SourceGenerators.Analyzers.csproj')) Or
+                     $([System.String]::Copy('%(Analyzer.MSBuildSourceProjectFile)').EndsWith('Excalibur.Dispatch.SourceGenerators.csproj'))
+                   )" />
+      <None Include="@(_BundledAnalyzerOutput)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+    <Error
+      Condition="'@(_BundledAnalyzerOutput)' == ''"
+      Text="Could not resolve the SourceGenerators/SourceGenerators.Analyzers build output via @(Analyzer) -- the package would ship WITHOUT DISP001-006 and the typed-invoke source generator. Check that both projects are referenced above with OutputItemType=&quot;Analyzer&quot; and that they build successfully before pack." />
+  </Target>
   <ItemGroup>
     <Compile Update="Messaging\Resources\ErrorMessages.Designer.cs">
       <DesignTime>True</DesignTime>
@@ -231,6 +242,13 @@
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Cdc.SqlServer</_Parameter1>
+    </AssemblyAttribute>
+    <!-- The event-sourcing startup validator distinguishes "no registry at all" from "a registry
+         holding no types", and only the second is recoverable advice. That check reads the internal
+         default registry, which used to live in the abstractions package and was granted there. The
+         grant moves with the type; without it the validator cannot tell the two cases apart. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.EventSourcing</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Dispatch.Messaging.Performance.Tests</_Parameter1>

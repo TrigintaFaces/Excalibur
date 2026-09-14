@@ -50,14 +50,12 @@ public sealed class CosmosDbTransactionalInboxExactlyOnceShould
 
 	public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-	// LOUD graceful-degrade for the two emulator-dependent Facts: matches the sibling Cosmos-integration
-	// convention (Assert.SkipUnless(_fixture.IsInitialized, ...)). A gated run shows as a SKIPPED test with a
-	// visible reason - never a silent pass. The classic Cosmos emulator is unreliable on some hosts
-	// ("response ended prematurely"); the empirical RED->GREEN proof runs where the emulator is healthy.
-	private void RequireEmulator() =>
-		Assert.SkipUnless(
-			_fixture.IsInitialized,
-			$"SKIPPED: Cosmos emulator unavailable - real-infra exactly-once lock not exercised here. {_fixture.InitError}");
+	// Availability is the FIXTURE's decision, not this suite's. This used to skip while the sibling
+	// suite on the same emulator hard-failed, so what an unavailable emulator MEANT depended on which
+	// file you opened. A skip here is not a safe default: this is an exactly-once lock, and a lock that
+	// never ran cannot contribute the assurance the suite is cited for. A host that genuinely cannot
+	// run it belongs in the reviewed, expiring suppression list, where it is named and owned.
+	private void RequireEmulator() => _fixture.EnsureAvailable();
 
 	private CosmosDbInboxStore CreateStore(string? sharedPartitionKey)
 	{

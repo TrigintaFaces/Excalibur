@@ -12,7 +12,7 @@ public sealed class RetryOptionsShould
     {
         var options = new RetryOptions();
 
-        options.MaxAttempts.ShouldBe(3);
+        options.MaxRetryAttempts.ShouldBe(3);
         options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
         options.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
         options.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
@@ -45,7 +45,7 @@ public sealed class RetryOptionsShould
     {
         var options = new RetryOptions
         {
-            MaxAttempts = 5,
+            MaxRetryAttempts = 5,
             BaseDelay = TimeSpan.FromMilliseconds(500),
             MaxDelay = TimeSpan.FromMinutes(1),
             BackoffStrategy = BackoffStrategy.Linear,
@@ -54,7 +54,7 @@ public sealed class RetryOptionsShould
             UseJitter = false,
         };
 
-        options.MaxAttempts.ShouldBe(5);
+        options.MaxRetryAttempts.ShouldBe(5);
         options.BaseDelay.ShouldBe(TimeSpan.FromMilliseconds(500));
         options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
         options.BackoffStrategy.ShouldBe(BackoffStrategy.Linear);

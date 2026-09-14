@@ -26,7 +26,6 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 		ApplicationContext.Init(new Dictionary<string, string?>
 		{
 			["ApplicationName"] = "TestApp",
-			["AuthorizationCacheKey"] = "test-cache",
 		});
 	}
 

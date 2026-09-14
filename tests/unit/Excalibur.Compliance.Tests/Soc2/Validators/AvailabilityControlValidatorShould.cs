@@ -36,8 +36,13 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.ValidateAsync("AVL-001", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-001");
-		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		// This arm was named "always passes" and required exactly that: IsEffective true at full
+		// score from a method that observes nothing. The capability really is shipped, which is
+		// what the Configuration evidence says; whether this deployment operates it is not
+		// observable from here, so the control is unverified rather than effective.
+		result.IsEffective.ShouldBeFalse();
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.Evidence.ShouldNotBeEmpty();
 	}
 
@@ -50,8 +55,10 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.ValidateAsync("AVL-002", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-002");
+		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
+		// longer says is that the CONTROL operated, because nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -61,9 +68,14 @@ public sealed class AvailabilityControlValidatorShould
 
 		var result = await sut.ValidateAsync("AVL-002", CancellationToken.None).ConfigureAwait(false);
 
-		// Still passes — external monitoring is accepted
 		result.ControlId.ShouldBe("AVL-002");
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		result.IsConfigured.ShouldBeFalse();
+		// Partial by design: a compensating external arrangement may exist, but the declared control is
+		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
+		// the exact figure is the framework's encoding and may be restated without changing the meaning.
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("IComplianceMetrics"));
 	}
 
 	[Fact]
@@ -79,7 +91,10 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.ValidateAsync("AVL-003", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-003");
-		result.IsEffective.ShouldBeTrue();
+		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
+		// longer says is that the CONTROL operated, because nothing here observed it operating.
+		result.IsConfigured.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 		result.Evidence.ShouldContain(e => e.Description.Contains("SqlServerSnapshotStore"));
 	}
 
@@ -90,9 +105,13 @@ public sealed class AvailabilityControlValidatorShould
 
 		var result = await sut.ValidateAsync("AVL-003", CancellationToken.None).ConfigureAwait(false);
 
-		// Still success — external backup verification accepted
 		result.ControlId.ShouldBe("AVL-003");
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		// Partial by design: a compensating external arrangement may exist, but the declared control is
+		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
+		// the exact figure is the framework's encoding and may be restated without changing the meaning.
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("not registered"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("not registered"));
 	}
 
@@ -107,7 +126,12 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.ValidateAsync("AVL-003", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-003");
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		// Partial by design: a compensating external arrangement may exist, but the declared control is
+		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
+		// the exact figure is the framework's encoding and may be restated without changing the meaning.
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("reports itself not configured"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("not configured"));
 	}
 
@@ -180,7 +204,11 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.RunTestAsync("AVL-001", parameters, CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-001");
-		result.Outcome.ShouldBe(TestOutcome.NoExceptions);
-		result.ItemsTested.ShouldBe(10);
+		// The verdict, not NotTested: a validator ran. What did not happen is SAMPLING, which the
+		// item count and the null finding count below carry.
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
+		// Zero, not the requested 10: RunTestAsync forwards a verdict and samples nothing. The
+		// requested size stays available on Parameters, where it is a request rather than a measurement.
+		result.ItemsTested.ShouldBe(0);
 	}
 }

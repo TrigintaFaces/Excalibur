@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.CloudNative;
 using Excalibur.Data.CosmosDb;
 using Excalibur.Data.Persistence;
 using Excalibur.Testing.Conformance;
@@ -74,7 +75,7 @@ public sealed class CosmosDbPersistenceProviderConformanceShould
 		{
 			Name = providerName,
 			DatabaseName = _fixture.DatabaseName,
-			DefaultContainerName = "items",
+			DefaultContainerName = CosmosDbPersistenceProviderContainerFixture.ContainerName,
 			Client = new CosmosDbClientOptions
 			{
 				ConnectionString = _fixture.ConnectionString,
@@ -135,6 +136,57 @@ public sealed class CosmosDbPersistenceProviderConformanceShould
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
+	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
+	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();
 	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 	[Fact] public void ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers_Test() => ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers();
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Excalibur_Dispatch-7vyyp9: this container's partition key path is <c>/id</c>
+	/// (<see cref="CosmosDbOptions.DefaultPartitionKeyPath"/>), so a Cosmos transactional batch here can only
+	/// ever span ONE id -- every operation in a batch shares its partition key, and that key IS the id. The
+	/// probe therefore cannot use two different documents the way the Firestore/DynamoDB probes do (that
+	/// would be a cross-partition batch, which Cosmos rejects before it is even a batch). Instead both
+	/// operations target the SAME id: two Creates for one id in one batch is a genuine, well-documented
+	/// Cosmos conflict (the second Create fails "already exists" against the first's own staged effect), and
+	/// because the batch is transactional, the first Create is rolled back too -- the exact property this
+	/// arm exists to prove.
+	/// </remarks>
+	protected override Task<(IPartitionKey PartitionKey, IReadOnlyList<ICloudBatchOperation> Operations, Func<Task<bool>> FirstEffectVisibleAsync, Func<Task<bool>> FirstEffectPersistsWhenBatchSucceedsAsync)?>
+		CreateCloudNativeBatchAtomicityProbeAsync(ICloudNativePersistenceBatchOperations batchOperations)
+	{
+		var provider = (ICloudNativePersistenceProvider)batchOperations;
+		var id = $"atomicity-{Guid.NewGuid():N}";
+		var partitionKey = new PartitionKey(id);
+
+		IReadOnlyList<ICloudBatchOperation> operations =
+		[
+			new CloudBatchCreateOperation(id, new AtomicityProbeDocument(id, "first")),
+			new CloudBatchCreateOperation(id, new AtomicityProbeDocument(id, "conflict")),
+		];
+
+		return Task.FromResult<(IPartitionKey PartitionKey, IReadOnlyList<ICloudBatchOperation> Operations, Func<Task<bool>> FirstEffectVisibleAsync, Func<Task<bool>> FirstEffectPersistsWhenBatchSucceedsAsync)?>((
+			partitionKey,
+			operations,
+			FirstEffectVisibleAsync: async () =>
+				await provider.GetByIdAsync<AtomicityProbeDocument>(
+					id, partitionKey, null, TestContext.Current.CancellationToken).ConfigureAwait(false) is not null,
+			FirstEffectPersistsWhenBatchSucceedsAsync: async () =>
+			{
+				var livenessId = $"atomicity-liveness-{Guid.NewGuid():N}";
+				var livenessKey = new PartitionKey(livenessId);
+				var result = await batchOperations.ExecuteBatchAsync(
+					livenessKey,
+					[new CloudBatchCreateOperation(livenessId, new AtomicityProbeDocument(livenessId, "liveness"))],
+					TestContext.Current.CancellationToken).ConfigureAwait(false);
+
+				return result.Success
+					&& await provider.GetByIdAsync<AtomicityProbeDocument>(
+						livenessId, livenessKey, null, TestContext.Current.CancellationToken).ConfigureAwait(false) is not null;
+			}));
+	}
+
+	private sealed record AtomicityProbeDocument(string Id, string Marker);
 }

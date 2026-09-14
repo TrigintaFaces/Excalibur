@@ -210,7 +210,7 @@ public class OrderService
         var action = new CreateOrderAction(customerId, items);
         var result = await _dispatcher.DispatchAsync(action, cancellationToken);
 
-        if (!result.IsSuccess)
+        if (!result.Succeeded)
         {
             throw new InvalidOperationException(result.ErrorMessage);
         }
@@ -326,7 +326,27 @@ public class GetOrderHandler : IActionHandler<GetOrderAction, Order>
 }
 ```
 
-The exception mapping middleware converts exceptions to `IMessageResult.Failed` with proper problem details. Configure mappings in your `AddDispatch` setup.
+The exception mapping middleware converts exceptions to `IMessageResult.Failed` with proper problem details — **once it is in the pipeline.** Two separate things are involved: `WithExceptionMapping()` registers the mappers, and `UseExceptionMapping()` puts the middleware in the pipeline.
+
+**The presets already call `UseExceptionMapping()` for you** — `WithDefaults()`, `UseValidationStack()`, `UseDevelopmentMiddleware()`, `UseProductionMiddleware()` and `UseFullMiddleware()`. If you use one of those, register your mappers and stop there; adding `UseExceptionMapping()` as well registers the middleware **twice**, and it will run twice on every message. If you build the pipeline yourself or from a pipeline profile, call both — no shipped profile includes it.
+
+```csharp
+// Using a preset: the middleware is already in the pipeline.
+services.AddDispatch(dispatch =>
+{
+    dispatch.WithDefaults();
+    dispatch.WithExceptionMapping(mapping => mapping.Map<KeyNotFoundException>(
+        ex => MessageProblemDetails.NotFound(ex.Message)));
+});
+
+// Building the pipeline yourself: add the middleware as well.
+services.AddDispatch(dispatch =>
+{
+    dispatch.WithExceptionMapping(mapping => mapping.Map<KeyNotFoundException>(
+        ex => MessageProblemDetails.NotFound(ex.Message)));
+    dispatch.UseExceptionMapping(); // without this, the mappings are never consulted
+});
+```
 
 ## Handler Interface Hierarchy
 

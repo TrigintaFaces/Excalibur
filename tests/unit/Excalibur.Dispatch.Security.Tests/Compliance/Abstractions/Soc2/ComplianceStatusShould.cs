@@ -22,21 +22,21 @@ public sealed class ComplianceStatusShould : UnitTestBase
 				Category = TrustServicesCategory.Security,
 				Level = ComplianceLevel.FullyCompliant,
 				CompliancePercentage = 100,
-				ActiveControls = 15,
-				ControlsWithIssues = 0
+				CriteriaAssessed = 15,
+				CriteriaEnabled = 15,
+				CriteriaWithIssues = 0
 			}
 		};
 
 		var criterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 		{
-			[TrustServicesCriterion.CC1_ControlEnvironment] = new()
-			{
-				Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
-				IsMet = true,
-				EffectivenessScore = 95,
-				LastValidated = DateTimeOffset.UtcNow,
-				EvidenceCount = 50
-			}
+			[TrustServicesCriterion.CC1_ControlEnvironment] = CriterionStatus.Assessed(
+					TrustServicesCriterion.CC1_ControlEnvironment,
+					met: true,
+					effectivenessScore: 95,
+					lastValidated: DateTimeOffset.UtcNow,
+					controlsAssessed: 1,
+					evidenceCount: 50)
 		};
 
 		// Act
@@ -95,16 +95,17 @@ public sealed class ComplianceStatusShould : UnitTestBase
 			Category = TrustServicesCategory.Availability,
 			Level = ComplianceLevel.SubstantiallyCompliant,
 			CompliancePercentage = 85,
-			ActiveControls = 10,
-			ControlsWithIssues = 2
+			CriteriaAssessed = 10,
+			CriteriaEnabled = 10,
+			CriteriaWithIssues = 2
 		};
 
 		// Assert
 		categoryStatus.Category.ShouldBe(TrustServicesCategory.Availability);
 		categoryStatus.Level.ShouldBe(ComplianceLevel.SubstantiallyCompliant);
 		categoryStatus.CompliancePercentage.ShouldBe(85);
-		categoryStatus.ActiveControls.ShouldBe(10);
-		categoryStatus.ControlsWithIssues.ShouldBe(2);
+		categoryStatus.CriteriaAssessed.ShouldBe(10);
+		categoryStatus.CriteriaWithIssues.ShouldBe(2);
 	}
 
 	[Fact]
@@ -114,19 +115,18 @@ public sealed class ComplianceStatusShould : UnitTestBase
 		var lastValidated = DateTimeOffset.UtcNow;
 
 		// Act
-		var criterionStatus = new CriterionStatus
-		{
-			Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-			IsMet = false,
-			EffectivenessScore = 70,
-			LastValidated = lastValidated,
-			EvidenceCount = 25,
-			Gaps = ["Missing MFA enforcement", "Incomplete access review"]
-		};
+		var criterionStatus = CriterionStatus.Assessed(
+			TrustServicesCriterion.CC6_LogicalAccess,
+			met: false,
+			effectivenessScore: 70,
+			lastValidated: lastValidated,
+			controlsAssessed: 1,
+			evidenceCount: 25,
+			gaps: ["Missing MFA enforcement", "Incomplete access review"]);
 
 		// Assert
 		criterionStatus.Criterion.ShouldBe(TrustServicesCriterion.CC6_LogicalAccess);
-		criterionStatus.IsMet.ShouldBeFalse();
+		criterionStatus.Outcome.ShouldBe(CriterionOutcome.NotMet);
 		criterionStatus.EffectivenessScore.ShouldBe(70);
 		criterionStatus.LastValidated.ShouldBe(lastValidated);
 		criterionStatus.EvidenceCount.ShouldBe(25);
@@ -137,14 +137,13 @@ public sealed class ComplianceStatusShould : UnitTestBase
 	public void HaveEmptyGapsByDefault()
 	{
 		// Act
-		var criterionStatus = new CriterionStatus
-		{
-			Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
-			IsMet = true,
-			EffectivenessScore = 100,
-			LastValidated = DateTimeOffset.UtcNow,
-			EvidenceCount = 10
-		};
+		var criterionStatus = CriterionStatus.Assessed(
+			TrustServicesCriterion.CC1_ControlEnvironment,
+			met: true,
+			effectivenessScore: 100,
+			lastValidated: DateTimeOffset.UtcNow,
+			controlsAssessed: 1,
+			evidenceCount: 10);
 
 		// Assert
 		criterionStatus.Gaps.ShouldBeEmpty();

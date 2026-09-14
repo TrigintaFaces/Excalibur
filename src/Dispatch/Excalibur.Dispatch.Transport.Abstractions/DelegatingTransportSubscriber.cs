@@ -36,7 +36,17 @@ public abstract class DelegatingTransportSubscriber : ITransportSubscriber
 	}
 
 	/// <inheritdoc />
-	public virtual object? GetService(Type serviceType) => InnerSubscriber.GetService(serviceType);
+	/// <remarks>
+	/// Answering for this decorator before deferring inward is what keeps the decorator in the caller's
+	/// path. Forwarding unconditionally hands back the transport underneath, and every behaviour this
+	/// decorator adds silently stops applying to whatever the caller does with it.
+	/// </remarks>
+	public virtual object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return serviceType.IsInstanceOfType(this) ? this : InnerSubscriber.GetService(serviceType);
+	}
 
 	/// <inheritdoc />
 	public virtual ValueTask DisposeAsync()

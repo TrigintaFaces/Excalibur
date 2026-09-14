@@ -249,7 +249,7 @@ public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 		// Act — configure with non-null options action
 		_ = services.AddExcalibur(excalibur =>
 		{
-			_ = excalibur.AddSagas(opts => opts.EnableAutomaticCleanup = false);
+			_ = excalibur.AddSagas(saga => saga.WithOptions(opts => opts.EnableAutomaticCleanup = false));
 		});
 
 		// Assert — should not throw

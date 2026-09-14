@@ -11,12 +11,10 @@ public sealed record OrderShipped : IDomainEvent
     public Guid OrderId { get; init; }
 
     /// <inheritdoc />
-    public Guid EventId { get; init; } = Guid.NewGuid();
+    public string EventId { get; init; } = Guid.NewGuid().ToString();
 
-    /// <inheritdoc />
     public string AggregateId { get; init; } = string.Empty;
 
-    /// <inheritdoc />
     public long Version { get; init; }
 
     /// <inheritdoc />
@@ -24,5 +22,5 @@ public sealed record OrderShipped : IDomainEvent
 
 
     /// <inheritdoc />
-    public IDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
+    public IDictionary<string, object>? Metadata { get; init; }
 }

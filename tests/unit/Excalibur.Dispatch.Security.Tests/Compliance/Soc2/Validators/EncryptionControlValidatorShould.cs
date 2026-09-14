@@ -112,8 +112,11 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-001", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		// The FIPS check THREW. It was caught, recorded as evidence, and then scored as a pass -- a
+		// perfect result for a verification that failed to run.
+		result.IsEffective.ShouldBeFalse();
 		result.Evidence.ShouldContain(e => e.Description.Contains("FIPS validation check"));
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("did not complete", StringComparison.Ordinal));
 	}
 
 	#endregion ValidateAsync - SEC-001 Tests
@@ -127,18 +130,22 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-002", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.ConfigurationIssues.ShouldContain(i => i.Contains("unverified", StringComparison.Ordinal));
 		result.ControlId.ShouldBe("SEC-002");
 	}
 
 	[Fact]
-	public async Task ValidateAsync_SEC002_CollectTlsEvidence()
+	public async Task ValidateAsync_SEC002_RecordEvidenceThatTheCheckCouldNotBeMade()
 	{
 		// Act
 		var result = await _sut.ValidateAsync("SEC-002", CancellationToken.None);
 
-		// Assert
-		result.Evidence.ShouldContain(e => e.Description.Contains("TLS"));
+		// Assert -- this arm used to require an evidence item mentioning TLS, which the validator
+		// produced without checking anything. The evidence must now say the opposite: that transport
+		// security is outside what this framework can observe.
+		result.Evidence.ShouldContain(e => e.Description.Contains("cannot be observed", StringComparison.Ordinal));
 	}
 
 	#endregion ValidateAsync - SEC-002 Tests
@@ -340,8 +347,10 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.RunTestAsync("SEC-001", parameters, CancellationToken.None);
 
 		// Assert
-		result.Outcome.ShouldBe(TestOutcome.NoExceptions);
-		result.ExceptionsFound.ShouldBe(0);
+		// No test ran, so neither a clean outcome nor a finding count is available. Zero exceptions
+		// FOUND asserts a search that returned nothing; absent says only that none happened.
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
+		result.ExceptionsFound.ShouldBeNull();
 	}
 
 	[Fact]
@@ -355,8 +364,11 @@ public sealed class EncryptionControlValidatorShould
 		var result = await sut.RunTestAsync("SEC-001", parameters, CancellationToken.None);
 
 		// Assert
-		result.Outcome.ShouldBe(TestOutcome.SignificantExceptions);
-		result.ExceptionsFound.ShouldBe(1);
+		// The verdict is ineffective, but it came from ValidateAsync, not from a test. The outcome
+		// says no test ran; the finding itself is carried on Exceptions, where it belongs.
+		result.Outcome.ShouldBe(TestOutcome.NotTested);
+		result.ExceptionsFound.ShouldBeNull();
+		result.Exceptions.Count.ShouldBe(1);
 	}
 
 	[Fact]
@@ -372,7 +384,12 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.RunTestAsync("SEC-001", parameters, CancellationToken.None);
 
 		// Assert
-		result.ItemsTested.ShouldBe(50);
+		// This arm required the defect by name: RunTestAsync forwards a ValidateAsync verdict and
+		// samples nothing, so reporting the REQUESTED size (50) told an assessor 50 items had been
+		// examined when none had. The requested size is still on Parameters, where it is a request
+		// rather than a measurement.
+		result.ItemsTested.ShouldBe(0);
+		result.Parameters.SampleSize.ShouldBe(50);
 	}
 
 	#endregion RunTestAsync Tests (inherited from BaseControlValidator)

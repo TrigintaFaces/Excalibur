@@ -4,7 +4,7 @@
 **Standard:** HIPAA (Health Insurance Portability and Accountability Act)
 **Focus:** Security Rule + Privacy Rule technical safeguards
 **Status:** Framework capabilities mapped to HIPAA requirements
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-09-12
 
 ---
 
@@ -37,18 +37,18 @@ This checklist provides step-by-step guidance for HIPAA compliance preparation u
 
 | Standard | Implementation Spec | R/A | Framework Implementation | Consumer Action | Evidence Location |
 |----------|---------------------|-----|--------------------------|-----------------|-------------------|
-| **§164.312(a)(1)** | Access Control | R | ✅ `[RequirePermission]`, RBAC | Configure access controls | `docs/advanced/security.md:15-78` |
-| **§164.312(a)(2)(i)** | Unique User ID | R | ✅ User identity in audit logs | Assign unique user IDs | `docs/security/audit-logging.md` |
+| **§164.312(a)(1)** | Access Control | R | ✅ `[RequirePermission]`, RBAC | Configure access controls | [Authorization](../../advanced/security.md#authorization) |
+| **§164.312(a)(2)(i)** | Unique User ID | R | ✅ User identity in audit logs | Assign unique user IDs | [Audit event properties](../../security/audit-logging.md#event-properties) |
 | **§164.312(a)(2)(ii)** | Emergency Access | R | ⚠️ Partial | Configure emergency procedures | Business policy |
 | **§164.312(a)(2)(iii)** | Automatic Logoff | A | ⚠️ Partial | Configure session timeouts | Application configuration |
-| **§164.312(a)(2)(iv)** | Encryption & Decryption | A | ✅ AES-256-GCM (`IEncryptionProvider`) | Enable encryption | `docs/advanced/security.md:170-213` |
-| **§164.312(b)** | Audit Controls | R | ✅ `IAuditLogger` (tamper-evident) | Configure audit logging | `docs/security/audit-logging.md` |
-| **§164.312(c)(1)** | Integrity | R | ✅ Hash chain, versioning | Verify integrity controls | `docs/security/audit-logging.md` |
+| **§164.312(a)(2)(iv)** | Encryption & Decryption | A | ✅ AES-256-GCM (`IEncryptionProvider`) | Enable encryption | [AES-256-GCM encryption](../../security/encryption-architecture.md#aes-256-gcm-encryption) |
+| **§164.312(b)** | Audit Controls | R | ✅ `IAuditLogger` (tamper-evident) | Configure audit logging | [Audit logging](../../security/audit-logging.md#hipaa-164312b) |
+| **§164.312(c)(1)** | Integrity | R | ✅ Hash chain, versioning | Verify integrity controls | [Hash chain integrity](../../security/audit-logging.md#hash-chain-integrity) |
 | **§164.312(c)(2)** | Mechanism to Authenticate | A | ✅ Digital signatures, HMAC | Configure authentication | Business policy |
-| **§164.312(d)** | Person/Entity Authentication | R | ✅ OAuth2, JWT, password hashing | Configure authentication | `docs/advanced/security.md:80-125` |
-| **§164.312(e)(1)** | Transmission Security | R | ✅ TLS 1.2+ | Configure TLS | `docs/advanced/security.md:127-168` |
+| **§164.312(d)** | Person/Entity Authentication | R | ✅ OAuth2, JWT, password hashing | Configure authentication | [Password hashing](../../advanced/security.md#password-hashing) |
+| **§164.312(e)(1)** | Transmission Security | R | ✅ TLS 1.2+ | Configure TLS | [Transport encryption](../../advanced/security.md#transport-encryption) |
 | **§164.312(e)(2)(i)** | Integrity Controls | A | ✅ Message signing, checksums | Verify transmission integrity | Business policy |
-| **§164.312(e)(2)(ii)** | Encryption | A | ✅ TLS 1.2+ | Enable TLS | `docs/security/transport-security.md` |
+| **§164.312(e)(2)(ii)** | Encryption | A | ✅ TLS 1.2+ | Enable TLS | [Transport encryption](../../advanced/security.md#transport-encryption) |
 
 **Legend:**
 - **R** = Required
@@ -300,7 +300,7 @@ public class UpdatePatientRecordAction : IDispatchAction
 - [ ] Test authorization enforcement (unauthorized access denied)
 
 **Evidence:**
-- `docs/advanced/security.md:15-78` - Authorization guide
+- [Authorization](../../advanced/security.md#authorization) - Authorization guide
 - Permission catalog (roles and permissions)
 - Unit tests for authorization
 - Access control policy documentation
@@ -410,7 +410,9 @@ public class PatientRecord
 {
     public Guid Id { get; set; }
 
-    [PersonalData]  // Encrypted at rest
+    [PersonalData]  // [PersonalData] is encrypted ONLY on a record that also carries [DataSubjectId],
+    // and only on a path you wire (crypto-shredding / the encrypting event-store decorator).
+    // A record with no [DataSubjectId] member is left in cleartext.
     public string FirstName { get; set; }
 
     [PersonalData]
@@ -434,13 +436,13 @@ public class PatientRecord
 - [ ] Document encryption configuration
 
 **Evidence:**
-- `docs/advanced/security.md:170-213` - Encryption guide
+- [Encryption architecture](../../security/encryption-architecture.md) - Encryption guide
 - Encryption verification tests
 - Key management procedures
 - Database inspection (encrypted values)
 
 **SSP Statement:**
-> "§164.312(a)(2)(iv) Encryption and Decryption is satisfied through AES-256-GCM encryption at rest using the Excalibur framework. All ePHI fields are annotated with `[PersonalData]` and automatically encrypted. Encryption keys are managed via Azure Key Vault with 90-day rotation."
+> "§164.312(a)(2)(iv) Encryption and Decryption is satisfied through AES-256-GCM encryption at rest using the Excalibur framework. ePHI fields are annotated with `[PersonalData]` on records that also carry `[DataSubjectId]`, and are encrypted once crypto-shredding is registered. Encryption keys are managed via Azure Key Vault with 90-day rotation."
 
 #### 4.2 Audit Controls (§164.312(b)) [REQUIRED]
 
@@ -529,19 +531,17 @@ public class PatientRecordService
 - Configuration changes (roles, permissions)
 
 **Evidence:**
-- `docs/security/audit-logging.md` - Audit logging guide
+- [Audit logging](../../security/audit-logging.md) - Audit logging guide
 - Audit log samples (anonymized)
 - Audit log retention policy (6 years)
 - Hash chain integrity verification tests
-- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit` — 30 available)
+- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit`)
 
-:::caution The audit kit's SQL binding is partial
-Of this kit's 30 arms, **10 are wired on real SQL Server and real PostgreSQL**; the other 20 run
-against the in-memory store only. The 10 that do run on the SQL providers are the load-bearing ones
-for this control — chain integrity over an intact trail, violation detection when a record is
-rewritten, violation detection when a record is deleted from the middle, and the cross-tenant read
-arms. Cite that specifically. Do not cite "the audit conformance kit passes against our database",
-because two thirds of it did not run there.
+:::caution Wrapped is not run
+The kit is bound against real SQL Server and real PostgreSQL, not the in-memory store alone. **That
+evidences our schema and our configuration, not your deployment** — our suites run against a disposable
+container. Cite the arms *your* run executed and passed against *your* database, not the bindings we
+ship.
 :::
 
 
@@ -602,6 +602,14 @@ public class Patient : AggregateRoot
 
 **Code Example:**
 
+:::tip The framework ships this
+
+You do not need to hand-roll message authentication. `services.AddMessageSigning(...)` registers
+`MessageSigningMiddleware`, which signs outbound messages and verifies inbound ones through
+`HmacMessageSigningService` — which compares in constant time and takes its key from your key
+management rather than a string field. The example below is shown only to illustrate the control.
+:::
+
 ```csharp
 // HMAC for message authentication
 public class MessageAuthenticationService
@@ -617,8 +625,10 @@ public class MessageAuthenticationService
 
     public bool VerifyHMAC(string message, string receivedHMAC)
     {
-        var computedHMAC = ComputeHMAC(message);
-        return computedHMAC == receivedHMAC;
+        // Constant-time: a `==` on two Base64 strings leaks the match position by timing.
+        return CryptographicOperations.FixedTimeEquals(
+            Convert.FromBase64String(ComputeHMAC(message)),
+            Convert.FromBase64String(receivedHMAC));
     }
 }
 ```
@@ -682,7 +692,7 @@ services.AddAuthentication("Bearer")
 - [ ] Document authentication procedures
 
 **Evidence:**
-- `docs/advanced/security.md:80-125` - Password management guide
+- [Password hashing](../../advanced/security.md#password-hashing) - Password management guide
 - Authentication configuration
 - MFA enforcement verification
 - Password policy documentation
@@ -733,8 +743,8 @@ nmap --script ssl-enum-ciphers -p 443 yourdomain.com
 ```
 
 **Evidence:**
-- `docs/advanced/security.md:127-168` - TLS configuration guide
-- `docs/security/transport-security.md` - Transport security guide
+- [Transport encryption](../../advanced/security.md#transport-encryption) - TLS configuration guide
+- [Transport encryption](../../advanced/security.md#transport-encryption) - Transport security guide
 - TLS scan results (testssl.sh output)
 - Certificate configuration
 
@@ -764,7 +774,11 @@ public class TransmissionIntegrityService
     public bool VerifyIntegrity(byte[] data, string expectedChecksum)
     {
         var actualChecksum = ComputeChecksum(data);
-        return actualChecksum == expectedChecksum;
+        // Constant-time comparison; and note a bare checksum is unkeyed, so it detects
+        // corruption but not tampering. Prefer the keyed HMAC above for §164.312(e)(2)(i).
+        return CryptographicOperations.FixedTimeEquals(
+            Convert.FromBase64String(actualChecksum),
+            Convert.FromBase64String(expectedChecksum));
     }
 }
 ```
@@ -830,7 +844,7 @@ public class TransmissionIntegrityService
 
 **Framework Provides:**
 - Technical safeguards (access control, audit, encryption, authentication, transmission security)
-- Conformance test kits (Audit, Erasure, LegalHold, DataInventory — 92 arms available to wrap; the count that evidences a control is the one your own run executed)
+- Conformance test kits (Audit, Erasure, LegalHold, DataInventory; the count that evidences a control is the one your own run executed)
 - Evidence collection (audit logs, encryption verification)
 
 **Consumer Must Implement:**
@@ -892,20 +906,21 @@ public class TransmissionIntegrityService
 ### Primary Evidence
 
 **Framework Implementation:**
-- `docs/advanced/security.md` - Comprehensive security guide (883 lines)
-- `docs/security/audit-logging.md` - Audit logging guide
-- `docs/security/transport-security.md` - TLS configuration
-- `docs/security/gdpr-compliance.md` - Erasure (right to access/deletion)
+- [Security guide](../../advanced/security.md) - Encryption, authorization, audit, password hashing, TLS
+- [Audit logging](../../security/audit-logging.md) - Audit logging guide
+- [Transport encryption](../../advanced/security.md#transport-encryption) - TLS configuration
+- [GDPR erasure](../gdpr-erasure.md) - Erasure (right to access/deletion)
 
 **Conformance Test Results:**
-- `AuditStoreConformanceTestKit` — 30 arms - §164.312(b) *(10 of the 30 are wired on real SQL Server and PostgreSQL — the chain-integrity and tenant-isolation arms; the rest run against in-memory only)*
-- `ErasureStoreConformanceTestKit` — 24 arms - Secure disposal
+- `AuditStoreConformanceTestKit` - §164.312(b)
+- `ErasureStoreConformanceTestKit` - Secure disposal
 - Encryption verification tests - §164.312(a)(2)(iv), §164.312(e)(2)(ii)
 
-The kits carry no test attributes, so an arm is not executed until you declare an attributed
-wrapper for it in your derived class. The counts above describe what the shipped kit offers, not
-what your suite verified. **Record the executed and passed count from your own run and attach its
-output** — that, not the arm count, is what evidences the control.
+**No arm count is published here, deliberately.** The kits carry no test attributes, so an arm is not
+executed until you declare an attributed wrapper for it in your derived class — any number we print is
+ours at some past moment and describes what a kit *offers*, never what your suite verified. **Record the
+executed and passed count from your own run and attach its output**; that is what evidences the
+control.
 
 **Audit Evidence:**
 - Audit log samples (PHI access, modifications, deletions)
@@ -996,6 +1011,5 @@ output** — that, not the arm count, is what evidences the control.
 
 ---
 
-**Last Updated:** 2026-01-01
-**Next Review:** 2026-04-01
-**Status:** HIPAA checklist COMPLETE ✅
+**Last Updated:** 2026-09-12
+**Document status:** every safeguard in scope is walked through below. **This describes the document, not your compliance posture** — the controls you may inherit are marked per row; the rest are yours to implement and evidence.

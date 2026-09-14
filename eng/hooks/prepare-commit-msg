@@ -31,3 +31,16 @@ if command -v bd >/dev/null 2>&1; then
   if [ $_bd_exit -ne 0 ]; then exit $_bd_exit; fi
 fi
 # --- END BEADS INTEGRATION v1.1.0 ---
+
+# --- gate bypass disclosure ---------------------------------------------------
+# pre-commit drops a marker when a gate was deliberately bypassed. Append it here so the
+# bypass is a permanent, greppable fact (git log --grep="Gate-Bypassed") instead of an
+# env var that vanished. A bypass nobody can find afterwards reads exactly like a PASS.
+_gb="$(git rev-parse --git-path gate-bypass-trailer 2>/dev/null)"
+if [ -n "$_gb" ] && [ -f "$_gb" ]; then
+    if [ -n "$1" ] && [ -f "$1" ] && ! grep -q '^Gate-Bypassed:' "$1" 2>/dev/null; then
+        cat "$_gb" >> "$1"
+    fi
+    rm -f "$_gb"
+fi
+# --- end gate bypass disclosure -----------------------------------------------

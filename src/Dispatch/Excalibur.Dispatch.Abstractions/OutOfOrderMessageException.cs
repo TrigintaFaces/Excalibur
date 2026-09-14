@@ -10,10 +10,12 @@ namespace Excalibur.Dispatch;
 /// i.e. an out-of-order or duplicate delivery.
 /// </summary>
 /// <remarks>
-/// Ordering validation is an opt-in feature: it only enforces when a first-party transport (or the
-/// consumer) has stamped a monotonic sequence via
-/// <see cref="OrderingContextExtensions.SetOrderingSequence(IMessageContext, long, string?)"/>. When
-/// enabled it fails <strong>closed</strong> — a message that would violate per-key ordering is rejected
+/// Ordering validation is opt-in, and enforces on messages that entered a receive path where ordering
+/// applies — recorded by
+/// <see cref="OrderingContextExtensions.MarkOrderingEnforced(IMessageContext)"/>, which the stamping
+/// seam calls. For such a message it fails <strong>closed</strong> in both directions: a sequence that
+/// would violate per-key ordering is rejected, and so is a MISSING sequence, since the transport was
+/// expected to supply one. A message outside that scope is not checked at all. A rejection is raised
 /// by throwing this exception rather than being processed out of order. Consumers that opt into ordering
 /// can catch this to divert the message (e.g. to a re-sequencing buffer or dead-letter path).
 /// </remarks>

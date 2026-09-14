@@ -58,6 +58,7 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="NCrontab" />
+    <PackageReference Include="Polly" />
     <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="OpenTelemetry.Api" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />

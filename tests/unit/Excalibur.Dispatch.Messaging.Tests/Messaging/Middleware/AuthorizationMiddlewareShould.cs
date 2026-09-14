@@ -174,7 +174,7 @@ public sealed class AuthorizationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
 			A<IMessageContext>._,
@@ -212,7 +212,7 @@ public sealed class AuthorizationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
 			A<IMessageContext>._,
@@ -269,7 +269,7 @@ public sealed class AuthorizationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		// Authorization service should not be called when anonymous access is allowed and no subject
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
@@ -320,7 +320,7 @@ public sealed class AuthorizationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
 			A<IMessageContext>._,
@@ -346,7 +346,7 @@ public sealed class AuthorizationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
 			A<IMessageContext>._,
@@ -370,7 +370,7 @@ public sealed class AuthorizationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		// GetItem is now an extension method reading from Items dictionary -- cannot intercept with FakeItEasy.
 		// The bypass behavior is verified by confirming the auth service was never called
 		// and the result is successful despite no subject being present.

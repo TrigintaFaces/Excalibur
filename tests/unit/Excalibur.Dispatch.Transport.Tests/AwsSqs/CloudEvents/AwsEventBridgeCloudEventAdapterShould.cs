@@ -4,8 +4,6 @@
 #pragma warning disable IL2026 // RequiresUnreferencedCode
 #pragma warning disable IL3050 // RequiresDynamicCode
 
-using Amazon.EventBridge.Model;
-
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.CloudEvents;
@@ -92,24 +90,6 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 	}
 
 	[Fact]
-	public async Task PreserveCustomExtensionAttributes_AcrossRoundTrip()
-	{
-		var cloudEvent = new CloudEvent
-		{
-			Type = "order.created",
-			Source = new Uri("https://test.excalibur.io"),
-			Id = "evt-2",
-		};
-		cloudEvent["tenantid"] = "acme";
-
-		var ct = TestContext.Current.CancellationToken;
-		var entry = await _adapter.ToTransportMessageAsync(cloudEvent, CloudEventMode.Structured, ct);
-		var restored = await _adapter.FromTransportMessageAsync(entry, ct);
-
-		restored["tenantid"].ShouldBe("acme");
-	}
-
-	[Fact]
 	public void ExposeOptions()
 	{
 		_adapter.Options.ShouldNotBeNull();
@@ -148,86 +128,6 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 	}
 
 	[Fact]
-	public async Task ThrowWhenTransportMessageIsNullForFromTransport()
-	{
-		await Should.ThrowAsync<ArgumentNullException>(
-			() => _adapter.FromTransportMessageAsync(
-				(PutEventsRequestEntry)null!, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task DetectStructuredModeFromJsonWithSpecVersion()
-	{
-		// Arrange
-		var entry = new PutEventsRequestEntry
-		{
-			Detail = """{"specversion":"1.0","type":"test","id":"1","source":"https://src"}""",
-		};
-
-		// Act
-		var mode = await AwsEventBridgeCloudEventAdapter.TryDetectMode(entry, CancellationToken.None);
-
-		// Assert
-		mode.ShouldBe(CloudEventMode.Structured);
-	}
-
-	[Fact]
-	public async Task DetectBinaryModeWhenDetailIsEmpty()
-	{
-		// Arrange
-		var entry = new PutEventsRequestEntry
-		{
-			Detail = "",
-		};
-
-		// Act
-		var mode = await AwsEventBridgeCloudEventAdapter.TryDetectMode(entry, CancellationToken.None);
-
-		// Assert
-		mode.ShouldBe(CloudEventMode.Binary);
-	}
-
-	[Fact]
-	public async Task DetectBinaryModeWhenDetailIsNotCloudEventsJson()
-	{
-		// Arrange
-		var entry = new PutEventsRequestEntry
-		{
-			Detail = """{"key":"value"}""",
-		};
-
-		// Act
-		var mode = await AwsEventBridgeCloudEventAdapter.TryDetectMode(entry, CancellationToken.None);
-
-		// Assert
-		mode.ShouldBe(CloudEventMode.Binary);
-	}
-
-	[Fact]
-	public async Task DetectBinaryModeWhenDetailIsInvalidJson()
-	{
-		// Arrange
-		var entry = new PutEventsRequestEntry
-		{
-			Detail = "not json at all",
-		};
-
-		// Act
-		var mode = await AwsEventBridgeCloudEventAdapter.TryDetectMode(entry, CancellationToken.None);
-
-		// Assert
-		mode.ShouldBe(CloudEventMode.Binary);
-	}
-
-	[Fact]
-	public async Task ThrowWhenMessageIsNullForTryDetectMode()
-	{
-		await Should.ThrowAsync<ArgumentNullException>(
-			() => AwsEventBridgeCloudEventAdapter.TryDetectMode(
-				(PutEventsRequestEntry)null!, CancellationToken.None).AsTask());
-	}
-
-	[Fact]
 	public async Task ConvertToEventBridgeEventWithBusName()
 	{
 		// Arrange
@@ -260,32 +160,6 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 		await Should.ThrowAsync<ArgumentException>(
 			() => _adapter.ToEventBridgeEventAsync(
 				cloudEvent, "", CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task RoundTripStructuredCloudEvent()
-	{
-		// Arrange
-		var original = new CloudEvent
-		{
-			Type = "test.roundtrip",
-			Source = new Uri("https://source.example.com"),
-			Id = "roundtrip-1",
-			Data = "round trip data",
-			DataContentType = "text/plain",
-		};
-
-		// Act — serialize to EventBridge entry
-		var entry = await _adapter.ToTransportMessageAsync(
-			original, CloudEventMode.Structured, CancellationToken.None);
-
-		// Deserialize back
-		var deserialized = await _adapter.FromTransportMessageAsync(
-			entry, CancellationToken.None);
-
-		// Assert
-		deserialized.Type.ShouldBe("test.roundtrip");
-		deserialized.Id.ShouldBe("roundtrip-1");
 	}
 
 	[Fact]

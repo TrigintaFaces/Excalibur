@@ -45,9 +45,11 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		_defaultMiddleware = CreateMiddleware(new TimeoutOptions());
 	}
 
-	public async ValueTask DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
-		await _defaultMiddleware.DisposeAsync().ConfigureAwait(false);
+		// TimeoutMiddleware holds nothing that needs releasing, so it no longer implements
+		// IAsyncDisposable. Nothing to dispose here.
+		return ValueTask.CompletedTask;
 	}
 
 	private TimeoutMiddleware CreateMiddleware(TimeoutOptions options)
@@ -145,7 +147,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task PassThroughDirectly_WhenDisabled()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions { Enabled = false });
+		var middleware = CreateMiddleware(new TimeoutOptions { Enabled = false });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-msg-1" };
 		var nextCalled = false;
@@ -161,7 +163,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -172,7 +174,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task CallNextDelegate_WhenWithinTimeout()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromSeconds(30),
@@ -192,14 +194,14 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task ReturnResult_FromNextDelegate()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions { Enabled = true });
+		var middleware = CreateMiddleware(new TimeoutOptions { Enabled = true });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-msg-1" };
 		var expectedResult = MessageResult.Failed("expected error");
@@ -222,7 +224,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task ThrowMessageTimeoutException_WhenTimeoutExceeded_AndThrowOnTimeoutIsTrue()
 	{
 		// Arrange — use 200ms timeout with long-running task to avoid flaky races under load
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromMilliseconds(200),
@@ -248,7 +250,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task ReturnTimeoutResult_WhenTimeoutExceeded_AndThrowOnTimeoutIsFalse()
 	{
 		// Arrange — use 200ms timeout with long-running task to avoid flaky races under load
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromMilliseconds(200),
@@ -269,7 +271,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 		result.ErrorMessage!.ShouldContain("timed out");
 	}
@@ -278,7 +280,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task SetTimeoutContextItems_WhenTimeoutExceeded()
 	{
 		// Arrange — use 200ms timeout with long-running task to avoid flaky races under load
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromMilliseconds(200),
@@ -312,7 +314,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task UseConfiguredTimeout()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromMilliseconds(100),
@@ -333,14 +335,14 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert - should succeed because we finished within the timeout
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task UseContextOverrideTimeout_WhenPresent()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromMilliseconds(50),
@@ -363,7 +365,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -378,7 +380,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		};
 		options.MessageTypeTimeouts["FakeDispatchMessage"] = TimeSpan.FromSeconds(30);
 
-		await using var middleware = CreateMiddleware(options);
+		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-msg-1" };
 
@@ -394,14 +396,14 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task UseActionTimeout_ForActionMessages()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			ActionTimeout = TimeSpan.FromSeconds(30),
@@ -423,14 +425,14 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task UseEventTimeout_ForEventMessages()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			EventTimeout = TimeSpan.FromSeconds(120),
@@ -452,7 +454,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -463,7 +465,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task PropagateCancellationToken_ThroughLinkedSource()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromSeconds(30),
@@ -491,7 +493,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task RethrowOperationCanceledException_WhenExternalCancellation()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromSeconds(30),
@@ -522,7 +524,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task RethrowNonTimeoutExceptions()
 	{
 		// Arrange
-		await using var middleware = CreateMiddleware(new TimeoutOptions { Enabled = true });
+		var middleware = CreateMiddleware(new TimeoutOptions { Enabled = true });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-msg-1" };
 
@@ -542,7 +544,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public async Task IncludeMessageId_InTimeoutException()
 	{
 		// Arrange — use 200ms timeout with long-running task to avoid flaky races under load
-		await using var middleware = CreateMiddleware(new TimeoutOptions
+		var middleware = CreateMiddleware(new TimeoutOptions
 		{
 			Enabled = true,
 			DefaultTimeout = TimeSpan.FromMilliseconds(200),
@@ -574,15 +576,6 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 
 	#region IAsyncDisposable Tests
 
-	[Fact]
-	public async Task DisposeWithoutError()
-	{
-		// Arrange
-		var middleware = CreateMiddleware(new TimeoutOptions());
-
-		// Act & Assert - should not throw
-		await middleware.DisposeAsync().ConfigureAwait(false);
-	}
 
 	#endregion
 

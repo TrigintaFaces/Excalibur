@@ -201,7 +201,7 @@ var record = new ImportRecord(
 
 ## Extension Methods
 
-The `AsyncEnumerableChunkExtensions` class provides methods for working with `IAsyncEnumerable<T>` streams.
+The `ChunkExtensions` class provides methods for working with `IAsyncEnumerable<T>` streams.
 
 ### WithChunkInfo
 

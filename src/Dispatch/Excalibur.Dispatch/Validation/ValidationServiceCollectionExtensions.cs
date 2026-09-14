@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Validation;
 
@@ -53,6 +54,13 @@ public static class ValidationServiceCollectionExtensions
 
 		services.TryAddSingleton<IValidatorResolver, NoOpValidatorResolver>();
 		services.TryAddSingleton<Excalibur.Dispatch.Middleware.Validation.IMessageValidationService, NoOpValidationService>();
+
+		// Union in as IDispatchMiddleware -- the same shape AddOrderingValidation already uses -- so the
+		// pipeline picks this up whether the consumer wired it through UseValidation() or called this
+		// bare Add form directly. Without this line the middleware only ran via UseValidation()'s explicit
+		// UseMiddleware<T>() call, so a consumer who wrote AddDispatchValidation() beside AddDispatch(...)
+		// got a clean build and no validation on any message, ever.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, ValidationMiddleware>());
 
 		return services;
 	}

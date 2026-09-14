@@ -92,8 +92,10 @@ public sealed class TieredStorageWiringShould
         var hotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>());
         var services = NewTieredServices(hotStore);
 
-        // Mirror EventSourcingServiceCollectionExtensions:72 — the non-keyed IEventStore delegates to keyed "default".
-        services.TryAddSingleton<IEventStore>(sp => sp.GetRequiredKeyedService<IEventStore>("default"));
+        // 2modyg — the non-keyed alias comes from the SHIPPED registration path, never hand-added here.
+        // Hand-adding it made arm (2) below vacuous: the lock supplied the very alias it was asserting,
+        // so dropping AddKeyedDefaultAlias<IEventStore>() from production would have left this GREEN.
+        _ = services.AddExcaliburEventSourcing();
 
         _ = new ExcaliburEventSourcingBuilder(services).UseTieredStorage(_ => { });
         using var provider = services.BuildServiceProvider();
@@ -131,7 +133,7 @@ public sealed class TieredStorageWiringShould
         _ = services.AddKeyedSingleton("default", hotStore);
         _ = services.AddSingleton(coldStore);
         _ = services.AddSingleton<ILogger<TieredEventStoreDecorator>>(NullLogger<TieredEventStoreDecorator>.Instance);
-        services.TryAddSingleton<IEventStore>(sp => sp.GetRequiredKeyedService<IEventStore>("default"));
+        _ = services.AddExcaliburEventSourcing();
         _ = new ExcaliburEventSourcingBuilder(services).UseTieredStorage(_ => { });
 
         using var provider = services.BuildServiceProvider();

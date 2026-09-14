@@ -40,7 +40,7 @@ var app = builder.Build();
 app.MapPost("/greet", async (GreetAction action, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(action, ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.Ok("Greeted!")
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
@@ -50,7 +50,7 @@ app.MapGet("/greet/{name}", async (string name, IDispatcher dispatcher, Cancella
 {
     // TResponse (string) inferred from IDispatchAction<string>
     var result = await dispatcher.DispatchAsync(new GetGreetingQuery(name), ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.Ok(result.ReturnValue)
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
@@ -147,7 +147,7 @@ var app = builder.Build();
 app.MapPost("/counters", async (IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new CreateCounterAction(), ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.Created($"/counters/{result.ReturnValue}", new { Id = result.ReturnValue })
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
@@ -157,7 +157,7 @@ app.MapPost("/counters/{id:guid}/increment", async (
     Guid id, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new IncrementCounterAction(id), ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.NoContent()
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
@@ -266,7 +266,7 @@ var app = builder.Build();
 app.MapPost("/process", async (ProcessRequest req, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new ProcessDataAction(req.Data), ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.Accepted()
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
@@ -353,7 +353,7 @@ var app = builder.Build();
 app.MapPost("/todos", async (CreateTodoRequest req, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new CreateTodoAction(req.Title), ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.Created($"/todos/{result.ReturnValue}", new { Id = result.ReturnValue })
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
@@ -362,7 +362,7 @@ app.MapPost("/todos/{id:guid}/complete", async (
     Guid id, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new CompleteTodoAction(id), ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.NoContent()
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });

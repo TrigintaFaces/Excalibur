@@ -50,7 +50,7 @@ public sealed class CacheResilienceOptionsShould : UnitTestBase
 		var options = new CacheResilienceOptions();
 
 		// Assert
-		options.CircuitBreaker.OpenDuration.ShouldBe(TimeSpan.FromSeconds(30));
+		options.CircuitBreaker.BreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -157,9 +157,9 @@ public sealed class CacheResilienceOptionsShould : UnitTestBase
 
 		// Act
 		var options = new CacheResilienceOptions();
-		options.CircuitBreaker.OpenDuration = duration;
+		options.CircuitBreaker.BreakDuration = duration;
 
 		// Assert
-		options.CircuitBreaker.OpenDuration.ShouldBe(duration);
+		options.CircuitBreaker.BreakDuration.ShouldBe(duration);
 	}
 }

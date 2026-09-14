@@ -16,8 +16,8 @@ public sealed class CircuitBreakerPolicyShould
         new(
             options ?? new CircuitBreakerOptions
             {
-                FailureThreshold = 3,
-                OpenDuration = TimeSpan.FromSeconds(30)
+                ConsecutiveFailureThreshold = 3,
+                BreakDuration = TimeSpan.FromSeconds(30)
             },
             name: "test-circuit",
             logger: NullLogger<CircuitBreakerPolicy>.Instance);
@@ -51,8 +51,8 @@ public sealed class CircuitBreakerPolicyShould
     {
         var sut = CreateSut(new CircuitBreakerOptions
         {
-            FailureThreshold = 2,
-            OpenDuration = TimeSpan.FromMinutes(5)
+            ConsecutiveFailureThreshold = 2,
+            BreakDuration = TimeSpan.FromMinutes(5)
         });
 
         // Record failures to exceed threshold
@@ -77,8 +77,8 @@ public sealed class CircuitBreakerPolicyShould
     {
         var sut = CreateSut(new CircuitBreakerOptions
         {
-            FailureThreshold = 1,
-            OpenDuration = TimeSpan.FromMinutes(5)
+            ConsecutiveFailureThreshold = 1,
+            BreakDuration = TimeSpan.FromMinutes(5)
         });
 
         // Trip the circuit
@@ -101,8 +101,8 @@ public sealed class CircuitBreakerPolicyShould
     {
         var sut = CreateSut(new CircuitBreakerOptions
         {
-            FailureThreshold = 3,
-            OpenDuration = TimeSpan.FromSeconds(30)
+            ConsecutiveFailureThreshold = 3,
+            BreakDuration = TimeSpan.FromSeconds(30)
         });
 
         // Record some failures (not enough to open)
@@ -128,8 +128,8 @@ public sealed class CircuitBreakerPolicyShould
     {
         var sut = CreateSut(new CircuitBreakerOptions
         {
-            FailureThreshold = 10,
-            OpenDuration = TimeSpan.FromSeconds(30)
+            ConsecutiveFailureThreshold = 10,
+            BreakDuration = TimeSpan.FromSeconds(30)
         });
 
         await sut.FailAsync(new InvalidOperationException("fail1"));
@@ -143,14 +143,14 @@ public sealed class CircuitBreakerPolicyShould
     {
         var sut = CreateSut(new CircuitBreakerOptions
         {
-            FailureThreshold = 1,
-            OpenDuration = TimeSpan.FromSeconds(30)
+            ConsecutiveFailureThreshold = 1,
+            BreakDuration = TimeSpan.FromSeconds(30)
         });
 
         await sut.FailAsync(new InvalidOperationException("fail"));
         sut.State.ShouldBe(CircuitState.Open);
 
-        sut.Reset();
+        await sut.ResetAsync(CancellationToken.None).ConfigureAwait(false);
 
         sut.State.ShouldBe(CircuitState.Closed);
         sut.ConsecutiveFailures.ShouldBe(0);
@@ -182,8 +182,8 @@ public sealed class CircuitBreakerPolicyShould
         var sut = new CircuitBreakerPolicy(
             new CircuitBreakerOptions
             {
-                FailureThreshold = 1,
-                OpenDuration = TimeSpan.FromSeconds(30)
+                ConsecutiveFailureThreshold = 1,
+                BreakDuration = TimeSpan.FromSeconds(30)
             },
             name: "filtered",
             shouldHandle: ex => ex is TimeoutException);

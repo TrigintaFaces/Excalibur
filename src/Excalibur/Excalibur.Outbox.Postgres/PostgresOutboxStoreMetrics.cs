@@ -16,7 +16,6 @@ public sealed class PostgresOutboxStoreMetrics : IDisposable
 	private readonly Meter _meter;
 	private readonly Histogram<double> _saveMessagesTime;
 	private readonly Histogram<double> _reserveMessagesTime;
-	private readonly Histogram<double> _unreserveMessagesTime;
 	private readonly Histogram<double> _deleteRecordTime;
 	private readonly Histogram<double> _increaseAttemptsTime;
 	private readonly Histogram<double> _moveToDeadLetterTime;
@@ -44,11 +43,6 @@ public sealed class PostgresOutboxStoreMetrics : IDisposable
 			"excalibur.outbox.reserve_messages_duration",
 			"ms",
 			"Time taken to reserve outbox messages");
-
-		_unreserveMessagesTime = _meter.CreateHistogram<double>(
-			"excalibur.outbox.unreserve_messages_duration",
-			"ms",
-			"Time taken to unreserve outbox messages");
 
 		_deleteRecordTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.delete_record_duration",
@@ -126,24 +120,6 @@ public sealed class PostgresOutboxStoreMetrics : IDisposable
 		_operationsCompleted.Add(
 			1,
 			new KeyValuePair<string, object?>("operation", "reserve"));
-	}
-
-	/// <summary>
-	/// Records the duration of an unreserve messages operation.
-	/// </summary>
-	/// <param name="durationMs"> Duration of the operation in milliseconds. </param>
-	/// <param name="messageCount"> Number of messages unreserved. </param>
-	public void RecordUnreserveMessages(double durationMs, int messageCount)
-	{
-		_unreserveMessagesTime.Record(
-			durationMs,
-			new KeyValuePair<string, object?>("operation", "unreserve"));
-		_messagesProcessed.Add(
-			messageCount,
-			new KeyValuePair<string, object?>("operation", "unreserve"));
-		_operationsCompleted.Add(
-			1,
-			new KeyValuePair<string, object?>("operation", "unreserve"));
 	}
 
 	/// <summary>

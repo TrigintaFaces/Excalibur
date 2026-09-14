@@ -33,7 +33,7 @@ public sealed class CircuitBreakerRecoveryShould
 	{
 		var clock = new FakeTimeProvider();
 		var policy = new CircuitBreakerPolicy(
-			new CircuitBreakerOptions { FailureThreshold = 1, OpenDuration = OpenFor },
+			new CircuitBreakerOptions { ConsecutiveFailureThreshold = 1, BreakDuration = OpenFor },
 			"recovery",
 			logger: null,
 			shouldHandle: null,

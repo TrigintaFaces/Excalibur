@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
@@ -11,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
-using PollyRetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 
@@ -136,8 +134,8 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		// Act
 		var result = services.AddPollyCircuitBreaker(name, options =>
 		{
-			options.FailureThreshold = 10;
-			options.OpenDuration = TimeSpan.FromMinutes(2);
+			options.MinimumThroughput = 10;
+			options.BreakDuration = TimeSpan.FromMinutes(2);
 		});
 
 		// Assert
@@ -148,8 +146,8 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		optionsMonitor.ShouldNotBeNull();
 
 		var namedOptions = optionsMonitor.Get(name);
-		namedOptions.FailureThreshold.ShouldBe(10);
-		namedOptions.OpenDuration.ShouldBe(TimeSpan.FromMinutes(2));
+		namedOptions.MinimumThroughput.ShouldBe(10);
+		namedOptions.BreakDuration.ShouldBe(TimeSpan.FromMinutes(2));
 	}
 
 	[Fact]
@@ -213,7 +211,7 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		// Act
 		var result = services.AddPollyRetryPolicy(name, options =>
 		{
-			options.MaxRetries = 5;
+			options.MaxRetryAttempts = 5;
 			options.BaseDelay = TimeSpan.FromSeconds(2);
 		});
 
@@ -225,7 +223,7 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		optionsMonitor.ShouldNotBeNull();
 
 		var namedOptions = optionsMonitor.Get(name);
-		namedOptions.MaxRetries.ShouldBe(5);
+		namedOptions.MaxRetryAttempts.ShouldBe(5);
 		namedOptions.BaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
 	}
 
@@ -286,7 +284,6 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 
 		var namedOptions = optionsMonitor.Get(name);
 		namedOptions.UseJitter.ShouldBeTrue();
-		namedOptions.JitterStrategy.ShouldBe(JitterStrategy.Equal);
 	}
 
 	[Fact]
@@ -298,10 +295,14 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		const string name = "CustomJitterPolicy";
 
 		// Act
+		// UseJitter is the ordering probe now that JitterStrategy is gone: the method sets it true as a
+		// default BEFORE invoking this lambda, so a false here can only survive if custom configuration
+		// really is applied afterwards. Asserting a property the defaults never touch would not
+		// discriminate ordering at all.
 		var result = services.AddRetryPolicyWithJitter(name, options =>
 		{
-			options.JitterStrategy = JitterStrategy.Full;
-			options.MaxRetries = 7;
+			options.UseJitter = false;
+			options.MaxRetryAttempts = 7;
 		});
 
 		// Assert
@@ -309,15 +310,14 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		var optionsMonitor = provider.GetService<IOptionsMonitor<PollyRetryOptions>>();
 		var namedOptions = optionsMonitor.Get(name);
 
-		// Custom config should override defaults
-		namedOptions.JitterStrategy.ShouldBe(JitterStrategy.Full);
-		namedOptions.MaxRetries.ShouldBe(7);
-		// UseJitter is set before custom config, so it stays true unless explicitly changed
-		namedOptions.UseJitter.ShouldBeTrue();
+		// Custom config should override defaults. UseJitter false is the load-bearing assertion: the
+		// method sets it TRUE before calling the lambda, so false proves the lambda ran afterwards.
+		namedOptions.UseJitter.ShouldBeFalse();
+		namedOptions.MaxRetryAttempts.ShouldBe(7);
 	}
 
 	[Fact]
-	public void AddRetryPolicyWithJitter_RegistersRetryPolicy()
+	public void AddRetryPolicyWithJitter_RegistersAUsableRetryPolicy()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -326,7 +326,9 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		services.AddRetryPolicyWithJitter("test");
 
 		// Assert - Verify descriptor is registered
-		services.Any(d => d.ServiceType == typeof(RetryPolicy)).ShouldBeTrue();
+		services.Any(d => d.ServiceType == typeof(PollyRetryPolicyAdapter)).ShouldBeTrue(
+			"AddRetryPolicyWithJitter must still leave a usable retry policy in the container; "
+			+ "the duplicate concrete RetryPolicy was removed, the wired adapter is what remains.");
 	}
 
 	#endregion

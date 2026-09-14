@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
@@ -15,13 +16,31 @@ namespace Excalibur.EventSourcing.CosmosDb;
 /// <summary>
 /// Change feed subscription for the Cosmos DB event store.
 /// </summary>
+/// <remarks>
+/// <b>Checkpoint key collision.</b> The checkpoint key
+/// (<c>"cosmos-eventstore-{container.Id}"</c>) is derived from the container alone, deliberately stable
+/// and restart-invariant so a restarted subscriber resumes from where it left off rather than replaying
+/// the whole feed. The consequence: two DIFFERENT subscriptions against the SAME container (e.g. two
+/// consumer groups reading the same change feed for different purposes) derive the IDENTICAL key and, if
+/// both checkpoint, silently overwrite each other's saved continuation token — one loses its progress on
+/// every restart. This class detects that at construction time (not merely documents it): while a
+/// checkpointing subscription for a given key is active, a second attempt to construct one for the same
+/// key throws <see cref="InvalidOperationException"/> immediately rather than corrupting the shared
+/// checkpoint later. Only checkpointing subscriptions (<c>checkpointStore</c> supplied) participate —
+/// a non-checkpointing subscription reads nothing that could collide.
+/// </remarks>
 public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscription<CloudStoredEvent>
 {
+	// Process-wide: a collision is possible across any two subscription instances that resolve to the
+	// same container, not merely two constructed from the same CosmosDbEventStore instance.
+	private static readonly ConcurrentDictionary<string, byte> ActiveCheckpointKeys = new(StringComparer.Ordinal);
+
 	private readonly Container _container;
 	private readonly CosmosDbEventStoreOptions _options;
 	private readonly ILogger _logger;
 	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 	private readonly string _checkpointKey;
+	private readonly ChangeFeedCheckpointFailureTracker _checkpointFailures;
 	private readonly CancellationTokenSource _cts = new();
 	private readonly Channel<IChangeFeedEvent<CloudStoredEvent>> _channel;
 
@@ -42,6 +61,11 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 	/// persisted after each batch so the subscription resumes across restarts instead of replaying the
 	/// whole feed from the beginning. When <see langword="null"/> (default), behavior is unchanged.
 	/// </param>
+	/// <exception cref="InvalidOperationException">
+	/// A checkpointing subscription (<paramref name="checkpointStore"/> supplied) already exists for this
+	/// container's checkpoint key and has not yet been disposed. See the class remarks — two such
+	/// subscriptions would silently share and corrupt one saved position.
+	/// </exception>
 	public CosmosDbEventStoreChangeFeedSubscription(
 		Container container,
 		CosmosDbEventStoreOptions options,
@@ -52,10 +76,21 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_checkpointStore = checkpointStore;
+		_checkpointFailures = new ChangeFeedCheckpointFailureTracker(
+			_options.MaxConsecutiveCheckpointFailures > 0 ? _options.MaxConsecutiveCheckpointFailures : 10);
 
 		// Stable, restart-invariant checkpoint key (NOT SubscriptionId, which carries a per-process Guid).
 		_checkpointKey = $"cosmos-eventstore-{container.Id}";
 		SubscriptionId = $"cosmos-eventstore-{Guid.NewGuid():N}";
+
+		if (_checkpointStore is not null && !ActiveCheckpointKeys.TryAdd(_checkpointKey, 0))
+		{
+			throw new InvalidOperationException(
+				$"A checkpointing change-feed subscription already exists for container '{container.Id}' "
+				+ $"(checkpoint key '{_checkpointKey}'). Two subscriptions checkpointing under the same key "
+				+ "would silently overwrite each other's saved position. Dispose the existing subscription "
+				+ "first, or give this one a distinct checkpoint scope.");
+		}
 
 		_channel = Channel.CreateBounded<IChangeFeedEvent<CloudStoredEvent>>(
 			new BoundedChannelOptions(_options.MaxBatchSize * 10)
@@ -74,6 +109,12 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 
 	/// <inheritdoc/>
 	public string? CurrentContinuationToken => _continuationToken;
+
+	/// <inheritdoc/>
+	public bool IsCheckpointDegraded => _checkpointFailures.IsDegraded;
+
+	/// <inheritdoc/>
+	public TimeSpan? CheckpointLag => _checkpointFailures.CheckpointLag;
 
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
@@ -175,11 +216,39 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 
 			// Persist the checkpoint AFTER the consumer has processed the drained batch, so durable
 			// continuation reflects CONSUMER progress (at-least-once) — never the producer's channel
-			// read-ahead. No-op when no store is configured (prior in-memory-only behavior)..
+			// read-ahead. No-op when no store is configured (prior in-memory-only behavior).
+			//
+			// Fails open: a checkpoint-save failure is purely a resumption-optimization failure -- the
+			// batch was already yielded above, so it protects nothing here. The feed's at-least-once
+			// guarantee already requires idempotent handlers, and losing this checkpoint only widens a
+			// future restart's replay, it does not lose data. Tracked and escalated by _checkpointFailures
+			// rather than left silent.
 			if (_checkpointStore is not null && !string.IsNullOrEmpty(lastProcessedToken))
 			{
-				await _checkpointStore.SaveAsync(_checkpointKey, lastProcessedToken, linkedToken)
-					.ConfigureAwait(false);
+				try
+				{
+					await _checkpointStore.SaveAsync(_checkpointKey, lastProcessedToken, linkedToken)
+						.ConfigureAwait(false);
+					_checkpointFailures.RecordSuccess();
+				}
+				catch (Exception ex) when (ex is not OperationCanceledException)
+				{
+					_logger.LogWarning(ex,
+						"Change feed '{SubscriptionId}' failed to save its checkpoint. Event delivery "
+						+ "continues; the redelivery window on a future restart widens until a checkpoint "
+						+ "save succeeds again.",
+						SubscriptionId);
+
+					if (_checkpointFailures.RecordFailure())
+					{
+						_logger.LogCritical(
+							"Change feed '{SubscriptionId}' has failed to save its checkpoint {ConsecutiveFailures} "
+							+ "consecutive times and is now reporting checkpoint-degraded. Event delivery "
+							+ "continues; the redelivery window on a future restart is growing.",
+							SubscriptionId,
+							_checkpointFailures.ConsecutiveFailureCount);
+					}
+				}
 			}
 
 			if (shouldBreak)
@@ -199,6 +268,11 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 
 		_disposed = true;
 		_isActive = false;
+
+		if (_checkpointStore is not null)
+		{
+			_ = ActiveCheckpointKeys.TryRemove(_checkpointKey, out _);
+		}
 
 		await _cts.CancelAsync().ConfigureAwait(false);
 		_cts.Dispose();

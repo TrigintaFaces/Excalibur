@@ -235,6 +235,10 @@ public sealed class OracleSagaTenantNarrowingShould : IClassFixture<OracleSagaUp
 			.Split('\n')
 			.Select(static line => line.Trim())
 			.Where(static line => !line.StartsWith("--", StringComparison.Ordinal))
+			// SQL*Plus directives are not SQL: the shipped scripts open with WHENEVER SQLERROR EXIT
+			// FAILURE ROLLBACK, which is what makes a hand-applied migration roll back, and which ODP.NET
+			// hands to a server that answers ORA-00900.
+			.Where(static line => !line.StartsWith("WHENEVER ", StringComparison.OrdinalIgnoreCase))
 			.Aggregate(new System.Text.StringBuilder(), static (sb, line) => sb.Append(line).Append('\n'))
 			.ToString()
 			.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))

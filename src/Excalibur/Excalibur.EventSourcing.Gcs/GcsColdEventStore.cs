@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Polly;
+using Polly.Retry;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -26,6 +28,42 @@ namespace Excalibur.EventSourcing.Gcs;
 internal sealed class GcsColdEventStore : IColdEventStore
 {
 	private const int MaxConcurrencyRetries = 5;
+
+	/// <summary>
+	/// Retries the <see cref="WriteAsync" /> read-modify-write body when GCS rejects the conditional
+	/// upload because another writer committed first.
+	/// </summary>
+	/// <remarks>
+	/// Built on Polly rather than a hand-rolled loop. The delegate re-reads the object on every attempt,
+	/// so re-invoking it IS the compare-and-swap retry -- each attempt operates on the now-current
+	/// generation rather than replaying a stale one. No backoff: the loop this replaced retried
+	/// immediately, and a delay here only widens the window for another writer to win again.
+	/// <para>
+	/// Only a precondition failure is retried. A conflict status is deliberately NOT handled here, unlike
+	/// the S3 store, because GCS signals a lost compare-and-swap with 412 alone.
+	/// </para>
+	/// </remarks>
+	private readonly ResiliencePipeline _writeRetryPipeline;
+
+	private ResiliencePipeline BuildWriteRetryPipeline() =>
+		new ResiliencePipelineBuilder()
+			.AddRetry(new RetryStrategyOptions
+			{
+				ShouldHandle = new PredicateBuilder().Handle<Google.GoogleApiException>(
+					static ex => ex.HttpStatusCode == System.Net.HttpStatusCode.PreconditionFailed),
+				MaxRetryAttempts = MaxConcurrencyRetries,
+				Delay = TimeSpan.Zero,
+				BackoffType = DelayBackoffType.Constant,
+				OnRetry = args =>
+				{
+					_logger.LogDebug(
+						"Concurrent archive detected (status {Status}); retrying (attempt {Attempt})",
+						(args.Outcome.Exception as Google.GoogleApiException)?.HttpStatusCode,
+						args.AttemptNumber + 1);
+					return default;
+				},
+			})
+			.Build();
 
 	private readonly StorageClient _storageClient;
 	private readonly string _bucketName;
@@ -64,6 +102,7 @@ internal sealed class GcsColdEventStore : IColdEventStore
 		_bucketName = bucketName;
 		_objectPrefix = objectPrefix ?? "";
 		_logger = logger;
+		_writeRetryPipeline = BuildWriteRetryPipeline();
 	}
 
 	/// <inheritdoc />
@@ -88,10 +127,11 @@ internal sealed class GcsColdEventStore : IColdEventStore
 		// update). We capture the source object's generation on read and write conditionally
 		// (IfGenerationMatch=generation for an update, IfGenerationMatch=0 for a create); a precondition
 		// failure means another writer raced us, so we re-read and retry against the now-current object.
-		for (var attempt = 0; ; attempt++)
-		{
-			var (existingEvents, generation) = await TryDownloadForUpdateAsync(objectName, cancellationToken)
-				.ConfigureAwait(false);
+		return await _writeRetryPipeline.ExecuteAsync(
+			async ct =>
+			{
+				var (existingEvents, generation) = await TryDownloadForUpdateAsync(objectName, ct)
+					.ConfigureAwait(false);
 
 			// Membership, not maximum. Selecting by "version greater than the existing max" silently DROPS a
 			// submitted version that falls into a gap below it — cold holding {0,1,5} would discard a
@@ -114,27 +154,21 @@ internal sealed class GcsColdEventStore : IColdEventStore
 			// reader — including the watermark below — assumes ascending order.
 			existingEvents.Sort(static (left, right) => left.Version.CompareTo(right.Version));
 
-			try
-			{
-				await WriteEventsToGcsAsync(objectName, existingEvents, generation, cancellationToken).ConfigureAwait(false);
+				// A precondition failure here means another writer committed between our read and our
+				// write. It propagates, and the pipeline re-invokes this whole delegate so the next
+				// attempt re-reads the now-current generation.
+				await WriteEventsToGcsAsync(objectName, existingEvents, generation, ct).ConfigureAwait(false);
 
 				_logger.LogDebug(
 					"Archived {NewCount} events for {AggregateId} to GCS (total {TotalCount})",
 					newEvents.Count, aggregateId, existingEvents.Count);
+
 				// The conditional upload has been awaited and acknowledged by GCS, so the merged set is
 				// durable — but durability is not contiguity. Report the prefix actually present, so a caller
 				// holding the only other copy of a gap never deletes across it.
 				return ContiguousDurablePrefix(existingEvents);
-			}
-			catch (Google.GoogleApiException ex) when (
-				ex.HttpStatusCode == System.Net.HttpStatusCode.PreconditionFailed && attempt < MaxConcurrencyRetries)
-			{
-				// Another writer committed between our read and write — re-read and retry.
-				_logger.LogDebug(
-					"Concurrent archive detected for {AggregateId} (status {Status}); retrying (attempt {Attempt})",
-					aggregateId, ex.HttpStatusCode, attempt + 1);
-			}
-		}
+			},
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />

@@ -1498,7 +1498,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		_ = await _store.StoreAsync(CreateTestAuditEvent("event-3"), CancellationToken.None);
 
 		// Act
-		var lastEvent = await _store.GetLastEventAsync(null, CancellationToken.None);
+		var lastEvent = await _store.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		_ = lastEvent.ShouldNotBeNull();
@@ -1509,7 +1509,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 	public async Task GetLastEventAsync_ReturnsNullForEmptyStore()
 	{
 		// Act
-		var lastEvent = await _store.GetLastEventAsync(null, CancellationToken.None);
+		var lastEvent = await _store.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		lastEvent.ShouldBeNull();
@@ -1518,31 +1518,51 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 	[Fact]
 	public async Task GetLastEventAsync_FiltersbyTenant()
 	{
-		// Arrange
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" }, CancellationToken.None);
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-3") with { TenantId = "tenant-a" }, CancellationToken.None);
+		// GetLastEventAsync resolves the AMBIENT scope, never a caller-supplied tenant (the parameter was
+		// removed, Excalibur_Dispatch-t8n6n5: every store already ignored it and honouring it directly was
+		// the cross-tenant vulnerability). A mutable context is required to observe both tenants' "last
+		// event" from one shared store instance.
+		var ambient = new MutableTenantContext("tenant-a");
+		using var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), ambient);
+
+		_ = await store.StoreAsync(CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
+		_ = await store.StoreAsync(CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" }, CancellationToken.None);
+		_ = await store.StoreAsync(CreateTestAuditEvent("event-3") with { TenantId = "tenant-a" }, CancellationToken.None);
 
 		// Act
-		var lastEventA = await _store.GetLastEventAsync("tenant-a", CancellationToken.None);
-		var lastEventB = await _store.GetLastEventAsync("tenant-b", CancellationToken.None);
+		var lastEventA = await store.GetLastEventAsync(CancellationToken.None);
+		ambient.TenantId = "tenant-b";
+		var lastEventB = await store.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
+		lastEventA.ShouldNotBeNull();
 		lastEventA.EventId.ShouldBe("event-3");
+		lastEventB.ShouldNotBeNull();
 		lastEventB.EventId.ShouldBe("event-2");
 	}
 
 	[Fact]
 	public async Task GetLastEventAsync_ReturnsNullForNonExistentTenant()
 	{
-		// Arrange
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
+		// Arrange -- a store ambiently scoped to "tenant-b" never sees "tenant-a"'s events.
+		var ambient = new MutableTenantContext("tenant-a");
+		using var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), ambient);
+		_ = await store.StoreAsync(CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
 
 		// Act
-		var lastEvent = await _store.GetLastEventAsync("non-existent", CancellationToken.None);
+		ambient.TenantId = "tenant-b";
+		var lastEvent = await store.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		lastEvent.ShouldBeNull();
+	}
+
+	/// <summary>A mutable <see cref="ITenantContext"/> so one store instance can be read as different ambient tenants.</summary>
+	private sealed class MutableTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId { get; set; } = tenantId;
+
+		public bool HasTenant => TenantId is not null;
 	}
 
 	[Fact]
@@ -1554,7 +1574,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(() =>
-			_store.GetLastEventAsync(null, cts.Token));
+			_store.GetLastEventAsync(cts.Token));
 	}
 
 	[Fact]
@@ -1565,7 +1585,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		_ = await _store.StoreAsync(CreateTestAuditEvent("tenant-event") with { TenantId = "some-tenant" }, CancellationToken.None);
 
 		// Act - null tenant should return default tenant events
-		var lastEvent = await _store.GetLastEventAsync(null, CancellationToken.None);
+		var lastEvent = await _store.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		_ = lastEvent.ShouldNotBeNull();
@@ -1633,8 +1653,8 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		// Assert - queries should return empty for all tenants
 		var resultsA = await _store.QueryAsync(new AuditQuery(), CancellationToken.None);
 		var resultsB = await _store.QueryAsync(new AuditQuery(), CancellationToken.None);
-		var lastEventA = await _store.GetLastEventAsync("tenant-a", CancellationToken.None);
-		var lastEventB = await _store.GetLastEventAsync("tenant-b", CancellationToken.None);
+		var lastEventA = await _store.GetLastEventAsync(CancellationToken.None);
+		var lastEventB = await _store.GetLastEventAsync(CancellationToken.None);
 
 		resultsA.Count.ShouldBe(0);
 		resultsB.Count.ShouldBe(0);

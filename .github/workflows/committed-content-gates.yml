@@ -177,6 +177,41 @@ jobs:
       - name: no-internal-refs (ratcheted -- fails on any NEW public-surface leak)
         run: bash eng/ci/no-internal-refs-gate.sh
 
+      # Every capability we ADVERTISE to consumers must have an end-to-end arm that actually reaches
+      # the real seam. The manifest is enumerated from what the guarantee docs and package READMEs
+      # promise -- never from what is implemented -- so a subsystem that is advertised and never
+      # exercised end to end is visible here rather than inferred from a unit suite that cannot
+      # observe whether a component is ever reached.
+      #
+      # A row with no arm is a FAILURE, not a skip: there is no not-applicable escape hatch. The gate
+      # also fails when a declared arm matches nothing (renamed or deleted), fails, or SKIPS -- a run
+      # that verified nothing must not report what a run that verified everything reports.
+      #
+      # Three states, and the third is why exit codes matter here: 0 pass, 1 a real capability verdict
+      # (unarmed or failing), 2 REFUSE -- nothing was checked, or an arm could not be measured because
+      # the build broke. A REFUSE is not a claim that the capability is unarmed; it says this run does
+      # not know. Both non-zero states redden this step, which is correct -- the distinction is for the
+      # human reading the log, who would otherwise chase a product defect that is a broken toolchain.
+      #
+      # THIS IS RED AT HEAD AND THAT IS THE HONEST STATE: most rows are still unarmed, and the gate
+      # says so. Its red is a non-vacuity proof that costs nothing today and expires the moment the
+      # last arm lands -- at that point the gate needs a planted-violation self-test, because from
+      # then on nothing else demonstrates it can still fail.
+      #
+      # It runs here rather than in a pure-shell job because a declared arm is executed for real:
+      # this job has the SDK and the built integration shard, and the arms stand up their own
+      # containers.
+      # The gate's ability to fail is currently demonstrated by its own red. That proof expires when the
+      # last arm lands, so this step plants violations against fixture manifests and asserts each of the
+      # three verdicts is reachable -- FAIL on an unarmed capability, FAIL on an arm that matched no test,
+      # PASS on a fully armed one, REFUSE on a manifest that parses to nothing. It runs FIRST: a verdict
+      # from an instrument that has not shown it can still fail is not evidence.
+      - name: e2e-capability self-test (non-vacuity)
+        run: pwsh -NoProfile -File eng/ci/e2e-capability-gate.ps1 -SelfTest
+
+      - name: e2e-capability (an advertised capability with no verified end-to-end arm fails)
+        run: pwsh -NoProfile -File eng/ci/e2e-capability-gate.ps1
+
       # A shipped Oracle migration signals a refusal with RAISE_APPLICATION_ERROR, and SQL*Plus
       # exits 0 on that unless the script carries a WHENEVER SQLERROR EXIT FAILURE directive -- so
       # an unattended runner records a DECLINED migration as applied and runs the next step against
@@ -502,3 +537,35 @@ jobs:
             exit 1
           fi
           echo "working tree clean"
+
+  # PARTITIONED OUT of the gate battery above, deliberately, and this note is why.
+  #
+  # This gate is RED at HEAD and that is the honest state: 971 of 1139 baseline suppression rows carry
+  # no reviewed verdict. Burning that down is ~712 individual judgements across 332 files (1.36 rows per
+  # distinct file/warning/justification pattern), so it will not clear before a tag.
+  #
+  # It used to sit in the battery above. A job is red if ANY step is red, so one permanently-red step
+  # made the other nine gates in that job unable to report a state CHANGE -- they were producing a red
+  # that was already there. That is a vacuous green pointed backwards, and it cost us: two of those
+  # nine were themselves failing for weeks unnoticed, and one was hiding a table that told consumers a
+  # package was AOT-safe while its own code said otherwise.
+  #
+  # Nothing is weakened. The gate still fails, on the same rows, with the same exit codes -- it simply
+  # fails where its red means "this debt is unpaid" instead of masking nine gates whose red would mean
+  # "something just broke". Fold it back the moment the classification backlog is cleared.
+  aot-suppression-debt:
+    name: AOT Suppression Classification (recorded debt)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: aot-suppression-classification self-test (non-vacuity)
+        run: python3 eng/ci/aot-suppression-classification-gate.py --self-test
+
+      - name: aot-suppression-classification (a baseline row must carry a reviewed verdict)
+        run: python3 eng/ci/aot-suppression-classification-gate.py --check

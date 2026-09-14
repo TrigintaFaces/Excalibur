@@ -25,11 +25,18 @@ namespace Excalibur.Outbox.InMemory;
 /// <para>
 /// This store is intended for testing scenarios only. Data is lost on application restart.
 /// </para>
+/// <para>
+/// <strong>Tenant-partitioned, not tenant-scoped.</strong> The constructor takes no <see cref="ITenantContext"/>
+/// -- every message carries its own <c>TenantId</c>, canonicalised on <c>StageMessageAsync</c> and handed
+/// back unchanged on drain, exactly as the persisting providers do. <see cref="ITenantPartitionedStore"/>
+/// declares that mechanism explicitly so <c>AddTenantAwareStore</c> can attest it: a constructor with no
+/// <see cref="ITenantContext"/> parameter is not, by itself, evidence of row-partitioning, so the marker
+/// interface states the claim this store's own behaviour otherwise leaves silent.
+/// </para>
 /// </remarks>
-public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IAsyncDisposable, IDisposable
+public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreAdmin, IDeadLetterableOutboxStore, ITenantPartitionedStore, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, OutboundMessage> _messages = new(StringComparer.Ordinal);
-	private readonly ConcurrentDictionary<string, object> _messageLocks = new(StringComparer.Ordinal);
 
 	/// <summary>
 	/// Side-map of claim leases, keyed by message ID. Kept separate from <see cref="OutboundMessage"/> (the
@@ -242,6 +249,41 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	}
 
 	/// <inheritdoc/>
+	public Task<long?> GetFencingHighWaterAsync(CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		lock (_claimLock)
+		{
+			// ponytail: 0 is the field's default and doubles as "never fenced" -- a legitimate token is
+			// virtually always a positive monotonic counter from a leader election, so this is not
+			// distinguished from a real high-water of exactly 0 with a separate bool. Upgrade if that
+			// ever matters.
+			return Task.FromResult<long?>(_fencingHighWaterMark == 0 ? null : _fencingHighWaterMark);
+		}
+	}
+
+	/// <inheritdoc/>
+	public Task ResetFencingHighWaterAsync(long newHighWater, bool force, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		lock (_claimLock)
+		{
+			if (!force && newHighWater < _fencingHighWaterMark)
+			{
+				throw new InvalidOperationException(
+					$"Refusing to lower the fencing high-water mark from {_fencingHighWaterMark} to {newHighWater} " +
+					"without force: true. Lowering it re-admits a leader whose token is now below the (lowered) " +
+					"high-water, which is the split-brain the fence exists to prevent.");
+			}
+
+			_fencingHighWaterMark = newHighWater;
+			return Task.CompletedTask;
+		}
+	}
+
+	/// <inheritdoc/>
 	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken) =>
 		MarkSentCore(messageId, fencingToken: null, cancellationToken);
 
@@ -254,9 +296,20 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		if (fencingToken.HasValue)
+		// ONE lock region spans the fence check, the high-water advance, and the mutation they guard —
+		// matching the claim path above, and for the same reason. Splitting them is not a style question:
+		// with the fence in one critical section and the mutation in another, a fresher tenure can advance
+		// the high-water in the gap between them, and the superseded caller then applies a write the fence
+		// had already been told to refuse. Its check passed, truthfully, against a value that no longer
+		// held by the time it wrote. The advance and the write it authorises must be indivisible, so the
+		// mutation applies only if THIS caller's token was the one the high-water accepted.
+		//
+		// The global lock also subsumes the per-message lock this path used to take: holding it excludes
+		// every other mark-sent, not merely the ones naming the same message, so a second mutual-exclusion
+		// domain would add nothing here except the illusion that the two were coordinated.
+		lock (_claimLock)
 		{
-			lock (_claimLock)
+			if (fencingToken.HasValue)
 			{
 				if (fencingToken.Value < _fencingHighWaterMark)
 				{
@@ -270,21 +323,22 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 
 				_fencingHighWaterMark = Math.Max(_fencingHighWaterMark, fencingToken.Value);
 			}
-		}
 
-		if (!_messages.TryGetValue(messageId, out var message))
-		{
-			throw new InvalidOperationException($"Message with ID '{messageId}' not found.");
-		}
+			if (!_messages.TryGetValue(messageId, out var message))
+			{
+				throw new InvalidOperationException($"Message with ID '{messageId}' not found.");
+			}
 
-		// Use per-message locking to ensure atomic status transition
-		var messageLock = _messageLocks.GetOrAdd(messageId, _ => new object());
-
-		lock (messageLock)
-		{
 			if (message.Status == OutboxStatus.Sent)
 			{
 				throw new InvalidOperationException($"Message with ID '{messageId}' is already marked as sent.");
+			}
+
+			// DeadLettered is terminal too -- the dead-letter path already refuses both.
+			if (message.Status == OutboxStatus.DeadLettered)
+			{
+				throw new InvalidOperationException(
+					$"Message with ID '{messageId}' was dead-lettered and cannot be marked as sent.");
 			}
 
 			message.MarkSent();
@@ -308,6 +362,16 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 		if (!_messages.TryGetValue(messageId, out var message))
 		{
 			// Silent return for missing messages per conformance tests expectation
+			return default;
+		}
+
+		// TERMINAL-STATUS exclusion. Sent and DeadLettered are final, and no completion may move a message
+		// out of either -- not a superseded caller's and not the CURRENT claim holder's. Without this a
+		// failure reported after a successful send returns the message to the Failed status, which IS in the
+		// claim predicate, so a delivered message is delivered again. Silent like the missing case: the
+		// report is stale rather than erroneous.
+		if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
+		{
 			return default;
 		}
 
@@ -361,12 +425,19 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 			return default;
 		}
 
+		// Terminal exclusion, mirroring MarkFailedAsync. A dead-letter applied to an already-sent message
+		// records a delivery failure that did not happen; repeated on an already-dead-lettered one it writes
+		// a second dead-letter for one message. Binds the current claim holder as much as a stale caller.
+		if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
+		{
+			return default;
+		}
+
 		message.Status = OutboxStatus.DeadLettered;
 		message.LastError = reason;
 
-		// Clear per-message lock, claim lease, and failure-visibility floor for hygiene. DeadLettered is
+		// Clear the claim lease and failure-visibility floor for hygiene. DeadLettered is
 		// terminal — the claim predicate already excludes it, so no floor is needed to keep it out.
-		_ = _messageLocks.TryRemove(messageId, out _);
 		_ = _leases.TryRemove(messageId, out _);
 		_ = _nextAttempt.TryRemove(messageId, out _);
 
@@ -494,7 +565,6 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 			var message = toRemove[i];
 			if (_messages.TryRemove(message.Id, out _))
 			{
-				_ = _messageLocks.TryRemove(message.Id, out _);
 				_ = _leases.TryRemove(message.Id, out _);
 				_ = _nextAttempt.TryRemove(message.Id, out _);
 				count++;
@@ -587,7 +657,6 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 		}
 
 		_messages.Clear();
-		_messageLocks.Clear();
 		_leases.Clear();
 		_disposed = true;
 	}
@@ -637,7 +706,6 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 		}
 
 		_ = _messages.TryRemove(messageId, out _);
-		_ = _messageLocks.TryRemove(messageId, out _);
 		_ = _leases.TryRemove(messageId, out _);
 		_ = _nextAttempt.TryRemove(messageId, out _);
 	}

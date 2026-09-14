@@ -231,13 +231,24 @@ public sealed partial class PublicApiContractShould
 		_ = typeof(DispatchPipeline);
 
 		var coreAssembly = typeof(DispatchPipeline).Assembly;
-		var allTypes = coreAssembly.GetTypes()
+		var coreTypes = coreAssembly.GetTypes()
 			.Select(t => t.FullName!)
 			.ToHashSet(StringComparer.Ordinal);
 
-		// Assert -- key internal and public types should exist
-		allTypes.ShouldContain("Excalibur.Dispatch.Messaging.MessageContext");
-		allTypes.ShouldContain("Excalibur.Dispatch.Delivery.Pipeline.DispatchPipeline");
+		var abstractionsAssembly = typeof(Excalibur.Dispatch.Messaging.MessageContext).Assembly;
+		var abstractionsTypes = abstractionsAssembly.GetTypes()
+			.Select(t => t.FullName!)
+			.ToHashSet(StringComparer.Ordinal);
+
+		// Assert -- key types exist, each in the layer that owns it.
+		coreTypes.ShouldContain("Excalibur.Dispatch.Delivery.Pipeline.DispatchPipeline");
+		abstractionsTypes.ShouldContain("Excalibur.Dispatch.Messaging.MessageContext");
+
+		// MessageContext is a contract, not a delivery detail: it belongs to the abstractions
+		// layer so a consumer can describe a message without referencing the dispatcher. Pinning
+		// its ABSENCE from core is what makes a move back a RED test rather than a silent
+		// re-coupling -- the assertion above would still pass if it lived in both.
+		coreTypes.ShouldNotContain("Excalibur.Dispatch.Messaging.MessageContext");
 	}
 
 	[Fact]

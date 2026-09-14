@@ -90,24 +90,6 @@ public sealed class PostgresOutboxStoreShould : IDisposable
 	}
 
 	[Fact]
-	public void ThrowArgumentNullOrWhiteSpaceForNullDispatcherId() =>
-		// Act & Assert
-		_ = Should.ThrowAsync<ArgumentException>(async () =>
-			await _store.UnReserveOutboxMessagesAsync(null!, CancellationToken.None));
-
-	[Fact]
-	public void ThrowArgumentNullOrWhiteSpaceForEmptyDispatcherId() =>
-		// Act & Assert
-		_ = Should.ThrowAsync<ArgumentException>(async () =>
-			await _store.UnReserveOutboxMessagesAsync(string.Empty, CancellationToken.None));
-
-	[Fact]
-	public void ThrowArgumentNullOrWhiteSpaceForWhitespaceDispatcherId() =>
-		// Act & Assert
-		_ = Should.ThrowAsync<ArgumentException>(async () =>
-			await _store.UnReserveOutboxMessagesAsync(" ", CancellationToken.None));
-
-	[Fact]
 	public void ThrowArgumentNullOrWhiteSpaceForNullMessageId() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentException>(async () =>

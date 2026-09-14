@@ -36,25 +36,28 @@ internal readonly record struct EventInsertRow(
 	DateTimeOffset Timestamp);
 
 /// <summary>
-/// Data request that inserts a batch of events as individual single-row
-/// <c>INSERT ... RETURNING POSITION INTO</c> statements executed on the same connection and transaction,
-/// each returning its own inserted identity <c>POSITION</c>. All rows in one batch share the same aggregate
+/// Data request that inserts a batch of events as ONE <c>INSERT ... RETURNING POSITION INTO</c> statement
+/// executed via ODP.NET array binding (<see cref="OracleCommand.ArrayBindCount"/>) — a single database
+/// round-trip regardless of batch size — on the same connection and transaction, returning every row's own
+/// inserted identity <c>POSITION</c> in one output array. All rows in one batch share the same aggregate
 /// stream.
 /// </summary>
 /// <remarks>
 /// Under the event-store append's <c>SERIALIZABLE</c> transaction, both a multi-row
 /// <c>INSERT ALL ... SELECT FROM DUAL</c> and a post-insert range read-back
 /// <c>SELECT ... WHERE VERSION BETWEEN</c> raise <c>ORA-08177</c> ("can't serialize access") for a
-/// &gt;1-event batch, because they read blocks the transaction has just written. A per-row single-table
-/// <c>INSERT ... VALUES ... RETURNING POSITION INTO</c> is a pure write whose identity value is returned by
-/// the statement itself — no self-conflicting read — so it serializes cleanly.
+/// &gt;1-event batch, because they read blocks the transaction has just written. Array binding keeps the
+/// same single-table <c>INSERT ... VALUES ... RETURNING POSITION INTO</c> shape — still a pure write whose
+/// identity value is returned by the statement itself, no self-conflicting read — but binds every row's
+/// parameters as one array per column and executes the statement once, collapsing what was N round-trips
+/// (one per row, via Dapper multi-exec) into one. It is NOT <c>INSERT ALL</c>: no row source is read, so the
+/// same serialization argument that ruled out <c>INSERT ALL</c> does not apply here.
 /// </remarks>
 internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, IReadOnlyList<EventInsertPosition>>
 {
 	/// <summary>
-	/// The maximum number of events per batch request. Each event is one single-row <c>INSERT</c> executed
-	/// via Dapper multi-exec; 100 is a safe, round chunk. Larger appends are chunked by the caller within
-	/// the same transaction.
+	/// The maximum number of events per batch request — the array-bind size ceiling for this statement. 100
+	/// is a safe, round chunk. Larger appends are chunked by the caller within the same transaction.
 	/// </summary>
 	internal const int MaxEventsPerStatement = 100;
 
@@ -121,52 +124,109 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 
 		Command = CreateCommand(insertSql, transaction: transaction, cancellationToken: cancellationToken);
 
+		var rowCount = rows.Count;
 		ResolveAsync = async connection =>
 		{
-			// Each event is inserted with its OWN single-row `INSERT ... RETURNING POSITION INTO` — the
-			// identity POSITION is read back as part of the INSERT statement itself, so there is no separate
-			// post-insert range SELECT. Under the append's SERIALIZABLE transaction that follow-up
-			// `SELECT ... WHERE VERSION BETWEEN` scanned blocks the transaction had just written and raised
-			// ORA-08177 ("can't serialize access") for a >1-event append; RETURNING eliminates that read
-			// entirely. Pure single-row writes serialize cleanly, and the VERSION concurrency check remains
-			// inside the same SERIALIZABLE transaction (untouched). RETURNING binds each row's POSITION to
-			// THAT insert, so positions carry their own version — matched to firstVersion by the caller.
+			// ONE statement, array-bound across all N rows -- ArrayBindCount tells ODP.NET how many
+			// elements each parameter array carries, and the whole batch executes in a single round-trip.
+			// The statement shape is UNCHANGED from the per-row form: still a pure single-table
+			// `INSERT ... VALUES ... RETURNING POSITION INTO`, still no row source read -- the argument
+			// that ruled out `INSERT ALL` (a read of the transaction's own just-written blocks raising
+			// ORA-08177 under SERIALIZABLE) never applied to array binding, because array binding is N
+			// repetitions of the same pure-write statement, sent together, not a read-driven multi-row form.
 			var oracleConnection = (OracleConnection)connection;
 			var oracleTransaction = (OracleTransaction?)transaction;
-			var positions = new List<EventInsertPosition>(rows.Count);
 
-			foreach (var row in rows)
-			{
-				await using var command = oracleConnection.CreateCommand();
+			await using var command = oracleConnection.CreateCommand();
 #pragma warning disable CA2100 // insertSql is built from schema/table validated by OracleTableName.Format; no user input.
-				command.CommandText = insertSql;
+			command.CommandText = insertSql;
 #pragma warning restore CA2100
-				command.BindByName = true;
-				if (oracleTransaction is not null)
-				{
-					command.Transaction = oracleTransaction;
-				}
-
-				_ = command.Parameters.Add(new OracleParameter("EventId", OracleDbType.Varchar2) { Value = row.EventId });
-				_ = command.Parameters.Add(new OracleParameter("AggregateId", OracleDbType.Varchar2) { Value = row.AggregateId });
-				_ = command.Parameters.Add(new OracleParameter("AggregateType", OracleDbType.Varchar2) { Value = row.AggregateType });
-				_ = command.Parameters.Add(new OracleParameter("EventType", OracleDbType.Varchar2) { Value = row.EventType });
-				_ = command.Parameters.Add(new OracleParameter("EventData", OracleDbType.Blob) { Value = row.EventData });
-				_ = command.Parameters.Add(new OracleParameter("Metadata", OracleDbType.Blob) { Value = (object?)row.Metadata ?? DBNull.Value });
-				_ = command.Parameters.Add(new OracleParameter("Version", OracleDbType.Int64) { Value = row.Version });
-				_ = command.Parameters.Add(new OracleParameter("Timestamp", OracleDbType.TimeStampTZ) { Value = row.Timestamp });
-				_ = command.Parameters.Add(new OracleParameter("TenantId", OracleDbType.Varchar2) { Value = partition.TenantId });
-
-				var outPosition = new OracleParameter("OutPosition", OracleDbType.Int64) { Direction = ParameterDirection.Output };
-				_ = command.Parameters.Add(outPosition);
-
-				_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-				positions.Add(new EventInsertPosition(ReadPosition(outPosition.Value), row.Version));
+			command.BindByName = true;
+			command.ArrayBindCount = rowCount;
+			if (oracleTransaction is not null)
+			{
+				command.Transaction = oracleTransaction;
 			}
 
-			return positions;
+			var eventIds = new string[rowCount];
+			var aggregateIds = new string[rowCount];
+			var aggregateTypes = new string[rowCount];
+			var eventTypes = new string[rowCount];
+			var eventData = new byte[rowCount][];
+			var eventDataSizes = new int[rowCount];
+			var metadata = new object[rowCount];
+			var metadataSizes = new int[rowCount];
+			var versions = new long[rowCount];
+			var timestamps = new DateTimeOffset[rowCount];
+			var tenantIds = new string[rowCount];
+
+			for (var i = 0; i < rowCount; i++)
+			{
+				var row = rows[i];
+				eventIds[i] = row.EventId;
+				aggregateIds[i] = row.AggregateId;
+				aggregateTypes[i] = row.AggregateType;
+				eventTypes[i] = row.EventType;
+				eventData[i] = row.EventData;
+				eventDataSizes[i] = row.EventData.Length;
+				// A NULL element still needs an ArrayBindSize entry to keep the per-row size array aligned
+				// with ArrayBindCount -- 0 for the DBNull rows, since ODP.NET requires the size array to
+				// have one entry per bound row regardless of whether that row's value is null.
+				metadata[i] = (object?)row.Metadata ?? DBNull.Value;
+				metadataSizes[i] = row.Metadata?.Length ?? 0;
+				versions[i] = row.Version;
+				timestamps[i] = row.Timestamp;
+				tenantIds[i] = partition.TenantId;
+			}
+
+			// Fixed-length types (Int64, TimeStampTZ) need no ArrayBindSize. Variable-length types
+			// (Varchar2, Blob) require it on every array -- input included -- per ODP.NET array-bind rules.
+			_ = command.Parameters.Add(new OracleParameter("EventId", OracleDbType.Varchar2) { Value = eventIds });
+			_ = command.Parameters.Add(new OracleParameter("AggregateId", OracleDbType.Varchar2) { Value = aggregateIds });
+			_ = command.Parameters.Add(new OracleParameter("AggregateType", OracleDbType.Varchar2) { Value = aggregateTypes });
+			_ = command.Parameters.Add(new OracleParameter("EventType", OracleDbType.Varchar2) { Value = eventTypes });
+			_ = command.Parameters.Add(new OracleParameter("EventData", OracleDbType.Blob) { Value = eventData, ArrayBindSize = eventDataSizes });
+			_ = command.Parameters.Add(new OracleParameter("Metadata", OracleDbType.Blob) { Value = metadata, ArrayBindSize = metadataSizes });
+			_ = command.Parameters.Add(new OracleParameter("Version", OracleDbType.Int64) { Value = versions });
+			_ = command.Parameters.Add(new OracleParameter("Timestamp", OracleDbType.TimeStampTZ) { Value = timestamps });
+			_ = command.Parameters.Add(new OracleParameter("TenantId", OracleDbType.Varchar2) { Value = tenantIds });
+
+			// Output array: one POSITION per row, populated in the same row order the input arrays were
+			// bound in. NUMBER is fixed-length, so no ArrayBindSize is required for the output either.
+			var outPosition = new OracleParameter("OutPosition", OracleDbType.Int64)
+			{
+				Direction = ParameterDirection.Output,
+			};
+			_ = command.Parameters.Add(outPosition);
+
+			_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+			return ReadPositions(outPosition.Value, rows);
 		};
+	}
+
+	// ODP.NET returns an array-bound RETURNING output as an Array of per-row values (typically
+	// OracleDecimal[] for a NUMBER column, occasionally already long[]/decimal[]); each element is read
+	// through the same per-value conversion the single-row form used, and zipped back to the row that
+	// produced it BY INDEX -- array binding preserves input row order in the output array, but this is
+	// verified empirically by the real-Oracle correctness lock, not merely assumed from the
+	// driver's documented behavior.
+	private static IReadOnlyList<EventInsertPosition> ReadPositions(object? value, IReadOnlyList<EventInsertRow> rows)
+	{
+		if (value is not Array positions || positions.Length != rows.Count)
+		{
+			throw new InvalidOperationException(
+				$"INSERT ... RETURNING POSITION array bind returned {(value as Array)?.Length.ToString(CultureInfo.InvariantCulture) ?? "no"} "
+				+ $"positions for a {rows.Count}-row batch.");
+		}
+
+		var result = new List<EventInsertPosition>(rows.Count);
+		for (var i = 0; i < rows.Count; i++)
+		{
+			result.Add(new EventInsertPosition(ReadPosition(positions.GetValue(i)), rows[i].Version));
+		}
+
+		return result;
 	}
 
 	// ODP.NET surfaces a NUMBER `RETURNING` output as an OracleDecimal; convert it to the CLR long the

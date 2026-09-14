@@ -42,7 +42,7 @@ internal sealed class GrantDurabilityValidator : IValidateOptions<GrantDurabilit
 		// resolves the store that actually won registration (through any decorator, which forwards the
 		// query), so registration order and wrapping do not matter.
 		var store = _services.GetService<IGrantStore>();
-		if (store?.GetService(typeof(IDurableGrantStore)) is not null)
+		if (store?.GetService(typeof(IDurableGrantStore)) is IDurableGrantStore)
 		{
 			return ValidateOptionsResult.Success;
 		}

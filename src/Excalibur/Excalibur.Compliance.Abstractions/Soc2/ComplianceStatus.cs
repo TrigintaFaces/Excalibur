@@ -77,55 +77,190 @@ public record CategoryStatus
 	public required ComplianceLevel Level { get; init; }
 
 	/// <summary>
-	/// Percentage of criteria met (0-100).
+	/// Percentage of ASSESSED criteria that were met (0-100).
 	/// </summary>
+	/// <remarks>
+	/// Criteria no registered validator assessed are excluded from this figure entirely -- from the
+	/// numerator and the denominator both. That is the only honest treatment (counting them as
+	/// failures understates the consumer's posture on evidence nobody gathered; dropping them from
+	/// the numerator alone overstates it), but it means <b>this percentage cannot be read without
+	/// <see cref="CriteriaAssessed"/> and <see cref="CriteriaEnabled"/> beside it</b>: 100% over one
+	/// criterion of nine is not 100% compliance, and a reader given only the percentage has no way
+	/// to tell the two apart. The coverage travels in the same type for that reason.
+	/// </remarks>
 	public required int CompliancePercentage { get; init; }
 
 	/// <summary>
-	/// Number of active controls.
+	/// How many of this category's criteria a registered validator actually assessed -- the
+	/// denominator of <see cref="CompliancePercentage"/>.
 	/// </summary>
-	public required int ActiveControls { get; init; }
+	/// <remarks>
+	/// Named for criteria because it counts criteria. It was <c>ActiveControls</c>, which named a
+	/// different unit than it held and invited a reader to compare it against a control count.
+	/// </remarks>
+	public required int CriteriaAssessed { get; init; }
 
 	/// <summary>
-	/// Number of controls with issues.
+	/// How many criteria this category contains, assessed or not.
 	/// </summary>
-	public required int ControlsWithIssues { get; init; }
+	/// <remarks>
+	/// The coverage denominator. Where this exceeds <see cref="CriteriaAssessed"/> the difference is
+	/// criteria this framework did not assess, and the percentage says nothing about them.
+	/// </remarks>
+	public required int CriteriaEnabled { get; init; }
+
+	/// <summary>
+	/// How many ASSESSED criteria were not met.
+	/// </summary>
+	public required int CriteriaWithIssues { get; init; }
+}
+
+/// <summary>
+/// Whether a criterion was assessed, and if so what the assessment concluded.
+/// </summary>
+public enum CriterionOutcome
+{
+	/// <summary>
+	/// No control supporting this criterion was assessed. <b>This is not a failure</b>: nothing is
+	/// known about the criterion either way, and it must not be counted as met or as not met.
+	/// </summary>
+	NotAssessed = 0,
+
+	/// <summary>
+	/// The criterion was assessed and its controls were found effective.
+	/// </summary>
+	Met = 1,
+
+	/// <summary>
+	/// The criterion was assessed and its controls were not found effective.
+	/// </summary>
+	NotMet = 2
 }
 
 /// <summary>
 /// Status for a specific criterion.
 /// </summary>
-public record CriterionStatus
+/// <remarks>
+/// <para>
+/// Construct through <see cref="Assessed"/> or <see cref="NotAssessed"/>. The two states carry
+/// different evidence and an object initialiser cannot enforce that: an unassessed criterion bearing
+/// a validation timestamp would compile, and a reader of the resulting attestation could not tell it
+/// from a real one.
+/// </para>
+/// <para>
+/// <b>A private constructor alone did not achieve that, and it was measured rather than assumed.</b>
+/// It blocks <c>new</c>; it does not block <c>with</c>, whose copy constructor is compiler-generated
+/// and reachable wherever the members are settable. With public <c>init</c> accessors this compiled
+/// clean:
+/// <code>
+/// var honest = CriterionStatus.NotAssessed(criterion, "nobody looked");
+/// var forged = honest with { Outcome = CriterionOutcome.Met, EffectivenessScore = 100 };
+/// </code>
+/// The accessors are therefore <c>private init</c>. The factories inside this type still build every
+/// legitimate value; the forgery above is now a compile error rather than a discouraged habit.
+/// </para>
+/// <para>
+/// This type is read by an external auditor assessing the deploying organisation, so a value that reads
+/// as a measurement but was never measured is a finding against that organisation. That is why the
+/// absent cases are absent here rather than defaulted.
+/// </para>
+/// </remarks>
+public sealed record CriterionStatus
 {
+	private CriterionStatus()
+	{
+	}
+
 	/// <summary>
 	/// Criterion being evaluated.
 	/// </summary>
-	public required TrustServicesCriterion Criterion { get; init; }
+	public TrustServicesCriterion Criterion { get; private init; }
 
 	/// <summary>
-	/// Whether the criterion is met.
+	/// Whether the criterion was assessed, and what was concluded.
 	/// </summary>
-	public required bool IsMet { get; init; }
+	public CriterionOutcome Outcome { get; private init; }
 
 	/// <summary>
-	/// Control effectiveness (0-100).
+	/// Control effectiveness (0-100), or <see langword="null"/> when the criterion was not assessed.
 	/// </summary>
-	public required int EffectivenessScore { get; init; }
+	public int? EffectivenessScore { get; private init; }
 
 	/// <summary>
-	/// Last validation timestamp.
+	/// When the assessment happened, or <see langword="null"/> when it never did.
 	/// </summary>
-	public required DateTimeOffset LastValidated { get; init; }
+	public DateTimeOffset? LastValidated { get; private init; }
+
+	/// <summary>
+	/// How many controls supporting this criterion were assessed.
+	/// </summary>
+	/// <remarks>
+	/// Travels with <see cref="EffectivenessScore"/> deliberately: a mean over an unstated denominator
+	/// is the same defect one layer out, a definite-looking number whose basis the reader cannot see.
+	/// </remarks>
+	public int ControlsAssessed { get; private init; }
 
 	/// <summary>
 	/// Evidence count for this criterion.
 	/// </summary>
-	public required int EvidenceCount { get; init; }
+	public int EvidenceCount { get; private init; }
 
 	/// <summary>
 	/// Any gaps identified.
 	/// </summary>
-	public IReadOnlyList<string> Gaps { get; init; } = [];
+	public IReadOnlyList<string> Gaps { get; private init; } = [];
+
+	/// <summary>
+	/// Records the result of an assessment that actually took place.
+	/// </summary>
+	/// <param name="criterion">The criterion assessed.</param>
+	/// <param name="met">Whether the assessed controls were found effective.</param>
+	/// <param name="effectivenessScore">Mean control effectiveness, 0-100.</param>
+	/// <param name="lastValidated">When the assessment happened.</param>
+	/// <param name="controlsAssessed">How many controls the score was computed over.</param>
+	/// <param name="evidenceCount">Evidence items collected.</param>
+	/// <param name="gaps">Gaps identified during the assessment.</param>
+	/// <returns>An assessed criterion status.</returns>
+	public static CriterionStatus Assessed(
+		TrustServicesCriterion criterion,
+		bool met,
+		int effectivenessScore,
+		DateTimeOffset lastValidated,
+		int controlsAssessed,
+		int evidenceCount,
+		IReadOnlyList<string>? gaps = null) =>
+		new()
+		{
+			Criterion = criterion,
+			Outcome = met ? CriterionOutcome.Met : CriterionOutcome.NotMet,
+			EffectivenessScore = effectivenessScore,
+			LastValidated = lastValidated,
+			ControlsAssessed = controlsAssessed,
+			EvidenceCount = evidenceCount,
+			Gaps = gaps ?? []
+		};
+
+	/// <summary>
+	/// Records that a criterion was not assessed at all.
+	/// </summary>
+	/// <param name="criterion">The criterion that was not assessed.</param>
+	/// <param name="reason">Why it was not assessed, for the reader of the attestation.</param>
+	/// <returns>An unassessed criterion status, carrying no score and no timestamp.</returns>
+	/// <remarks>
+	/// There is deliberately no parameter for a score or a timestamp. Neither exists, and a factory that
+	/// accepted one would put the fabrication back within reach of the next author.
+	/// </remarks>
+	public static CriterionStatus NotAssessed(TrustServicesCriterion criterion, string reason) =>
+		new()
+		{
+			Criterion = criterion,
+			Outcome = CriterionOutcome.NotAssessed,
+			EffectivenessScore = null,
+			LastValidated = null,
+			ControlsAssessed = 0,
+			EvidenceCount = 0,
+			Gaps = [reason]
+		};
 }
 
 /// <summary>

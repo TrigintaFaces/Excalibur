@@ -33,8 +33,6 @@ DispatchPatternsJsonOptions
 #   ResolvedEventPayload raises EventTypeNotDeclaredException rather than writing. A startup validator
 #   here could only return Success, which is the faked validator the Step-0 ruling rejects.
 InMemoryEventStoreOptions
-# SagaInstrumentationOptions: two bools (EnableMetrics/EnableTracing) — no invariant.
-SagaInstrumentationOptions
 # UpcastingOptions: single bool (EnableAutoUpcastOnReplay) — a bool cannot be invalid.
 UpcastingOptions
 #
@@ -53,6 +51,12 @@ HttpStandardResilienceOptions
 # The former validator checked only properties that no longer exist, so it was deleted rather than
 # refilled with a vacuous body.
 DeadLetterOptions
+# MqttCloudEventOptions: ONE property, a bool (Retain). A bool has no invalid value, so a validator for
+# this type could only ever return Success -- the vacuous body the two entries above were deleted rather
+# than given. Same disposition, and more clear-cut: there is nothing here to check, not merely nothing
+# left after a removal. If a constrained property is ever added, remove this line and write the validator;
+# the guard fails when a baselined type becomes fully validated, so it will force that.
+MqttCloudEventOptions
 # AzureEventHubsCloudEventOptions: two surviving properties after the inert ones were removed. Its former
 # validator checked six properties, all of which are gone. Same disposition as DeadLetterOptions.
 AzureEventHubsCloudEventOptions

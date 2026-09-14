@@ -107,8 +107,16 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 			var isFipsCompliant = await _encryptionProvider.ValidateFipsComplianceAsync(cancellationToken).ConfigureAwait(false);
 			evidence.Add(CreateEvidence(
 				EvidenceType.TestResult,
-				$"FIPS 140-2 compliance validation: {(isFipsCompliant ? "Passed" : "Not required")}",
+				// A FIPS check returning FALSE used to be recorded as "Not required", which is a different
+				// claim entirely and the favourable one. It says what it found.
+				$"FIPS 140-2 compliance validation: {(isFipsCompliant ? "Passed" : "Not FIPS 140-2 compliant")}",
 				nameof(EncryptionControlValidator)));
+
+			if (!isFipsCompliant)
+			{
+				issues.Add(
+					"The encryption provider reported that it is not FIPS 140-2 compliant.");
+			}
 		}
 		catch (Exception ex)
 		{
@@ -116,6 +124,12 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 				EvidenceType.TestResult,
 				$"FIPS validation check: {ex.Message}",
 				nameof(EncryptionControlValidator)));
+
+			// The check THREW. Recording the message as evidence and adding no issue let control reach
+			// the success branch below, so a verification that failed to run returned a perfect score.
+			issues.Add(
+				"The FIPS 140-2 compliance check did not complete, so the encryption provider's compliance "
+				+ "is unverified rather than established.");
 		}
 
 		evidence.Add(CreateEvidence(
@@ -125,34 +139,61 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 
 		if (issues.Count == 0)
 		{
+			// "Encryption at rest validation passed" over-claimed what ran. The provider reported its own
+			// FIPS compliance and the provider is configured; no stored record was read back and checked
+			// for ciphertext. The check is real -- this control stays effective -- but the evidence must
+			// say what was checked, because an assessor reads this line as the scope of the test.
 			evidence.Add(CreateEvidence(
 				EvidenceType.TestResult,
-				"Encryption at rest validation passed",
+				"Encryption provider is configured and reported FIPS 140-2 compliance when queried; no "
+				+ "stored record was read back to confirm data at rest is encrypted",
 				nameof(EncryptionControlValidator)));
 
 			return CreateSuccessResult(ControlSec001, evidence);
 		}
 
-		return CreateFailureResult(ControlSec001, issues, 50, evidence);
+		// Constructed rather than routed through CreateFailureResult for the same reason as SEC-004:
+		// the helper sets IsConfigured = issues.Count == 0, so naming any issue makes the result claim
+		// the encryption provider is not configured. It demonstrably is -- the null check above returned
+		// long ago. Removable the moment the base gains a configured-but-unverified factory.
+		return new ControlValidationResult
+		{
+			ControlId = ControlSec001,
+			IsConfigured = true,
+			IsEffective = false,
+			EffectivenessScore = 50,
+			ConfigurationIssues = issues,
+			Evidence = evidence,
+			ValidatedAt = DateTimeOffset.UtcNow
+		};
 	}
 
 	private ControlValidationResult ValidateEncryptionInTransit()
 	{
 		var evidence = new List<EvidenceItem>();
 
-		// TLS validation is typically handled at the transport level
-		// This validator checks if transport security is configured
-
+		// The declared control is TLS enforcement at the transport layer, and nothing here observes it.
+		// This method used to record an evidence item reading "TLS 1.2+ enforcement check" and return a
+		// PASS, on the stated assumption that TLS is configured in production -- so an auditor received
+		// an EFFECTIVE verdict with supporting evidence for a check that never ran. The sibling
+		// ValidateKeyManagementAsync below already rejects that reasoning: it fails when the provider it
+		// attests is absent rather than assuming one.
 		evidence.Add(CreateEvidence(
 			EvidenceType.Configuration,
-			"TLS 1.2+ enforcement check",
+			"Transport security is terminated outside this framework and cannot be observed from here",
 			nameof(EncryptionControlValidator)));
 
-		// In a real implementation, this would check TLS configuration
-		// For now, we assume TLS is properly configured if running in production
-
-
-		return CreateSuccessResult(ControlSec002, evidence);
+		// Partial score, matching the other controls whose mechanism may exist and is unverifiable here:
+		// transport security MAY be enforced, and this framework cannot confirm it.
+		return CreateFailureResult(
+			ControlSec002,
+			[
+				"Transport encryption is enforced by the host and its transports, not by this framework, so it "
+				+ "is unverified here; TLS terminated by a gateway, service mesh or load balancer requires "
+				+ "independent attestation."
+			],
+			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			evidence);
 	}
 
 	private async Task<ControlValidationResult> ValidateKeyManagementAsync(CancellationToken cancellationToken)
@@ -160,10 +201,16 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 		var issues = new List<string>();
 		var evidence = new List<EvidenceItem>();
 
+		// Three different facts are reachable below -- an absent provider, a key we examined and found
+		// missing or expired, and a check that threw before establishing anything. They were all fed
+		// through one complaint count, so a key proven expired scored the same as a lookup that failed.
+		var violationDetected = false;
+
 		if (_keyManagementProvider == null)
 		{
 			issues.Add("Key management provider not configured");
-			return CreateFailureResult(ControlSec003, issues);
+			return CreateFailureResult(
+				ControlSec003, issues, Soc2EffectivenessScore.MechanismAbsent);
 		}
 
 		try
@@ -174,6 +221,7 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 			if (keyMetadata == null)
 			{
 				issues.Add("No active encryption key available");
+				violationDetected = true;
 			}
 			else
 			{
@@ -186,6 +234,7 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 				if (keyMetadata.ExpiresAt.HasValue && keyMetadata.ExpiresAt.Value < DateTimeOffset.UtcNow)
 				{
 					issues.Add($"Current encryption key expired at {keyMetadata.ExpiresAt.Value:O}");
+					violationDetected = true;
 				}
 			}
 		}
@@ -198,13 +247,20 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 		{
 			evidence.Add(CreateEvidence(
 				EvidenceType.TestResult,
-				"Key management validation passed",
+				"An active encryption key was retrieved and its expiry was checked against the current time",
 				nameof(EncryptionControlValidator)));
 
 			return CreateSuccessResult(ControlSec003, evidence);
 		}
 
-		var score = Math.Max(0, 100 - (issues.Count * 25));
-		return CreateFailureResult(ControlSec003, issues, score, evidence);
+		// A check that threw leaves key management UNVERIFIED; a key examined and found missing or
+		// expired is a finding, and a finding must never read as better than an open question.
+		var score = violationDetected
+			? Soc2EffectivenessScore.ViolationDetected
+			: Soc2EffectivenessScore.Unverified;
+
+		// The provider null-guard returned above, so key management IS configured; what varies is
+		// whether we examined it and what we found.
+		return CreateFailureResult(ControlSec003, issues, score, evidence, isConfigured: true);
 	}
 }

@@ -3,6 +3,7 @@
 
 using Excalibur.A3;
 using Excalibur.A3.Authorization;
+using Excalibur.A3.Authorization.PolicyData;
 using Excalibur.A3.Authorization.Stores.InMemory;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -47,6 +48,13 @@ public static class A3CoreServiceCollectionExtensions
 		// register a durable store itself.
 		services.TryAddSingleton<IGrantStore, InMemoryGrantStore>();
 		services.TryAddSingleton<IActivityGroupStore, InMemoryActivityGroupStore>();
+
+		// Grant evaluation: reads the stores above directly, no distributed cache, no CQRS/Dispatch
+		// pipeline. TryAdd, not Replace -- AddExcaliburA3() layers its own cached provider over this
+		// same seam and must win when both are registered.
+		services.TryAddScoped<ActivityGroups>();
+		services.TryAddScoped<UserGrants>();
+		services.TryAddScoped<IAuthorizationPolicyProvider, CoreAuthorizationPolicyProvider>();
 
 		return new A3Builder(services);
 	}

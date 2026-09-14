@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Configuration;
 /// <param name="options"> Dispatch configuration options. </param>
 /// <param name="applicabilityStrategy"> Strategy for determining middleware applicability (reserved for future middleware filtering). </param>
 #pragma warning disable CS9113 // Primary constructor parameter is not read — reserved for future middleware filtering; removing would break public API
-public sealed partial class PipelineProfileSynthesizer(
+internal sealed partial class PipelineProfileSynthesizer(
 	ILogger<PipelineProfileSynthesizer> logger,
 	IOptions<DispatchOptions> options,
 	IMiddlewareApplicabilityStrategy applicabilityStrategy)

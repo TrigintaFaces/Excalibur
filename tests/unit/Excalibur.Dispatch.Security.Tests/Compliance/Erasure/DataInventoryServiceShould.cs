@@ -200,8 +200,8 @@ public sealed class DataInventoryServiceShould
 
 		// Assert
 		result.AssociatedKeys.Count.ShouldBe(2);
-		result.AssociatedKeys.ShouldContain(k => k.KeyId == "key-1" && k.RecordCount == 2);
-		result.AssociatedKeys.ShouldContain(k => k.KeyId == "key-2" && k.RecordCount == 1);
+		result.AssociatedKeys.ShouldContain(k => k.KeyId == "key-1" && k.EncryptedFieldValueCount == 2);
+		result.AssociatedKeys.ShouldContain(k => k.KeyId == "key-2" && k.EncryptedFieldValueCount == 1);
 	}
 
 	[Fact]

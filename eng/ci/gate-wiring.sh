@@ -100,11 +100,19 @@ CORPUS_DIR="$(mktemp -d 2>/dev/null)" || { echo "::error::gate-wiring: cannot cr
 trap 'rm -rf "$CORPUS_DIR"' EXIT
 CODE_CORPUS="$CORPUS_DIR/code"; MD_CORPUS="$CORPUS_DIR/md"
 : >"$CODE_CORPUS"; : >"$MD_CORPUS"
+# PROVENANCE PREFIX: every code-corpus line is tagged with the basename of the file it came from,
+# because a gate MUST NOT be able to wire itself. eng/ci/*-gate.sh is part of the caller set (gates
+# legitimately invoke other gates), which means a gate's own file is searched for its own name — and a
+# routine `--help` line such as `echo "usage: my-gate.sh [--sweep]"` is code, not a comment, so it
+# satisfied the token search and the gate reported WIRED while nothing invoked it. Measured: two gates
+# were wired only by themselves, and for one of them this meta-gate went on to recommend deleting its
+# baseline entry as "now wired" — advice that would have converted a tracked orphan into an invisible
+# one. The tag lets is_wired ignore hits whose only source is the gate itself, at no extra pass.
 for cf in "${callers[@]:-}"; do
     [ -n "$cf" ] || continue
     case "$cf" in
         *.md) cat "$cf" >>"$MD_CORPUS" 2>/dev/null ;;
-        *)    grep -vE '^[[:space:]]*#' "$cf" >>"$CODE_CORPUS" 2>/dev/null ;;
+        *)    grep -vE '^[[:space:]]*#' "$cf" | sed "s|^|$(basename "$cf")\||" >>"$CODE_CORPUS" 2>/dev/null ;;
     esac
 done
 
@@ -115,7 +123,11 @@ done
 # comment does not wire a gate.
 is_wired() {
     local esc="${1//./\\.}"   # escape '.' so the extension is matched literally, not as any-char
-    grep -qE "(^|[^A-Za-z0-9_-])${esc}([^A-Za-z0-9_-]|\$)" "$CODE_CORPUS" 2>/dev/null && return 0
+    # A hit counts only if it came from a file OTHER than the gate itself (see the provenance note
+    # above): match the token, then drop the lines tagged with this gate's own basename. If anything
+    # survives, a real caller names it.
+    grep -E "(^|[^A-Za-z0-9_|-])${esc}([^A-Za-z0-9_-]|\$)" "$CODE_CORPUS" 2>/dev/null \
+        | grep -qvE "^${esc}\|" && return 0
     grep -qE "(^|[^A-Za-z0-9_-])(bash|sh|pwsh|python3?|\./)[[:space:]]*[^[:space:]]*${esc}([^A-Za-z0-9_-]|\$)" "$MD_CORPUS" 2>/dev/null && return 0
     return 1
 }

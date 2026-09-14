@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatServerInstant } from "../time";
   import { onDestroy, onMount } from "svelte";
 
   import { ApiError, getJson, postJson } from "../api";
@@ -177,10 +178,10 @@
     {#if selected}
       <dl class="detail">
         <div><dt>Id</dt><dd>{selected.id}</dd></div>
-        <div><dt>Enqueued</dt><dd>{new Date(selected.enqueuedAt).toLocaleString()}</dd></div>
+        <div><dt>Enqueued</dt><dd>{formatServerInstant(selected.enqueuedAt)}</dd></div>
         <div><dt>Source</dt><dd>{selected.sourceQueue ?? "—"}</dd></div>
         <div><dt>Correlation</dt><dd>{selected.correlationId ?? "—"}</dd></div>
-        <div><dt>Replayed</dt><dd>{selected.isReplayed ? `yes (${selected.replayedAt ? new Date(selected.replayedAt).toLocaleString() : "—"})` : "no"}</dd></div>
+        <div><dt>Replayed</dt><dd>{selected.isReplayed ? `yes (${formatServerInstant(selected.replayedAt)})` : "no"}</dd></div>
         {#if selected.exceptionMessage}
           <div class="full"><dt>Exception</dt><dd class="exception">{selected.exceptionMessage}</dd></div>
         {/if}

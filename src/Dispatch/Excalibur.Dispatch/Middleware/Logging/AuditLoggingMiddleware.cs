@@ -90,7 +90,7 @@ public sealed partial class AuditLoggingMiddleware(IOptions<AuditLoggingOptions>
 		{
 			var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 
-			if (result.IsSuccess)
+			if (result.Succeeded)
 			{
 				LogMessageProcessingCompleted(messageId, messageType, userId, correlationId,
 					true, (long)stopwatch.Elapsed.TotalMilliseconds);

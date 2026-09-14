@@ -80,6 +80,12 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	private const string ModeFull = "full";
 	private const string ModeLight = "light";
 
+	// A duplicate skip SUCCEEDS without any handler running. A bare success is indistinguishable from a
+	// handled message, so a caller that records completion on Succeeded alone marks a message complete
+	// that nothing processed. Cached because it is allocation-free per skip, as MessageResult.Success() is.
+	private static readonly IMessageResult DuplicateSuppressed =
+		new BasicMessageResult(succeeded: true) { Disposition = MessageDisposition.SuppressedAsDuplicate };
+
 	// Per-layer claim-key namespace: the inbox at-most-once layer claims under "inbox:" so it cannot
 	// spuriously collide with the business-effect idempotency layer ("idem:") on the shared in-memory
 	// dedup engine. Distinct layers structurally cannot steal each other's claim.
@@ -515,10 +521,28 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 			if (lease is not { } heldLease)
 			{
+				// A refusal has two causes and the store cannot tell them apart: a COMPETITOR holds a live
+				// term, or THIS caller already holds it and is dispatching the entry it claimed. Treating the
+				// holder as a competitor skips the handler and still reports a completion, so a drain finalizes
+				// an entry whose handler never ran -- and records its external id as deduplicated, which makes a
+				// later redelivery of the same message skip the handler too. Recognise the caller's own term.
+				if (CallerHoldsLeaseOnEntry(context, messageId, handlerType))
+				{
+					// Borrower: run the handler, return the real result, finalize NOTHING. The claimant that
+					// minted the term owns both outcomes, because that is where attempt accounting lives. A
+					// failure recorded here would clear the term the claimant is about to finalize under, and
+					// the attempt would be recorded by nobody.
+					MarkInboxDisposition(context, InboxLeaseDisposition.Admitted);
+					return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+				}
+
 				LogMessageBeingProcessed(messageId);
 				RecordDeduplicated(DispositionDuplicate, ModeFull);
-				return MR.Success();
+				MarkInboxDisposition(context, InboxLeaseDisposition.Declined);
+				return DuplicateSuppressed;
 			}
+
+			MarkInboxDisposition(context, InboxLeaseDisposition.Admitted);
 
 			// Finalize under the TERM the acquisition returned, never through the unfenced
 			// MarkProcessedAsync/MarkFailedAsync. Those carry nothing identifying the holder, so a handler
@@ -547,12 +571,14 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 					LogMessageBeingProcessed(messageId);
 					RecordDeduplicated(DispositionDuplicate, ModeFull);
-					return MR.Success();
+					MarkInboxDisposition(context, InboxLeaseDisposition.Declined);
+					return DuplicateSuppressed;
 
 				case InboxStatus.Processed:
 					LogMessageAlreadyProcessed(messageId);
 					RecordDeduplicated(DispositionDuplicate, ModeFull);
-					return MR.Success();
+					MarkInboxDisposition(context, InboxLeaseDisposition.Declined);
+					return DuplicateSuppressed;
 
 				case InboxStatus.Failed:
 					LogMessagePreviouslyFailed(messageId);
@@ -608,8 +634,48 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 		existingEntry.MarkProcessing();
 
+		MarkInboxDisposition(context, InboxLeaseDisposition.Admitted);
+
 		return await ExecuteHandlerAndFinalizeAsync(messageId, handlerType, message, context, nextDelegate, cancellationToken)
 			.ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Reports what this stage did with the dispatch, so a caller that owns finalization of the entry can
+	/// tell an invocation that ran from one that was refused. The two are otherwise indistinguishable: both
+	/// surface as a successful dispatch.
+	/// </summary>
+	private static void MarkInboxDisposition(IMessageContext context, InboxLeaseDisposition disposition) =>
+		context.GetOrCreateInboxLeaseFeature().Disposition = disposition;
+
+	/// <summary>
+	/// Determines whether the dispatching caller already holds a lease on this exact entry, and is therefore
+	/// the claim holder rather than a competitor for it.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The match is on the entry the term was issued for, not merely on a term being present, and that is
+	/// load-bearing rather than defensive: a batch context copies every feature from the first message's
+	/// context onto a context representing many messages, so a term issued for one entry is reachable from a
+	/// dispatch covering others. The identity check is what stops it admitting them. Do not reduce this to a
+	/// presence test.
+	/// </para>
+	/// <para>
+	/// The term is not re-validated against the store, and cannot be: no leased-store operation checks a term
+	/// without acquiring one, so a read here would be a check-then-act and would reintroduce the race the
+	/// lease protocol exists to remove. A lease that lapses between the caller's acquisition and this point is
+	/// therefore undetectable here -- but the caller already runs the handler under a term it never
+	/// re-validates, learning of a lapse only at its own fenced finalize. This moves that exposure rather than
+	/// widening it.
+	/// </para>
+	/// </remarks>
+	private static bool CallerHoldsLeaseOnEntry(IMessageContext context, string messageId, string handlerType)
+	{
+		var held = context.GetInboxLeaseFeature();
+
+		return held is { Lease: not null }
+			&& string.Equals(held.MessageId, messageId, StringComparison.Ordinal)
+			&& string.Equals(held.HandlerType, handlerType, StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -769,7 +835,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			{
 				LogMessageAlreadyProcessed(messageId);
 				RecordDeduplicated(DispositionDuplicate, ModeFull);
-				return MR.Success();
+				return DuplicateSuppressed;
 			}
 
 			LogMarkedMessageAsProcessed(messageId);
@@ -834,7 +900,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		{
 			LogMessageIsDuplicate(_logger, messageId);
 			RecordDeduplicated(DispositionDuplicate, ModeLight);
-			return MR.Success();
+			return DuplicateSuppressed;
 		}
 
 		try

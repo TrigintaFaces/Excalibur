@@ -140,7 +140,7 @@ Alternatively, use the standalone extension method:
 The CloudEvents mapper bundled with this transport serializes the message payload with
 reflection-based JSON, so these registrations carry `[RequiresUnreferencedCode]` and
 `[RequiresDynamicCode]`. A host that trims or publishes ahead of time gets a warning at the
-call. To compose without the requirement, register your own `ICloudEventMapper<TTransportMessage>`
+call. To compose without the requirement, register your own `ICloudEventEncoder<TOutbound>`
 backed by a source-generated serializer.
 :::
 

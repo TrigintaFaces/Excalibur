@@ -195,21 +195,6 @@ internal static class AdvertisedStrategyRegistry
 			]),
 
 		new AdvertisedStrategyEnum(
-			"Excalibur.Dispatch.Transport.RetryStrategy",
-			"Excalibur.Dispatch.Abstractions",
-			[
-				new StrategyValueCoverage(
-					"FixedDelay", 0, CoverageKind.Implementor,
-					"Excalibur.Dispatch.Resilience.FixedBackoffCalculator", DispatchAsm,
-					"BackoffCalculatorFactory.Create maps FixedDelay to a FixedBackoffCalculator (IBackoffCalculator)."),
-				new StrategyValueCoverage(
-					"ExponentialBackoff", 1, CoverageKind.Implementor,
-					"Excalibur.Dispatch.Resilience.ExponentialBackoffCalculator", DispatchAsm,
-					"BackoffCalculatorFactory.Create maps ExponentialBackoff to an ExponentialBackoffCalculator; the factory's "
-					+ "default arm throws ArgumentOutOfRangeException (fail-loud), so an unmapped value cannot silently no-op."),
-			]),
-
-		new AdvertisedStrategyEnum(
 			"Excalibur.Dispatch.Transport.Kafka.SubjectNameStrategy",
 			"Excalibur.Dispatch.Transport.Kafka",
 			[

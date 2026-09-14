@@ -310,20 +310,20 @@ public sealed class ComplianceMonitoringServiceShould
 					Category = TrustServicesCategory.Security,
 					Level = ComplianceLevel.FullyCompliant,
 					CompliancePercentage = 100,
-					ActiveControls = 5,
-					ControlsWithIssues = 0,
+					CriteriaAssessed = 5,
+					CriteriaEnabled = 5,
+					CriteriaWithIssues = 0,
 				},
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
-				[TrustServicesCriterion.CC6_LogicalAccess] = new()
-				{
-					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-					IsMet = true,
-					EffectivenessScore = 100,
-					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 5,
-				},
+				[TrustServicesCriterion.CC6_LogicalAccess] = CriterionStatus.Assessed(
+					TrustServicesCriterion.CC6_LogicalAccess,
+					met: true,
+					effectivenessScore: 100,
+					lastValidated: DateTimeOffset.UtcNow,
+					controlsAssessed: 1,
+					evidenceCount: 5),
 			},
 			ActiveGaps = [],
 		};
@@ -339,20 +339,20 @@ public sealed class ComplianceMonitoringServiceShould
 					Category = TrustServicesCategory.Security,
 					Level = ComplianceLevel.PartiallyCompliant,
 					CompliancePercentage = 50,
-					ActiveControls = 5,
-					ControlsWithIssues = 2,
+					CriteriaAssessed = 5,
+					CriteriaEnabled = 5,
+					CriteriaWithIssues = 2,
 				},
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
-				[TrustServicesCriterion.CC6_LogicalAccess] = new()
-				{
-					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-					IsMet = false,
-					EffectivenessScore = 50,
-					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 3,
-				},
+				[TrustServicesCriterion.CC6_LogicalAccess] = CriterionStatus.Assessed(
+					TrustServicesCriterion.CC6_LogicalAccess,
+					met: false,
+					effectivenessScore: 50,
+					lastValidated: DateTimeOffset.UtcNow,
+					controlsAssessed: 1,
+					evidenceCount: 3),
 			},
 			ActiveGaps =
 			[
@@ -379,20 +379,20 @@ public sealed class ComplianceMonitoringServiceShould
 					Category = TrustServicesCategory.Security,
 					Level = ComplianceLevel.SubstantiallyCompliant,
 					CompliancePercentage = 90,
-					ActiveControls = 5,
-					ControlsWithIssues = 1,
+					CriteriaAssessed = 5,
+					CriteriaEnabled = 5,
+					CriteriaWithIssues = 1,
 				},
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
-				[TrustServicesCriterion.CC6_LogicalAccess] = new()
-				{
-					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-					IsMet = true,
-					EffectivenessScore = 90,
-					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 5,
-				},
+				[TrustServicesCriterion.CC6_LogicalAccess] = CriterionStatus.Assessed(
+					TrustServicesCriterion.CC6_LogicalAccess,
+					met: true,
+					effectivenessScore: 90,
+					lastValidated: DateTimeOffset.UtcNow,
+					controlsAssessed: 1,
+					evidenceCount: 5),
 			},
 			ActiveGaps =
 			[

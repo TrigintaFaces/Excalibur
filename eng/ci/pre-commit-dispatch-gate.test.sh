@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pre-commit-dispatch-gate.test.sh — regression lock for eng/ci/pre-commit-dispatch-gate.sh (e5juti).
+# pre-commit-dispatch-gate.test.sh — regression lock for eng/ci/pre-commit-dispatch-gate.sh.
 #
 # The gate's thesis: a non-verdict exit (2/124/127/143) from a dispatched gate must NOT be read as PASS.
 # This lock drives the gate over hermetic FIXTURE hooks (via PRECOMMIT_DISPATCH_HOOK) and proves all
@@ -61,7 +61,7 @@ rc="$(run_gate "$WORK/b")"
     || fail "B: three-state case did NOT PASS (got $rc, expected 0)"
 
 # ── SAFETY C: `-eq 1` single-code site -> FAIL(1) ──────────────────────────
-# The r4dzl2 security hole: only exit 1 blocks; a gate that exits 2 (syntax error) or 127 passes.
+# The exit-code security hole: only exit 1 blocks; a gate that exits 2 (syntax error) or 127 passes.
 cat > "$WORK/c" <<'EOF'
 #!/usr/bin/env bash
 bash "$GUARD" && dup_rc=0 || dup_rc=$?
@@ -95,7 +95,7 @@ rc="$(run_gate "$WORK/e")"
     || fail "E: captured-never-read was NOT flagged (got $rc, expected 1)"
 
 # ── SAFETY F: a violation HIDDEN among safe sites -> FAIL(1) ────────────────
-# The exact r4dzl2 miss: 5 safe sites clustered, 1 broken site far below. Enumerate, don't sample.
+# The exact miss: 5 safe sites clustered, 1 broken site far below. Enumerate, don't sample.
 cat > "$WORK/f" <<'EOF'
 #!/usr/bin/env bash
 bash "$G1" && a_rc=0 || a_rc=$?

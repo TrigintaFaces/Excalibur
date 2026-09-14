@@ -129,6 +129,12 @@
           "exclude": [
             "aws-lambda-tools-defaults.json"
           ]
+        },
+        {
+          "condition": "(!UseAws && !UseGcp)",
+          "exclude": [
+            "Startup.cs"
+          ]
         }
       ]
     }

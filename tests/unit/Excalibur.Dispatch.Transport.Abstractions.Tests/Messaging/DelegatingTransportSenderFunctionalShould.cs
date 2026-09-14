@@ -107,16 +107,17 @@ public sealed class DelegatingTransportSenderFunctionalShould
 	}
 
 	[Fact]
-	public void Expose_inner_sender_via_get_service()
+	public void Expose_itself_rather_than_the_inner_sender_via_get_service()
 	{
 		var inner = A.Fake<ITransportSender>();
-		// DelegatingTransportSender delegates GetService to InnerSender,
-		// so configure the inner to return itself for the ITransportSender type
 		A.CallTo(() => inner.GetService(typeof(ITransportSender))).Returns(inner);
 		var sut = new TestDelegatingSender(inner);
 
 		var service = sut.GetService(typeof(ITransportSender));
 
-		service.ShouldBeSameAs(inner);
+		service.ShouldBeSameAs(
+			sut,
+			"a caller asking a decorated sender for the sender wants the one it is holding; handing back "
+			+ "the inner removes this decorator from everything the caller then does with it");
 	}
 }

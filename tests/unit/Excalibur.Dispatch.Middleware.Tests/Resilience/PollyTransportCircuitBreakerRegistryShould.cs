@@ -57,8 +57,8 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 10,
-			OpenDuration = TimeSpan.FromMinutes(2),
+			MinimumThroughput = 10,
+			BreakDuration = TimeSpan.FromMinutes(2),
 		};
 		var logger = NullLoggerFactory.Instance.CreateLogger<PollyTransportCircuitBreakerRegistry>();
 
@@ -76,8 +76,8 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		// Arrange
 		var options = Microsoft.Extensions.Options.Options.Create(new CircuitBreakerOptions
 		{
-			FailureThreshold = 5,
-			OpenDuration = TimeSpan.FromMinutes(1),
+			MinimumThroughput = 5,
+			BreakDuration = TimeSpan.FromMinutes(1),
 		});
 		var logger = NullLoggerFactory.Instance.CreateLogger<PollyTransportCircuitBreakerRegistry>();
 
@@ -224,8 +224,8 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		var registry = CreateRegistry();
 		var customOptions = new CircuitBreakerOptions
 		{
-			FailureThreshold = 20,
-			OpenDuration = TimeSpan.FromMinutes(5),
+			MinimumThroughput = 20,
+			BreakDuration = TimeSpan.FromMinutes(5),
 		};
 
 		// Act
@@ -255,7 +255,7 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		var cb1 = registry.GetOrCreate("transport");
 
 		// Act - try to get with different options
-		var customOptions = new CircuitBreakerOptions { FailureThreshold = 100 };
+		var customOptions = new CircuitBreakerOptions { MinimumThroughput = 100 };
 		var cb2 = registry.GetOrCreate("transport", customOptions);
 
 		// Assert - should return existing, not create new
@@ -410,7 +410,7 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		await cbKafka.FailAsync().ConfigureAwait(false);
 
 		// Act
-		registry.ResetAll();
+		await registry.ResetAllAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		((ICircuitBreakerDiagnostics)cbRabbitmq).ConsecutiveFailures.ShouldBe(0);
@@ -418,13 +418,13 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 	}
 
 	[Fact]
-	public void ResetAllWhenEmpty()
+	public async Task ResetAllWhenEmpty()
 	{
 		// Arrange
 		var registry = CreateRegistry();
 
 		// Act & Assert - should not throw
-		Should.NotThrow(() => registry.ResetAll());
+		await Should.NotThrowAsync(async () => await registry.ResetAllAsync(CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 	}
 
 	#endregion ResetAll Tests
@@ -572,7 +572,7 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 	}
 
 	[Fact]
-	public void ThrowObjectDisposedExceptionAfterDispose()
+	public async Task ThrowObjectDisposedExceptionAfterDispose()
 	{
 		// Arrange
 		var registry = new PollyTransportCircuitBreakerRegistry();
@@ -582,7 +582,7 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		_ = Should.Throw<ObjectDisposedException>(() => registry.GetOrCreate("test"));
 		_ = Should.Throw<ObjectDisposedException>(() => registry.TryGet("test"));
 		_ = Should.Throw<ObjectDisposedException>(() => registry.Remove("test"));
-		_ = Should.Throw<ObjectDisposedException>(() => registry.ResetAll());
+		_ = await Should.ThrowAsync<ObjectDisposedException>(async () => await registry.ResetAllAsync(CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 		_ = Should.Throw<ObjectDisposedException>(() => registry.GetAllStates());
 		_ = Should.Throw<ObjectDisposedException>(() => registry.GetTransportNames());
 	}
@@ -615,8 +615,8 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
-			FailureThreshold = 2,
-			OpenDuration = TimeSpan.FromMinutes(1),
+			MinimumThroughput = 2,
+			BreakDuration = TimeSpan.FromMinutes(1),
 		};
 		var registry = CreateRegistry(options);
 		var cbRabbitmq = registry.GetOrCreate("rabbitmq");

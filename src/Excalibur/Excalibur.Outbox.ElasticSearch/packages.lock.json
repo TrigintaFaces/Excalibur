@@ -415,11 +415,11 @@
         "type": "Project",
         "dependencies": {
           "Azure.Identity": "[1.21.0, )",
-          "Azure.Security.KeyVault.Keys": "[4.9.0, )",
           "Azure.Security.KeyVault.Secrets": "[4.10.0, )",
           "Elastic.Clients.Elasticsearch": "[9.4.1, )",
           "Elastic.Transport": "[0.17.1, )",
           "Excalibur.AuditLogging.Abstractions": "[1.0.0, )",
+          "Excalibur.Compliance": "[1.0.0, )",
           "Excalibur.Data": "[1.0.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Excalibur.EventSourcing": "[1.0.0, )",
@@ -527,6 +527,7 @@
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
           "OpenTelemetry.Extensions.Hosting": "[1.15.3, )",
+          "Polly": "[8.6.6, )",
           "System.IO.Hashing": "[10.0.7, )"
         }
       },
@@ -575,15 +576,6 @@
         "contentHash": "GeFv8sGwRKvDKwI2WFy8r0mhmlxEVZg24Sit2NogTjiSO8RVjllWM65OT6e1sKjOvG8V74y7hAbaELUUPjZQSw==",
         "dependencies": {
           "Azure.Core": "1.53.0"
-        }
-      },
-      "Azure.Security.KeyVault.Keys": {
-        "type": "CentralTransitive",
-        "requested": "[4.9.0, )",
-        "resolved": "4.9.0",
-        "contentHash": "CBuyErsNqLTbICquZa0b6Qy4ZPuxXnNjL7ucJRIbnchq9KgqYWwj9t73rio5upmg3SHjgnrrJKI3bh8xYtXXSw==",
-        "dependencies": {
-          "Azure.Core": "1.51.1"
         }
       },
       "Azure.Security.KeyVault.Secrets": {

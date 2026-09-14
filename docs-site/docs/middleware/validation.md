@@ -53,7 +53,7 @@ expect one to substitute for the other — both end up in the same problem-detai
 
 If validation fails, the middleware throws `Excalibur.Dispatch.Exceptions.ValidationException`. The
 handler is never invoked, and the exception propagates out of `DispatchAsync` to the caller — it is not
-surfaced as `IMessageResult.IsSuccess == false`.
+surfaced as `IMessageResult.Succeeded == false`.
 
 :::note The local fast path defers to your validation
 Dispatch takes an internal fast path for local messages, but only when no middleware applies to that

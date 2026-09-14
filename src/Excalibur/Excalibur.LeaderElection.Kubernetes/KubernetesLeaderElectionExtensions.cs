@@ -30,10 +30,10 @@ public static class KubernetesLeaderElectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Configuration action for the Kubernetes builder.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode(
+		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
+	[RequiresDynamicCode(
+		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
 	public static IServiceCollection AddExcaliburKubernetesLeaderElection(
 		this IServiceCollection services,
 		Action<ILeaderElectionKubernetesBuilder> configure)
@@ -57,10 +57,10 @@ public static class KubernetesLeaderElectionExtensions
 	/// <param name="resourceName">The resource name for leader election.</param>
 	/// <param name="configure">Configuration action for the Kubernetes builder.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode(
+		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
+	[RequiresDynamicCode(
+		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
 	public static IServiceCollection AddExcaliburKubernetesLeaderElectionHostedService(
 		this IServiceCollection services,
 		string resourceName,
@@ -114,10 +114,10 @@ public static class KubernetesLeaderElectionExtensions
 		return services;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode(
+		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
+	[RequiresDynamicCode(
+		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
 	private static void RegisterOptionsAndServices(
 		IServiceCollection services,
 		LeaderElectionKubernetesBuilder k8sBuilder)
@@ -211,6 +211,15 @@ public static class KubernetesLeaderElectionExtensions
 
 		// Register a hosted service for automatic leader election if needed
 		_ = services.AddSingleton<KubernetesLeaderElectionHostedService>();
+
+		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
+		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
+		// provider rather than requiring a second, easily-forgotten AddKubernetesFencingTokenProvider() +
+		// WithFencingTokens() call. WithoutFencingTokens() opts out. This is the standalone
+		// IServiceCollection entry point (AddExcaliburKubernetesLeaderElection); UseKubernetes() on the
+		// builder path is wired separately in KubernetesLeaderElectionBuilderExtensions.
+		services.TryAddDefaultFencingTokenProvider(sp =>
+			ActivatorUtilities.CreateInstance<KubernetesFencingTokenProvider>(sp));
 	}
 
 	/// <summary>

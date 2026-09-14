@@ -55,7 +55,7 @@ public sealed class ThrowingHandlerOutcomeIsPathIndependentShould
 		try
 		{
 			var result = await dispatcher.DispatchAsync(action, context, TestContext.Current.CancellationToken);
-			result.IsSuccess.ShouldBeFalse("a handler that threw did not succeed");
+			result.Succeeded.ShouldBeFalse("a handler that threw did not succeed");
 			return null;
 		}
 		catch (Exception ex)

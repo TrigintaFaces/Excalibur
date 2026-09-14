@@ -64,9 +64,16 @@ public interface ITransportCircuitBreakerDiagnostics
 	bool Remove(string transportName);
 
 	/// <summary>
-	/// Resets all circuit breakers to the closed state.
+	/// Returns every registered circuit breaker to the closed state.
 	/// </summary>
-	void ResetAll();
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>A task that completes once every circuit is closed.</returns>
+	/// <remarks>
+	/// When the returned task completes, every circuit this registry holds reports
+	/// <see cref="CircuitState.Closed" />. The individual resets are awaited rather than started, so a
+	/// caller that needs the whole registry back in service can wait for exactly that.
+	/// </remarks>
+	Task ResetAllAsync(CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Gets the current states of all registered circuit breakers.

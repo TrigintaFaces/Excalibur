@@ -10,7 +10,10 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Options.Serialization;
 using Excalibur.Dispatch.Serialization;
 
+using Excalibur.Dispatch.Caching;
+
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.A3.Authorization;
 
@@ -34,15 +37,33 @@ internal sealed class AuthorizationPolicyProvider(
 	ActivityGroups activityGroups,
 	UserGrants userGrants,
 	IAuthenticationToken currentUser,
-	IDistributedCache cache,
+	[FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache,
 	ITenantContext tenantContext
 ) : IAuthorizationPolicyProvider
 {
+	/// <summary>
+	/// The policy built for this scope, memoized after the first call. This type is registered scoped, so
+	/// one instance already lives for exactly one request/dispatch -- caching here is per-request
+	/// memoization without introducing any new lifetime or shared state. Distributed-cache reads for
+	/// grants and activity groups are cheap relative to a request, but ASP.NET Core evaluates
+	/// <c>HandleRequirementAsync</c> once per requirement, so a request checking more than one activity or
+	/// resource previously repeated the round-trip and the JSON deserialization for an answer that cannot
+	/// change within the same scope.
+	/// </summary>
+	private Task<IAuthorizationPolicy>? _cachedPolicy;
+
 	/// <inheritdoc />
 	/// <exception cref="InvalidOperationException">
 	/// Thrown when <see cref="IAuthenticationToken.UserId"/> is null or
 	/// <see cref="ITenantContext.TenantId"/> is null or empty.
 	/// </exception>
+	/// <remarks>
+	/// Kept <c>async</c> deliberately, even though the body has no <c>await</c> of its own: a validation
+	/// failure must reach the caller as a FAULTED TASK, the normal TAP contract for a Task-returning
+	/// method, not as a synchronous throw out of the method call itself. A non-async method that throws
+	/// before constructing its Task changes that contract silently for any caller who calls first and
+	/// awaits later.
+	/// </remarks>
 	public async Task<IAuthorizationPolicy> GetPolicyAsync()
 	{
 		if (currentUser.UserId is null)
@@ -57,17 +78,22 @@ internal sealed class AuthorizationPolicyProvider(
 				"Establish the ambient tenant (TenantContextHolder.BeginScope / tenant middleware) before evaluating authorization.");
 		}
 
+		return await (_cachedPolicy ??= BuildPolicyAsync(currentUser.UserId)).ConfigureAwait(false);
+	}
+
+	private async Task<IAuthorizationPolicy> BuildPolicyAsync(string userId)
+	{
 		// NOTE: IPolicyProvider<T>.GetPolicyAsync() does not accept CancellationToken.
 		// CancellationToken.None is used here because the interface contract does not support cancellation.
 #pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
-		var authData = await LoadPolicyDataAsync(currentUser.UserId, CancellationToken.None).ConfigureAwait(false);
+		var authData = await LoadPolicyDataAsync(userId, CancellationToken.None).ConfigureAwait(false);
 #pragma warning restore IL2026, IL3050
 
 		return new AuthorizationPolicy(
 			authData.Grants,
 			authData.ActivityGroups,
 			tenantContext,
-			currentUser.UserId);
+			userId);
 	}
 
 	/// <summary>

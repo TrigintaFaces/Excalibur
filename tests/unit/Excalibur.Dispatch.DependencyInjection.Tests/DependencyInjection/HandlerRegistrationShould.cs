@@ -312,6 +312,64 @@ public sealed class HandlerRegistrationShould : UnitTestBase
 
 	#endregion Handler Discovery Tests
 
+	#region Ambiguous Handler Scan Tests
+
+	[Fact]
+	public void AutoDiscoverHandlers_TwoHandlersForOneActionType_RecordsAmbiguousHandlerFinding()
+	{
+		// Safety arm: TestCommandHandler and AlternateCommandHandler both implement
+		// IActionHandler<TestCommand> in this test assembly, so the scan must record the collision
+		// instead of silently picking a winner.
+		var services = new ServiceCollection();
+		var testAssembly = typeof(TestCommand).Assembly;
+
+		_ = services.AddDispatchHandlers(testAssembly);
+
+		var provider = services.BuildServiceProvider();
+		var findings = provider.GetServices<AmbiguousHandlerScanFinding>().ToList();
+
+		var finding = findings.ShouldHaveSingleItem(); // exactly one ambiguous message type in this assembly
+		finding.MessageType.ShouldBe(typeof(TestCommand));
+		finding.HandlerTypes.ShouldContain(typeof(TestCommandHandler));
+		finding.HandlerTypes.ShouldContain(typeof(AlternateCommandHandler));
+	}
+
+	[Fact]
+	public void AutoDiscoverHandlers_OneHandlerPerActionType_RecordsNoAmbiguousHandlerFinding()
+	{
+		// Liveness arm: AnotherCommand and TestQuery each have exactly one scanned handler
+		// (AnotherCommandHandler, TestQueryHandler), so neither may appear as a finding even though
+		// TestCommand elsewhere in the same assembly IS ambiguous.
+		var services = new ServiceCollection();
+		var testAssembly = typeof(TestCommand).Assembly;
+
+		_ = services.AddDispatchHandlers(testAssembly);
+
+		var provider = services.BuildServiceProvider();
+		var findings = provider.GetServices<AmbiguousHandlerScanFinding>().ToList();
+
+		findings.ShouldNotContain(f => f.MessageType == typeof(AnotherCommand));
+		findings.ShouldNotContain(f => f.MessageType == typeof(TestQuery));
+	}
+
+	[Fact]
+	public void AutoDiscoverHandlers_EventHandler_RecordsNoAmbiguousHandlerFinding()
+	{
+		// Liveness arm: TestEvent has an IEventHandler<TestEvent> registration. Fan-out for events is
+		// legitimate, so the event interface must never surface as an ambiguity regardless of handler count.
+		var services = new ServiceCollection();
+		var testAssembly = typeof(TestCommand).Assembly;
+
+		_ = services.AddDispatchHandlers(testAssembly);
+
+		var provider = services.BuildServiceProvider();
+		var findings = provider.GetServices<AmbiguousHandlerScanFinding>().ToList();
+
+		findings.ShouldNotContain(f => f.MessageType == typeof(TestEvent));
+	}
+
+	#endregion Ambiguous Handler Scan Tests
+
 	#region Handler Lifecycle Tests
 
 	[Fact]

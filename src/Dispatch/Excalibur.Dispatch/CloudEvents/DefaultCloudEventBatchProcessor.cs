@@ -76,10 +76,16 @@ public sealed class DefaultCloudEventBatchProcessor(
 				// Try to add to new batch
 				if (!currentBatch.TryAdd(cloudEvent))
 				{
-					// Single event exceeds batch size - add it alone
-					var singleEventBatch = new CloudEventBatch(_batchOptions);
-					_ = singleEventBatch.TryAdd(cloudEvent);
-					batches.Add(singleEventBatch);
+					// Reaching here means the event was refused by a batch that was already EMPTY, so the
+					// event's own size exceeds the limit and a fresh batch has the same limit. The previous
+					// code added it to one more empty batch and discarded the result, which at this point
+					// could only ever be false: the event was dropped and an EMPTY batch was emitted in its
+					// place. An event that cannot fit an empty batch cannot be batched at all, so it is
+					// refused here rather than silently lost.
+					throw new InvalidOperationException(
+						$"A CloudEvent of type '{cloudEvent.Type}' is larger than the maximum batch size and "
+						+ "cannot be placed in any batch. Reduce the event payload or raise the configured "
+						+ "maximum batch size.");
 				}
 			}
 		}

@@ -47,6 +47,7 @@ Excalibur.Outbox.Oracle.OracleOutboxStore.EnqueueAsync(Excalibur.Dispatch.IDispa
 Excalibur.Outbox.Oracle.OracleOutboxStore.GetAllTenantsFailedMessagesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.Oracle.OracleOutboxStore.GetAllTenantsScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.Oracle.OracleOutboxStore.GetAllTenantsStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxStatistics!>
+Excalibur.Outbox.Oracle.OracleOutboxStore.GetFencingHighWaterAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long?>!
 Excalibur.Outbox.Oracle.OracleOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.Oracle.OracleOutboxStore.GetUnsentMessagesAsync(int batchSize, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.Oracle.OracleOutboxStore.IncreaseAttempts(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
@@ -59,12 +60,12 @@ Excalibur.Outbox.Oracle.OracleOutboxStore.MarkSentAsync(string! messageId, long 
 Excalibur.Outbox.Oracle.OracleOutboxStore.MoveToDeadLetter(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Oracle.OracleOutboxStore.MoveToDeadLetterBatchAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Oracle.OracleOutboxStore.ReserveOutboxMessagesAsync(string! dispatcherId, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IOutboxMessage!>!>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.ResetFencingHighWaterAsync(long newHighWater, bool force, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.Oracle.OracleOutboxStore.SaveMessagesAsync(System.Collections.Generic.ICollection<Excalibur.Dispatch.IOutboxMessage!>! outboxMessages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Oracle.OracleOutboxStore.ScheduleMessageAsync(Excalibur.Outbox.OutboxMessage! message, System.DateTimeOffset scheduledAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.Oracle.OracleOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Oracle.OracleOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Oracle.OracleOutboxStore.SupportsSentTracking.get -> bool
-Excalibur.Outbox.Oracle.OracleOutboxStore.UnReserveOutboxMessagesAsync(string! dispatcherId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics
 Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.Dispose() -> void
 Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.OracleOutboxStoreMetrics() -> void
@@ -76,7 +77,6 @@ Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordIncreaseAttempts(double d
 Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordMoveToDeadLetter(double durationMs) -> void
 Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordReserveMessages(double durationMs, int messageCount) -> void
 Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordSaveMessages(double durationMs, int messageCount) -> void
-Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordUnreserveMessages(double durationMs, int messageCount) -> void
 Excalibur.Outbox.Oracle.OracleOutboxStoreOptions
 Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.DeadLetterTableName.get -> string!
 Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.DeadLetterTableName.set -> void
@@ -97,8 +97,6 @@ Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.SchemaName.set -> void
 Excalibur.Outbox.Oracle.OutboxBuilderOracleExtensions
 Excalibur.Outbox.Oracle.ReserveOutboxMessages
 Excalibur.Outbox.Oracle.ReserveOutboxMessages.ReserveOutboxMessages(string! dispatcherId, int batchSize, int reservationTimeout, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Outbox.Oracle.ResetOutboxMessageReservation
-Excalibur.Outbox.Oracle.ResetOutboxMessageReservation.ResetOutboxMessageReservation(string! dispatcherId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 static Excalibur.Outbox.Oracle.OracleOutboxBuilderExtensions.CommandTimeout(this Excalibur.Outbox.Oracle.IOracleOutboxBuilder! builder, System.TimeSpan timeout) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
 static Excalibur.Outbox.Oracle.OracleOutboxBuilderExtensions.MaxAttempts(this Excalibur.Outbox.Oracle.IOracleOutboxBuilder! builder, int maxAttempts) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
 static Excalibur.Outbox.Oracle.OracleOutboxBuilderExtensions.ReservationTimeout(this Excalibur.Outbox.Oracle.IOracleOutboxBuilder! builder, System.TimeSpan timeout) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!

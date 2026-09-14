@@ -55,6 +55,12 @@ internal sealed class CosmosDbEventStoreOptionsValidator : IValidateOptions<Cosm
 				$"{nameof(CosmosDbEventStoreOptions.ChangeFeedPollIntervalMs)} must be greater than zero.");
 		}
 
+		if (options.MaxConsecutiveCheckpointFailures < 1)
+		{
+			return ValidateOptionsResult.Fail(
+				$"{nameof(CosmosDbEventStoreOptions.MaxConsecutiveCheckpointFailures)} must be greater than zero.");
+		}
+
 		if (options.CreateContainerIfNotExists && options.ContainerThroughput < 400)
 		{
 			return ValidateOptionsResult.Fail(

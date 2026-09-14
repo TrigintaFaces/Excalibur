@@ -357,8 +357,13 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 
 		var fallbackDestination = await connection.ExecuteScalarAsync<string?>(
 			"SELECT destination FROM outbox WHERE message_id = @id", new { id = fallbackId });
-		fallbackDestination.ShouldBe(nameof(DestinationDerivationTestMessage),
-			"cys98n: with no context destination, EnqueueAsync must fall back to the message TYPE name, not a hardcoded default.");
+		fallbackDestination.ShouldBe(
+			typeof(DestinationDerivationTestMessage).FullName,
+			"cys98n: with no context destination, EnqueueAsync must fall back to the message TYPE name rather "
+			+ "than a hardcoded default. The destination is a ROUTING KEY and must be collision-free, so the "
+			+ "fallback is the NAMESPACE-QUALIFIED type name — two message types sharing a short name in "
+			+ "different namespaces must not collapse onto one destination. The short name is for telemetry "
+			+ "tags only; do not 'align' this to it.");
 	}
 
 	private static IMessageContext CreateContext(string messageId, string? destination)

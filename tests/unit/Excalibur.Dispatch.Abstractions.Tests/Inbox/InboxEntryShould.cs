@@ -12,6 +12,105 @@ namespace Excalibur.Dispatch.Tests.Inbox;
 [Trait("Component", "Abstractions")]
 public sealed class InboxEntryShould
 {
+	/// <remarks>
+	/// Every inbox store persists a dedicated correlation field alongside the metadata bag, and every store
+	/// builds its entry from this constructor. The writers that produce the bag put the correlation id in
+	/// it under this key rather than assigning the property, so if the constructor does not lift it the
+	/// dedicated field is written null for every entry the framework creates -- and a query filtering the
+	/// inbox on correlation returns nothing rather than reporting that it cannot answer.
+	/// </remarks>
+	[Fact]
+	public void ParameterizedConstructor_Should_LiftCorrelationIdOutOfTheMetadata()
+	{
+		var entry = new InboxEntry(
+			"msg-1",
+			"handler-1",
+			"type-1",
+			[1],
+			new Dictionary<string, object>(StringComparer.Ordinal) { ["CorrelationId"] = "corr-7" });
+
+		entry.CorrelationId.ShouldBe(
+			"corr-7",
+			"the correlation id the caller supplied is the value the store writes to its correlation "
+			+ "field, and it only gets there through this property");
+	}
+
+	[Fact]
+	public void ParameterizedConstructor_Should_LeaveCorrelationIdNull_WhenTheMetadataCarriesNone()
+	{
+		var entry = new InboxEntry(
+			"msg-1",
+			"handler-1",
+			"type-1",
+			[1],
+			new Dictionary<string, object>(StringComparer.Ordinal) { ["MessageType"] = "type-1" });
+
+		entry.CorrelationId.ShouldBeNull(
+			"inventing a correlation id would be worse than reporting none, so the absence must survive");
+	}
+
+	[Fact]
+	public void ParameterizedConstructor_Should_LeaveCorrelationIdNull_WhenTheMetadataValueIsNotUsableAsOne()
+	{
+		var entry = new InboxEntry(
+			"msg-1",
+			"handler-1",
+			"type-1",
+			[1],
+			new Dictionary<string, object>(StringComparer.Ordinal) { ["CorrelationId"] = "   " });
+
+		entry.CorrelationId.ShouldBeNull(
+			"a blank value identifies nothing, and storing it would make the field look populated");
+	}
+
+	/// <remarks>
+	/// Same lift, same reason, as <see cref="ParameterizedConstructor_Should_LiftCorrelationIdOutOfTheMetadata"/>:
+	/// InboxMiddleware.ExtractMetadata writes CausationId into the bag rather than assigning the property.
+	/// </remarks>
+	[Fact]
+	public void ParameterizedConstructor_Should_LiftCausationIdOutOfTheMetadata()
+	{
+		var entry = new InboxEntry(
+			"msg-1",
+			"handler-1",
+			"type-1",
+			[1],
+			new Dictionary<string, object>(StringComparer.Ordinal) { ["CausationId"] = "cause-7" });
+
+		entry.CausationId.ShouldBe(
+			"cause-7",
+			"the causation id the caller supplied is the value the store writes to its causation "
+			+ "field, and it only gets there through this property");
+	}
+
+	[Fact]
+	public void ParameterizedConstructor_Should_LeaveCausationIdNull_WhenTheMetadataCarriesNone()
+	{
+		var entry = new InboxEntry(
+			"msg-1",
+			"handler-1",
+			"type-1",
+			[1],
+			new Dictionary<string, object>(StringComparer.Ordinal) { ["MessageType"] = "type-1" });
+
+		entry.CausationId.ShouldBeNull(
+			"inventing a causation id would be worse than reporting none, so the absence must survive");
+	}
+
+	[Fact]
+	public void ParameterizedConstructor_Should_LeaveCausationIdNull_WhenTheMetadataValueIsNotUsableAsOne()
+	{
+		var entry = new InboxEntry(
+			"msg-1",
+			"handler-1",
+			"type-1",
+			[1],
+			new Dictionary<string, object>(StringComparer.Ordinal) { ["CausationId"] = "   " });
+
+		entry.CausationId.ShouldBeNull(
+			"a blank value identifies nothing, and storing it would make the field look populated");
+	}
+
 	[Fact]
 	public void DefaultConstructor_Should_SetDefaults()
 	{

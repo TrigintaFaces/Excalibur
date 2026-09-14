@@ -289,8 +289,8 @@ The middleware provides transparent encryption/decryption in the dispatch pipeli
 ```csharp
 using Excalibur.Security;
 
-builder.Services.AddDispatch()
-    .AddMessageEncryption(options =>
+builder.Services.AddDispatch();
+builder.Services.AddMessageEncryption(options =>
     {
         options.Enabled = true;
         options.EncryptByDefault = false;  // Only encrypt marked messages
@@ -382,13 +382,14 @@ using Excalibur.Compliance;
 
 public class PaymentInfo
 {
-    [EncryptedField(
-        Purpose = "payment-data",
-        Algorithm = EncryptionAlgorithm.Aes256Gcm)]
-    public string CardNumber { get; set; }
+    // byte[] only. The encrypting decorators select byte[] properties; the
+    // attribute on a string compiles and is then skipped, so serialize to
+    // bytes yourself before the value is stored.
+    [EncryptedField(Purpose = "payment-data")]
+    public byte[] CardNumber { get; set; }
 
     [EncryptedField(Purpose = "payment-data")]
-    public string CVV { get; set; }
+    public byte[] CVV { get; set; }
 }
 ```
 

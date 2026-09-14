@@ -72,14 +72,75 @@ BEGIN
 END
 GO
 
--- Additive upgrade for databases created before FencingToken existed. Without this
--- column, every drain fails with: Msg 207, Invalid column name 'FencingToken'.
-IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OutboxMessages]') AND type = N'U')
-   AND NOT EXISTS (SELECT * FROM sys.columns
-                   WHERE object_id = OBJECT_ID(N'[dbo].[OutboxMessages]') AND name = N'FencingToken')
-BEGIN
-    ALTER TABLE [dbo].[OutboxMessages] ADD FencingToken BIGINT NULL;
-END
+-- ---------------------------------------------------------------------------
+-- Additive upgrade, for a table created by an earlier version
+-- ---------------------------------------------------------------------------
+-- The CREATE above is guarded on the table's existence, so against a table that already exists it
+-- does nothing -- which is not the same as leaving that table in the CURRENT shape. A database
+-- provisioned before a column existed still lacks it, and the drain fails with Msg 207 (invalid
+-- column name) on its first poll. The indexes further down name some of these columns too, so they
+-- would fail the same way before the store ever ran.
+--
+-- This enumerates EVERY column the table declares rather than only the ones that arrived most
+-- recently. Which columns a given database already has depends on the version it was provisioned
+-- under, and enumerating all of them is what makes the outcome independent of that. COL_LENGTH
+-- returns NULL for a column that does not exist, so each statement is a no-op on a converged
+-- database and the whole block is safe to re-run.
+--
+-- Id, MessageType, Payload and Destination are deliberately absent. All four are NOT NULL with no
+-- default, so ADD would fail outright against a table that has rows -- and all four have existed
+-- since this table's first revision, so a table missing one is not an earlier outbox but a name
+-- collision with something else. Failing loudly is the right outcome for that.
+--
+-- TenantId arrives NOT NULL carrying the reserved untenanted key as its default, so existing rows
+-- are anchored to that key by the ADD itself. The tightening block below then finds the column
+-- already non-nullable and does nothing, which is correct: it exists for the DIFFERENT case of a
+-- database whose TenantId is present but nullable.
+--
+-- Defaults are named rather than left to an auto-generated constraint name, so a later script can
+-- address them and two databases upgraded on different days carry the same schema.
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'Headers') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD Headers NVARCHAR(MAX)  NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'CreatedAt') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_OutboxMessages_CreatedAt DEFAULT SYSDATETIMEOFFSET();
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'ScheduledAt') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD ScheduledAt DATETIMEOFFSET NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'SentAt') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD SentAt DATETIMEOFFSET NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'Status') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD Status INT            NOT NULL CONSTRAINT DF_OutboxMessages_Status DEFAULT 0;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'RetryCount') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD RetryCount INT            NOT NULL CONSTRAINT DF_OutboxMessages_RetryCount DEFAULT 0;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'LastError') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD LastError NVARCHAR(MAX)  NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'LastAttemptAt') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD LastAttemptAt DATETIMEOFFSET NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'CorrelationId') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD CorrelationId NVARCHAR(255)  NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'CausationId') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD CausationId NVARCHAR(255)  NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'TenantId') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL CONSTRAINT DF_OutboxMessages_TenantId DEFAULT '__untenanted__';
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'Priority') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD Priority INT            NOT NULL CONSTRAINT DF_OutboxMessages_Priority DEFAULT 0;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'TargetTransports') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD TargetTransports NVARCHAR(MAX)  NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'IsMultiTransport') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD IsMultiTransport BIT            NOT NULL CONSTRAINT DF_OutboxMessages_IsMultiTransport DEFAULT 0;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'LeasedAt') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD LeasedAt DATETIMEOFFSET NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'LeasedBy') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD LeasedBy NVARCHAR(255)  NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'PartitionKey') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD PartitionKey NVARCHAR(256)  NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'GroupKey') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD GroupKey NVARCHAR(256)  NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'SequenceNumber') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD SequenceNumber BIGINT         NOT NULL CONSTRAINT DF_OutboxMessages_SequenceNumber DEFAULT 0;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'NextAttemptAt') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD NextAttemptAt DATETIMEOFFSET NULL;
+IF COL_LENGTH(N'[dbo].[OutboxMessages]', N'FencingToken') IS NULL
+    ALTER TABLE [dbo].[OutboxMessages] ADD FencingToken BIGINT         NULL;
 GO
 
 -- Additive upgrade for databases created while TenantId was nullable. A NULL tenant is an
@@ -224,23 +285,47 @@ GO
 
 -- Same treatment for the dead-letter table, where TenantId IS part of the primary key and the
 -- key must therefore be dropped and rebuilt around the alter. Run with the processor stopped.
+--
+-- All three statements are ONE unit of work. This block is guarded on the COLLATION, so it also
+-- reaches an install whose TenantId is still NULLABLE -- and there the ALTER COLUMN in the middle
+-- fails on the first NULL row, after the primary key is already gone. Without the transaction that
+-- leaves the dead-letter table with no key: an entry could then be stored twice under one id, and
+-- a redrive would replay it once per copy. SQL Server rolls DDL back, so the transaction is what
+-- makes the drop and the rebuild inseparable.
 IF EXISTS (SELECT * FROM sys.columns
            WHERE object_id = OBJECT_ID(N'[dbo].[DeadLetterQueue]')
              AND name = N'TenantId'
              AND collation_name <> N'Latin1_General_BIN2')
 BEGIN
-    IF EXISTS (SELECT * FROM sys.key_constraints
-               WHERE parent_object_id = OBJECT_ID(N'[dbo].[DeadLetterQueue]')
-                 AND name = N'PK_DeadLetterQueue' AND type = N'PK')
-    BEGIN
-        ALTER TABLE [dbo].[DeadLetterQueue] DROP CONSTRAINT PK_DeadLetterQueue;
-    END
+    BEGIN TRANSACTION;
 
-    ALTER TABLE [dbo].[DeadLetterQueue]
-        ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+    BEGIN TRY
+        IF EXISTS (SELECT * FROM sys.key_constraints
+                   WHERE parent_object_id = OBJECT_ID(N'[dbo].[DeadLetterQueue]')
+                     AND name = N'PK_DeadLetterQueue' AND type = N'PK')
+        BEGIN
+            ALTER TABLE [dbo].[DeadLetterQueue] DROP CONSTRAINT PK_DeadLetterQueue;
+        END
 
-    ALTER TABLE [dbo].[DeadLetterQueue]
-        ADD CONSTRAINT PK_DeadLetterQueue PRIMARY KEY (Id, TenantId);
+        ALTER TABLE [dbo].[DeadLetterQueue]
+            ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
+
+        ALTER TABLE [dbo].[DeadLetterQueue]
+            ADD CONSTRAINT PK_DeadLetterQueue PRIMARY KEY (Id, TenantId);
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        -- The table keeps the key and the collation it had. Re-raise rather than swallowing: the
+        -- unpinned column this block failed to fix is the case-insensitive tenant match that
+        -- lets one tenant read another's dead letters, and that must not be reported as done.
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH
 END
 GO
 

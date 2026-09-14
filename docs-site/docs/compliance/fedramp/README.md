@@ -8,8 +8,7 @@ description: NIST 800-53 Rev 5 technical controls the Excalibur framework provid
 
 **Framework:** Excalibur
 **Standard:** NIST 800-53 Rev 5
-**Epic:** FedRAMP Government Compliance
-**Status:** 14/14 technical controls implemented (framework level)
+**Status:** 12 of 14 controls satisfied at framework level; 2 partial (SI-7, PM-11)
 
 ---
 
@@ -38,11 +37,11 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 | **SC-28** | Protection of Information at Rest | ✅ SATISFIED | Field-level encryption (`[PersonalData]`) |
 | **SI-4** | System Monitoring | ✅ SATISFIED | OpenTelemetry integration, health checks |
 | **SI-7** | Software Integrity | ⚠️ PARTIAL | SBOM hash verification, dependency vulnerability scanning; packages are published UNSIGNED |
-| **PM-11** | Mission/Business Process Definition | ✅ SATISFIED | Requirements traceability matrix (RTM) |
+| **PM-11** | Mission/Business Process Definition | ⚠️ PARTIAL | Business process — the consumer defines its own mission processes and their security risk |
 | **SA-15** | Development Process | ✅ SATISFIED | CI/CD pipeline, automated quality gates |
 | **CM-8** | Component Inventory | ✅ SATISFIED | SBOM generation (CycloneDX) |
 
-**Status:** 14/14 controls (100% complete)
+**Status:** 12 satisfied, 2 partial (SI-7 software integrity, PM-11 business process)
 
 ---
 
@@ -83,7 +82,7 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 - Requirements traceability validation (RTM)
 - Security scanning (SAST, DAST, container scan)
 - SBOM generation (CycloneDX)
-- Code coverage enforcement (60% threshold)
+- Code coverage enforcement (44% regression floor; CI fails below it)
 - Dependency vulnerability scanning
 
 **Quality Gates:**
@@ -112,24 +111,24 @@ See [CM-8-SBOM.md](./CM-8-SBOM.md) for detailed implementation.
 ### Primary Evidence
 
 **Control Implementation:**
-- Source code in `src/` (framework capabilities)
+- Framework source, in the [framework repository](https://github.com/TrigintaFaces/Excalibur)
 
 **Process Evidence:**
-- CI/CD pipeline (`.github/workflows/ci.yml`)
+- CI/CD pipeline — GitHub Actions, in the [framework repository](https://github.com/TrigintaFaces/Excalibur)
 - GitHub Actions workflow runs (audit trail)
-- Test coverage reports (≥60% enforced)
+- Test coverage reports (enforced regression floor of 44%)
 - Security scan reports (SAST, DAST, container, secrets)
 
 **Artifact Evidence:**
 - SBOM artifacts (CycloneDX JSON/XML)
 - NuGet packages (hash-verifiable; published with **no author signature** — do not inherit an author-signing control)
-- Docker images (Trivy-scanned)
+- Docker images (**not scanned by this pipeline** — no container scanning runs here)
 - RTM reports (requirements traceability)
 
 ### Evidence Generation
 
 Evidence package generation includes:
-- Certification readiness checklists (HIPAA, FedRAMP, SOC 2, GDPR, PCI-DSS)
+- Certification readiness checklists (FedRAMP, GDPR, SOC 2, HIPAA)
 - Automated evidence package generation tooling
 
 ---
@@ -177,7 +176,7 @@ gh run download <run-id> -n cyclonedx-sbom
 
 # Download security scan reports
 gh run download <run-id> -n zap-dast-report
-gh run download <run-id> -n trivy-container-scan
+# No container-scan artifact is produced by this pipeline.
 ```
 
 **Audit Trail:**
@@ -213,7 +212,7 @@ Consumers can **inherit** framework controls:
 - **CM-8:** Reference framework SBOM in SSP
 
 **Example Inheritance Statement:**
-> "The application inherits SC-13 (Cryptographic Protection) from the Excalibur framework, which implements AES-256-GCM encryption via the `IEncryptionProvider` abstraction. Framework compliance evidence includes NIST FIPS 140-2 validated algorithms and continuous vulnerability scanning."
+> "The application inherits SC-13 (Cryptographic Protection) from the Excalibur framework, which implements AES-256-GCM encryption via the `IEncryptionProvider` abstraction. Framework compliance evidence includes AES-256-GCM through the platform's cryptographic provider (FIPS 140-3 validation is a property of the host platform's cryptographic module, not of the framework — assert it only where your deployment runs a validated module in FIPS mode) and continuous vulnerability scanning."
 
 ---
 
@@ -222,7 +221,7 @@ Consumers can **inherit** framework controls:
 **Questions:**
 - Product Manager: Requirements clarification, control scope
 - Software Architect: Technical implementation, architecture decisions
-- Project Manager: Evidence packages, sprint planning, audit coordination
+- Project Manager: Evidence packages, audit coordination
 
 **Escalation:**
 - Security incidents: follow your organisation's incident response plan. The framework records
@@ -245,9 +244,9 @@ Consumers can **inherit** framework controls:
 - [Testing Guide](../../advanced/testing.md) - Conformance testing
 
 **Related Compliance:**
-- GDPR: See `docs/compliance/checklists/gdpr.md`
-- SOC 2: See security guides in `docs/security/`
-- HIPAA: See `docs/compliance/checklists/hipaa.md`
+- GDPR: See the [GDPR checklist](../checklists/gdpr.md)
+- SOC 2: See the [SOC 2 checklist](../checklists/soc2.md) and the [security guides](../../security/index.md)
+- HIPAA: See the [HIPAA checklist](../checklists/hipaa.md)
 
 ---
 
@@ -259,6 +258,5 @@ Consumers can **inherit** framework controls:
 
 ---
 
-**Last Updated:** 2026-01-01
-**Next Review:** 2026-04-01
-**Status:** 14/14 controls SATISFIED
+**Last Updated:** 2026-09-12
+**Status:** 12 of 14 satisfied, 2 partial

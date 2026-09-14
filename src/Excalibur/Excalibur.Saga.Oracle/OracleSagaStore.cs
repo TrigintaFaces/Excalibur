@@ -169,8 +169,8 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 	}
 
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of saga state is intentional.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of saga state is intentional.")]
+	[RequiresUnreferencedCode("Saga state is serialized with a reflection-based serializer that may require types which cannot be statically analyzed.")]
+	[RequiresDynamicCode("Saga state is serialized with a reflection-based serializer, which generates converters at run time.")]
 	public async Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState
 	{
@@ -219,11 +219,11 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var removed = await connection.ResolveAsync(
-				new PurgeCompletedSagasRequest(
+				PurgeCompletedSagasRequest.ForTenant(
 					threshold,
 					_options.QualifiedTableName,
-					cancellationToken,
-					CurrentTenantScope))
+					CurrentTenantScope,
+					cancellationToken))
 			.ConfigureAwait(false);
 
 		_logger.LogDebug("Purged {Count} completed sagas older than {Threshold}", removed, threshold);
@@ -238,11 +238,10 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var removed = await connection.ResolveAsync(
-				new PurgeCompletedSagasRequest(
+				PurgeCompletedSagasRequest.ForAllTenants(
 					threshold,
 					_options.QualifiedTableName,
-					cancellationToken,
-					allTenants: true))
+					cancellationToken))
 			.ConfigureAwait(false);
 
 		_logger.LogDebug(
@@ -284,7 +283,7 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-				new GetSagaStatisticsRequest(_options.QualifiedTableName, CurrentTenantScope, cancellationToken))
+				GetSagaStatisticsRequest.ForTenant(_options.QualifiedTableName, CurrentTenantScope, cancellationToken))
 			.ConfigureAwait(false);
 	}
 
@@ -294,11 +293,11 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		// No tenant discriminator: this counts every tenant's sagas. The ambient scope is passed through
-		// unchanged and deliberately ignored by the request when allTenants is set -- the estate-wide intent
-		// is spelled at the call site, never reached by an absent or permissive scope.
+		// No tenant discriminator: this counts every tenant's sagas. The estate-wide intent is spelled by the
+		// factory NAME, and that factory accepts no scope at all -- so there is no ambient scope handed over
+		// to be ignored, and no absent or permissive scope that could reach this path by omission.
 		return await connection.ResolveAsync(
-				new GetSagaStatisticsRequest(_options.QualifiedTableName, CurrentTenantScope, cancellationToken, allTenants: true))
+				GetSagaStatisticsRequest.ForAllTenants(_options.QualifiedTableName, cancellationToken))
 			.ConfigureAwait(false);
 	}
 

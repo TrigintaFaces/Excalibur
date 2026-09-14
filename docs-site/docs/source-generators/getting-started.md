@@ -176,7 +176,7 @@ public class OrderRepository : IOrderRepository
 ```csharp
 // Singleton for application-wide caching
 [AutoRegister(Lifetime = ServiceLifetime.Singleton)]
-public class HandlerMetadataCache : IHandlerMetadataCache
+public class HandlerMetadataCache
 {
     private readonly ConcurrentDictionary<Type, HandlerMetadata> _cache = new();
 

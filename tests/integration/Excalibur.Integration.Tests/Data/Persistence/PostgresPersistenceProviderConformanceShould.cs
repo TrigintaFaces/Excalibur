@@ -100,14 +100,10 @@ public sealed class PostgresPersistenceProviderConformanceShould : PersistencePr
 	protected override async Task<(IReadOnlyList<IDataRequest<IDbConnection, object>> Requests, Func<Task<bool>> FirstEffectVisibleAsync, Func<Task<bool>> FirstEffectPersistsWhenBatchSucceedsAsync)?>
 		CreateBatchAtomicityProbeAsync(ISqlPersistenceProvider provider)
 	{
-		// This provider refuses to work until InitializeAsync is called. The KIT deliberately never
-		// calls it -- a provider that needs an explicit initialize is itself a defect, and two other arms
-		// exist to report exactly that. So the initialize happens HERE, in the probe, rather than in the
-		// kit: this arm is about transaction semantics, and it must not red for a readiness defect that
-		// already has its own arm. One arm, one property.
-		await provider.InitializeAsync(
-			new PostgresPersistenceOptions { Name = provider.Name, ConnectionString = _fixture.ConnectionString },
-			CancellationToken.None).ConfigureAwait(false);
+		// Nothing initializes the provider here, and nothing in the kit does either. The provider is used
+		// exactly as its own DI extension constructs it, which is the contract this suite holds every provider
+		// to. An explicit initialize used to be required at this point, and reinstating that requirement
+		// turns this arm red.
 
 		var table = "batch_atomicity_" + Guid.NewGuid().ToString("N");
 
@@ -164,7 +160,59 @@ public sealed class PostgresPersistenceProviderConformanceShould : PersistencePr
 			});
 	}
 
+	/// <inheritdoc/>
+	/// <remarks>
+	/// A fresh table per call, which is what the kit requires: the commit half and the rollback half each
+	/// get their own, so a row committed by the first cannot be mistaken for a failed rollback in the
+	/// second. Every request succeeds — this probe is about ENLISTMENT, not failure.
+	/// </remarks>
+	protected override async Task<(IReadOnlyList<IDataRequest<IDbConnection, object>> Requests, Func<Task<bool>> EffectVisibleAsync)?>
+		CreateScopedBatchProbeAsync(ISqlPersistenceProvider provider)
+	{
+		var table = "scoped_batch_" + Guid.NewGuid().ToString("N");
+
+		await using (var setup = new NpgsqlConnection(_fixture.ConnectionString))
+		{
+			await setup.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+			#pragma warning disable CA2100 // table name is a locally generated hex GUID; no caller input reaches this
+			await using var create = new NpgsqlCommand($"CREATE TABLE {table} (id int primary key)", setup);
+			#pragma warning restore CA2100
+			_ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+		}
+
+		return (
+			[
+				new SqlProbeRequest($"INSERT INTO {table} (id) VALUES (1)"),
+				new SqlProbeRequest($"INSERT INTO {table} (id) VALUES (2)"),
+			],
+			async () =>
+			{
+				// A SEPARATE connection, for the same reason the atomicity probe uses one: reading on the
+				// batch's own connection can see its uncommitted rows, which would report a commit that
+				// never happened and a rollback that never took.
+				await using var read = new NpgsqlConnection(_fixture.ConnectionString);
+				await read.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+				#pragma warning disable CA2100 // table name is a locally generated hex GUID; no caller input reaches this
+				await using var count = new NpgsqlCommand($"SELECT COUNT(*) FROM {table}", read);
+				#pragma warning restore CA2100
+				return Convert.ToInt64(await count.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+					System.Globalization.CultureInfo.InvariantCulture) > 0;
+			});
+	}
+
 	/// <summary>A data request that runs one statement, used only by the batch-atomicity probe.</summary>
+	/// <inheritdoc/>
+	/// <remarks>
+	/// The control for the sync-disposal arm: this scope releases enlisted connections on BOTH disposal
+	/// paths, so a red here would mean the arm, not the provider.
+	/// </remarks>
+	protected override async Task<IDbConnection?> CreateEnlistableConnectionAsync(IPersistenceProvider provider)
+	{
+		var connection = new NpgsqlConnection(_fixture.ConnectionString);
+		await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+		return connection;
+	}
+
 	private sealed class SqlProbeRequest : IDataRequest<IDbConnection, object>
 	{
 		public SqlProbeRequest(string sql)
@@ -222,4 +270,7 @@ public sealed class PostgresPersistenceProviderConformanceShould : PersistencePr
 	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 	[Fact] public void ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers_Test() => ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
+	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
+	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();
 }

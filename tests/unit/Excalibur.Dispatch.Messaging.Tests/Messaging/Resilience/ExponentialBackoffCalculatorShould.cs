@@ -363,16 +363,13 @@ public sealed class ExponentialBackoffCalculatorShould
 	public void UseRetryPolicyOptionsCorrectly()
 	{
 		// Arrange
-		var options = new RetryPolicyOptions
+		var options = new RetryOptions
 		{
-			Backoff =
-			{
-				BaseDelay = TimeSpan.FromSeconds(2),
-				MaxDelay = TimeSpan.FromSeconds(60),
-				BackoffMultiplier = 1.5,
-				EnableJitter = false,
-				JitterFactor = 0.2,
-			},
+			BaseDelay = TimeSpan.FromSeconds(2),
+			MaxDelay = TimeSpan.FromSeconds(60),
+			BackoffMultiplier = 1.5,
+			UseJitter = false,
+			JitterFactor = 0.2,
 		};
 
 		// Act
@@ -387,7 +384,7 @@ public sealed class ExponentialBackoffCalculatorShould
 	public void UseDefaultValuesWhenOptionsHaveNulls()
 	{
 		// Arrange
-		var options = new RetryPolicyOptions();
+		var options = new RetryOptions();
 
 		// Act
 		var calculator = new ExponentialBackoffCalculator(options);

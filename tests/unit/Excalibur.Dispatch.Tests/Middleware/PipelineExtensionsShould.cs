@@ -19,7 +19,6 @@ using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Middleware.Versioning;
 using Excalibur.Dispatch.Performance;
 using Excalibur.Dispatch.Threading;
-using Excalibur.Dispatch.ZeroAlloc;
 
 namespace Excalibur.Dispatch.Tests.Middleware;
 
@@ -42,8 +41,7 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// <see cref="BackgroundExecutionPipelineExtensions"/>,
 /// <see cref="BatchingPipelineExtensions"/>,
 /// <see cref="ContractVersioningPipelineExtensions"/>,
-/// <see cref="AuditLoggingPipelineExtensions"/>,
-/// <see cref="ZeroAllocPipelineExtensions"/>.
+/// <see cref="AuditLoggingPipelineExtensions"/>.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
@@ -813,44 +811,6 @@ public sealed class PipelineExtensionsShould : IDisposable
 
 	#endregion
 
-	#region UseZeroAllocMiddleware Tests
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseZeroAllocMiddleware()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).UseZeroAllocMiddleware());
-	}
-
-	[Fact]
-	public void ReturnSameBuilder_ForFluentChaining_UseZeroAllocMiddleware()
-	{
-		// Arrange
-		var builder = CreateBuilder();
-
-		// Act
-		var result = builder.UseZeroAllocMiddleware();
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void RegisterZeroAllocationValidationMiddleware_WhenUseZeroAllocMiddlewareCalled()
-	{
-		// Arrange
-		var builder = CreateBuilder();
-
-		// Act
-		builder.UseZeroAllocMiddleware();
-
-		// Assert
-		_services.ShouldContain(sd => sd.ServiceType == typeof(ZeroAllocationValidationMiddleware));
-	}
-
-	#endregion
-
 	#region UseCloudEventValidation Tests
 
 	[Fact]
@@ -956,7 +916,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 		// Arrange
 		var builder = CreateBuilder();
 
-		// Act -- verify all 20 extensions chain fluently (Wave 1-4)
+		// Act -- verify all 19 extensions chain fluently (Wave 1-4)
 		var result = builder
 			.UsePerformance()
 			.UseCloudEvents()
@@ -974,7 +934,6 @@ public sealed class PipelineExtensionsShould : IDisposable
 			.UseAuditLogging()
 			.UseBatching()
 			.UseBackgroundExecution()
-			.UseZeroAllocMiddleware()
 			.UseTransaction()
 			.UseOutbox()
 			.UseIdempotency();
@@ -1007,7 +966,6 @@ public sealed class PipelineExtensionsShould : IDisposable
 			.UseAuditLogging()
 			.UseBatching()
 			.UseBackgroundExecution()
-			.UseZeroAllocMiddleware()
 			.UseTransaction()
 			.UseOutbox();
 
@@ -1034,7 +992,6 @@ public sealed class PipelineExtensionsShould : IDisposable
 		_services.ShouldContain(sd => sd.ServiceType == typeof(UnifiedBatchingMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(ContractVersionCheckMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(AuditLoggingMiddleware));
-		_services.ShouldContain(sd => sd.ServiceType == typeof(ZeroAllocationValidationMiddleware));
 	}
 
 	#endregion

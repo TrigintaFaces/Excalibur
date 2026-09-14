@@ -691,34 +691,9 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// <param name="cancellationToken">A token to observe while minting.</param>
 	/// <returns>The newly minted, strictly-monotonic fencing token.</returns>
 	/// <exception cref="InvalidOperationException">The mint failed on every bounded attempt.</exception>
-	private async Task<long> MintFencingTokenWithRetryAsync(CancellationToken cancellationToken)
-	{
-		// Caller guarantees a provider is configured before invoking.
-		Exception? lastError = null;
-
-		for (var attempt = 1; attempt <= FencingTokenMintMaxAttempts; attempt++)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-
-			try
-			{
-				return await _fencingTokenProvider!.IssueTokenAsync(_lockResource, cancellationToken).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-			{
-				throw;
-			}
-			catch (Exception ex)
-			{
-				lastError = ex;
-			}
-		}
-
-		throw new InvalidOperationException(
-			$"Failed to mint a fencing token for resource '{_lockResource}' after {FencingTokenMintMaxAttempts} attempt(s); " +
-			"relinquishing leadership rather than acting as a fenced leader with an un-advanced fence.",
-			lastError);
-	}
+	private Task<long> MintFencingTokenWithRetryAsync(CancellationToken cancellationToken) =>
+		FencingTokenMinting.MintWithRetryAsync(
+			_fencingTokenProvider!, _lockResource, cancellationToken, FencingTokenMintMaxAttempts);
 
 	// LoggerMessage delegates
 	[LoggerMessage(LeaderElectionEventId.SqlServerStarting, LogLevel.Information,

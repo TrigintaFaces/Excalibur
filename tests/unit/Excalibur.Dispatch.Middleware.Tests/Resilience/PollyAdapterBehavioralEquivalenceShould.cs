@@ -8,6 +8,7 @@ using CircuitState = Excalibur.Dispatch.Resilience.CircuitState;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 using Polly;
 
@@ -37,7 +38,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	public void BothCircuitBreakersStartInClosedState()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5, MinimumThroughput = 5 };
 		var loggerFactory = NullLoggerFactory.Instance;
 
 		var defaultCb = new CircuitBreakerPolicy(options, "default", loggerFactory.CreateLogger<CircuitBreakerPolicy>());
@@ -53,7 +54,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	public async Task BothCircuitBreakersTrackConsecutiveFailures()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5, MinimumThroughput = 5 };
 		var loggerFactory = NullLoggerFactory.Instance;
 
 		var defaultCb = new CircuitBreakerPolicy(options, "default", loggerFactory.CreateLogger<CircuitBreakerPolicy>());
@@ -76,7 +77,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	public async Task BothCircuitBreakersResetFailureCountOnSuccess()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 5, MinimumThroughput = 5 };
 		var loggerFactory = NullLoggerFactory.Instance;
 
 		var defaultCb = new CircuitBreakerPolicy(options, "default", loggerFactory.CreateLogger<CircuitBreakerPolicy>());
@@ -102,7 +103,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	public async Task BothCircuitBreakersResetToClosedState()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 2 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 2, MinimumThroughput = 2 };
 		var loggerFactory = NullLoggerFactory.Instance;
 
 		var defaultCb = new CircuitBreakerPolicy(options, "default", loggerFactory.CreateLogger<CircuitBreakerPolicy>());
@@ -116,8 +117,8 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		await pollyCb.FailAsync().ConfigureAwait(false);
 
 		// Act
-		defaultCb.Reset();
-		pollyCb.Reset();
+		await defaultCb.ResetAsync(CancellationToken.None).ConfigureAwait(false);
+		await pollyCb.ResetAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		((int)defaultCb.State).ShouldBe((int)CircuitState.Closed);
@@ -160,7 +161,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	public async Task BothCircuitBreakersRecordTheFailureOnException()
 	{
 		// Arrange
-		var options = new CircuitBreakerOptions { FailureThreshold = 10 };
+		var options = new CircuitBreakerOptions { ConsecutiveFailureThreshold = 10, MinimumThroughput = 10 };
 		var loggerFactory = NullLoggerFactory.Instance;
 
 		var defaultCb = new CircuitBreakerPolicy(options, "default", loggerFactory.CreateLogger<CircuitBreakerPolicy>());
@@ -189,6 +190,101 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		pollyCb.ConsecutiveFailures.ShouldBe(1);
 	}
 
+	[Fact]
+	public async Task NeitherCircuitBreakerIsRetunedByMutatingTheOptionsAfterConstruction()
+	{
+		// CircuitBreakerOptions has settable properties, so a consumer can hold the instance it passed
+		// and change it while the policies built from it are live. The two providers used to disagree
+		// about what that means: the Polly adapter copies the values into a pipeline at construction, so
+		// the mutation did nothing to it, while the core policy re-read the caller's instance on every
+		// call and was silently retuned mid-flight. One instance, one mutation, two behaviours.
+		//
+		// The contract is SNAPSHOT-AT-CONSTRUCTION for both. This is the lock for it, and it is written
+		// against observable behaviour rather than against the fields, because a doc note saying "do not
+		// mutate after construction" does not settle it -- the setter is the thing that says you may.
+		var options = new CircuitBreakerOptions
+		{
+			ConsecutiveFailureThreshold = 4,
+			MinimumThroughput = 4,
+			FailureRatio = 1.0,
+			SamplingDuration = TimeSpan.FromSeconds(30),
+			BreakDuration = TimeSpan.FromSeconds(30),
+		};
+		var loggerFactory = NullLoggerFactory.Instance;
+
+		var defaultCb = new CircuitBreakerPolicy(options, "default", loggerFactory.CreateLogger<CircuitBreakerPolicy>());
+		var pollyCb = new PollyCircuitBreakerPolicyAdapter(options, "polly", loggerFactory.CreateLogger<PollyCircuitBreakerPolicyAdapter>());
+		_disposables.Add(pollyCb);
+
+		// The mutation, after BOTH policies exist: every trigger halved.
+		options.ConsecutiveFailureThreshold = 2;
+		options.MinimumThroughput = 2;
+		options.FailureRatio = 0.1;
+
+		// SAFETY -- three failures is below the threshold both were CONSTRUCTED with and above the one the
+		// mutated instance now carries. A provider reading the caller's instance live opens here.
+		for (var i = 0; i < 3; i++)
+		{
+			await defaultCb.FailAsync().ConfigureAwait(false);
+			await pollyCb.FailAsync().ConfigureAwait(false);
+		}
+
+		defaultCb.State.ShouldBe(CircuitState.Closed);
+		pollyCb.State.ShouldBe(CircuitState.Closed);
+
+		// LIVENESS -- the partner arm. Without it a policy that never opens at all would satisfy the
+		// assertions above, and "the mutation was ignored" would be indistinguishable from "nothing works".
+		// The fourth failure reaches the threshold the policies were constructed with, and both open.
+		await defaultCb.FailAsync().ConfigureAwait(false);
+		await pollyCb.FailAsync().ConfigureAwait(false);
+
+		(await defaultCb.WaitForStateAsync(CircuitState.Open).ConfigureAwait(false)).ShouldBe(CircuitState.Open);
+		(await pollyCb.WaitForStateAsync(CircuitState.Open).ConfigureAwait(false)).ShouldBe(CircuitState.Open);
+	}
+
+	[Fact]
+	public async Task TheCoreBreakerHoldsItsConstructedBreakDurationWhenTheOptionsAreShortenedAfterwards()
+	{
+		// Partner to the test above, for the OTHER value the core policy used to re-read on every call.
+		// ConsecutiveFailureThreshold decides WHEN the circuit opens; BreakDuration decides how long it
+		// stays open, and a live read of it moved the half-open deadline underneath a circuit that was
+		// already open. Both reads are gone, so both are locked.
+		//
+		// Scope, stated rather than implied: this arm binds the CORE provider only. The Polly adapter's
+		// break duration lives inside a pipeline built at construction and it exposes no clock to inject,
+		// so its snapshot is structural -- there is no reachable expression of a live re-read to assert
+		// against. The core provider is the one that had the defect, and it is the one with a seam.
+		var clock = new FakeTimeProvider();
+		var constructedBreakDuration = TimeSpan.FromSeconds(30);
+		var options = new CircuitBreakerOptions
+		{
+			ConsecutiveFailureThreshold = 2,
+			BreakDuration = constructedBreakDuration,
+		};
+
+		var defaultCb = new CircuitBreakerPolicy(
+			options,
+			"default",
+			NullLoggerFactory.Instance.CreateLogger<CircuitBreakerPolicy>(),
+			shouldHandle: null,
+			timeProvider: clock);
+
+		await defaultCb.FailAsync().ConfigureAwait(false);
+		await defaultCb.FailAsync().ConfigureAwait(false);
+		defaultCb.State.ShouldBe(CircuitState.Open);
+
+		// The mutation, while the circuit is already open: the break collapses to its shortest legal value.
+		options.BreakDuration = TimeSpan.FromMilliseconds(500);
+
+		// SAFETY -- one second is well past the MUTATED duration and nowhere near the constructed one.
+		// A policy re-reading the caller's instance admits its half-open probe here.
+		clock.Advance(TimeSpan.FromSeconds(1));
+		defaultCb.State.ShouldBe(CircuitState.Open);
+
+		// LIVENESS -- and it is not simply stuck open forever: the constructed deadline still arrives.
+		clock.Advance(constructedBreakDuration);
+		defaultCb.State.ShouldBe(CircuitState.HalfOpen);
+	}
 	#endregion Circuit Breaker Behavioral Equivalence
 
 	#region Backoff Calculator Behavioral Equivalence
@@ -457,8 +553,8 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		await pollyKafka.FailAsync().ConfigureAwait(false);
 
 		// Act
-		defaultRegistry.ResetAll();
-		pollyRegistry.ResetAll();
+		await defaultRegistry.ResetAllAsync(CancellationToken.None).ConfigureAwait(false);
+		await pollyRegistry.ResetAllAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		((ICircuitBreakerDiagnostics)defaultRabbitmq).ConsecutiveFailures.ShouldBe(0);

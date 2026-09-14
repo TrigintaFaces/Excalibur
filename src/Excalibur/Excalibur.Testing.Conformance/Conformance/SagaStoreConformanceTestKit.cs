@@ -52,6 +52,8 @@ namespace Excalibur.Testing.Conformance;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
 [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
 	"Saga conformance arms round-trip state through the store's open generic load and save members, which deserialize the consumer's own state type reflectively. A trimmed test host is not a supported configuration for this kit.")]
+[System.Diagnostics.CodeAnalysis.RequiresDynamicCode(
+	"Saga conformance arms round-trip state through the store's open generic load and save members, which serialize the consumer's own state type with a reflection-based serializer that generates converters at run time. An AOT test host is not a supported configuration for this kit.")]
 public abstract class SagaStoreConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>

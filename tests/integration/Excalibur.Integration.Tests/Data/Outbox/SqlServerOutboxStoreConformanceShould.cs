@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch;
@@ -35,6 +35,9 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerOutboxStoreConformanceShould : OutboxStoreConformanceTestKit, IAsyncLifetime, IClassFixture<SqlServerOutboxStoreContainerFixture>
 {
+	/// <summary>This store fences, so an arm that finds no IFencedOutboxStore must FAIL, not skip.</summary>
+	protected override bool ParticipatesInFencing => true;
+
 	private readonly SqlServerOutboxStoreContainerFixture _fixture;
 
 	/// <summary>
@@ -109,7 +112,7 @@ public sealed class SqlServerOutboxStoreConformanceShould : OutboxStoreConforman
 		// SqlServer exposes no explicit-dispatcher reserve method (unlike Postgres/Oracle's
 		// ReserveOutboxMessagesAsync(dispatcherId, ...)), but reservation ownership keys on
 		// SqlServerOutboxOptions.ProcessorId — the value written to LeasedBy on claim, and the R2 guard in
-		// MarkMessageFailedRequest is "WHERE Id = @MessageId AND (LeasedBy IS NULL OR LeasedBy = @LeasedBy)".
+		// MarkMessageFailedRequest is "WHERE Id = @MessageId AND (LeasedBy IS NULL OR LeasedBy = @LeasedBy OR LEFT(LeasedBy, @LeasedByPrefixLength) = @LeasedByPrefix)".
 		// So build a SECOND store over the SAME fixture DB with a DISTINCT ProcessorId and claim the row
 		// through its GetUnsentMessages lease path: the row is now owned by a FOREIGN ProcessorId, different
 		// from `store`'s. This is NON-VACUOUS precisely because ProcessorId is a settable per-options value —
@@ -207,6 +210,18 @@ public sealed class SqlServerOutboxStoreConformanceShould : OutboxStoreConforman
 	public Task Fencing_HighWaterMark_ShouldSurviveCleanup_Test() => Fencing_HighWaterMark_ShouldSurviveCleanup();
 
 	[Fact]
+	public Task Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent_Test() => Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent();
+
+	[Fact]
+	public Task Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent_Test() => Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent();
+
+	[Fact]
+	public Task FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue_Test() => FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue();
+
+	[Fact]
+	public Task FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce_Test() => FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce();
+
+	[Fact]
 	public Task Fencing_Refusal_ShouldReportTheHighWaterMark_Test() => Fencing_Refusal_ShouldReportTheHighWaterMark();
 
 	[Fact]
@@ -289,6 +304,18 @@ public sealed class SqlServerOutboxStoreConformanceShould : OutboxStoreConforman
 
 	[Fact]
 	public Task MarkFailedAsync_ShouldSetRetryCount_Test() => MarkFailedAsync_ShouldSetRetryCount();
+
+	[Fact]
+	public Task MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage_Test() =>
+		MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage();
+
+	[Fact]
+	public Task MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim_Test() =>
+		MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim();
+
+	[Fact]
+	public Task MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage_Test() =>
+		MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage();
 
 	[Fact]
 	public Task MarkFailed_AfterTheFloorElapses_ShouldBecomeReclaimable_Test() => MarkFailed_AfterTheFloorElapses_ShouldBecomeReclaimable();

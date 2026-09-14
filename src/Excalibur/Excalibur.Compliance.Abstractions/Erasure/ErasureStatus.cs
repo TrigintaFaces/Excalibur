@@ -133,8 +133,15 @@ public sealed record ErasureStatus
 	public bool IsExecuted => Status is ErasureRequestStatus.Completed or ErasureRequestStatus.PartiallyCompleted;
 
 	/// <summary>
-	/// Gets the days remaining until GDPR deadline (30 days from request).
+	/// Gets the days remaining until the GDPR deadline (30 days from request), as of <paramref name="asOf"/>.
 	/// </summary>
-	public int DaysUntilDeadline =>
-		Math.Max(0, (int)(RequestedAt.AddDays(30) - DateTimeOffset.UtcNow).TotalDays);
+	/// <param name="asOf">The point in time to measure the remaining days from.</param>
+	/// <returns>The whole number of days remaining, floored at zero once the deadline has passed.</returns>
+	/// <remarks>
+	/// A method rather than a property: a DTO cannot carry an injected clock, so a property here could only
+	/// read ambient wall-clock time, making this value untestable at a boundary and non-deterministic on
+	/// every read. Callers pass the current time explicitly -- typically <c>TimeProvider.GetUtcNow()</c>.
+	/// </remarks>
+	public int DaysUntilDeadline(DateTimeOffset asOf) =>
+		Math.Max(0, (int)(RequestedAt.AddDays(30) - asOf).TotalDays);
 }

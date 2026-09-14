@@ -34,6 +34,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService,
+			null,
 			contributors);
 	}
 

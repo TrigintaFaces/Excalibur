@@ -59,9 +59,9 @@ dispatch.UseResilience(options =>
 dispatch.AddPollyResilienceAdapters(options =>
 {
     // Configure retry
-    options.RetryOptions = new RetryOptions
+    options.RetryOptions = new PollyRetryOptions
     {
-        MaxRetries = 3,
+        MaxRetryAttempts = 3,
     };
 });
 ```
@@ -80,14 +80,14 @@ services.AddPollyResilience(configuration);
 services.AddPollyCircuitBreaker("orders-cb", options =>
 {
     options.FailureThreshold = 5;
-    options.OpenDuration = TimeSpan.FromSeconds(60);
+    options.BreakDuration = TimeSpan.FromSeconds(60);
     options.OperationTimeout = TimeSpan.FromSeconds(5);
 });
 
 // Add named retry policy
 services.AddPollyRetryPolicy("transient-retry", options =>
 {
-    options.MaxRetries = 3;
+    options.MaxRetryAttempts = 3;
     options.BaseDelay = TimeSpan.FromMilliseconds(200);
     options.BackoffStrategy = BackoffStrategy.Exponential;
     options.UseJitter = true;
@@ -213,7 +213,7 @@ services.AddPollyCircuitBreaker("payment-service", options =>
     options.FailureThreshold = 5;
     options.FailureRatio = 0.5;
     options.SamplingDuration = TimeSpan.FromSeconds(30);
-    options.OpenDuration = TimeSpan.FromSeconds(60);
+    options.BreakDuration = TimeSpan.FromSeconds(60);
     options.OperationTimeout = TimeSpan.FromSeconds(5);
 });
 ```
@@ -395,7 +395,7 @@ var state = breaker.State; // Closed, Open, or HalfOpen
 var customBreaker = registry.GetOrCreate("AzureServiceBus", new CircuitBreakerOptions
 {
     FailureThreshold = 3,
-    OpenDuration = TimeSpan.FromSeconds(30)
+    BreakDuration = TimeSpan.FromSeconds(30)
 });
 ```
 
@@ -438,7 +438,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddPollyRetryPolicy("my-retry", options =>
 {
-    options.MaxRetries = 3;
+    options.MaxRetryAttempts = 3;
     options.BaseDelay = TimeSpan.FromMilliseconds(200);
     options.BackoffStrategy = BackoffStrategy.Exponential;  // 200ms, 400ms, 800ms
     options.UseJitter = true;                               // Decorrelated jitter
@@ -640,9 +640,9 @@ services.AddDispatch(dispatch =>
     // Add Polly with all adapters
     dispatch.AddPollyResilienceAdapters(options =>
     {
-        options.RetryOptions = new RetryOptions
+        options.RetryOptions = new PollyRetryOptions
         {
-            MaxRetries = 3,
+            MaxRetryAttempts = 3,
         };
     });
 });
@@ -651,12 +651,12 @@ services.AddDispatch(dispatch =>
 services.AddPollyCircuitBreaker("external-api", options =>
 {
     options.FailureThreshold = 3;
-    options.OpenDuration = TimeSpan.FromSeconds(30);
+    options.BreakDuration = TimeSpan.FromSeconds(30);
 });
 
 services.AddPollyRetryPolicy("idempotent-ops", options =>
 {
-    options.MaxRetries = 5;
+    options.MaxRetryAttempts = 5;
     options.BackoffStrategy = BackoffStrategy.Exponential;
     options.UseJitter = true;
 });

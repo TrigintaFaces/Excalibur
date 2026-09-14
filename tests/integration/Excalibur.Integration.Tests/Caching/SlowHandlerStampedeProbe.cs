@@ -64,7 +64,7 @@ public sealed class SlowProbeHandler : IActionHandler<SlowProbeQuery, SlowProbeR
 /// </remarks>
 public sealed class SlowHandlerStampedeProbe
 {
-	private static async Task<int> CountHandlerInvocationsAsync(TimeSpan cacheTimeout)
+	private static async Task<(int Invocations, IReadOnlyList<int?> Values)> CountHandlerInvocationsAsync(TimeSpan cacheTimeout)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
@@ -101,8 +101,9 @@ public sealed class SlowHandlerStampedeProbe
 				cancellationToken: default))
 			.ToList();
 
-		_ = await Task.WhenAll(tasks);
-		return SlowProbeHandler.CallCount;
+		var results = await Task.WhenAll(tasks);
+		var values = results.Select(r => r.ReturnValue?.Value).ToList();
+		return (SlowProbeHandler.CallCount, values);
 	}
 
 	[Fact]
@@ -111,24 +112,35 @@ public sealed class SlowHandlerStampedeProbe
 		// A 400 ms handler against the 200 ms default: the ordinary shape of any handler doing real I/O.
 		// Caching exists to protect expensive operations, so protection lost for anything slower than the
 		// timeout is protection absent exactly where it matters most.
-		var invocations = await CountHandlerInvocationsAsync(TimeSpan.FromMilliseconds(200));
+		var (invocations, values) = await CountHandlerInvocationsAsync(TimeSpan.FromMilliseconds(200));
 
 		invocations.ShouldBe(
 			1,
 			$"5 concurrent dispatches of one cacheable query invoked the handler {invocations} times with the "
 			+ "default 200 ms CacheTimeout and a 400 ms handler -- stampede protection defeated by the very "
 			+ "slowness it exists to absorb");
+
+		// 454edu T2: the call-count assertion above proves the handler ran once; it does NOT prove all five
+		// callers actually received that one invocation's result. A seam returning five failed/null results
+		// with one invocation would still satisfy it. Value = 7 * 2 = 14 (SlowProbeHandler.HandleAsync).
+		values.ShouldAllBe(
+			v => v == 14,
+			$"all five callers must receive the single invocation's result (Value == 14); got [{string.Join(", ", values)}]");
 	}
 
 	[Fact]
 	public async Task CollapseConcurrentCallsWhenTheTimeoutComfortablyExceedsTheHandler()
 	{
 		// CONTROL. Same handler, same concurrency; only the timeout differs.
-		var invocations = await CountHandlerInvocationsAsync(TimeSpan.FromSeconds(30));
+		var (invocations, values) = await CountHandlerInvocationsAsync(TimeSpan.FromSeconds(30));
 
 		invocations.ShouldBe(
 			1,
 			"with a timeout far larger than the handler, single-flight must collapse all five callers into "
 			+ "one invocation; if this fails too then the timeout is not the mechanism");
+
+		values.ShouldAllBe(
+			v => v == 14,
+			$"all five callers must receive the single invocation's result (Value == 14); got [{string.Join(", ", values)}]");
 	}
 }

@@ -71,7 +71,7 @@ public sealed class CloudEventsDefaultIngressShould
 			message, context, (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success()),
 			CancellationToken.None);
 
-		result.IsSuccess.ShouldBeTrue("the default ingress must not fail-closed when no schema validation is configured");
+		result.Succeeded.ShouldBeTrue("the default ingress must not fail-closed when no schema validation is configured");
 		context.MessageId.ShouldBe("ce-baarat");
 	}
 

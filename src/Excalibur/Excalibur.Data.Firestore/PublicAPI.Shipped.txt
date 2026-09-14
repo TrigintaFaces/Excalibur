@@ -7,6 +7,7 @@ Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantStore.Firestor
 Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantStore.FirestoreActivityGroupGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantStore!>! logger) -> void
 Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions
 Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.ActivityGroupsCollectionName.get -> string!
 Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.ActivityGroupsCollectionName.set -> void
@@ -51,7 +52,6 @@ Excalibur.Data.Firestore.FirestoreChangeEvent<TDocument>.FirestoreChangeEvent(Ex
 Excalibur.Data.Firestore.FirestoreChangeEvent<TDocument>.PartitionKey.get -> Excalibur.Data.CloudNative.IPartitionKey!
 Excalibur.Data.Firestore.FirestoreChangeEvent<TDocument>.SequenceNumber.get -> long
 Excalibur.Data.Firestore.FirestoreChangeEvent<TDocument>.Timestamp.get -> System.DateTimeOffset
-Excalibur.Data.Firestore.FirestoreEmulatorHelper
 Excalibur.Data.Firestore.FirestoreListenerSubscription<TDocument>
 Excalibur.Data.Firestore.FirestoreListenerSubscription<TDocument>.CurrentContinuationToken.get -> string?
 Excalibur.Data.Firestore.FirestoreListenerSubscription<TDocument>.DisposeAsync() -> System.Threading.Tasks.ValueTask
@@ -148,11 +148,15 @@ Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DeleteSnapshotsAsync(s
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.Dispose() -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, System.TimeProvider? timeProvider = null) -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, System.TimeProvider? timeProvider = null) -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CollectionName.get -> string!
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CollectionName.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.ContendedWriteBackoffMilliseconds.get -> int
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.ContendedWriteBackoffMilliseconds.set -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CredentialsJson.get -> string?
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CredentialsJson.set -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CredentialsPath.get -> string?
@@ -164,6 +168,8 @@ Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.EmulatorHost.se
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.FirestoreSnapshotStoreOptions() -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.MaxBatchSize.get -> int
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.MaxBatchSize.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.MaxContendedWriteAttempts.get -> int
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.MaxContendedWriteAttempts.set -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.ProjectId.get -> string?
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.ProjectId.set -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.TimeoutInSeconds.get -> int
@@ -175,7 +181,6 @@ Microsoft.Extensions.DependencyInjection.FirestoreHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.FirestoreProjectionStoreExtensions
 Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions
-static Excalibur.Data.Firestore.FirestoreEmulatorHelper.TryConfigureEmulatorHost(string! emulatorHost) -> bool
 static Microsoft.Extensions.DependencyInjection.A3BuilderFirestoreExtensions.UseFirestore(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! configure) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions.AddFirestoreActivityGroupGrantStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions.AddFirestoreAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -185,11 +190,3 @@ static Microsoft.Extensions.DependencyInjection.FirestoreHealthChecksBuilderExte
 static Microsoft.Extensions.DependencyInjection.FirestoreProjectionStoreExtensions.AddFirestoreProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions.AddExcaliburFirestore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.IFirestoreDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions.AddFirestoreSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions.AddFirestoreSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.ContendedWriteBackoffMilliseconds.get -> int
-Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.ContendedWriteBackoffMilliseconds.set -> void
-Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.MaxContendedWriteAttempts.get -> int
-Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.MaxContendedWriteAttempts.set -> void
-Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, System.TimeProvider? timeProvider = null) -> void
-Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, System.TimeProvider? timeProvider = null) -> void

@@ -20,7 +20,7 @@ public sealed class RetryAttributeShould : UnitTestBase
 		var attribute = new RetryAttribute();
 
 		// Assert
-		attribute.MaxAttempts.ShouldBe(3);
+		attribute.MaxRetryAttempts.ShouldBe(3);
 		attribute.BaseDelayMs.ShouldBe(1000);
 		attribute.MaxDelayMs.ShouldBe(30000);
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
@@ -32,10 +32,10 @@ public sealed class RetryAttributeShould : UnitTestBase
 	public void MaxAttempts_CanBeCustomized()
 	{
 		// Arrange & Act
-		var attribute = new RetryAttribute { MaxAttempts = 5 };
+		var attribute = new RetryAttribute { MaxRetryAttempts = 5 };
 
 		// Assert
-		attribute.MaxAttempts.ShouldBe(5);
+		attribute.MaxRetryAttempts.ShouldBe(5);
 	}
 
 	[Fact]
@@ -138,10 +138,10 @@ public sealed class RetryAttributeShould : UnitTestBase
 
 		// Assert
 		_ = attribute.ShouldNotBeNull();
-		attribute.MaxAttempts.ShouldBe(5);
+		attribute.MaxRetryAttempts.ShouldBe(5);
 		attribute.BaseDelayMs.ShouldBe(200);
 	}
 
-	[Retry(MaxAttempts = 5, BaseDelayMs = 200)]
+	[Retry(MaxRetryAttempts = 5, BaseDelayMs = 200)]
 	private sealed class TestRetryMessage;
 }

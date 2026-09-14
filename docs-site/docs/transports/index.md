@@ -34,6 +34,7 @@ Start with the **[Choosing a Transport](choosing-a-transport.md)** guide for a d
 | [Azure Service Bus](azure-service-bus.md) | `Excalibur.Dispatch.Transport.AzureServiceBus` | Azure-native messaging |
 | [AWS SQS](aws-sqs.md) | `Excalibur.Dispatch.Transport.AwsSqs` | AWS-native messaging |
 | [Google Pub/Sub](google-pubsub.md) | `Excalibur.Dispatch.Transport.GooglePubSub` | GCP-native messaging |
+| [gRPC](grpc.md) | `Excalibur.Dispatch.Transport.Grpc` | Service-to-service messaging over gRPC — unary send/receive, server-streaming subscribe, TLS required by default |
 | [Apache Pulsar](pulsar.md) | `Excalibur.Dispatch.Transport.Pulsar` | Pulsar messaging — **transport primitives only** (keyed sender/receiver; not yet pipeline-integrated) |
 | [MQTT](mqtt.md) | `Excalibur.Dispatch.Transport.Mqtt` | IoT / device messaging — **transport primitives only** (keyed sender/receiver; QoS + shared subscriptions) |
 | [IBM MQ](ibm-mq.md) | `Excalibur.Dispatch.Transport.IbmMq` | Enterprise queue messaging — **transport primitives only** (keyed sender/receiver; unit-of-work per message) |
@@ -196,28 +197,46 @@ message.Properties[TransportTelemetryConstants.PropertyKeys.PartitionKey] = cust
 
 ### Decorator Pattern
 
-Cross-cutting concerns (telemetry, ordering, deduplication, scheduling, CloudEvents, DLQ routing) are composable decorators built on `DelegatingTransportSender` / `DelegatingTransportReceiver`:
+Cross-cutting concerns — telemetry, ordering, deduplication, scheduling, dead-letter routing — are added by
+composing a sender or receiver through a builder. You compose them by calling the `Use…` methods below; the
+decorator types themselves are an implementation detail and are not part of the public surface.
 
 ```csharp
 var sender = new TransportSenderBuilder(nativeSender)
-    .Use(inner => new TelemetryTransportSender(inner, meter, activitySource, "Kafka"))
-    .Use(inner => new OrderingTransportSender(inner, msg => msg.Subject))
+    .UseTelemetry("Kafka", meter, activitySource)
+    .UseOrdering(msg => msg.Subject)
+    .Build();
+
+var receiver = new TransportReceiverBuilder(nativeReceiver)
+    .UseTelemetry("Kafka", meter, activitySource)
+    .UseDeadLetterQueue("Kafka", (message, reason, ct) => RouteToDlqAsync(message, reason, ct))
     .Build();
 ```
 
-| Decorator | Direction | Purpose |
-|-----------|-----------|---------|
-| `TelemetryTransportSender` | Send | OpenTelemetry metrics + traces |
-| `TelemetryTransportReceiver` | Receive | OpenTelemetry metrics + traces |
-| `OrderingTransportSender` | Send | Set ordering key from message |
-| `DeduplicationTransportSender` | Send | Set deduplication ID |
-| `SchedulingTransportSender` | Send | Scheduled delivery time |
-| `DeadLetterTransportReceiver` | Receive | Route failures to DLQ |
+| Call | Direction | What it adds |
+|------|-----------|--------------|
+| `UseTelemetry(transportName, meter, activitySource)` | Send | OpenTelemetry metrics and traces around each send |
+| `UseTelemetry(transportName, meter, activitySource)` | Receive | OpenTelemetry metrics and traces around each receive |
+| `UseOrdering(keySelector)` | Send | Sets the ordering key on each message from the selector |
+| `UseDeduplication(idSelector)` | Send | Sets the deduplication id on each message from the selector |
+| `UseScheduling(timeSelector)` | Send | Sets a scheduled delivery time on each message from the selector |
+| `UseDeadLetterQueue(transportName, handler, meter?)` | Receive | Routes a failed message to your dead-letter handler |
+
+Each returns the builder, so they compose in any order; `Build()` returns an `ITransportSender` or
+`ITransportReceiver` you can register or pass on. If you need a decorator of your own, derive from
+`DelegatingTransportSender` or `DelegatingTransportReceiver` — both are public — and add it with `Use(...)`.
 
 :::note CloudEvents
-CloudEvents is no longer a transport decorator. Envelope↔CloudEvent mapping is handled by the
-CloudEvents bridge/middleware (`AddCloudEvents(...)`) through a single canonical emit path, with
-per-transport binding (e.g. Kafka's structured `ce_` binding) via the transport's CloudEvent adapter.
+The two directions are not symmetric.
+
+**Inbound decoding is applied for you.** Each transport's own registration wraps its receiver with CloudEvent
+decoding for that transport's binding, so there is no call to make and no registration that can be missing.
+The decoded event is attached to the received message's provider data; the message body is not replaced, so
+code that reads the raw body is unaffected and acknowledgement still addresses the original message.
+
+**Outbound formatting is not a sender decorator.** Envelope↔CloudEvent mapping happens in the CloudEvents
+bridge you enable with `AddCloudEvents(...)`, through a single canonical emit path, with the per-transport
+binding (Kafka's structured `ce_` binding, for example) supplied by that transport's CloudEvent adapter.
 :::
 
 ### GetService() — Raw SDK Access
@@ -261,6 +280,7 @@ var sbSender = sender.GetService(typeof(ServiceBusSender))
 Configure resilience per transport via the options classes:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddRabbitMQTransport(rmq =>
 {
     rmq.HostName("rabbitmq")
@@ -281,7 +301,7 @@ app.MapHealthChecks("/health");
 
 ### Observability
 
-All transports emit OpenTelemetry traces and metrics via the `TelemetryTransportSender` / `TelemetryTransportReceiver` decorators:
+All transports emit OpenTelemetry traces and metrics once telemetry is composed onto the sender and receiver (`UseTelemetry(...)`, above):
 
 ```csharp
 services.AddOpenTelemetry()
@@ -374,6 +394,7 @@ public interface IDeadLetterQueueManager
 ### Kafka DLQ Example
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport("events", kafka => { /* ... */ });
 
 services.AddKafkaDeadLetterQueue(dlq =>

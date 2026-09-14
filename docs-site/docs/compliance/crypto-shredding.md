@@ -52,7 +52,7 @@ Because the key-management provider, key-management admin, and data-subject hash
 
 Crypto-shredding is annotation-driven. Two attributes (both in `Excalibur.Compliance`) declare what to protect and whose key protects it:
 
-- **`[DataSubjectId]`** marks the property whose value identifies the data subject the record belongs to. At most one property per record may carry it.
+- **`[DataSubjectId]`** marks the property whose value identifies the data subject the record belongs to. Exactly one property per record should carry it; if more than one does, the first property discovered is used and the others are ignored.
 - **`[PersonalData]`** marks each property that holds personal data to be encrypted under that subject's key. `[PersonalData]` also carries policy metadata (`Category`, `IsSensitive`, `Purpose`, `LegalBasis`, `RetentionDays`, `MaskInLogs`, `ExcludeFromErrors`).
 
 ```csharp
@@ -98,9 +98,9 @@ public sealed class CustomerWriter(SubjectFieldCryptor cryptor)
 
 - **`EncryptFieldsAsync`** resolves the subject id from the `[DataSubjectId]` property, obtains (or mints) that subject's key via `ISubjectKeyManager`, and replaces each `[PersonalData]` field value with a subject-bound ciphertext envelope. `string` and `byte[]` personal-data properties are supported.
 - **`DecryptFieldsAsync`** reverses the process. A field whose subject key has been **destroyed** decrypts to `null` (a tombstone), leaving the rest of the record intact so an aggregate still loads with its non-personal fields.
-- A record with **no resolvable `[DataSubjectId]` value** is left untouched — per-subject protection is additive over any existing at-rest encryption.
+- A record whose type carries **no `[DataSubjectId]` property** is left untouched — per-subject protection is additive over any existing at-rest encryption. A record that **declares** a data subject whose identifier is null or blank is **rejected with an `EncryptionException`**: it has `[PersonalData]` fields and no key under which to protect them, so proceeding would persist plaintext personal data.
 
-Under the hood, `IFieldEncryptor` mints per-subject keys as **AES-256-GCM** keys. Key material is always produced by the key-management provider's cryptographically-secure RNG — never from `Guid` or `Random`. Raw subject identifiers are pseudonymized through `IDataSubjectHasher` before they are used as key handles, so they never reach the key store.
+Under the hood, `ISubjectKeyManager` mints per-subject keys as **AES-256-GCM** keys. Key material is always produced by the key-management provider's cryptographically-secure RNG — never from `Guid` or `Random`. Raw subject identifiers are pseudonymized through `IDataSubjectHasher` before they are used as key handles, so they never reach the key store.
 
 ## Fail-Closed Field Protection
 
@@ -130,7 +130,19 @@ The read path is deliberately asymmetric:
 // rejected at startup, because a completion certificate must never be issued
 // over coverage that was never verified.
 builder.Services.AddInMemoryErasureStore();
+// Erasure also refuses to start with no legal-hold service, so that the check is never
+// skipped by accident — see the GDPR erasure guide.
+builder.Services.AddInMemoryLegalHoldStore();
+builder.Services.AddLegalHoldService();
 builder.Services.AddGdprErasure(options => options.KeyShredOnlyErasure = true);
+
+// Erasure works by destroying keys, so a startup gate refuses a volatile key provider
+// unless the host says so explicitly. A production host registers a durable provider
+// (Azure Key Vault, AWS KMS, HashiCorp Vault) instead of this line.
+builder.Services.Configure<KeyDurabilityOptions>(o => o.AllowVolatileKeyProvider = true);
+
+// Filing a request is not executing it. Without the scheduler, requests persist and never run.
+builder.Services.AddErasureScheduler();
 ```
 
 ```csharp
@@ -152,7 +164,7 @@ public sealed class SubjectEraser(IErasureService erasure)
 }
 ```
 
-`RequestErasureAsync` files the request and returns immediately. The returned `ErasureResult` carries `ScheduledExecutionTime` (when the configured grace period elapses) and, if the subject is under a legal hold, the `BlockingHold` that is holding the erasure. The hosted scheduler registered by `AddGdprErasure` executes the request when the grace period expires and no hold applies; destroying the subject's key is part of that execution. The subject's own key handle is destroyed **even when the data inventory does not enumerate it**, so the crypto-shred does not depend on inventory coverage.
+`RequestErasureAsync` files the request and returns immediately. The returned `ErasureResult` carries `ScheduledExecutionTime` (when the configured grace period elapses) and, if the subject is under a legal hold, the `BlockingHold` that is holding the erasure. Execution is performed by the erasure scheduler, which is a **separate registration**: call `AddErasureScheduler()` alongside `AddGdprErasure(...)`. Without it, requests are persisted and scheduled and **never execute**. The scheduler runs the request once the grace period expires and no hold applies; destroying the subject's key is part of that execution. The subject's own key handle is destroyed **even when the data inventory does not enumerate it**, so the crypto-shred does not depend on inventory coverage.
 
 Because erasure is a single key destruction, every field and record encrypted under that subject's key becomes undecryptable at once — no per-record mutation is required for the encrypted values. Once destroyed, all data encrypted under that key is permanently unrecoverable.
 

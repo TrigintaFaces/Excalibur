@@ -102,6 +102,51 @@ public static class ErasureServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Declares that this deployment operates no legal holds, and supplies the legal-hold service that
+	/// says so.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Call this only if it is true.</b> Erasure is irreversible and consults legal holds before it
+	/// proceeds, so it requires a legal-hold service rather than treating an absent one as "no holds" —
+	/// that made a deployment nobody had finished wiring indistinguishable from one that genuinely has
+	/// none, and the first silently skipped the check. This method is how a deployment states the second
+	/// case deliberately.
+	/// </para>
+	/// <para>
+	/// <b>Nothing registers this for you, and that is deliberate.</b> Startup validation answers "are
+	/// holds enforced?" by asking whether a legal-hold service is registered at all. If the framework
+	/// registered this one by default, that question would answer yes in every application ever built and
+	/// the check could never fail — so the absence of holds has to be something a person wrote a line to
+	/// say, which is exactly this line.
+	/// </para>
+	/// <para>
+	/// Holds cannot be created or released through the resulting service; it reports that none exist and
+	/// refuses to record one, because a hold this deployment will never enforce is worse than a refusal.
+	/// If holds are needed, call <see cref="AddLegalHoldService"/> with a legal-hold store instead.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddNoLegalHolds(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Deliberately NOT TryAdd. A real legal-hold service already registered would win a TryAdd race
+		// silently, leaving a deployment that asked for "no holds" quietly enforcing them, or the reverse
+		// depending on call order. An explicit declaration should be unambiguous, so this replaces.
+		services.AddScoped<ILegalHoldService, NoLegalHoldsService>();
+
+		// ONE call, BOTH effects, and that is the point rather than a convenience. Declaring "no holds"
+		// has to satisfy two different things -- the startup validator, which asks whether the decision
+		// was made, and the service resolution, which needs something to actually call. Leaving those to
+		// two separate consumer actions means a deployment can do one and not the other, and the half it
+		// is most likely to skip is the one that fails latest.
+		_ = services.Configure<ErasureOptions>(static o => o.OperatesNoLegalHolds = true);
+		return services;
+	}
+
+	/// <summary>
 	/// Adds the in-memory legal hold store for development and testing.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -371,6 +416,12 @@ public static class ErasureServiceCollectionExtensions
 		// Register cross-property validator (TryAddEnumerable to coexist with DataAnnotation validators)
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ErasureOptions>, ErasureOptionsValidator>());
 
+		// Erasure treats its legal-hold service as optional and SKIPS the hold check when it is absent, so an
+		// unwired hold service means every erasure proceeds unchecked. Refuse to start instead: erasure is
+		// irreversible, and a deployment that genuinely has no holds declares that explicitly on the options.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ErasureOptions>, LegalHoldWiringValidator>());
+
 		_ = services.AddDataSubjectHashing();
 
 		// TryAdd default IKeyManagementAdmin so AddGdprErasure works against an
@@ -385,15 +436,23 @@ public static class ErasureServiceCollectionExtensions
 		services.TryAddSingleton<IKeyManagementProvider>(static sp =>
 			sp.GetRequiredService<InMemoryKeyManagementProvider>());
 
-		// Register core service with factory to resolve optional dependencies
+		// Register core service with factory to resolve optional dependencies.
+		//
+		// The legal-hold service is NOT among them. Erasure is irreversible and consults holds before it
+		// proceeds, so resolving it optionally is what allowed a deployment nobody had finished wiring to
+		// skip the check silently. It is required here; a deployment that operates none declares that with
+		// AddNoLegalHolds(), which supplies a service that truthfully reports none. Startup validation
+		// still refuses a container that has done neither, so the failure is a startup message rather than
+		// a resolution error on the first erasure.
 		services.TryAddScoped<ErasureService>(sp => new ErasureService(
 			sp.GetRequiredService<IErasureStore>(),
 			sp.GetRequiredService<IKeyManagementAdmin>(),
 			sp.GetRequiredService<IOptions<ErasureOptions>>(),
 			sp.GetRequiredService<ILogger<ErasureService>>(),
 			sp.GetRequiredService<IDataSubjectHasher>(),
-			sp.GetService<ILegalHoldService>(),
+			sp.GetRequiredService<ILegalHoldService>(),
 			sp.GetService<IDataInventoryService>(),
+			sp.GetService<IKeyEscrowService>(),
 			sp.GetServices<IErasureContributor>()));
 
 		services.TryAddScoped<IErasureService>(static sp => sp.GetRequiredService<ErasureService>());

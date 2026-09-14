@@ -47,12 +47,11 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
         return _sut;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_sut != null)
-        {
-            await _sut.DisposeAsync().ConfigureAwait(false);
-        }
+        // TimeoutMiddleware holds nothing that needs releasing, so it no longer implements
+        // IAsyncDisposable. Nothing to dispose here.
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

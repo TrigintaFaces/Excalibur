@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # aot-publish-validation-exit.test.sh — the AOT validator must not report a PASS it did not earn.
 #
-# THE DEFECT THIS LOCKS (3ridgy): the verdict read `$publishExitCode -gt 1`. A failed `dotnet publish`
+# THE DEFECT THIS LOCKS: the verdict read `$publishExitCode -gt 1`. A failed `dotnet publish`
 # exits **1** — the ordinary MSBuild failure code — so every real publish failure slipped the guard.
 # The script then found zero IL2xxx/IL3xxx warnings (a publish that FAILED emits none, having never got
 # far enough to emit any) and printed "AOT validation PASSED - zero warnings" and exit 0.
@@ -63,7 +63,7 @@ rc="$(run_with_shimmed_dotnet 1)"
 if [ "$rc" -ne 0 ]; then
     note "ok   SAFETY: publish exit 1 does NOT yield a PASS (validator exit $rc)"; pass=$((pass + 1))
 else
-    note "FAIL SAFETY: publish exit 1 yielded exit 0 — the false GREEN is back (3ridgy regression)"; fail=$((fail + 1))
+    note "FAIL SAFETY: publish exit 1 yielded exit 0 — the false GREEN is back (regression)"; fail=$((fail + 1))
 fi
 
 # ── SAFETY: exit 2 was already caught; assert it stays caught ───────────────────────────────────────

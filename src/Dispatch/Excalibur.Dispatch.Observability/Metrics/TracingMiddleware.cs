@@ -90,7 +90,7 @@ internal sealed class TracingMiddleware(IOptions<ObservabilityOptions> observabi
 		{
 			var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 
-			if (result.IsSuccess)
+			if (result.Succeeded)
 			{
 				_ = activity.SetStatus(ActivityStatusCode.Ok);
 				_ = activity.SetTag("dispatch.status", "success");

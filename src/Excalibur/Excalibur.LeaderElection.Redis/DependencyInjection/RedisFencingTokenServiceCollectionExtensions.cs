@@ -22,8 +22,10 @@ public static class RedisFencingTokenServiceCollectionExtensions
 	/// <remarks>
 	/// Requires an <see cref="StackExchange.Redis.IConnectionMultiplexer"/> to be registered (the same
 	/// connection used by <c>UseRedis(...)</c> leader election). Uses <c>TryAdd</c> so a consumer-supplied
-	/// provider takes precedence. Pair with <c>WithFencingTokens()</c> on the leader election builder; the
-	/// startup prerequisite check then passes because a provider is registered.
+	/// provider takes precedence. <c>UseRedis(...)</c> already registers this by default (fencing is on by
+	/// default; <c>WithoutFencingTokens()</c> opts out) — this method exists for a consumer composing
+	/// services manually without going through that entry point, and satisfies the startup prerequisite
+	/// check the same way.
 	/// </remarks>
 	public static IServiceCollection AddRedisFencingTokenProvider(this IServiceCollection services)
 	{

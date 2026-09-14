@@ -304,11 +304,16 @@ internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 	}
 
 	/// <inheritdoc />
-	public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
+	public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var tenantKey = tenantId ?? UntenantedPartitionKey;
+		// SECURITY: scope, not filter — bound unconditionally from ambient context, same as GetByIdAsync
+		// and QueryAsync above. This previously honoured a caller-supplied tenantId argument directly
+		// (tenantId ?? UntenantedPartitionKey), which let ANY caller read ANY tenant's last event by
+		// naming it -- the exact cross-tenant leak the SQL Server and Postgres stores were fixed against.
+		// The interface no longer accepts the argument at all, so the leak is now unformable here too.
+		var tenantKey = ResolveTenantKey();
 
 		if (!_eventsByTenant.TryGetValue(tenantKey, out var tenantEvents))
 		{

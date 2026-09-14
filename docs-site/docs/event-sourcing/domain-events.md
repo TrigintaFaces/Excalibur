@@ -394,8 +394,11 @@ Configure JSON serializer to handle schema evolution:
 ```csharp
 services.AddJsonSerialization(options =>
 {
-    options.SerializerOptions.PropertyNameCaseInsensitive = true;
-    options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip;
+    options.ConfigureSerializer = json =>
+    {
+        json.PropertyNameCaseInsensitive = true;
+        json.UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip;
+    };
 });
 ```
 

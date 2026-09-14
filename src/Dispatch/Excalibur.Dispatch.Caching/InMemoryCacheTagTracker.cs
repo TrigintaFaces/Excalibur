@@ -14,23 +14,37 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Caching;
 
 /// <summary>
-/// In-memory implementation of cache tag tracking using concurrent dictionaries.
-/// Thread-safe for single-process scenarios (Memory and Distributed cache modes with in-memory tracking).
+/// In-process implementation of <see cref="ICacheTagTracker"/> using a bounded
+/// <see cref="ConcurrentDictionary{TKey,TValue}"/> of per-tag version stamps.
+/// Thread-safe for single-process scenarios (Memory cache mode, or Distributed/Hybrid mode where
+/// cross-instance tag propagation is not required).
 /// </summary>
 public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 {
-	private readonly Counter<long> _tagRegistrationCounter;
-	private readonly Counter<long> _tagLookupCounter;
-	private readonly Counter<long> _tagUnregistrationCounter;
 	/// <summary>
-	/// Default upper bound on tracked keys, applied by the constructors that do not receive
-	/// <see cref="CacheOptions.TagTrackerCapacity"/>. Prevents unbounded growth on direct instantiation.
+	/// Default upper bound on distinct tags tracked, applied by the constructors that do not receive
+	/// <see cref="CacheOptions.TagTrackerCapacity"/>. Prevents unbounded growth when tag names are
+	/// derived from unbounded input (e.g. per-entity tags).
 	/// </summary>
+	/// <remarks>
+	/// At capacity the tracker does not drop invalidations: a bump for a tag it cannot record
+	/// collapses to a global invalidation instead, so every entry written before that moment is
+	/// treated as stale and the cache refills. The observable cost is a miss-rate spike, never
+	/// stale data.
+	/// </remarks>
 	private const int DefaultCapacity = 10_000;
 
+	private readonly ConcurrentDictionary<string, string> _stamps = new(StringComparer.Ordinal);
+	private readonly Counter<long> _stampCreationCounter;
+	private readonly Counter<long> _stampBumpCounter;
+	private readonly Counter<long> _epochCollapseCounter;
+
+	// ponytail: one global generation counter, so a bump that cannot be recorded per-tag invalidates EVERY entry
+	// rather than only the tag it named. Blunt under sustained tag pressure -- the whole cache refills
+	// each time capacity is touched. Upgrade path is a bounded per-tag structure, and only if a
+	// measurement shows the bluntness costs more than it saves.
+	private long _epoch;   // reported in the collapse log so an operator can count generations
 	private readonly int _capacity;
-	private readonly ILogger<InMemoryCacheTagTracker>? _logger;
-	private int _capacityWarningEmitted;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryCacheTagTracker"/> class.
@@ -40,9 +54,9 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	public InMemoryCacheTagTracker()
 	{
 		var meter = new Meter(DispatchCachingTelemetryConstants.MeterName, DispatchCachingTelemetryConstants.Version);
-		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "{registrations}", "Number of cache key-tag registrations");
-		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "{lookups}", "Number of cache tag lookup operations");
-		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "{unregistrations}", "Number of cache key-tag unregistrations");
+		_stampCreationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.stamps_created", "{stamps}", "Number of tag version stamps created");
+		_stampBumpCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.stamps_bumped", "{stamps}", "Number of tag version stamps bumped (invalidated)");
+		_epochCollapseCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.epoch_collapses", "{collapses}", "Number of global invalidations caused by a bump at capacity");
 		_capacity = DefaultCapacity;
 	}
 
@@ -56,9 +70,9 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	{
 		ArgumentNullException.ThrowIfNull(meterFactory);
 		var meter = meterFactory.Create(DispatchCachingTelemetryConstants.MeterName);
-		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "{registrations}", "Number of cache key-tag registrations");
-		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "{lookups}", "Number of cache tag lookup operations");
-		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "{unregistrations}", "Number of cache key-tag unregistrations");
+		_stampCreationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.stamps_created", "{stamps}", "Number of tag version stamps created");
+		_stampBumpCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.stamps_bumped", "{stamps}", "Number of tag version stamps bumped (invalidated)");
+		_epochCollapseCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.epoch_collapses", "{collapses}", "Number of global invalidations caused by a bump at capacity");
 		_capacity = DefaultCapacity;
 	}
 
@@ -78,124 +92,91 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 		ArgumentNullException.ThrowIfNull(meterFactory);
 		ArgumentNullException.ThrowIfNull(options);
 		var meter = meterFactory.Create(DispatchCachingTelemetryConstants.MeterName);
-		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "{registrations}", "Number of cache key-tag registrations");
-		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "{lookups}", "Number of cache tag lookup operations");
-		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "{unregistrations}", "Number of cache key-tag unregistrations");
+		_stampCreationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.stamps_created", "{stamps}", "Number of tag version stamps created");
+		_stampBumpCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.stamps_bumped", "{stamps}", "Number of tag version stamps bumped (invalidated)");
+		_epochCollapseCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.epoch_collapses", "{collapses}", "Number of global invalidations caused by a bump at capacity");
 		_capacity = options.Value.TagTrackerCapacity > 0 ? options.Value.TagTrackerCapacity : DefaultCapacity;
 		_logger = logger;
 	}
 
-	// Maps tag -> set of keys
-	private readonly ConcurrentDictionary<string, HashSet<string>> _tagToKeys = new(StringComparer.Ordinal);
+	private readonly ILogger<InMemoryCacheTagTracker>? _logger;
+	private int _capacityWarningEmitted;
 
-	// Maps key -> set of tags (for cleanup)
-	private readonly ConcurrentDictionary<string, HashSet<string>> _keyToTags = new(StringComparer.Ordinal);
-
-	// Lock for atomic updates to HashSets
-	private readonly Lock _lock = new();
+	/// <summary>
+	/// Number of tags currently memoized. Exposed to this assembly's test friends so the capacity
+	/// bound can be asserted directly rather than inferred from stamp stability, which is a proxy that
+	/// cannot distinguish a bounded map from a dropped invalidation.
+	/// </summary>
+	internal int TrackedTagCount => _stamps.Count;
 
 	/// <inheritdoc />
-	public Task RegisterKeyAsync(string key, string[] tags, CancellationToken cancellationToken)
+	public Task<string> GetOrCreateStampAsync(string tag, CancellationToken cancellationToken)
 	{
-		if (tags == null || tags.Length == 0)
+		ArgumentException.ThrowIfNullOrEmpty(tag);
+
+		if (_stamps.TryGetValue(tag, out var existing))
 		{
-			return Task.CompletedTask;
+			return Task.FromResult(existing);
 		}
 
-		if (_keyToTags.Count >= _capacity)
+		if (_stamps.Count >= _capacity)
 		{
 			if (Interlocked.CompareExchange(ref _capacityWarningEmitted, 1, 0) == 0)
 			{
 				_logger?.LogWarning(
-					"InMemoryCacheTagTracker capacity ({Capacity}) reached. New registrations will be skipped.",
+					"InMemoryCacheTagTracker capacity ({Capacity}) reached. New tags will be tracked without a stable stamp.",
 					_capacity);
 			}
 
+			// At capacity: still hand back a usable (if unmemoized) stamp rather than throwing --
+			// caching is cross-cutting infrastructure and must fail open, never break the request.
+			return Task.FromResult(CacheTagStamp.CreateNew());
+		}
+
+		// ConcurrentDictionary.GetOrAdd's factory may run more than once under a race; only one
+		// winning value is ever stored, and every caller -- winner or loser -- receives that same
+		// stored value, so a race here produces at most a harmlessly discarded extra stamp, never a
+		// disagreement between callers about the tag's current stamp.
+		var created = _stamps.GetOrAdd(tag, static _ => CacheTagStamp.CreateNew());
+		_stampCreationCounter.Add(1);
+		return Task.FromResult(created);
+	}
+
+	/// <inheritdoc />
+	public Task BumpStampAsync(string tag, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(tag);
+
+		// Overwrite in place when the tag is tracked, and admit a new one only while there is room.
+		// The indexer alone would ADD at capacity, letting the invalidate path grow past the bound the
+		// resolve path enforces.
+		if (_stamps.ContainsKey(tag) || _stamps.Count < _capacity)
+		{
+			_stamps[tag] = CacheTagStamp.CreateNew();
+			_stampBumpCounter.Add(1);
 			return Task.CompletedTask;
 		}
 
-		_tagRegistrationCounter.Add(1);
+		// At capacity with an untracked tag there is nowhere to record this invalidation, so it becomes
+		// a global one: every stamp issued from here carries a higher epoch than any entry already
+		// written, so every such entry is treated as stale. An invalidation is never lost; the cost is
+		// a miss-rate spike, which is observable, bounded and self-correcting.
+		// Discard every memoized stamp. Each tag then resolves to a fresh random stamp, so every entry
+		// written before this compares unequal and is treated as stale -- the global invalidation --
+		// while the stamps themselves stay opaque and separator-free, which they must be because they
+		// are concatenated into cache keys. Clearing also RELIEVES the pressure that forced the
+		// collapse, so the bound is self-correcting rather than permanently collapsed.
+		_stamps.Clear();
+		var collapsedTo = Interlocked.Increment(ref _epoch);
+		_epochCollapseCounter.Add(1);
+		_logger?.LogWarning(
+			"InMemoryCacheTagTracker at capacity ({Capacity}): a bump for an untracked tag collapsed to a "
+			+ "global invalidation (epoch {Epoch}). Every cached entry written before this is now treated as "
+			+ "stale. Expect a cache-miss spike; raise TagTrackerCapacity if this repeats.",
+			_capacity,
+			collapsedTo);
 
-		lock (_lock)
-		{
-			// Store key -> tags mapping for cleanup
-			_keyToTags[key] = [.. tags];
-
-			// Store tag -> key mappings for lookup
-			foreach (var tag in tags)
-			{
-				if (!_tagToKeys.TryGetValue(tag, out var keys))
-				{
-					keys = [];
-					_tagToKeys[tag] = keys;
-				}
-
-				_ = keys.Add(key);
-			}
-
-		}
-
-		return Task.CompletedTask;
-	}
-
-	/// <inheritdoc />
-	public Task<HashSet<string>> GetKeysByTagsAsync(string[] tags, CancellationToken cancellationToken)
-	{
-
-		var result = new HashSet<string>(StringComparer.Ordinal);
-
-		if (tags == null || tags.Length == 0)
-		{
-			return Task.FromResult(result);
-		}
-
-		_tagLookupCounter.Add(1);
-
-		lock (_lock)
-		{
-			foreach (var tag in tags)
-			{
-				if (_tagToKeys.TryGetValue(tag, out var keys))
-				{
-					result.UnionWith(keys);
-				}
-				else
-				{
-				}
-			}
-
-		}
-
-		return Task.FromResult(result);
-	}
-
-	/// <inheritdoc />
-	public Task UnregisterKeyAsync(string key, CancellationToken cancellationToken)
-	{
-		_tagUnregistrationCounter.Add(1);
-
-		lock (_lock)
-		{
-			// Get tags for this key
-			if (_keyToTags.TryRemove(key, out var tags))
-			{
-				// Remove key from each tag's key set
-				foreach (var tag in tags)
-				{
-					if (_tagToKeys.TryGetValue(tag, out var keys))
-					{
-						_ = keys.Remove(key);
-
-						// Clean up empty tag entries
-						if (keys.Count == 0)
-						{
-							_ = _tagToKeys.TryRemove(tag, out _);
-						}
-					}
-				}
-			}
-		}
-
+		_stampBumpCounter.Add(1);
 		return Task.CompletedTask;
 	}
 }

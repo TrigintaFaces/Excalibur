@@ -68,6 +68,14 @@
 -- survives; that is a data question and this script has no authority over it. Resolve them, then
 -- re-run. Do not proceed on a non-empty result: step 3 would fail partway.
 
+-- A refusal below must be visible to an unattended runner. Without this directive SQL*Plus exits 0
+-- even when a block raises, so a pipeline records a declined migration as applied and runs the next
+-- step against a database that was never changed. SQLcl and SQL Developer honour it too; drivers
+-- that execute statements directly ignore client directives.
+-- An operator running this inside an interactive session is ended by that non-zero exit;
+-- to keep the session, issue WHENEVER SQLERROR CONTINUE before @-ing the file.
+WHENEVER SQLERROR EXIT FAILURE ROLLBACK
+
 SELECT AGGREGATEID,
        AGGREGATETYPE,
        VERSION,
@@ -109,10 +117,22 @@ ALTER TABLE EVENTSTOREEVENTS MODIFY (TENANTID DEFAULT '__untenanted__');
 -- This ALTER fails if step 1 did not run or did not commit. That is the intended behaviour: it
 -- is the database refusing to let the schema claim a guarantee the data does not meet.
 --
--- Re-running it against an already-NOT NULL column is a no-op in Oracle rather than an error,
--- which is what keeps this script safe to run twice.
+-- Re-running MODIFY ... NOT NULL against an already-NOT-NULL column is NOT a no-op in Oracle: it
+-- raises ORA-01442 ("column to be modified to NOT NULL is already NOT NULL") unconditionally --
+-- measured against a real Oracle instance, contradicting an earlier version of this comment. The
+-- block below is what actually keeps the script safe to run twice: it applies the ALTER and
+-- swallows exactly that one error code, the same way the SQL Server sibling script guards this
+-- step with IF EXISTS (SELECT * FROM sys.columns ... IS_NULLABLE = 'YES') before altering.
 
-ALTER TABLE EVENTSTOREEVENTS MODIFY (TENANTID VARCHAR2(64) NOT NULL);
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE EVENTSTOREEVENTS MODIFY (TENANTID VARCHAR2(64) NOT NULL)';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -1442 THEN
+            RAISE;
+        END IF;
+END;
+/
 
 -- ---------------------------------------------------------------------------------------
 -- STEP 4 — Verify. Expected result for BOTH queries: NO ROWS.

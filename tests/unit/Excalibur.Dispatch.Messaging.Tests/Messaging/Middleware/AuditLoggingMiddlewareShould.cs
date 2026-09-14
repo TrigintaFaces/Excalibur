@@ -140,7 +140,7 @@ public sealed class AuditLoggingMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -160,7 +160,7 @@ public sealed class AuditLoggingMiddlewareShould
 
 		// Assert
 		result.ShouldBeSameAs(expectedResult);
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	#endregion
@@ -222,7 +222,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -249,7 +249,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		extractorCalled.ShouldBeTrue();
 	}
 
@@ -269,7 +269,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -292,7 +292,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -319,7 +319,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		extractorCalled.ShouldBeTrue();
 	}
 
@@ -339,7 +339,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -362,7 +362,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -381,7 +381,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -410,7 +410,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		filterCalled.ShouldBeTrue();
 	}
 
@@ -433,7 +433,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -456,7 +456,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 		result.ShouldBeSameAs(failedResult);
 	}
 
@@ -479,7 +479,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -498,7 +498,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -516,7 +516,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -573,7 +573,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion

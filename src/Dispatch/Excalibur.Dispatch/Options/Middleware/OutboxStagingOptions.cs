@@ -12,8 +12,26 @@ namespace Excalibur.Dispatch.Options.Middleware;
 public sealed class OutboxStagingOptions
 {
 	/// <summary>
-	/// Gets or sets the outbox consistency mode.
+	/// Gets or sets the outbox consistency mode. This is a STARTUP REQUIREMENT, not a behaviour selector:
+	/// setting it to <see cref="OutboxConsistencyMode.Transactional"/> makes startup fail unless the
+	/// transactional infrastructure this package can see is registered. It does not choose a write path.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>What it checks, and what it cannot.</b> The validator confirms an outbox store and the transaction
+	/// middleware are registered. It cannot confirm that an event store supports transactional staging,
+	/// because that capability is declared in the event-sourcing packages and this package does not depend
+	/// on them. A configuration that satisfies this option can therefore still resolve to an
+	/// eventually-consistent write path at runtime.
+	/// </para>
+	/// <para>
+	/// <b>Which switch selects the path.</b> For event-sourced aggregates the write path is chosen by the
+	/// staging strategy on the event-sourcing builder, which prefers the transactional path when both a
+	/// transactional outbox writer and a transactional event store are present and falls back otherwise.
+	/// Setting this option does not change that choice; it only refuses to start without the parts it can
+	/// see.
+	/// </para>
+	/// </remarks>
 	/// <value>Default is <see cref="OutboxConsistencyMode.EventuallyConsistent"/>.</value>
 	public OutboxConsistencyMode ConsistencyMode { get; set; }
 		= OutboxConsistencyMode.EventuallyConsistent;

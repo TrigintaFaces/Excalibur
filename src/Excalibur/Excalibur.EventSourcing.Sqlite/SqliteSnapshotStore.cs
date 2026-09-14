@@ -3,6 +3,7 @@
 
 using Dapper;
 
+using Excalibur.Data.Validation;
 using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
@@ -69,6 +70,11 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 		_requireTenant = tenantContextOptions.Value.RequireTenant;
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ArgumentNullException.ThrowIfNull(logger);
+		// The table name is interpolated directly into DDL and statement text (never parameterized -- SQL
+		// does not allow a parameterized identifier), so it must be allowlist-validated before it can reach
+		// SqliteTableInitializer or any query this store issues. Matches the outbox providers' fix for the
+		// identical hazard on their own table-name inputs.
+		SqlIdentifierValidator.ThrowIfInvalid(table, nameof(table));
 
 		_connectionString = connectionString;
 		_logger = logger;

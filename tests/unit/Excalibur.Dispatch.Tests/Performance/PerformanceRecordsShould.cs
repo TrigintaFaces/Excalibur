@@ -157,7 +157,6 @@ public sealed class PerformanceRecordsShould
 		status.HandlerRegistryFrozen.ShouldBeFalse();
 		status.HandlerActivatorFrozen.ShouldBeFalse();
 		status.ResultFactoryFrozen.ShouldBeFalse();
-		status.ProfileSelectionFrozen.ShouldBeFalse();
 		status.FrozenAt.ShouldBeNull();
 		status.AllFrozen.ShouldBeFalse();
 	}
@@ -166,7 +165,7 @@ public sealed class PerformanceRecordsShould
 	public void CacheFreezeStatus_AllFrozen()
 	{
 		var frozenAt = DateTimeOffset.UtcNow;
-		var status = new CacheFreezeStatus(true, true, true, true, true, frozenAt);
+		var status = new CacheFreezeStatus(true, true, true, true, frozenAt);
 
 		status.AllFrozen.ShouldBeTrue();
 		status.FrozenAt.ShouldBe(frozenAt);
@@ -175,7 +174,7 @@ public sealed class PerformanceRecordsShould
 	[Fact]
 	public void CacheFreezeStatus_PartiallyFrozen()
 	{
-		var status = new CacheFreezeStatus(true, true, false, true, true, null);
+		var status = new CacheFreezeStatus(true, true, false, true, null);
 
 		status.AllFrozen.ShouldBeFalse();
 	}
@@ -183,8 +182,8 @@ public sealed class PerformanceRecordsShould
 	[Fact]
 	public void CacheFreezeStatus_RecordEquality()
 	{
-		var s1 = new CacheFreezeStatus(true, true, true, true, true, null);
-		var s2 = new CacheFreezeStatus(true, true, true, true, true, null);
+		var s1 = new CacheFreezeStatus(true, true, true, true, null);
+		var s2 = new CacheFreezeStatus(true, true, true, true, null);
 
 		s1.ShouldBe(s2);
 	}

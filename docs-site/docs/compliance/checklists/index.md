@@ -10,12 +10,12 @@ Step-by-step checklists for achieving and maintaining compliance with major regu
 
 ## Available Checklists
 
-| Framework | Description | Status |
-|-----------|-------------|--------|
-| [FedRAMP](fedramp.md) | Federal Risk and Authorization Management Program | 14/14 Controls |
-| [SOC 2](soc2.md) | Service Organization Control 2 Trust Services Criteria | Complete |
-| [GDPR](gdpr.md) | General Data Protection Regulation | Complete |
-| [HIPAA](hipaa.md) | Health Insurance Portability and Accountability Act | Complete |
+| Framework | Description | Checklist coverage |
+|-----------|-------------|--------------------|
+| [FedRAMP](fedramp.md) | Federal Risk and Authorization Management Program | 12 of 14 controls satisfied; 2 partial |
+| [SOC 2](soc2.md) | Service Organization Control 2 Trust Services Criteria | All criteria walked through |
+| [GDPR](gdpr.md) | General Data Protection Regulation | 5 of 9 articles satisfied; 4 partial (business process) |
+| [HIPAA](hipaa.md) | Health Insurance Portability and Accountability Act | All safeguards walked through |
 
 ## Using These Checklists
 

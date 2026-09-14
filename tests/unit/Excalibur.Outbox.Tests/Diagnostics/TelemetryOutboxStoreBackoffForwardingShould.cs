@@ -23,7 +23,7 @@ namespace Excalibur.Outbox.Tests.Diagnostics;
 // So the arm that asserted "the decorator fail-opens internally over a non-capable inner" is asserting a contract
 // the ruling ABOLISHED. It is not deleted and its verdict is not relaxed. It is INVERTED to the property that
 // replaced it — the decorator must report the honest absence — and the fail-open it used to guard is re-bound one
-// layer out, at the consumer that now owns it (OutboxProcessor.MarkFailedWithBackoffOrFallbackAsync:817).
+// layer out, at the consumer that now owns it (OutboxProcessor.MarkFailedForClaimAsync:817).
 //
 // A lock is not a record of what the code does; it is a claim about what the code must do. The claim is unchanged:
 // a failure is never lost. Only the seam that delivers it moved.

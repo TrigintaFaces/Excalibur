@@ -96,11 +96,6 @@ Configure AWS SQS transport using the fluent builder:
 services.AddAwsSqsTransport("orders", sqs =>
 {
     sqs.UseRegion("us-east-1")
-       .UseSchemaRegistry(registry =>
-       {
-           registry.RegistryName = "my-registry";
-           registry.DefaultCompatibility = AwsGlueCompatibilityMode.Backward;
-       })
        .ConfigureQueue(queue =>
        {
            queue.VisibilityTimeout(TimeSpan.FromMinutes(5))
@@ -291,7 +286,7 @@ services.AddAwsSqsTransport(sqs =>
 The CloudEvents mapper bundled with this transport serializes the message payload with
 reflection-based JSON, so these registrations carry `[RequiresUnreferencedCode]` and
 `[RequiresDynamicCode]`. A host that trims or publishes ahead of time gets a warning at the
-call. To compose without the requirement, register your own `ICloudEventMapper<TTransportMessage>`
+call. To compose without the requirement, register your own `ICloudEventEncoder<TOutbound>`
 backed by a source-generated serializer.
 :::
 
@@ -364,136 +359,6 @@ services.AddAwsMessageBus(options =>
     options.EnableSqs = true;
 });
 ```
-
-## AWS Glue Schema Registry
-
-Production schema registry integration for message validation and evolution.
-
-### Quick Start
-
-```csharp
-services.AddAwsGlueSchemaRegistry(options =>
-{
-    options.RegistryName = "my-registry";
-    options.Region = RegionEndpoint.USEast1;
-    options.DefaultCompatibility = AwsGlueCompatibilityMode.Backward;
-});
-```
-
-### Configuration Options
-
-```csharp
-services.AddAwsGlueSchemaRegistry(options =>
-{
-    // Registry configuration
-    options.RegistryName = "my-registry";
-    options.Region = RegionEndpoint.USEast1;
-
-    // Schema format (Avro, JSON, Protobuf)
-    options.DataFormat = AwsGlueDataFormat.Json;
-
-    // Compatibility mode for schema evolution
-    options.DefaultCompatibility = AwsGlueCompatibilityMode.Backward;
-
-    // Auto-register schemas on first use
-    options.AutoRegisterSchemas = true;
-
-    // Caching (reduces API calls)
-    options.CacheTtl = TimeSpan.FromHours(1);
-    options.MaxCachedSchemas = 1000;
-
-    // Retry configuration
-    options.MaxRetries = 3;
-    options.RetryBaseDelay = TimeSpan.FromMilliseconds(100);
-    options.RequestTimeout = TimeSpan.FromSeconds(30);
-});
-```
-
-### Via Transport Builder
-
-```csharp
-services.AddAwsSqsTransport(sqs =>
-{
-    sqs.UseRegion("us-east-1")
-       .UseSchemaRegistry(registry =>
-       {
-           registry.RegistryName = "my-registry";
-           registry.DefaultCompatibility = AwsGlueCompatibilityMode.Backward;
-           registry.AutoRegisterSchemas = true;
-       });
-});
-```
-
-### Compatibility Modes
-
-| Mode | Description |
-|------|-------------|
-| `Disabled` | Schema validation is disabled |
-| `None` | No compatibility checking |
-| `Backward` | New schema can read data from previous version |
-| `BackwardAll` | New schema can read data from all previous versions |
-| `Forward` | Previous schema can read data from new version |
-| `ForwardAll` | All previous schemas can read data from new version |
-| `Full` | Both backward and forward compatible |
-| `FullAll` | Both backward and forward compatible with all versions |
-
-### Data Formats
-
-```csharp
-// JSON Schema (default)
-options.DataFormat = AwsGlueDataFormat.Json;
-
-// Apache Avro
-options.DataFormat = AwsGlueDataFormat.Avro;
-
-// Protocol Buffers
-options.DataFormat = AwsGlueDataFormat.Protobuf;
-```
-
-### Schema Operations
-
-The AWS Glue Schema Registry client implements `IAwsSchemaRegistry`:
-
-```csharp
-public interface IAwsSchemaRegistry
-{
-    // Register a schema version
-    Task<string> RegisterSchemaAsync<T>(string schema, int version);
-
-    // Get schema by version ID
-    Task<SchemaInfo?> GetSchemaAsync(string schemaId);
-
-    // Get latest schema version for a type
-    Task<SchemaInfo?> GetLatestSchemaAsync<T>();
-
-    // Validate compatibility before registration
-    Task<bool> ValidateCompatibilityAsync(string schemaId, string newSchema, int newVersion);
-}
-```
-
-### IAM Permissions Required
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "glue:GetRegistry",
-                "glue:GetSchema",
-                "glue:GetSchemaVersion",
-                "glue:RegisterSchemaVersion",
-                "glue:CreateSchema",
-                "glue:CheckSchemaVersionValidity"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-```
-
----
 
 ## Health Checks
 

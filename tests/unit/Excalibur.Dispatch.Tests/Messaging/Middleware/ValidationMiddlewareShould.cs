@@ -99,7 +99,7 @@ public sealed class ValidationMiddlewareShould
     [Fact]
     public async Task ThrowValidationExceptionWhenValidationFails()
     {
-        var errors = new List<ValidationError>
+        var errors = new List<MessageValidationError>
         {
             new("Name", "Name is required"),
             new("Email", "Email is invalid")
@@ -123,7 +123,7 @@ public sealed class ValidationMiddlewareShould
     [Fact]
     public async Task StopOnFirstErrorWhenConfigured()
     {
-        var errors = new List<ValidationError>
+        var errors = new List<MessageValidationError>
         {
             new("Name", "Name is required"),
             new("Email", "Email is invalid")

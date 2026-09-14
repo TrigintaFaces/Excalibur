@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Transport.Google;
+using Excalibur.Dispatch.Transport.GooglePubSub;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.FlowControl;
 
@@ -12,167 +13,63 @@ public sealed class PubSubFlowControlOptionsShould
 	[Fact]
 	public void HaveCorrectDefaults()
 	{
-		// Arrange & Act
 		var options = new PubSubFlowControlOptions();
 
-		// Assert
 		options.MaxOutstandingElementCount.ShouldBe(1000);
 		options.MaxOutstandingByteCount.ShouldBe(100_000_000);
-		options.EnableAdaptiveFlowControl.ShouldBeTrue();
-		options.AdaptationInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MinOutstandingElementCount.ShouldBe(100);
-		options.MinOutstandingByteCount.ShouldBe(10_000_000);
-		options.ScaleUpFactor.ShouldBe(1.5);
-		options.ScaleDownFactor.ShouldBe(0.8);
-		options.TargetUtilizationPercentage.ShouldBe(80.0);
-		options.MemoryPressureThreshold.ShouldBe(75.0);
 	}
 
 	[Fact]
-	public void AllowSettingAllProperties()
+	public void AcceptZero_BecauseItDefersToTheClientLibrary()
 	{
-		// Arrange & Act
+		// The subscriber registration treats 0 as "leave the limit to the client library" and skips
+		// applying FlowControlSettings entirely. A validator that rejected 0 would refuse a supported
+		// configuration.
+		var options = new PubSubFlowControlOptions { MaxOutstandingElementCount = 0, MaxOutstandingByteCount = 0 };
+
+		Should.NotThrow(options.Validate);
+	}
+
+	[Theory]
+	[InlineData(-1, 100)]
+	[InlineData(100, -1)]
+	public void RejectANegativeLimit(int elements, long bytes)
+	{
+		// Without this, a negative failed the registration's `> 0` test and silently became
+		// "use the client library default" -- indistinguishable from 0, but not what was asked for.
 		var options = new PubSubFlowControlOptions
 		{
-			MaxOutstandingElementCount = 2000,
-			MaxOutstandingByteCount = 200_000_000,
-			EnableAdaptiveFlowControl = false,
-			AdaptationInterval = TimeSpan.FromSeconds(10),
-			MinOutstandingElementCount = 200,
-			MinOutstandingByteCount = 20_000_000,
-			ScaleUpFactor = 2.0,
-			ScaleDownFactor = 0.5,
-			TargetUtilizationPercentage = 90.0,
-			MemoryPressureThreshold = 85.0,
+			MaxOutstandingElementCount = elements,
+			MaxOutstandingByteCount = bytes,
 		};
 
-		// Assert
-		options.MaxOutstandingElementCount.ShouldBe(2000);
-		options.MaxOutstandingByteCount.ShouldBe(200_000_000);
-		options.EnableAdaptiveFlowControl.ShouldBeFalse();
-		options.AdaptationInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		options.MinOutstandingElementCount.ShouldBe(200);
-		options.MinOutstandingByteCount.ShouldBe(20_000_000);
-		options.ScaleUpFactor.ShouldBe(2.0);
-		options.ScaleDownFactor.ShouldBe(0.5);
-		options.TargetUtilizationPercentage.ShouldBe(90.0);
-		options.MemoryPressureThreshold.ShouldBe(85.0);
+		_ = Should.Throw<ArgumentException>(options.Validate);
 	}
 
 	[Fact]
-	public void ValidateThrowWhenMaxElementCountZero()
+	public void BeValidatedByTheRegisteredParentValidator()
 	{
-		// Arrange
-		var options = new PubSubFlowControlOptions { MaxOutstandingElementCount = 0 };
+		// The flow-control limits are nested inside GooglePubSubOptions, so nothing resolves an
+		// IValidateOptions<PubSubFlowControlOptions> for them. This arm fails if the parent validator
+		// stops delegating, which is the only thing that makes Validate() reachable at startup.
+		var options = new global::Excalibur.Dispatch.Transport.Google.GooglePubSubOptions();
+		options.Connection.ProjectId = "project";
+		options.Connection.SubscriptionId = "subscription";
+		options.Subscriber.FlowControl.MaxOutstandingElementCount = -1;
 
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("MaxOutstandingElementCount");
+		var result = new GooglePubSubOptionsValidator().Validate(name: null, options);
+
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain("MaxOutstandingElementCount");
 	}
 
 	[Fact]
-	public void ValidateThrowWhenMaxByteCountZero()
+	public void PassTheParentValidator_WhenLimitsAreValid()
 	{
-		// Arrange
-		var options = new PubSubFlowControlOptions { MaxOutstandingByteCount = 0 };
+		var options = new global::Excalibur.Dispatch.Transport.Google.GooglePubSubOptions();
+		options.Connection.ProjectId = "project";
+		options.Connection.SubscriptionId = "subscription";
 
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("MaxOutstandingByteCount");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenMinElementCountExceedsMax()
-	{
-		// Arrange
-		var options = new PubSubFlowControlOptions
-		{
-			MaxOutstandingElementCount = 100,
-			MinOutstandingElementCount = 200,
-		};
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("MinOutstandingElementCount");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenMinByteCountExceedsMax()
-	{
-		// Arrange
-		var options = new PubSubFlowControlOptions
-		{
-			MaxOutstandingByteCount = 1000,
-			MinOutstandingByteCount = 2000,
-		};
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("MinOutstandingByteCount");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenAdaptationIntervalZero()
-	{
-		// Arrange
-		var options = new PubSubFlowControlOptions { AdaptationInterval = TimeSpan.Zero };
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("AdaptationInterval");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenScaleUpFactorTooLow()
-	{
-		// Arrange
-		var options = new PubSubFlowControlOptions { ScaleUpFactor = 1.0 };
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("ScaleUpFactor");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenScaleDownFactorTooHigh()
-	{
-		// Arrange
-		var options = new PubSubFlowControlOptions { ScaleDownFactor = 1.0 };
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("ScaleDownFactor");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenTargetUtilizationTooHigh()
-	{
-		// Arrange
-		var options = new PubSubFlowControlOptions { TargetUtilizationPercentage = 101.0 };
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("TargetUtilizationPercentage");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenMemoryPressureThresholdTooHigh()
-	{
-		// Arrange
-		var options = new PubSubFlowControlOptions { MemoryPressureThreshold = 101.0 };
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("MemoryPressureThreshold");
-	}
-
-	[Fact]
-	public void ValidateSucceedWithValidConfig()
-	{
-		// Arrange
-		var options = new PubSubFlowControlOptions();
-
-		// Act & Assert — should not throw
-		options.Validate();
+		new GooglePubSubOptionsValidator().Validate(name: null, options).Succeeded.ShouldBeTrue();
 	}
 }

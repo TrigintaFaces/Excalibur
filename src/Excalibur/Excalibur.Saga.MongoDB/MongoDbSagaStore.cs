@@ -13,6 +13,8 @@ using Microsoft.Extensions.Options;
 
 using MongoDB.Driver;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Saga.MongoDB;
 
 /// <summary>
@@ -89,7 +91,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 	/// <param name="sagaId">The caller-supplied saga identifier.</param>
 	/// <returns>The document identifier as stored in <c>_id</c>.</returns>
 	private string BuildDocumentId(Guid sagaId) =>
-		$"{TenantKeyPrefix}{CurrentTenantScope.TenantId}:{sagaId}";
+		TenantScopedKey.Compose(CurrentTenantScope.TenantId, sagaId.ToString());
 
 	private readonly bool _ownsClient;
 	private IMongoClient? _client;
@@ -242,6 +244,8 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Saga state is serialized with a reflection-based serializer that may require types which cannot be statically analyzed.")]
+	[RequiresDynamicCode("Saga state is serialized with the reflection-based serializer, which generates converters at run time.")]
 	public async Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState
 	{
@@ -250,9 +254,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-#pragma warning disable IL2026, IL3050 // AOT: MongoDB saga store uses reflection-based JSON serialization
 		var stateJson = _serializer.Serialize(sagaState);
-#pragma warning restore IL2026, IL3050
 		// UpdatedUtc/CreatedUtc are DateTime fields; use a DateTime value so the Update builder does not emit a
 		// Convert(d.UpdatedUtc, DateTimeOffset) node — the MongoDB LINQ provider cannot translate that and
 		// throws ExpressionNotSupportedException on every real save (the unit tests mock IMongoCollection and

@@ -167,7 +167,7 @@ public sealed class ContractVersionCheckMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => _versionService.CheckCompatibilityAsync(
 				A<string>._, A<string>._, A<string[]?>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -205,7 +205,7 @@ public sealed class ContractVersionCheckMiddlewareShould
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -225,7 +225,7 @@ public sealed class ContractVersionCheckMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -277,7 +277,7 @@ public sealed class ContractVersionCheckMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert - Should proceed despite incompatibility
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -333,7 +333,7 @@ public sealed class ContractVersionCheckMiddlewareShould
 
 		// Assert - Deprecated versions should still be processed
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -385,7 +385,7 @@ public sealed class ContractVersionCheckMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion

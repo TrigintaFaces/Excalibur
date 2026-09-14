@@ -510,6 +510,374 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that a late failure report cannot move a message out of a terminal status.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Requirement.</b> A completion member completes a claim. Once a message is sent it is finished, and a
+	/// failure report that arrives afterwards belongs to a claim that is over. A store that applies it anyway
+	/// moves a delivered message back to a failed status, where the drain's own claim predicate finds it again
+	/// and delivers it a second time. At-least-once degrades into a duplicate produced by the completion path
+	/// rather than by the delivery path.
+	/// </para>
+	/// <para>
+	/// <b>What this arm binds, and what it deliberately does not.</b> It asserts the ROW DID NOT MOVE. Whether
+	/// the store refuses loudly or absorbs the call silently is a separate contract question, and asserting a
+	/// particular refusal here would bind the mechanism instead of the property. A refusal is tolerated when it
+	/// arrives as an <see cref="InvalidOperationException"/>, which is the shape this kit already requires of a
+	/// completion that cannot apply.
+	/// </para>
+	/// <para>
+	/// <b>Why the liveness half is in the same arm.</b> A store that refuses EVERY failure report satisfies the
+	/// safety half perfectly and records nothing at all. That failure is invisible to a safety-only assertion
+	/// and would look exactly like a correct guard.
+	/// </para>
+	/// <para>
+	/// <b>What it cannot see.</b> It builds the store directly, so it is blind to a decorated store; and it
+	/// drives one caller at a time, so it is blind to an atomicity defect WHERE THE GUARD IS SEPARABLE FROM
+	/// THE WRITE - a store checking the status in one round trip and mutating in another reports GREEN here
+	/// exactly as an atomic one does. Where the guard is a predicate in the same statement, present implies
+	/// atomic and this arm's green does cover it.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		{
+			SkipArm(
+				nameof(MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage),
+				typeof(IOutboxStoreAdmin),
+				"Admin interface not supported");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage));
+
+		var delivered = CreateTestMessage();
+		var genuinelyFailed = CreateTestMessage();
+
+		await store.StageMessageAsync(delivered, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(genuinelyFailed, CancellationToken.None).ConfigureAwait(false);
+
+		await store.MarkSentAsync(delivered.Id, CancellationToken.None).ConfigureAwait(false);
+
+		// The late failure report. A refusal is permitted; applying it is not.
+		try
+		{
+			await store.MarkFailedAsync(
+				delivered.Id, "a failure reported after the message was already sent", 1, CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+		catch (InvalidOperationException)
+		{
+			// Refusing the completion is one correct answer. The other is absorbing it without effect. Both
+			// leave the row where it was, which is what the assertions below measure.
+		}
+
+		// LIVENESS. A message that really did fail must still be recorded as failed, or the safety assertions
+		// below are satisfied by a store that refuses every failure report and records nothing.
+		await store.MarkFailedAsync(
+			genuinelyFailed.Id, "a genuine delivery failure", 1, CancellationToken.None).ConfigureAwait(false);
+
+		var failed = await admin.GetAllTenantsFailedMessagesAsync(100, null, 100, CancellationToken.None)
+			.ConfigureAwait(false);
+		var failedIds = failed.Select(m => m.Id).ToList();
+
+		if (!failedIds.Contains(genuinelyFailed.Id, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A message that failed before being sent was not recorded as failed, so this store refuses "
+				+ "failure reports it should accept -- the terminal-status assertions below would hold "
+				+ "vacuously.");
+		}
+
+		// SAFETY, first half: the sent message is not sitting in the failed set.
+		if (failedIds.Contains(delivered.Id, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A failure report applied to an already-sent message moved it into the failed set. The drain "
+				+ "will find it there and deliver it again, so a message that succeeded is delivered twice by "
+				+ "the completion path.");
+		}
+
+		// SAFETY, second half, and the one that matters operationally: it is not claimable again. A store
+		// could keep it out of the failed projection while still making it visible to the drain, and that is
+		// the state that actually produces the duplicate.
+		var unsent = await store.GetUnsentMessagesAsync(100, CancellationToken.None).ConfigureAwait(false);
+
+		if (unsent.Any(m => string.Equals(m.Id, delivered.Id, StringComparison.Ordinal)))
+		{
+			throw new TestFixtureAssertionException(
+				"A failure report applied to an already-sent message made it claimable again. A delivered "
+				+ "message returned to the drain is a duplicate the consumer cannot distinguish from a retry.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a late failure report cannot move a message out of the dead-letter state.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Requirement.</b> <c>IDeadLetterableOutboxStore</c> promises in its own words that dead-lettering
+	/// moves a message to a status every claim predicate structurally excludes, so it can never be
+	/// re-claimed. A failure report that lands afterwards belongs to a claim that is over. A store that
+	/// applies it anyway moves the row back to a retryable status, and a message the operator decided to
+	/// STOP delivering is delivered again.
+	/// </para>
+	/// <para>
+	/// <b>Why this is a separate arm and not a case of the sent-path one.</b> The two are different
+	/// transitions and stores are not uniformly immune to both: a completion guard excluding only
+	/// <c>Sent</c> passes the sent-path arm and admits this one, which is the exact shape found in shipped
+	/// stores. An arm named for the sent path cannot see it, however many stores it is run against.
+	/// </para>
+	/// <para>
+	/// <b>The two probes are the two paths a resurrected message is re-delivered by</b> - the delivery
+	/// claim and the retry projection - and a dead-lettered message must appear on NEITHER, which
+	/// <see cref="DeadLettered_ShouldBeTerminalOnBothRetrievalPaths"/> already establishes as the
+	/// contract. Reappearing on either is the resurrection.
+	/// </para>
+	/// <para>
+	/// <b>What this arm cannot see, and there are two.</b> It builds the store DIRECTLY, so it says
+	/// nothing about a store reached through a decorator; a decorated store's capability probe is only as
+	/// good as the decorator's forwarding, and that is a separate property with its own seam.
+	/// </para>
+	/// <para>
+	/// <b>And it is sequential, so where the guard is SEPARABLE from the write it cannot see an atomicity
+	/// defect.</b> A guard that reads the status in one round trip and mutates in another is a
+	/// time-of-check-to-time-of-use window, and this arm drives one caller at a time - against such a
+	/// guard it reports GREEN exactly as it does against an atomic one.
+	/// </para>
+	/// <para>
+	/// <b>Separability is the whole of that limit, and it is narrower than it first looks.</b> Where the
+	/// guard is a predicate in the same statement as the write, or a check inside the same script, the two
+	/// cannot be interleaved and PRESENT IMPLIES ATOMIC - so for those stores this arm's green does cover
+	/// it, and the property is enforced by the shape of the statement rather than by any test. The limit
+	/// bites only where a store performs the check in a separate round trip from the mutation it guards.
+	/// Do not read a green here as covering that case, and do not read this paragraph as saying a
+	/// conformance arm is blind to atomicity generally.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		{
+			SkipArm(
+				nameof(MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage),
+				typeof(IOutboxStoreAdmin),
+				"Admin interface not supported");
+			return;
+		}
+
+		if (store.GetService(typeof(IDeadLetterableOutboxStore)) is not IDeadLetterableOutboxStore deadLetterable)
+		{
+			SkipArm(
+				nameof(MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage),
+				typeof(IDeadLetterableOutboxStore),
+				"This store does not implement terminal dead-lettering.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage));
+
+		var buried = CreateTestMessage();
+		var genuinelyFailed = CreateTestMessage();
+
+		await store.StageMessageAsync(buried, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(genuinelyFailed, CancellationToken.None).ConfigureAwait(false);
+
+		// The message is claimable before it is buried, so the assertions below cannot pass because it was
+		// never visible in the first place.
+		var beforeBurial = await store.GetUnsentMessagesAsync(100, CancellationToken.None).ConfigureAwait(false);
+
+		if (!beforeBurial.Any(m => string.Equals(m.Id, buried.Id, StringComparison.Ordinal)))
+		{
+			throw new TestFixtureAssertionException(
+				$"A freshly staged message ({buried.Id}) was not claimable, so a later absence would prove "
+				+ "nothing about the dead-letter transition.");
+		}
+
+		await deadLetterable.MarkDeadLetteredAsync(buried.Id, "retries exhausted", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// The late failure report. A refusal is permitted; applying it is not.
+		try
+		{
+			await store.MarkFailedAsync(
+				buried.Id, "a failure reported after the message was dead-lettered", 1, CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+		catch (InvalidOperationException)
+		{
+			// Refusing the completion is one correct answer; absorbing it without effect is the other. Both
+			// leave the row buried, which is what the assertions below measure.
+		}
+
+		// LIVENESS. A message that really did fail must still be recorded as failed, or a store that refuses
+		// every failure report satisfies both safety assertions below while recording nothing at all.
+		await store.MarkFailedAsync(
+			genuinelyFailed.Id, "a genuine delivery failure", 1, CancellationToken.None).ConfigureAwait(false);
+
+		var failed = await admin.GetAllTenantsFailedMessagesAsync(100, null, 100, CancellationToken.None)
+			.ConfigureAwait(false);
+		var failedIds = failed.Select(m => m.Id).ToList();
+
+		if (!failedIds.Contains(genuinelyFailed.Id, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A message that failed before being dead-lettered was not recorded as failed, so this store "
+				+ "refuses failure reports it should accept -- the assertions below would hold vacuously.");
+		}
+
+		// SAFETY, the retry path. A dead-lettered message returned as a retryable failure was resurrected.
+		if (failedIds.Contains(buried.Id, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A failure report applied to a dead-lettered message returned it to the retryable set. The "
+				+ "message the operator decided to stop delivering is queued for delivery again.");
+		}
+
+		// SAFETY, the delivery path, and the one that actually re-delivers.
+		var unsent = await store.GetUnsentMessagesAsync(100, CancellationToken.None).ConfigureAwait(false);
+
+		if (unsent.Any(m => string.Equals(m.Id, buried.Id, StringComparison.Ordinal)))
+		{
+			throw new TestFixtureAssertionException(
+				"A failure report applied to a dead-lettered message made it claimable again. Dead-lettering "
+				+ "is supposed to be the state a claim predicate structurally excludes, and this store lets a "
+				+ "late report undo it.");
+		}
+	}
+
+	/// <summary>
+	/// SAFETY. A superseded tenure cannot bury a message a live successor still holds.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The state matters more than the sequence, and an earlier version of this arm got that wrong.</b>
+	/// The defect this binds is a MISSING PREDICATE, not a race: the delete-idiom stores match the burial on
+	/// message id alone, with no ownership or status term. A missing predicate is observable single-threaded
+	/// — but only if the row is first put into the state the predicate was supposed to exclude, which is
+	/// <i>live, and owned by another tenure</i>. Marking the message sent first destroys that state: on a
+	/// store that does not retain sent rows the row is already gone, the burial's <c>INSERT … SELECT</c>
+	/// finds nothing, and the whole operation is a no-op that proves nothing.
+	/// </para>
+	/// <para>
+	/// So the arm claims the message and leaves it claimed, advances the fence, and presents the STALE token.
+	/// The liveness half runs in the SAME state, differing only in the authority of the caller — otherwise a
+	/// store that refuses every burial of a CLAIMED row while happily burying unclaimed ones passes both
+	/// halves.
+	/// </para>
+	/// <para>
+	/// <b>It binds the FENCED member deliberately.</b> The unfenced
+	/// <c>MarkDeadLetteredAsync(id, reason, ct)</c> takes no argument identifying the caller's authority, so
+	/// no store can perform this check through it and no conformance arm can assert it there — the property
+	/// is not expressible on that signature. The fenced overload carries the token and returns an outcome,
+	/// so it can both refuse and say that it refused.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		{
+			SkipOrFailUnfencedArm(nameof(MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim));
+			return;
+		}
+
+		if (store.GetService(typeof(IFencedDeadLetterableOutboxStore)) is not IFencedDeadLetterableOutboxStore fencedDeadLetter)
+		{
+			SkipArm(
+				nameof(MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim),
+				typeof(IFencedDeadLetterableOutboxStore),
+				"This store does not implement fenced dead-lettering.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim));
+
+		var current = NextFencingToken();
+		var stale = current - 1000;
+
+		var held = CreateTestMessage();
+		await store.StageMessageAsync(held, CancellationToken.None).ConfigureAwait(false);
+
+		// The claim is the whole point: it advances the high-water to `current` AND leaves the row live and
+		// owned. A later absence here would otherwise prove nothing about the burial.
+		var claimed = await fenced.GetUnsentMessagesAsync(100, current, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (!claimed.Any(m => string.Equals(m.Id, held.Id, StringComparison.Ordinal)))
+		{
+			throw new TestFixtureAssertionException(
+				$"The freshly staged message ({held.Id}) was not returned by a claim presenting the current "
+				+ "token, so the state this arm depends on — a live, owned row — was never established and "
+				+ "every assertion below would hold vacuously.");
+		}
+
+		// SAFETY. The superseded tenure reports the burial. It must not be applied.
+		var refused = await fencedDeadLetter
+			.MarkDeadLetteredAsync(held.Id, "retries exhausted", stale, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (refused == OutboxCompletionOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"A dead-letter report presenting token {stale} was APPLIED after the high-water mark had "
+				+ $"advanced to {current}. A superseded tenure can bury a message its live successor still "
+				+ "holds and may already have delivered, and the only durable record of that message will "
+				+ "claim it exhausted retries it never made.");
+		}
+
+		// And the row itself must survive — the refusal is worth nothing if the delete ran anyway.
+		//
+		// MEASURED BY EXISTENCE, NOT BY RE-CLAIMABILITY, and the difference is the whole arm. The row was
+		// claimed four statements ago and is therefore LEASED; a second claim cannot return it until the
+		// reservation lapses, which the fixtures set to 300 seconds. Asking "is it claimable again?" reports
+		// ABSENT for a surviving row and ABSENT for a deleted one, so it cannot distinguish the state this
+		// arm exists to pin — it produced a false RED here, and worse, it made the burial assertion below a
+		// vacuous PASS, because a merely-leased row is missing from a claim exactly as a buried one is.
+		// The statistics surface counts rows irrespective of lease, so it separates the two.
+		var liveAfterRefusal = await CountLiveRowsAsync(store, CancellationToken.None).ConfigureAwait(false);
+
+		if (liveAfterRefusal == 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"The dead-letter report presenting the stale token {stale} reported '{refused}' rather than "
+				+ $"applying, yet {held.Id} is no longer present in the outbox. The refusal was "
+				+ "reported and the mutation happened anyway, which is worse than an honest acceptance "
+				+ "because the caller is told the row survived.");
+		}
+
+		// LIVENESS, in the SAME state, differing only in the caller's authority. Without this, every
+		// assertion above is satisfied by a store that refuses to bury any claimed message at all.
+		var applied = await fencedDeadLetter
+			.MarkDeadLetteredAsync(held.Id, "retries exhausted", current, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (applied != OutboxCompletionOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"The current tenure's dead-letter report reported '{applied}' rather than Applied, so this "
+				+ "store refuses burials it should accept — the safety assertions above would hold for a "
+				+ "store that simply never buries anything.");
+		}
+
+		// Same instrument as the safety half, for the same reason: a claim cannot see a leased row, so
+		// "absent from a claim" was already true before the burial and proved nothing about it.
+		var liveAfterBurial = await CountLiveRowsAsync(store, CancellationToken.None).ConfigureAwait(false);
+
+		if (liveAfterBurial >= liveAfterRefusal)
+		{
+			throw new TestFixtureAssertionException(
+				$"{held.Id} was dead-lettered by the current tenure and reported Applied, yet the outbox still "
+				+ $"holds {liveAfterBurial} live row(s) — the same as before the burial ({liveAfterRefusal}). A "
+				+ "message the operator decided to stop delivering is still queued for delivery.");
+		}
+	}
+
+	/// <summary>
 	/// Verifies that GetAllTenantsFailedMessagesAsync respects maxRetries filter.
 	/// </summary>
 	public virtual async Task GetAllTenantsFailedMessagesAsync_ShouldRespectMaxRetries()
@@ -1058,7 +1426,71 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	protected virtual Task ResetDataAsync() => CleanupAsync();
 
 	/// <summary>
-	/// Creates a store for a single conformance arm and clears residual data from it.
+	/// Counts the rows the outbox still holds in a NON-TERMINAL state, irrespective of whether any of them
+	/// is currently leased.
+	/// </summary>
+	/// <param name="store">The store under test.</param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>The number of staged, sending, failed or scheduled rows.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Exists because a CLAIM is not an existence test.</b> An arm that asks "can the current tenure
+	/// claim this row again?" cannot separate a row that survived from one that was deleted: a surviving
+	/// row that is still LEASED is absent from a claim exactly as a deleted row is, and the fixtures set a
+	/// reservation of several minutes, so the lease has not lapsed by the time the arm looks. Used as a
+	/// safety discriminator it produces a false failure on correct stores; used as a liveness one it passes
+	/// vacuously, which is the more expensive direction.
+	/// </para>
+	/// <para>
+	/// Terminal rows are excluded on purpose, and that is what makes a burial observable here: a store may
+	/// bury by deleting the row or by moving it to a terminal status, and this count falls by one either
+	/// way. Arms therefore compare the count ACROSS a transition rather than asserting an absolute, so a
+	/// provider is free to choose its terminal idiom.
+	/// </para>
+	/// <para>
+	/// Callers must have reset the store for the arm, which <see cref="CreateStoreForArmAsync"/> does, so
+	/// the count reflects only the rows the arm itself staged.
+	/// </para>
+	/// </remarks>
+	/// <para>
+	/// <b>PRIVATE deliberately.</b> It has no caller outside this kit, and internal-first puts the burden of
+	/// proof on public. The asymmetry decides it rather than taste: widening private to protected later is
+	/// additive and safe, while narrowing a shipped protected member is a break a consumer deriving from
+	/// this kit would take at compile time. If a provider suite ever genuinely needs to count live rows, it
+	/// can be promoted then, with that need as the evidence.
+	/// </para>
+	/// <exception cref="TestFixtureAssertionException">
+	/// Thrown when the store exposes no administrative surface, since the arm would otherwise silently
+	/// fall back to a discriminator that cannot see what it is asserting.
+	/// </exception>
+	private static async Task<int> CountLiveRowsAsync(IOutboxStore store, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(store);
+
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		{
+			throw new TestFixtureAssertionException(
+				"This arm needs IOutboxStoreAdmin to tell a surviving row from a deleted one. Refusing rather "
+				+ "than falling back to a re-claim, which reports ABSENT for both and would turn this arm into "
+				+ "a check that cannot fail for the right reason.");
+		}
+
+		var stats = await admin.GetAllTenantsStatisticsAsync(cancellationToken).ConfigureAwait(false);
+
+		// FailedMessageCount is EXCLUDED, and the exclusion is load-bearing rather than tidy. At least one
+		// provider reports the dead-letter table INSIDE that figure -- Postgres computes TotalFailed as
+		// "rows carrying an error_message PLUS every row in the dead-letter table" -- so a burial moves a row
+		// from one summand to the other and the total does not move. Counting it would make the very
+		// transition this helper exists to observe invisible, and the arm would pass while reporting that
+		// nothing had been buried. Measured: it did exactly that before this line was written.
+		return stats.StagedMessageCount
+			+ stats.SendingMessageCount
+			+ stats.ScheduledMessageCount;
+	}
+
+	/// <summary>
+	/// Creates a store for a single conformance arm and clears residual data from it, so an arm counts only
+	/// the rows it staged itself.
 	/// </summary>
 	/// <returns>A store whose residual data has been cleared.</returns>
 	protected async Task<IOutboxStore> CreateStoreForArmAsync()
@@ -1122,6 +1554,90 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	/// </remarks>
 	protected virtual Task<IOutboxStore?> CreateStoreWithReclaimFloorAsync(int floorSeconds) =>
 		Task.FromResult<IOutboxStore?>(null);
+
+	/// <summary>
+	/// Whether the store under test is expected to participate in leadership fencing.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The fencing arms gate on the store presenting <see cref="IFencedOutboxStore"/>, which is correct
+	/// for a store that genuinely does not fence — but it means a fencing store that STOPS presenting the
+	/// interface turns this suite green instead of red. Declaring the expectation here closes that: a
+	/// suite that sets this to <see langword="true"/> and whose store no longer presents the interface
+	/// FAILS, while a store that never fenced keeps skipping exactly as before.
+	/// </para>
+	/// <para>
+	/// <b>The direction of this flag is deliberate and is the whole design.</b> It declares the set
+	/// expected to FENCE, not the set expected to skip. A declare-to-skip list has to be populated by
+	/// whoever is opting out, which is the exception — so it stays empty, and an empty opt-out list
+	/// silently protects nothing. A sibling mechanism in this kit family has zero declarants for exactly
+	/// that reason. Declaring the expectation instead means the common case carries the assertion.
+	/// </para>
+	/// </remarks>
+	protected virtual bool ParticipatesInFencing => false;
+
+	/// <summary>
+	/// Skips an arm on a store that does not fence, or FAILS it on a store that declared it does.
+	/// </summary>
+	/// <param name="arm">The arm's own name.</param>
+	protected void SkipOrFailUnfencedArm(string arm)
+	{
+		if (ParticipatesInFencing)
+		{
+			throw new TestFixtureAssertionException(
+				$"{GetType().Name} declares ParticipatesInFencing, but its store no longer presents "
+				+ $"IFencedOutboxStore, so '{arm}' would have been skipped rather than run. A store that "
+				+ "fences today and stops must turn this suite RED — a silently dropped interface is the "
+				+ "failure this declaration exists to catch.");
+		}
+
+		SkipArm(arm, typeof(IFencedOutboxStore), "This store does not participate in leadership fencing.");
+	}
+
+	/// <summary>
+	/// Directly overwrites the fencing token a store has recorded against a specific staged message,
+	/// bypassing the public claim API entirely.
+	/// </summary>
+	/// <param name="store">The store holding the staged message.</param>
+	/// <param name="messageId">The identifier of the message to overwrite.</param>
+	/// <param name="token">The token to record.</param>
+	/// <returns>
+	/// <see langword="true"/> when the store exposes a way to do this and the write was applied;
+	/// <see langword="false"/> when it does not (the arm requiring it then returns without asserting).
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// Exists for the concurrent fencing arm below, which needs to simulate a fresher tenure's claim
+	/// landing on a SPECIFIC document a caller already holds — in the round trip between that caller's own
+	/// fence check and the mutation it guards — without needing to win a real race against that narrow a
+	/// window, and without the fresher tenure's own claim advancing the store's SCOPE-WIDE high-water
+	/// (which the other fencing arms already cover; this seam isolates the PER-DOCUMENT guard alone).
+	/// </para>
+	/// <para>
+	/// This does not implement <see cref="Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent"/> for
+	/// every store on its own — a store with no per-document fencing state to overwrite returns
+	/// <see langword="false"/>, and the arm is silent for it. Only <see cref="IFencedOutboxStore"/>
+	/// implementations that track fencing state per message can meaningfully override this.
+	/// </para>
+	/// <para>
+	/// <b>Why so few suites override it, and why that is not a coverage hole.</b> A store only has
+	/// per-document fencing state if some query READS a per-message token as a guard. Measured across the
+	/// shipped relational stores: the high-water is held in a separate fence record and every guard compares
+	/// the presented token against THAT, never against a per-message column. One store does persist a
+	/// per-message token, but no statement reads it in a guard position, so overriding this hook there would
+	/// place state nothing consults — the arm would go green by exercising the scope-wide guard in a
+	/// per-document costume, which is worse than skipping.
+	/// </para>
+	/// <para>
+	/// <b>The scope-wide dimension is covered for every fenced store regardless.</b>
+	/// <see cref="Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent"/> takes no per-store hook and
+	/// gates only on <see cref="IFencedOutboxStore"/>, so a store that skips THIS arm is still held to the
+	/// supersede-after-its-own-claim property. A silent skip here is therefore a narrowing of coverage, not
+	/// an absence of it — and <see cref="ConformanceTestKit.OnArmSkipped"/> makes the narrowing visible.
+	/// </para>
+	/// </remarks>
+	protected virtual Task<bool> ForceMessageFencingTokenAsync(IOutboxStore store, string messageId, long token) =>
+		Task.FromResult(false);
 
 	/// <summary>
 	/// Reserves an already-staged message under a dispatcher identity foreign to the given store.
@@ -2344,7 +2860,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
 		{
-			SkipArm(nameof(Fencing_StaleToken_ShouldBeRefusedWithoutApplyingTheMutation), typeof(IFencedOutboxStore), "This store does not participate in leadership fencing.");
+			SkipOrFailUnfencedArm(nameof(Fencing_StaleToken_ShouldBeRefusedWithoutApplyingTheMutation));
 			return;
 		}
 
@@ -2415,7 +2931,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
 		{
-			SkipArm(nameof(Fencing_Refusal_ShouldReportTheHighWaterMark), typeof(IFencedOutboxStore), "This store does not participate in leadership fencing.");
+			SkipOrFailUnfencedArm(nameof(Fencing_Refusal_ShouldReportTheHighWaterMark));
 			return;
 		}
 
@@ -2469,7 +2985,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
 		{
-			SkipArm(nameof(Fencing_CurrentLeaderToken_ShouldClaimAndComplete), typeof(IFencedOutboxStore), "This store does not participate in leadership fencing.");
+			SkipOrFailUnfencedArm(nameof(Fencing_CurrentLeaderToken_ShouldClaimAndComplete));
 			return;
 		}
 
@@ -2524,7 +3040,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
 		{
-			SkipArm(nameof(Fencing_HighWaterMark_ShouldSurviveCleanup), typeof(IFencedOutboxStore), "This store does not participate in leadership fencing.");
+			SkipOrFailUnfencedArm(nameof(Fencing_HighWaterMark_ShouldSurviveCleanup));
 			return;
 		}
 
@@ -2565,8 +3081,11 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		{
 			throw new TestFixtureAssertionException(
 				$"After cleanup removed the rows carrying token {current}, a mark-sent presenting the stale "
-				+ $"token {stale} was accepted. The high-water mark was derived from the message rows and was "
-				+ "deleted with them, so a routine cleanup silently disabled the fence.");
+				+ $"token {stale} was accepted, so a routine cleanup left the fence unable to refuse it. "
+				+ "This states what was OBSERVED, not why: the cause is store-specific. A store that derives "
+				+ "its high-water from the message rows loses it with them, but a store holding the high-water "
+				+ "in a separate durable record can fail this same arm for an unrelated reason — read that "
+				+ "store's own fence mechanism before acting on this message.");
 		}
 
 		// LIVENESS: the fence is durable, not stuck — the current leader still works after cleanup.
@@ -2597,7 +3116,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
 		{
-			SkipArm(nameof(Fencing_SupersededLeader_ShouldNeitherMutateNorLoseTheMessage), typeof(IFencedOutboxStore), "This store does not participate in leadership fencing.");
+			SkipOrFailUnfencedArm(nameof(Fencing_SupersededLeader_ShouldNeitherMutateNorLoseTheMessage));
 			return;
 		}
 
@@ -2658,6 +3177,337 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 				$"The current leader (token {fresher}) could not complete message '{message.Id}' after the "
 				+ $"handover; it was refused against a high-water of "
 				+ $"{ex.HighWaterToken?.ToString() ?? "<null>"}. The message is stranded rather than protected.");
+		}
+	}
+
+	/// <summary>
+	/// SAFETY and LIVENESS: a leader superseded AFTER its own claim of this message succeeded cannot then
+	/// mark that message sent — and the message is not stranded when it is refused.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Requirement:</b> only the current leader completes a message.
+	/// <b>Predicate this arm tests:</b> a mark-sent presented with the token that a SUCCESSFUL claim of
+	/// this same message was made under is refused once the scope-wide high-water has advanced past it,
+	/// and the current leader can still complete it afterwards.
+	/// </para>
+	/// <para>
+	/// <b>Why this is not the sibling above.</b>
+	/// <see cref="Fencing_SupersededLeader_ShouldNeitherMutateNorLoseTheMessage"/> deliberately leaves the
+	/// message staged and UNCLAIMED, so the superseded tenure's mark-sent is its first fenced touch of that
+	/// row and is stale on entry. Here the superseded tenure's own claim of this exact message already
+	/// SUCCEEDED while it was still current. A store that treats a completed claim as standing authority to
+	/// finish the message — rather than re-judging the fence against the durable high-water at mutation
+	/// time — passes that arm and fails this one.
+	/// </para>
+	/// <para>
+	/// It is also distinct from
+	/// <see cref="Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent"/>, which isolates the
+	/// PER-DOCUMENT guard and deliberately does not advance the scope-wide high-water. This arm advances the
+	/// scope-wide high-water and takes no per-store hook, so unlike that one it executes on every store
+	/// that participates in fencing rather than on those that can place per-document state.
+	/// </para>
+	/// <para>
+	/// The handover is carried by an unrelated message staged AFTER the claim, so the superseded tenure
+	/// never holds it and the advance is a genuine act by the fresher leader through the public fenced
+	/// surface — not state placed by the test.
+	/// </para>
+	/// </remarks>
+	public virtual async Task Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		{
+			SkipOrFailUnfencedArm(nameof(Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent));
+			return;
+		}
+
+		RecordArmExecuted(nameof(Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent));
+		var superseded = NextFencingToken();
+		var fresher = superseded + 1000;
+
+		var message = CreateTestMessage();
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+
+		// The soon-to-be-superseded tenure claims THIS message while it is genuinely still the current
+		// leader, so its own fence check passes against this row. That is the whole point of the arm.
+		var claimed = await fenced.GetUnsentMessagesAsync(50, superseded, CancellationToken.None)
+			.ConfigureAwait(false);
+		if (!claimed.Any(m => string.Equals(m.Id, message.Id, StringComparison.Ordinal)))
+		{
+			throw new TestFixtureAssertionException(
+				$"Setup failure: token {superseded} was the current leader and still could not claim the "
+				+ $"staged message '{message.Id}', so this arm never reached the property it tests.");
+		}
+
+		// Staged only now, so the claim above could not have taken it: the fresher leader advances the
+		// scope-wide high-water by completing an unrelated message through the ordinary fenced path.
+		var handoverCarrier = CreateTestMessage();
+		await store.StageMessageAsync(handoverCarrier, CancellationToken.None).ConfigureAwait(false);
+		await fenced.MarkSentAsync(handoverCarrier.Id, fresher, CancellationToken.None).ConfigureAwait(false);
+
+		// SAFETY: the claim is not a licence to complete. The fence must be re-judged at the mutation.
+		var refused = false;
+		try
+		{
+			await fenced.MarkSentAsync(message.Id, superseded, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (StaleOutboxFencingTokenException)
+		{
+			refused = true;
+		}
+
+		if (!refused)
+		{
+			throw new TestFixtureAssertionException(
+				$"The superseded leader (token {superseded}) completed message '{message.Id}' after the "
+				+ $"high-water advanced to {fresher}. Its claim had succeeded while it was current, and the "
+				+ "store treated that as standing authority to finish the message: a guard that is judged "
+				+ "at claim time and not again at the mutation lets two leaders act on one message.");
+		}
+
+		// LIVENESS, and it carries the "was it really not applied?" half too. Deliberately NOT asserted by
+		// re-querying the unsent set: this message is CLAIMED by the superseded tenure, and a claimed
+		// message is legitimately absent from an unsent query on a store that leases. Asserting on that
+		// absence would test lease visibility rather than whether the mutation landed — the wrong
+		// predicate, and it would fail conforming stores for a reason unrelated to the fence.
+		//
+		// The current leader completing the message proves both properties at once: it can only succeed if
+		// the message is still there AND still unsent, so a superseded write that landed anyway surfaces
+		// here as the store refusing the CURRENT leader.
+		try
+		{
+			await fenced.MarkSentAsync(message.Id, fresher, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (StaleOutboxFencingTokenException ex)
+		{
+			throw new TestFixtureAssertionException(
+				$"The current leader (token {fresher}) could not complete message '{message.Id}' after the "
+				+ $"handover; it was refused against a high-water of "
+				+ $"{ex.HighWaterToken?.ToString() ?? "<null>"}. A message claimed by a leader that then lost "
+				+ "its tenure is stranded rather than protected, and delivery stops for that message.");
+		}
+		catch (InvalidOperationException ex)
+		{
+			throw new TestFixtureAssertionException(
+				$"The superseded leader's mark-sent threw as required, but the current leader (token "
+				+ $"{fresher}) then could not complete message '{message.Id}': {ex.Message} That means the "
+				+ "refusal was reported while the mutation was applied anyway, or the message was lost — "
+				+ "both strictly worse than the race this arm exists to catch, because the store denied "
+				+ "doing the thing it did.");
+		}
+	}
+
+	/// <summary>
+	/// SAFETY: a stale token whose OWN fence check already passed cannot complete a mark-sent once a
+	/// fresher tenure has reclaimed the same message in the round trip between that check and the
+	/// mutation it guards.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The other fencing arms above construct staleness by having a FRESHER tenure act first and then
+	/// presenting an OLDER token — the fence check itself already observes the newer high-water and
+	/// refuses. This arm is different on purpose: the superseded token's OWN fence check must genuinely
+	/// PASS first (nothing has superseded it yet at that instant), and only afterwards does a fresher
+	/// tenure reclaim the SAME message. An implementation that checks the fence and applies its mutation
+	/// as two separate round trips, with no fence term evaluated atomically WITH the mutation, has a
+	/// window right there — the check already returned success, and the mutation that follows does not
+	/// know the world moved on. Refusing here requires the mutation itself to be guarded, not merely the
+	/// check that preceded it.
+	/// </para>
+	/// <para>
+	/// The window this targets is the interval between ONE call's own two round trips (its fence check,
+	/// then its mutation) — not the interval between two separate calls. Two separate calls cannot
+	/// exhibit it: by the time a caller's mark-sent runs at all, its own fence check runs too, and if a
+	/// fresher tenure has already acted by then, THAT check already refuses — the scope-wide check alone
+	/// already covers "act, then present an old token" (see the arms above). What it cannot cover is "the
+	/// old token's own check already passed, and only afterwards did the world move on" — winning that
+	/// narrow a race from outside the store, reliably, would need hostile timing luck. Instead this arm
+	/// uses <see cref="ForceMessageFencingTokenAsync"/> to place the document in exactly the state a
+	/// fresher tenure's claim would have left it in, deterministically, without needing to win the race
+	/// or advance the scope-wide high-water (which is covered elsewhere and would mask the per-document
+	/// guard this arm exists to isolate).
+	/// </para>
+	/// </remarks>
+	public virtual async Task Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		{
+			SkipOrFailUnfencedArm(nameof(Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent));
+			return;
+		}
+
+		var superseded = NextFencingToken();
+		var fresher = superseded + 1000;
+
+		var message = CreateTestMessage();
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+
+		// The superseded-to-be tenure claims the message while it is genuinely still the current leader —
+		// its own fence check passes because nothing has superseded it yet.
+		var claimed = await fenced.GetUnsentMessagesAsync(10, superseded, CancellationToken.None).ConfigureAwait(false);
+		if (!claimed.Any(m => string.Equals(m.Id, message.Id, StringComparison.Ordinal)))
+		{
+			throw new TestFixtureAssertionException(
+				$"Setup failure: token {superseded} could not claim the staged message '{message.Id}'.");
+		}
+
+		// Place the document in exactly the state a fresher tenure's own claim would have left it in, had
+		// that claim landed in the round trip between the superseded tenure's fence check and its
+		// mutation. Deliberately does NOT advance the scope-wide high-water (a real fresher claim would):
+		// this arm isolates the per-document guard, which the other fencing arms above do not exercise.
+		if (!await ForceMessageFencingTokenAsync(store, message.Id, fresher).ConfigureAwait(false))
+		{
+			SkipArm(nameof(Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent), typeof(IFencedOutboxStore),
+				"This store exposes no per-document fencing state for this arm to overwrite.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent));
+
+		// The superseded tenure now issues the mutation, presenting the very token its own fence check
+		// already validated — on a message that (per-document) a fresher tenure has since reclaimed.
+		StaleOutboxFencingTokenException? refusal = null;
+		try
+		{
+			await fenced.MarkSentAsync(message.Id, superseded, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (StaleOutboxFencingTokenException ex)
+		{
+			refusal = ex;
+		}
+
+		if (refusal is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"The superseded token ({superseded}) completed mark-sent on message '{message.Id}' even though "
+				+ $"a fresher tenure ({fresher}) had reclaimed it. The fence check and the mutation it guards "
+				+ "were evaluated as two separate round trips with no fence term in the mutation itself, so a "
+				+ "reclaim landing between them is invisible to it — a superseded leader can still complete a "
+				+ "message the current leader is delivering.");
+		}
+
+		// LIVENESS: the fresher tenure that actually holds the reclaim can still complete it.
+		try
+		{
+			await fenced.MarkSentAsync(message.Id, fresher, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (StaleOutboxFencingTokenException ex)
+		{
+			throw new TestFixtureAssertionException(
+				$"The fresher tenure ({fresher}) that legitimately reclaimed message '{message.Id}' could not "
+				+ $"complete it; refused against a high-water of {ex.HighWaterToken?.ToString() ?? "<null>"}. "
+				+ "The message is stranded rather than protected.");
+		}
+	}
+
+	/// <summary>
+	/// LIVENESS: the optional fencing diagnostic reports the store's actual recorded high-water mark.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="IFencedOutboxStore" />'s claim never throws on a stale token — it returns an empty set
+	/// instead — so an empty claim is ambiguous from the outside between "no work" and "your token is
+	/// stale". <see cref="IFencedOutboxStoreDiagnostics.GetFencingHighWaterAsync" /> exists to remove that
+	/// ambiguity and give an operator a way to read a poisoned fence. This arm establishes a known
+	/// high-water by marking a message sent under a token, then asserts the diagnostic reports exactly
+	/// that value.
+	/// </remarks>
+	public virtual async Task FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced
+			|| store.GetService(typeof(IFencedOutboxStoreDiagnostics)) is not IFencedOutboxStoreDiagnostics diagnostics)
+		{
+			SkipArm(nameof(FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue), typeof(IFencedOutboxStoreDiagnostics),
+				"This store does not expose the fencing diagnostics capability.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue));
+		var token = NextFencingToken();
+
+		var message = CreateTestMessage();
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		await fenced.MarkSentAsync(message.Id, token, CancellationToken.None).ConfigureAwait(false);
+
+		var reported = await diagnostics.GetFencingHighWaterAsync(CancellationToken.None).ConfigureAwait(false);
+		if (reported != token)
+		{
+			throw new TestFixtureAssertionException(
+				$"After marking a message sent under token {token}, GetFencingHighWaterAsync reported "
+				+ $"{reported?.ToString() ?? "<null>"}. An operator reading this value to diagnose a stuck "
+				+ "fence needs it to match what the store actually enforces.");
+		}
+	}
+
+	/// <summary>
+	/// SAFETY and LIVENESS: the administrative reset refuses to lower the fencing high-water mark unless
+	/// <c>force</c> is passed, and applies it unconditionally when it is.
+	/// </summary>
+	/// <remarks>
+	/// Lowering the high-water is the recovery surface's own capacity to re-open the split-brain window
+	/// the fence exists to close — a leader whose token falls back below a lowered high-water reads as
+	/// current again. The safety half asserts the refusal changes nothing; the liveness half asserts
+	/// <c>force</c> genuinely overrides it, since a reset that could never lower the mark under any
+	/// circumstance would not recover a genuinely poisoned fence either.
+	/// </remarks>
+	public virtual async Task FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced
+			|| store.GetService(typeof(IFencedOutboxStoreDiagnostics)) is not IFencedOutboxStoreDiagnostics diagnostics)
+		{
+			SkipArm(nameof(FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce), typeof(IFencedOutboxStoreDiagnostics),
+				"This store does not expose the fencing diagnostics capability.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce));
+		var current = NextFencingToken();
+		var lower = current - 1000;
+
+		var message = CreateTestMessage();
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		await fenced.MarkSentAsync(message.Id, current, CancellationToken.None).ConfigureAwait(false);
+
+		// SAFETY: refused without force, and nothing changed.
+		InvalidOperationException? refusal = null;
+		try
+		{
+			await diagnostics.ResetFencingHighWaterAsync(lower, force: false, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (InvalidOperationException ex)
+		{
+			refusal = ex;
+		}
+
+		if (refusal is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"ResetFencingHighWaterAsync({lower}, force: false) succeeded even though the recorded "
+				+ $"high-water was {current}. Lowering the mark without force re-admits a leader whose token "
+				+ "falls between the two values, which is the split-brain the fence exists to prevent.");
+		}
+
+		var unchanged = await diagnostics.GetFencingHighWaterAsync(CancellationToken.None).ConfigureAwait(false);
+		if (unchanged != current)
+		{
+			throw new TestFixtureAssertionException(
+				$"The refused reset still changed the recorded high-water: expected it to remain {current}, "
+				+ $"found {unchanged?.ToString() ?? "<null>"}. A refusal must leave nothing behind.");
+		}
+
+		// LIVENESS: force overrides the refusal.
+		await diagnostics.ResetFencingHighWaterAsync(lower, force: true, CancellationToken.None).ConfigureAwait(false);
+
+		var afterForce = await diagnostics.GetFencingHighWaterAsync(CancellationToken.None).ConfigureAwait(false);
+		if (afterForce != lower)
+		{
+			throw new TestFixtureAssertionException(
+				$"ResetFencingHighWaterAsync({lower}, force: true) did not apply: expected the recorded "
+				+ $"high-water to become {lower}, found {afterForce?.ToString() ?? "<null>"}. A reset with "
+				+ "force must be unconditional, or a genuinely poisoned fence can never be recovered.");
 		}
 	}
 

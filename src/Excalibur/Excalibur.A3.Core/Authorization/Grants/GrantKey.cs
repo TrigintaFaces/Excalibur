@@ -39,7 +39,13 @@ public sealed class GrantKey
 	{
 		ArgumentException.ThrowIfNullOrEmpty(key);
 
-		var parts = key.Split(':', 4, StringSplitOptions.RemoveEmptyEntries);
+		// RemoveEmptyEntries is deliberately absent: it SHIFTS the remaining segments left, so an empty
+		// user id would promote the tenant into the user position and the key would address a different
+		// grant. An empty segment must fail the length check, not be silently dropped.
+		//
+		// The count-limited split is safe only because the segments are escaped: no segment can contain a
+		// raw ':', so exactly three separators are present and the fourth part cannot absorb one.
+		var parts = key.Split(':', 4);
 
 		if (parts.Length != 4)
 		{
@@ -47,8 +53,11 @@ public sealed class GrantKey
 				$"The {nameof(key)} argument is invalid. The expected format is: {{userId}}:{{tenant}}:{{type}}:{{qualifier}}");
 		}
 
-		UserId = parts[0];
-		Scope = new GrantScope(parts[1], parts[2], parts[3]);
+		UserId = GrantKeyFormat.Unescape(parts[0]);
+		Scope = new GrantScope(
+			GrantKeyFormat.Unescape(parts[1]),
+			GrantKeyFormat.Unescape(parts[2]),
+			GrantKeyFormat.Unescape(parts[3]));
 	}
 
 	/// <summary>
@@ -67,5 +76,6 @@ public sealed class GrantKey
 	/// Converts the <see cref="GrantKey" /> instance to its string representation.
 	/// </summary>
 	/// <returns> A string representation of the grant key in the format {userId}:{tenant}:{type}:{qualifier}. </returns>
-	public override string ToString() => $"{UserId}:{Scope}";
+	// Scope escapes its own three segments, so only the user id is escaped here.
+	public override string ToString() => $"{GrantKeyFormat.Escape(UserId)}:{Scope}";
 }

@@ -266,7 +266,7 @@ public sealed class SqlServerAuditStoreShould
 		using var store = CreateUnavailableStore();
 
 		await Should.ThrowAsync<Exception>(() =>
-			store.GetLastEventAsync(null, CancellationToken.None));
+			store.GetLastEventAsync(CancellationToken.None));
 	}
 
 	[Fact]

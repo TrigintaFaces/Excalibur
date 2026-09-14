@@ -6,8 +6,8 @@ namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
 /// Well-known <see cref="TransportReceivedMessage.ProviderData"/> keys that carry a transport's native
-/// monotonic ordering sequence, forming the single convention the receive→context pump reads to stamp
-/// the ordering-validation context.
+/// monotonic ordering sequence. They are the one convention a consumer's receive-to-dispatch bridge
+/// reads from to stamp the ordering-validation context.
 /// </summary>
 /// <remarks>
 /// Transports with a native monotonic sequence emit it into
@@ -37,8 +37,10 @@ public static class TransportOrderingMetadata
 
 	/// <summary>
 	/// Stamps the ordering-validation sequence onto <paramref name="context"/> from a received message's
-	/// native transport sequence, if present. This is the single shared stamping seam the per-transport
-	/// receive→context bridges call, so the extraction logic cannot drift between transports.
+	/// native transport sequence, if present. Call this from the bridge that turns a received message
+	/// into a dispatch — the only place holding both — so the extraction cannot drift between transports.
+	/// Calling it also marks the context as having entered a receive path where ordering is enforced,
+	/// which is what scopes the ordering-validation middleware to these messages.
 	/// </summary>
 	/// <remarks>
 	/// Reads the native monotonic sequence from <see cref="TransportReceivedMessage.ProviderData"/> under
@@ -61,6 +63,13 @@ public static class TransportOrderingMetadata
 	{
 		ArgumentNullException.ThrowIfNull(received);
 		ArgumentNullException.ThrowIfNull(context);
+
+		// Mark BEFORE probing, and unconditionally. This records that the message entered a receive
+		// path where ordering is enforced, which is what scopes the validation middleware to the
+		// messages it is about. Marking on success only would invert the guarantee: a transport that
+		// stopped supplying its sequence would silently stop being validated, which is the failure the
+		// fail-closed check exists to catch.
+		context.MarkOrderingEnforced();
 
 		long? sequence = null;
 		if (received.ProviderData.TryGetValue(AzureServiceBusSequenceKey, out var asbValue) && asbValue is long asbSequence)

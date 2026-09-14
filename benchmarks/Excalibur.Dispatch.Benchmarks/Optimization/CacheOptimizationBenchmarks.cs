@@ -27,11 +27,11 @@ namespace Excalibur.Dispatch.Benchmarks.Optimization;
 /// </para>
 /// <list type="bullet">
 /// <item>
-/// The frozen profile-selection arm used <c>[IterationSetup]</c>, which forces BenchmarkDotNet onto
-/// <c>InvocationCount=1, UnrollFactor=1</c> for that method alone. It reported 1,341 ns +/- 396
-/// against a warm arm measured in single-digit nanoseconds under the default job -- two numbers from
-/// two different instruments, so their difference meant nothing. Both registries are now built once
-/// in <see cref="Setup"/> and both arms run under the same job.
+/// The frozen profile-selection arm this class used to carry measured slower than the plain warm
+/// dictionary at every registered-type count tested (Excalibur_Dispatch-zvcdsf) and, worse, disabled
+/// the cache's fall-through for a message type first seen after the freeze -- that type then re-ran
+/// the full profile scan on every subsequent dispatch, forever. The freeze mechanism is deleted; only
+/// the warm arm remains here.
 /// </item>
 /// <item>
 /// The activity-name cache shared one dictionary with the type-name cache, keyed on the same
@@ -52,11 +52,7 @@ namespace Excalibur.Dispatch.Benchmarks.Optimization;
 public class CacheOptimizationBenchmarks
 {
 	// --- Profile Selection ---
-	// Two registries, both fully built in Setup. Freezing is one-way per instance, so a single
-	// registry cannot serve both arms without per-iteration setup -- which is what broke the
-	// comparison before.
 	private PipelineProfileRegistry _warmRegistry = null!;
-	private PipelineProfileRegistry _frozenRegistry = null!;
 	private TestActionMessage _actionMessage = null!;
 
 	// --- Type / Activity Name ---
@@ -83,10 +79,6 @@ public class CacheOptimizationBenchmarks
 		_warmRegistry = new PipelineProfileRegistry();
 		_ = _warmRegistry.SelectProfile(_actionMessage);
 
-		_frozenRegistry = new PipelineProfileRegistry();
-		_ = _frozenRegistry.SelectProfile(_actionMessage);
-		_frozenRegistry.FreezeProfileSelectionCache();
-
 		_messageType = typeof(TestActionMessage);
 		_ = TypeNameCache.TryAdd(_messageType, _messageType.Name);
 		_ = ActivityNameCache.TryAdd(_messageType, string.Concat(ActivityNamePrefix, _messageType.Name));
@@ -109,18 +101,6 @@ public class CacheOptimizationBenchmarks
 	/// </remarks>
 	private void VerifyArmsMeasureWhatTheyClaim()
 	{
-		if (_frozenRegistry.IsProfileSelectionCacheFrozen is false)
-		{
-			throw new InvalidOperationException(
-				"The frozen arm's registry is not frozen; it would measure the warm path under the frozen name.");
-		}
-
-		if (_warmRegistry.IsProfileSelectionCacheFrozen)
-		{
-			throw new InvalidOperationException(
-				"The warm arm's registry is frozen; both profile-selection arms would measure the same path.");
-		}
-
 		if (!TypeNameCache.TryGetValue(_messageType, out var cachedTypeName) ||
 			!string.Equals(cachedTypeName, _messageType.Name, StringComparison.Ordinal))
 		{
@@ -168,14 +148,6 @@ public class CacheOptimizationBenchmarks
 	/// </summary>
 	[Benchmark(Description = "ProfileSelect: warm (ConcurrentDictionary)")]
 	public IPipelineProfile? ProfileSelect_Warm() => _warmRegistry.SelectProfile(_actionMessage);
-
-	/// <summary>
-	/// Frozen-path profile selection: a <see cref="System.Collections.Frozen.FrozenDictionary{TKey, TValue}"/>
-	/// hit after <c>FreezeProfileSelectionCache()</c>. Same job as the warm arm, so the two are
-	/// directly comparable and the before/after-freeze claim is expressible from this class.
-	/// </summary>
-	[Benchmark(Description = "ProfileSelect: frozen (FrozenDictionary)")]
-	public IPipelineProfile? ProfileSelect_Frozen() => _frozenRegistry.SelectProfile(_actionMessage);
 
 	#endregion
 

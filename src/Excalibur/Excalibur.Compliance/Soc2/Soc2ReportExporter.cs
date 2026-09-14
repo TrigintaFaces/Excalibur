@@ -394,7 +394,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 					EscapeCsv(section.Criterion.GetDisplayName()),
 					EscapeCsv(section.Criterion.ToString()),
 					EscapeCsv(section.Description),
-					section.IsMet ? "Met" : "Not Met",
+					SectionStatusText(section.Outcome),
 					EscapeCsv(control.ControlId),
 					EscapeCsv(control.Name),
 					testResult?.Outcome.ToString() ?? "N/A",
@@ -430,7 +430,9 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		_ = xml.AppendLine("  <controlSections>");
 		foreach (var section in report.ControlSections)
 		{
-			var metValue = section.IsMet ? "true" : "false";
+			// Was a boolean attribute, which had no way to say "not assessed" -- so an unassessed
+			// criterion was serialised as met="false", indistinguishable from a failure.
+			var metValue = section.Outcome.ToString();
 			_ = xml.AppendLine($"    <section criterion=\"{section.Criterion}\" met=\"{metValue}\">");
 			_ = xml.AppendLine($"      <description>{EscapeXml(section.Description)}</description>");
 			_ = xml.AppendLine("      <controls>");
@@ -454,7 +456,15 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			{
 				_ = xml.AppendLine($"    <exception id=\"{EscapeXml(exception.ExceptionId)}\">");
 				_ = xml.AppendLine($"      <criterion>{exception.Criterion}</criterion>");
-				_ = xml.AppendLine($"      <controlId>{EscapeXml(exception.ControlId)}</controlId>");
+
+				// Omitted entirely when the finding names no control, rather than emitted empty. An
+				// empty element asserts that a control exists and its identifier is the empty string;
+				// an absent element asserts nothing, which is what is true here.
+				if (exception.ControlId is { } exceptionControlId)
+				{
+					_ = xml.AppendLine($"      <controlId>{EscapeXml(exceptionControlId)}</controlId>");
+				}
+
 				_ = xml.AppendLine($"      <description>{EscapeXml(exception.Description)}</description>");
 				_ = xml.AppendLine("    </exception>");
 			}
@@ -585,7 +595,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 				_ = xml.AppendLine($"<row r=\"{row}\">");
 				_ = xml.AppendLine($"<c r=\"A{row}\" t=\"inlineStr\"><is><t>{EscapeXml(section.Criterion.ToString())}</t></is></c>");
 				_ = xml.AppendLine($"<c r=\"B{row}\" t=\"inlineStr\"><is><t>{EscapeXml(section.Description)}</t></is></c>");
-				_ = xml.AppendLine($"<c r=\"C{row}\" t=\"inlineStr\"><is><t>{(section.IsMet ? "Met" : "Not Met")}</t></is></c>");
+				_ = xml.AppendLine($"<c r=\"C{row}\" t=\"inlineStr\"><is><t>{SectionStatusText(section.Outcome)}</t></is></c>");
 				_ = xml.AppendLine($"<c r=\"D{row}\" t=\"inlineStr\"><is><t>{EscapeXml(control.ControlId)}</t></is></c>");
 				_ = xml.AppendLine($"<c r=\"E{row}\" t=\"inlineStr\"><is><t>{EscapeXml(control.Name)}</t></is></c>");
 				_ = xml.AppendLine($"<c r=\"F{row}\" t=\"inlineStr\"><is><t>{testResult?.Outcome.ToString() ?? "N/A"}</t></is></c>");
@@ -637,7 +647,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		{
 			_ = text.AppendLine();
 			_ = text.AppendLine($"[{section.Criterion}] {section.Description}");
-			_ = text.AppendLine($"Status: {(section.IsMet ? "MET" : "NOT MET")}");
+			_ = text.AppendLine($"Status: {SectionStatusText(section.Outcome).ToUpperInvariant()}");
 			_ = text.AppendLine();
 
 			foreach (var control in section.Controls)
@@ -658,7 +668,16 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			{
 				_ = text.AppendLine();
 				_ = text.AppendLine($"[{exception.ExceptionId}] {exception.Criterion}");
-				_ = text.AppendLine($"Control: {exception.ControlId}");
+
+				// The line is dropped, not left blank. String interpolation renders a null as the empty
+				// string, so the compiler cannot flag this one the way it flagged the XML export -- and
+				// "Control: " followed by nothing reads to a person as a control whose name went
+				// missing, which is a worse claim than the placeholder this change removed.
+				if (exception.ControlId is { } exceptionControlId)
+				{
+					_ = text.AppendLine($"Control: {exceptionControlId}");
+				}
+
 				_ = text.AppendLine($"Description: {exception.Description}");
 			}
 		}
@@ -686,7 +705,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			{
 				Criterion = section.Criterion,
 				Description = section.Description,
-				IsMet = section.IsMet,
+				Outcome = section.Outcome,
 				Controls = section.Controls,
 				TestResults = options.IncludeTestResults ? section.TestResults : null
 			}).ToList(),
@@ -733,6 +752,20 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		var typeStr = report.ReportType == Soc2ReportType.TypeI ? "type1" : "type2";
 		return $"soc2-{typeStr}-{report.ReportId:N}{extension}";
 	}
+
+	/// <summary>
+	/// Renders a section outcome for a human-readable export.
+	/// </summary>
+	/// <remarks>
+	/// One renderer for every export format, because four call sites each spelling this themselves is
+	/// how "Not Assessed" ends up printed as "Not Met" in one of them.
+	/// </remarks>
+	private static string SectionStatusText(CriterionOutcome outcome) => outcome switch
+	{
+		CriterionOutcome.Met => "Met",
+		CriterionOutcome.NotMet => "Not Met",
+		_ => "Not Assessed"
+	};
 
 	private static string EscapeCsv(string value)
 	{
@@ -838,7 +871,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 	{
 		public TrustServicesCriterion Criterion { get; init; }
 		public string Description { get; init; } = string.Empty;
-		public bool IsMet { get; init; }
+		public CriterionOutcome Outcome { get; init; }
 		public IReadOnlyList<ControlDescription> Controls { get; init; } =
 				Array.Empty<ControlDescription>();
 		public IReadOnlyList<TestResult>? TestResults { get; init; }

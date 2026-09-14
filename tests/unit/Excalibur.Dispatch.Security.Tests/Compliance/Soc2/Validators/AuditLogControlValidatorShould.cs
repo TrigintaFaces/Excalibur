@@ -138,10 +138,14 @@ public sealed class AuditLogControlValidatorShould
 			e => e.Description.Contains("integrity verification: Passed", StringComparison.Ordinal),
 			"nothing was examined, so no integrity assurance may be claimed.");
 
-		// An unexercised window is not itself a control failure -- it is reported honestly, not counted
-		// against the control.
-		result.IsEffective.ShouldBeTrue();
+		// An unexercised window is not itself a control failure -- that reasoning is this arm's and it
+		// stands. It is also not a verification. ControlValidationResult.IsEffective is a bool, so
+		// "unknown" has to be spelled as one of the two verdicts, and BOTH spellings state something
+		// nobody established -- true claims a check that did not happen, false claims a deficiency that
+		// was never observed. This arm therefore asserts what both readings agree on and does not
+		// encode the coin-flip: no detected violation, and no full-marks pass.
 		result.ConfigurationIssues.ShouldNotContain(i => i.Contains("integrity check failed", StringComparison.Ordinal));
+		result.EffectivenessScore.ShouldBeLessThan(100);
 	}
 
 	[Fact]
@@ -158,8 +162,12 @@ public sealed class AuditLogControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-004", CancellationToken.None);
 
 		// Assert
-		// Exception shouldn't cause failure - just log evidence
-		result.IsEffective.ShouldBeTrue();
+		// The integrity check THREW. "Shouldn't cause failure" was right and is kept -- a check that
+		// could not run is not evidence the trail is broken. What it did NOT license is the pass this
+		// arm went on to require: the trail's integrity is UNKNOWN here, and an assessor must be able
+		// to tell that from verified-intact.
+		result.IsEffective.ShouldBeFalse();
+		result.ConfigurationIssues.ShouldNotContain(i => i.Contains("integrity check failed", StringComparison.Ordinal));
 		result.Evidence.ShouldContain(e => e.Description.Contains("Connection failed"));
 	}
 
@@ -212,17 +220,21 @@ public sealed class AuditLogControlValidatorShould
 	#region ValidateAsync - SEC-005 Tests
 
 	[Fact]
-	public async Task ValidateAsync_SEC005_ReturnSuccess_WhenAuditLoggerConfigured()
+	public async Task ValidateAsync_SEC005_ReportsConfiguredButUnverified_WhenAuditLoggerPresent()
 	{
 		// Act
 		var result = await _sut.ValidateAsync("SEC-005", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		// Renamed from ReturnSuccess_When...Configured, which stated the substitution in its own name:
+		// a component being CONFIGURED was read as the control SUCCEEDING. The mechanism is present and
+		// the result still says so; nothing here observed it operating.
+		result.IsConfigured.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 	}
 
 	[Fact]
-	public async Task ValidateAsync_SEC005_ReturnSuccess_WhenOnlyAuditStoreConfigured()
+	public async Task ValidateAsync_SEC005_ReportsConfiguredButUnverified_WhenOnlyAuditStorePresent()
 	{
 		// Arrange
 		var sut = new AuditLogControlValidator(null, _fakeAuditStore);
@@ -231,12 +243,13 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-005", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		result.IsConfigured.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 		result.Evidence.ShouldContain(e => e.Description.Contains("Audit store configured"));
 	}
 
 	[Fact]
-	public async Task ValidateAsync_SEC005_ReturnSuccess_WhenOnlyAuditLoggerConfigured()
+	public async Task ValidateAsync_SEC005_ReportsConfiguredButUnverified_WhenOnlyAuditLoggerPresent()
 	{
 		// Arrange
 		var sut = new AuditLogControlValidator(_fakeAuditLogger, null);
@@ -245,7 +258,8 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-005", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
+		result.IsConfigured.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
 		result.Evidence.ShouldContain(e => e.Description.Contains("logger-based monitoring"));
 	}
 

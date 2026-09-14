@@ -93,8 +93,25 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		                   ORDER BY PartitionKey, SequenceNumber, CreatedAt;
 		           """;
 
+		// THE CLAIM MINTS ITS OWN IDENTITY. A release guard can discriminate no more finely than the token
+		// the claim stamped, so stamping the bare process identity here caps every downstream ownership
+		// check at process granularity -- and one process claims the same message many times over its life.
+		// A completion presenting the process identity would then match a row claimed by an EARLIER cycle
+		// of itself, which is precisely the write the ownership term exists to refuse: the guard reads as
+		// present, compares an exact string, and cannot fail.
+		//
+		// Minted per acquisition rather than derived from the caller's ambient identity, which is the shape
+		// a lease has everywhere it is done properly -- an acquire hands back a lease id and every later
+		// operation must present it. A process id is not a lease id.
+		//
+		// This is the ordinary claim. The fenced sibling already mints one, and so does this store's Oracle
+		// counterpart on BOTH of its paths, at the same column width -- so this converges the two providers
+		// rather than introducing a shape either of them has to carry alone. The RETURNING block below
+		// emits dispatcher_id, so the caller receives the token it must present at completion.
+		var claimIdentity = FormattableString.Invariant($"{dispatcherId}:{Guid.NewGuid():N}");
+
 		var parameters = new DynamicParameters();
-		parameters.Add("DispatcherId", dispatcherId, direction: ParameterDirection.Input);
+		parameters.Add("DispatcherId", claimIdentity, direction: ParameterDirection.Input);
 		parameters.Add("ReservationTimeout", reservationTimeout, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds,

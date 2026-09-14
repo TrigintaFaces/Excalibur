@@ -40,11 +40,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 
 		_options = new ContextObservabilityOptions();
 		_sut = new ContextObservabilityMiddleware(
-			NullLogger<ContextObservabilityMiddleware>.Instance,
 			_fakeTracker,
 			_fakeMetrics,
 			_fakeEnricher,
-			Microsoft.Extensions.Options.Options.Create(_options));
+			Microsoft.Extensions.Options.Options.Create(_options),
+			NullLogger<ContextObservabilityMiddleware>.Instance);
 	}
 
 	[Fact]
@@ -52,11 +52,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				null!,
 				_fakeTracker,
 				_fakeMetrics,
 				_fakeEnricher,
-				Microsoft.Extensions.Options.Options.Create(new ContextObservabilityOptions())));
+				Microsoft.Extensions.Options.Options.Create(new ContextObservabilityOptions()),
+				null!));
 	}
 
 	[Fact]
@@ -64,11 +64,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				NullLogger<ContextObservabilityMiddleware>.Instance,
 				null!,
 				_fakeMetrics,
 				_fakeEnricher,
-				Microsoft.Extensions.Options.Options.Create(new ContextObservabilityOptions())));
+				Microsoft.Extensions.Options.Options.Create(new ContextObservabilityOptions()),
+				NullLogger<ContextObservabilityMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -76,11 +76,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				NullLogger<ContextObservabilityMiddleware>.Instance,
 				_fakeTracker,
 				null!,
 				_fakeEnricher,
-				Microsoft.Extensions.Options.Options.Create(new ContextObservabilityOptions())));
+				Microsoft.Extensions.Options.Options.Create(new ContextObservabilityOptions()),
+				NullLogger<ContextObservabilityMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -88,11 +88,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				NullLogger<ContextObservabilityMiddleware>.Instance,
 				_fakeTracker,
 				_fakeMetrics,
 				null!,
-				Microsoft.Extensions.Options.Options.Create(new ContextObservabilityOptions())));
+				Microsoft.Extensions.Options.Options.Create(new ContextObservabilityOptions()),
+				NullLogger<ContextObservabilityMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -100,11 +100,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ContextObservabilityMiddleware(
-				NullLogger<ContextObservabilityMiddleware>.Instance,
 				_fakeTracker,
 				_fakeMetrics,
 				_fakeEnricher,
-				null!));
+				null!,
+				NullLogger<ContextObservabilityMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -118,11 +118,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	{
 		_options.Enabled = false;
 		var sut = new ContextObservabilityMiddleware(
-			NullLogger<ContextObservabilityMiddleware>.Instance,
 			_fakeTracker,
 			_fakeMetrics,
 			_fakeEnricher,
-			Microsoft.Extensions.Options.Options.Create(_options));
+			Microsoft.Extensions.Options.Options.Create(_options),
+			NullLogger<ContextObservabilityMiddleware>.Instance);
 
 		var result = await sut.InvokeAsync(
 			_fakeMessage,
@@ -444,9 +444,9 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 
 	private ContextObservabilityMiddleware CreateSut() =>
 		new(
-			NullLogger<ContextObservabilityMiddleware>.Instance,
 			_fakeTracker,
 			_fakeMetrics,
 			_fakeEnricher,
-			Microsoft.Extensions.Options.Options.Create(_options));
+			Microsoft.Extensions.Options.Options.Create(_options),
+			NullLogger<ContextObservabilityMiddleware>.Instance);
 }

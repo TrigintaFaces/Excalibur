@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Net.Http.Json;
+
 using Elastic.Clients.Elasticsearch;
 
 using Excalibur.Dispatch;
@@ -69,4 +71,36 @@ public sealed class ElasticsearchInboxStoreConformanceShould : InboxStoreConform
 	{
 		await _fixture.DeleteIndexAsync().ConfigureAwait(false);
 	}
+
+	// 47ruyr (2mek4x follow-up): a real, provider-side persistence rejection -- never a mocked client.
+	// index.blocks.write is Elasticsearch's own mechanism for making an index reject writes; the typed
+	// client has no strongly-typed model for it (the framework's own IndexOperationsManager takes raw
+	// settings JSON for the same reason), so this goes over plain HTTP against the fixture's container.
+	private static async Task PutIndexWriteBlockAsync(string url, string indexName, bool blocked)
+	{
+		using var http = new HttpClient();
+		using var content = JsonContent.Create(new { index = new { blocks = new { write = blocked } } });
+		using var response = await http.PutAsync(new Uri($"{url.TrimEnd('/')}/{indexName}/_settings"), content).ConfigureAwait(false);
+		if (!response.IsSuccessStatusCode)
+		{
+			var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+			throw new HttpRequestException(
+				$"PUT {indexName}/_settings (blocks.write={blocked}) -> {(int)response.StatusCode} {response.StatusCode}: {body}");
+		}
+	}
+
+	/// <inheritdoc/>
+	protected override async Task InjectPersistenceFaultAsync()
+	{
+		// The store auto-creates the index lazily on first write, so this fault-injection test may run
+		// before any other operation has touched it -- create it now (best effort; the store's own create
+		// wins the race harmlessly if it gets there first) before blocking writes to it.
+		_ = await _fixture.Client.Indices.CreateAsync(_fixture.IndexName).ConfigureAwait(false);
+
+		await PutIndexWriteBlockAsync(_fixture.Url, _fixture.IndexName, blocked: true).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	protected override async Task RemovePersistenceFaultAsync() =>
+		await PutIndexWriteBlockAsync(_fixture.Url, _fixture.IndexName, blocked: false).ConfigureAwait(false);
 }

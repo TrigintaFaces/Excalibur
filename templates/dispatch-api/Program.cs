@@ -1,3 +1,6 @@
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Observability.Metrics;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();

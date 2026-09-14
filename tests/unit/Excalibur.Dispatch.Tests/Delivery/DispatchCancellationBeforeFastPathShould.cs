@@ -84,7 +84,7 @@ public sealed class DispatchCancellationBeforeFastPathShould
 			before,
 			"the consumer opted out of running work after cancellation, so the bypass-eligible fast path "
 			+ "must return the cancelled result instead of invoking the handler");
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -104,6 +104,6 @@ public sealed class DispatchCancellationBeforeFastPathShould
 		Volatile.Read(ref CancelProbeCommandHandler.Executions).ShouldBe(
 			before,
 			"the opt-in is carried by the context, so the interface overload must behave identically");
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 }

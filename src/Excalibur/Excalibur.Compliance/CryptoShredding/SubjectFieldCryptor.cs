@@ -52,8 +52,15 @@ public sealed class SubjectFieldCryptor
 
     /// <summary>
     /// Encrypts each personal-data field of <paramref name="record"/> in place under its data subject's key.
-    /// No-op when the record has no personal-data fields or no resolvable data-subject id.
     /// </summary>
+    /// <remarks>
+    /// A record whose type declares no <c>[DataSubjectId]</c> property is a no-op: per-subject protection is
+    /// additive over whatever at-rest encryption already applies. The two other cases FAIL CLOSED rather than
+    /// passing through. A type that declares a data subject but carries no <c>[PersonalData]</c> field, and a
+    /// record whose declared data-subject identifier is null or blank, both throw
+    /// <see cref="EncryptionException"/> -- the second because the record has personal data and no key under
+    /// which to protect it, so proceeding would persist it in plaintext.
+    /// </remarks>
     /// <param name="record">The record whose personal-data fields are encrypted in place.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     public async ValueTask EncryptFieldsAsync(object record, CancellationToken cancellationToken)
@@ -108,6 +115,36 @@ public sealed class SubjectFieldCryptor
                 .ConfigureAwait(false);
             WriteEnvelope(property, record, envelope);
         }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether <paramref name="recordType"/> declares any encryptable
+    /// <see cref="PersonalDataAttribute"/> field.
+    /// </summary>
+    /// <remarks>
+    /// Lets a caller decide whether a record needs the encrypt/decrypt round-trip at all WITHOUT materializing
+    /// it. The answer is a property of the TYPE, and the plan behind it is cached, so asking is a dictionary
+    /// lookup rather than a per-record reflection walk.
+    /// </remarks>
+    /// <param name="recordType">The record type to inspect.</param>
+    /// <returns>
+    /// <see langword="true"/> when the type declares at least one encryptable personal-data field; otherwise
+    /// <see langword="false"/>, meaning <see cref="EncryptFieldsAsync"/> and <see cref="DecryptFieldsAsync"/>
+    /// would both leave a record of this type untouched.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordType"/> is null.</exception>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2067:UnrecognizedReflectionPattern",
+        Justification = "A runtime-resolved record type, matching IEventSerializer.DeserializeEvent(byte[], Type) "
+            + "which this answer gates; GetPlan is DAM-rooted and the instance path carries the same suppression "
+            + "for the same reason. Annotating the parameter instead would only move the unprovable step to "
+            + "every caller.")]
+    public static bool HasPersonalDataFields(Type recordType)
+    {
+        ArgumentNullException.ThrowIfNull(recordType);
+
+        return GetPlan(recordType).PersonalDataProperties.Length != 0;
     }
 
     /// <summary>

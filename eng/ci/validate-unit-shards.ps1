@@ -38,11 +38,75 @@ param(
     "Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures"
   ),
   [string]$OutDir = "UnitShardReport",
-  [bool]$Enforce = $true
+  [bool]$Enforce = $true,
+  [switch]$SelfTest
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+# ---------------------------------------------------------------------------------------------
+# Proves this audit is non-vacuous. A coverage audit that cannot fail is indistinguishable from
+# one with nothing to report, and both print the same reassuring line.
+#
+# Two arms, because either alone is satisfied by a broken gate: one that refuses everything is
+# "safe" and useless, one that refuses nothing is quiet and useless. The audit must refuse a
+# project belonging to no shard and no tier, AND pass an unmodified tree.
+# ---------------------------------------------------------------------------------------------
+if ($SelfTest) {
+  $auditScript = $PSCommandPath
+  $probeName   = "Excalibur.ShardAuditSelfTest.Tests"
+  $probeDir    = Join-Path $UnitTestsRoot $probeName
+  $scratch     = Join-Path ([System.IO.Path]::GetTempPath()) ("shard-selftest-" + [guid]::NewGuid().ToString("N"))
+  $failures    = @()
+
+  function Test-AuditAccepts([string]$reportDir) {
+    try {
+      & $auditScript -OutDir $reportDir -Enforce $true *> $null
+      return $true
+    }
+    catch {
+      return $false
+    }
+  }
+
+  try {
+    if (-not (Test-AuditAccepts (Join-Path $scratch "unmodified"))) {
+      $failures += "LIVENESS: the audit refused an unmodified tree. A gate that is red on a clean " +
+                   "checkout carries no information -- it is read once and ignored thereafter."
+    }
+
+    New-Item -ItemType Directory -Path $probeDir -Force | Out-Null
+    $probeProject = @"
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>
+"@
+    Set-Content -Path (Join-Path $probeDir ($probeName + ".csproj")) -Value $probeProject -Encoding UTF8
+
+    if (Test-AuditAccepts (Join-Path $scratch "planted")) {
+      $failures += "SAFETY: a unit test project belonging to no shard and no tier was ACCEPTED. " +
+                   "Tests in no shard are never executed by any lane, and their absence reads as " +
+                   "green, which is the hole this audit exists to close."
+    }
+  }
+  finally {
+    if (Test-Path $probeDir) { Remove-Item -Recurse -Force $probeDir }
+    if (Test-Path $scratch)  { Remove-Item -Recurse -Force $scratch }
+  }
+
+  if ($failures.Count -gt 0) {
+    foreach ($failure in $failures) { Write-Error $failure -ErrorAction Continue }
+    throw "Unit shard coverage audit self-test FAILED: the audit does not detect what it reports on."
+  }
+
+  Write-Host "Unit shard coverage audit self-test passed: refuses an untiered project, accepts a clean tree."
+  exit 0
+}
+
 
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 

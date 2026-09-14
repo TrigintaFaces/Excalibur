@@ -56,11 +56,8 @@ public sealed class FieldEncryptorAadBindingShould
 	}
 
 	private static FieldEncryptor CreateEncryptor() =>
-		new(
-			new LocalKeyProvider(),
-			Options.Create(new EncryptionOptions
-			{
-				KeyManagement = new KeyManagementOptions { KeyRotationInterval = TimeSpan.Zero },
-			}),
-			NullLogger<FieldEncryptor>.Instance);
+		FieldEncryptorTestFactory.Create(new EncryptionOptions
+		{
+			KeyManagement = new KeyManagementOptions { KeyRotationInterval = TimeSpan.Zero },
+		});
 }

@@ -7,7 +7,9 @@ using Excalibur.Dispatch;
 using Excalibur.Inbox.DependencyInjection;
 using Excalibur.Inbox.MongoDB;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -20,7 +22,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class InboxBuilderMongoDbExtensions
 {
-	private const string BuilderManagedConnectionSentinel = "mongodb://builder-managed-client";
+	// internal, not private: MongoDbInboxTopologyHealthCheck (same assembly) reports healthy without a
+	// connectivity round trip against this sentinel -- a builder-supplied client has no real connection
+	// string to probe, and its topology is the consumer's to guarantee.
+	internal const string BuilderManagedConnectionSentinel = "mongodb://builder-managed-client";
 
 	/// <summary>
 	/// Configures the inbox to use MongoDB storage.
@@ -97,6 +102,18 @@ public static class InboxBuilderMongoDbExtensions
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbInboxOptions>, MongoDbInboxOptionsValidator>());
+		// Reachability is NOT options validation. Options validation answers whether the configuration is
+		// coherent -- no network -- and its failures rightly stop the host. Whether the server is a replica
+		// set can only be answered by a round trip, and a server that is merely not accepting connections
+		// yet is the normal case under an orchestrator that does not order the database ahead of the app.
+		// Deciding it here turned that into a permanent startup failure, so it is a health check feeding a
+		// readiness probe that retries instead.
+		_ = services.AddHealthChecks().Add(new HealthCheckRegistration(
+			"mongodb-inbox-topology",
+			sp => new MongoDbInboxTopologyHealthCheck(
+				sp.GetRequiredService<IOptionsMonitor<MongoDbInboxOptions>>()),
+			failureStatus: HealthStatus.Unhealthy,
+			tags: ["ready", "mongodb", "inbox"]));
 		services.AddOptions<MongoDbInboxOptions>().ValidateOnStart();
 
 		// Fail-closed single-tenant default guarantees a non-null ITenantContext for tenant scoping; the

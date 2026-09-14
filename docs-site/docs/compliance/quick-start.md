@@ -2,7 +2,7 @@
 
 **Framework:** Excalibur
 **Audience:** First-time users implementing compliance features
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-09-12
 
 ---
 
@@ -125,9 +125,16 @@ dotnet add package Excalibur.AuditLogging
 
 **For Testing:**
 ```bash
-# Conformance test kits
+# Conformance test kits (ErasureStore, LegalHoldStore, DataInventoryStore, AuditStore)
+dotnet add package Excalibur.Testing.Conformance
+
+# Test doubles and in-memory infrastructure (optional, separate package)
 dotnet add package Excalibur.Testing
 ```
+
+The conformance kits ship in **`Excalibur.Testing.Conformance`**. `Excalibur.Testing` carries test
+doubles and in-memory stores and does **not** contain them — install the conformance package or the
+filters in Step 4 will match nothing.
 
 ---
 
@@ -156,7 +163,7 @@ builder.Services.AddAuthorization(options =>
 
 :::note Access Control
 
-The `[RequirePermission]` attribute is provided by `Excalibur.A3.Authorization`, a separate authorization package. For basic access control, use ASP.NET Core's built-in `[Authorize]` policies as shown above.
+The `[RequirePermission]` attribute is provided by the **`Excalibur.A3`** package (namespace `Excalibur.A3.Authorization`). For basic access control, use ASP.NET Core's built-in `[Authorize]` policies as shown above.
 :::
 
 ### 3.2 Encryption (FedRAMP, GDPR, SOC 2, HIPAA)
@@ -234,7 +241,7 @@ builder.Services.AddAuditLogging();
 builder.Services.AddSqlServerAuditStore(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("Compliance")!;
-    options.SchemaName = "compliance";
+    options.SchemaName = "audit";   // matches the schema 001_CreateAuditSchema.sql creates
     options.EnableHashChain = true;
 });
 ```
@@ -376,10 +383,10 @@ dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" --blame-
 dotnet test --filter "FullyQualifiedName~AuditStoreConformance" --blame-hang-timeout 5m -- RunConfiguration.TreatNoTestsAsError=true
 
 # Microsoft.Testing.Platform
-dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" -- --timeout 5m
-dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" -- --timeout 5m
-dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" -- --timeout 5m
-dotnet test --filter "FullyQualifiedName~AuditStoreConformance" -- --timeout 5m
+dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
+dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
+dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
+dotnet test --filter "FullyQualifiedName~AuditStoreConformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
 ```
 
 Which of the two forms you need depends on the test runner your project uses, and picking the wrong
@@ -389,9 +396,15 @@ one fails in a way that does not name the cause:
   filter that matches nothing exits `0` and reads as a pass.
 - **Microsoft.Testing.Platform** (`<UseMicrosoftTestingPlatform>true</UseMicrosoftTestingPlatform>`).
   Do **not** pass the setting above: the native test host does not recognise it, prints its help text
-  and exits non-zero on every run, whether or not the filter matched. It needs no equivalent flag —
-  the platform already expects at least one test to run and fails with exit code `9` when fewer do.
-  Use `--minimum-expected-tests` only to require more than one.
+  and exits non-zero on every run, whether or not the filter matched. **Pass
+  `--minimum-expected-tests 1` instead** — a run that executes fewer tests than the minimum, including
+  zero, exits with code `9`.
+  **This matters more here than the filter case, because conformance arms skip themselves.** An arm
+  whose capability your provider does not implement reports *skipped*, not *failed*. MTP's
+  `--zero-tests-policy` defaults to `allow-skipped`, so a run in which **every** arm skipped
+  **succeeds** — the checklist item would read as passed on a run that verified nothing. Either pass a
+  minimum as above, or pass `--zero-tests-policy strict` (available from MTP 2.3.0), which fails an
+  all-skipped run with exit code `8`. An explicit minimum supersedes the policy.
 
 Both forms below also carry a hang bound, so a wedged test host ends the run with evidence instead of
 occupying your pipeline until it is killed.
@@ -406,14 +419,24 @@ this instruction exists to detect.
 
 With the setting, a filter that matches no tests fails the command. **Confirm the summary reports a
 non-zero `Total`** — an exit code alone is not evidence that a check ran.
+
+**Then read the process exit code, and take it as the verdict.** The two answer different questions: a
+non-zero `Total` tells you a check ran, and only the exit code tells you whether it passed. **Do not
+record the result from the summary line.** Through the `dotnet test` bridge an assembly-level cleanup
+failure is reported outside the failure count, so the console can print `Passed!` with `Failed: 0` on a
+run that exited non-zero. Running the same assembly as a test executable prints the error and the exit
+code agrees with it; the bridge's summary line does not. Capture `$LASTEXITCODE` (PowerShell) or `$?`
+(POSIX shell) as the evidence, not the console text.
 :::
 
 **Test Breakdown:**
-- **AuditStoreConformanceTestKit:** 18 tests (audit logging)
-- **ErasureStoreConformanceTestKit:** 24 tests (GDPR erasure)
-- **LegalHoldStoreConformanceTestKit:** 19 tests (GDPR exceptions)
-- **DataInventoryStoreConformanceTestKit:** 19 tests (RoPA)
-- **Total:** 92 arms available to wrap — record the count your own run executed
+- **AuditStoreConformanceTestKit** (audit logging)
+- **ErasureStoreConformanceTestKit** (GDPR erasure)
+- **LegalHoldStoreConformanceTestKit** (GDPR exceptions)
+- **DataInventoryStoreConformanceTestKit** (RoPA)
+
+**Record the count your own run executed.** No arm total is published here: any number we print is ours
+at some past moment, and only your run evidences your control.
 
 ### 4.2 Manual Verification
 
@@ -484,7 +507,7 @@ Now that you have baseline compliance capabilities, follow the detailed checklis
 
 **SOC 2 (3-18 months):**
 1. Follow [checklists/soc2.md](checklists/soc2.md)
-2. Weeks 1-7: Implement Security + optional categories
+2. Weeks 1-6: Implement Security + optional categories
 3. Week 8-9: Run automated validators, collect evidence
 4. Schedule SOC 2 Type I audit (CPA firm)
 5. Operate for 6-12 months, then SOC 2 Type II
@@ -500,7 +523,11 @@ Now that you have baseline compliance capabilities, follow the detailed checklis
 
 **Automate Evidence Collection:**
 
-Use the provided scripts to collect evidence from your CI/CD pipeline:
+The framework's own evidence collectors live in `eng/compliance/` in the
+[framework repository](https://github.com/TrigintaFaces/Excalibur). They are not shipped in any NuGet package. To use them on
+your own pipeline, copy that directory into your repository — each script reads
+`control-evidence-map.tsv` from beside itself — and run it where the GitHub CLI (`gh`) is
+authenticated against your repository:
 
 ```bash
 # Windows
@@ -509,6 +536,11 @@ Use the provided scripts to collect evidence from your CI/CD pipeline:
 # Linux/macOS
 ./eng/compliance/collect-evidence.sh -f GDPR,HIPAA
 ```
+
+They collect from GitHub Actions runs of a workflow named `ci.yml` and expect artifact names matching
+the framework's own pipeline, so adapt the workflow and artifact names to yours. Every figure in the
+resulting `MANIFEST.json` is derived from the files actually collected — a run that downloads nothing
+reports zero controls documented rather than a default.
 
 **Monthly Evidence Collection:**
 
@@ -582,7 +614,7 @@ public class Patient
 dotnet test --filter "FullyQualifiedName~Conformance" --blame-hang-timeout 5m -- RunConfiguration.TreatNoTestsAsError=true
 
 # Microsoft.Testing.Platform
-dotnet test --filter "FullyQualifiedName~Conformance" -- --timeout 5m
+dotnet test --filter "FullyQualifiedName~Conformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
 ```
 
 ### 4. Skipping Organizational Controls
@@ -665,7 +697,6 @@ dotnet test --filter "FullyQualifiedName~Conformance" -- --timeout 5m
 
 **Issues:**
 - GitHub Issues: `compliance` label
-- Email: compliance@yourcompany.com (if applicable)
 
 ---
 
@@ -692,9 +723,8 @@ Before proceeding to full certification, verify:
 
 ---
 
-**Last Updated:** 2026-02-09
-**Next Review:** 2026-05-09
-**Framework Version:** Excalibur 1.0.0
+**Last Updated:** 2026-09-12
+**Framework Version:** Excalibur 10.0.0 prerelease
 
 ## See Also
 

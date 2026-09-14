@@ -3,7 +3,7 @@
 #
 # Proves the gate's THREE-STATE mechanism (0 PASS / 1 FAIL / 2 REFUSE) deterministically,
 # WITHOUT real Docker, by injecting the RITG_DOCKER_PROBE + RITG_TEST_CMD seams. This is the
-# permanent proof the gate stays non-vacuous after the real locks green (the ki5vjb condition:
+# permanent proof the gate stays non-vacuous after the real locks green (the condition:
 # every relocated gate reddens on a planted violation — safety AND liveness arms).
 #
 # The gate is the LOGIC under test; the injected suite output is the planted fixture.
@@ -36,7 +36,7 @@ RITG_TEST_CMD="echo unreachable" \
     run_arm "REFUSE on no-Docker (infra absent)" 2
 
 # ── SAFETY 2 (LOAD-BEARING): filter matched ZERO tests ⇒ REFUSE (2), NOT the dotnet exit-0. ──
-# This is the 885jxd/9h66ez false-green: dotnet test exits 0 on an empty filter.
+# This is the empty-filter false-green: dotnet test exits 0 on an empty filter.
 RITG_DOCKER_PROBE="true" \
 RITG_TEST_CMD='echo "No test matches the given testcase filter \`Category=Integration&Infra=Required\`"; exit 0' \
     run_arm "REFUSE on zero-match filter (dotnet exit-0 trap)" 2

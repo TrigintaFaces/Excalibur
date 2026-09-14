@@ -28,10 +28,15 @@ namespace Excalibur.Compliance;
 /// wrapped store so the capability chain stays transparent.
 /// </para>
 /// <para>
-/// <b>Tenant confinement.</b> <see cref="IAuditWriter.StoreAsync"/> and every read on
+/// <b>Tenant confinement.</b> <see cref="IAuditWriter.StoreAsync"/> and every <em>retrieval</em> on
 /// <see cref="IAuditQuery"/> are confined to the ambient tenant established for this store instance: a
 /// confined query returns none of another tenant's audit events and every one of the caller's own, and a
-/// confined store cannot land under another tenant's partition. Which mechanism a given provider uses to
+/// confined store cannot land under another tenant's partition.
+/// <b>One member is deliberately outside this statement:</b>
+/// <see cref="IAuditQuery.VerifyChainIntegrityAsync"/> takes no tenant argument and, on the SQL Server and
+/// PostgreSQL stores, verifies estate-wide across every tenant-and-application partition in range. Its own
+/// remarks state that scope and what a result may be used for; read them before presenting a verification
+/// result to a tenant. Which mechanism a given provider uses to
 /// hold that boundary is declared by its capability marker — <see cref="ITenantScopingCapability{TContract}"/>
 /// for a store that reads an ambient tenant — and the package's own <c>ARCHITECTURE.md</c> states the
 /// falsifiable guarantee and how it is verified. A store presenting no marker is not confined by the

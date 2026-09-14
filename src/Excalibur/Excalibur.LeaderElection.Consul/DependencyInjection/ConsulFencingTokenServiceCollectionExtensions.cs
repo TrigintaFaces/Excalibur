@@ -22,8 +22,10 @@ public static class ConsulFencingTokenServiceCollectionExtensions
 	/// <remarks>
 	/// Requires a <see cref="global::Consul.IConsulClient"/> to be registered (the same client used by
 	/// <c>UseConsul(...)</c> leader election). Uses <c>TryAdd</c> so a consumer-supplied provider takes
-	/// precedence. Pair with <c>WithFencingTokens()</c> on the leader election builder; the startup
-	/// prerequisite check then passes because a provider is registered.
+	/// precedence. <c>UseConsul(...)</c> / <c>AddConsulLeaderElection(...)</c> already register this by
+	/// default (fencing is on by default; <c>WithoutFencingTokens()</c> opts out) — this method exists for
+	/// a consumer composing services manually without going through those entry points, and satisfies the
+	/// startup prerequisite check the same way.
 	/// </remarks>
 	public static IServiceCollection AddConsulFencingTokenProvider(this IServiceCollection services)
 	{

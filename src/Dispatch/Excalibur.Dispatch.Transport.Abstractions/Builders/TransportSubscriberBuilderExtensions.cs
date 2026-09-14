@@ -54,16 +54,26 @@ public static class TransportSubscriberBuilderExtensions
 	/// never retried.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// The backoff schedule is supplied as a <see cref="Func{T, TResult}"/> (1-based attempt number → delay)
 	/// so this package takes no resilience-library dependency (mirrors <c>UseDeadLetterQueue</c>'s delegate
-	/// seam). The DI/transport layer owns the concrete, <b>clamped</b> schedule — e.g. the in-house
-	/// <c>ExponentialBackoffCalculator</c> whose <c>MaxDelay</c> caps the wait — so unbounded
-	/// exponential growth can never produce an absurd reconnect delay.
+	/// seam).
+	/// </para>
+	/// <para>
+	/// The two bounds sit in different places, and it is worth being exact about which is enforced where.
+	/// The <b>upper</b> bound is the caller's: the schedule caps how long the wait grows — for example the
+	/// in-house <c>ExponentialBackoffCalculator</c>'s <c>MaxDelay</c> — and nothing here limits it. The
+	/// <b>lower</b> bound is enforced by the decorator, at one millisecond, because the reconnect loop is
+	/// deliberately unbounded and a schedule returning zero or a negative value would otherwise re-subscribe
+	/// without pause for as long as the inner subscription kept faulting. A schedule below the floor is
+	/// raised to it and logged once.
+	/// </para>
 	/// </remarks>
 	/// <param name="builder">The subscriber builder.</param>
 	/// <param name="backoffDelay">
-	/// The backoff schedule: given the 1-based reconnect attempt number, returns the (clamped) delay to wait
-	/// before the next re-subscribe. Required — the caller supplies a bounded schedule.
+	/// The backoff schedule: given the 1-based reconnect attempt number, returns the delay to wait before the
+	/// next re-subscribe. Required. Supply the upper bound yourself; a value below one millisecond is raised
+	/// to it.
 	/// </param>
 	/// <param name="loggerFactory">The logger factory used to create the reconnect decorator's logger.</param>
 	/// <returns>The builder for chaining.</returns>

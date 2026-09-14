@@ -16,6 +16,7 @@ The Kafka transport includes full Confluent Schema Registry integration via the 
 ## Quick Start
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport("events", kafka =>
 {
     kafka.BootstrapServers("localhost:9092")
@@ -112,6 +113,7 @@ registry.SchemaRegistryUrl("https://registry.example.com:8085")
 ### Multi-Event Topics with RecordName Strategy
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport("events", kafka =>
 {
     kafka.BootstrapServers("localhost:9092")
@@ -179,6 +181,7 @@ Users who don't configure Schema Registry are unaffected:
 
 ```csharp
 // No UseConfluentSchemaRegistry() = standard JSON format, no schema headers
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport("events", kafka =>
 {
     kafka.BootstrapServers("localhost:9092")

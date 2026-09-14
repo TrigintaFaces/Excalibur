@@ -194,7 +194,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "Large control section with 100 controls",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = controls
 				}
 			]
@@ -246,7 +246,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "Control section",
-					IsMet = false,
+					Outcome = CriterionOutcome.NotMet,
 					Controls = [
 						new ControlDescription
 						{
@@ -303,7 +303,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = longDescription,
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = [
 						new ControlDescription
 						{
@@ -419,7 +419,7 @@ public sealed class Soc2PdfExportIntegrationShould
 		{
 			Criterion = GetCriterionForCategory(cat),
 			Description = $"Controls for {cat} category",
-			IsMet = true,
+			Outcome = CriterionOutcome.Met,
 			Controls = [
 				new ControlDescription
 				{
@@ -534,7 +534,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "COSO Principle 1 - Demonstrates Commitment to Integrity",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = controls,
 					TestResults = testResults
 				},
@@ -542,7 +542,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
 					Description = "CC6 - Logical and Physical Access Controls",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = [controls[1]]
 				}
 			],
@@ -577,7 +577,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "Control environment",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = [
 						new ControlDescription
 						{
@@ -612,7 +612,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "Control environment",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = [
 						new ControlDescription
 						{
@@ -657,7 +657,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
 					Description = "Access control",
-					IsMet = false,
+					Outcome = CriterionOutcome.NotMet,
 					Controls = [
 						new ControlDescription
 						{
@@ -703,7 +703,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "Control environment",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = [
 						new ControlDescription
 						{
@@ -780,7 +780,7 @@ public sealed class Soc2PdfExportIntegrationShould
 				{
 					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
 					Description = "Control environment",
-					IsMet = true,
+					Outcome = CriterionOutcome.Met,
 					Controls = [
 						new ControlDescription
 						{

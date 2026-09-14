@@ -173,12 +173,12 @@ public sealed partial class RbacAuditStore : IAuditStore
 
 	/// <inheritdoc />
 	/// <exception cref="UnauthorizedAccessException">Thrown when the current user lacks permission.</exception>
-	public async Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
+	public async Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken)
 	{
 		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureReadAccess(role);
 
-		return await _innerStore.GetLastEventAsync(tenantId, cancellationToken).ConfigureAwait(false);
+		return await _innerStore.GetLastEventAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	private static void EnsureReadAccess(AuditLogRole role)

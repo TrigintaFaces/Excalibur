@@ -76,9 +76,22 @@ public sealed class CosmosDbPersistenceProviderContainerFixture : ContainerFixtu
 			.WithHttpClientFactory(() => _container.HttpClient)
 			.Build();
 
-		_ = await Client.CreateDatabaseIfNotExistsAsync(DatabaseName, cancellationToken: cancellationToken)
+		var database = await Client.CreateDatabaseIfNotExistsAsync(DatabaseName, cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
+
+		// The provider (CosmosDbPersistenceProvider.GetContainer) only REFERENCES a container -- it creates
+		// neither the database nor this container, so the suite must provision both. Partition key path
+		// matches CosmosDbOptions.DefaultPartitionKeyPath ("/id"), which is what CreateProvider's options
+		// leave unset (and therefore default to) below. Every prior arm in this suite happened to need no
+		// document I/O, so a missing container was invisible until the first arm that actually wrote one.
+		_ = await database.Database.CreateContainerIfNotExistsAsync(
+			ContainerName, "/id", cancellationToken: cancellationToken).ConfigureAwait(false);
 	}
+
+	/// <summary>
+	/// Gets the container name the provider is pointed at as its default container; the fixture creates it.
+	/// </summary>
+	public const string ContainerName = "items";
 
 	/// <inheritdoc/>
 	protected override async Task DisposeContainerAsync(CancellationToken cancellationToken)

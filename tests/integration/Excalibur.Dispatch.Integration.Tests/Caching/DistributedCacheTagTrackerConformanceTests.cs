@@ -24,13 +24,12 @@ namespace Excalibur.Dispatch.Integration.Tests.Caching;
 /// <remarks>
 /// <para>
 /// <see cref="DistributedCacheTagTracker"/> is the generic, backend-agnostic implementation of
-/// <see cref="ICacheTagTracker"/> built on <see cref="IDistributedCache"/>'s Get/Set/Remove surface — the
-/// implementation's own remarks document that its tag-set read-modify-write is <b>not atomic</b> over
-/// that abstraction (last-writer-wins under concurrent registration of different keys under the same
-/// tag). The kit's arms are sequential, not concurrent, so that known limitation does not make any arm
-/// here RED; a real distributed backend is still required to prove <see cref="RedisCache"/> actually
-/// round-trips the tracker's JSON-serialized <c>HashSet&lt;string&gt;</c>/<c>string[]</c> payloads
-/// end-to-end, which an in-memory stand-in cannot verify (per <c>verify-against-real-infra-not-mock</c>).
+/// <see cref="ICacheTagTracker"/> built on <see cref="IDistributedCache"/>'s Get/Set surface. A tag's
+/// current state is a single opaque version stamp under one key, so resolving or invalidating a tag is
+/// a single-key read or write — both atomic on every <see cref="IDistributedCache"/> backend. A real
+/// distributed backend is still required to prove <see cref="RedisCache"/> actually round-trips the
+/// tracker's stamp payloads end-to-end, which an in-memory stand-in cannot verify (per
+/// <c>verify-against-real-infra-not-mock</c>).
 /// </para>
 /// <para>
 /// <see cref="DistributedCacheTagTracker"/> is <c>internal sealed</c>; this test project is visible to it
@@ -38,13 +37,11 @@ namespace Excalibur.Dispatch.Integration.Tests.Caching;
 /// <c>Excalibur.Dispatch.Integration.Tests</c>. No production visibility was widened to write this test.
 /// </para>
 /// <para>
-/// <b>Isolation without a fresh server per test:</b> like <see cref="RedisCacheTagTracker"/>, this
-/// tracker's storage keys (<c>dispatch:tag:*</c> / <c>dispatch:keytags:*</c>) are fixed, not
-/// per-instance, and the Redis container is shared with every other test class in
-/// <see cref="ContainerCollections.Redis"/> (including <see cref="RedisCacheTagTrackerConformanceTests"/>,
-/// which targets the SAME key prefixes on the SAME shared container). <see cref="CreateTracker"/> flushes
-/// the tracker's own keyspace before handing back a tracker, so each arm gets a fresh, isolated view
-/// regardless of what an earlier arm — in this class or the sibling Redis-native one — left behind.
+/// <b>Isolation without a fresh server per test:</b> this tracker's storage key
+/// (<c>dispatch:tagver:*</c>) is fixed, not per-instance, and the Redis container is shared with every
+/// other test class in <see cref="ContainerCollections.Redis"/>. <see cref="CreateTracker"/> flushes the
+/// tracker's own keyspace before handing back a tracker, so each arm gets a fresh, isolated view
+/// regardless of what an earlier arm left behind.
 /// </para>
 /// </remarks>
 [Collection(ContainerCollections.Redis)]
@@ -58,6 +55,13 @@ public sealed class DistributedCacheTagTrackerConformanceTests : CacheTagTracker
 	private readonly List<RedisCache> _redisCaches = [];
 
 	public DistributedCacheTagTrackerConformanceTests(RedisContainerFixture fixture) => _fixture = fixture;
+
+	// A REAL Redis backend shared by every instance CreateTracker() returns -- this is exactly the
+	// property the cross-instance arms exist to prove (r7ptim). A short refresh interval keeps the
+	// safety arm's convergence poll fast without weakening the single-instance arms, which never
+	// depend on the refresh interval at all.
+	/// <inheritdoc />
+	protected override bool SupportsCrossInstanceSharing => true;
 
 	/// <inheritdoc />
 	protected override ICacheTagTracker CreateTracker()
@@ -75,24 +79,20 @@ public sealed class DistributedCacheTagTrackerConformanceTests : CacheTagTracker
 		}));
 		_redisCaches.Add(redisCache);
 
-		return new DistributedCacheTagTracker(redisCache, MsOptions.Create(new CacheOptions()));
+		return new DistributedCacheTagTracker(
+			redisCache,
+			MsOptions.Create(new CacheOptions { TagStampRefreshInterval = TimeSpan.FromMilliseconds(200) }));
 	}
 
-	// Same fixed key prefixes as RedisCacheTagTracker ("dispatch:tag:", "dispatch:keytags:") -- clear
-	// them before each arm so the kit's fixed-literal-key arms (e.g. "user:123") get a genuinely fresh
-	// view regardless of what an earlier arm (in this class or the sibling native-Redis one) left behind.
+	// Fixed key prefix ("dispatch:tagver:") -- clear it before each arm so a prior arm's fixed-literal
+	// tags ("orders", "users", ...) cannot leak into the next arm.
 	private void FlushTrackerKeyspace()
 	{
 		using var connection = ConnectionMultiplexer.Connect(_fixture.ConnectionString);
 		var db = connection.GetDatabase();
 		var server = connection.GetServer(connection.GetEndPoints()[0]);
 
-		foreach (var key in server.Keys(pattern: "dispatch:tag:*"))
-		{
-			_ = db.KeyDelete(key);
-		}
-
-		foreach (var key in server.Keys(pattern: "dispatch:keytags:*"))
+		foreach (var key in server.Keys(pattern: "dispatch:tagver:*"))
 		{
 			_ = db.KeyDelete(key);
 		}
@@ -113,71 +113,47 @@ public sealed class DistributedCacheTagTrackerConformanceTests : CacheTagTracker
 
 	#endregion Suite wiring guard
 
-	#region RegisterKeyAsync Tests
+	#region GetOrCreateStampAsync Tests
 
 	[Fact]
-	public Task RegisterKeyAsync_WithTags_ShouldRegister_Test() =>
-		RegisterKeyAsync_WithTags_ShouldRegister();
+	public Task GetOrCreateStampAsync_NewTag_ShouldCreateStamp_Test() =>
+		GetOrCreateStampAsync_NewTag_ShouldCreateStamp();
 
 	[Fact]
-	public Task RegisterKeyAsync_EmptyTags_ShouldBeNoOp_Test() =>
-		RegisterKeyAsync_EmptyTags_ShouldBeNoOp();
+	public Task GetOrCreateStampAsync_SameTagNoBump_ShouldReturnSameStamp_Test() =>
+		GetOrCreateStampAsync_SameTagNoBump_ShouldReturnSameStamp();
 
 	[Fact]
-	public Task RegisterKeyAsync_NullTags_ShouldBeNoOp_Test() =>
-		RegisterKeyAsync_NullTags_ShouldBeNoOp();
+	public Task GetOrCreateStampAsync_DifferentTags_ShouldReturnDifferentStamps_Test() =>
+		GetOrCreateStampAsync_DifferentTags_ShouldReturnDifferentStamps();
+
+	#endregion GetOrCreateStampAsync Tests
+
+	#region BumpStampAsync Tests
 
 	[Fact]
-	public Task RegisterKeyAsync_ReRegister_ShouldReplaceTags_Test() =>
-		RegisterKeyAsync_ReRegister_ShouldReplaceTags();
-
-	#endregion RegisterKeyAsync Tests
-
-	#region GetKeysByTagsAsync Tests
+	public Task BumpStampAsync_ShouldChangeStamp_Test() =>
+		BumpStampAsync_ShouldChangeStamp();
 
 	[Fact]
-	public Task GetKeysByTagsAsync_SingleTag_ShouldReturnKeys_Test() =>
-		GetKeysByTagsAsync_SingleTag_ShouldReturnKeys();
+	public Task BumpStampAsync_NeverResolvedTag_ShouldBeSafeAndResolvable_Test() =>
+		BumpStampAsync_NeverResolvedTag_ShouldBeSafeAndResolvable();
 
 	[Fact]
-	public Task GetKeysByTagsAsync_MultipleTags_ShouldReturnUnion_Test() =>
-		GetKeysByTagsAsync_MultipleTags_ShouldReturnUnion();
+	public Task BumpStampAsync_ShouldNotAffectOtherTags_Test() =>
+		BumpStampAsync_ShouldNotAffectOtherTags();
+
+	#endregion BumpStampAsync Tests
+
+	#region Cross-Instance Sharing Tests
 
 	[Fact]
-	public Task GetKeysByTagsAsync_EmptyTags_ShouldReturnEmpty_Test() =>
-		GetKeysByTagsAsync_EmptyTags_ShouldReturnEmpty();
+	public Task CrossInstanceBump_ShouldInvalidateEntriesOnAnotherInstance_Test() =>
+		CrossInstanceBump_ShouldInvalidateEntriesOnAnotherInstance();
 
 	[Fact]
-	public Task GetKeysByTagsAsync_NullTags_ShouldReturnEmpty_Test() =>
-		GetKeysByTagsAsync_NullTags_ShouldReturnEmpty();
+	public Task CrossInstanceNoBump_ShouldStillHitOnAnotherInstance_Test() =>
+		CrossInstanceNoBump_ShouldStillHitOnAnotherInstance();
 
-	[Fact]
-	public Task GetKeysByTagsAsync_NonExistentTag_ShouldReturnEmpty_Test() =>
-		GetKeysByTagsAsync_NonExistentTag_ShouldReturnEmpty();
-
-	#endregion GetKeysByTagsAsync Tests
-
-	#region UnregisterKeyAsync Tests
-
-	[Fact]
-	public Task UnregisterKeyAsync_ShouldRemoveFromAllTags_Test() =>
-		UnregisterKeyAsync_ShouldRemoveFromAllTags();
-
-	[Fact]
-	public Task UnregisterKeyAsync_NonExistentKey_ShouldBeNoOp_Test() =>
-		UnregisterKeyAsync_NonExistentKey_ShouldBeNoOp();
-
-	[Fact]
-	public Task UnregisterKeyAsync_ShouldCleanupEmptyTagEntries_Test() =>
-		UnregisterKeyAsync_ShouldCleanupEmptyTagEntries();
-
-	#endregion UnregisterKeyAsync Tests
-
-	#region Edge Case Tests
-
-	[Fact]
-	public Task RegisterKeyAsync_MultipleTags_ShouldBeFoundInAll_Test() =>
-		RegisterKeyAsync_MultipleTags_ShouldBeFoundInAll();
-
-	#endregion Edge Case Tests
+	#endregion Cross-Instance Sharing Tests
 }

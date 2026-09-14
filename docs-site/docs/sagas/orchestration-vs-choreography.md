@@ -210,11 +210,11 @@ public class OrderFulfillmentOrchestrator : SagaBase<OrderFulfillmentState>
 // Option 1: Via Excalibur builder (recommended)
 services.AddExcalibur(builder =>
 {
-    builder.AddSagas(options =>
+    builder.AddSagas(saga => saga.WithOptions(options =>
     {
         options.MaxConcurrency = 10;
         options.DefaultTimeout = TimeSpan.FromMinutes(30);
-    });
+    }));
 });
 
 // Option 2: Direct registration

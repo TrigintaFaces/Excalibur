@@ -23,6 +23,7 @@ Excalibur separates the transport surface into a framework-wiring layer and a co
 Adding a transport with a name registers both keyed services:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddKafkaTransport("orders", kafka =>
     kafka.BootstrapServers("localhost:9092"));
 ```

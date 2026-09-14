@@ -22,17 +22,17 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// services.AddDispatch()
 ///     .AddPollyResilienceAdapters(options =>
 ///     {
-///         options.RetryOptions = new RetryOptions
+///         options.RetryOptions = new PollyRetryOptions
 ///         {
-///             MaxRetries = 5,
+///             MaxAttempts = 5,
 ///             BaseDelay = TimeSpan.FromMilliseconds(100),
 ///             BackoffStrategy = BackoffStrategy.Exponential,
 ///             UseJitter = true
 ///         };
 ///         options.CircuitBreakerOptions = new CircuitBreakerOptions
 ///         {
-///             FailureThreshold = 5,
-///             OpenDuration = TimeSpan.FromSeconds(30)
+///             ConsecutiveFailureThreshold = 5,
+///             BreakDuration = TimeSpan.FromSeconds(30)
 ///         };
 ///     });
 /// </code>
@@ -44,9 +44,9 @@ public sealed class PollyResilienceAdapterOptions
 	/// and <see cref="PollyBackoffCalculatorAdapter"/>.
 	/// </summary>
 	/// <remarks>
-	/// If not set, default values from <see cref="RetryOptions"/> will be used.
+	/// If not set, default values from <see cref="PollyRetryOptions"/> will be used.
 	/// </remarks>
-	public RetryOptions? RetryOptions { get; set; }
+	public PollyRetryOptions? RetryOptions { get; set; }
 
 	/// <summary>
 	/// Gets or sets the circuit breaker options for <see cref="PollyCircuitBreakerPolicyAdapter"/>

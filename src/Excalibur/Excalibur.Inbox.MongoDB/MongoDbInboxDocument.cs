@@ -183,17 +183,23 @@ internal sealed class MongoDbInboxDocument
 			.Replace(":", "%3A", StringComparison.Ordinal);
 
 	/// <summary>
-	/// Creates a document from an <see cref="InboxEntry"/>.
+	/// Creates a document from an <see cref="InboxEntry"/>, scoped to the given tenant term.
 	/// </summary>
 	/// <param name="entry">The inbox entry.</param>
+	/// <param name="tenantId">
+	/// The tenant term to compose into the unique <c>_id</c> (a real tenant, or the reserved untenanted
+	/// sentinel). Required -- the two-argument form of <see cref="CreateId"/> produces a tenant-less id
+	/// that collides across tenants, so this factory cannot be used to construct one.
+	/// </param>
 	/// <returns>The MongoDB document.</returns>
-	public static MongoDbInboxDocument FromInboxEntry(InboxEntry entry)
+	public static MongoDbInboxDocument FromInboxEntry(InboxEntry entry, string tenantId)
 	{
 		ArgumentNullException.ThrowIfNull(entry);
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
 
 		return new MongoDbInboxDocument
 		{
-			Id = CreateId(entry.MessageId, entry.HandlerType),
+			Id = CreateId(entry.MessageId, entry.HandlerType, tenantId),
 			MessageId = entry.MessageId,
 			HandlerType = entry.HandlerType,
 			MessageType = entry.MessageType,
@@ -206,7 +212,7 @@ internal sealed class MongoDbInboxDocument
 			RetryCount = entry.RetryCount,
 			LastAttemptAt = entry.LastAttemptAt,
 			CorrelationId = entry.CorrelationId,
-			TenantId = entry.TenantId,
+			TenantId = tenantId,
 			Source = entry.Source
 		};
 	}

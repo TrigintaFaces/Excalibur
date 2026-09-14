@@ -43,6 +43,8 @@ Excalibur.Operations.Dashboard.DeadLetterEntryView.ReplayedAt.get -> System.Date
 Excalibur.Operations.Dashboard.DeadLetterEntryView.ReplayedAt.init -> void
 Excalibur.Operations.Dashboard.DeadLetterEntryView.SourceQueue.get -> string?
 Excalibur.Operations.Dashboard.DeadLetterEntryView.SourceQueue.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.TenantId.get -> string?
+Excalibur.Operations.Dashboard.DeadLetterEntryView.TenantId.init -> void
 Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest
 Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.DeadLetterReplayBatchRequest() -> void
 Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.Limit.get -> int?

@@ -305,9 +305,13 @@ Key behaviors:
 
 All of this is transparent to consumers. The same `AddDispatch()`, `AddSaga()`, and `AddProjection()` DI entry points work identically under both JIT and AOT.
 
-### CI Enforcement
+### How this is kept true
 
-The AOT validation CI gate (`aot-validation.yml`) runs on every push and pull request. It publishes the AOT sample with `PublishAot=true` and fails the build if any new IL2XXX/IL3XXX warnings are introduced. A baseline file (`eng/ci/aot-warning-baseline.json`) tracks known false-positives from third-party dependencies that cannot be resolved upstream.
+Every change to the framework is published ahead-of-time with `PublishAot=true` and rejected if it
+introduces a new IL2XXX or IL3XXX trim or AOT warning. The only warnings tolerated are a fixed,
+recorded set originating in third-party dependencies we cannot change; nothing new joins that set
+silently. **So the AOT compatibility described on this page is enforced on every change, not asserted
+once.**
 
 ---
 

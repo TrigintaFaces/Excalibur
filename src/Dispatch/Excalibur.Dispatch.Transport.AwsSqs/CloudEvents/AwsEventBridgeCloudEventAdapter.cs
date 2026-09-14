@@ -20,9 +20,9 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
-/// AWS EventBridge implementation of <see cref="ICloudEventMapper{TTransportMessage}" />.
+/// AWS EventBridge implementation of <see cref="ICloudEventEncoder{TOutbound}" />.
 /// </summary>
-internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEventsRequestEntry>
+internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventEncoder<PutEventsRequestEntry>
 {
 	private const string SpecVersionProperty = "specversion";
 	private const string TypeProperty = "type";
@@ -61,39 +61,6 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 
 	/// <inheritdoc />
 	public CloudEventOptions Options { get; }
-
-	/// <inheritdoc />
-	public static ValueTask<CloudEventMode?> TryDetectMode(
-		PutEventsRequestEntry transportMessage,
-		CancellationToken cancellationToken)
-	{
-		ArgumentNullException.ThrowIfNull(transportMessage);
-		cancellationToken.ThrowIfCancellationRequested();
-
-		if (string.IsNullOrWhiteSpace(transportMessage.Detail))
-		{
-			return ValueTask.FromResult<CloudEventMode?>(CloudEventMode.Binary);
-		}
-
-		try
-		{
-			using var document = JsonDocument.Parse(transportMessage.Detail);
-			var root = document.RootElement;
-			if (root.TryGetProperty(SpecVersionProperty, out _) &&
-				root.TryGetProperty(TypeProperty, out _) &&
-				root.TryGetProperty(IdProperty, out _))
-			{
-				return ValueTask.FromResult<CloudEventMode?>(CloudEventMode.Structured);
-			}
-		}
-		catch (JsonException)
-		{
-			// Treat invalid JSON as binary payload
-			return ValueTask.FromResult<CloudEventMode?>(CloudEventMode.Binary);
-		}
-
-		return ValueTask.FromResult<CloudEventMode?>(CloudEventMode.Binary);
-	}
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("CloudEvent serialization may require unreferenced types for reflection-based operations")]
@@ -136,37 +103,6 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 		return Task.FromResult(entry);
 	}
 
-	/// <inheritdoc />
-	public async Task<CloudEvent> FromTransportMessageAsync(
-		PutEventsRequestEntry transportMessage,
-		CancellationToken cancellationToken)
-	{
-		ArgumentNullException.ThrowIfNull(transportMessage);
-		cancellationToken.ThrowIfCancellationRequested();
-
-		var mode = await TryDetectMode(transportMessage, cancellationToken).ConfigureAwait(false)
-				   ?? CloudEventMode.Structured;
-
-		var cloudEvent = mode switch
-		{
-			CloudEventMode.Structured => ParseStructuredDetail(transportMessage),
-			CloudEventMode.Binary => ParseBinaryDetail(transportMessage),
-			_ => throw new NotSupportedException($"CloudEvent mode '{mode}' is not supported for EventBridge."),
-		};
-
-		if (transportMessage.Resources is { Count: > 0 } && string.IsNullOrWhiteSpace(cloudEvent.Subject))
-		{
-			cloudEvent.Subject = transportMessage.Resources[0];
-		}
-
-		_logger.LogDebug(
-			"Converted EventBridge request entry to CloudEvent {EventId} using {Mode} mode",
-			cloudEvent.Id,
-			mode);
-
-		return cloudEvent;
-	}
-
 	/// <summary>
 	/// Convenience API to create an EventBridge request entry for a specific event bus.
 	/// </summary>
@@ -186,27 +122,6 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 		var entry = await ToTransportMessageAsync(cloudEvent, Options.DefaultMode, cancellationToken).ConfigureAwait(false);
 		entry.EventBusName = eventBusName;
 		return entry;
-	}
-
-	/// <summary>
-	/// Convenience API to map a transport entry back to a CloudEvent, returning <c> null </c> on failure.
-	/// </summary>
-	/// <param name="eventBridgeEvent"> </param>
-	/// <param name="cancellationToken"> </param>
-	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	public async Task<CloudEvent?> FromEventBridgeEventAsync(
-		PutEventsRequestEntry eventBridgeEvent,
-		CancellationToken cancellationToken)
-	{
-		try
-		{
-			return await FromTransportMessageAsync(eventBridgeEvent, cancellationToken).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Failed to convert EventBridge request entry to CloudEvent");
-			return null;
-		}
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
@@ -260,138 +175,6 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 
 		return payload;
 	}
-
-	private static Uri? TryParseUri(JsonElement root, string propertyName)
-	{
-		if (root.TryGetProperty(propertyName, out var valueElement) &&
-			Uri.TryCreate(valueElement.GetString(), UriKind.RelativeOrAbsolute, out var uri))
-		{
-			return uri;
-		}
-
-		return null;
-	}
-
-	private static Uri? TryParseUri(string? value, Uri fallback) =>
-		Uri.TryCreate(value, UriKind.RelativeOrAbsolute, out var uri) ? uri : fallback;
-
-	private CloudEvent ParseStructuredDetail(PutEventsRequestEntry entry)
-	{
-		if (string.IsNullOrWhiteSpace(entry.Detail))
-		{
-			return CreateDefaultCloudEvent(entry);
-		}
-
-		using var document = JsonDocument.Parse(entry.Detail);
-		var root = document.RootElement;
-
-		var cloudEvent = new CloudEvent
-		{
-			Source = TryParseUri(root, SourceProperty) ?? TryParseUri(entry.Source, Options.DefaultSource),
-			Type = root.TryGetProperty(TypeProperty, out var typeElement)
-				? typeElement.GetString() ?? entry.DetailType
-				: entry.DetailType,
-			Id = root.TryGetProperty(IdProperty, out var idElement)
-				? idElement.GetString() ?? Guid.NewGuid().ToString()
-				: Guid.NewGuid().ToString(),
-			Time = root.TryGetProperty(TimeProperty, out var timeElement) &&
-				   DateTimeOffset.TryParse(timeElement.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp)
-				? timestamp
-				: DateTimeOffset.UtcNow,
-		};
-
-		if (root.TryGetProperty(SubjectProperty, out var subjectElement))
-		{
-			cloudEvent.Subject = subjectElement.GetString();
-		}
-
-		if (root.TryGetProperty(DataContentTypeProperty, out var contentTypeElement))
-		{
-			cloudEvent.DataContentType = contentTypeElement.GetString();
-		}
-
-		if (root.TryGetProperty(DataSchemaProperty, out var schemaElement) &&
-			Uri.TryCreate(schemaElement.GetString(), UriKind.RelativeOrAbsolute, out var schemaUri))
-		{
-			cloudEvent.DataSchema = schemaUri;
-		}
-
-		if (root.TryGetProperty(DataProperty, out var dataElement))
-		{
-			cloudEvent.Data = dataElement.ValueKind switch
-			{
-				JsonValueKind.String => dataElement.GetString(),
-				_ => dataElement.GetRawText(),
-			};
-		}
-
-		if (root.TryGetProperty(TimeoutProperty, out var timeoutElement))
-		{
-			cloudEvent[TimeoutProperty] = timeoutElement.GetString();
-		}
-
-		if (root.TryGetProperty(TraceParentProperty, out var traceParentElement))
-		{
-			cloudEvent[TraceParentProperty] = traceParentElement.GetString();
-		}
-
-		// Restore custom extension attributes written on send (IncludeExtensionsInDetail), so the
-		// dispatch envelope's context survives the EventBridge round-trip rather than being dropped.
-		foreach (var property in root.EnumerateObject())
-		{
-			if (KnownDetailProperties.Contains(property.Name) ||
-				Options.ExcludedExtensions.Contains(property.Name) ||
-				property.Value.ValueKind == JsonValueKind.Null)
-			{
-				continue;
-			}
-
-			// Preserve the attribute's on-the-wire type so a non-string extension (int/bool) survives the
-			// round-trip rather than being silently dropped — honouring the lossless-round-trip contract.
-			cloudEvent[property.Name] = ConvertExtensionAttributeValue(property.Value);
-		}
-
-		return cloudEvent;
-	}
-
-	// Maps a JSON detail value back to the CLR type the CloudEvents attribute model accepts (String,
-	// Boolean, Integer). CloudEvent attributes have no Double/Int64/object types, so a fractional/large
-	// number or a structured value is preserved in its canonical JSON text form (lossless, still typed
-	// on the next send as a string attribute).
-	private static object ConvertExtensionAttributeValue(JsonElement value) => value.ValueKind switch
-	{
-		JsonValueKind.String => value.GetString()!,
-		JsonValueKind.True or JsonValueKind.False => value.GetBoolean(),
-		JsonValueKind.Number when value.TryGetInt32(out var intValue) => intValue,
-		_ => value.GetRawText(),
-	};
-
-	// CloudEvent core/context attributes handled explicitly above; every other detail property is treated
-	// as a restorable custom extension attribute on read.
-	private static readonly HashSet<string> KnownDetailProperties = new(StringComparer.Ordinal)
-	{
-		SpecVersionProperty, TypeProperty, SourceProperty, IdProperty, TimeProperty, SubjectProperty,
-		DataContentTypeProperty, DataSchemaProperty, DataProperty, TimeoutProperty, TraceParentProperty,
-	};
-
-	private CloudEvent ParseBinaryDetail(PutEventsRequestEntry entry)
-	{
-		var cloudEvent = CreateDefaultCloudEvent(entry);
-		if (!string.IsNullOrWhiteSpace(entry.Detail))
-		{
-			cloudEvent.Data = entry.Detail;
-		}
-
-		return cloudEvent;
-	}
-
-	private CloudEvent CreateDefaultCloudEvent(PutEventsRequestEntry entry) => new()
-	{
-		Source = TryParseUri(entry.Source, Options.DefaultSource) ?? Options.DefaultSource,
-		Type = entry.DetailType ?? "aws.eventbridge.event",
-		Id = Guid.NewGuid().ToString(),
-		Time = DateTimeOffset.UtcNow,
-	};
 
 	private static class JsonSerializerOptionsProvider
 	{

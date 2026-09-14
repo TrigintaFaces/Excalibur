@@ -52,16 +52,23 @@ public sealed class LayeringTests
         // targets are already permitted by the EndsWith(".Abstractions") check below.
         var allowedConcrete = new HashSet<string>(StringComparer.Ordinal) { "Excalibur.Domain" };
 
-        // Two abstraction packages hold a VERIFIED, pre-existing dependency-inversion violation — a real
-        // ProjectReference to the concrete Excalibur.Dispatch core — masked until now by the former vacuous
-        // namespace guard. Fixing it needs investigation (removable ref vs a core type that must move into
-        // Dispatch.Abstractions) and is out of this guard's scope. Pair-level exemption keeps full teeth: any
-        // OTHER abstraction->implementation reference — including a new one from these two packages to a
-        // different concrete — still fails.
+        // One abstraction package still holds a VERIFIED, pre-existing dependency-inversion violation — a
+        // real ProjectReference to the concrete Excalibur.Dispatch core — masked until now by the former
+        // vacuous namespace guard. Excalibur.Dispatch.Hosting.Serverless.Abstractions was fixed (0aofrb):
+        // its only concrete dependency was WellKnownHeaderNames, a pure string-constants type with no
+        // further dependencies, moved into Excalibur.Dispatch.Abstractions/Messaging/. Transport.Abstractions
+        // remains exempted: its concrete dependency is NOT a trivial single type -- MessageContext itself
+        // was successfully relocated (0aofrb), but Transport.Abstractions' CloudEvents/ and
+        // Infrastructure/Channels/ folders additionally depend on concrete-only CloudEvents mapper types
+        // (ICloudEventEncoderAdapter, CloudEventOptions) and channel message pump types
+        // (ChannelMessagePumpOptions/Status/Metrics), plus the third-party CloudNative.CloudEvents package
+        // currently reached only transitively. Untangling that cluster is a SoftwareArchitect-owned design
+        // decision, not a mechanical move. Pair-level exemption keeps full teeth: any OTHER
+        // abstraction->implementation reference — including a new one from this package to a different
+        // concrete — still fails.
         var trackedViolations = new HashSet<string>(StringComparer.Ordinal)
         {
-            "Excalibur.Dispatch.Transport.Abstractions -> Excalibur.Dispatch",          // tracked: 0aofrb
-            "Excalibur.Dispatch.Hosting.Serverless.Abstractions -> Excalibur.Dispatch", // tracked: 0aofrb
+            "Excalibur.Dispatch.Transport.Abstractions -> Excalibur.Dispatch", // tracked: 0aofrb
         };
 
         var abstractionAssemblies = LoadedExcaliburAssemblies()

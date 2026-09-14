@@ -65,7 +65,6 @@ public sealed class ConfigurationOptionsShould
 		// Assert
 		options.EnableCorrelation.ShouldBeTrue();
 		options.EnableMetrics.ShouldBeTrue();
-		options.EnableStructuredLogging.ShouldBeTrue();
 		options.ValidateMessageSchemas.ShouldBeTrue();
 		options.EnableMultiTenancy.ShouldBeFalse();
 		options.EnableVersioning.ShouldBeTrue();
@@ -81,7 +80,6 @@ public sealed class ConfigurationOptionsShould
 		{
 			EnableCorrelation = false,
 			EnableMetrics = false,
-			EnableStructuredLogging = false,
 			ValidateMessageSchemas = false,
 			EnableMultiTenancy = true,
 			EnableVersioning = false,
@@ -92,7 +90,6 @@ public sealed class ConfigurationOptionsShould
 		// Assert
 		options.EnableCorrelation.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeFalse();
-		options.EnableStructuredLogging.ShouldBeFalse();
 		options.ValidateMessageSchemas.ShouldBeFalse();
 		options.EnableMultiTenancy.ShouldBeTrue();
 		options.EnableVersioning.ShouldBeFalse();
@@ -224,6 +221,6 @@ public sealed class ConfigurationOptionsShould
 		options.AutoFreezeOnStart.ShouldBeFalse();
 	}
 
-	// --- ResilienceOptions (Configuration) ---
+
 
 }

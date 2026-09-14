@@ -23,7 +23,7 @@ namespace Excalibur.Outbox.Postgres;
 [NoTenantTerm(
 	TenantConfinement.IdentityAddressed,
 	"the post-claim mutation path: the drain has already claimed this row cross-tenant and reschedules it by its globally-unique message id. This store holds no tenant context to filter by - an outbox store reads no ambient tenant context and accepts a tenant only as an explicit argument - so the statement carries no tenant term, and a caller that supplies a message id it did not obtain from a claim reaches the row behind it. Isolation on this table is established where the row is written, by stamping tenant_id")]
-internal sealed class SetOutboxMessageBackoff : DataRequest<int>
+internal sealed class SetOutboxMessageBackoff : DataRequest<ClaimMutationResult>
 {
 
 	/// <summary>
@@ -41,9 +41,14 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<int>
 	/// NULL</c> IS the failed-state signal, so a backoff write that omits it schedules the retry correctly
 	/// but leaves the failure invisible to the failed-message queries and statistics.
 	/// </param>
-	/// <param name="dispatcherId">
-	/// The identifier of the dispatcher reporting the failure. The update applies only when the message is
-	/// unreserved or reserved by this same dispatcher, so a caller can never clear a reservation it does not hold.
+	/// <param name="claimIdentity">
+	/// The claim under which the caller received this message, or <see langword="null"/> when the caller
+	/// holds no claim. Supplying it adds an EXACT ownership term; omitting it produces a statement
+	/// without one.
+	/// </param>
+	/// <param name="processIdentityPrefix">
+	/// The PROCESS half of this store's own claim identity, with its separator, presented when the caller
+	/// holds no claim. Refuses a report from every OTHER process; concedes two cycles of this one.
 	/// </param>
 	/// <param name="floorSeconds">
 	/// The failure-anchored visibility floor F, in seconds, evaluated against the server clock so a skewed
@@ -61,7 +66,8 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<int>
 		string messageId,
 		DateTimeOffset nextAttemptAt,
 		string errorMessage,
-		string dispatcherId,
+		string? claimIdentity,
+		string? processIdentityPrefix,
 		int floorSeconds,
 		string outboxTableName,
 		int sqlTimeOutSeconds,
@@ -98,19 +104,41 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<int>
 		// while recording no failure at all -- and because the processor PREFERS this path wherever the store
 		// advertises the backoff capability, an operator asking why a message had not arrived saw nothing until
 		// it dead-lettered.
+		// Same two-statement construction as SetOutboxMessageFailed: the ownership term is ABSENT from the
+		// base statement rather than made satisfiable-by-absence. See that file for why an optional term
+		// is the removed IS NULL arm under a new name.
+		// Two grains, never nothing -- see SetOutboxMessageFailed for the full reasoning. The IS NULL arm
+		// is load-bearing: left(NULL, n) = @Prefix is NULL rather than true, so without it a message that
+		// was never claimed could not be backed off at all.
+		var ownership = claimIdentity is not null
+			? " AND dispatcher_id = @DispatcherId"
+			: processIdentityPrefix is { Length: > 0 }
+				? " AND (dispatcher_id IS NULL OR left(dispatcher_id, @ProcessPrefixLength) = @ProcessPrefix)"
+				: string.Empty;
+
 		var sql = $"""
-		   UPDATE {outboxTableName}
+		   WITH upd AS (
+		       UPDATE {outboxTableName}
 		           SET attempts = attempts + 1,
 		               error_message = @ErrorMessage,
 		               next_attempt_at = now() + GREATEST(make_interval(secs => @NextAttemptDelaySeconds), make_interval(secs => @FloorSeconds)),
 		               dispatcher_id = NULL,
 		               dispatcher_timeout = NULL
-		           WHERE message_id = @MessageId
-		             AND (dispatcher_id IS NULL OR dispatcher_id = @DispatcherId);
+		           WHERE message_id = @MessageId{ownership}
+		       RETURNING message_id
+		   )
+		   SELECT (SELECT COUNT(*) FROM upd)::int AS UpdatedCount,
+		          EXISTS (SELECT 1 FROM {outboxTableName} WHERE message_id = @MessageId) AS RowExists;
 		   """;
 
 		var parameters = new DynamicParameters();
 		parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
+
+		if (claimIdentity is null && processIdentityPrefix is { Length: > 0 })
+		{
+			parameters.Add("ProcessPrefix", processIdentityPrefix, direction: ParameterDirection.Input);
+			parameters.Add("ProcessPrefixLength", processIdentityPrefix.Length, direction: ParameterDirection.Input);
+		}
 		parameters.Add("ErrorMessage", errorMessage, direction: ParameterDirection.Input);
 		// The caller's schedule travels as a DELAY in seconds rather than as an instant, so the statement can
 		// re-anchor it on the server clock (see the note above). A schedule that has already elapsed yields a
@@ -121,10 +149,13 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<int>
 			"NextAttemptDelaySeconds",
 			(nextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds,
 			direction: ParameterDirection.Input);
-		parameters.Add("DispatcherId", dispatcherId, direction: ParameterDirection.Input);
+		if (claimIdentity is not null)
+		{
+			parameters.Add("DispatcherId", claimIdentity, direction: ParameterDirection.Input);
+		}
 		parameters.Add("FloorSeconds", (double)floorSeconds, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await conn.QuerySingleAsync<ClaimMutationResult>(Command).ConfigureAwait(false);
 	}
 }

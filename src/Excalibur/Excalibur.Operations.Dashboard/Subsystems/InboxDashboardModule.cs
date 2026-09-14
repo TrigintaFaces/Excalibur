@@ -53,12 +53,12 @@ internal sealed class InboxDashboardModule : IDashboardEndpointModule
 	{
 		ArgumentNullException.ThrowIfNull(group);
 
-		group.MapGet("/inbox", static async (IInboxStoreAdmin? admin, CancellationToken ct) =>
+		group.MapGet("/inbox", static async (IInboxStoreAdmin? admin, TimeProvider timeProvider, CancellationToken ct) =>
 		{
 			if (admin is null)
 			{
 				return Results.Json(
-					new InboxView { Configured = false, CapturedAt = DateTimeOffset.UtcNow },
+					new InboxView { Configured = false, CapturedAt = timeProvider.GetUtcNow() },
 					InboxJsonContext.Default.InboxView);
 			}
 
@@ -70,7 +70,7 @@ internal sealed class InboxDashboardModule : IDashboardEndpointModule
 				Processed = stats.ProcessedEntries,
 				Failed = stats.FailedEntries,
 				Pending = stats.PendingEntries,
-				CapturedAt = DateTimeOffset.UtcNow,
+				CapturedAt = timeProvider.GetUtcNow(),
 			};
 			return Results.Json(view, InboxJsonContext.Default.InboxView);
 		});

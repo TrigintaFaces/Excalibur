@@ -69,10 +69,8 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="AwsS3ClaimCheckOptions"/>.</param>
 	/// <param name="claimCheckConfiguration">Optional configuration section for core <see cref="ClaimCheckOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static IServiceCollection AddAwsS3ClaimCheck(
 		this IServiceCollection services,
 		IConfiguration configuration,

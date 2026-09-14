@@ -14,12 +14,21 @@ using Excalibur.EventSourcing.Observability;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Excalibur.Data;
 
 namespace Excalibur.EventSourcing.CosmosDb;
 
 /// <summary>
 /// Azure Cosmos DB implementation of the cloud-native event store.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+	"Maintainability",
+	"CA1506:Avoid excessive class coupling",
+	Justification = "This store already sat at the coupling limit; CloudAppendResult.CreateFailure gaining a "
+		+ "required MessageFailureKind parameter put it one type over. "
+		+ "The type is unavoidable -- every append-failure path in this class must now supply it, there is no "
+		+ "discretionary usage to remove. Refactoring the coupling itself is a separate concern from reporting "
+		+ "the classification a failed append already has to report.")]
 public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudNativeProviderInfo,
 	ICloudNativeEventStoreChangeFeed, ICloudNativeEventStoreInfo, IEventStore, IAsyncDisposable
 {
@@ -103,6 +112,27 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		_payloadWriter = new CosmosDbEventPayloadWriter(_options.Value.EventTypeInfoResolver);
 	}
 
+	/// <summary>
+	/// Classifies an append fault by its Cosmos status code: known throttling/availability statuses are
+	/// transient, everything else is treated as permanent.
+	/// </summary>
+	/// <remarks>
+	/// Does NOT take a constructor-injected <see cref="IMessageFailureClassifier"/> the way the CDC
+	/// processors do: this class already sits at the CA1506 class-coupling ceiling (tracked separately), so a new constructor dependency here trades one
+	/// finding for another rather than fixing anything. Cosmos exceptions always carry a status code, which
+	/// is a complete enough signal on its own -- unlike a generic exception TYPE, a status code the provider
+	/// itself assigned is not an "unrecognised" case needing a second opinion.
+	/// </remarks>
+	private static MessageFailureKind ClassifyAppendFailure(HttpStatusCode? statusCode) =>
+		IsTransientStatusCode(statusCode) ? MessageFailureKind.Transient : MessageFailureKind.Permanent;
+
+	private static bool IsTransientStatusCode(HttpStatusCode? statusCode) =>
+		statusCode is HttpStatusCode.RequestTimeout
+			or HttpStatusCode.TooManyRequests
+			or HttpStatusCode.InternalServerError
+			or HttpStatusCode.ServiceUnavailable
+			or HttpStatusCode.GatewayTimeout;
+
 	/// <inheritdoc/>
 	public CloudPersistenceProviderType CloudProvider => CloudPersistenceProviderType.CosmosDb;
 
@@ -111,22 +141,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 
-		if (serviceType == typeof(ICloudNativeProviderInfo))
-		{
-			return this;
-		}
-
-		if (serviceType == typeof(ICloudNativeEventStoreChangeFeed))
-		{
-			return this;
-		}
-
-		if (serviceType == typeof(ICloudNativeEventStoreInfo))
-		{
-			return this;
-		}
-
-		return null;
+		return serviceType.IsInstanceOfType(this) ? this : null;
 	}
 
 	/// <inheritdoc/>
@@ -422,7 +437,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			// conflicts are already returned above; every other fault returns a failure the caller handles
 			// uniformly across providers.
 			var requestCharge = ex is CosmosException cosmosEx ? cosmosEx.RequestCharge : 0d;
-			return CloudAppendResult.CreateFailure(ex.Message, requestCharge);
+			return CloudAppendResult.CreateFailure(ex.Message, requestCharge, ClassifyAppendFailure(ex.StatusCode));
 		}
 		finally
 		{
@@ -625,21 +640,19 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	/// </para>
 	/// </remarks>
 	private string BuildStreamId(string aggregateType, string aggregateId) =>
-		$"{TenantKeyPrefix}{TenantScope.FromContext(_tenantContext).TenantId}:{aggregateType}:{aggregateId}";
+		TenantScopedKey.Compose(
+			TenantScope.FromContext(_tenantContext).TenantId, aggregateType, aggregateId);
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
+		// Delegates to IDomainEvent.CorrelationId (checks OutboxHeaderNames.CorrelationId, the
+		// framework declared key, then the legacy PascalCase/camelCase spellings) rather than
+		// re-implementing the key-priority chain here.
 		foreach (var @event in events)
 		{
-			if (@event.Metadata == null)
+			if (@event.CorrelationId is { } correlationId)
 			{
-				continue;
-			}
-
-			if (@event.Metadata.TryGetValue("CorrelationId", out var correlationId) ||
-				@event.Metadata.TryGetValue("correlationId", out correlationId))
-			{
-				return correlationId?.ToString();
+				return correlationId;
 			}
 		}
 
@@ -945,7 +958,8 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 		return CloudAppendResult.CreateFailure(
 			$"Transactional batch failed with status {response.StatusCode}",
-			requestCharge);
+			requestCharge,
+			ClassifyAppendFailure(response.StatusCode));
 	}
 
 	/// <summary>Reports whether a batch response carries a conflict, at the batch or at any operation.</summary>

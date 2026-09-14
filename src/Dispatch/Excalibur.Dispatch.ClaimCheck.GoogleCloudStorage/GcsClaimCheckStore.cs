@@ -195,12 +195,19 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 
 		try
 		{
-			// KNOWN GAP, tracked separately: this returns true whether or not an object was there. The
-			// contract defines the result as an observation, and Cloud Storage's delete is idempotent and
-			// silent, so answering it needs an existence check the storage seam does not currently expose.
-			// The sibling S3 store was fixed by asking for object metadata first; doing the same here means
-			// widening IStorageClientSeam, and this provider has no conformance deriver to verify the
-			// change against -- so it is left visible rather than changed blind.
+			// Cloud Storage's delete is idempotent and silent -- it succeeds identically for an object
+			// that was never there -- so the delete itself cannot answer whether one existed. The contract
+			// defines the return value as exactly that observation, so it has to be taken before deleting.
+			// The catch below cannot serve: a missing object raises nothing to catch.
+			//
+			// This is an observation, not a claim about exclusivity: two callers deleting the same object
+			// concurrently can both observe it present and both report true. The contract asks what this
+			// caller saw, not who won; the sibling S3 store has the same shape for the same reason.
+			var existed = await _storageClient.ObjectExistsAsync(
+				_options.BucketName,
+				objectName,
+				cancellationToken).ConfigureAwait(false);
+
 			await _storageClient.DeleteObjectAsync(
 				_options.BucketName,
 				objectName,
@@ -208,7 +215,7 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 
 			LogDeletedClaimCheck(reference.Id);
 
-			return true;
+			return existed;
 		}
 		catch (Google.GoogleApiException)
 		{

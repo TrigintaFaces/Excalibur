@@ -205,7 +205,7 @@ public sealed partial class Soc2PdfExportOptionsShould
 		{
 			Criterion = criterion,
 			Description = description,
-			IsMet = true,
+			Outcome = CriterionOutcome.Met,
 			Controls =
 			[
 				new ControlDescription

@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.SqlServer
 
-Experience metapackage that bundles Excalibur.Dispatch with SQL Server event sourcing, outbox, and hosting for a single-package setup.
+Experience metapackage that bundles Excalibur.Dispatch with SQL Server event sourcing and outbox for a single-package setup.
 
 ## Quick Start
 
@@ -12,10 +12,10 @@ services.AddExcalibur(excalibur => excalibur
     .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString("Server=..."))));
 ```
 
-This registers: Dispatch core, SQL Server event store, snapshot store, outbox, and web hosting.
+This registers: Dispatch core, SQL Server event store, snapshot store, and outbox.
 
 ## Included Packages
 
 - `Excalibur.Dispatch`
 - `Excalibur.EventSourcing.SqlServer`
-- `Excalibur.Dispatch.Hosting.Web`
+- `Excalibur.Outbox.SqlServer`

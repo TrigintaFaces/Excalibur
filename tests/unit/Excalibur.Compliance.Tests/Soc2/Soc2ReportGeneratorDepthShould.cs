@@ -172,8 +172,55 @@ public sealed class Soc2ReportGeneratorDepthShould
 			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
 
 		report.Exceptions.ShouldNotBeEmpty();
-		report.Exceptions[0].ControlId.ShouldBe("N/A");
-		report.Exceptions[0].Description.ShouldContain("not suitably designed");
+
+		// This used to assert ControlId "N/A" and "controls not suitably designed" -- a DESIGN
+		// judgement, passed on a control that WAS assessed, naming nothing an auditor could act on.
+		// The finding now names the control and repeats the issue its validator reported.
+		report.Exceptions[0].ControlId.ShouldBe("SEC-001");
+		report.Exceptions[0].Description.ShouldContain("Failed");
+	}
+
+	[Fact]
+	public async Task Never_report_a_criterion_as_not_met_without_saying_which_control_failed()
+	{
+		// The invariant, not an example. A criterion is NotMet because specific controls failed, so a
+		// NotMet section that carries no finding tells an assessor the consumer failed something and
+		// refuses to say what. Both directions of this have shipped: the verdict was first forced into
+		// TestResult.Outcome, which made every control an exception, and then reported honestly as
+		// not-tested, which filtered every finding back out and left the section silent.
+		//
+		// Scored 30 with IsEffective false and NO ConfigurationIssues, so the finding cannot be
+		// borrowed from issue text -- the generator has to derive it from the verdict itself.
+		var failingResult = new ControlValidationResult
+		{
+			ControlId = "SEC-007",
+			IsConfigured = true,
+			IsEffective = false,
+			EffectivenessScore = 30,
+			ConfigurationIssues = []
+		};
+		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
+			.Returns(new List<string> { "SEC-007" });
+		A.CallTo(() => _controlValidation.ValidateCriterionAsync(A<TrustServicesCriterion>._, A<CancellationToken>._))
+			.Returns(new List<ControlValidationResult> { failingResult });
+
+		var report = await CreateGenerator().GenerateTypeIReportAsync(
+			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
+
+		var notMet = report.ControlSections.Where(s => s.Outcome == CriterionOutcome.NotMet).ToList();
+		notMet.ShouldNotBeEmpty("the fixture makes at least one criterion fail, or this arm proves nothing.");
+
+		foreach (var section in notMet)
+		{
+			// Must NAME THE CONTROL. Asserting merely that some finding exists for the criterion is
+			// satisfied by the generic "controls not suitably designed" entry carrying ControlId "N/A",
+			// which is the very thing being replaced -- an arm written that way passes with and without
+			// the fix, as this one did until it was checked against the unfixed generator.
+			report.Exceptions.ShouldContain(
+				e => e.Criterion == section.Criterion && e.ControlId == "SEC-007",
+				$"criterion {section.Criterion} is reported NotMet but no finding names the control that "
+				+ "failed, so the report accuses the consumer of a failure it will not identify.");
+		}
 	}
 
 	[Fact]
@@ -351,7 +398,7 @@ public sealed class Soc2ReportGeneratorDepthShould
 	}
 
 	[Fact]
-	public async Task Section_is_not_met_when_no_validation_results()
+	public async Task Section_is_not_assessed_rather_than_not_met_when_no_validator_is_registered()
 	{
 		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
 			.Returns(new List<string>());
@@ -363,8 +410,13 @@ public sealed class Soc2ReportGeneratorDepthShould
 		var report = await sut.GenerateTypeIReportAsync(
 			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
 
-		// When no validation results, sections are not met → NonCompliant → Adverse opinion
-		report.Opinion.ShouldBe(AuditorOpinion.Adverse);
+		// This arm asserted AuditorOpinion.Adverse, and its comment stated the reasoning as the
+		// intent: "sections are not met -> NonCompliant -> Adverse opinion". That is the worst verdict
+		// an auditor can render, handed to a consumer whose only omission was not registering a
+		// validator -- on evidence nobody gathered. Validators are opt-in, so that is the ordinary
+		// case, not an error path.
+		report.ControlSections.ShouldAllBe(x => x.Outcome == CriterionOutcome.NotAssessed);
+		report.Opinion.ShouldNotBe(AuditorOpinion.Adverse);
 	}
 
 	[Fact]

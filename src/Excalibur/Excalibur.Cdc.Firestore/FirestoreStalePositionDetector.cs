@@ -137,8 +137,6 @@ public static class FirestoreStalePositionDetector
 	/// <param name="collectionPath">The affected collection path, if known.</param>
 	/// <param name="documentId">The affected document ID, if known.</param>
 	/// <returns>A populated <see cref="CdcPositionResetEventArgs"/> instance.</returns>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static CdcPositionResetEventArgs CreateEventArgs(
 		Exception exception,
 		string processorId,

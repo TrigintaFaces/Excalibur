@@ -29,6 +29,8 @@ public static class SagaBuilderOracleExtensions
 	/// <param name="builder">The saga builder.</param>
 	/// <param name="configure">Action to configure the Oracle saga builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static ISagaBuilder UseOracle(
 		this ISagaBuilder builder,
 		Action<IOracleSagaBuilder> configure)
@@ -78,10 +80,8 @@ public static class SagaBuilderOracleExtensions
 		};
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	private static void RegisterOptionsAndServices(
 		ISagaBuilder builder,
 		OracleSagaBuilder oracleBuilder,

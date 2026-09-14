@@ -13,6 +13,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -171,9 +173,16 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 				"Azure Event Hubs requires either a ConnectionString or FullyQualifiedNamespace with managed identity, and an EventHubName.");
 		});
 
+		// The bus depends on the framework-owned send seam, never on the SDK class. The adapter is a
+		// keyed singleton beside the client so both share the client's lifetime, and a host that
+		// substitutes the seam replaces one registration rather than intercepting a vendor type.
+		services.TryAddKeyedSingleton<IEventHubProducer>(
+			name,
+			(sp, key) => new EventHubProducerAdapter(sp.GetRequiredKeyedService<EventHubProducerClient>(key)));
+
 		services.TryAddKeyedSingleton<AzureEventHubMessageBus>(name, (sp, key) =>
 		{
-			var producer = sp.GetRequiredKeyedService<EventHubProducerClient>(key);
+			var producer = sp.GetRequiredKeyedService<IEventHubProducer>(key);
 			var serializer = sp.GetRequiredService<IPayloadSerializer>();
 			var logger = sp.GetRequiredService<ILogger<AzureEventHubMessageBus>>();
 
@@ -184,6 +193,7 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 		// first-registered named transport wins -- a multi-transport host must resolve the keyed
 		// client/bus by name instead.
 		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<EventHubProducerClient>(name));
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<IEventHubProducer>(name));
 		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<AzureEventHubMessageBus>(name));
 	}
 

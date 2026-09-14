@@ -215,10 +215,19 @@ public static class CdcBuilderFirestoreExtensions
 			var emulatorHost = firestoreBuilder.EmulatorHostValue;
 			var projectId = firestoreBuilder.ProjectIdValue ?? "test-project";
 			services.TryAddSingleton(_ =>
-			{
-				System.Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", emulatorHost);
-				return Google.Cloud.Firestore.FirestoreDb.Create(projectId);
-			});
+
+				// Endpoint and EmulatorDetection.EmulatorOnly are mutually exclusive: setting both
+				// throws "Endpoint is set, contrary to use of EmulatorDetection.EmulatorOnly". An
+				// explicit endpoint with insecure credentials reaches the emulator per-instance,
+				// without the process-wide FIRESTORE_EMULATOR_HOST variable that is first-write-wins --
+				// a second feature configured for a different emulator silently talks to the first
+				// one's, and keeps doing so after that endpoint is gone.
+				new Google.Cloud.Firestore.FirestoreDbBuilder
+				{
+					ProjectId = projectId,
+					Endpoint = emulatorHost,
+					ChannelCredentials = Grpc.Core.ChannelCredentials.Insecure,
+				}.Build());
 		}
 		else if (firestoreBuilder.ProjectIdValue is not null)
 		{

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 
 /// <summary>
 /// ssn7a3/z5g5lt — author≠impl fail-closed security lock (TestsDeveloper) for
-/// <see cref="PipelineValidationHostedService"/>. When a pipeline profile DECLARES the authorization stage
+/// <see cref="AuthorizationWiringPrerequisiteValidator"/>. When a pipeline profile DECLARES the authorization stage
 /// (its <c>MiddlewareTypes</c> contains <see cref="AuthorizationMiddleware"/>) but no
 /// <see cref="AuthorizationMiddleware"/> instance is resolvable in the pipeline, messages routed through
 /// that profile would silently bypass authorization — a fail-OPEN security gap. The startup guard MUST
@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 [Trait("Feature", "Authorization")]
-public sealed class PipelineValidationHostedServiceAuthorizationShould
+public sealed class AuthorizationWiringPrerequisiteValidatorAuthorizationShould
 {
 	[Fact]
 	public async Task FailClosed_WhenProfileDeclaresAuthorization_ButNoAuthorizationMiddlewareResolvable()
@@ -80,9 +80,6 @@ public sealed class PipelineValidationHostedServiceAuthorizationShould
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		// A non-auth middleware so the pipeline isn't empty (isolates the AUTH guard from the empty-pipeline
-		// check, which uses the same legacy GetServices<IDispatchMiddleware>() path).
-		_ = services.AddSingleton<IDispatchMiddleware>(A.Fake<IDispatchMiddleware>());
 		_ = services.AddDefaultDispatchPipelines(); // seeds the REAL registry (Strict declares auth); NO UseAuthorization().
 
 		using var provider = services.BuildServiceProvider();
@@ -94,7 +91,7 @@ public sealed class PipelineValidationHostedServiceAuthorizationShould
 		}
 	}
 
-	private static PipelineValidationHostedService CreateService(
+	private static AuthorizationWiringPrerequisiteValidator CreateService(
 		bool profileDeclaresAuthorization,
 		IReadOnlyList<IDispatchMiddleware> middlewares)
 	{
@@ -122,8 +119,7 @@ public sealed class PipelineValidationHostedServiceAuthorizationShould
 
 		_ = services.AddSingleton(registry);
 
-		return new PipelineValidationHostedService(
-			services.BuildServiceProvider(), NullLogger<PipelineValidationHostedService>.Instance);
+		return new AuthorizationWiringPrerequisiteValidator(services.BuildServiceProvider());
 	}
 
 	private static AuthorizationMiddleware CreateAuthorizationMiddleware() =>

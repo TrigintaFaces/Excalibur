@@ -3,7 +3,6 @@
 
 using Excalibur.A3.Authorization;
 using Excalibur.Domain;
-using Excalibur.Domain.Exceptions;
 
 namespace Excalibur.Tests.A3.Authorization;
 
@@ -20,41 +19,36 @@ public sealed class AuthorizationCacheKeyDepthShould : IDisposable
 	public void Dispose() => ApplicationContext.Reset();
 
 	[Fact]
-	public void ForGrants_ThrowsOnNullUserId()
-	{
-		Should.Throw<ArgumentException>(() =>
-			AuthorizationCacheKey.ForGrants(null!));
-	}
+	public void ForGrants_ThrowsOnNullUserId() =>
+		Should.Throw<ArgumentException>(() => AuthorizationCacheKey.ForGrants(null!));
 
 	[Fact]
-	public void ForGrants_ThrowsOnEmptyUserId()
-	{
-		Should.Throw<ArgumentException>(() =>
-			AuthorizationCacheKey.ForGrants(""));
-	}
+	public void ForGrants_ThrowsOnEmptyUserId() =>
+		Should.Throw<ArgumentException>(() => AuthorizationCacheKey.ForGrants(""));
 
 	[Fact]
-	public void ForGrants_ThrowsOnWhitespaceUserId()
-	{
-		Should.Throw<ArgumentException>(() =>
-			AuthorizationCacheKey.ForGrants("   "));
-	}
+	public void ForGrants_ThrowsOnWhitespaceUserId() =>
+		Should.Throw<ArgumentException>(() => AuthorizationCacheKey.ForGrants("   "));
 
 	[Fact]
-	public void ForGrants_ThrowsWhenBasePathNotConfigured()
+	public void ForGrants_SucceedsWithNoApplicationContext()
 	{
+		// Was ForGrants_ThrowsWhenBasePathNotConfigured. The context is reset in the constructor AND
+		// again here, so there is provably no ambient configuration to fall back on -- and the key is
+		// still produced. That inversion is the fix: a consumer who configured nothing beyond the
+		// documented surface can now read and invalidate grants instead of receiving
+		// InvalidConfigurationException from a key builder.
 		ApplicationContext.Reset();
 
-		Should.Throw<InvalidConfigurationException>(() =>
-			AuthorizationCacheKey.ForGrants("user-1"));
+		AuthorizationCacheKey.ForGrants("user-1").ShouldBe("authorization/user-1/grants");
 	}
 
 	[Fact]
-	public void ForActivityGroups_ThrowsWhenBasePathNotConfigured()
+	public void ForActivityGroups_SucceedsWithNoApplicationContext()
 	{
+		// Was ForActivityGroups_ThrowsWhenBasePathNotConfigured. Same inversion.
 		ApplicationContext.Reset();
 
-		Should.Throw<InvalidConfigurationException>(() =>
-			AuthorizationCacheKey.ForActivityGroups());
+		AuthorizationCacheKey.ForActivityGroups().ShouldBe("authorization/activity-groups");
 	}
 }

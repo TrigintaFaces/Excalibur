@@ -263,7 +263,7 @@ public sealed class TransportRoundTripE2EShould : FunctionalTestBase, IClassFixt
 			.ConfigureAwait(false);
 
 		// Assert: Local dispatch succeeded AND message received via transport
-		result.IsSuccess.ShouldBeTrue($"Local dispatch failed: {result.ErrorMessage}");
+		result.Succeeded.ShouldBeTrue($"Local dispatch failed: {result.ErrorMessage}");
 		TransportTestActionHandler.HandleCount.ShouldBe(1);
 
 		var transportReceived = await WaitForConditionAsync(

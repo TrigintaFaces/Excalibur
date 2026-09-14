@@ -134,6 +134,9 @@ public sealed class SqlServerPersistenceProviderConformanceShould : PersistenceP
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
+	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
+	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();
 	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 	[Fact] public void ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers_Test() => ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers();
 
@@ -173,6 +176,29 @@ public sealed class SqlServerPersistenceProviderConformanceShould : PersistenceP
 					CancellationToken.None).ConfigureAwait(false);
 				return await AnyRowsAsync(live).ConfigureAwait(false);
 			});
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// A fresh table per call, as the kit requires, so the commit half and the rollback half cannot
+	/// observe each other. Every request succeeds — this probe is about ENLISTMENT, not failure.
+	/// </remarks>
+	protected override async Task<(IReadOnlyList<IDataRequest<IDbConnection, object>> Requests, Func<Task<bool>> EffectVisibleAsync)?>
+		CreateScopedBatchProbeAsync(ISqlPersistenceProvider provider)
+	{
+		await provider.InitializeAsync(
+			new SqlServerPersistenceOptions { Name = provider.Name, ConnectionString = _fixture.ConnectionString },
+			CancellationToken.None).ConfigureAwait(false);
+
+		var table = "scoped_batch_" + Guid.NewGuid().ToString("N");
+		await ExecuteAsync($"CREATE TABLE [{table}] (id int primary key)").ConfigureAwait(false);
+
+		return (
+			[
+				new SqlProbeRequest($"INSERT INTO [{table}] (id) VALUES (1)"),
+				new SqlProbeRequest($"INSERT INTO [{table}] (id) VALUES (2)"),
+			],
+			() => AnyRowsAsync(table));
 	}
 
 	private async Task ExecuteAsync(string sql)

@@ -1,19 +1,26 @@
 #!/usr/bin/env bash
-# oracle-refusal-exit-code-gate — a shipped Oracle script that can REFUSE must exit non-zero when it does.
+# oracle-exit-code-gate — every shipped Oracle script must exit non-zero when a statement fails.
 #
-# The Oracle migration scripts signal a refusal with RAISE_APPLICATION_ERROR inside a PL/SQL block.
-# SQL*Plus returns exit 0 for that unless the script carries a WHENEVER SQLERROR EXIT FAILURE
-# directive, so an unattended runner records a DECLINED migration as applied and runs the next step
-# against a database that was never changed. A refusal that exits 0 is indistinguishable from
-# success. The Postgres siblings do not have this problem: they carry ON_ERROR_STOP.
+# SQL*Plus returns exit 0 for a failed statement unless the script carries a WHENEVER SQLERROR EXIT
+# FAILURE directive. Without it an unattended runner records a script that changed nothing as applied
+# and runs the next step against a database that was never changed. The Postgres siblings do not have
+# this problem: they carry ON_ERROR_STOP.
 #
-# The predicate is derived from the script itself — "contains a refusal" implies "must carry the
-# directive" — so a NEW script that raises and forgets the directive is detected without anyone
-# remembering to add it to a list.
+# THE REQUIREMENT IS EVERY SCRIPT, NOT ONLY THE ONES THAT CAN REFUSE. This gate once tested the
+# narrower predicate "contains a refusal implies carries the directive", and that predicate is why the
+# schema-creation scripts went unguarded: a script of plain DDL raises no refusal, so it was out of
+# scope by construction and the gate stayed green across every one of them. Those are the FIRST
+# scripts a consumer runs, and their exposure is ordinary statement failure — an object that already
+# exists, an insufficient privilege — which the same directive catches and the narrower predicate
+# never looked for. Scoping the check by what a script happens to contain reproduces, mechanically,
+# the same blind spot a per-script hand-audit had already produced once.
+#
+# So the predicate is now the requirement itself, derived from the file list rather than from a
+# maintained enumeration: a NEW Oracle script is covered the moment it is added, whatever it contains.
 #
 # Exit codes:
-#   0  every refusing Oracle script exits non-zero on its refusal
-#   1  at least one refusing script would exit 0 (gate fail)
+#   0  every shipped Oracle script carries the directive
+#   1  at least one would exit 0 on a failed statement (gate fail)
 #   2  usage / environment error
 #   3  --self-test failed (the gate itself is broken or vacuous)
 #
@@ -37,8 +44,13 @@ scan() {
 		local body
 		body="$(uncommented "$script")"
 
-		grep -qi 'RAISE_APPLICATION_ERROR' <<<"$body" || continue
-		refusing=$((refusing + 1))
+		# Counted for the report only. An explicit refusal, or a PL/SQL block that re-raises, is the most
+		# VISIBLE way for a script to end in an error the client must see -- it is not the only one, and it
+		# no longer decides whether a script is examined. Every script found below is examined.
+		if grep -qi 'RAISE_APPLICATION_ERROR' <<<"$body" \
+			|| grep -qE '^[[:space:]]*/[[:space:]]*$' <<<"$body"; then
+			refusing=$((refusing + 1))
+		fi
 
 		if ! grep -qiE '^[[:space:]]*WHENEVER[[:space:]]+SQLERROR[[:space:]]+EXIT[[:space:]]+FAILURE' <<<"$body"; then
 			printf '  %s\n' "$script"
@@ -51,7 +63,7 @@ scan() {
 		return 2
 	fi
 
-	echo "EXAMINED: $scripts shipped Oracle script(s); $refusing can refuse."
+	echo "EXAMINED: $scripts shipped Oracle script(s), every one of which must carry the directive; $refusing of them can also raise an explicit refusal."
 	return $((failures > 0 ? 1 : 0))
 }
 
@@ -106,17 +118,53 @@ FIXTURE
 		rc=3
 	fi
 
-	# A script that cannot refuse is out of scope and must not be reported.
-	rm "$tmp/src/Pkg.Oracle/Scripts/planted-missing.sql"
-	printf 'CREATE TABLE T (ID NUMBER);\n' > "$tmp/src/Pkg.Oracle/Scripts/planted-plain.sql"
+	# LIVENESS arm: a PL/SQL block that RE-RAISES needs the directive just as much as an explicit
+	# refusal -- without this arm the widened predicate could be dropped and the gate stay green.
+	cat > "$tmp/src/Pkg.Oracle/Scripts/planted-missing.sql" <<'FIXTURE'
+DECLARE
+  already_done EXCEPTION;
+  PRAGMA EXCEPTION_INIT(already_done, -1430);
+BEGIN
+  EXECUTE IMMEDIATE 'ALTER TABLE T ADD (C NUMBER)';
+EXCEPTION
+  WHEN already_done THEN NULL;
+END;
+/
+FIXTURE
 	ORACLE_REFUSAL_GATE_ROOT="$tmp" scan >/dev/null 2>&1
 	status=$?
-	if [ "$status" -ne 0 ]; then
-		echo "self-test FAIL: a script with no refusal was reported (got exit $status, wanted 0)." >&2
+	if [ "$status" -ne 1 ]; then
+		echo "self-test FAIL: a re-raising PL/SQL block with no directive was not reported (got exit $status, wanted 1)." >&2
 		rc=3
 	fi
 
-	[ "$rc" -eq 0 ] && echo "✅ oracle-refusal-exit-code-gate --self-test: 4/4 arms pass (2 liveness, 2 safety)."
+	# LIVENESS arm, and the one this gate previously got wrong: a script of PLAIN DDL that cannot
+	# refuse must STILL be reported when it lacks the directive. Under the old predicate this arm
+	# asserted the opposite -- it required such a script to PASS -- which is precisely what let the
+	# schema-creation scripts ship unguarded. If this arm is ever inverted back, the blind spot returns.
+	rm "$tmp/src/Pkg.Oracle/Scripts/planted-missing.sql"
+	printf 'CREATE TABLE T (ID NUMBER);
+' > "$tmp/src/Pkg.Oracle/Scripts/planted-plain.sql"
+	ORACLE_REFUSAL_GATE_ROOT="$tmp" scan >/dev/null 2>&1
+	status=$?
+	if [ "$status" -ne 1 ]; then
+		echo "self-test FAIL: plain DDL with no directive was not reported (got exit $status, wanted 1)." >&2
+		rc=3
+	fi
+
+	# SAFETY arm: the same plain DDL WITH the directive must clear, so the widened predicate cannot
+	# be satisfied by simply failing everything.
+	printf 'WHENEVER SQLERROR EXIT FAILURE ROLLBACK
+CREATE TABLE T (ID NUMBER);
+' > "$tmp/src/Pkg.Oracle/Scripts/planted-plain.sql"
+	ORACLE_REFUSAL_GATE_ROOT="$tmp" scan >/dev/null 2>&1
+	status=$?
+	if [ "$status" -ne 0 ]; then
+		echo "self-test FAIL: plain DDL WITH the directive was still reported (got exit $status, wanted 0)." >&2
+		rc=3
+	fi
+
+	[ "$rc" -eq 0 ] && echo "✅ oracle-exit-code-gate --self-test: 6/6 arms pass (4 liveness, 2 safety)."
 	return "$rc"
 }
 
@@ -126,16 +174,24 @@ case "${1:-}" in
 	*) echo "usage: $(basename "$0") [--self-test]" >&2; exit 2 ;;
 esac
 
-if scan; then
-	echo "✅ oracle-refusal-exit-code-gate: every Oracle script that can refuse exits non-zero when it does."
+# The status must be captured from scan ITSELF. Written as `if scan; then …; fi` the compound
+# returns 0 when the condition is false and no else branch runs, so $? afterwards is 0 and an
+# environment error (exit 2, "no scripts found") was reported as a gate FAIL (exit 1) instead.
+# A gate that cannot find its inputs has measured nothing; that is not the same as a defect found.
+scan
+status=$?
+
+if [ "$status" -eq 0 ]; then
+	echo "✅ oracle-exit-code-gate: every shipped Oracle script exits non-zero when a statement fails."
 	exit 0
 fi
 
-status=$?
 [ "$status" -eq 2 ] && exit 2
 cat >&2 <<'MSG'
-❌ oracle-refusal-exit-code-gate: the script(s) above raise a refusal that SQL*Plus still exits 0 on.
+❌ oracle-exit-code-gate: the script(s) above exit 0 even when one of their statements fails.
    A pipeline reads that as success and applies the next migration to an unchanged database.
+   This applies to plain schema-creation scripts too, not only ones that raise an explicit refusal:
+   an object that already exists or an insufficient privilege ends the same way.
    Add, before the first statement:  WHENEVER SQLERROR EXIT FAILURE ROLLBACK
 MSG
 exit 1

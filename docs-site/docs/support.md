@@ -108,7 +108,7 @@ The package major version matches the targeted .NET major (`net10.0` → `10.x`)
 ### Deprecation Process
 
 1. **Mark deprecated** with `[Obsolete]` in a minor release
-2. **Document migration** in CHANGELOG.md
+2. **Document migration** in [What's New](whats-new.md)
 3. **Wait minimum 6 months** before removal
 4. **Remove** in next major release
 

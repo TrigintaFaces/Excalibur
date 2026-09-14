@@ -4,7 +4,7 @@
 **Standard:** GDPR (General Data Protection Regulation)
 **Implementation:** Cryptographic erasure + Records of Processing Activities (RoPA)
 **Status:** Comprehensive compliance capabilities implemented
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-09-12
 
 ---
 
@@ -25,11 +25,11 @@ This checklist provides step-by-step guidance for GDPR compliance using the Exca
 | **Article 5** | Lawfulness, Fairness, Transparency | ⚠️ PARTIAL | Document legal basis, privacy policy | N/A (business process) |
 | **Article 6** | Lawfulness of Processing | ⚠️ PARTIAL | Obtain consent/legal basis | N/A (business process) |
 | **Article 13-14** | Information to Data Subjects | ⚠️ PARTIAL | Provide privacy notices | N/A (business process) |
-| **Article 17** | Right to Erasure | ✅ SATISFIED | Inherit `IErasureService` | `docs/security/gdpr-compliance.md:120-243` |
-| **Article 17(3)** | Erasure Exceptions | ✅ SATISFIED | Inherit `ILegalHoldService` | `docs/security/gdpr-compliance.md:245-340` |
-| **Article 25** | Data Protection by Design | ✅ SATISFIED | Inherit `[PersonalData]` encryption | `docs/advanced/security.md:352-395` |
-| **Article 30** | Records of Processing Activities | ✅ SATISFIED | Inherit `IDataInventoryService` | `docs/security/gdpr-compliance.md:342-397` |
-| **Article 32** | Security of Processing | ✅ SATISFIED | Inherit encryption + audit | `docs/advanced/security.md` |
+| **Article 17** | Right to Erasure | ✅ SATISFIED | Inherit `IErasureService` | [Erasure workflow](../gdpr-erasure.md#erasure-workflow) |
+| **Article 17(3)** | Erasure Exceptions | ✅ SATISFIED | Inherit `ILegalHoldService` | [Legal holds](../gdpr-erasure.md#legal-holds) |
+| **Article 25** | Data Protection by Design | ✅ SATISFIED | Inherit `[PersonalData]` encryption | [Field-level encryption](../../security/encryption-architecture.md#personaldata-attribute) |
+| **Article 30** | Records of Processing Activities | ✅ SATISFIED | Inherit `IDataInventoryService` | [Data inventory](../gdpr-erasure.md#data-inventory) |
+| **Article 32** | Security of Processing | ✅ SATISFIED | Inherit encryption + audit | [Encryption architecture](../../security/encryption-architecture.md), [audit logging](../../security/audit-logging.md) |
 | **Article 33-34** | Breach Notification | ⚠️ PARTIAL | Implement incident response | N/A (business process) |
 
 **Legend:**
@@ -59,12 +59,11 @@ This checklist provides step-by-step guidance for GDPR compliance using the Exca
 ```bash
 dotnet add package Excalibur.Compliance
 dotnet add package Excalibur.Compliance.SqlServer  # Production
-dotnet add package Excalibur.Domain  # For [PersonalData] attribute
 ```
 
 #### 1.3 Review Framework Capabilities
 
-- [ ] Read `docs/security/gdpr-compliance.md` (1,000+ lines)
+- [ ] Read [GDPR erasure](../gdpr-erasure.md)
 - [ ] Understand cryptographic erasure approach
 - [ ] Review conformance test kits, and note that their arms are opt-in — you wrap what you run
 
@@ -123,8 +122,8 @@ builder.Services.AddGdprErasure(options =>
 {
     options.DefaultGracePeriod = TimeSpan.FromHours(72);
     options.RequireVerification = true;
-    options.CertificateRetentionPeriod = TimeSpan.FromDays(365 * 7); // 7 years
-    options.SigningKeyId = "erasure-cert-signing-key";
+    options.Retention.CertificateRetentionPeriod = TimeSpan.FromDays(365 * 7); // 7 years
+    options.Retention.SigningKeyId = "erasure-cert-signing-key";
 });
 
 // Use SQL Server for production persistence. Swap AddSqlServer* for AddPostgres* to run on
@@ -160,58 +159,45 @@ builder.Services.AddErasureScheduler();
 - [ ] Configure the erasure store
 - [ ] Configure the legal-hold store
 - [ ] Configure the data-inventory store
-- [ ] Provision the compliance tables, or set `AutoCreateSchema = true` on each store
+- [ ] Provision the compliance tables, or set `AutoCreateSchema = true` on each store (see [tenant scoping of registrations](#43-generate-ropa-report))
 - [ ] Set certificate retention period (7 years recommended)
 - [ ] Configure signing key for certificate signatures
 
 :::warning Shipped test evidence for the production compliance stores is uneven — verify against your own database
 
 `✅ SATISFIED` in the table above means **the framework provides a technical implementation**. It does not
-mean every provider of that implementation carries shipped test evidence, and for the compliance stores it
-does not. Measured in this framework's own test suite:
+mean every provider of that implementation carries shipped test evidence, and for the compliance stores
+it does not: counted by the command below, **the SQL Server implementation of each of the four stores
+carries more shipped test evidence than its Postgres counterpart.** The gap is real but not dramatic,
+and it moves; the command is given so you can check rather than take our word for the shape.
 
-| Store | Shipped test files |
-|---|---|
-| `SqlServerAuditStore` / `PostgresAuditStore` | 8 / 5 |
-| `SqlServerErasureStore` / `PostgresErasureStore` | 5 / 2 |
-| `SqlServerLegalHoldStore` / `PostgresLegalHoldStore` | 5 / 3 |
-| `SqlServerDataInventoryStore` / `PostgresDataInventoryStore` | 2 / 1 |
+**No file counts are published here**, for the same reason no arm counts are published further down. A
+number typed into this page is ours at a past moment, it goes stale on the next commit, and it is not
+what evidences your control in any case. Neither figure says anything about your database, your schema,
+or your workload. Derive the current numbers yourself from the
+[framework repository](https://github.com/TrigintaFaces/Excalibur) if you want them:
 
-Counted as the number of files under `tests/` naming the type, so you can reproduce it rather than trust it:
-`grep -rlw SqlServerLegalHoldStore tests/ --include=*.cs | wc -l`.
+```bash
+grep -rlw SqlServerLegalHoldStore tests/ --include=*.cs | wc -l
+```
+
+Then get the evidence that actually supports your control by wrapping the conformance kits and running
+them against **your own** database.
 
 All four conformance kits are bound against real SQL Server and real Postgres, not the in-memory store
-alone — but **the binding is not the whole kit in every case, and the exception is the audit kit**. An arm
-runs on a provider only if that provider's suite declares a wrapper for it:
+alone. An arm runs on a provider only if that provider's suite declares a wrapper for it, so **check the
+suite rather than trusting a figure on this page**:
 
-| Kit | Arms | SQL Server | PostgreSQL | In-memory |
-|-----|------|-----------|------------|-----------|
-| `ErasureStoreConformanceTestKit` | 24 | 24 | 24 | 24 |
-| `LegalHoldStoreConformanceTestKit` | 19 | 19 | 19 | 19 |
-| `DataInventoryStoreConformanceTestKit` | 19 | 19 (1 skipped) | 19 (1 skipped) | 19 |
-| `AuditStoreConformanceTestKit` | 30 | **10** | **10** | 30 |
+```bash
+grep -cE '^\s*\[(Fact|SkippableFact)' \n  tests/integration/.../PostgresAuditStoreConformanceTests.cs
+```
 
-Counted as attributed wrappers declared by each provider suite, so you can reproduce it:
-`grep -cE '^\s*\[(Fact|SkippableFact)' tests/integration/.../PostgresAuditStoreConformanceTests.cs`.
-**These are point-in-time figures and provider suites get extended** — treat that command, not this
-table, as the source of truth when you need the current number.
-
-**Read the audit row carefully, because it is the one most likely to be mis-cited.** The 10 arms wired on
-the SQL providers are the ones that matter most for tamper-evidence and isolation: chain integrity over an
-intact interleaved trail, violation detection when a record is rewritten, violation detection when a record
-is deleted from the middle, and the cross-tenant read arms. What runs against in-memory *only* is the
-remainder — basic persistence and retrieval, hash-field population, application-name filtering and
-argument validation. So the tamper-detection claim is exercised on the real providers; a blanket "the audit
-conformance kit passes on our database" is not, because two thirds of it never ran there.
+**A declared wrapper is not an executed test.** What belongs in an evidence package is the arms *your*
+run executed and passed against *your* database — our bindings evidence our schema and our
+configuration, on a disposable container.
 
 The legal-hold tenant predicate additionally has a never-skipped suite that migrates the shipped schema and
 asserts a global hold stays visible to a scoped tenant.
-
-One data-inventory arm is deliberately skipped on both SQL providers, with its reason declared in the
-runner's own output: **the RoPA data map is built from registrations only**, so an auto-discovered
-location with no matching registration never reaches the report. If you rely on auto-discovery to find
-personal data your team did not register, that is exactly the case it will not surface — see Article 30
-below.
 
 Read the improved rows narrowly. Our provider suites run against a disposable container, on our schema and
 our configuration — **that is not your database, so you should not present our artifacts as if it were.**
@@ -361,10 +347,10 @@ public async Task RequestErasure_WithValidRequest_SchedulesErasure()
 - [ ] Write unit tests for erasure request submission
 - [ ] Test grace period cancellation
 - [ ] Test certificate generation
-- [ ] Wrap and run the `ErasureStoreConformanceTestKit` arms (24 available)
+- [ ] Wrap and run the `ErasureStoreConformanceTestKit` arms
 
 **Evidence:**
-- `docs/security/gdpr-compliance.md:642-687` - Testing guide
+- [Conformance toolkit](../../testing/conformance-toolkit.md) - Testing guide
 - Conformance results from the arms you wrapped (`ErasureStoreConformanceTestKit` — bound against real SQL Server and real PostgreSQL in our suite; that evidences OUR schema and configuration, not your deployment)
 
 ---
@@ -506,7 +492,7 @@ public async Task RequestErasure_WithActiveLegalHold_BlocksErasure()
 - [ ] Test erasure blocking with active holds
 - [ ] Test hold release and subsequent erasure
 - [ ] Test expired hold cleanup
-- [ ] Wrap and run the `LegalHoldStoreConformanceTestKit` arms (19 available)
+- [ ] Wrap and run the `LegalHoldStoreConformanceTestKit` arms
 
 **Evidence:**
 - Conformance test results (LegalHoldStoreConformanceTestKit)
@@ -560,6 +546,8 @@ public class UserProfile
 :::info How data-location registrations are scoped by tenant
 
 **Registrations belong to a tenant.** Each record carries the owning tenant as a value of its own, and that value is part of the record's key — `(TableName, FieldName, TenantId)`, enforced as the primary key on PostgreSQL and as a uniqueness constraint on SQL Server (whose clustered key is a surrogate, because the natural key exceeds the clustered-index size limit). Two tenants can register `("CRM_Contacts", "PersonalInfo")` independently and hold two distinct records. Neither overwrites the other.
+
+**`AutoCreateSchema = true` and the shipped migration scripts now produce the same shape** — a surrogate clustered key with the natural key enforced as a uniqueness constraint, on both data-inventory tables. Either provisioning path is safe on SQL Server.
 
 **The tenant term comes from the ambient tenant context, not from an argument.** `RegisterDataLocationAsync` takes no tenant parameter; the store resolves the current tenant once and binds the same term into every statement it issues. A host with no tenant context registered is not multi-tenant — its rows belong to the reserved untenanted partition rather than to an absent tenant. A registration that genuinely belongs to no tenant is stored under that sentinel, never as `NULL`, so "global" and "the caller forgot" stay distinguishable.
 
@@ -618,10 +606,11 @@ processing records and the shared ones — not another controller's. If you gene
 the `tenantId` argument alone, every report will be identical and will reflect whichever tenant was
 ambient, so vary the scope instead.
 
-**Verification is not covered by the shipped conformance kit.** The data-inventory conformance suite
-has only an in-memory derivation; neither SQL store is exercised by it. A green conformance run
-therefore does **not** demonstrate tenant isolation in your deployment. Test scoping directly against
-your real database before relying on it for a regulatory report.
+**A green conformance run does not demonstrate tenant isolation in *your* deployment.** The
+data-inventory suite is derived three ways — in-memory, real SQL Server and real PostgreSQL — so the
+scoping behaviour is exercised against both SQL providers, but against **our** schema, **our**
+configuration and a disposable container. That is evidence about the store, not about your database.
+Test scoping directly against your real database before relying on it for a regulatory report.
 
 :::
 
@@ -666,26 +655,10 @@ foreach (var entry in dataMap.Entries)
 - [ ] **Multi-tenant deployments:** confirm your own tenant-isolation test against your real database — query as a tenant that owns no registrations and assert the result is empty. The shipped conformance kit does not cover this (see the warning above).
 
 **Evidence:**
-- `docs/security/gdpr-compliance.md:859-941` - Data inventory conformance
+- [Data inventory](../gdpr-erasure.md#data-inventory) - Data inventory conformance
 - RoPA report export
-- Conformance test results (`DataInventoryStoreConformanceTestKit` — bound against in-memory, real SQL Server and real PostgreSQL; one arm skipped on the SQL providers, see the RoPA completeness note below)
+- Conformance test results (`DataInventoryStoreConformanceTestKit` — bound against in-memory, real SQL Server and real PostgreSQL)
 - Multi-tenant deployments: your own cross-tenant isolation test result against the real database
-
-:::danger RoPA completeness: the data map reports what was registered, not what was discovered
-On both SQL Server and PostgreSQL, the data map backing the RoPA report is built **from registrations
-only**. A location found by auto-discovery that has no matching registration does not appear in the
-report — which is precisely the personal data auto-discovery exists to find, and precisely what an
-Article 30 record is supposed to be complete about.
-
-The conformance arm that asserts registrations and discovered locations are merged is **skipped on both
-SQL providers**, with that reason stated in the run output. The assertion itself is correct and has not
-been weakened; the skip is the honest form of a known gap rather than a silently passing test.
-
-**What this means for your record:** do not treat a generated RoPA report as a complete inventory of
-personal data. Either register every location you intend to appear in it, or reconcile the report
-against your own discovery output before filing it. The in-memory store does merge both sources, so a
-report that looks complete in development can be incomplete against the database you deploy.
-:::
 
 ---
 
@@ -712,7 +685,7 @@ services.AddEncryption(encryption => encryption
 ```
 
 - [ ] Configure encryption provider (Azure Key Vault, AWS KMS, etc.)
-- [ ] Verify `[PersonalData]` fields are automatically encrypted
+- [ ] Verify `[PersonalData]` fields are encrypted **in your own database** — annotation alone does not encrypt; the record must also carry `[DataSubjectId]` and crypto-shredding must be registered
 - [ ] Test decryption with integration tests
 
 **Database Verification:**
@@ -727,7 +700,7 @@ SELECT Email FROM UserProfiles WHERE UserId = '...';
 - [ ] Test tamper detection (modify ciphertext, verify decryption fails)
 
 **Evidence:**
-- `docs/advanced/security.md:352-395` - Data at rest encryption guide
+- [Field-level encryption](../../security/encryption-architecture.md#field-level-encryption) - Data at rest encryption guide
 - Encryption verification tests
 
 ---
@@ -779,7 +752,7 @@ public class UserService
 - [ ] Implement `IAuditStore` persistence layer
 
 **Evidence:**
-- `docs/advanced/security.md:215-260` - Audit logging guide
+- [Audit logging](../../security/audit-logging.md) - Audit logging guide
 - Audit log samples (anonymized)
 
 #### 6.2 Configure Access Control
@@ -801,7 +774,7 @@ public class DeleteUserCommand : IDispatchAction
 - [ ] Test authorization enforcement
 
 **Evidence:**
-- `docs/advanced/security.md:15-78` - Authorization and RBAC guide
+- [Authorization](../../advanced/security.md#authorization) - Authorization and RBAC guide
 
 ---
 
@@ -821,7 +794,7 @@ Notify supervisory authority and data subjects of personal data breaches within 
 - [ ] Configure alerting for suspicious activity
 - [ ] Define breach severity levels
 
-**Reference:** `docs/security/siem-integration.md`
+**Reference:** [SIEM integration](../../security/audit-logging.md#siem-integration)
 
 #### 7.2 Document Breach Response Plan
 
@@ -863,7 +836,7 @@ Notify supervisory authority and data subjects of personal data breaches within 
 
 **Framework Provides:**
 - Technical implementation of erasure, legal holds, data inventory
-- Conformance test kits (92 arms available to wrap; the count that evidences a control is the one your own run executed)
+- Conformance test kits (the count that evidences a control is the one your own run executed, not one printed here)
 - Encryption and audit logging capabilities
 
 **Consumer Must Implement:**
@@ -884,10 +857,10 @@ Notify supervisory authority and data subjects of personal data breaches within 
 
 **Week 8: Conformance Testing**
 
-- [ ] Run `ErasureStoreConformanceTestKit` — 24 arms *(shipped evidence: in-memory, plus real SQL Server and PostgreSQL bindings)*
-- [ ] Run `LegalHoldStoreConformanceTestKit` — 19 arms *(shipped evidence: in-memory, plus real SQL Server and PostgreSQL bindings)*
-- [ ] Run `DataInventoryStoreConformanceTestKit` — 19 arms (`protected`) *(shipped evidence: in-memory, plus real SQL Server and PostgreSQL bindings; one arm skipped on the SQL providers, reason declared in the run output)*
-- [ ] Run `AuditStoreConformanceTestKit` — 30 arms *(also exercised against SQL Server and PostgreSQL)*
+- [ ] Run `ErasureStoreConformanceTestKit` *(shipped evidence: in-memory, plus real SQL Server and PostgreSQL bindings)*
+- [ ] Run `LegalHoldStoreConformanceTestKit` *(shipped evidence: in-memory, plus real SQL Server and PostgreSQL bindings)*
+- [ ] Run `DataInventoryStoreConformanceTestKit` *(shipped evidence: in-memory, plus real SQL Server and PostgreSQL bindings)*
+- [ ] Run `AuditStoreConformanceTestKit` *(also exercised against SQL Server and PostgreSQL)*
 - [ ] **Record your executed and passed counts in your own evidence pack**
 - [ ] **Attach `ConformanceArmLedger.Describe()` output to that evidence pack.** The kits record every
   arm that ran its body and every arm that did not — with the capability it needed and why it was
@@ -898,29 +871,27 @@ Notify supervisory authority and data subjects of personal data breaches within 
 
 :::warning The executed count is authored by you, not by this framework
 
-**The conformance kits deliberately carry no test attributes.** Every arm is `virtual` — and on
-`DataInventoryStoreConformanceTestKit`, `protected` — so **nothing is discovered or executed until you
-declare an attributed wrapper in your own derived class.** Conformance is opt-in per arm.
+**The conformance kits deliberately carry no test attributes.** Every arm is a `public virtual`
+method — so **nothing is discovered or executed until you declare an attributed wrapper in your own
+derived class.** Conformance is opt-in per arm.
 
 This is intentional: it is what lets you run the suite against *your* store, with your fixtures and your
 provider, rather than against ours. But it has a consequence for your evidence pack:
 
 **Do not record a passed count you did not produce.** An arm you have not wrapped has not run, and a kit
-you have merely referenced has asserted nothing. The counts above are the arms **available** to wrap in
-each kit; the number that actually executed is whatever your own test run reports.
+you have merely referenced has asserted nothing. No arm counts are published on this page for that
+reason: the only number that evidences your control is the one your own run executed.
 
-**And check *which store*, and *how much of the kit*, the shipped evidence covers.** All four kits are
-bound against real SQL Server and real PostgreSQL, not the in-memory store alone — but the audit kit wires
-only 10 of its 30 arms on those providers (see the coverage table earlier in this document; the wired ones
-are the chain-integrity and tenant-isolation arms). That is still not evidence about *your* deployment:
+**And check *which store* the shipped evidence covers.** All four kits are bound against real SQL Server
+and real PostgreSQL, not the in-memory store alone. That is still not evidence about *your* deployment:
 our suites run against a disposable container on our schema and our configuration. Run the arms against
-your real database before treating them as Article 17, 17(3) or 30 evidence. One data-inventory arm is
-skipped on both SQL providers; the skip is visible in the run output and states its own reason, which is
-the pattern to expect rather than a silent pass.
+your real database before treating them as Article 17, 17(3) or 30 evidence.
 
 The VSTest form of the commands below carries `RunConfiguration.TreatNoTestsAsError=true` for exactly
-this reason — without it, a filter that matches nothing exits successfully and reads as a pass. The
-Microsoft.Testing.Platform form needs no equivalent: it already fails a run that executes no tests.
+this reason — without it, a filter that matches nothing exits successfully and reads as a pass. **The
+Microsoft.Testing.Platform form needs its own guard, not none:** it rejects that setting, and its
+`--zero-tests-policy` defaults to `allow-skipped`, so a run in which every arm skipped still succeeds.
+Pass `--minimum-expected-tests 1`, as the commands below do. The paragraph after them explains why.
 
 :::
 
@@ -936,10 +907,10 @@ dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" --blame-
 dotnet test --filter "FullyQualifiedName~AuditStoreConformance" --blame-hang-timeout 5m -- RunConfiguration.TreatNoTestsAsError=true
 
 # Microsoft.Testing.Platform
-dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" -- --timeout 5m
-dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" -- --timeout 5m
-dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" -- --timeout 5m
-dotnet test --filter "FullyQualifiedName~AuditStoreConformance" -- --timeout 5m
+dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
+dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
+dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
+dotnet test --filter "FullyQualifiedName~AuditStoreConformance" --blame-hang-timeout 10m -- --timeout 5m --minimum-expected-tests 1
 ```
 
 Which of the two forms you need depends on the test runner your project uses, and picking the wrong
@@ -949,9 +920,15 @@ one fails in a way that does not name the cause:
   filter that matches nothing exits `0` and reads as a pass.
 - **Microsoft.Testing.Platform** (`<UseMicrosoftTestingPlatform>true</UseMicrosoftTestingPlatform>`).
   Do **not** pass the setting above: the native test host does not recognise it, prints its help text
-  and exits non-zero on every run, whether or not the filter matched. It needs no equivalent flag —
-  the platform already expects at least one test to run and fails with exit code `9` when fewer do.
-  Use `--minimum-expected-tests` only to require more than one.
+  and exits non-zero on every run, whether or not the filter matched. **Pass
+  `--minimum-expected-tests 1` instead** — a run that executes fewer tests than the minimum, including
+  zero, exits with code `9`.
+  **This matters more here than the filter case, because conformance arms skip themselves.** An arm
+  whose capability your provider does not implement reports *skipped*, not *failed*. MTP's
+  `--zero-tests-policy` defaults to `allow-skipped`, so a run in which **every** arm skipped
+  **succeeds** — the checklist item would read as passed on a run that verified nothing. Either pass a
+  minimum as above, or pass `--zero-tests-policy strict` (available from MTP 2.3.0), which fails an
+  all-skipped run with exit code `8`. An explicit minimum supersedes the policy.
 
 Both forms below also carry a hang bound, so a wedged test host ends the run with evidence instead of
 occupying your pipeline until it is killed.
@@ -964,6 +941,12 @@ occupying your pipeline until it is killed.
 > checklist item would be ticked on a run that verified nothing. With the setting, a filter matching no
 > tests fails the command. **Confirm each run reports a non-zero `Total`;** an exit code alone is not
 > evidence that a check ran.
+>
+> **Then read the process exit code, and take it as the verdict.** A non-zero `Total` tells you a check
+> ran; only the exit code tells you whether it passed. **Do not tick this item from the summary line** —
+> through the `dotnet test` bridge an assembly-level cleanup failure is reported outside the failure
+> count, so the console can print `Passed!` with `Failed: 0` on a run that exited non-zero. Capture
+> `$LASTEXITCODE` (PowerShell) or `$?` (POSIX shell) as the evidence for this item, not the console text.
 
 **Week 9: Integration Testing**
 
@@ -1001,21 +984,46 @@ occupying your pipeline until it is killed.
 ### Primary Evidence
 
 **Framework Implementation:**
-- `docs/security/gdpr-compliance.md` - Comprehensive GDPR guide (1,000+ lines)
-- `docs/advanced/security.md` - Security capabilities (encryption, audit, access control)
-- `src/Excalibur/Excalibur.Testing.Conformance/Conformance/` - Conformance test kits (shipped as the `Excalibur.Testing.Conformance` package)
+- [GDPR erasure](../gdpr-erasure.md) - Cryptographic erasure, legal holds, and data inventory
+- [Security guide](../../advanced/security.md) - Security capabilities (encryption, audit, access control)
+- [Conformance toolkit](../../testing/conformance-toolkit.md) - Conformance test kits (shipped as the `Excalibur.Testing.Conformance` package)
 
-**Conformance arms available to wrap** (your evidence pack records what *your* run executed):
-- `ErasureStoreConformanceTestKit` — 24 arms - Article 17
-- `LegalHoldStoreConformanceTestKit` — 19 arms - Article 17(3)
-- `DataInventoryStoreConformanceTestKit` — 19 arms (`protected`) - Article 30
-- `AuditStoreConformanceTestKit` — 30 arms - SOC 2 / Article 32
+**Conformance kits available to wrap** (your evidence pack records what *your* run executed):
+- `ErasureStoreConformanceTestKit` - Article 17
+- `LegalHoldStoreConformanceTestKit` - Article 17(3)
+- `DataInventoryStoreConformanceTestKit` - Article 30
+- `AuditStoreConformanceTestKit` - SOC 2 / Article 32
+
+**No arm count is published here, deliberately.** Any number we print is ours at some past moment, and
+the number that evidences your control is the one your own run executed. To see what a kit ships today,
+enumerate it from the assembly you installed:
+
+```csharp
+using System.Reflection;
+
+const BindingFlags Declared =
+    BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+var arms = typeof(ErasureStoreConformanceTestKit)   // or any other kit
+    .GetMethods(Declared)
+    .Where(m => (m.ReturnType == typeof(Task) || m.ReturnType == typeof(void))
+                && m.GetParameters().Length == 0
+                && m.IsVirtual && !m.IsFinal && !m.IsSpecialName
+                && m.Name != "ConformanceSuite_ShouldWireEveryArm")
+    .Select(m => m.Name)
+    .ToList();
+
+Console.WriteLine(arms.Count);
+```
+
+If a kit inherits arms from an abstract base kit, repeat the same enumeration for each base type up to
+`ConformanceTestKit`, which is what the shipped wiring check does.
 
 **SQL Server Schema:**
 - `compliance.ErasureRequests` - Erasure request tracking
 - `compliance.LegalHolds` - Legal hold management
 - `compliance.ErasureCertificates` - Compliance certificates (7-year retention)
-- `compliance.DataInventory` - Personal data locations (RoPA)
+- `compliance.DataInventoryRegistrations` - registered personal-data locations (RoPA); `compliance.DiscoveredDataLocations` - auto-discovered locations
 
 ### Supporting Documentation
 
@@ -1094,19 +1102,42 @@ builder.Logging.AddFilter("Excalibur.Compliance", LogLevel.Debug);
 
 **Conformance Test Kits:**
 
-| Kit | Article | Arms shipped | Purpose |
-|-----|---------|--------------|---------|
-| **AuditStoreConformanceTestKit** | Article 32 | 30 | Tamper-evident audit logging |
-| **ErasureStoreConformanceTestKit** | Article 17 | 24 | "Right to be Forgotten" |
-| **LegalHoldStoreConformanceTestKit** | Article 17(3) | 19 | Legal hold exceptions |
-| **DataInventoryStoreConformanceTestKit** | Article 30 | 19 (`protected`) | Records of Processing Activities (RoPA) |
-| **Total** | | **92** | Arms available to wrap — not a result |
+| Kit | Article | Purpose |
+|-----|---------|---------|
+| **AuditStoreConformanceTestKit** | Article 32 | Tamper-evident audit logging |
+| **ErasureStoreConformanceTestKit** | Article 17 | "Right to be Forgotten" |
+| **LegalHoldStoreConformanceTestKit** | Article 17(3) | Legal hold exceptions |
+| **DataInventoryStoreConformanceTestKit** | Article 30 | Records of Processing Activities (RoPA) |
 
-:::caution "Arms shipped" is what you *can* run, not what anyone ran
+:::caution What a kit *can* run is not what anyone ran
 Each kit defines "arm" executably rather than by convention: its `ConformanceSuite_ShouldWireEveryArm`
-enumerates them by reflection as the parameterless, virtual, `Task`-returning methods on the kit, minus
-itself and the `CleanupAsync` lifecycle helper. The figures in this column follow that definition, so
-they can be re-derived from the shipped kit rather than taken on trust from this page. The kits carry no test attributes, so an arm executes only once
+enumerates them by reflection as the public, parameterless, virtual methods on the kit returning `Task`
+or `void`, minus the wiring check itself. The `CleanupAsync` lifecycle helper is excluded because it is
+`protected`, not because it is named. **This page publishes no arm counts**, because a number printed here
+is ours at some past moment and goes stale the next time a kit gains an arm. Derive the current figure
+from the kit you installed instead:
+
+```csharp
+using System.Reflection;
+
+const BindingFlags Declared =
+    BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+var arms = typeof(ErasureStoreConformanceTestKit)   // or any other kit
+    .GetMethods(Declared)
+    .Where(m => (m.ReturnType == typeof(Task) || m.ReturnType == typeof(void))
+                && m.GetParameters().Length == 0
+                && m.IsVirtual && !m.IsFinal && !m.IsSpecialName
+                && m.Name != "ConformanceSuite_ShouldWireEveryArm")
+    .Select(m => m.Name)
+    .ToList();
+
+Console.WriteLine(arms.Count);
+```
+
+If a kit inherits arms from an abstract base kit, repeat the same enumeration for each base type up to
+`ConformanceTestKit`, which is what the shipped wiring check does.
+ The kits carry no test attributes, so an arm executes only once
 you declare an attributed wrapper for it in your own derived class. **The number that belongs in an
 evidence package is the executed and passed count from your own run**, together with its output —
 not the figure above. An assessor who is shown "92" has been shown the size of a menu.
@@ -1128,6 +1159,5 @@ Together, these four kits provide comprehensive verification of GDPR compliance 
 
 ---
 
-**Last Updated:** 2026-01-01
-**Next Review:** 2026-04-01
-**Status:** GDPR checklist COMPLETE ✅
+**Last Updated:** 2026-09-12
+**Document status:** every GDPR article in scope is walked through below. **This describes the document, not your compliance posture** — 5 of 9 articles are satisfied by framework controls you can inherit; 4 are business process and are yours to evidence.

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
@@ -124,8 +124,22 @@ public sealed class OracleOutboxStoreContainerFixture : ContainerFixtureBase
 	public OracleConnection CreateConnection() => new(ConnectionString);
 
 	/// <summary>Cleans up all rows from the outbox tables between tests.</summary>
+	/// <remarks>
+	/// Returns without doing anything when the schema was never provisioned. Initialisation is lazy and
+	/// opt-in — a test asks for it — while xUnit disposes the suite after EVERY test, including a
+	/// reflection-only arm that touches no infrastructure. Without this bound, that arm reaches a DELETE
+	/// against tables nothing created and is reported as failing on Oracle it never used.
+	/// </remarks>
 	public async Task CleanupTableAsync()
 	{
+		if (!_initializer.HasRun)
+		{
+			// Nothing was provisioned, so there is nothing to clean. This is deliberately NOT a catch of the
+			// resulting ORA-00942: a cleanup that never ran setup and a cleanup that failed are different
+			// states, and only the second should ever be visible.
+			return;
+		}
+
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 

@@ -74,26 +74,10 @@ public sealed class CloudEventBodyDecodingShould
 	public async Task LeaveNonJsonBodiesUnparsedOnEventHubs(string contentType) =>
 		AssertNotParsed(await RoundTripEventHubs(contentType).ConfigureAwait(true));
 
-	[Theory]
-	[MemberData(nameof(JsonContentTypes))]
-	public async Task ParseJsonBodiesOnServiceBus(string contentType) =>
-		AssertParsed(await RoundTripServiceBus(contentType).ConfigureAwait(true));
-
-	[Theory]
-	[MemberData(nameof(NonJsonContentTypes))]
-	public async Task LeaveNonJsonBodiesUnparsedOnServiceBus(string contentType) =>
-		AssertNotParsed(await RoundTripServiceBus(contentType).ConfigureAwait(true));
-
-	[Theory]
-	[MemberData(nameof(JsonContentTypes))]
-	[MemberData(nameof(StructuredContentTypes))]
-	public async Task ParseJsonBodiesOnSqs(string contentType) =>
-		AssertParsed(await RoundTripSqs(contentType).ConfigureAwait(true));
-
-	[Theory]
-	[MemberData(nameof(NonJsonContentTypes))]
-	public async Task LeaveNonJsonBodiesUnparsedOnSqs(string contentType) =>
-		AssertNotParsed(await RoundTripSqs(contentType).ConfigureAwait(true));
+	// ServiceBus and SQS are ENCODE-ONLY after the encoder/decoder split: their transport types
+	// (ServiceBusMessage, SendMessageRequest) are send-side SDK types a broker never hands back, so
+	// there is no inbound message for them to decode and no round trip to assert. The media-type
+	// decision below is still asserted on every transport that can decode.
 
 	[Theory]
 	[MemberData(nameof(JsonContentTypes))]
@@ -158,33 +142,6 @@ public sealed class CloudEventBodyDecodingShould
 		var adapter = new AzureEventHubsCloudEventAdapter(
 			CreateOptions(),
 			Microsoft.Extensions.Options.Options.Create(new AzureEventHubsCloudEventOptions()));
-
-		var transport = await adapter
-			.ToTransportMessageAsync(CreateCloudEvent(contentType), CloudEventMode.Binary, CancellationToken.None)
-			.ConfigureAwait(true);
-
-		return (await adapter.FromTransportMessageAsync(transport, CancellationToken.None).ConfigureAwait(true)).Data;
-	}
-
-	private static async Task<object?> RoundTripServiceBus(string contentType)
-	{
-		var adapter = new AzureServiceBusCloudEventAdapter(
-			CreateOptions(),
-			Microsoft.Extensions.Options.Options.Create(new AzureServiceBusCloudEventOptions()),
-			NullLogger<AzureServiceBusCloudEventAdapter>.Instance);
-
-		var transport = await adapter
-			.ToTransportMessageAsync(CreateCloudEvent(contentType), CloudEventMode.Binary, CancellationToken.None)
-			.ConfigureAwait(true);
-
-		return (await adapter.FromTransportMessageAsync(transport, CancellationToken.None).ConfigureAwait(true)).Data;
-	}
-
-	private static async Task<object?> RoundTripSqs(string contentType)
-	{
-		var adapter = new AwsSqsCloudEventAdapter(
-			CreateOptions(),
-			NullLogger<AwsSqsCloudEventAdapter>.Instance);
 
 		var transport = await adapter
 			.ToTransportMessageAsync(CreateCloudEvent(contentType), CloudEventMode.Binary, CancellationToken.None)

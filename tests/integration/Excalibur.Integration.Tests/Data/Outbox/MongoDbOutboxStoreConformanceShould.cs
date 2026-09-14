@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch;
@@ -6,6 +6,9 @@ using Excalibur.Outbox.MongoDB;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 using Shouldly;
 
@@ -34,6 +37,9 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 [Trait("Database", "MongoDb")]
 public sealed class MongoDbOutboxStoreConformanceShould : OutboxStoreConformanceTestKit, IAsyncLifetime, IClassFixture<MongoDbOutboxStoreContainerFixture>
 {
+	/// <summary>This store fences, so an arm that finds no IFencedOutboxStore must FAIL, not skip.</summary>
+	protected override bool ParticipatesInFencing => true;
+
 	private readonly MongoDbOutboxStoreContainerFixture _fixture;
 
 	/// <summary>
@@ -91,6 +97,33 @@ public sealed class MongoDbOutboxStoreConformanceShould : OutboxStoreConformance
 
 	/// <inheritdoc/>
 	/// <remarks>
+	/// Opts real MongoDB into the concurrent fencing arm
+	/// (<c>Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent</c>). Writes the per-document
+	/// <c>fencingToken</c> field directly through a raw driver collection, bypassing
+	/// <see cref="MongoDbOutboxStore"/> entirely — this simulates what a fresher tenure's own claim would
+	/// have stamped on the document, without going through that claim (which would also advance the
+	/// scope-wide fence this arm deliberately leaves untouched) and without needing the current lease
+	/// holder's lease to expire in real time. <see cref="MongoDbOutboxDocument"/> is internal to the
+	/// provider assembly, so this addresses the field by its documented BSON element name rather than the
+	/// type.
+	/// </remarks>
+	protected override async Task<bool> ForceMessageFencingTokenAsync(IOutboxStore store, string messageId, long token)
+	{
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"MongoDB container must be available - real-infra fencing conformance is never skipped.");
+
+		var client = new MongoClient(_fixture.ConnectionString);
+		var collection = client.GetDatabase(_fixture.DatabaseName).GetCollection<BsonDocument>("outbox_messages");
+
+		var result = await collection.UpdateOneAsync(
+			new BsonDocument("_id", messageId),
+			new BsonDocument("$set", new BsonDocument("fencingToken", token))).ConfigureAwait(false);
+
+		return result.IsAcknowledged && result.MatchedCount == 1;
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
 	/// Reserve the message under a FOREIGN <c>ProcessorId</c> — a second store instance over the same
 	/// collection whose owner token differs from the store that calls <c>MarkFailedAsync</c> — the only way to
 	/// exercise the R2 ownership guard (<c>LeasedBy == null || LeasedBy == ProcessorId</c>,
@@ -139,13 +172,20 @@ public sealed class MongoDbOutboxStoreConformanceShould : OutboxStoreConformance
 
 		var messages = (await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false)).ToList();
 
-		// pfgcj6: Mongo now falls back to the SIMPLE type name (message.GetType().Name), matching Postgres.
 		messages.ShouldContain(
 			m => m.Destination == ConfiguredDestination,
 			"xnyhjd: Mongo EnqueueAsync must persist the destination derived from the context metadata.");
+
+		// nsspc9: all three providers fall back to the NAMESPACE-QUALIFIED type name. An earlier pass
+		// asserted the simple name here on a Postgres-parity argument; Postgres qualifies it too, so the
+		// parity holds at FullName and the simple-name assertion was over-specified.
 		messages.ShouldContain(
-			m => m.Destination == nameof(DestinationDerivationTestMessage),
-			"xnyhjd/pfgcj6: with no context destination, Mongo EnqueueAsync must fall back to the message TYPE name (simple, Postgres-parity), not drop it.");
+			m => m.Destination == typeof(DestinationDerivationTestMessage).FullName,
+			"xnyhjd/pfgcj6: with no context destination, Mongo EnqueueAsync must fall back to the message "
+			+ "TYPE name rather than dropping it. The destination is a ROUTING KEY and must be collision-free, "
+			+ "so the fallback is the NAMESPACE-QUALIFIED type name — two message types sharing a short name "
+			+ "in different namespaces must not collapse onto one destination. The short name is for telemetry "
+			+ "tags only; do not 'align' this to it.");
 	}
 
 	private static IMessageContext CreateContext(string messageId, string? destination)
@@ -226,6 +266,18 @@ public sealed class MongoDbOutboxStoreConformanceShould : OutboxStoreConformance
 
 	[Fact]
 	public Task Fencing_HighWaterMark_ShouldSurviveCleanup_Test() => Fencing_HighWaterMark_ShouldSurviveCleanup();
+
+	[Fact]
+	public Task Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent_Test() => Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent();
+
+	[Fact]
+	public Task Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent_Test() => Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent();
+
+	[Fact]
+	public Task FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue_Test() => FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue();
+
+	[Fact]
+	public Task FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce_Test() => FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce();
 
 	[Fact]
 	public Task Fencing_Refusal_ShouldReportTheHighWaterMark_Test() => Fencing_Refusal_ShouldReportTheHighWaterMark();
@@ -310,6 +362,18 @@ public sealed class MongoDbOutboxStoreConformanceShould : OutboxStoreConformance
 
 	[Fact]
 	public Task MarkFailedAsync_ShouldSetRetryCount_Test() => MarkFailedAsync_ShouldSetRetryCount();
+
+	[Fact]
+	public Task MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage_Test() =>
+		MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage();
+
+	[Fact]
+	public Task MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim_Test() =>
+		MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim();
+
+	[Fact]
+	public Task MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage_Test() =>
+		MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage();
 
 	[Fact]
 	public Task MarkFailed_AfterTheFloorElapses_ShouldBecomeReclaimable_Test() => MarkFailed_AfterTheFloorElapses_ShouldBecomeReclaimable();

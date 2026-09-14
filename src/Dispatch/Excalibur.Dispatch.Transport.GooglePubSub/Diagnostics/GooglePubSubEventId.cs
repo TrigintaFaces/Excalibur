@@ -202,7 +202,7 @@ internal static class GooglePubSubEventId
 	public const int OrderingWorkerStartTimeout = 23319;
 
 	/// <summary>Error processing orphaned work item during OrderingKeyProcessor shutdown drain.</summary>
-	public const int OrphanedWorkProcessingError = 23928;
+	public const int OrphanedWorkProcessingError = 23320;
 
 	// ========================================
 	// 23400-23499: Batch Receiving

@@ -297,18 +297,30 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// Resolved once, before anything reads records, and then carried into every statement below. See
+		// ReadRangeBoundsAsync for why re-deriving them per statement reports an intact trail as broken.
+		var bounds = await ReadRangeBoundsAsync(connection, startDate, endDate, cancellationToken)
+			.ConfigureAwait(false);
+		if (bounds is null)
+		{
+			return AuditIntegrityResult.NoEventsInScope(startDate, endDate);
+		}
+
+		var (lowerBound, upperBound) = bounds.Value;
+
 		// Selected by sequence bounds rather than on the timestamp directly. Records are chained in write
 		// order, so a record written between two in-range records but stamped outside them is still a link in
 		// the chain; selecting on the timestamp alone would leave a hole indistinguishable from a deletion.
 		var sql = $@"
 			SELECT {IntegrityColumnsSql}
 			FROM {_options.FullyQualifiedTableName}
-			WHERE SequenceNumber >= ({RangeLowerBoundSql})
-			  AND SequenceNumber <= ({RangeUpperBoundSql})
+			WHERE SequenceNumber >= @LowerBound
+			  AND SequenceNumber <= @UpperBound
 			ORDER BY SequenceNumber ASC";
 
 		var rows = await connection.QueryAsync<AuditEventRow>(
-				new CommandDefinition(sql, new { StartDate = startDate, EndDate = endDate }, commandTimeout: _options.CommandTimeoutSeconds,
+				new CommandDefinition(sql, new { LowerBound = lowerBound, UpperBound = upperBound },
+					commandTimeout: _options.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -318,7 +330,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 			return AuditIntegrityResult.NoEventsInScope(startDate, endDate);
 		}
 
-		var partitions = await BuildVerificationPartitionsAsync(connection, events, startDate, endDate, cancellationToken)
+		var partitions = await BuildVerificationPartitionsAsync(connection, events, lowerBound, upperBound, cancellationToken)
 			.ConfigureAwait(false);
 
 		var result = await AuditChainVerifier
@@ -338,20 +350,52 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	}
 
 	/// <summary>
-	/// The lowest sequence number in the verified window. Shared between the record selection and the anchor
-	/// lookup so the two cannot drift onto different left edges.
+	/// Reads the sequence-number edges of the verified window, once, for every statement the verification
+	/// issues.
 	/// </summary>
-	private string RangeLowerBoundSql =>
-		$@"SELECT MIN(SequenceNumber) FROM {_options.FullyQualifiedTableName}
-		   WHERE [Timestamp] >= @StartDate AND [Timestamp] <= @EndDate";
+	/// <returns>The window's inclusive lower and upper sequence bounds, or <see langword="null"/> when no
+	/// record falls inside it.</returns>
+	/// <remarks>
+	/// Read once and carried, rather than restated as a subquery in each statement. Sharing the query text
+	/// shares the definition of the edge, not the edge: every statement that re-evaluates it observes the
+	/// table at its own instant, so a record appended between two of them moves the edge underneath the
+	/// verification. The record selection then holds one right edge while the successor lookup resolves
+	/// against a later one, and the successor it returns was written to follow a record the selection never
+	/// saw. Its stored prior tag names that record, the walk reaches the end of the range without it, and
+	/// the chain is reported broken — a store that is merely busy accuses its own trail of having records
+	/// removed from the end. Two longs read once cannot disagree with themselves.
+	/// </remarks>
+	private async Task<(long Lower, long Upper)?> ReadRangeBoundsAsync(
+		SqlConnection connection,
+		DateTimeOffset startDate,
+		DateTimeOffset endDate,
+		CancellationToken cancellationToken)
+	{
+		var sql = $@"
+			SELECT MIN(SequenceNumber) AS LowerBound, MAX(SequenceNumber) AS UpperBound
+			FROM {_options.FullyQualifiedTableName}
+			WHERE [Timestamp] >= @StartDate AND [Timestamp] <= @EndDate";
 
-	/// <summary>
-	/// The highest sequence number in the verified window. Shared between the record selection and the
-	/// successor lookup so the two cannot drift onto different right edges.
-	/// </summary>
-	private string RangeUpperBoundSql =>
-		$@"SELECT MAX(SequenceNumber) FROM {_options.FullyQualifiedTableName}
-		   WHERE [Timestamp] >= @StartDate AND [Timestamp] <= @EndDate";
+		var bounds = await connection.QuerySingleAsync<RangeBoundsRow>(
+				new CommandDefinition(
+					sql,
+					new { StartDate = startDate, EndDate = endDate },
+					commandTimeout: _options.CommandTimeoutSeconds,
+					cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
+
+		// Both aggregates are NULL over an empty window, and neither is NULL otherwise — MIN and MAX are
+		// taken over the same rows — so the pair is present or absent together.
+		return bounds.LowerBound is { } lower && bounds.UpperBound is { } upper ? (lower, upper) : null;
+	}
+
+	/// <summary>The verified window's sequence-number edges, as one row.</summary>
+	private sealed class RangeBoundsRow
+	{
+		public long? LowerBound { get; set; }
+
+		public long? UpperBound { get; set; }
+	}
 
 	/// <summary>
 	/// The integrity-covered columns, in one place. The in-range records and the successor that pins the
@@ -374,8 +418,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	/// </remarks>
 	private async Task<Dictionary<AuditChainKey, string?>> LoadChainAnchorsAsync(
 		SqlConnection connection,
-		DateTimeOffset startDate,
-		DateTimeOffset endDate,
+		long lowerBound,
 		CancellationToken cancellationToken)
 	{
 		var sql = $@"
@@ -386,7 +429,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 						   PARTITION BY {CanonicalTenantSql}, {CanonicalApplicationSql}
 						   ORDER BY SequenceNumber DESC) AS RowNum
 				FROM {_options.FullyQualifiedTableName}
-				WHERE SequenceNumber < ({RangeLowerBoundSql})
+				WHERE SequenceNumber < @LowerBound
 			) AS Anchors
 			WHERE Anchors.RowNum = 1";
 
@@ -395,8 +438,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 					sql,
 					new
 					{
-						StartDate = startDate,
-						EndDate = endDate,
+						LowerBound = lowerBound,
 						UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId,
 						NoApplicationSentinel = string.Empty
 					},
@@ -427,8 +469,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	/// </remarks>
 	private async Task<Dictionary<AuditChainKey, AuditEvent>> LoadChainSuccessorsAsync(
 		SqlConnection connection,
-		DateTimeOffset startDate,
-		DateTimeOffset endDate,
+		long upperBound,
 		CancellationToken cancellationToken)
 	{
 		var sql = $@"
@@ -439,7 +480,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 						   PARTITION BY {CanonicalTenantSql}, {CanonicalApplicationSql}
 						   ORDER BY SequenceNumber ASC) AS RowNum
 				FROM {_options.FullyQualifiedTableName}
-				WHERE SequenceNumber > ({RangeUpperBoundSql})
+				WHERE SequenceNumber > @UpperBound
 			) AS Successors
 			WHERE Successors.RowNum = 1";
 
@@ -448,8 +489,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 					sql,
 					new
 					{
-						StartDate = startDate,
-						EndDate = endDate,
+						UpperBound = upperBound,
 						UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId,
 						NoApplicationSentinel = string.Empty
 					},
@@ -492,8 +532,8 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	private async Task<List<AuditChainPartition>> BuildVerificationPartitionsAsync(
 		SqlConnection connection,
 		List<AuditEvent> events,
-		DateTimeOffset startDate,
-		DateTimeOffset endDate,
+		long lowerBound,
+		long upperBound,
 		CancellationToken cancellationToken)
 	{
 		if (!_options.EnableHashChain)
@@ -502,8 +542,8 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 				.ConvertAll(e => AuditChainPartition.FromList(anchorPriorTag: null, events: [e], successor: null));
 		}
 
-		var anchors = await LoadChainAnchorsAsync(connection, startDate, endDate, cancellationToken).ConfigureAwait(false);
-		var successors = await LoadChainSuccessorsAsync(connection, startDate, endDate, cancellationToken).ConfigureAwait(false);
+		var anchors = await LoadChainAnchorsAsync(connection, lowerBound, cancellationToken).ConfigureAwait(false);
+		var successors = await LoadChainSuccessorsAsync(connection, upperBound, cancellationToken).ConfigureAwait(false);
 		return BuildChainPartitions(events, anchors, successors);
 	}
 
@@ -560,9 +600,9 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	}
 
 	/// <inheritdoc />
-	public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
+	public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken)
 	{
-		return GetLastEventInternalAsync(tenantId, applicationName: null, cancellationToken);
+		return GetLastEventInternalAsync(applicationName: null, cancellationToken);
 	}
 
 	/// <summary>
@@ -593,7 +633,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 		// Estate-wide: no tenant fragment. This is the ONLY way to express an unscoped purge on this store,
 		// and it is reachable only by naming this method — never by omitting or widening an argument to the
 		// tenant-scoped one. The empty fragment is supplied here, at the site whose name declares the intent.
-		await PurgeCoreAsync(cutoff, tenantPredicate: string.Empty, tenant: null, cancellationToken)
+		await PurgeCoreAsync(cutoff, tenant: null, cancellationToken)
 			.ConfigureAwait(false);
 
 	/// <inheritdoc />
@@ -604,42 +644,39 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	{
 		ArgumentNullException.ThrowIfNull(tenant);
 
-		return await PurgeCoreAsync(
-				cutoff,
-				// NULL-safe by necessity: a bare [TenantId] = @TenantId never matches a row whose tenant
-				// column is NULL, so every row written before this table had a tenant column would be
-				// unpurgeable — retained past policy, invisibly. Folding NULL onto the reserved sentinel
-				// is how the keyed partition type defines a stored value that cannot name a real tenant.
-				tenantPredicate: "\n\t\t\t  AND COALESCE([TenantId], @UntenantedSentinel) = @TenantId",
-				tenant,
-				cancellationToken)
-			.ConfigureAwait(false);
+		return await PurgeCoreAsync(cutoff, tenant, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
-	/// Shared body of both purge members. The tenant fragment is supplied by the caller rather than derived
-	/// from a nullable parameter, so "estate-wide" is a decision made at a named entry point and never the
-	/// accidental result of a tenant argument that arrived null.
+	/// Shared body of both purge members. The tenant fragment is DERIVED from <paramref name="tenant"/>
+	/// here rather than passed alongside it. The scope of this DELETE used to be carried by TWO arguments
+	/// that had to agree, and disagreement in one direction DESTROYS DATA: a tenant-scoped call whose
+	/// fragment was empty silently deleted every tenant's rows. That mistake compiled, and it passed both
+	/// the estate-wide arm ("everything older than the cutoff is gone") and the naive tenant arm ("the named
+	/// tenant's rows are gone") -- it was visible only to an arm asserting that OTHER tenants SURVIVE. It
+	/// was guarded by a runtime consistency check; one argument cannot disagree with itself, so the state is
+	/// now unrepresentable and the guard is gone with it.
 	/// </summary>
+	/// <param name="cutoff">Events older than this instant are removed.</param>
+	/// <param name="tenant">
+	/// The partition to confine the purge to, or <see langword="null"/> for the estate-wide retention sweep.
+	/// The null is written at exactly one named entry point (<c>PurgeExpiredAsync</c>) and cannot arrive by
+	/// omission: this parameter has no default.
+	/// </param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>The number of audit events removed.</returns>
 	private async Task<int> PurgeCoreAsync(
 		DateTimeOffset cutoff,
-		string tenantPredicate,
 		KeyedTenantPartition? tenant,
 		CancellationToken cancellationToken)
 	{
-		// The scope of this delete is carried by TWO arguments that must agree, and disagreement in one
-		// direction DESTROYS DATA: a tenant-scoped call whose fragment is empty silently deletes every
-		// tenant's rows. That mistake compiles, and it passes both the estate-wide arm ("everything older
-		// than the cutoff is gone") and the naive tenant arm ("the named tenant's rows are gone") — it is
-		// only visible to an arm asserting that OTHER tenants SURVIVE. Rather than rely on that arm always
-		// existing, the pairing is asserted here, so a mismatch fails loudly instead of over-deleting.
-		if ((tenant is null) != (tenantPredicate.Length == 0))
-		{
-			throw new InvalidOperationException(
-				"Purge scope is inconsistent: a tenant partition must be accompanied by a tenant predicate, "
-				+ "and an estate-wide purge must have neither. This indicates a defect in the calling member, "
-				+ "not in caller input — refusing rather than deleting a wider set than intended.");
-		}
+		// NULL-safe by necessity: a bare [TenantId] = @TenantId never matches a row whose tenant column is
+		// NULL, so every row written before this table had a tenant column would be unpurgeable -- retained
+		// past policy, invisibly. Folding NULL onto the reserved sentinel is how the keyed partition type
+		// defines a stored value that cannot name a real tenant.
+		var tenantPredicate = tenant is null
+			? string.Empty
+			: "\n\t\t\t  AND COALESCE([TenantId], @UntenantedSentinel) = @TenantId";
 
 		var cutoffDate = cutoff;
 		await using var connection = new SqlConnection(_options.ConnectionString);
@@ -1003,7 +1040,6 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	}
 
 	private async Task<AuditEvent?> GetLastEventInternalAsync(
-		string? tenantId,
 		string? applicationName,
 		CancellationToken cancellationToken)
 	{
@@ -1013,9 +1049,10 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 		var whereClauses = new List<string>();
 		var parameters = new DynamicParameters();
 
-		// SECURITY: scope, not filter — bound unconditionally from ambient context. The caller-supplied
-		// tenantId argument is deliberately not consulted; passing null previously widened this read to
-		// every tenant, and passing another tenant's id redirected it to theirs.
+		// SECURITY: scope, not filter — bound unconditionally from ambient context. The interface no
+		// longer accepts a caller-supplied tenant id at all (it was never consulted here even when it did:
+		// passing null previously widened this read to every tenant, and passing another tenant's id
+		// redirected it to theirs), so the scoping belief the parameter invited is now unformable.
 		AddTenantScope(whereClauses, parameters);
 
 		if (!string.IsNullOrEmpty(applicationName))

@@ -14,7 +14,8 @@ public sealed class ResilienceOptionsShould
 	{
 		var opts = new ResilienceCircuitBreakerOptions();
 
-		opts.FailureThreshold.ShouldBe(5);
+		opts.ConsecutiveFailureThreshold.ShouldBe(5);
+		opts.MinimumThroughput.ShouldBe(5);
 	}
 
 	[Fact]
@@ -22,10 +23,12 @@ public sealed class ResilienceOptionsShould
 	{
 		var opts = new ResilienceCircuitBreakerOptions
 		{
-			FailureThreshold = 10,
+			ConsecutiveFailureThreshold = 10,
+			MinimumThroughput = 10,
 		};
 
-		opts.FailureThreshold.ShouldBe(10);
+		opts.ConsecutiveFailureThreshold.ShouldBe(10);
+		opts.MinimumThroughput.ShouldBe(10);
 	}
 
 	[Fact]
@@ -43,7 +46,7 @@ public sealed class ResilienceOptionsShould
 	public void CircuitBreakerOptionsValidator_FailsForZeroFailureThreshold()
 	{
 		var validator = new CircuitBreakerOptionsValidator();
-		var opts = new ResilienceCircuitBreakerOptions { FailureThreshold = 0 };
+		var opts = new ResilienceCircuitBreakerOptions { ConsecutiveFailureThreshold = 0 };
 
 		var result = validator.Validate(null, opts);
 
@@ -55,15 +58,15 @@ public sealed class ResilienceOptionsShould
 	{
 		var attr = new RetryAttribute();
 
-		attr.MaxAttempts.ShouldBe(3);
+		attr.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
 	public void RetryAttribute_AllowSettingProperties()
 	{
-		var attr = new RetryAttribute { MaxAttempts = 5 };
+		var attr = new RetryAttribute { MaxRetryAttempts = 5 };
 
-		attr.MaxAttempts.ShouldBe(5);
+		attr.MaxRetryAttempts.ShouldBe(5);
 	}
 
 	[Fact]
@@ -71,52 +74,15 @@ public sealed class ResilienceOptionsShould
 	{
 		var opts = new ResilienceRetryOptions();
 
-		opts.MaxAttempts.ShouldBe(3);
+		opts.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
 	public void RetryOptions_AllowSettingProperties()
 	{
-		var opts = new ResilienceRetryOptions { MaxAttempts = 10 };
+		var opts = new ResilienceRetryOptions { MaxRetryAttempts = 10 };
 
-		opts.MaxAttempts.ShouldBe(10);
+		opts.MaxRetryAttempts.ShouldBe(10);
 	}
 
-	[Fact]
-	public void RetryPolicyOptions_HaveDefaults()
-	{
-		var opts = new RetryPolicyOptions();
-
-		opts.MaxRetryAttempts.ShouldBe(3);
-	}
-
-	[Fact]
-	public void RetryPolicyOptions_AllowSettingMaxRetryAttempts()
-	{
-		var opts = new RetryPolicyOptions { MaxRetryAttempts = 7 };
-
-		opts.MaxRetryAttempts.ShouldBe(7);
-	}
-
-	[Fact]
-	public void RetryPolicyOptions_BackoffDefaultValues()
-	{
-		var opts = new RetryPolicyOptions();
-
-		opts.Backoff.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
-		opts.Backoff.MaxDelay.ShouldBe(TimeSpan.FromMinutes(30));
-		opts.Backoff.BackoffMultiplier.ShouldBe(2.0);
-		opts.Backoff.EnableJitter.ShouldBeFalse();
-		opts.Backoff.JitterFactor.ShouldBe(0.1);
-	}
-
-	[Fact]
-	public void RetryPolicyOptions_CircuitBreakerDefaultValues()
-	{
-		var opts = new RetryPolicyOptions();
-
-		opts.CircuitBreaker.EnableCircuitBreaker.ShouldBeFalse();
-		opts.CircuitBreaker.CircuitBreakerThreshold.ShouldBe(5);
-		opts.CircuitBreaker.CircuitBreakerDuration.ShouldBe(TimeSpan.FromSeconds(30));
-	}
 }

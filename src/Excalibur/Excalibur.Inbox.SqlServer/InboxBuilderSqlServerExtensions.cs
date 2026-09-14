@@ -43,6 +43,8 @@ public static class InboxBuilderSqlServerExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
+	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	public static IInboxBuilder UseSqlServer(
 		this IInboxBuilder builder,
 		Action<ISqlServerInboxBuilder> configure)
@@ -93,9 +95,9 @@ public static class InboxBuilderSqlServerExtensions
 	}
 
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+			Justification = "The public entry point that reaches this private helper carries RequiresUnreferencedCode and RequiresDynamicCode, so a caller already receives the trimming and AOT diagnostics at their own call site. Annotating this helper as well adds no signal a consumer can see.")]
+		[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+			Justification = "The public entry point that reaches this private helper carries RequiresUnreferencedCode and RequiresDynamicCode, so a caller already receives the trimming and AOT diagnostics at their own call site. Annotating this helper as well adds no signal a consumer can see.")]
 	private static void RegisterOptionsAndServices(
 		IInboxBuilder builder,
 		SqlServerInboxBuilder sqlBuilder,

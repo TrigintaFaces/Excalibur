@@ -142,7 +142,7 @@ public sealed class LoggingMiddlewareShould : UnitTestBase
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -160,7 +160,7 @@ public sealed class LoggingMiddlewareShould : UnitTestBase
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
+		result.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -203,7 +203,7 @@ public sealed class LoggingMiddlewareShould : UnitTestBase
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert - Should still return success, just without logging
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -275,7 +275,7 @@ public sealed class LoggingMiddlewareShould : UnitTestBase
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	private sealed record ExcludedMessage : IDispatchMessage;

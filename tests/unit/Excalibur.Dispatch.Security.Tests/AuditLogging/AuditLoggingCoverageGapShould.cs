@@ -289,7 +289,7 @@ public sealed class AuditLoggingCoverageGapShould
 	}
 
 	[Fact]
-	public async Task RbacAuditStore_GetLastEventAsync_DelegatesTenantId()
+	public async Task RbacAuditStore_GetLastEventAsync_DelegatesToInnerStore()
 	{
 		// Arrange
 		var innerStore = A.Fake<IAuditStore>();
@@ -300,15 +300,15 @@ public sealed class AuditLoggingCoverageGapShould
 		var logger = new NullLogger<RbacAuditStore>();
 		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
-		A.CallTo(() => innerStore.GetLastEventAsync("my-tenant", A<CancellationToken>._))
+		A.CallTo(() => innerStore.GetLastEventAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult<AuditEvent?>(null));
 
 		// Act
-		var result = await sut.GetLastEventAsync("my-tenant", CancellationToken.None);
+		var result = await sut.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		result.ShouldBeNull();
-		A.CallTo(() => innerStore.GetLastEventAsync("my-tenant", A<CancellationToken>._))
+		A.CallTo(() => innerStore.GetLastEventAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -397,11 +397,11 @@ public sealed class AuditLoggingCoverageGapShould
 		var logger = new NullLogger<RbacAuditStore>();
 		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
-		A.CallTo(() => innerStore.GetLastEventAsync(A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => innerStore.GetLastEventAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult<AuditEvent?>(null));
 
 		// Act
-		var result = await sut.GetLastEventAsync(null, CancellationToken.None);
+		var result = await sut.GetLastEventAsync(CancellationToken.None);
 
 		// Assert
 		result.ShouldBeNull();
@@ -875,7 +875,7 @@ public sealed class AuditLoggingCoverageGapShould
 			CancellationToken cancellationToken = default)
 			=> Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
-		public Task<AuditEvent?> GetLastEventAsync(string? tenantId = null, CancellationToken cancellationToken = default)
+		public Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken = default)
 			=> Task.FromResult<AuditEvent?>(null);
 	}
 

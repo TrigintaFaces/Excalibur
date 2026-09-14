@@ -71,20 +71,4 @@ public sealed class SecuritySurfaceHonestyShould
 			.Except(handled)
 			.ShouldBeEmpty("an authentication type the provider has no arm for is selectable and cannot work");
 	}
-
-	/// <summary>
-	/// Every value of <see cref="EncryptionKeyType"/> must be generatable by the shipped key providers.
-	/// The key-management contract stores raw symmetric key material as a secret and exposes no
-	/// public-key retrieval or asymmetric operation, so an asymmetric member could not be honoured.
-	/// </summary>
-	[Fact]
-	public void OfferOnlyKeyTypesTheProvidersCanGenerate()
-	{
-		// The arms present in AzureKeyVaultProvider.GenerateEncryptionKeyAsync.
-		EncryptionKeyType[] generatable = [EncryptionKeyType.Aes, EncryptionKeyType.Hmac];
-
-		Enum.GetValues<EncryptionKeyType>()
-			.Except(generatable)
-			.ShouldBeEmpty("a key type no shipped provider can generate always fails at runtime");
-	}
 }

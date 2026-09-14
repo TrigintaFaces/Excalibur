@@ -176,9 +176,9 @@ public sealed class EncryptingAuditEventStore : IAuditStore
 	}
 
 	/// <inheritdoc />
-	public async Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
+	public async Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken)
 	{
-		var result = await _inner.GetLastEventAsync(tenantId, cancellationToken).ConfigureAwait(false);
+		var result = await _inner.GetLastEventAsync(cancellationToken).ConfigureAwait(false);
 		if (result is null)
 		{
 			return null;

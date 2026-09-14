@@ -59,20 +59,38 @@ internal sealed partial class CascadeMiddleware : IDispatchMiddleware
 			// The handler opted into cascading but no outbox is staged in this pipeline. Do not silently
 			// drop the messages: surface it loudly so the misconfiguration is visible, and do not throw
 			// (a diagnostics/config problem must not fail the handler that already succeeded).
-			LogCascadeWithoutOutbox(message.GetType().Name, cascade.Messages.Count);
+			// Both cascade logs report the same quantity: messages this middleware could act on,
+			// which excludes nulls. A null entry is never dispatchable, so counting it here would
+			// overstate what the warning says went undispatched.
+			var undispatched = 0;
+			foreach (var cascaded in cascade.Messages)
+			{
+				if (cascaded is not null)
+				{
+					undispatched++;
+				}
+			}
+
+			LogCascadeWithoutOutbox(message.GetType().Name, undispatched);
 			return result;
 		}
 
+		var staged = 0;
 		foreach (var cascaded in cascade.Messages)
 		{
 			if (cascaded is null)
 			{
 				continue;
 			}
+
 			outboxContext.AddOutboundMessage(cascaded);
+			staged++;
 		}
 
-		LogCascadeStaged(message.GetType().Name, cascade.Messages.Count);
+		// The count of messages actually handed to the outbox, not the raw list length: the loop
+		// above skips nulls, so the raw length over-reports staging exactly when the handler
+		// result is malformed -- the case where an accurate count matters most.
+		LogCascadeStaged(message.GetType().Name, staged);
 		return result;
 	}
 

@@ -73,6 +73,24 @@ A workflow body is a `WorkflowBody` delegate — `ValueTask<object?> (IWorkflowC
 | Property | Purpose | Default |
 |----------|---------|---------|
 | `MaxReplayEvents` | Maximum journal events a single instance may accumulate before replay is rejected, guarding against unbounded histories. | `10,000` |
+| `PayloadTypeInfoResolver` | A source-generated `IJsonTypeInfoResolver` covering your activity input and result types. Composed after the framework-owned context. | none (reflection) |
+
+**Under native AOT, `PayloadTypeInfoResolver` is required.** The default payload path is reflection-based,
+which is not AOT-safe, so serializing an activity payload without a resolver throws a `NotSupportedException`
+at the first activity call rather than failing opaquely inside the serializer. Point it at a
+`JsonSerializerContext` covering every activity input and result type:
+
+```csharp
+[JsonSerializable(typeof(ChargeCardInput))]
+[JsonSerializable(typeof(ChargeCardResult))]
+internal sealed partial class WorkflowPayloadContext : JsonSerializerContext;
+
+services.AddWorkflows();
+services.Configure<WorkflowOptions>(
+    options => options.PayloadTypeInfoResolver = WorkflowPayloadContext.Default);
+```
+
+On a host where dynamic code is supported, leaving it unset keeps the reflection-based default.
 
 ## The workflow body and `IWorkflowContext`
 

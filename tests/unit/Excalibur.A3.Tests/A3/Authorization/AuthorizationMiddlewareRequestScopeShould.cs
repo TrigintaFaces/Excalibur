@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Security.Claims;
@@ -112,28 +112,50 @@ public sealed class AuthorizationMiddlewareRequestScopeShould : IDisposable
 	}
 
 	/// <summary>
-	/// <c>AddExcaliburA3</c> must leave exactly one <c>AuditMiddleware</c> descriptor, contributed by the
-	/// composition that also registers the scoped <c>IActivityContext</c> it resolves. A second descriptor
-	/// at another lifetime is de-duplicated by implementation type, so which one survives is decided by
-	/// call order rather than by either registration.
+	/// The audit composition must leave exactly one <c>AuditMiddleware</c> descriptor, contributed by the
+	/// call that also registers the scoped <c>IActivityContext</c> it resolves. A second descriptor at
+	/// another lifetime is de-duplicated by implementation type, so which one survives is decided by call
+	/// order rather than by either registration.
 	/// </summary>
+	/// <remarks>
+	/// RE-POINTED, not weakened: the assertion below is unchanged, and it still detects the duplicate-
+	/// descriptor defect it was written for. What moved is the composition under test. Authorization no
+	/// longer registers audit — that coupling made an opt-in feature a prerequisite of authorization — so
+	/// asking <c>AddExcaliburA3</c> for an audit descriptor now asks a question it is not the answer to,
+	/// and an arm that reads zero would report the coupling's removal as the duplicate defect returning.
+	/// </remarks>
 	[Fact]
-	public void RegisterAuditMiddlewareExactlyOnceAlongsideItsContext()
+	public async Task RegisterAuditMiddlewareExactlyOnceAlongsideItsContext()
 	{
 		// Arrange
 		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
 
 		// Act
-		_ = services.AddExcaliburA3();
+		_ = services.AddExcaliburAudit();
 
-		// Assert
+		// Assert -- keyed on the PROPERTY, not the descriptor shape. The registration is a factory now,
+		// so ImplementationType is null; the previous shape-keyed query returned zero for a middleware
+		// that is registered exactly once and resolves correctly.
 		var auditDescriptors = services
-			.Where(d => d.ServiceType == typeof(IDispatchMiddleware)
-				&& d.ImplementationType == typeof(AuditMiddleware))
+			.Where(d => d.ServiceType == typeof(IDispatchMiddleware))
 			.ToList();
 
 		auditDescriptors.Count.ShouldBe(1);
 		auditDescriptors[0].Lifetime.ShouldBe(ServiceLifetime.Scoped);
+
+		// And it really is the audit middleware, resolved rather than inferred -- otherwise this arm
+		// would pass for any single IDispatchMiddleware the extension happened to leave behind.
+		_ = services.AddLogging();
+		_ = services.AddSingleton(A.Fake<IAuditMessagePublisher>());
+
+		// Async disposal: DefaultOutboxDispatcher is IAsyncDisposable-only and a synchronous using
+		// throws at teardown after the assertion has already succeeded.
+		await using var provider = services.BuildServiceProvider();
+		await using var scope = provider.CreateAsyncScope();
+		scope.ServiceProvider.GetServices<IDispatchMiddleware>()
+			.OfType<AuditMiddleware>()
+			.Count()
+			.ShouldBe(1);
 	}
 
 	private async Task DispatchInNewScopeAsync()

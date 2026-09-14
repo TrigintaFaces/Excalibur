@@ -45,11 +45,11 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 
 		var optionsWrapper = Microsoft.Extensions.Options.Options.Create(_options);
 		_sut = new ContextObservabilityMiddleware(
-			NullLogger<ContextObservabilityMiddleware>.Instance,
 			_tracker,
 			_metrics,
 			_enricher,
-			optionsWrapper);
+			optionsWrapper,
+			NullLogger<ContextObservabilityMiddleware>.Instance);
 	}
 
 	public void Dispose() => _sut.Dispose();
@@ -109,7 +109,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1");
 
 		var successResult = A.Fake<IMessageResult>();
-		A.CallTo(() => successResult.IsSuccess).Returns(true);
+		A.CallTo(() => successResult.Succeeded).Returns(true);
 
 		// Act
 		await _sut.InvokeAsync(
@@ -141,7 +141,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		var context = CreateFakeContext();
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		await _sut.InvokeAsync(
@@ -210,7 +210,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		var context = CreateFakeContext();
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		await _sut.InvokeAsync(
@@ -296,7 +296,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		var context = CreateFakeContext(items: items);
 
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 
 		// Act
 		await _sut.InvokeAsync(

@@ -103,6 +103,25 @@ public sealed class Soc2ServiceCollectionExtensionsShould
 	}
 
 	[Fact]
+	public void RegisterTheBuiltInValidatorsOnceWhenTheBundleIsAddedTwice()
+	{
+		// Arrange -- a consumer reaches this by calling a built-ins overload and a monitoring
+		// overload, each of which registers the bundle.
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddSoc2ComplianceWithBuiltInValidators();
+		services.AddSoc2ComplianceWithBuiltInValidators();
+
+		// Assert -- a duplicated validator duplicates every control it supports, and both
+		// aggregation sites average over that list, so a duplicate is double-weighted in a
+		// verdict reported to an auditor.
+		var validatorDescriptors = services.Where(d => d.ServiceType == typeof(IControlValidator)).ToList();
+		validatorDescriptors.Count.ShouldBe(5);
+		validatorDescriptors.Select(d => d.ImplementationType).Distinct().Count().ShouldBe(5);
+	}
+
+	[Fact]
 	public void RegisterSoc2ContinuousMonitoring()
 	{
 		// Arrange

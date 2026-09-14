@@ -23,9 +23,11 @@ public static class KubernetesFencingTokenServiceCollectionExtensions
 	/// Requires an <see cref="global::k8s.IKubernetes"/> to be registered (the same client used by
 	/// <c>UseKubernetes(...)</c> leader election). The provider reads the native
 	/// <c>Lease.spec.leaseTransitions</c> counter that the election advances on each transition. Uses
-	/// <c>TryAdd</c> so a consumer-supplied provider takes precedence. Pair with <c>WithFencingTokens()</c>
-	/// on the leader election builder; the startup prerequisite check then passes because a provider is
-	/// registered.
+	/// <c>TryAdd</c> so a consumer-supplied provider takes precedence. <c>UseKubernetes(...)</c> /
+	/// <c>AddExcaliburKubernetesLeaderElection(...)</c> already register this by default (fencing is on by
+	/// default; <c>WithoutFencingTokens()</c> opts out) — this method exists for a consumer composing
+	/// services manually without going through those entry points, and satisfies the startup prerequisite
+	/// check the same way.
 	/// </remarks>
 	public static IServiceCollection AddKubernetesFencingTokenProvider(this IServiceCollection services)
 	{

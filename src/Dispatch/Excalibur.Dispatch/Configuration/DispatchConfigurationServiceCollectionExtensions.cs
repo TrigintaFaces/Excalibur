@@ -13,7 +13,9 @@ using Excalibur.Dispatch.Middleware.Versioning;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Transport;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -275,7 +277,10 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		_ = builder.Build();
 
 		// Register pipeline validation at startup (T.15)
-		services.AddHostedService<PipelineValidationHostedService>();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AuthorizationWiringPrerequisiteValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, AuthorizationWiringPrerequisiteValidator>());
 
 		return services;
 	}
@@ -309,8 +314,11 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		services.TryAddScoped<CascadeMiddleware>();
 
 		// Register IOutboxWriter -- default is DeferredOutboxWriter (eventually-consistent mode).
-		// TransactionalOutboxWriter is registered by Excalibur.Outbox provider extensions
-		// when ConsistencyMode == Transactional.
+		// The Excalibur.Outbox provider extensions register ITransactionalOutboxWriter UNCONDITIONALLY when
+		// their provider is added; nothing consults ConsistencyMode to decide it. That interface is a
+		// different one from IOutboxWriter registered here, and which write path an event-sourced
+		// repository takes is chosen by OutboxStagingStrategy on the Excalibur side, not by this
+		// registration and not by ConsistencyMode.
 		services.TryAddScoped<Excalibur.Dispatch.Outbox.IOutboxWriter,
 			DeferredOutboxWriter>();
 		services.TryAddEnumerable(

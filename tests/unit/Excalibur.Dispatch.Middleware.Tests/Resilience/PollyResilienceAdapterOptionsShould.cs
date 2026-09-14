@@ -5,7 +5,6 @@ using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
-using PollyRetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 
@@ -36,7 +35,7 @@ public sealed class PollyResilienceAdapterOptionsShould : UnitTestBase
 		var options = new PollyResilienceAdapterOptions();
 		var retryOptions = new PollyRetryOptions
 		{
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			BaseDelay = TimeSpan.FromMilliseconds(100)
 		};
 
@@ -45,7 +44,7 @@ public sealed class PollyResilienceAdapterOptionsShould : UnitTestBase
 
 		// Assert
 		options.RetryOptions.ShouldNotBeNull();
-		options.RetryOptions.MaxRetries.ShouldBe(5);
+		options.RetryOptions.MaxRetryAttempts.ShouldBe(5);
 		options.RetryOptions.BaseDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
 	}
 
@@ -56,8 +55,8 @@ public sealed class PollyResilienceAdapterOptionsShould : UnitTestBase
 		var options = new PollyResilienceAdapterOptions();
 		var cbOptions = new CircuitBreakerOptions
 		{
-			FailureThreshold = 10,
-			OpenDuration = TimeSpan.FromMinutes(1)
+			MinimumThroughput = 10,
+			BreakDuration = TimeSpan.FromMinutes(1)
 		};
 
 		// Act
@@ -65,8 +64,8 @@ public sealed class PollyResilienceAdapterOptionsShould : UnitTestBase
 
 		// Assert
 		options.CircuitBreakerOptions.ShouldNotBeNull();
-		options.CircuitBreakerOptions.FailureThreshold.ShouldBe(10);
-		options.CircuitBreakerOptions.OpenDuration.ShouldBe(TimeSpan.FromMinutes(1));
+		options.CircuitBreakerOptions.MinimumThroughput.ShouldBe(10);
+		options.CircuitBreakerOptions.BreakDuration.ShouldBe(TimeSpan.FromMinutes(1));
 	}
 
 	[Fact]
@@ -152,15 +151,15 @@ public sealed class PollyResilienceAdapterOptionsShould : UnitTestBase
 		{
 			RetryOptions = new PollyRetryOptions
 			{
-				MaxRetries = 5,
+				MaxRetryAttempts = 5,
 				BaseDelay = TimeSpan.FromMilliseconds(100),
 				BackoffStrategy = BackoffStrategy.Exponential,
 				UseJitter = true
 			},
 			CircuitBreakerOptions = new CircuitBreakerOptions
 			{
-				FailureThreshold = 5,
-				OpenDuration = TimeSpan.FromSeconds(30)
+				MinimumThroughput = 5,
+				BreakDuration = TimeSpan.FromSeconds(30)
 			},
 			MaxBackoffDelay = TimeSpan.FromMinutes(1),
 			EnableTelemetry = true
@@ -168,12 +167,12 @@ public sealed class PollyResilienceAdapterOptionsShould : UnitTestBase
 
 		// Assert
 		options.RetryOptions.ShouldNotBeNull();
-		options.RetryOptions.MaxRetries.ShouldBe(5);
+		options.RetryOptions.MaxRetryAttempts.ShouldBe(5);
 		options.RetryOptions.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 		options.RetryOptions.UseJitter.ShouldBeTrue();
 
 		options.CircuitBreakerOptions.ShouldNotBeNull();
-		options.CircuitBreakerOptions.FailureThreshold.ShouldBe(5);
+		options.CircuitBreakerOptions.MinimumThroughput.ShouldBe(5);
 
 		options.MaxBackoffDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		options.EnableTelemetry.ShouldBeTrue();

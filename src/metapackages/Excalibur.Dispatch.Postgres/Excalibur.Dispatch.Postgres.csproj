@@ -19,24 +19,11 @@
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
     <ProjectReference Include="..\..\Excalibur\Excalibur.Outbox.Postgres\Excalibur.Outbox.Postgres.csproj" />
-    <ProjectReference Include="..\..\Excalibur\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.EventSourcing.Postgres" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Outbox.Postgres" VersionOverride="$(DispatchPackageVersion)" />
-    <PackageReference Include="Excalibur.Hosting.Web" VersionOverride="$(DispatchPackageVersion)" />
-  </ItemGroup>
-  <!--
-    Security floor for a Swashbuckle transitive. Central transitive pinning is deliberately off in
-    this directory, so the resolved graph would otherwise take Swashbuckle's own minimum of
-    Microsoft.OpenApi 2.4.1, in which a circular schema reference can StackOverflow-terminate the
-    process (GHSA-v5pm-xwqc-g5wc). PrivateAssets="all" applies the floor to this project's restore
-    without emitting the package onto the metapackage's dependency list, which stays the bundle it
-    names. Consumers reach the same floor through the implementation packages, which declare it.
-  -->
-  <ItemGroup>
-    <PackageReference Include="Microsoft.OpenApi" PrivateAssets="all" />
   </ItemGroup>
 </Project>

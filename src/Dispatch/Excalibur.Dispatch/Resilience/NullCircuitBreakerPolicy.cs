@@ -61,8 +61,13 @@ internal sealed class NullCircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuit
 	}
 
 	/// <inheritdoc />
-	public void Reset()
+	/// <remarks>
+	/// This policy has no state to clear, and its <see cref="State" /> is permanently
+	/// <see cref="CircuitState.Closed" />, so the interface postcondition holds on return.
+	/// </remarks>
+	public Task ResetAsync(CancellationToken cancellationToken)
 	{
-		// No-op
+		cancellationToken.ThrowIfCancellationRequested();
+		return Task.CompletedTask;
 	}
 }

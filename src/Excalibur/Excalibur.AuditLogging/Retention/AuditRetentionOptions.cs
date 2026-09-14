@@ -44,11 +44,6 @@ public sealed class AuditRetentionOptions
 	public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromDays(1);
 
 	/// <summary>
-	/// Gets or sets the maximum number of events to delete per cleanup batch.
-	/// </summary>
-	public int BatchSize { get; set; } = 10000;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to archive events before deleting them.
 	/// </summary>
 	public bool ArchiveBeforeDelete { get; set; }

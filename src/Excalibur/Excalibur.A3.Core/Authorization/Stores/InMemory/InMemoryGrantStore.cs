@@ -246,9 +246,12 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		return Task.FromResult<IReadOnlyList<string>>(userIds);
 	}
 
+	// Escaped before joining, so a term containing the separator cannot shift the meaning of the key:
+	// without it ("a:b", "c", "d") and ("a", "b:c", "d") compose the same string and one tenant reads
+	// another tenant's grant. This store is in-memory, so the composition is never persisted.
 	private static string BuildKey(string userId, string tenantId, string grantType, string qualifier) =>
-		$"{userId}:{tenantId}:{grantType}:{qualifier}";
+		$"{GrantKeyFormat.Escape(userId)}:{GrantKeyFormat.ComposeScope(tenantId, grantType, qualifier)}";
 
 	private static string BuildScopeKey(string tenantId, string grantType, string qualifier) =>
-		$"{tenantId}:{grantType}:{qualifier}";
+		GrantKeyFormat.ComposeScope(tenantId, grantType, qualifier);
 }

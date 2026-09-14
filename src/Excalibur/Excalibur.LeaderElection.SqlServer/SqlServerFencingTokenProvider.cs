@@ -94,10 +94,11 @@ SELECT @token;";
 		}
 		catch (SqlException ex) when (ex.Number == SequenceExhaustedErrorNumber)
 		{
-			// A NO CYCLE bigint SEQUENCE raises error 11732 ("reached its minimum or maximum value") at its
-			// ceiling rather than wrapping; translate to the contract's FencingTokenExhaustedException so a
-			// consumer's fail-closed catch relinquishes rather than seeing a raw SqlException (a
-			// wrapped/reused fencing token would be a split-brain catastrophe).
+			// A NO CYCLE bigint SEQUENCE raises error 11728 ("has reached its minimum or maximum value.
+			// Restart the sequence object to allow new values to be generated") at its ceiling rather than
+			// wrapping; translate to the contract's FencingTokenExhaustedException so a consumer's
+			// fail-closed catch relinquishes rather than seeing a raw SqlException (a wrapped/reused
+			// fencing token would be a split-brain catastrophe).
 			throw new FencingTokenExhaustedException(
 				string.Format(
 					CultureInfo.InvariantCulture,
@@ -110,8 +111,12 @@ SELECT @token;";
 		}
 	}
 
-	/// <summary>SQL Server error number raised when a NO CYCLE sequence reaches its min/max value.</summary>
-	private const int SequenceExhaustedErrorNumber = 11732;
+	/// <summary>
+	/// SQL Server error number raised when a NO CYCLE sequence reaches its min/max value. Measured against
+	/// a real SQL Server: 11728, not 11732 -- an earlier draft of this provider checked the wrong
+	/// number, which would have let a real overflow escape untranslated as a raw <see cref="SqlException"/>.
+	/// </summary>
+	private const int SequenceExhaustedErrorNumber = 11728;
 
 	/// <inheritdoc />
 	public async ValueTask<long?> GetTokenAsync(string resourceId, CancellationToken cancellationToken)

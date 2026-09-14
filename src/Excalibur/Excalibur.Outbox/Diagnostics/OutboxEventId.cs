@@ -127,6 +127,27 @@ internal static class OutboxEventId
 	/// <summary>Outbox background skipped processing -- not the leader.</summary>
 	public const int OutboxBackgroundSkippedNotLeader = 131308;
 
+	/// <summary>Routing one message to the dead-letter queue failed; the remaining messages still route.</summary>
+	public const int OutboxDeadLetterRoutingFailed = 131309;
+
+	/// <summary>
+	/// A message was dispatched successfully, but the store write recording that fact failed. The delivery
+	/// stands; only the bookkeeping did not.
+	/// </summary>
+	public const int OutboxMarkSentFailedAfterDelivery = 131310;
+
+	/// <summary>
+	/// A dead-letter entry written by this tenure was withdrawn because the fenced mark that would have made
+	/// it true was refused.
+	/// </summary>
+	public const int OutboxDeadLetterEntryCompensated = 131311;
+
+	/// <summary>
+	/// A dead-letter entry could not be withdrawn after its fenced mark was refused, so the entry describes a
+	/// message this tenure no longer owns.
+	/// </summary>
+	public const int OutboxDeadLetterCompensationFailed = 131312;
+
 	/// <summary>Inbox background service drain timeout exceeded.</summary>
 	public const int InboxBackgroundServiceDrainTimeout = 132005;
 
@@ -215,6 +236,21 @@ internal static class OutboxEventId
 
 	/// <summary>Inbox cleanup completed.</summary>
 	public const int InboxCleanupCompleted = 134004;
+
+	/// <summary>A claim-scoped failure report was declined because the claim was no longer held.</summary>
+	public const int OutboxClaimLostOnFailureReport = 134005;
+
+	/// <summary>A claim-scoped failure report matched no message: the row was already gone.</summary>
+	public const int OutboxFailureReportFoundNoMessage = 134006;
+
+	/// <summary>A claim-scoped failure report returned an outcome this build does not recognise.</summary>
+	public const int OutboxFailureReportOutcomeUnrecognised = 134007;
+
+	/// <summary>A fenced failure report was refused because a newer leadership tenure exists.</summary>
+	public const int OutboxFencedFailureReportRefused = 134008;
+
+	/// <summary>A fenced dead-letter transition did not apply, so the outbox row was not destroyed.</summary>
+	public const int OutboxFencedDeadLetterRefused = 134009;
 
 	// ========================================
 	// 130200-130299: MessageOutbox
@@ -332,6 +368,13 @@ internal static class OutboxEventId
 	/// </summary>
 	public const int OutboxRunningUnfenced = 131228;
 
+	/// <summary>
+	/// A fenced mark-sent was refused because this tenure's fencing token is stale (a newer leader has taken
+	/// over). The drain cycle for this message is aborted with no further store write, leaving the message as
+	/// claimed for the current leader to resolve.
+	/// </summary>
+	public const int OutboxFencedMarkSentRefused = 131229;
+
 	// ========================================
 	// 132200-132399: InboxProcessor
 	// ========================================
@@ -432,6 +475,15 @@ internal static class OutboxEventId
 
 	/// <summary>Cosmos DB change feed batch received.</summary>
 	public const int CosmosDbChangeFeedBatchReceived = 133205;
+
+	/// <summary>Cosmos DB change feed subscription failed to save its checkpoint.</summary>
+	public const int CosmosDbChangeFeedCheckpointError = 133206;
+
+	/// <summary>
+	/// Cosmos DB change feed subscription's checkpoint saves have failed enough consecutive times to
+	/// report the subscription degraded.
+	/// </summary>
+	public const int CosmosDbChangeFeedCheckpointDegraded = 133207;
 
 	// ========================================
 	// 133300-133399: DynamoDB Cloud Outbox

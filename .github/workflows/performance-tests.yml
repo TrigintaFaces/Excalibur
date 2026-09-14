@@ -254,8 +254,12 @@ jobs:
           path: BenchmarkDotNet.Artifacts
           retention-days: 30
 
+      # NO event guard. This check compares the run's results against a COMMITTED baseline file, not
+      # against a base ref, so it needs no pull-request context to be meaningful -- and this workflow
+      # never receives a pull_request event anyway (it triggers on push, schedule and workflow_dispatch),
+      # so a guard naming that event made the step unreachable and it had never executed. Do not
+      # reintroduce one: an unreachable gate reports nothing and looks identical to a passing gate.
       - name: Performance regression check
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           # Three-state gate: 0 PASS / 1 FAIL / 2 REFUSE. REFUSE is not a pass -

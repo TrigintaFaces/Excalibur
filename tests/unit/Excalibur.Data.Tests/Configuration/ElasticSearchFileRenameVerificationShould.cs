@@ -20,10 +20,12 @@ public sealed class ElasticSearchFileRenameVerificationShould
 	private static readonly Assembly ElasticSearchAssembly = typeof(ProjectionOptions).Assembly;
 
 	[Fact]
-	public void HaveRenamedCircuitBreakerSettingsToOptions()
+	public void HaveRenamedCircuitBreakerOptionsToItsProviderPrefixedName()
 	{
-		var type = ElasticSearchAssembly.GetType("Excalibur.Data.ElasticSearch.CircuitBreakerOptions");
-		type.ShouldNotBeNull("CircuitBreakerOptions should exist after rename from CircuitBreakerSettings");
+		var type = ElasticSearchAssembly.GetType("Excalibur.Data.ElasticSearch.ElasticsearchCircuitBreakerOptions");
+		type.ShouldNotBeNull(
+			"ElasticsearchCircuitBreakerOptions should exist: renamed from the bare CircuitBreakerOptions, "
+			+ "which collided with the dispatch pipeline type of the same name.");
 	}
 
 	[Fact]
@@ -107,9 +109,9 @@ public sealed class ElasticSearchFileRenameVerificationShould
 	}
 
 	[Fact]
-	public void BeInstantiable_CircuitBreakerOptions()
+	public void BeInstantiable_ElasticsearchCircuitBreakerOptions()
 	{
-		var options = new CircuitBreakerOptions();
+		var options = new ElasticsearchCircuitBreakerOptions();
 		options.ShouldNotBeNull();
 	}
 

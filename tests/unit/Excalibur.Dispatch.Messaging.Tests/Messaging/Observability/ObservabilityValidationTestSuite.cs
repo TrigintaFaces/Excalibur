@@ -215,7 +215,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 		// Assert - Verify successful processing
 		_ = result.ShouldNotBeNull();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 
 		// Assert - Verify message was processed
 		processedMessages.ShouldNotBeEmpty();

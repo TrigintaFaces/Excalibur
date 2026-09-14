@@ -201,10 +201,16 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 		messages.ShouldContain(
 			m => m.Destination == ConfiguredDestination,
 			"xnyhjd: Redis EnqueueAsync must persist the destination derived from the context metadata.");
-		// pfgcj6: Redis/Mongo now fall back to the SIMPLE type name (message.GetType().Name), matching Postgres.
+		// nsspc9: all three providers fall back to the NAMESPACE-QUALIFIED type name. An earlier pass
+		// asserted the simple name here on a Postgres-parity argument; Postgres qualifies it too, so the
+		// parity holds at FullName and the simple-name assertion was over-specified.
 		messages.ShouldContain(
-			m => m.Destination == nameof(DestinationDerivationTestMessage),
-			"xnyhjd/pfgcj6: with no context destination, Redis EnqueueAsync must fall back to the message TYPE name (simple, Postgres-parity), not drop it.");
+			m => m.Destination == typeof(DestinationDerivationTestMessage).FullName,
+			"xnyhjd/pfgcj6: with no context destination, Redis EnqueueAsync must fall back to the message "
+			+ "TYPE name rather than dropping it. The destination is a ROUTING KEY and must be collision-free, "
+			+ "so the fallback is the NAMESPACE-QUALIFIED type name — two message types sharing a short name "
+			+ "in different namespaces must not collapse onto one destination. The short name is for telemetry "
+			+ "tags only; do not 'align' this to it.");
 	}
 
 	private static IMessageContext CreateContext(string messageId, string? destination)

@@ -4,6 +4,8 @@
 using System.Reflection;
 using System.Text.Json;
 
+using Azure.ResourceManager.Logic;
+
 using Excalibur.Jobs;
 using Excalibur.Jobs.Azure;
 using Excalibur.Jobs.Azure.Internal;
@@ -168,11 +170,12 @@ public sealed class AzureLogicAppsJobProviderShould
 	}
 
 	[Fact]
-	public async Task RethrowWhenScheduleCannotResolveSubscription()
+	public async Task RethrowWhenScheduleSeamCallFails()
 	{
 		var armClient = A.Fake<IArmClientSeam>();
-		_ = A.CallTo(() => armClient.GetDefaultSubscriptionAsync(A<CancellationToken>._))
-			.ThrowsAsync(new InvalidOperationException("subscription unavailable"));
+		_ = A.CallTo(() => armClient.CreateOrUpdateWorkflowAsync(
+				A<string>._, A<string>._, A<LogicWorkflowData>._, A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("resource manager unavailable"));
 		var provider = new AzureLogicAppsJobProvider(
 			armClient,
 			Opt(CreateOptions()),
@@ -181,15 +184,15 @@ public sealed class AzureLogicAppsJobProviderShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
 			provider.ScheduleJobAsync<TestBackgroundJob>("sync-orders", "*/5 * * * *", CancellationToken.None));
 
-		ex.Message.ShouldBe("subscription unavailable");
+		ex.Message.ShouldBe("resource manager unavailable");
 	}
 
 	[Fact]
-	public async Task RethrowWhenDeleteCannotResolveSubscription()
+	public async Task RethrowWhenDeleteSeamCallFails()
 	{
 		var armClient = A.Fake<IArmClientSeam>();
-		_ = A.CallTo(() => armClient.GetDefaultSubscriptionAsync(A<CancellationToken>._))
-			.ThrowsAsync(new InvalidOperationException("subscription unavailable"));
+		_ = A.CallTo(() => armClient.DeleteWorkflowAsync(A<string>._, A<string>._, A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("resource manager unavailable"));
 		var provider = new AzureLogicAppsJobProvider(
 			armClient,
 			Opt(CreateOptions()),
@@ -198,7 +201,61 @@ public sealed class AzureLogicAppsJobProviderShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
 			provider.DeleteJobAsync("sync-orders", CancellationToken.None));
 
-		ex.Message.ShouldBe("subscription unavailable");
+		ex.Message.ShouldBe("resource manager unavailable");
+	}
+
+	/// <summary>
+	/// The provider addresses the workflow by the resource group it was configured with and by the
+	/// <c>EXCALIBUR-JOB-</c> name form. A provider that sent a different group or a different name would
+	/// write the schedule somewhere the operator is not looking, which no assertion on the definition
+	/// payload can detect.
+	/// </summary>
+	[Fact]
+	public async Task AddressTheWorkflowByConfiguredResourceGroupAndDerivedName()
+	{
+		var armClient = A.Fake<IArmClientSeam>();
+		string? capturedGroup = null;
+		string? capturedName = null;
+		_ = A.CallTo(() => armClient.CreateOrUpdateWorkflowAsync(
+				A<string>._, A<string>._, A<LogicWorkflowData>._, A<CancellationToken>._))
+			.Invokes((string group, string name, LogicWorkflowData _, CancellationToken _) =>
+			{
+				capturedGroup = group;
+				capturedName = name;
+			})
+			.Returns(Task.CompletedTask);
+
+		var provider = new AzureLogicAppsJobProvider(
+			armClient,
+			Opt(CreateOptions()),
+			A.Fake<ILogger<AzureLogicAppsJobProvider>>());
+
+		await provider.ScheduleJobAsync<TestBackgroundJob>("sync-orders", "*/5 * * * *", CancellationToken.None);
+
+		capturedGroup.ShouldBe("jobs-rg");
+		capturedName.ShouldBe("EXCALIBUR-JOB-SYNC-ORDERS");
+	}
+
+	/// <summary>
+	/// Deleting a workflow that is not there logs the not-found outcome and completes; it does not throw.
+	/// The seam reports the distinction as a return value, so this arm pins that the provider actually
+	/// branches on it rather than treating every delete as a success.
+	/// </summary>
+	[Fact]
+	public async Task CompleteWhenDeletingAWorkflowThatDoesNotExist()
+	{
+		var armClient = A.Fake<IArmClientSeam>();
+		_ = A.CallTo(() => armClient.DeleteWorkflowAsync(A<string>._, A<string>._, A<CancellationToken>._))
+			.Returns(false);
+		var provider = new AzureLogicAppsJobProvider(
+			armClient,
+			Opt(CreateOptions()),
+			A.Fake<ILogger<AzureLogicAppsJobProvider>>());
+
+		await Should.NotThrowAsync(() => provider.DeleteJobAsync("sync-orders", CancellationToken.None));
+
+		A.CallTo(() => armClient.DeleteWorkflowAsync("jobs-rg", "EXCALIBUR-JOB-SYNC-ORDERS", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	private static AzureLogicAppsOptions CreateOptions() =>

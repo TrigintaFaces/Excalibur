@@ -136,7 +136,7 @@ internal static class KafkaEventId
 	public const int MessageRejected = 22118;
 
 	/// <summary>Kafka CloudEvent mapper resolved.</summary>
-	public const int CloudEventMapperResolved = 22119;
+	public const int CloudEventEncoderResolved = 22119;
 
 	/// <summary>Kafka consume error.</summary>
 	public const int ConsumeError = 22120;

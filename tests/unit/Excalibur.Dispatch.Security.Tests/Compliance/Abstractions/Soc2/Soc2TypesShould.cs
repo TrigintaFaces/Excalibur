@@ -124,6 +124,7 @@ public sealed class Soc2TypesShould : UnitTestBase
 	[InlineData(TestOutcome.MinorExceptions)]
 	[InlineData(TestOutcome.SignificantExceptions)]
 	[InlineData(TestOutcome.ControlFailure)]
+	[InlineData(TestOutcome.NotTested)]
 	public void SupportAllTestOutcomes(TestOutcome outcome)
 	{
 		// Assert

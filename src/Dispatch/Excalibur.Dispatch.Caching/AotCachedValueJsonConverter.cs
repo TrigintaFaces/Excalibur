@@ -64,6 +64,7 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 		var hasExecuted = false;
 		string? typeName = null;
 		string? actionTypeName = null;
+		Dictionary<string, string>? tagStamps = null;
 
 		while (reader.Read())
 		{
@@ -93,6 +94,12 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 					break;
 				case CachedValueJsonConverter.ActionTypeNamePropertyName:
 					actionTypeName = reader.GetString();
+					break;
+				case CachedValueJsonConverter.TagStampsPropertyName:
+					// Hand-written, not JsonSerializer.Deserialize<Dictionary<string,string>> -- string-keyed,
+					// string-valued reads need no reflection and no JsonTypeInfo, so this stays AOT-safe
+					// without asking a consumer to register Dictionary<string,string> with their context.
+					tagStamps = ReadTagStamps(ref reader);
 					break;
 				case CachedValueJsonConverter.ValuePropertyName:
 					// JsonElement.ParseValue reads the value straight off the reader. The generic
@@ -132,7 +139,52 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 			HasExecuted = hasExecuted,
 			TypeName = typeName,
 			ActionTypeName = actionTypeName,
+			TagStamps = tagStamps,
 		};
+	}
+
+	private static Dictionary<string, string>? ReadTagStamps(ref Utf8JsonReader reader)
+	{
+		if (reader.TokenType == JsonTokenType.Null)
+		{
+			return null;
+		}
+
+		if (reader.TokenType != JsonTokenType.StartObject)
+		{
+			throw new JsonException(Resources.CachedValueJsonConverter_ExpectedStartObjectToken);
+		}
+
+		var map = new Dictionary<string, string>(StringComparer.Ordinal);
+		while (reader.Read())
+		{
+			if (reader.TokenType == JsonTokenType.EndObject)
+			{
+				break;
+			}
+
+			if (reader.TokenType != JsonTokenType.PropertyName)
+			{
+				throw new JsonException(Resources.CachedValueJsonConverter_ExpectedPropertyNameToken);
+			}
+
+			var tag = reader.GetString() ?? string.Empty;
+			_ = reader.Read();
+			map[tag] = reader.GetString() ?? string.Empty;
+		}
+
+		return map;
+	}
+
+	private static void WriteTagStamps(Utf8JsonWriter writer, IReadOnlyDictionary<string, string> tagStamps)
+	{
+		writer.WriteStartObject();
+		foreach (var (tag, stamp) in tagStamps)
+		{
+			writer.WriteString(tag, stamp);
+		}
+
+		writer.WriteEndObject();
 	}
 
 	/// <inheritdoc />
@@ -156,6 +208,12 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 		if (value.ActionTypeName != null)
 		{
 			writer.WriteString(CachedValueJsonConverter.ActionTypeNamePropertyName, value.ActionTypeName);
+		}
+
+		if (value.TagStamps != null)
+		{
+			writer.WritePropertyName(CachedValueJsonConverter.TagStampsPropertyName);
+			WriteTagStamps(writer, value.TagStamps);
 		}
 
 		writer.WritePropertyName(CachedValueJsonConverter.ValuePropertyName);

@@ -59,6 +59,14 @@ public sealed class CosmosDbEventStoreOptions
 	public int ChangeFeedPollIntervalMs { get; set; } = 1000;
 
 	/// <summary>
+	/// Gets or sets the number of consecutive checkpoint-save failures after which the change feed
+	/// subscription reports itself degraded rather than continuing silently.
+	/// </summary>
+	/// <value>Defaults to 10. Must be positive.</value>
+	[Range(1, int.MaxValue)]
+	public int MaxConsecutiveCheckpointFailures { get; set; } = 10;
+
+	/// <summary>
 	/// Gets or sets a value indicating whether to create the container if it doesn't exist.
 	/// </summary>
 	/// <value>Defaults to <see langword="true"/>.</value>

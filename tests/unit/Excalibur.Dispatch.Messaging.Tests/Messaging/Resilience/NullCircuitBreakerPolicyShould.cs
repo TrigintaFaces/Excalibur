@@ -71,9 +71,9 @@ public sealed class NullCircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void NotThrowOnReset()
+	public async Task NotThrowOnReset()
 	{
-		Should.NotThrow(() => NullCircuitBreakerPolicy.Instance.Reset());
+		await Should.NotThrowAsync(async () => await NullCircuitBreakerPolicy.Instance.ResetAsync(CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 	}
 
 	[Fact]

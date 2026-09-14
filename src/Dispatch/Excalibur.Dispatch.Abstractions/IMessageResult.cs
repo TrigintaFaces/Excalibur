@@ -16,13 +16,6 @@ public interface IMessageResult
 	bool Succeeded { get; }
 
 	/// <summary>
-	/// Gets a value indicating whether the message processing operation completed successfully.
-	/// </summary>
-	/// <remarks> Alias for <see cref="Succeeded" /> to maintain compatibility with different naming conventions. </remarks>
-	/// <value> <see langword="true" /> when processing completed successfully; otherwise, <see langword="false" />. </value>
-	bool IsSuccess => Succeeded;
-
-	/// <summary>
 	/// Gets the error message when the operation fails, or null when successful.
 	/// </summary>
 	/// <value> The error message when the operation fails; otherwise, <see langword="null" />. </value>
@@ -33,6 +26,22 @@ public interface IMessageResult
 	/// </summary>
 	/// <value> <see langword="true" /> when the result was served from cache; otherwise, <see langword="false" />. </value>
 	bool CacheHit { get; }
+
+	/// <summary>
+	/// Gets a value describing how this result was produced — whether a handler ran, or the operation was
+	/// satisfied without one.
+	/// </summary>
+	/// <value>
+	/// <see cref="MessageDisposition.Handled" /> unless an implementation states otherwise.
+	/// </value>
+	/// <remarks>
+	/// <see cref="Succeeded" /> answers whether the operation failed; this answers what produced the
+	/// outcome, and the two are independent. A cached result and a suppressed duplicate both succeed with
+	/// no handler invocation, so a caller that records completion on the strength of <see cref="Succeeded" />
+	/// alone can mark a message complete that nothing handled. Implementations that run a handler need not
+	/// override this.
+	/// </remarks>
+	MessageDisposition Disposition => MessageDisposition.Handled;
 
 	/// <summary>
 	/// Gets the validation result associated with this message result.

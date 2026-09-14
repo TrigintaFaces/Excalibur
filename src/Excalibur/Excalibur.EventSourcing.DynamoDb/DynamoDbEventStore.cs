@@ -149,25 +149,15 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 
-		if (serviceType == typeof(ICloudNativeProviderInfo))
+		// Only advertise the change feed when it can actually be served. Without a Streams client the
+		// capability is genuinely absent, and the contract asks for null rather than an instance that
+		// throws on first use.
+		if (serviceType == typeof(ICloudNativeEventStoreChangeFeed) && _streamsClient is null)
 		{
-			return this;
+			return null;
 		}
 
-		if (serviceType == typeof(ICloudNativeEventStoreChangeFeed))
-		{
-			// Only advertise the change feed when it can actually be served. Without a Streams client the
-			// capability is genuinely absent, and the contract asks for null rather than an instance that
-			// throws on first use.
-			return _streamsClient is null ? null : this;
-		}
-
-		if (serviceType == typeof(ICloudNativeEventStoreInfo))
-		{
-			return this;
-		}
-
-		return null;
+		return serviceType.IsInstanceOfType(this) ? this : null;
 	}
 
 	/// <inheritdoc />
@@ -401,7 +391,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			if (_options.UseTransactionalWrite)
 			{
 				appendResult = await AppendWithTransactionAsync(
-						streamId, aggregateId, aggregateType, eventsList, expectedVersion, cancellationToken)
+						streamId, aggregateId, aggregateType, partitionKey, eventsList, expectedVersion, cancellationToken)
 					.ConfigureAwait(false);
 			}
 			else
@@ -410,7 +400,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 				// per-item conditional PutItem path (no TransactWriteItems — avoids the 2× WCU and the extra
 				// IAM permission a transaction requires).
 				appendResult = await AppendSequentiallyAsync(
-						streamId, aggregateId, aggregateType, eventsList, expectedVersion, cancellationToken)
+						streamId, aggregateId, aggregateType, partitionKey, eventsList, expectedVersion, cancellationToken)
 					.ConfigureAwait(false);
 			}
 
@@ -454,7 +444,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			// AWS SDK exception (a leaked provider exception is the substitutability violation). Version
 			// conflicts are already returned above; every other fault returns a failure handled uniformly
 			// across providers.
-			return CloudAppendResult.CreateFailure(ex.Message, requestCharge: 0d);
+			return CloudAppendResult.CreateFailure(ex.Message, requestCharge: 0d, ClassifyAppendFailure(ex));
 		}
 		finally
 		{
@@ -623,21 +613,39 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 	/// </para>
 	/// </remarks>
 	private string BuildStreamId(string aggregateType, string aggregateId) =>
-		$"{TenantKeyPrefix}{TenantScope.FromContext(_tenantContext).TenantId}:{aggregateType}:{aggregateId}";
+		Excalibur.Data.TenantScopedKey.Compose(
+			TenantScope.FromContext(_tenantContext).TenantId, aggregateType, aggregateId);
+
+	/// <summary>
+	/// Classifies an append fault by its AWS exception type: DynamoDB's own throttling/availability
+	/// exceptions are transient, everything else is treated as permanent.
+	/// </summary>
+	/// <remarks>
+	/// Type-matched rather than status-code-matched: DynamoDB throttling returns HTTP 400 for
+	/// <see cref="ProvisionedThroughputExceededException"/> and <see cref="ThrottlingException"/> alike --
+	/// the SAME status a genuine bad request returns -- so <see cref="Amazon.Runtime.AmazonServiceException.StatusCode"/>
+	/// cannot discriminate them the way Cosmos's status code can.
+	/// </remarks>
+	private static MessageFailureKind ClassifyAppendFailure(AmazonDynamoDBException exception) =>
+		exception switch
+		{
+			ProvisionedThroughputExceededException => MessageFailureKind.Transient,
+			ThrottlingException => MessageFailureKind.Transient,
+			RequestLimitExceededException => MessageFailureKind.Transient,
+			InternalServerErrorException => MessageFailureKind.Transient,
+			_ => MessageFailureKind.Permanent,
+		};
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
+		// Delegates to IDomainEvent.CorrelationId (checks OutboxHeaderNames.CorrelationId, the
+		// framework declared key, then the legacy PascalCase/camelCase spellings) rather than
+		// re-implementing the key-priority chain here.
 		foreach (var @event in events)
 		{
-			if (@event.Metadata == null)
+			if (@event.CorrelationId is { } correlationId)
 			{
-				continue;
-			}
-
-			if (@event.Metadata.TryGetValue("CorrelationId", out var correlationId) ||
-				@event.Metadata.TryGetValue("correlationId", out correlationId))
-			{
-				return correlationId?.ToString();
+				return correlationId;
 			}
 		}
 
@@ -681,6 +689,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		string streamId,
 		string aggregateId,
 		string aggregateType,
+		IPartitionKey partitionKey,
 		List<IDomainEvent> events,
 		long expectedVersion,
 		CancellationToken cancellationToken)
@@ -729,8 +738,14 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			// condition (attribute_not_exists(#pk) violated). Other cancellation reasons — throttling,
 			// capacity, item-size, TransactionConflict — are NOT version conflicts; let them propagate so a
 			// transient/operational failure is not silently misreported as a concurrency conflict.
+			// Report the stream's ACTUAL committed version, not the version this writer wanted. The
+			// caller reloads against the number in this result, so handing it back its own intended
+			// version tells it to retry from a point that does not exist. Every other provider re-reads;
+			// this matches them.
+			var actualVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, partitionKey, cancellationToken)
+				.ConfigureAwait(false);
 			LogConcurrencyConflict(streamId, expectedVersion);
-			return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, version, 0);
+			return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion, 0);
 		}
 	}
 
@@ -738,6 +753,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		string streamId,
 		string aggregateId,
 		string aggregateType,
+		IPartitionKey partitionKey,
 		List<IDomainEvent> events,
 		long expectedVersion,
 		CancellationToken cancellationToken)
@@ -771,8 +787,13 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			}
 			catch (ConditionalCheckFailedException)
 			{
+				// The stream's ACTUAL committed version, as above. On this path the events written before
+				// the collision are already durable -- the caller opted out of atomicity -- so the tail is
+				// whatever the winner and this partial run left, which only a read can answer.
+				var actualVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, partitionKey, cancellationToken)
+					.ConfigureAwait(false);
 				LogConcurrencyConflict(streamId, expectedVersion);
-				return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, version, totalCapacity);
+				return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion, totalCapacity);
 			}
 		}
 

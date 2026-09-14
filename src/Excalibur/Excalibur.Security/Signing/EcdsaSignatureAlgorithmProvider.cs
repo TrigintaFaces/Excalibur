@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Formats.Asn1;
 using System.Security.Cryptography;
 
 namespace Excalibur.Security;
 
 /// <summary>
-/// Provides ECDSA P-256 signing and verification for the composite signing service.
+/// Provides ECDSA signing and verification for the composite signing service. The curve comes from
+/// the supplied key; P-256 is the enforced minimum and anything weaker is rejected at sign and verify.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -39,19 +41,70 @@ public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvide
 	/// </remarks>
 	private const int MinimumCurveSizeInBits = 256;
 
-	// Some platforms (macOS/CoreCrypto) refuse to import a sub-minimum curve at all, raising
-	// PlatformNotSupportedException before the floor below is ever reached. Both catch blocks funnel it
-	// into the same signing/verification failure so a weak key is refused identically everywhere.
+	// RFC 5480 §2.1.1.1 named-curve OIDs mapped to field size in bits. Verified against the DER a
+	// real `openssl ecparam -genkey` emits for each curve, not transcribed from memory. Only the
+	// curves .NET can construct at all are listed; an OID this table doesn't recognize (an unlisted
+	// named curve, or explicit curve parameters) falls through to the post-import KeySize check below.
+	private static readonly Dictionary<string, int> NamedCurveBitLengths = new(StringComparer.Ordinal)
+	{
+		["1.2.840.10045.3.1.1"] = 192, // secp192r1 / P-192
+		["1.3.132.0.33"] = 224, // secp224r1 / P-224
+		["1.2.840.10045.3.1.7"] = 256, // secp256r1 / P-256
+		["1.3.132.0.34"] = 384, // secp384r1 / P-384
+		["1.3.132.0.35"] = 521, // secp521r1 / P-521
+	};
+
+	// Reads the namedCurve OID straight out of the PKCS#8/SubjectPublicKeyInfo DER via the BCL's ASN.1
+	// reader -- no platform crypto call is made, so this runs identically on every OS. That matters
+	// because macOS/CoreCrypto refuses to even construct an ECDsa over a sub-P-256 curve: without this
+	// pre-check, the floor below would never fire there and a weak-curve rejection test would pass for
+	// the wrong reason (the platform's refusal, not our floor). Byte parsing has no such platform gap.
+	private static void RejectNamedCurveBelowTheMinimum(ReadOnlyMemory<byte> keyMaterial, bool isPkcs8PrivateKey)
+	{
+		try
+		{
+			var reader = new AsnReader(keyMaterial, AsnEncodingRules.DER);
+			var top = reader.ReadSequence();
+			if (isPkcs8PrivateKey)
+			{
+				_ = top.ReadInteger(); // PrivateKeyInfo.version
+			}
+
+			var algorithmIdentifier = top.ReadSequence();
+			_ = algorithmIdentifier.ReadObjectIdentifier(); // id-ecPublicKey -- irrelevant to non-EC keys, which never reach this path
+
+			if (!algorithmIdentifier.HasData)
+			{
+				return; // no curve parameters present -- let the platform importer decide
+			}
+
+			var curveOid = algorithmIdentifier.ReadObjectIdentifier();
+			if (NamedCurveBitLengths.TryGetValue(curveOid, out var bits) && bits < MinimumCurveSizeInBits)
+			{
+				throw new CryptographicException(FormatRejectionMessage(bits));
+			}
+		}
+		catch (AsnContentException)
+		{
+			// Not the DER shape we know how to sniff (e.g. explicit curve parameters instead of a named
+			// curve). Fall through to the platform importer and the post-import KeySize check.
+		}
+	}
+
+	// Second line of defense: catches a weak curve the DER sniff above didn't recognize (explicit
+	// parameters, or a named curve absent from the table) but that the platform still imported.
 	private static void RejectCurvesBelowTheMinimum(ECDsa ecdsa)
 	{
 		if (ecdsa.KeySize < MinimumCurveSizeInBits)
 		{
-			throw new CryptographicException(
-				$"The supplied ECDSA key uses a {ecdsa.KeySize}-bit curve. This provider requires at " +
-				$"least {MinimumCurveSizeInBits} bits (P-256 or stronger), because it pairs the signature " +
-				"with SHA-256 and a smaller curve would be the weakest link.");
+			throw new CryptographicException(FormatRejectionMessage(ecdsa.KeySize));
 		}
 	}
+
+	private static string FormatRejectionMessage(int actualBits) =>
+		$"The supplied ECDSA key uses a {actualBits}-bit curve. This provider requires at " +
+		$"least {MinimumCurveSizeInBits} bits (P-256 or stronger), because it pairs the signature " +
+		"with SHA-256 and a smaller curve would be the weakest link.";
 
 	/// <inheritdoc />
 	public bool SupportsAlgorithm(SigningAlgorithm algorithm)
@@ -69,6 +122,7 @@ public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvide
 
 		try
 		{
+			RejectNamedCurveBelowTheMinimum(keyMaterial, isPkcs8PrivateKey: true);
 			using var ecdsa = ECDsa.Create();
 			ecdsa.ImportPkcs8PrivateKey(keyMaterial, out _);
 			RejectCurvesBelowTheMinimum(ecdsa);
@@ -98,6 +152,7 @@ public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvide
 
 		try
 		{
+			RejectNamedCurveBelowTheMinimum(keyMaterial, isPkcs8PrivateKey: false);
 			using var ecdsa = ECDsa.Create();
 			ecdsa.ImportSubjectPublicKeyInfo(keyMaterial, out _);
 			RejectCurvesBelowTheMinimum(ecdsa);

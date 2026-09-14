@@ -1,5 +1,4 @@
 using Excalibur.Dispatch.Validation;
-using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Middleware.Resilience;
@@ -14,34 +13,6 @@ namespace Excalibur.Dispatch.Tests.Messaging.Enums;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MoreEnumsShould
 {
-	// --- CloudNative enums ---
-
-	[Fact]
-	public void AdaptationImpact_HaveExpectedValues()
-	{
-		AdaptationImpact.Minor.ShouldBe((AdaptationImpact)0);
-		AdaptationImpact.Moderate.ShouldBe((AdaptationImpact)1);
-		AdaptationImpact.Major.ShouldBe((AdaptationImpact)2);
-	}
-
-	[Fact]
-	public void AdaptationState_HaveExpectedValues()
-	{
-		AdaptationState.Stable.ShouldBe((AdaptationState)0);
-		AdaptationState.Adapting.ShouldBe((AdaptationState)1);
-		AdaptationState.Monitoring.ShouldBe((AdaptationState)2);
-	}
-
-	[Fact]
-	public void PatternHealthStatus_HaveExpectedValues()
-	{
-		PatternHealthStatus.Unknown.ShouldBe((PatternHealthStatus)0);
-		PatternHealthStatus.Healthy.ShouldBe((PatternHealthStatus)1);
-		PatternHealthStatus.Degraded.ShouldBe((PatternHealthStatus)2);
-		PatternHealthStatus.Unhealthy.ShouldBe((PatternHealthStatus)3);
-		PatternHealthStatus.Critical.ShouldBe((PatternHealthStatus)4);
-	}
-
 	[Fact]
 	public void CircuitState_HaveExpectedValues()
 	{

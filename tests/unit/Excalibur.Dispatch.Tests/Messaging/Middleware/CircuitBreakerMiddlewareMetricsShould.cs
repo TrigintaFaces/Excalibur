@@ -32,7 +32,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Non-vacuity: every metric assertion is <b>RED on the pre-fix middleware</b> (which emits no <c>Meter</c>/
 /// <c>Counter</c> at all — only logs/Activity tags), GREEN once the counters are wired. Each test uses a distinct
 /// <c>circuit.key</c> so assertions are isolated from the process-wide static meter (no cross-test pollution).
-/// Transitions are driven deterministically via <see cref="CircuitBreakerOptions"/> (threshold + OpenDuration),
+/// Transitions are driven deterministically via <see cref="CircuitBreakerOptions"/> (threshold + BreakDuration),
 /// never wall-clock waits.
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -64,8 +64,8 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
     private static CircuitBreakerOptions Options(string key, int failureThreshold = 1, int successThreshold = 1, TimeSpan? openDuration = null) =>
         new()
         {
-            FailureThreshold = failureThreshold,
-            OpenDuration = openDuration ?? TimeSpan.FromSeconds(60),
+            ConsecutiveFailureThreshold = failureThreshold,
+            BreakDuration = openDuration ?? TimeSpan.FromSeconds(60),
             CircuitKeySelector = _ => key,
         };
 
@@ -111,7 +111,7 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
         var sut = CreateSut(Options(circuitId, failureThreshold: 1, openDuration: TimeSpan.FromSeconds(60)));
 
         await DriveFailureAsync(sut);   // → Open
-        await DriveSuccessAsync(sut);   // Open + within OpenDuration → rejected at the guard
+        await DriveSuccessAsync(sut);   // Open + within BreakDuration → rejected at the guard
 
         metrics.Count(RejectionsCounter, ("circuit.key", circuitId)).ShouldBe(1);
     }
@@ -147,7 +147,7 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
     {
         const string key = "acd4-recovery";
         using var metrics = new MetricCollector(MeterName);
-        // OpenDuration zero → the next invoke after Open transitions to HalfOpen; one success closes (Polly semantics; the threshold option was removed).
+        // BreakDuration zero → the next invoke after Open transitions to HalfOpen; one success closes (Polly semantics; the threshold option was removed).
         var sut = CreateSut(Options(key, failureThreshold: 1, successThreshold: 1, openDuration: TimeSpan.Zero));
 
         await DriveFailureAsync(sut);   // Closed→Open

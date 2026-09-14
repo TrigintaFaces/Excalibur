@@ -381,7 +381,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 
 			services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
 			{
-				var apiClient = PublisherServiceApiClient.Create();
+				var apiClient = ResolvePublisherClient(sp, name);
 				var logger = sp.GetRequiredService<ILogger<PubSubTransportSender>>();
 				return new PubSubTransportSender(apiClient, topicName, logger);
 			});
@@ -395,7 +395,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 
 			services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
 			{
-				var apiClient = SubscriberServiceApiClient.Create();
+				var apiClient = ResolveSubscriberClient(sp, name);
 				var logger = sp.GetRequiredService<ILogger<PubSubTransportReceiver>>();
 				// The configured pull size is the surface a consumer sets; the pull request is where it
 				// takes effect. Leaving the default here would cap every pull at 10 regardless.
@@ -403,10 +403,48 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 					apiClient, subscriptionName, logger,
 					maxMessages: transportOptions.Subscriber.MaxPullMessages,
 					maxPayloadBytes: transportOptions.Subscriber.MaxPayloadBytes,
-					hasDeadLetterPolicy: !string.IsNullOrWhiteSpace(transportOptions.Subscriber.DeadLetter.TopicId));
+					hasDeadLetterPolicy: !string.IsNullOrWhiteSpace(transportOptions.Subscriber.DeadLetter.TopicId)).WithCloudEventDecoding(CloudEventBinding.HouseConvention);
 			});
 		}
 	}
+
+	/// <summary>
+	/// Returns the publisher client a consumer supplied, or the SDK's default one.
+	/// </summary>
+	/// <param name="services">The resolved services.</param>
+	/// <param name="name">The transport name, used as the lookup key.</param>
+	/// <returns>The client the sender will publish through.</returns>
+	private static PublisherServiceApiClient ResolvePublisherClient(IServiceProvider services, string name) =>
+		services.GetKeyedService<PublisherServiceApiClient>(name)
+		?? services.GetService<PublisherServiceApiClient>()
+		?? PublisherServiceApiClient.Create();
+
+	/// <summary>
+	/// Returns the subscriber client a consumer supplied, or the SDK's default one.
+	/// </summary>
+	/// <param name="services">The resolved services.</param>
+	/// <param name="name">The transport name, used as the lookup key.</param>
+	/// <returns>The client the receiver will pull through.</returns>
+	/// <remarks>
+	/// <para>
+	/// Constructing the client here unconditionally made the registration impossible to point anywhere
+	/// but the default endpoint: the SDK's factory resolves ambient credentials and a fixed address, so a
+	/// consumer running against the Pub/Sub emulator, a non-default service account, or any custom
+	/// channel had no way to say so — the transport had already chosen. Every sibling transport in this
+	/// framework lets a consumer register its client and stands down when one is present; this one did
+	/// not, and the inconsistency was the whole of the gap.
+	/// </para>
+	/// <para>
+	/// The keyed lookup comes first so a host running two named Pub/Sub transports can give each its own
+	/// client, which is the same reason the channel and connection seams elsewhere are keyed by name. The
+	/// unkeyed lookup follows for the single-transport host, and the SDK default last, so a consumer who
+	/// registers nothing sees exactly the behaviour they saw before.
+	/// </para>
+	/// </remarks>
+	private static SubscriberServiceApiClient ResolveSubscriberClient(IServiceProvider services, string name) =>
+		services.GetKeyedService<SubscriberServiceApiClient>(name)
+		?? services.GetService<SubscriberServiceApiClient>()
+		?? SubscriberServiceApiClient.Create();
 
 	/// <summary>
 	/// Registers a keyed <see cref="ITransportSubscriber"/> composed with telemetry.

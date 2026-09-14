@@ -20,21 +20,20 @@ public sealed class PurgeRangeOpPredicateConformanceShould
 	private const string QualifiedTableName = "[dbo].[Sagas]";
 	private static readonly DateTimeOffset Threshold = DateTimeOffset.UnixEpoch;
 
-	private static string EmittedSql(TenantScope scope, bool allTenants) =>
-		new PurgeCompletedSagasRequest(Threshold, QualifiedTableName, default, scope, allTenants)
-			.Command.CommandText;
+	private static PurgeCompletedSagasRequest Confined(TenantScope scope) =>
+		PurgeCompletedSagasRequest.ForTenant(Threshold, QualifiedTableName, scope, default);
+
+	private static PurgeCompletedSagasRequest EstateWide() =>
+		PurgeCompletedSagasRequest.ForAllTenants(Threshold, QualifiedTableName, default);
+
+	private static string EmittedSql(PurgeCompletedSagasRequest request) => request.Command.CommandText;
 
 	/// <summary>Reads the tenant value the request will actually bind, or null when none is bound.</summary>
-	private static string? BoundTenant(TenantScope scope, bool allTenants)
-	{
-		var request = new PurgeCompletedSagasRequest(
-			Threshold, QualifiedTableName, default, scope, allTenants);
-
-		return request.Command.Parameters is Dapper.DynamicParameters parameters
+	private static string? BoundTenant(PurgeCompletedSagasRequest request) =>
+		request.Command.Parameters is Dapper.DynamicParameters parameters
 			&& parameters.ParameterNames.Contains("TenantId", StringComparer.Ordinal)
 				? parameters.Get<string>("TenantId")
 				: null;
-	}
 
 	[Fact]
 	public void FailClosed_ToTheUntenantedPartition_OnUnscopedOmission()
@@ -47,7 +46,7 @@ public sealed class PurgeRangeOpPredicateConformanceShould
 		// that sentinel. Scoped and None therefore emit IDENTICAL SQL and the discriminator moved from the
 		// text to the BOUND VALUE — which is why asserting on CommandText alone can no longer tell a
 		// tenant-restricted purge from an untenanted one.
-		var sql = EmittedSql(TenantScope.Untenanted, allTenants: false);
+		var sql = EmittedSql(Confined(TenantScope.Untenanted));
 
 		sql.ShouldContain(
 			"AND TenantId = @TenantId",
@@ -56,7 +55,7 @@ public sealed class PurgeRangeOpPredicateConformanceShould
 			+ "purge every tenant's completed sagas — the estate-wide sweep, reached by omission rather "
 			+ "than by the caller declaring it.");
 
-		BoundTenant(TenantScope.Untenanted, allTenants: false).ShouldBe(
+		BoundTenant(Confined(TenantScope.Untenanted)).ShouldBe(
 			KeyedTenantPartition.Untenanted.TenantId,
 			"omission must bind the reserved untenanted sentinel. If this binds a real tenant the purge "
 			+ "deletes their rows; if it binds null the predicate matches nothing and the purge silently "
@@ -66,7 +65,7 @@ public sealed class PurgeRangeOpPredicateConformanceShould
 	[Fact]
 	public void RestrictToTheTenant_WhenScoped()
 	{
-		var sql = EmittedSql(TenantScope.Scoped("tenant-1"), allTenants: false);
+		var sql = EmittedSql(Confined(TenantScope.Scoped("tenant-1")));
 		sql.ShouldContain("TenantId = @TenantId");
 	}
 
@@ -75,11 +74,26 @@ public sealed class PurgeRangeOpPredicateConformanceShould
 	{
 		// LIVENESS (must-not-fire): the explicit, opted-in sweep is allowed to span all tenants —
 		// it emits NO tenant predicate, and that is correct precisely because it was declared.
-		var sweep = EmittedSql(TenantScope.Untenanted, allTenants: true);
+		var sweep = EmittedSql(EstateWide());
 		sweep.ShouldNotContain("TenantId IS NULL");
 		sweep.ShouldNotContain("TenantId = @TenantId");
 		// Non-vacuity: it is the SAME statement modulo the tenant fragment — still a real purge.
 		sweep.ShouldContain("DELETE FROM");
 		sweep.ShouldContain("CompletedAt");
+
+		// The estate-wide factory accepts NO TenantScope, so a caller cannot hand it a scope that the
+		// request would silently discard -- the shape this test used to be written in. Nothing is bound.
+		BoundTenant(EstateWide()).ShouldBeNull(
+			"an estate-wide sweep binds no tenant. A bound value here would mean the request kept a "
+			+ "discriminator it does not emit, which is the mismatch that hides an unconfined DELETE.");
+	}
+
+	[Fact]
+	public void BindDifferentTenants_ForDifferentScopes()
+	{
+		// The confined factory's scope is REQUIRED and is the only thing that decides the bound partition:
+		// two different scopes must bind two different terms, or the predicate is decorative.
+		BoundTenant(Confined(TenantScope.Scoped("tenant-1"))).ShouldBe("tenant-1");
+		BoundTenant(Confined(TenantScope.Scoped("tenant-2"))).ShouldBe("tenant-2");
 	}
 }

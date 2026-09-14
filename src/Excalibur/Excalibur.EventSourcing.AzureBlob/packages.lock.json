@@ -64,6 +64,15 @@
         "resolved": "6.0.0",
         "contentHash": "+/SsmiySsXJlvQLCGBqaZKNVt3s/Y/HbAdwtop7Km2CnuZbaScoqkWJEBQ5Cy9ebkn6kCYKrHsXgwrFdTgcb3g=="
       },
+      "Polly": {
+        "type": "Direct",
+        "requested": "[8.6.6, )",
+        "resolved": "8.6.6",
+        "contentHash": "czKHYJ6uGowPijuZt4kgF4njfGvWxVZ8mKBcrZ9iEtwDe9HKdF0ug6p6TwUG8EHuuufgbDU//rSBFebt5/0Fyw==",
+        "dependencies": {
+          "Polly.Core": "8.6.6"
+        }
+      },
       "Azure.Core": {
         "type": "Transitive",
         "resolved": "1.52.0",
@@ -461,6 +470,7 @@
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
           "OpenTelemetry.Extensions.Hosting": "[1.15.3, )",
+          "Polly": "[8.6.6, )",
           "System.IO.Hashing": "[10.0.7, )"
         }
       },
@@ -833,15 +843,6 @@
         "dependencies": {
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.0",
           "OpenTelemetry": "1.15.3"
-        }
-      },
-      "Polly": {
-        "type": "CentralTransitive",
-        "requested": "[8.6.6, )",
-        "resolved": "8.6.6",
-        "contentHash": "czKHYJ6uGowPijuZt4kgF4njfGvWxVZ8mKBcrZ9iEtwDe9HKdF0ug6p6TwUG8EHuuufgbDU//rSBFebt5/0Fyw==",
-        "dependencies": {
-          "Polly.Core": "8.6.6"
         }
       },
       "System.IdentityModel.Tokens.Jwt": {

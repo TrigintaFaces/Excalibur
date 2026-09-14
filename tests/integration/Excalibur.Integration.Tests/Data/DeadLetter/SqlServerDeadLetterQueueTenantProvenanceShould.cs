@@ -145,6 +145,13 @@ public sealed class SqlServerDeadLetterQueueTenantProvenanceShould(SqlServerCont
 			"the estate-wide admin inspect path must surface the entry — a queue that returns nothing would " +
 			"satisfy every cross-tenant SAFETY assertion while being completely inert");
 
+		// PROVENANCE (oy615q). The estate-wide inspect path is exactly where an operator needs to see WHICH
+		// tenant an entry belongs to — DeadLetterEntry.TenantId must reflect the stored value, not be left
+		// null on a provider that has one.
+		entries.Single(e => e.Id == entryId).TenantId.ShouldBe(TenantA,
+			"an operator inspecting the estate-wide dead-letter list must be able to see which tenant an "
+			+ "entry belongs to");
+
 		var replayed = await QueueFor(null, Handler)
 			.ReplayAllTenantsEntryAsync(entryId, CancellationToken.None)
 			.ConfigureAwait(false);

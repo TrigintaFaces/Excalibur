@@ -22,19 +22,26 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <summary>
 /// Maps CloudEvents to Azure Service Bus messages and vice versa.
 /// </summary>
-internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<ServiceBusMessage>
+internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventEncoder<ServiceBusMessage>
 {
 	private const string CloudEventsStructuredContentType = "application/cloudevents+json";
 
-	private const string CeSpecVersionProperty = "ce-specversion";
-	private const string CeTypeProperty = "ce-type";
-	private const string CeSourceProperty = "ce-source";
-	private const string CeIdProperty = "ce-id";
-	private const string CeTimeProperty = "ce-time";
-	private const string CeDataContentTypeProperty = "ce-datacontenttype";
-	private const string CeSubjectProperty = "ce-subject";
-	private const string CeDataSchemaProperty = "ce-dataschema";
-	private const string CeTimeoutProperty = "ce-timeout";
+	// The AMQP binding requires "cloudEvents_" (or "cloudEvents:") on application properties, and a
+	// single message MUST use one separator for every attribute -- so the extension path below derives
+	// its prefix from this constant rather than repeating a literal that could drift from the required
+	// attributes above. The strip length is taken from the constant for the same reason.
+	private const string CloudEventsAttributePrefix = "cloudEvents_";
+	private const string LegacyCloudEventsAttributePrefix = "ce-";
+
+	private const string CeSpecVersionProperty = "cloudEvents_specversion";
+	private const string CeTypeProperty = "cloudEvents_type";
+	private const string CeSourceProperty = "cloudEvents_source";
+	private const string CeIdProperty = "cloudEvents_id";
+	private const string CeTimeProperty = "cloudEvents_time";
+	private const string CeDataContentTypeProperty = "cloudEvents_datacontenttype";
+	private const string CeSubjectProperty = "cloudEvents_subject";
+	private const string CeDataSchemaProperty = "cloudEvents_dataschema";
+	private const string CeTimeoutProperty = "cloudEvents_timeout";
 	private const string DispatchPrefix = "dispatch-";
 	private const string DispatchPrefixWithoutSeparator = "dispatch";
 	private const string TimeoutAttributeName = "timeout";
@@ -64,27 +71,6 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 
 	/// <inheritdoc />
 	public CloudEventOptions Options { get; }
-
-	/// <inheritdoc />
-	public static ValueTask<CloudEventMode?> TryDetectMode(
-		ServiceBusMessage transportMessage,
-		CancellationToken cancellationToken)
-	{
-		_ = cancellationToken; // Method signature compatibility
-		ArgumentNullException.ThrowIfNull(transportMessage);
-
-		if (IsStructuredMode(transportMessage))
-		{
-			return ValueTask.FromResult<CloudEventMode?>(CloudEventMode.Structured);
-		}
-
-		if (IsBinaryMode(transportMessage))
-		{
-			return ValueTask.FromResult<CloudEventMode?>(CloudEventMode.Binary);
-		}
-
-		return ValueTask.FromResult<CloudEventMode?>(null);
-	}
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
@@ -121,64 +107,6 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 		return Task.FromResult(message);
 	}
 
-	/// <inheritdoc />
-	public async Task<CloudEvent> FromTransportMessageAsync(
-		ServiceBusMessage transportMessage,
-		CancellationToken cancellationToken)
-	{
-		ArgumentNullException.ThrowIfNull(transportMessage);
-		cancellationToken.ThrowIfCancellationRequested();
-
-		var mode = await TryDetectMode(transportMessage, cancellationToken).ConfigureAwait(false)
-				   ?? Options.DefaultMode;
-
-		var cloudEvent = mode switch
-		{
-			CloudEventMode.Structured => await DecodeStructuredMessageAsync(transportMessage).ConfigureAwait(false),
-			CloudEventMode.Binary => DecodeBinaryMessage(transportMessage),
-			_ => throw new NotSupportedException($"CloudEvent mode '{mode}' is not supported for Service Bus."),
-		};
-
-		MapServiceBusPropertiesToCloudEvent(transportMessage, cloudEvent);
-		RestoreDispatchEnvelopeProperties(cloudEvent, (IReadOnlyDictionary<string, object>)transportMessage.ApplicationProperties);
-
-		_logger.LogDebug(
-			"Converted Service Bus message {MessageId} to CloudEvent {EventId} using {Mode} mode",
-			transportMessage.MessageId,
-			cloudEvent.Id,
-			mode);
-
-		return cloudEvent;
-	}
-
-	private static void RestoreDispatchEnvelopeProperties(
-		CloudEvent cloudEvent,
-		IReadOnlyDictionary<string, object> applicationProperties)
-	{
-		foreach (var property in applicationProperties)
-		{
-			if (!property.Key.StartsWith(DispatchPrefix, StringComparison.OrdinalIgnoreCase))
-			{
-				continue;
-			}
-
-			var attributeName = property.Key[DispatchPrefix.Length..];
-			var value = property.Value?.ToString();
-			if (value is null)
-			{
-				continue;
-			}
-
-			cloudEvent[DispatchPrefix + attributeName] = value;
-
-			var alternateName = DispatchPrefixWithoutSeparator + attributeName;
-			if (cloudEvent[alternateName] is null)
-			{
-				cloudEvent[alternateName] = value;
-			}
-		}
-	}
-
 	[RequiresUnreferencedCode("Calls System.BinaryData.FromObjectAsJson<T>(T, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.BinaryData.FromObjectAsJson<T>(T, JsonSerializerOptions)")]
 	private static BinaryData ConvertToBinaryData(object? data) => data switch
@@ -189,28 +117,6 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 		string text => BinaryData.FromString(text),
 		_ => BinaryData.FromObjectAsJson(data),
 	};
-
-	private static object DeserializeMessageBody(BinaryData body, string? contentType)
-	{
-		if (body.ToMemory().IsEmpty)
-		{
-			return string.Empty;
-		}
-
-		return CloudEventContentType.IsJson(contentType)
-			? JsonDocument.Parse(body).RootElement.Clone()
-			: body.ToString();
-	}
-
-	private static bool IsStructuredMode(ServiceBusMessage message) =>
-		!string.IsNullOrWhiteSpace(message.ContentType) &&
-		message.ContentType.Contains("application/cloudevents", StringComparison.OrdinalIgnoreCase);
-
-	private static bool IsBinaryMode(ServiceBusMessage message) =>
-		message.ApplicationProperties.ContainsKey(CeSpecVersionProperty) &&
-		message.ApplicationProperties.ContainsKey(CeTypeProperty) &&
-		message.ApplicationProperties.ContainsKey(CeSourceProperty) &&
-		message.ApplicationProperties.ContainsKey(CeIdProperty);
 
 	private static bool IsRequiredCloudEventProperty(string propertyName) =>
 		propertyName.Equals(CeSpecVersionProperty, StringComparison.OrdinalIgnoreCase) ||
@@ -326,48 +232,13 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 				continue;
 			}
 
-			var normalizedName = attributeName.StartsWith("ce-", StringComparison.OrdinalIgnoreCase)
-				? attributeName[3..]
-				: attributeName;
+			var normalizedName = StripCloudEventAttributePrefix(attributeName);
 
-			applicationProperties[$"ce-{normalizedName}"] = value switch
+			applicationProperties[$"{CloudEventsAttributePrefix}{normalizedName}"] = value switch
 			{
 				JsonElement jsonElement => jsonElement.ToString(),
 				_ => value.ToString() ?? string.Empty,
 			};
-		}
-	}
-
-	private static void MapServiceBusPropertiesToCloudEvent(ServiceBusMessage message, CloudEvent cloudEvent)
-	{
-		if (!string.IsNullOrWhiteSpace(message.MessageId))
-		{
-			cloudEvent.Id = message.MessageId;
-		}
-
-		if (!string.IsNullOrWhiteSpace(message.Subject))
-		{
-			cloudEvent.Subject = message.Subject;
-		}
-
-		if (!string.IsNullOrWhiteSpace(message.CorrelationId))
-		{
-			cloudEvent["traceparent"] = message.CorrelationId;
-		}
-
-		if (message.ApplicationProperties.TryGetValue(CeTimeoutProperty, out var timeout))
-		{
-			cloudEvent[TimeoutAttributeName] = timeout?.ToString();
-		}
-
-		if (message.ApplicationProperties.TryGetValue("partitionkey", out var partitionKey))
-		{
-			cloudEvent["partitionkey"] = partitionKey?.ToString();
-		}
-
-		if (!string.IsNullOrWhiteSpace(message.SessionId))
-		{
-			cloudEvent["sessionid"] = message.SessionId;
 		}
 	}
 
@@ -448,87 +319,22 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 		}
 	}
 
-	private async Task<CloudEvent> DecodeStructuredMessageAsync(ServiceBusMessage transportMessage)
-	{
-		var body = transportMessage.Body;
-		if (body is null || body.Length == 0)
-		{
-			throw new InvalidOperationException("Structured CloudEvent message body cannot be empty.");
-		}
 
-		await using var stream = body.ToStream();
+	// The AMQP binding mandates "cloudEvents_" on application properties, and that is what this adapter
+	// writes. It is an ENCODER only — ICloudEventEncoder<ServiceBusMessage>, and ServiceBusMessage is a
+	// send-only SDK type that never arrives inbound — so there is no read path here and nothing in this
+	// file decides what a consumer can still receive. The legacy spelling survives in exactly one place
+	// below: an extension attribute handed to us already carrying the old prefix is normalised rather
+	// than double-prefixed, so a caller migrating their own code does not emit "cloudEvents_ce-foo".
+	//
+	// The inbound side of this wire-format change, and the consumer drain obligation that goes with it,
+	// live where messages are actually read. Do not restate them here — a comment about reading, in a
+	// file that cannot read, is the kind of documentation that survives long after it stops being true.
+	private static string StripCloudEventAttributePrefix(string name) =>
+		name.StartsWith(CloudEventsAttributePrefix, StringComparison.OrdinalIgnoreCase)
+			? name[CloudEventsAttributePrefix.Length..]
+			: name.StartsWith(LegacyCloudEventsAttributePrefix, StringComparison.OrdinalIgnoreCase)
+				? name[LegacyCloudEventsAttributePrefix.Length..]
+				: name;
 
-		return await _jsonFormatter.DecodeStructuredModeMessageAsync(
-			stream,
-			new System.Net.Mime.ContentType(transportMessage.ContentType),
-			extensionAttributes: null).ConfigureAwait(false);
-	}
-
-	private CloudEvent DecodeBinaryMessage(ServiceBusMessage transportMessage)
-	{
-		if (!transportMessage.ApplicationProperties.TryGetValue(CeSpecVersionProperty, out var specVersionObj) ||
-			!transportMessage.ApplicationProperties.TryGetValue(CeTypeProperty, out var typeObj) ||
-			!transportMessage.ApplicationProperties.TryGetValue(CeSourceProperty, out var sourceObj) ||
-			!transportMessage.ApplicationProperties.TryGetValue(CeIdProperty, out var idObj))
-		{
-			throw new InvalidOperationException(
-				$"Service Bus message '{transportMessage.MessageId}' is missing required CloudEvent attributes.");
-		}
-
-		var specVersion = specVersionObj?.ToString() switch
-		{
-			"1.0" => CloudEventsSpecVersion.V1_0,
-			_ => Options.SpecVersion,
-		};
-
-		var cloudEvent = new CloudEvent(specVersion)
-		{
-			Type = typeObj?.ToString(),
-			Source = Uri.TryCreate(sourceObj?.ToString(), UriKind.RelativeOrAbsolute, out var uri)
-				? uri
-				: Options.DefaultSource,
-			Id = idObj?.ToString(),
-		};
-
-		if (transportMessage.ApplicationProperties.TryGetValue(CeTimeProperty, out var timeObj) &&
-			DateTimeOffset.TryParse(timeObj?.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var time))
-		{
-			cloudEvent.Time = time;
-		}
-
-		if (transportMessage.ApplicationProperties.TryGetValue(CeDataContentTypeProperty, out var contentTypeObj))
-		{
-			cloudEvent.DataContentType = contentTypeObj?.ToString();
-		}
-
-		if (transportMessage.ApplicationProperties.TryGetValue(CeSubjectProperty, out var subjectObj))
-		{
-			cloudEvent.Subject = subjectObj?.ToString();
-		}
-
-		if (transportMessage.ApplicationProperties.TryGetValue(CeDataSchemaProperty, out var schemaObj) &&
-			Uri.TryCreate(schemaObj?.ToString(), UriKind.Absolute, out var schema))
-		{
-			cloudEvent.DataSchema = schema;
-		}
-
-		foreach (var property in transportMessage.ApplicationProperties)
-		{
-			if (!property.Key.StartsWith("ce-", StringComparison.OrdinalIgnoreCase) ||
-				IsRequiredCloudEventProperty(property.Key))
-			{
-				continue;
-			}
-
-			var attributeName = property.Key[3..];
-			cloudEvent[attributeName] = property.Value?.ToString();
-		}
-
-		if (transportMessage.Body is not null)
-		{
-			cloudEvent.Data = DeserializeMessageBody(transportMessage.Body, cloudEvent.DataContentType);
-		}
-
-		return cloudEvent;
-	}
 }

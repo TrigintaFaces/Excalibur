@@ -65,9 +65,11 @@ public enum OutboxStatus
 	/// </summary>
 	/// <remarks>
 	/// This is a terminal state. A dead-lettered message has been routed to the dead-letter queue and MUST NOT be
-	/// claimed for delivery again. Outbox stores exclude this status from their claim predicate structurally
-	/// (an explicit allow-list of claimable statuses), so a dead-lettered message can never be re-claimed,
-	/// re-delivered, or re-dead-lettered. Messages reach this state when their retry attempts are exhausted.
+	/// claimed for delivery again. Outbox stores exclude this status from their claim predicate; how each one does
+	/// so differs, and a store whose terminal transition removes the row satisfies it with no predicate at all.
+	/// The obligation that a terminal message is not returned to the claimable set by a later completion is stated
+	/// on <see cref="IOutboxStore.MarkFailedAsync"/>, which is where a store's duty is defined rather than
+	/// restated here. Messages reach this state when their retry attempts are exhausted.
 	/// </remarks>
 	DeadLettered = 5,
 }

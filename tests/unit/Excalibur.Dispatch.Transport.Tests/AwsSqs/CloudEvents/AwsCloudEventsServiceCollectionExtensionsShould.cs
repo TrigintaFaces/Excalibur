@@ -31,9 +31,9 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 		AwsCloudEventsServiceCollectionExtensions.UseCloudEvents(services);
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventMapper<SendMessageRequest>));
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventMapper<PublishRequest>));
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventMapper<PutEventsRequestEntry>));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventEncoder<SendMessageRequest>));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventEncoder<PublishRequest>));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventEncoder<PutEventsRequestEntry>));
 	}
 
 	[Fact]
@@ -70,7 +70,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 			configureSqs: opts => opts.MaxBatchSize = 5);
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventMapper<SendMessageRequest>));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventEncoder<SendMessageRequest>));
 	}
 
 	[Fact]
@@ -91,7 +91,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 			configureSns: opts => opts.DefaultSubject = "test-subject");
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventMapper<PublishRequest>));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventEncoder<PublishRequest>));
 	}
 
 	[Fact]
@@ -112,7 +112,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 			configureEventBridge: opts => opts.EventBusName = "test-bus");
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventMapper<PutEventsRequestEntry>));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudEventEncoder<PutEventsRequestEntry>));
 	}
 
 	[Fact]

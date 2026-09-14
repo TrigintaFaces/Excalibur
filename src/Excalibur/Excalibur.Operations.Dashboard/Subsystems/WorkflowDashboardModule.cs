@@ -97,12 +97,12 @@ internal sealed class WorkflowDashboardModule : IDashboardEndpointModule
 		var maxPageSize = options.MaxPageSize;
 		var exposeSensitive = options.ExposeSensitiveData;
 
-		group.MapGet("/workflows", static async (IWorkflowStoreAdmin? admin, CancellationToken ct) =>
+		group.MapGet("/workflows", static async (IWorkflowStoreAdmin? admin, TimeProvider timeProvider, CancellationToken ct) =>
 		{
 			if (admin is null)
 			{
 				return Results.Json(
-					new WorkflowView { Configured = false, CapturedAt = DateTimeOffset.UtcNow },
+					new WorkflowView { Configured = false, CapturedAt = timeProvider.GetUtcNow() },
 					WorkflowJsonContext.Default.WorkflowView);
 			}
 
@@ -115,7 +115,7 @@ internal sealed class WorkflowDashboardModule : IDashboardEndpointModule
 					Completed = stats.Completed,
 					Faulted = stats.Faulted,
 					Total = stats.Total,
-					CapturedAt = DateTimeOffset.UtcNow,
+					CapturedAt = timeProvider.GetUtcNow(),
 				},
 				WorkflowJsonContext.Default.WorkflowView);
 		});

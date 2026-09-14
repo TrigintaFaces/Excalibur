@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# harness-gates-ci.test.sh — non-vacuous control for harness-gates-ci.sh (jxp2yq guard 3).
+# harness-gates-ci.test.sh — non-vacuous control for harness-gates-ci.sh (guard 3).
 # Proves the orchestrator's exit is HONEST: a gate that FAILS makes the orchestrator exit 1 (safety —
 # no masked pass), a gate that PASSES lets it exit 0 (liveness), and a REFUSE (exit 2) is NOT a pass
-# (S890 3-state). Uses the HGCI_TEST_GATE seam so it is fast + hermetic (the real slow battery is proven
-# by the dogfood full run; its completeness by gate-wiring's nu00yn ARM).
+# (3-state PASS/FAIL/REFUSE). Uses the HGCI_TEST_GATE seam so it is fast + hermetic (the real slow battery is proven
+# by the dogfood full run; its completeness by gate-wiring's own ARM).
 
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +26,7 @@ if [ "$rc" -eq 1 ]; then echo "  [PASS] A safety: failing gate -> orchestrator e
 rc="$(run_orch 'exit 0')"
 if [ "$rc" -eq 0 ]; then echo "  [PASS] B liveness: passing gate -> orchestrator exit 0"; else echo "  [FAIL] B liveness: passing gate -> orchestrator exit $rc (expected 0)"; pass=0; fi
 
-# C REFUSE != PASS: a gate exiting 2 (cannot-evaluate/REFUSE) is a FAILURE, not a pass (S890 3-state)
+# C REFUSE != PASS: a gate exiting 2 (cannot-evaluate/REFUSE) is a FAILURE, not a pass (3-state)
 rc="$(run_orch 'exit 2')"
 if [ "$rc" -eq 1 ]; then echo "  [PASS] C 3-state: REFUSE (exit 2) -> orchestrator exit 1 (REFUSE != PASS)"; else echo "  [FAIL] C 3-state: REFUSE gate -> orchestrator exit $rc (expected 1)"; pass=0; fi
 
@@ -34,7 +34,7 @@ if [ "$rc" -eq 1 ]; then echo "  [PASS] C 3-state: REFUSE (exit 2) -> orchestrat
 fail_rc="$(run_orch 'exit 1')"; pass_rc="$(run_orch 'exit 0')"
 if [ "$fail_rc" -ne "$pass_rc" ]; then echo "  [PASS] D non-vacuity: exit tracks the gate ($pass_rc pass vs $fail_rc fail) — accumulator load-bearing"; else echo "  [FAIL] D non-vacuity: exit is constant ($fail_rc) regardless of gate outcome — MASKED"; pass=0; fi
 
-# F REFUSE is DISTINGUISHABLE from FAIL, and STILL non-zero (ag9fpw AC2a+2b, both asserted in ONE arm).
+# F REFUSE is DISTINGUISHABLE from FAIL, and STILL non-zero (both properties asserted in ONE arm).
 #   Asserting only the label would pass for an implementation that relabelled REFUSE and quietly made it
 #   exit 0 — which is the regression this arm exists to prevent. So: the annotation must say REFUSE, the
 #   summary must count it separately, AND the exit must remain non-zero. Arm C above is untouched.
@@ -82,8 +82,8 @@ if grep -q 'run_development_only' "$ORCH" && grep -q 'is_development_repo' "$ORC
 
     # LIVENESS — the predicate must actually discriminate. A predicate that answers "yes, development"
     # for every remote would satisfy the arm above while never skipping anything, anywhere.
-    probe="$(mktemp -d)"; git -C "$probe" init -q 2>/dev/null
-    git -C "$probe" remote add origin https://github.com/Example/NotTheDevelopmentRepo.git 2>/dev/null
+    probe="$(mktemp -d)"; git -C "${probe:?path is empty -- an empty -C runs in the CURRENT directory}" init -q 2>/dev/null
+    git -C "${probe:?path is empty -- an empty -C runs in the CURRENT directory}" remote add origin https://github.com/Example/NotTheDevelopmentRepo.git 2>/dev/null
     if ( cd "$probe" && . <(sed -n '/^is_development_repo()/,/^}/p' "$ORCH") && is_development_repo ); then
         echo "  [FAIL] H liveness: is_development_repo answered YES for a foreign remote — it cannot discriminate"
         pass=0

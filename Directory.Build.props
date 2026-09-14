@@ -1,5 +1,25 @@
 ﻿<Project>
 	<!-- ============================================================================================
+	     SCOPE - READ BEFORE ADDING A PROPERTY HERE
+	     ============================================================================================
+	     This file does NOT reach every project. MSBuild walks UP from each project directory and
+	     stops at the FIRST Directory.Build.props it finds, so a subtree that has its own copy and
+	     does not import this one never sees anything declared here.
+
+	     REACHED (these import this file via GetPathOfFileAbove):
+	         benchmarks/    load-tests/
+
+	     NOT REACHED (own Directory.Build.props, no import of this one):
+	         src/    tests/    samples/    templates/
+
+	     So a property added here silently does NOT apply to the shipping tree or the test tree.
+	     Nothing errors and nothing warns - the declaration reads correct and has no effect.
+	     Verify with:  dotnet msbuild <project> -getProperty:<YourProperty>
+
+	     Chaining the severed subtrees is the agreed direction; until that lands, put a property
+	     where it is actually needed rather than assuming this file is global.
+	     ============================================================================================ -->
+	<!-- ============================================================================================
 	     Visual Studio Multi-Targeting Fix (Sprint 376)
 	     ============================================================================================
 	     VS has race conditions when building multi-TFM projects in parallel. These settings
@@ -36,6 +56,17 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<AnalysisLevel>latest</AnalysisLevel>
 		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+		<!-- Microsoft.Extensions.Configuration.Binder ships a source generator that replaces
+		     reflection-based IConfiguration.Bind()/Get<T>() with generated code, eliminating the
+		     IL2026/IL3050 the reflection-based binder requires. Repo-wide opt-in, measured against
+		     the "Configuration/Options binding" suppression sites before hand-converting any to
+		     Requires*. -->
+		<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+		<!-- The binder package's own targets opt its generator's interceptors into the .NET 8
+		     PREVIEW property name (InterceptorsPreviewNamespaces), retired once interceptors
+		     stabilised in .NET 9+. We target net10.0, where only InterceptorsNamespaces is read,
+		     so without this the generator's interceptors silently never activate. -->
+		<InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsNamespaces>
 		<!-- Sprint 329 T2.5: Re-enable analyzer warning gates (AD-329) -->
 		<!-- WARNING: All shipping projects must have zero warnings -->
 		<!-- Use documented #pragma suppressions for unavoidable warnings -->
@@ -142,8 +173,6 @@
 		<PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" />
 		<!-- Public API surface tracking for breaking change detection -->
 		<PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
-		<!-- SourceLink for GitHub - embeds source URLs in PDBs (Sprint 318 T3.4 AD-318-3) -->
-		<PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
 		<!-- (Already have Microsoft.CodeAnalysis.NetAnalyzers via SDK; AnalysisLevel=latest turns them on) -->
 	</ItemGroup>
 

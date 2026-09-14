@@ -10,6 +10,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Polly;
+using Polly.Retry;
+
 namespace Excalibur.A3.Governance;
 
 /// <summary>
@@ -183,27 +186,52 @@ internal sealed partial class AccessReviewExpiryService(
 		}
 
 		// Every unreviewed grant was revoked, so the completion receipt this writes is honest.
-		for (var attempt = 1; attempt <= opts.MaxRetryAttempts; attempt++)
+		try
 		{
-			try
-			{
-				await MarkCampaignExpiredAsync(campaign, store, cancellationToken).ConfigureAwait(false);
-				LogCampaignExpiredRevoked(logger, campaign.CampaignId);
-				return;
-			}
-#pragma warning disable CA1031 // Do not catch general exception types -- retry loop
-			catch (Exception ex) when (attempt < opts.MaxRetryAttempts)
-			{
-				var delay = opts.RetryBaseDelay * Math.Pow(2, attempt - 1);
-				LogRetryAttempt(logger, campaign.CampaignId, attempt, opts.MaxRetryAttempts, ex);
-				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				LogAutoRevokeFailed(logger, campaign.CampaignId, opts.MaxRetryAttempts, ex);
-			}
-#pragma warning restore CA1031
+			await BuildRetryPipeline(opts, campaign.CampaignId)
+				.ExecuteAsync(
+					static (state, ct) => new ValueTask(MarkCampaignExpiredAsync(state.campaign, state.store, ct)),
+					(campaign, store),
+					cancellationToken).ConfigureAwait(false);
+			LogCampaignExpiredRevoked(logger, campaign.CampaignId);
 		}
+#pragma warning disable CA1031 // Do not catch general exception types -- pipeline exhausted every retry
+		catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+		{
+			LogAutoRevokeFailed(logger, campaign.CampaignId, opts.MaxRetryAttempts, ex);
+		}
+#pragma warning restore CA1031
+	}
+
+	/// <summary>
+	/// Builds the shared retry pipeline both revocation write paths in this service use: bounded attempts,
+	/// exponential backoff from <see cref="AccessReviewOptions.RetryBaseDelay"/>, retrying any failure (the
+	/// prior contract classified nothing as non-transient here).
+	/// </summary>
+	private ResiliencePipeline BuildRetryPipeline(AccessReviewOptions opts, string campaignId)
+	{
+		var builder = new ResiliencePipelineBuilder();
+
+		// opts.MaxRetryAttempts (range 1-10) is the prior contract's TOTAL attempt count (1 = try once, no
+		// retries); Polly's MaxRetryAttempts counts retries only and rejects 0, so a value of 1 means
+		// simply omit the retry strategy rather than pass 0.
+		if (opts.MaxRetryAttempts > 1)
+		{
+			_ = builder.AddRetry(new RetryStrategyOptions
+			{
+				ShouldHandle = new PredicateBuilder().Handle<Exception>(ex => ex is not OperationCanceledException),
+				MaxRetryAttempts = opts.MaxRetryAttempts - 1,
+				Delay = opts.RetryBaseDelay,
+				BackoffType = DelayBackoffType.Exponential,
+				OnRetry = args =>
+				{
+					LogRetryAttempt(logger, campaignId, args.AttemptNumber + 1, opts.MaxRetryAttempts, args.Outcome.Exception!);
+					return default;
+				},
+			});
+		}
+
+		return builder.Build();
 	}
 
 	/// <summary>
@@ -243,35 +271,29 @@ internal sealed partial class AccessReviewExpiryService(
 		{
 			var grantRevoked = false;
 
-			for (var attempt = 1; attempt <= opts.MaxRetryAttempts; attempt++)
+			try
 			{
-				try
-				{
-					await grantStore.DeleteGrantAsync(
-						grant.UserId,
-						grant.TenantId,
-						grant.GrantType,
-						grant.Qualifier,
-						revokedBy: "AccessReviewExpiryService",
-						revokedOn: timeProvider.GetUtcNow(),
+				await BuildRetryPipeline(opts, campaign.CampaignId)
+					.ExecuteAsync(
+						static (state, ct) => new ValueTask(state.grantStore.DeleteGrantAsync(
+							state.grant.UserId,
+							state.grant.TenantId,
+							state.grant.GrantType,
+							state.grant.Qualifier,
+							revokedBy: "AccessReviewExpiryService",
+							revokedOn: state.timeProvider.GetUtcNow(),
+							ct)),
+						(grantStore, grant, timeProvider),
 						cancellationToken).ConfigureAwait(false);
-					LogGrantRevoked(logger, campaign.CampaignId, grant.UserId, grant.Qualifier);
-					grantRevoked = true;
-					break;
-				}
-#pragma warning disable CA1031 // Do not catch general exception types -- per-item retry
-				catch (Exception ex) when (attempt < opts.MaxRetryAttempts)
-				{
-					var delay = opts.RetryBaseDelay * Math.Pow(2, attempt - 1);
-					LogRetryAttempt(logger, campaign.CampaignId, attempt, opts.MaxRetryAttempts, ex);
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					LogGrantRevokeFailed(logger, campaign.CampaignId, grant.UserId, grant.Qualifier, ex);
-				}
-#pragma warning restore CA1031
+				LogGrantRevoked(logger, campaign.CampaignId, grant.UserId, grant.Qualifier);
+				grantRevoked = true;
 			}
+#pragma warning disable CA1031 // Do not catch general exception types -- pipeline exhausted every retry
+			catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+			{
+				LogGrantRevokeFailed(logger, campaign.CampaignId, grant.UserId, grant.Qualifier, ex);
+			}
+#pragma warning restore CA1031
 
 			allRevoked &= grantRevoked;
 		}

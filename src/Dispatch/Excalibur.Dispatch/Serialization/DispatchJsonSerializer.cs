@@ -33,6 +33,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 {
 	private readonly JsonSerializerOptions _options;
 	private readonly JsonSerializerContext? _jsonContext;
+	private readonly JsonWriterOptions _writerOptions;
 	private readonly IUtf8JsonWriterPool _writerPool;
 	private readonly IPooledBufferService _bufferManager;
 	private readonly ThreadLocal<ArrayBufferWriter<byte>> _threadLocalBufferWriter;
@@ -109,6 +110,16 @@ public sealed class DispatchJsonSerializer : IDisposable
 		// can override any option, e.g. set TypeInfoResolver = null for reflection mode.
 		configure?.Invoke(_options);
 
+		// JsonSerializer.Serialize(Utf8JsonWriter, ...) takes its formatting from the WRITER, not from
+		// JsonSerializerOptions, so these must be mirrored across or the caller's settings are silently
+		// dropped on every pooled-writer path.
+		_writerOptions = new JsonWriterOptions
+		{
+			Indented = _options.WriteIndented,
+			Encoder = _options.Encoder,
+			MaxDepth = _options.MaxDepth,
+		};
+
 		// Initialize pools
 		_writerPool = writerPool ?? new Utf8JsonWriterPool(
 			maxPoolSize: 256,
@@ -184,7 +195,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 		var bufferWriter = _threadLocalBufferWriter.Value!;
 		bufferWriter.Clear();
 
-		using (var pooledWriter = _writerPool.RentWriter(bufferWriter))
+		using (var pooledWriter = _writerPool.RentWriter(bufferWriter, _writerOptions))
 		{
 			JsonSerializer.Serialize(pooledWriter.Writer, value, _options);
 			pooledWriter.Flush();
@@ -228,7 +239,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 		var bufferWriter = _threadLocalBufferWriter.Value!;
 		bufferWriter.Clear();
 
-		using (var pooledWriter = _writerPool.RentWriter(bufferWriter))
+		using (var pooledWriter = _writerPool.RentWriter(bufferWriter, _writerOptions))
 		{
 			JsonSerializer.Serialize(pooledWriter.Writer, value, type, _options);
 			pooledWriter.Flush();
@@ -269,7 +280,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 			return;
 		}
 
-		using (var pooledWriter = _writerPool.RentWriter(writer))
+		using (var pooledWriter = _writerPool.RentWriter(writer, _writerOptions))
 		{
 			var startBytes = pooledWriter.BytesWritten;
 			JsonSerializer.Serialize(pooledWriter.Writer, value, type, _options);

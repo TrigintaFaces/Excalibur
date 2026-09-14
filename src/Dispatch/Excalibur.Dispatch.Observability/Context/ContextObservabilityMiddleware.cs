@@ -21,17 +21,17 @@ namespace Excalibur.Dispatch.Observability.Context;
 /// snapshots, and detecting context mutations throughout the message processing pipeline.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ContextObservabilityMiddleware" /> class. </remarks>
-/// <param name="logger"> Logger for diagnostic output. </param>
 /// <param name="tracker"> Context flow tracker for recording context state. </param>
 /// <param name="metrics"> Metrics collector for context flow. </param>
 /// <param name="traceEnricher"> Trace enricher for adding context to spans. </param>
 /// <param name="options"> Configuration options. </param>
+/// <param name="logger"> Logger for diagnostic output. </param>
 public sealed partial class ContextObservabilityMiddleware(
-	ILogger<ContextObservabilityMiddleware> logger,
 	IContextFlowTracker tracker,
 	IContextFlowMetrics metrics,
 	IContextTraceEnricher traceEnricher,
-	IOptions<ContextObservabilityOptions> options) : IDispatchMiddleware, IDisposable, IAsyncDisposable
+	IOptions<ContextObservabilityOptions> options,
+	ILogger<ContextObservabilityMiddleware> logger) : IDispatchMiddleware, IDisposable, IAsyncDisposable
 {
 	private static readonly CompositeFormat ContextIntegrityValidationFailedFormat =
 		CompositeFormat.Parse(Resources.ContextObservabilityMiddleware_ContextIntegrityValidationFailedFormat);

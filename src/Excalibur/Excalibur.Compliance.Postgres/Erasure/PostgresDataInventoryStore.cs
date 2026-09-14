@@ -472,13 +472,22 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
 
-		// Runs on BOTH paths, and the auto-create path is the one that needs it. CREATE TABLE IF NOT
-		// EXISTS guards on table EXISTENCE, so against a database provisioned before the tenant
-		// discriminator existed it creates nothing and reports success — the table is there, it is simply
-		// the wrong shape. Verify likewise only ever asked whether the table exists. Neither notices a
-		// missing column, so without this check a store carrying every tenant-scoped statement would
-		// initialize cleanly and then fail on first use with a raw provider error far from its cause.
+		// Both checks below run on BOTH paths, and the auto-create path is the one that needs them.
+		// CREATE TABLE IF NOT EXISTS guards on table EXISTENCE, so against a database provisioned before a
+		// column was added it creates nothing and reports success — the table is there, it is simply the
+		// wrong shape. Neither this nor the verify-disabled call above notices a missing column on the
+		// auto-create path unless it runs here too.
+		//
+		// The tenant-discriminator check runs first because it names the one specific, shipped migration
+		// script for the single most likely historical gap; VerifySchemaExistsAsync's full-shape check
+		// (which the auto-create path would otherwise never reach) then covers every other column with a
+		// general "run the migration scripts" message.
 		await VerifyTenantDiscriminatorAsync(cancellationToken).ConfigureAwait(false);
+
+		if (_options.AutoCreateSchema)
+		{
+			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>
@@ -526,39 +535,97 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 	}
 
 	/// <summary>
-	/// Confirms the required tables exist when automatic provisioning is disabled.
+	/// Confirms the required tables exist, and carry every column this store's statements bind, when
+	/// automatic provisioning is disabled.
 	/// </summary>
 	/// <remarks>
-	/// Initialization must never complete without either creating the schema or verifying it. Marking the store
-	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
-	/// provider error far from its cause. This method is the verification half of that guarantee.
+	/// <para>
+	/// Reading the COLUMN catalogue rather than the table catalogue is the whole point of this method. A
+	/// probe that asks only whether the table exists reports healthy on precisely the database that is
+	/// broken: one provisioned before a column was added, where the table is present and the wrong shape.
+	/// The consumer then gets a dead store plus a check that told them it was fine, and the real failure
+	/// arrives later as a raw undefined_column far from its cause. Automatic schema creation does not
+	/// repair that database either — CREATE TABLE IF NOT EXISTS only creates tables that are absent.
+	/// </para>
+	/// <para>
+	/// Resolved through to_regclass rather than by splitting the configured name: the option already
+	/// carries a qualified identifier and to_regclass parses it the way the statements do. attnum > 0
+	/// excludes system columns; NOT attisdropped excludes columns dropped but not yet vacuumed, which
+	/// still occupy a pg_attribute row and would otherwise read as present.
+	/// </para>
 	/// </remarks>
-	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	/// <exception cref="InvalidOperationException">
+	/// A required table is absent, or is present but missing columns this store's statements bind.
+	/// </exception>
 	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
 	{
-		const string ExistsSql = "SELECT to_regclass(@TableName) IS NOT NULL";
+		const string ColumnsSql =
+			"SELECT attname FROM pg_attribute " +
+			"WHERE attrelid = to_regclass(@TableName) AND attnum > 0 AND NOT attisdropped";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		foreach (var tableName in new[] { _options.FullRegistrationsTableName, _options.FullDiscoveredLocationsTableName })
+		foreach (var (tableName, requiredColumns) in RequiredSchema)
 		{
-			var exists = await connection.ExecuteScalarAsync<bool>(
+			var actualColumns = (await connection.QueryAsync<string>(
 				new CommandDefinition(
-					ExistsSql,
+					ColumnsSql,
 					new { TableName = tableName },
 					cancellationToken: cancellationToken,
-					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false)).ToList();
 
-			if (!exists)
+			// No columns at all means no such table: to_regclass returns NULL for a table that does not
+			// exist, so the same query answers both questions and they stay in step.
+			if (actualColumns.Count == 0)
 			{
 				throw new InvalidOperationException(
 					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
 					$"Either create the schema out of band, or set {nameof(PostgresDataInventoryStoreOptions)}."
 					+ $"{nameof(PostgresDataInventoryStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
 			}
+
+			// Named, not counted. An operator reading this at startup needs to know WHICH columns are absent
+			// to choose the migration; "the schema is stale" sends them to diff it by hand.
+			var missing = requiredColumns
+				.Where(required => !actualColumns.Contains(required, StringComparer.Ordinal))
+				.ToList();
+
+			if (missing.Count > 0)
+			{
+				throw new InvalidOperationException(
+					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
+					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
+					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
+					+ "that path only creates tables that are absent. Run the shipped migration script "
+					+ "'003_MakeDataInventoryTenantTotal.sql' against this database, then restart.");
+			}
 		}
 	}
+
+	/// <summary>
+	/// Gets the columns every statement this store issues binds, per table.
+	/// </summary>
+	/// <remarks>
+	/// Kept beside the statements it mirrors: a column added to a CREATE/INSERT above without a line here
+	/// is a column the verification stops covering, which returns this check to the existence-only
+	/// behaviour it exists to replace. Compared with <see cref="StringComparer.Ordinal"/> because
+	/// PostgreSQL folds unquoted identifiers to lower case and stores them that way, so these are written
+	/// as the catalogue holds them rather than relying on a case-insensitive match to paper over a mismatch.
+	/// </remarks>
+	private IEnumerable<(string TableName, string[] RequiredColumns)> RequiredSchema =>
+	[
+		(_options.FullRegistrationsTableName,
+		[
+			"table_name", "field_name", "data_category", "data_subject_id_column", "id_type",
+			"key_id_column", "tenant_id_column", "description", "created_at", "updated_at", "tenant_id",
+		]),
+		(_options.FullDiscoveredLocationsTableName,
+		[
+			"data_subject_id_hash", "table_name", "field_name", "record_id", "data_category", "key_id",
+			"is_auto_discovered", "created_at", "updated_at", "tenant_id",
+		]),
+	];
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)
 	{

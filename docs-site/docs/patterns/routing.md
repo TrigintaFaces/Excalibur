@@ -74,6 +74,11 @@ Each transport maps message types to physical destinations (queues, topics, enti
 
 ### Per-Transport Destination Mapping
 
+The snippets below show the mapping API for each transport in isolation. Serialization is a consumer
+concern -- the transport packages don't seat a default -- so a real composition also needs a
+`services.AddPluggableSerialization();` call somewhere before the host starts (see the complete example
+below).
+
 ```csharp
 // Kafka: MapTopic maps message types to Kafka topics
 services.AddKafkaTransport("kafka", kafka =>
@@ -121,6 +126,9 @@ services.AddGooglePubSubTransport("pubsub", pubsub =>
 Here is a complete example showing both layers configured together:
 
 ```csharp
+// Step 0: Serialization is a consumer concern -- the transport packages don't seat a default.
+services.AddPluggableSerialization();
+
 // Step 1: Register transports with destination mappings
 services.AddKafkaTransport("kafka", kafka =>
 {
@@ -373,7 +381,7 @@ RoutingDecision.Failure("No transport could be selected for the message")
 ```csharp
 // The result your code receives:
 var result = await dispatcher.DispatchAsync(message, ct);
-// result.IsSuccess == false
+// result.Succeeded == false
 // result.ProblemDetails.Status == 404
 // result.ProblemDetails.Detail == "Routing failed: No transport could be selected for the message"
 ```

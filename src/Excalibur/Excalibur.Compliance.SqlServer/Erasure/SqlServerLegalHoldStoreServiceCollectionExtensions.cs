@@ -68,10 +68,6 @@ public static class SqlServerLegalHoldStoreServiceCollectionExtensions
 	/// <param name="connectionStringName"> The connection string name from configuration. </param>
 	/// <param name="configure"> Optional additional configuration. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSqlServerLegalHoldStoreFromConfiguration(
 		this IServiceCollection services,
 		string connectionStringName,

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Dapper;
 
 namespace Excalibur.Outbox.SqlServer.Requests;
 
@@ -92,13 +93,74 @@ internal static class OutboxFailureMark
 		""";
 
 	/// <summary>
-	/// The guards that make the transition safe, applied by every failure path.
+	/// The guards that make the transition safe. Composed by the single-message and batch failure
+	/// paths. Any other statement that writes this table's <c>Status</c> column needs them too, and
+	/// composing this constant is how it gets them.
 	/// </summary>
+	/// <remarks>
+	/// Status 2 is Sent and 5 is DeadLettered -- both TERMINAL, and neither may be reversed by a failure
+	/// report. Excluding Sent alone is not enough: a late report against a dead-lettered row would return
+	/// it to the failed set, and the failed set is claimable, so a message we decided to stop delivering
+	/// becomes deliverable again. The exclusion is unconditional and needs no ownership evidence -- it is
+	/// true of a report from the CURRENT claim holder as much as a superseded one.
+	/// </remarks>
 	public const string Guards =
 		"""
-		  AND Status <> 2
-		  AND (LeasedBy IS NULL OR LeasedBy = @LeasedBy)
+		  AND Status NOT IN (2, 5)
+		  AND (LeasedBy IS NULL
+		       OR LeasedBy = @LeasedBy
+		       OR LEFT(LeasedBy, @LeasedByPrefixLength) = @LeasedByPrefix)
 		""";
+
+	/// <summary>
+	/// Binds the ownership parameters the <see cref="Guards"/> lease arm reads.
+	/// </summary>
+	/// <param name="parameters">The parameter set the composed statement will execute with.</param>
+	/// <param name="leasedBy">The bare processor identity of the caller recording the failure.</param>
+	/// <remarks>
+	/// <para>
+	/// <b>The claim does not store the bare processor identity, so an equality test against it can never
+	/// match a claimed row.</b> The claim stamps a per-call CLAIM identity of the form
+	/// <c>{processorId}:{claimId}</c>, because the processor half answers which PROCESS holds the row and
+	/// the claim half answers which CLAIM -- only the second distinguishes two cycles of the same process,
+	/// one of whose leases lapsed while a dispatch hung. Comparing the stored value to a bare processor id
+	/// left the second arm dead: only UNCLAIMED rows could be marked, so a claimed message could not be
+	/// marked failed by its own owner, the row stayed Staged, and the retry count and dead-letter ceiling
+	/// never advanced. The sibling sent and dead-letter marks carry no lease arm at all, which is why they
+	/// were unaffected and why the asymmetry pointed here.
+	/// </para>
+	/// <para>
+	/// <b>Matched by PREFIX, and anchored rather than split.</b> The claim's own contract states that
+	/// consumers match this by prefix and never by splitting on the separator, because the processor half
+	/// may itself contain colons. The length is passed as a parameter rather than computed with
+	/// <c>LEN()</c>, which ignores trailing spaces and would silently widen the match for a processor id
+	/// that ends in one. <c>LIKE</c> is avoided deliberately: a processor id containing <c>%</c>,
+	/// <c>_</c> or <c>[</c> would otherwise need escaping, and an unescaped wildcard here would match
+	/// another processor's lease.
+	/// </para>
+	/// <para>
+	/// The equality arm is kept beside the prefix arm so a row leased by a path that wrote the bare
+	/// identity is still markable; the prefix arm only ever ADDS the composed form.
+	/// </para>
+	/// </remarks>
+	public static void AddLeaseOwnership(DynamicParameters parameters, string leasedBy)
+	{
+		ArgumentNullException.ThrowIfNull(parameters);
+
+		parameters.Add("@LeasedBy", leasedBy);
+
+		// REFUSED rather than defended. A zero-length prefix is catastrophic here -- LEFT(LeasedBy, 0) is
+		// the empty string, so the arm would be TRUE for EVERY leased row and the ownership guard would
+		// become no guard at all. Guarding that with a null-check leaves the hole one token away (null ->
+		// string.Empty) in a branch no call site reaches and no test covers, which is dead code that is
+		// dangerous rather than harmless. Demanding a non-empty identity makes the zero-length prefix
+		// unconstructible instead, so the bad state cannot be written down rather than merely being avoided.
+		ArgumentException.ThrowIfNullOrEmpty(leasedBy);
+
+		var prefix = leasedBy + ":";
+		parameters.Add("@LeasedByPrefix", prefix);
+		parameters.Add("@LeasedByPrefixLength", prefix.Length);
+	}
 
 	/// <summary>
 	/// Builds the <c>NextAttemptAt</c> assignment, composing the caller's computed schedule with the
@@ -136,4 +198,35 @@ internal static class OutboxFailureMark
 			// Neither supplied: leave the column untouched.
 			(false, false) => string.Empty,
 		};
+
+	/// <summary>
+	/// Converts the caller's absolute next-attempt instant into the DELAY it represents, so the statement can
+	/// re-anchor it on the server clock.
+	/// </summary>
+	/// <param name="nextAttemptAt">The next-attempt instant the caller computed from its own clock.</param>
+	/// <returns>The delay in milliseconds, which is negative when the schedule has already elapsed.</returns>
+	/// <remarks>
+	/// <para>
+	/// The caller computes this instant as "now, plus a backoff" against its OWN clock; the claim predicate
+	/// reads the stored column back against the SERVER's. Binding the instant verbatim therefore straddles two
+	/// clocks, and where the dispatcher runs ahead of the database the message stays invisible for the whole
+	/// skew AFTER its backoff has genuinely elapsed — a due message withheld, bounded by nothing but the skew.
+	/// Recovering the duration here and re-adding it to <c>SYSUTCDATETIME()</c> in the statement keeps the
+	/// dispatcher's intent and puts one clock on both sides of the comparison.
+	/// </para>
+	/// <para>
+	/// An already-elapsed schedule yields a NEGATIVE delay, which is deliberate: composed with the floor it
+	/// simply loses to it, and with no floor configured it makes the message due immediately, which is what an
+	/// elapsed schedule means. The value is clamped to the range <c>DATEADD</c> accepts.
+	/// </para>
+	/// </remarks>
+	internal static int ToServerDelayMilliseconds(DateTimeOffset nextAttemptAt)
+	{
+		var delayMs = (nextAttemptAt - DateTimeOffset.UtcNow).TotalMilliseconds;
+
+		return delayMs <= int.MinValue
+			? int.MinValue
+			: delayMs >= int.MaxValue ? int.MaxValue : (int)delayMs;
+	}
+
 }

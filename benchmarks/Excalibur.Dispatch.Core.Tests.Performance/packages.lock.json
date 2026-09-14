@@ -78,17 +78,6 @@
           "Microsoft.TestPlatform.TestHost": "18.4.0"
         }
       },
-      "Microsoft.SourceLink.GitHub": {
-        "type": "Direct",
-        "requested": "[10.0.202, )",
-        "resolved": "10.0.202",
-        "contentHash": "vRm3w0AWndnqt8X73qoWTdD/qp7o+bYMCufl7hSiQUSqeI3WKdqA/ElE6MCUscy84FX8HCMcK2EJCtTm+4bdbw==",
-        "dependencies": {
-          "Microsoft.Build.Tasks.Git": "10.0.202",
-          "Microsoft.SourceLink.Common": "10.0.202",
-          "System.IO.Hashing": "10.0.6"
-        }
-      },
       "Roslynator.Analyzers": {
         "type": "Direct",
         "requested": "[4.15.0, )",
@@ -252,14 +241,6 @@
         "type": "Transitive",
         "resolved": "9.0.13",
         "contentHash": "5T+bH3Lb1nEe8Hf/ixMxLmhlrx5wRi53wv7OhVwG2F1ZviW1ejFRS1NHur3uqPpJRGtkQwUchtY6zhVK2R+v+w=="
-      },
-      "Microsoft.Build.Tasks.Git": {
-        "type": "Transitive",
-        "resolved": "10.0.202",
-        "contentHash": "HXAW7dToPLi6lHN4TJz1FfxLYfPS3EF20YrrZxQ9xbwbjLkFXJ+SwkuuILoAdCWTNHhHfa5oqOsrOEQX5s+eMg==",
-        "dependencies": {
-          "System.IO.Hashing": "10.0.6"
-        }
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
@@ -485,11 +466,6 @@
         "type": "Transitive",
         "resolved": "1.1.0",
         "contentHash": "kz0PEW2lhqygehI/d6XsPCQzD7ff7gUJaVGPVETX611eadGsA3A877GdSlU0LRVMCTH/+P3o2iDTak+S08V2+A=="
-      },
-      "Microsoft.SourceLink.Common": {
-        "type": "Transitive",
-        "resolved": "10.0.202",
-        "contentHash": "g8E67huS0Slt6iJiUG1uj2N4NBo/q68Q1y1H4nFu1Cn4AOp6S5D8AeGLhGMzBT+JmNCjiGTvKco2qkbe4F31tQ=="
       },
       "Microsoft.SqlServer.Server": {
         "type": "Transitive",
@@ -979,6 +955,7 @@
           "Excalibur.Dispatch.Testing": "[1.0.0, )",
           "Excalibur.Dispatch.Transport.Abstractions": "[1.0.0, )",
           "Excalibur.Inbox.InMemory": "[1.0.0, )",
+          "Microsoft.Extensions.Diagnostics.Testing": "[10.5.0, )",
           "Microsoft.NET.Test.Sdk": "[18.4.0, )",
           "Shouldly": "[4.3.0, )",
           "Tests.Shared": "[1.0.0, )",
@@ -1028,6 +1005,7 @@
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
           "OpenTelemetry.Extensions.Hosting": "[1.15.3, )",
+          "Polly": "[8.6.6, )",
           "System.IO.Hashing": "[10.0.7, )"
         }
       },
@@ -1099,7 +1077,8 @@
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.Options": "[10.0.10, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.10, )",
-          "Microsoft.Extensions.Options.DataAnnotations": "[10.0.10, )"
+          "Microsoft.Extensions.Options.DataAnnotations": "[10.0.10, )",
+          "Polly": "[8.6.6, )"
         }
       },
       "tests.shared": {

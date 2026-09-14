@@ -28,12 +28,6 @@ public sealed class AzureKeyVaultOptions
 	public string? ClientId { get; init; }
 
 	/// <summary>
-	/// Gets a value indicating whether to use Hardware Security Module (HSM) backed keys.
-	/// </summary>
-	/// <value> True to use HSM-backed keys, false for software keys. </value>
-	public bool UseHsm { get; init; }
-
-	/// <summary>
 	/// Gets a value indicating whether to purge secrets immediately after deletion.
 	/// </summary>
 	/// <value> True to purge deleted secrets, false to keep them in deleted state. </value>
@@ -44,10 +38,4 @@ public sealed class AzureKeyVaultOptions
 	/// </summary>
 	/// <value> The maximum number of concurrent Azure Key Vault operations. </value>
 	public int MaxConcurrentOperations { get; init; } = 10;
-
-	/// <summary>
-	/// Gets the automatic key rotation interval.
-	/// </summary>
-	/// <value> The time interval between automatic key rotations. </value>
-	public TimeSpan KeyRotationInterval { get; init; } = TimeSpan.FromDays(90);
 }

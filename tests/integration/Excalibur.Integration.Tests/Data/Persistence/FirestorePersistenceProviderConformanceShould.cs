@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.CloudNative;
 using Excalibur.Data.Firestore;
 using Excalibur.Data.Persistence;
 using Excalibur.Testing.Conformance;
@@ -114,6 +115,63 @@ public sealed class FirestorePersistenceProviderConformanceShould
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
+	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
+	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();
 	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 	[Fact] public void ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers_Test() => ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers();
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Excalibur_Dispatch-7vyyp9: the second operation is a Create against a document id already seeded in
+	/// the same partition, which Firestore's <c>WriteBatch.Create</c> rejects server-side (an
+	/// "already exists" precondition checked atomically with the rest of the batch) -- not a client-side
+	/// argument error, so this genuinely exercises the transactional-batch guarantee rather than a
+	/// construction-time validation that would never reach the server.
+	/// </remarks>
+	protected override async Task<(IPartitionKey PartitionKey, IReadOnlyList<ICloudBatchOperation> Operations, Func<Task<bool>> FirstEffectVisibleAsync, Func<Task<bool>> FirstEffectPersistsWhenBatchSucceedsAsync)?>
+		CreateCloudNativeBatchAtomicityProbeAsync(ICloudNativePersistenceBatchOperations batchOperations)
+	{
+		var provider = (ICloudNativePersistenceProvider)batchOperations;
+		var partitionKey = new PartitionKey("atomicity-probe");
+
+		var firstId = $"atomicity-first-{Guid.NewGuid():N}";
+		var conflictId = $"atomicity-conflict-{Guid.NewGuid():N}";
+
+		// Seed the conflict target so the second operation's Create hits a genuine, already-committed
+		// document rather than racing its own batch.
+		var seeded = await provider.CreateAsync(
+			new AtomicityProbeDocument(conflictId, "seed"), partitionKey, TestContext.Current.CancellationToken);
+		if (!seeded.Success)
+		{
+			return null;
+		}
+
+		IReadOnlyList<ICloudBatchOperation> operations =
+		[
+			new CloudBatchCreateOperation(firstId, new AtomicityProbeDocument(firstId, "first")),
+			new CloudBatchCreateOperation(conflictId, new AtomicityProbeDocument(conflictId, "duplicate")),
+		];
+
+		return (
+			partitionKey,
+			operations,
+			FirstEffectVisibleAsync: async () =>
+				await provider.GetByIdAsync<AtomicityProbeDocument>(
+					firstId, partitionKey, null, TestContext.Current.CancellationToken).ConfigureAwait(false) is not null,
+			FirstEffectPersistsWhenBatchSucceedsAsync: async () =>
+			{
+				var livenessId = $"atomicity-liveness-{Guid.NewGuid():N}";
+				var result = await batchOperations.ExecuteBatchAsync(
+					partitionKey,
+					[new CloudBatchCreateOperation(livenessId, new AtomicityProbeDocument(livenessId, "liveness"))],
+					TestContext.Current.CancellationToken).ConfigureAwait(false);
+
+				return result.Success
+					&& await provider.GetByIdAsync<AtomicityProbeDocument>(
+						livenessId, partitionKey, null, TestContext.Current.CancellationToken).ConfigureAwait(false) is not null;
+			});
+	}
+
+	private sealed record AtomicityProbeDocument(string Id, string Marker);
 }

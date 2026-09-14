@@ -61,7 +61,7 @@ public sealed class BackoffCalculatorsShould
     [Fact]
     public void Factory_CreatesFixedCalculator()
     {
-        var options = new RetryPolicyOptions { Backoff = new RetryBackoffOptions { BaseDelay = TimeSpan.FromSeconds(1) } };
+        var options = new RetryOptions { BaseDelay = TimeSpan.FromSeconds(1) };
         var calculator = BackoffCalculatorFactory.Create(BackoffStrategy.Fixed, options);
 
         calculator.ShouldBeOfType<FixedBackoffCalculator>();
@@ -70,7 +70,7 @@ public sealed class BackoffCalculatorsShould
     [Fact]
     public void Factory_CreatesLinearCalculator()
     {
-        var options = new RetryPolicyOptions { Backoff = new RetryBackoffOptions { BaseDelay = TimeSpan.FromSeconds(1) } };
+        var options = new RetryOptions { BaseDelay = TimeSpan.FromSeconds(1) };
         var calculator = BackoffCalculatorFactory.Create(BackoffStrategy.Linear, options);
 
         calculator.ShouldBeOfType<LinearBackoffCalculator>();
@@ -79,7 +79,7 @@ public sealed class BackoffCalculatorsShould
     [Fact]
     public void Factory_CreatesExponentialCalculator()
     {
-        var options = new RetryPolicyOptions { Backoff = new RetryBackoffOptions { BaseDelay = TimeSpan.FromSeconds(1) } };
+        var options = new RetryOptions { BaseDelay = TimeSpan.FromSeconds(1) };
         var calculator = BackoffCalculatorFactory.Create(BackoffStrategy.Exponential, options);
 
         calculator.ShouldBeOfType<ExponentialBackoffCalculator>();
@@ -88,7 +88,7 @@ public sealed class BackoffCalculatorsShould
     [Fact]
     public void Factory_CreatesExponentialWithJitterCalculator()
     {
-        var options = new RetryPolicyOptions { Backoff = new RetryBackoffOptions { BaseDelay = TimeSpan.FromSeconds(1) } };
+        var options = new RetryOptions { BaseDelay = TimeSpan.FromSeconds(1) };
         var calculator = BackoffCalculatorFactory.Create(BackoffStrategy.ExponentialWithJitter, options);
 
         // Should return an exponential calculator (with jitter added externally)

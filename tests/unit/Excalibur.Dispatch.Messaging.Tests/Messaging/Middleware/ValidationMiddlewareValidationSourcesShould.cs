@@ -119,7 +119,7 @@ public sealed class ValidationMiddlewareValidationSourcesShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -154,7 +154,7 @@ public sealed class ValidationMiddlewareValidationSourcesShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -204,8 +204,8 @@ public sealed class ValidationMiddlewareValidationSourcesShould
 		_ = A.CallTo(() => _validationService.ValidateAsync(
 				A<IDispatchMessage>._, A<MessageValidationContext>._, A<CancellationToken>._))
 			.Returns(MessageValidationResult.Failure(
-				new ValidationError("Field1", "Error A"),
-				new ValidationError("Field1", "Error B")));
+				new MessageValidationError("Field1", "Error A"),
+				new MessageValidationError("Field1", "Error B")));
 		var middleware = CreateSut(options);
 		var message = A.Fake<IDispatchMessage>();
 
@@ -278,7 +278,7 @@ public sealed class ValidationMiddlewareValidationSourcesShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion
@@ -320,7 +320,7 @@ public sealed class ValidationMiddlewareValidationSourcesShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -397,7 +397,7 @@ public sealed class ValidationMiddlewareValidationSourcesShould
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
 		// Assert
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	/// <summary>

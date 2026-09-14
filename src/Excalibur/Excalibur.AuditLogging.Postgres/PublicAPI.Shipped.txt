@@ -1,12 +1,4 @@
 #nullable enable
-Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder
-Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
-Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.ConnectionString(string! connectionString) -> Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
-Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.ConnectionStringName(string! name) -> Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
-Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
-Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
-Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.SchemaName(string! schema) -> Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
-Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.TableName(string! tableName) -> Excalibur.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.BatchSize.get -> int
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.BatchSize.set -> void
@@ -18,20 +10,30 @@ Excalibur.AuditLogging.Postgres.PostgresAuditOptions.EnableHashChain.get -> bool
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.EnableHashChain.set -> void
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.FullyQualifiedTableName.get -> string!
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.PostgresAuditOptions() -> void
-Excalibur.AuditLogging.Postgres.PostgresAuditOptions.RetentionCleanupBatchSize.get -> int
-Excalibur.AuditLogging.Postgres.PostgresAuditOptions.RetentionCleanupBatchSize.set -> void
-Excalibur.AuditLogging.Postgres.PostgresAuditOptions.RetentionPeriod.get -> System.TimeSpan
-Excalibur.AuditLogging.Postgres.PostgresAuditOptions.RetentionPeriod.set -> void
+Excalibur.AuditLogging.Postgres.PostgresAuditOptions.Retention.get -> Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions!
+Excalibur.AuditLogging.Postgres.PostgresAuditOptions.Retention.set -> void
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.SchemaName.get -> string!
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.SchemaName.set -> void
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.TableName.get -> string!
 Excalibur.AuditLogging.Postgres.PostgresAuditOptions.TableName.set -> void
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.CleanupBatchSize.get -> int
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.CleanupBatchSize.set -> void
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.CleanupInterval.get -> System.TimeSpan
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.CleanupInterval.set -> void
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.EnableRetentionEnforcement.get -> bool
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.EnableRetentionEnforcement.set -> void
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.PostgresAuditRetentionOptions() -> void
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.RetentionPeriod.get -> System.TimeSpan
+Excalibur.AuditLogging.Postgres.PostgresAuditRetentionOptions.RetentionPeriod.set -> void
 Excalibur.AuditLogging.Postgres.PostgresAuditStore
 Excalibur.AuditLogging.Postgres.PostgresAuditStore.CountAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.AuditLogging.Postgres.PostgresAuditStore.Dispose() -> void
 Excalibur.AuditLogging.Postgres.PostgresAuditStore.GetByIdAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
-Excalibur.AuditLogging.Postgres.PostgresAuditStore.GetLastEventAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
+Excalibur.AuditLogging.Postgres.PostgresAuditStore.GetLastEventAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
 Excalibur.AuditLogging.Postgres.PostgresAuditStore.PostgresAuditStore(Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.Postgres.PostgresAuditOptions!>! options, Excalibur.AuditLogging.IAuditIntegrityStrategy! integrity, Excalibur.Dispatch.ITenantContext! tenantContext, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.Postgres.PostgresAuditStore!>! logger) -> void
+Excalibur.AuditLogging.Postgres.PostgresAuditStore.PurgeExpiredAsync(System.DateTimeOffset cutoff, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.AuditLogging.Postgres.PostgresAuditStore.PurgeTenantAsync(System.DateTimeOffset cutoff, Excalibur.Dispatch.KeyedTenantPartition! tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.AuditLogging.Postgres.PostgresAuditStore.QueryAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>!>!
 Excalibur.AuditLogging.Postgres.PostgresAuditStore.StoreAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEventId>!
 Excalibur.AuditLogging.Postgres.PostgresAuditStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!

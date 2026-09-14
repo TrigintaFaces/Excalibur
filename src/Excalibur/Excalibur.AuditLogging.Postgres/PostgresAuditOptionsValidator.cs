@@ -36,9 +36,9 @@ internal sealed class PostgresAuditOptionsValidator : IValidateOptions<PostgresA
 			failures.Add($"{nameof(options.BatchSize)} must be between 1 and 100000.");
 		}
 
-		if (options.RetentionCleanupBatchSize is < 1 or > 1000000)
+		if (options.Retention.CleanupBatchSize is < 1 or > 1000000)
 		{
-			failures.Add($"{nameof(options.RetentionCleanupBatchSize)} must be between 1 and 1000000.");
+			failures.Add($"{nameof(options.Retention.CleanupBatchSize)} must be between 1 and 1000000.");
 		}
 
 		if (options.CommandTimeoutSeconds is < 1 or > 3600)

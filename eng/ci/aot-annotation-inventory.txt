@@ -6,7 +6,6 @@
 #
 # Regenerate deliberately, never to clear a failure you have not read:
 #   python3 eng/ci/aot-annotation-inventory-gate.py --regenerate
-
 src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/EventTypeRegistrationServiceCollectionExtensions.cs::AddEventTypesFromAssembly
 src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs::JsonEventSerializer
 src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxStoreDecorator.cs::EnqueueAsync
@@ -39,6 +38,7 @@ src/Dispatch/Excalibur.Dispatch.Serialization.Protobuf/ProtobufSerializer.cs::IS
 src/Dispatch/Excalibur.Dispatch.SourceGenerators.Analyzers/Analyzers/AotCompatibilityAnalyzer.cs::DiagnosticAnalyzer
 src/Dispatch/Excalibur.Dispatch.Testing/DispatchTestHarness.cs::CreateAsyncScope
 src/Dispatch/Excalibur.Dispatch.Testing/DispatchTestHarness.cs::CreateScope
+src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventEncoderAdapter.cs::ToTransportAsync
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForEventBridge
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForSns
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForSqs
@@ -68,6 +68,8 @@ src/Dispatch/Excalibur.Dispatch.Transport.Kafka/CloudEvents/KafkaCloudEventsServ
 src/Dispatch/Excalibur.Dispatch.Transport.Kafka/DispatchBuilderKafkaExtensions.cs::UseKafka
 src/Dispatch/Excalibur.Dispatch.Transport.Kafka/KafkaTransportServiceCollectionExtensions.cs::AddKafkaTransport
 src/Dispatch/Excalibur.Dispatch.Transport.Kafka/SchemaRegistry/ConfluentSchemaRegistryOptions.cs::CreateSubjectNameStrategy
+src/Dispatch/Excalibur.Dispatch.Transport.Mqtt/CloudEvents/MqttCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.Mqtt/CloudEvents/MqttCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForMqtt
 src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/CloudEvents/RabbitMqCloudEventAdapter.cs::ToTransportMessageAsync
 src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/CloudEvents/RabbitMqCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForRabbitMq
 src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/DependencyInjection/FluentValidationServiceCollectionExtensions.cs::WithFluentValidation
@@ -134,7 +136,6 @@ src/Dispatch/Excalibur.Dispatch/Serialization/SystemTextJsonSerializer.cs::ISeri
 src/Dispatch/Excalibur.Dispatch/Threading/ThreadingDispatchBuilderExtensions.cs::WithThreadingOptions
 src/Dispatch/Excalibur.Dispatch/Validation/Context/ContextValidationDispatchBuilderExtensions.cs::UseContextValidation
 src/Dispatch/Excalibur.Dispatch/Validation/Context/ContextValidationServiceCollectionExtensions.cs::AddContextValidation
-src/Dispatch/Excalibur.Dispatch/ZeroAlloc/ZeroAllocConfigurationExtensions.cs::UseZeroAllocation
 src/Excalibur/Excalibur.A3/A3ServiceCollectionExtensions.cs::AddA3DispatchServices
 src/Excalibur/Excalibur.A3/A3ServiceCollectionExtensions.cs::AddExcaliburA3
 src/Excalibur/Excalibur.A3/Audit/AuditExcaliburBuilderExtensions.cs::AddAudit
@@ -151,29 +152,6 @@ src/Excalibur/Excalibur.Caching/Projections/ExcaliburDispatchBuilderExtensions.c
 src/Excalibur/Excalibur.Caching/Projections/ProjectionCacheInvalidator.cs::InvalidateCacheAsync
 src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs::AddCosmosDbCdc
 src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs::AddCosmosDbCdcStateStore
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcExtensions.cs::AddDynamoDbCdc
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::FromBase64
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::ToBase64
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::ToBytes
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::ToToken
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::TryFromBase64
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs::GetPositionAsync
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs::SavePositionAsync
-src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbStalePositionDetector.cs::CreateEventArgs
-src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs::GetPositionAsync
-src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs::SavePositionAsync
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcExtensions.cs::AddFirestoreCdc
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::FromBase64
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::FromBytes
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::ToBase64
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::ToBytes
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::ToToken
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::TryFromBase64
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs::GetPositionAsync
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs::SavePositionAsync
-src/Excalibur/Excalibur.Cdc.Firestore/FirestoreStalePositionDetector.cs::CreateEventArgs
-src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs::GetPositionAsync
-src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs::SavePositionAsync
 src/Excalibur/Excalibur.Cdc.SqlServer/DependencyInjection/DataChangeHandlerCdcBuilderExtensions.cs::AddDataChangeHandlersFromAssembly
 src/Excalibur/Excalibur.Cdc.SqlServer/DependencyInjection/DataChangeHandlerServiceCollectionExtensions.cs::AddDataChangeHandlersFromAssembly
 src/Excalibur/Excalibur.Compliance/Encryption/Decorators/EncryptingOutboxStoreDecorator.cs::EnqueueAsync
@@ -226,7 +204,7 @@ src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs::EncryptDocumentAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs::EncryptFieldAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddAuthentication
-src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddAzureKeyVault
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddAzureKeyVaultCredentialStorage
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddElasticsearchSecurity
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddKeyManagement
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddSecurityMonitoring
@@ -303,11 +281,13 @@ src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionBuilder.cs::AddProje
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryCursorAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryPagedAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedSagaStore.cs::public Task SaveAsync<TSagaState>(TSagaS
 src/Excalibur/Excalibur.EventSourcing/Snapshots/CompositeSnapshotStrategy.cs::ShouldCreateSnapshot
 src/Excalibur/Excalibur.EventSourcing/Snapshots/IncrementalSnapshotStrategy.cs::ShouldCreateSnapshot
 src/Excalibur/Excalibur.EventSourcing/Snapshots/IntervalSnapshotStrategy.cs::ShouldCreateSnapshot
@@ -366,18 +346,24 @@ src/Excalibur/Excalibur.Outbox/TransactionalOutboxWriter.cs::WriteAsync
 src/Excalibur/Excalibur.Saga.CosmosDb/CosmosDbSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.Saga.DynamoDb/DynamoDbSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.Saga.Firestore/FirestoreSagaStore.cs::public async Task SaveAsync<TSagaState>(
+src/Excalibur/Excalibur.Saga.MongoDB/MongoDbSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::AddOracleSagaStore
 src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::UseOracleSagaStore
 src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::public static IServiceCollection AddOrac
+src/Excalibur/Excalibur.Saga.Oracle/OracleSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.Saga.Oracle/Requests/SaveSagaRequest.cs::SaveSagaRequest
 src/Excalibur/Excalibur.Saga.Postgres/DependencyInjection/PostgresSagaExtensions.cs::AddPostgresSagaStore
+src/Excalibur/Excalibur.Saga.Postgres/PostgresSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.Saga.Postgres/Requests/SaveSagaRequest.cs::SaveSagaRequest
 src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::AddSqlServerSagaStore
 src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::UseSqlServerSagaStore
 src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::public static IServiceCollection AddSqlS
 src/Excalibur/Excalibur.Saga.SqlServer/Requests/SaveSagaRequest.cs::SaveSagaRequest
+src/Excalibur/Excalibur.Saga.SqlServer/SqlServerSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.Saga/DependencyInjection/SagaExcaliburBuilderExtensions.cs::AddSagas
 src/Excalibur/Excalibur.Saga/DependencyInjection/SagaServiceCollectionExtensions.cs::public static IServiceCollection AddSaga
+src/Excalibur/Excalibur.Saga/Diagnostics/TelemetrySagaStoreDecorator.cs::public async Task SaveAsync<TSagaState>(
+src/Excalibur/Excalibur.Saga/Orchestration/InMemorySagaStore.cs::public Task SaveAsync<TSagaState>(TSagaS
 src/Excalibur/Excalibur.Saga/Orchestration/SagaBase.cs::protected Task<string> RequestTimeoutAsy
 src/Excalibur/Excalibur.Saga/Orchestration/SagaBase.cs::protected virtual byte[] SerializeTimeou
 src/Excalibur/Excalibur.Saga/Orchestration/SagaCoordinator.cs::ProcessEventAsync
@@ -413,3 +399,6 @@ src/metapackages/Excalibur.Dispatch.RabbitMQ/DispatchRabbitMQServiceCollectionEx
 src/metapackages/Excalibur.Dispatch.SqlServer/DispatchSqlServerServiceCollectionExtensions.cs::AddDispatchWithSqlServer
 src/metapackages/Excalibur.Postgres/ExcaliburPostgresServiceCollectionExtensions.cs::AddExcaliburPostgres
 src/metapackages/Excalibur.SqlServer/ExcaliburSqlServerServiceCollectionExtensions.cs::AddExcaliburSqlServer
+src/Excalibur/Excalibur.LeaderElection.Kubernetes/KubernetesLeaderElectionExtensions.cs::AddExcaliburKubernetesLeaderElection
+src/Excalibur/Excalibur.LeaderElection.Kubernetes/KubernetesLeaderElectionExtensions.cs::AddExcaliburKubernetesLeaderElectionHostedService
+src/Excalibur/Excalibur.LeaderElection.Kubernetes/DependencyInjection/KubernetesLeaderElectionBuilderExtensions.cs::UseKubernetes

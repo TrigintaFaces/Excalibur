@@ -89,8 +89,16 @@ public interface IAuditQuery
 	/// <param name="cancellationToken"> A token to cancel the operation. </param>
 	/// <returns> The integrity verification result. </returns>
 	/// <remarks>
-	/// Confined the same way as <see cref="QueryAsync"/>: verifies only the caller's own tenant's hash
-	/// chain over the given range, never another tenant's.
+	/// <para>
+	/// <b>Verification scope is a property of the store, not of this contract.</b> The SQL Server and
+	/// PostgreSQL stores verify the chain <b>estate-wide</b>, enumerating each tenant-and-application
+	/// partition that falls in the range. The in-memory store verifies only the ambient tenant's chain.
+	/// </para>
+	/// <para>
+	/// A result from an estate-wide store must therefore not be presented to a single tenant as evidence
+	/// about that tenant's own data. A passing result states that every partition the store enumerated is
+	/// intact; it does not by itself state which partitions those were.
+	/// </para>
 	/// </remarks>
 	Task<AuditIntegrityResult> VerifyChainIntegrityAsync(
 		DateTimeOffset startDate,
@@ -100,16 +108,15 @@ public interface IAuditQuery
 	/// <summary>
 	/// Gets the last recorded event (for chain linking).
 	/// </summary>
-	/// <param name="tenantId"> Optional tenant ID for multi-tenant isolation. </param>
 	/// <param name="cancellationToken"> A token to cancel the operation. </param>
 	/// <returns> The last audit event, or null if no events exist. </returns>
 	/// <remarks>
-	/// Unlike the other members here, tenant confinement is taken from <paramref name="tenantId"/>
-	/// explicitly rather than from ambient state: the result is the last event within that partition (or
-	/// the untenanted partition when <paramref name="tenantId"/> is <see langword="null"/>), never another
-	/// tenant's most recent event.
+	/// Confined the same way as <see cref="QueryAsync"/>: the result is the last event within the ambient
+	/// tenant established for this store instance (or the untenanted partition when no tenant is
+	/// resolved), never another tenant's most recent event. This member previously accepted a caller-
+	/// supplied tenant id; every implementation resolved confinement from ambient state regardless of what
+	/// was passed, so the parameter was removed rather than left to teach a caller a scoping belief the
+	/// call never honoured.
 	/// </remarks>
-	Task<AuditEvent?> GetLastEventAsync(
-		string? tenantId,
-		CancellationToken cancellationToken);
+	Task<AuditEvent?> GetLastEventAsync(CancellationToken cancellationToken);
 }

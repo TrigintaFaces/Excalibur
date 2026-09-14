@@ -250,7 +250,8 @@
           "Excalibur.Data.Abstractions": "[1.0.0, )",
           "Excalibur.Dispatch": "[1.0.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Excalibur.Hosting": "[1.0.0, )"
+          "Excalibur.Hosting": "[1.0.0, )",
+          "Polly": "[8.6.6, )"
         }
       },
       "excalibur.workflows.abstractions": {

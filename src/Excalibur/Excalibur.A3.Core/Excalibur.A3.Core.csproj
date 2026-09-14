@@ -31,4 +31,14 @@
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The durability gates are framework-installed, not a consumer seam: they are internal and
+         reached from the sibling assembly that installs them and from their own tests. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.A3</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.A3.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

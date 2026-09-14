@@ -235,7 +235,7 @@ public sealed class ErasureCoverageGateShould
             _store, _keyAdmin, options,
             NullLogger<ErasureService>.Instance,
             TestDataSubjectHasher.Instance,
-            _legalHoldService, _dataInventoryService,
+            _legalHoldService, _dataInventoryService, null,
             annotations, contributors);
     }
 
@@ -259,7 +259,7 @@ public sealed class ErasureCoverageGateShould
             _store, _keyAdmin, options,
             NullLogger<ErasureService>.Instance,
             TestDataSubjectHasher.Instance,
-            _legalHoldService, _dataInventoryService,
+            _legalHoldService, _dataInventoryService, null,
             contributors);
     }
 

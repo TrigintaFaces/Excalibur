@@ -95,8 +95,6 @@ public static class DynamoDbStalePositionDetector
 	/// <param name="shardId">The affected shard ID, if known.</param>
 	/// <param name="sequenceNumber">The stale sequence number, if known.</param>
 	/// <returns>A populated <see cref="CdcPositionResetEventArgs"/> instance.</returns>
-	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
-	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static CdcPositionResetEventArgs CreateEventArgs(
 		Exception exception,
 		string processorId,

@@ -307,7 +307,6 @@ PostgreSQL outbox store metrics.
 |--------|------|------|-------------|
 | `excalibur.outbox.save_messages_duration` | Histogram | `ms` | Time taken to save outbox messages |
 | `excalibur.outbox.reserve_messages_duration` | Histogram | `ms` | Time taken to reserve outbox messages |
-| `excalibur.outbox.unreserve_messages_duration` | Histogram | `ms` | Time taken to unreserve outbox messages |
 | `excalibur.outbox.delete_record_duration` | Histogram | `ms` | Time taken to delete an outbox record |
 | `excalibur.outbox.increase_attempts_duration` | Histogram | `ms` | Time taken to increase message attempts |
 | `excalibur.outbox.move_to_dead_letter_duration` | Histogram | `ms` | Time taken to move a message to dead letter |

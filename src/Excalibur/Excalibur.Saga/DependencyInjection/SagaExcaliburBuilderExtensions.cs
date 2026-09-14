@@ -16,33 +16,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class SagaExcaliburBuilderExtensions
 {
-	/// <summary>
-	/// Configures saga processing for the Excalibur host.
-	/// </summary>
-	/// <param name="builder">The Excalibur builder.</param>
-	/// <param name="configure">
-	/// Optional action to configure saga options. Pass <see langword="null"/> to use defaults.
-	/// </param>
-	/// <returns>The same builder for fluent chaining.</returns>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	public static IExcaliburBuilder AddSagas(
-		this IExcaliburBuilder builder,
-		Action<SagaOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		if (configure is not null)
-		{
-			_ = builder.Services.AddExcaliburSaga(configure);
-		}
-		else
-		{
-			_ = builder.Services.AddExcaliburSaga();
-		}
-
-		return builder;
-	}
 
 	/// <summary>
 	/// Configures saga processing for the Excalibur host using the
@@ -56,12 +29,11 @@ public static class SagaExcaliburBuilderExtensions
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IExcaliburBuilder AddSagas(
 		this IExcaliburBuilder builder,
-		Action<ISagaBuilder> configure)
+		Action<ISagaBuilder>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddExcaliburSaga(configure);
+		_ = builder.Services.AddExcaliburSaga(configure ?? (static _ => { }));
 		return builder;
 	}
 

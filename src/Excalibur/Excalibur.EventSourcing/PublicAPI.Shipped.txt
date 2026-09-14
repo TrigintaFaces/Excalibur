@@ -1,4 +1,7 @@
 #nullable enable
+Excalibur.Dispatch.IEventTypeRegistry (forwarded, contained in Excalibur.Dispatch.Abstractions)
+Excalibur.Dispatch.IEventTypeRegistry.GetTypeName(System.Type! eventType) -> string? (forwarded, contained in Excalibur.Dispatch.Abstractions)
+Excalibur.Dispatch.IEventTypeRegistry.ResolveType(string! eventTypeName) -> System.Type? (forwarded, contained in Excalibur.Dispatch.Abstractions)
 Excalibur.EventSourcing.Bulk.AggregateBulkOperations<TAggregate, TKey>
 Excalibur.EventSourcing.Bulk.AggregateBulkOperations<TAggregate, TKey>.AggregateBulkOperations(Excalibur.EventSourcing.IEventSourcedRepository<TAggregate!, TKey>! repository) -> void
 Excalibur.EventSourcing.Bulk.AggregateBulkOperations<TAggregate, TKey>.LoadManyAsync(System.Collections.Generic.IEnumerable<TKey>! aggregateIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<TKey, TAggregate!>!>!
@@ -150,6 +153,8 @@ Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.OutboxStagi
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.OutboxStagingStrategy.set -> void
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.TargetSnapshotVersion.get -> int
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.TargetSnapshotVersion.set -> void
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.VerifyStreamReachesSnapshot.get -> bool
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.VerifyStreamReachesSnapshot.set -> void
 Excalibur.EventSourcing.Migration.EventBatchMigrator
 Excalibur.EventSourcing.Migration.EventBatchMigrator.CreatePlanAsync(Excalibur.EventSourcing.Migration.MigrationOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Migration.MigrationPlan!>!>!
 Excalibur.EventSourcing.Migration.EventBatchMigrator.EventBatchMigrator(Excalibur.EventSourcing.IEventStore! eventStore, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Migration.MigrationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Migration.EventBatchMigrator!>! logger) -> void
@@ -533,6 +538,7 @@ Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollection
 Microsoft.Extensions.DependencyInjection.ImmutableProjectionServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ProjectionRebuildServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions
 abstract Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
@@ -691,6 +697,7 @@ static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollecti
 static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions.HasMaterializedViews(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
 static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Migration.MigrationRunnerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ProjectionRebuildServiceCollectionExtensions.AddProjectionRebuild(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Data.Sharding.ShardMapOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions.UseTieredStorage(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

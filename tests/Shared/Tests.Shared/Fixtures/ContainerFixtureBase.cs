@@ -83,13 +83,48 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 
 	/// <summary>
 	/// Marks the fixture as unavailable after the container started but a dependent
-	/// service (e.g., queue creation, admin API) failed. Tests should skip.
+	/// service (e.g., queue creation, admin API) failed. Consumers observe this through
+	/// <see cref="EnsureAvailable"/>, which fails the test rather than skipping it.
 	/// </summary>
 	/// <param name="reason">Description of what failed.</param>
 	public void MarkUnavailable(string reason)
 	{
 		DockerAvailable = false;
 		InitializationError = reason;
+	}
+
+	/// <summary>
+	/// Asserts that the container is available, throwing when it is not.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// THE FIXTURE OWNS THE AVAILABILITY POLICY. Consumers call this instead of reading
+	/// <see cref="DockerAvailable"/> and deciding for themselves, because when the decision is
+	/// delegated, two suites against the same container answer "what happens when it is not there"
+	/// in opposite ways -- one hard-fails, one skips -- and the honesty of a given guarantee then
+	/// depends on which convention its author happened to copy.
+	/// </para>
+	/// <para>
+	/// The policy is HARD FAILURE, not a skip. An un-run lock must not contribute a pass it did not
+	/// earn: a real-infrastructure test that "passes" by never executing is the exact gap that ships
+	/// the defect it was written to catch. When a host genuinely cannot run a suite, that belongs in
+	/// the reviewed, expiring suppression list -- named, owned and evidenced -- not in an ad-hoc
+	/// per-test skip that no one can audit.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">The container is not available.</exception>
+	public void EnsureAvailable()
+	{
+		if (DockerAvailable)
+		{
+			return;
+		}
+
+		throw new InvalidOperationException(
+			$"{GetType().Name}: the container is not available, so this test cannot exercise the real "
+			+ "system it exists to verify. Reporting a pass here would certify a guarantee nothing "
+			+ "checked. Underlying initialization failure: "
+			+ (InitializationError ?? "(none recorded -- InitializeAsync did not run)"));
 	}
 
 	/// <summary>
@@ -254,7 +289,8 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 		}
 
 		// Graceful degradation: container is optional (e.g., cloud transport emulators).
-		// Tests should check DockerAvailable and skip when false.
+		// Consumers must still route through EnsureAvailable() rather than deciding per test --
+		// degrading here records that the container is absent, it does not license a silent pass.
 	}
 
 	/// <summary>

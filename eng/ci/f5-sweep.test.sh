@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# f5-sweep.test.sh — regression lock for eng/ci/f5-sweep.sh (S855 / bd-0i2jsu).
+# f5-sweep.test.sh — regression lock for eng/ci/f5-sweep.sh.
 #
 # f5-sweep.sh is the mechanical pre-REVIEW gate for the F-5 cross-project sibling sweep
 # (.claude/rules/process/f5-cross-project-test-sweep.md). This lock proves the gate is
@@ -20,13 +20,13 @@
 
 set -u
 
-# ── Git-env isolation (xy3hze) — MUST precede the first git call ────────────────────────────────
+# ── Git-env isolation — MUST precede the first git call ────────────────────────────────
 # git EXPORTS GIT_INDEX_FILE / GIT_DIR / GIT_WORK_TREE into every hook and every child process.
 # This script `git init`s its own throwaway fixture repos — but an inherited GIT_INDEX_FILE is an
 # ABSOLUTE PATH and WINS over the repo you are standing in, so `git add` inside the fixture writes
 # the CALLER'S index instead. `git init` does not rescue you; neither does `cd`.
 #
-# Measured consequence, S890: run from a normal shell this script passed; run from pre-commit (where
+# Measured consequence: run from a normal shell this script passed; run from pre-commit (where
 # git had exported GIT_INDEX_FILE) every arm failed AND it staged its own fixtures — including an
 # AWS-shaped token and an RSA private-key header — into the real repo's index, one arm at a time.
 # The standalone GREEN is the disguise: the only environment that reproduces it is the one the gate
@@ -104,9 +104,9 @@ else
     fail "F: gate missing stoplist or changeset-exclusion"
 fi
 
-# --- G/H/I. tak38o precision invariants (must not regress) ------------------
+# --- G/H/I. precision invariants (must not regress) ------------------
 if grep -q 'mode="committed"' "$GUARD"; then
-    pass "G: gate defaults to COMMITTED scope (not the dirty working tree — bd-tak38o)"
+    pass "G: gate defaults to COMMITTED scope (not the dirty working tree)"
 else
     fail "G: gate does not default to committed scope — risks the 66k dirty-tree blowout"
 fi
@@ -120,16 +120,16 @@ fi
 if grep -q 'F5_MAX_HITS_PER_TOKEN' "$GUARD" && grep -q 'SUPPRESSED' "$GUARD"; then
     pass "I: gate has a per-token hit cap (generic tokens suppressed, can't blow up the report)"
 else
-    fail "I: gate missing the per-token hit cap (bd-tak38o backstop)"
+    fail "I: gate missing the per-token hit cap (precision backstop)"
 fi
 
 # --- J. an ALL-SUPPRESSED run must NOT report clean ------------------------
 #
 # Arm I above asserts the cap EXISTS. Nothing asserted what the cap does to the VERDICT, and that
-# gap is the defect (fmvdpg): `total_hits` accumulates only the actionable tokens, so a run in which
+# gap is the defect: `total_hits` accumulates only the actionable tokens, so a run in which
 # every token exceeds the cap leaves `total_hits == 0`, prints "✅ ... F-5 clean", and exits 0.
 #
-# The cap is a defensible answer to the 66k-line blowout (bd-tak38o): suppression may reduce the
+# The cap is a defensible answer to the 66k-line blowout: suppression may reduce the
 # NOISE. It may not decide the VERDICT. A suppressed token is an UN-TRIAGED token — the gate has not
 # looked at it, and "I did not look" is not "there is nothing there."
 #
@@ -137,7 +137,7 @@ fi
 # has more siblings than the cap, and asks the gate for its exit code. It is RED against the gate as
 # shipped, and it is the arm whose absence let a green tick stand over `CompletedAt` — 49 siblings,
 # cap 25, suppressed — the very token f5-cross-project-test-sweep.md:125 names as the canonical
-# recurrence, and the column that was silently deleting saga state (ckgz9p) while the gate reported
+# recurrence, and the column that was silently deleting saga state while the gate reported
 # clean.
 repo="$WORK/allsuppressed"
 mkdir -p "$repo/src/Pkg" "$repo/tests/ProjA" "$repo/tests/ProjB"

@@ -51,6 +51,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// Adds CosmosDb CDC processor services to the service collection using configuration.
 	/// </summary>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("Configuration binding and options validation use reflection, which requires runtime code generation. Use source-generated registration when targeting Native AOT.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
@@ -81,6 +82,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// Adds CosmosDb CDC processor services to the service collection using a named configuration section.
 	/// </summary>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("Configuration binding and options validation use reflection, which requires runtime code generation. Use source-generated registration when targeting Native AOT.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
@@ -140,6 +142,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// it builds one from <see cref="CosmosDbCdcStateStoreOptions.ConnectionString"/>.
 	/// </remarks>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("Configuration binding and options validation use reflection, which requires runtime code generation. Use source-generated registration when targeting Native AOT.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",

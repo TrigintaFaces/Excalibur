@@ -239,7 +239,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		var sql = $"""
 		           SELECT Id, MessageType, Payload, Reason, ExceptionMessage, ExceptionStackTrace,
 		           	   EnqueuedAt, OriginalAttempts, Metadata, CorrelationId, CausationId,
-		           	   SourceQueue, IsReplayed, ReplayedAt
+		           	   SourceQueue, IsReplayed, ReplayedAt, TenantId
 		           FROM {_options.QualifiedTableName}
 		           {whereClause}
 		           ORDER BY EnqueuedAt DESC
@@ -730,7 +730,8 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 			CausationId = row.CausationId,
 			SourceQueue = row.SourceQueue,
 			IsReplayed = row.IsReplayed,
-			ReplayedAt = row.ReplayedAt
+			ReplayedAt = row.ReplayedAt,
+			TenantId = row.TenantId
 		};
 	}
 

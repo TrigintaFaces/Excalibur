@@ -93,7 +93,7 @@ public sealed class W3CTraceContextMiddlewareShould : UnitTestBase
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -121,7 +121,7 @@ public sealed class W3CTraceContextMiddlewareShould : UnitTestBase
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -150,7 +150,7 @@ public sealed class W3CTraceContextMiddlewareShould : UnitTestBase
 
 		// Assert
 		nextCalled.ShouldBeTrue();
-		result.IsSuccess.ShouldBeTrue();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]

@@ -456,7 +456,7 @@ public async Task ProcessPayment_ValidCard_ReturnsSuccess()
     var result = await handler.HandleAsync(action, CancellationToken.None);
 
     // Assert - Verify the expected outcome
-    result.IsSuccess.ShouldBeTrue();
+    result.Succeeded.ShouldBeTrue();
     result.ReturnValue.TransactionId.ShouldNotBeNullOrEmpty();
 }
 ```

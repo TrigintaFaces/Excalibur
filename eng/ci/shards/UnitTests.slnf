@@ -8,6 +8,7 @@
       "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
       "tests\\architecture\\Boundary.Tests\\Boundary.Tests.csproj",
       "tests\\unit\\Excalibur.A3.Governance.Tests\\Excalibur.A3.Governance.Tests.csproj",
+      "tests\\unit\\Excalibur.A3.AspNetCore.Tests\\Excalibur.A3.AspNetCore.Tests.csproj",
       "tests\\unit\\Excalibur.A3.Tests\\Excalibur.A3.Tests.csproj",
       "tests\\unit\\Excalibur.Application.Tests\\Excalibur.Application.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.Datadog.Tests\\Excalibur.AuditLogging.Datadog.Tests.csproj",

@@ -65,9 +65,13 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 
 		var sequenceName = SequenceName(resourceId);
 
-		// CREATE SEQUENCE IF NOT EXISTS is idempotent + concurrency-safe; nextval is atomic + strictly
-		// monotonic. The sequence name is hash-derived lowercase hex (injection-proof) so inlining it as an
-		// identifier is safe. Both statements run in one round-trip; the SELECT returns the new token.
+		// nextval is atomic and strictly monotonic. CREATE SEQUENCE IF NOT EXISTS is NOT concurrency-safe,
+		// whatever its name suggests: the existence check and the catalog insert are separate steps, so two
+		// sessions creating the same sequence race and the loser gets 23505 on pg_class_relname_nsp_index.
+		// Upstream is explicit that IF NOT EXISTS makes no concurrency guarantee. Two leaders minting for the
+		// same resource on a fresh deployment is exactly that race, so the loser retries below -- by then the
+		// sequence exists and the second attempt takes the plain nextval path. The name is hash-derived
+		// lowercase hex (injection-proof) so inlining it as an identifier is safe.
 		var sql =
 			$"CREATE SEQUENCE IF NOT EXISTS {sequenceName}; SELECT nextval('{sequenceName}');";
 
@@ -79,6 +83,19 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 		{
 			var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 			return Convert.ToInt64(result, CultureInfo.InvariantCulture);
+		}
+		catch (PostgresException ex) when (ex.SqlState == UniqueViolationSqlState)
+		{
+			// Lost the CREATE SEQUENCE race to a concurrent minter. The sequence exists now, so the only thing
+			// left to do is draw from it. Retried WITHOUT the CREATE so this cannot recurse: a second 23505 here
+			// would mean something other than the create raced, and it propagates rather than being swallowed.
+			_ = ex;
+
+			await using var retry = new NpgsqlCommand(
+				$"SELECT nextval('{sequenceName}');", connection);
+
+			var retried = await retry.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+			return Convert.ToInt64(retried, CultureInfo.InvariantCulture);
 		}
 		catch (PostgresException ex) when (ex.SqlState == SequenceLimitExceededSqlState)
 		{
@@ -100,6 +117,8 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 
 	/// <summary>PostgreSQL SQLSTATE raised when a NO CYCLE sequence reaches its ceiling (sequence_generator_limit_exceeded).</summary>
 	private const string SequenceLimitExceededSqlState = "2200H";
+	/// <summary> 23505: another session won the CREATE SEQUENCE race; the sequence now exists. </summary>
+	private const string UniqueViolationSqlState = "23505";
 
 	/// <inheritdoc />
 	public async ValueTask<long?> GetTokenAsync(string resourceId, CancellationToken cancellationToken)

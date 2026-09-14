@@ -664,6 +664,15 @@ namespace Excalibur.Compliance {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Secret is shorter than the minimum of 16 bytes (128 bits). This type embeds a computationally-hiding commitment, so it must be used only with high-entropy secrets (see the class remarks) -- a short passphrase, PIN, or token is not safe to split..
+        /// </summary>
+        internal static string ShamirSecretSharing_SecretTooShort {
+            get {
+                return ResourceManager.GetString("ShamirSecretSharing_SecretTooShort", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Share is too short to contain the required header..
         /// </summary>
         internal static string ShamirSecretSharing_ShareTooShort {

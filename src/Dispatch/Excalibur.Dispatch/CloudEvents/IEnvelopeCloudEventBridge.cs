@@ -20,14 +20,4 @@ public interface IEnvelopeCloudEventBridge
 		MessageEnvelope envelope,
 		CloudEventMode mode,
 		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Restores a <see cref="MessageEnvelope" /> from a provider-specific transport message.
-	/// </summary>
-	/// <param name="transportMessage"> The transport message to convert. </param>
-	/// <param name="cancellationToken"> Cancellation token for the async operation. </param>
-	/// <returns> The reconstructed message envelope. </returns>
-	Task<MessageEnvelope> FromTransportAsync(
-		object transportMessage,
-		CancellationToken cancellationToken);
 }

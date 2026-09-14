@@ -41,7 +41,7 @@ namespace Excalibur.EventSourcing.Postgres;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEventStoreArchive
+public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEventStoreArchive, IEventStoreVersionProbe
 {
 	// Format markers for envelope detection
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -334,7 +334,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	{
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-		// Use ReadCommitted: the UNIQUE constraint (aggregate_id, aggregate_type, version)
+		// Use ReadCommitted: the UNIQUE constraint (aggregate_id, aggregate_type, version, tenant_id)
 		// provides the real concurrency protection. Serializable causes false-positive
 		// serialization failures under concurrent load to different aggregates.
 		await using var transaction = await connection.BeginTransactionAsync(
@@ -436,6 +436,27 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// </remarks>
 	private static bool IsLostRace(Exception ex, long? currentVersion, long expectedVersion) =>
 		IsStreamUniqueViolation(ex) || (currentVersion is { } version && version != expectedVersion);
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Reuses the same indexed <c>MAX(version)</c> read the append path uses to resolve a concurrency
+	/// conflict, which already returns <c>-1</c> for a stream with no events -- the value this capability
+	/// is specified to return.
+	/// </remarks>
+	public async ValueTask<long> GetMaxVersionAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+
+		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await connection.ResolveAsync(
+				new GetCurrentVersionRequest(
+					aggregateId, aggregateType, transaction: null, CurrentTenantScope, cancellationToken, _schema, _table))
+			.ConfigureAwait(false);
+	}
 
 	/// <summary>
 	/// Re-reads the stream's committed version on a fresh connection after an append failed.
@@ -612,17 +633,14 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
+		// Delegates to IDomainEvent.CorrelationId (checks OutboxHeaderNames.CorrelationId, the
+		// framework declared key, then the legacy PascalCase/camelCase spellings) rather than
+		// re-implementing the key-priority chain here.
 		foreach (var @event in events)
 		{
-			if (@event.Metadata == null)
+			if (@event.CorrelationId is { } correlationId)
 			{
-				continue;
-			}
-
-			if (@event.Metadata.TryGetValue("CorrelationId", out var correlationId) ||
-				@event.Metadata.TryGetValue("correlationId", out correlationId))
-			{
-				return correlationId?.ToString();
+				return correlationId;
 			}
 		}
 

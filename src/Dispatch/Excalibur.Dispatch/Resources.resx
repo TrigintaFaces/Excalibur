@@ -105,9 +105,6 @@
   <data name="OutboxStagingMiddleware_FailedToSerializeMessage" xml:space="preserve">
     <value>Failed to serialize message of type {0}</value>
   </data>
-  <data name="OutboxStagingMiddleware_NoOutboxServices" xml:space="preserve">
-    <value>Outbox staging middleware is enabled but neither IOutboxStore nor IOutboxService is registered. Register one of these services or disable outbox staging.</value>
-  </data>
   <data name="Serialization_DataCannotBeEmpty" xml:space="preserve">
     <value>Data cannot be empty</value>
   </data>

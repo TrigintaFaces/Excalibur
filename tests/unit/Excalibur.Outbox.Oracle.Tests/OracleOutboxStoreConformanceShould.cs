@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data;
@@ -36,8 +36,12 @@ namespace Excalibur.Outbox.Oracle.Tests;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "Oracle")]
-public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceTestKit, IAsyncLifetime, IClassFixture<OracleOutboxStoreContainerFixture>
+[Collection(OracleOutboxCollection.Name)]
+public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceTestKit, IAsyncLifetime
 {
+	/// <summary>This store fences, so an arm that finds no IFencedOutboxStore must FAIL, not skip.</summary>
+	protected override bool ParticipatesInFencing => true;
+
 	private readonly OracleOutboxStoreContainerFixture _fixture;
 
 	/// <summary>
@@ -263,6 +267,18 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 	public Task Fencing_HighWaterMark_ShouldSurviveCleanup_Test() => Fencing_HighWaterMark_ShouldSurviveCleanup();
 
 	[Fact]
+	public Task Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent_Test() => Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent();
+
+	[Fact]
+	public Task Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent_Test() => Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent();
+
+	[Fact]
+	public Task FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue_Test() => FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue();
+
+	[Fact]
+	public Task FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce_Test() => FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce();
+
+	[Fact]
 	public Task Fencing_Refusal_ShouldReportTheHighWaterMark_Test() => Fencing_Refusal_ShouldReportTheHighWaterMark();
 
 	[Fact]
@@ -345,6 +361,18 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 
 	[Fact]
 	public Task MarkFailedAsync_ShouldSetRetryCount_Test() => MarkFailedAsync_ShouldSetRetryCount();
+
+	[Fact]
+	public Task MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage_Test() =>
+		MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage();
+
+	[Fact]
+	public Task MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim_Test() =>
+		MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim();
+
+	[Fact]
+	public Task MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage_Test() =>
+		MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage();
 
 	[Fact]
 	public Task MarkFailed_AfterTheFloorElapses_ShouldBecomeReclaimable_Test() => MarkFailed_AfterTheFloorElapses_ShouldBecomeReclaimable();

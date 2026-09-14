@@ -40,6 +40,8 @@ services.AddDispatchRabbitMQ(rmq =>
 
 ### Using the Dispatch Builder (Recommended)
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
+
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -54,6 +56,8 @@ services.AddDispatch(dispatch =>
 
 ### Standalone Registration
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
+
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -121,6 +125,7 @@ For most applications, the Quick Start above is all you need. The fluent builder
 Configure RabbitMQ transport using the fluent builder:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddRabbitMQTransport(rmq =>
 {
     rmq.ConnectionString("amqps://user:pass@rabbitmq:5671/vhost")
@@ -194,6 +199,7 @@ Prefetch (QoS) and connection resilience live on the transport options rather th
 `RabbitMqOptions`:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddRabbitMQTransport(rmq =>
 {
     rmq.HostName("rabbitmq")
@@ -209,6 +215,7 @@ services.AddRabbitMQTransport(rmq =>
 When configuring the connection through the fluent builder, use `AutomaticRecovery` to enable recovery and set the reconnection interval in one call:
 
 ```csharp
+services.AddPluggableSerialization(); // Transports don't seat a default serializer
 services.AddRabbitMQTransport(rmq =>
 {
     rmq.HostName("rabbitmq")
@@ -230,7 +237,7 @@ Use `RabbitMqCloudEventOptions` for CloudEvents-specific features:
 The CloudEvents mapper bundled with this transport serializes the message payload with
 reflection-based JSON, so these registrations carry `[RequiresUnreferencedCode]` and
 `[RequiresDynamicCode]`. A host that trims or publishes ahead of time gets a warning at the
-call. To compose without the requirement, register your own `ICloudEventMapper<TTransportMessage>`
+call. To compose without the requirement, register your own `ICloudEventEncoder<TOutbound>`
 backed by a source-generated serializer.
 :::
 

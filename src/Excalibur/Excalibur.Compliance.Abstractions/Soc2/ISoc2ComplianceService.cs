@@ -56,12 +56,15 @@ public interface ISoc2ComplianceService
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Validates control effectiveness for a specific criterion.
+	/// Validates every control that the specified criterion covers.
 	/// </summary>
-	/// <param name="criterion">The criterion to validate.</param>
+	/// <param name="criterion">The criterion whose controls are validated.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The validation result.</returns>
-	Task<ControlValidationResult> ValidateControlAsync(
+	/// <returns>
+	/// One result per control the criterion covers. The list is empty when the criterion has no
+	/// registered controls, which reports an assessment that did not run rather than one that failed.
+	/// </returns>
+	Task<IReadOnlyList<ControlValidationResult>> ValidateCriterionAsync(
 		TrustServicesCriterion criterion,
 		CancellationToken cancellationToken);
 
@@ -72,7 +75,13 @@ public interface ISoc2ComplianceService
 	/// <param name="periodStart">The start of the evidence period.</param>
 	/// <param name="periodEnd">The end of the evidence period.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The audit evidence.</returns>
+	/// <returns>The audit evidence for the criterion over the period.</returns>
+	/// <exception cref="System.NotSupportedException">
+	/// The implementation has no evidence store to draw on. <b>Collecting and retaining SOC 2 evidence is
+	/// the deploying organisation's responsibility</b>; an implementation that does not gather it must throw
+	/// rather than return an empty result, because an empty <see cref="AuditEvidence"/> is indistinguishable
+	/// from a period in which nothing happened, and an auditor cannot tell the two apart.
+	/// </exception>
 	Task<AuditEvidence> GetEvidenceAsync(
 		TrustServicesCriterion criterion,
 		DateTimeOffset periodStart,

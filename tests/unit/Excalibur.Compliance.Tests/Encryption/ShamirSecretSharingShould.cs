@@ -11,8 +11,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Split_and_reconstruct_with_minimum_shares()
 	{
-		// Arrange
-		var secret = "Hello, Shamir!"u8.ToArray();
+		// Arrange -- 16 bytes, the minimum length Split now enforces.
+		var secret = "Hello, Shamir!!!"u8.ToArray();
 
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares: 5, threshold: 3);
@@ -39,8 +39,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Split_and_reconstruct_with_any_threshold_subset()
 	{
-		// Arrange
-		var secret = "test data"u8.ToArray();
+		// Arrange -- 16 bytes, the minimum length Split now enforces.
+		var secret = "test data padded"u8.ToArray();
 		var shares = ShamirSecretSharing.Split(secret, totalShares: 5, threshold: 3);
 
 		// Act - use shares 0, 2, 4 (any 3 of 5)
@@ -68,8 +68,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Include_share_index_as_first_byte()
 	{
-		// Arrange
-		var secret = new byte[] { 42 };
+		// Arrange -- 16 bytes, the minimum length Split now enforces. Content is irrelevant to this test.
+		var secret = new byte[16];
 
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares: 3, threshold: 2);
@@ -100,11 +100,13 @@ public sealed class ShamirSecretSharingShould
 		}
 	}
 
+	// ---------- rq2fn3: minimum-length precondition ----------
+
 	[Fact]
-	public void Handle_single_byte_secret()
+	public void Handle_secret_at_exactly_the_minimum_length()
 	{
-		// Arrange
-		var secret = new byte[] { 0xFF };
+		// LIVENESS for the floor added below: the smallest secret Split still accepts must round-trip.
+		var secret = RandomNumberGenerator.GetBytes(16);
 
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares: 3, threshold: 2);
@@ -112,6 +114,20 @@ public sealed class ShamirSecretSharingShould
 
 		// Assert
 		reconstructed.ShouldBe(secret);
+	}
+
+	[Fact]
+	public void Throw_when_secret_is_shorter_than_the_minimum_length()
+	{
+		// SAFETY: the embedded commitment is only computationally hiding (class remarks), so a
+		// sub-16-byte secret is exactly the low-entropy misuse this floor exists to reject structurally
+		// rather than by convention.
+		var secret = RandomNumberGenerator.GetBytes(15);
+
+		var ex = Should.Throw<ArgumentException>(
+			() => ShamirSecretSharing.Split(secret, totalShares: 3, threshold: 2));
+
+		ex.ParamName.ShouldBe("secret");
 	}
 
 	[Fact]
@@ -140,8 +156,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Work_with_minimum_threshold_of_two()
 	{
-		// Arrange
-		var secret = "min threshold"u8.ToArray();
+		// Arrange -- 16 bytes, the minimum length Split now enforces.
+		var secret = "min threshold!!!"u8.ToArray();
 
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares: 2, threshold: 2);
@@ -154,8 +170,8 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Work_with_threshold_equal_to_total_shares()
 	{
-		// Arrange
-		var secret = "all required"u8.ToArray();
+		// Arrange -- 16 bytes, the minimum length Split now enforces.
+		var secret = "all required!!!!"u8.ToArray();
 
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares: 4, threshold: 4);

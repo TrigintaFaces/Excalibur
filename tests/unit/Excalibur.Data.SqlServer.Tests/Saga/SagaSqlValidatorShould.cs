@@ -51,6 +51,9 @@ public sealed class SagaSqlValidatorShould
 	[InlineData("[schema].[table].[extra]")]
 	[InlineData("")]
 	[InlineData("[].[]")]
+	// Non-ASCII identifiers: the contract is an ASCII allow-list, so a Unicode letter must NOT pass
+	[InlineData("[схема].[таблица]")]
+	[InlineData("[schema].[таблица]")]
 	public void RejectMaliciousOrMalformedQualifiedNames(string qualifiedName) =>
 		_ = Should.Throw<ArgumentException>(() => SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedName));
 }

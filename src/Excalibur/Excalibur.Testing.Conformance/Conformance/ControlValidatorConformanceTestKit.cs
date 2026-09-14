@@ -334,9 +334,17 @@ public abstract class ControlValidatorConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that <see cref="IControlValidator.RunTestAsync"/> returns appropriate outcome for unsupported controls.
+	/// Verifies that <see cref="IControlValidator.RunTestAsync"/> does not report a clean pass for a
+	/// control it does not support.
 	/// </summary>
-	public virtual async Task RunTestAsync_UnsupportedControl_ShouldReturnExceptions()
+	/// <remarks>
+	/// This arm was named <c>ShouldReturnExceptions</c> and its body was an <c>if</c> with nothing in
+	/// it, so every implementation passed it, including one that fabricated a clean result. A validator
+	/// asked about a control outside <see cref="IControlValidator.SupportedControls"/> ran no test, so
+	/// <see cref="TestOutcome.NoExceptions"/> - which an assessor reads as "tested, and it held" - is the
+	/// one outcome it must not report. Any other outcome is left to the implementation.
+	/// </remarks>
+	public virtual async Task RunTestAsync_UnsupportedControl_ShouldNotFabricateAPass()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -352,11 +360,12 @@ public abstract class ControlValidatorConformanceTestKit : ConformanceTestKit
 				"Expected RunTestAsync to return non-null result for unsupported control.");
 		}
 
-		// Unsupported controls should have exceptions or significant outcome
-		if (result.Outcome == TestOutcome.NoExceptions && result.ExceptionsFound == 0)
+		if (result.Outcome == TestOutcome.NoExceptions)
 		{
-			// Some implementations may return NoExceptions with 0 found - that's acceptable
-			// as long as the control ID is in the result
+			throw new TestFixtureAssertionException(
+				"Expected any outcome other than NoExceptions for an unsupported control. No test ran, so "
+				+ "a clean result attests to a verification that did not happen; NotTested says only what is "
+				+ "true.");
 		}
 	}
 

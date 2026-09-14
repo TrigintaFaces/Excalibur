@@ -63,7 +63,7 @@ public sealed class CacheCircuitBreakerOptions
 	/// Gets or sets how long the circuit stays open before attempting recovery. Default is 30 seconds.
 	/// </summary>
 	/// <value>How long the circuit stays open before attempting recovery.</value>
-	public TimeSpan OpenDuration { get; set; } = TimeSpan.FromSeconds(30);
+	public TimeSpan BreakDuration { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
 	/// Gets or sets the maximum number of test requests allowed in half-open state. Default is 3.

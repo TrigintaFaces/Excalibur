@@ -263,7 +263,6 @@
 		<PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4" />
-		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.202" />
 		<PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
 		<PackageVersion Include="Meziantou.Analyzer" Version="3.0.50" />
 		<PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
@@ -274,14 +273,22 @@
 		<PackageVersion Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" Version="5.1.0" />
 		<PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.1" />
 		<PackageVersion Include="Asp.Versioning.Mvc" Version="8.1.1" />
-		<PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.7" />
-		<PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.1.7" />
-		<PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.1.7" />
+		<PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+		<PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
+		<PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
 		<PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.17.0" />
 		<PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.17.0" />
 		<PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
-		<PackageVersion Include="MongoDB.Driver" Version="3.8.0" />
-		<PackageVersion Include="SharpCompress" Version="0.48.0" />
+		<PackageVersion Include="MongoDB.Driver" Version="3.11.1" />
+		<!-- Security floor (GHSA-6c8g-7p36-r338): SharpCompress below 0.48.0 carries a moderate-severity
+		     vulnerability and arrives transitively through MongoDB.Driver. The current driver already
+		     itself requires 0.48.1, so the floor is RAISED to match: a central version BELOW a transitive
+		     requirement is NU1109 (package downgrade) and fails restore outright, not a redundant floor.
+		     It is kept, at the higher value, because a floor holds across
+		     future driver bumps, which is not a property anyone re-checks. This pin previously carried no
+		     comment and was deleted once as an ordinary version entry; the comment is what prevents that.
+		     Transitive pin via CPM; no project references SharpCompress directly. -->
+		<PackageVersion Include="SharpCompress" Version="0.48.1" />
 		<PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.5.0" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.XUnit" Version="1.1.2" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
@@ -300,9 +307,13 @@
 		<PackageVersion Include="SQLitePCLRaw.core" Version="3.0.3" />
 		<PackageVersion Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.3" />
 		<PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
-		<!-- Security (CVE-2026-49451 / GHSA-v5pm-xwqc-g5wc): Swashbuckle.AspNetCore.SwaggerGen transitively
-		     pulls Microsoft.OpenApi 2.4.1, in which a circular schema reference can StackOverflow-terminate the
-		     process (DoS). Pin to the patched 2.x line (>= 2.7.5) via CPM transitive pinning. -->
+		<!-- Security floor (CVE-2026-49451 / GHSA-v5pm-xwqc-g5wc): in Microsoft.OpenApi below 2.7.5 a
+		     circular schema reference can StackOverflow-terminate the process (DoS). It arrives
+		     transitively through Swashbuckle.AspNetCore.SwaggerGen, which at 10.2.3 already pulls a
+		     satisfying version, so this pin is redundant TODAY and is kept deliberately anyway: the
+		     floor survives a future Swashbuckle bump that changes what it pulls, and a graph that
+		     happens to satisfy a floor is not the same as a floor. Transitive pin via CPM; no project
+		     references Microsoft.OpenApi directly. -->
 		<PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
 		<!-- Security (GHSA-q939-rpr3-3284): Testcontainers transitively pulls SSH.NET 2025.1.0, whose
 		     ScpClient recursive download does not validate server-supplied filenames, so a malicious SSH

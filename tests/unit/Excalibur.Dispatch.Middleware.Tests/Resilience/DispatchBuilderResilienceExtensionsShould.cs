@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
-using RetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
 
 using FakeItEasy;
 
@@ -208,9 +206,9 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		// Act
 		_ = builder.UsePollyResilienceAdapters(options =>
 		{
-			options.RetryOptions = new RetryOptions
+			options.RetryOptions = new PollyRetryOptions
 			{
-				MaxRetries = 10,
+				MaxRetryAttempts = 10,
 				BaseDelay = TimeSpan.FromMilliseconds(200),
 				BackoffStrategy = BackoffStrategy.Linear,
 				UseJitter = false,
@@ -237,8 +235,8 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		{
 			options.CircuitBreakerOptions = new CircuitBreakerOptions
 			{
-				FailureThreshold = 20,
-				OpenDuration = TimeSpan.FromMinutes(5),
+				MinimumThroughput = 20,
+				BreakDuration = TimeSpan.FromMinutes(5),
 			};
 		});
 
@@ -261,7 +259,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		_ = builder.UsePollyResilienceAdapters(options =>
 		{
 			options.MaxBackoffDelay = TimeSpan.FromMinutes(2);
-			options.RetryOptions = new RetryOptions
+			options.RetryOptions = new PollyRetryOptions
 			{
 				BaseDelay = TimeSpan.FromMilliseconds(100),
 				BackoffStrategy = BackoffStrategy.Exponential,
@@ -353,78 +351,6 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		services.Any(d => d.ServiceType == typeof(IGracefulDegradationService)).ShouldBeTrue();
 	}
 
-	[Fact]
-	public void UseResilience_WithConfigureOptions_ConfiguresOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		services.AddLogging();
-		var builder = CreateFakeDispatchBuilder(services);
-
-		// Act
-		_ = builder.UseResilience(options =>
-		{
-			options.DefaultRetryCount = 10;
-			options.EnableCircuitBreaker = true;
-		});
-
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetService<Microsoft.Extensions.Options.IOptions<ResilienceOptions>>();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void UseResilience_WithConfigureOptions_WithNullBuilder_ThrowsArgumentNullException()
-	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).UseResilience(_ => { }));
-	}
-
-	[Fact]
-	public void UseResilience_WithNullConfigure_CallsUseResilience()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		services.AddLogging();
-		var builder = CreateFakeDispatchBuilder(services);
-
-		// Act
-		_ = builder.UseResilience(null);
-
-		// Assert - Core services should be registered
-		services.Any(d => d.ServiceType == typeof(ITimeoutManager)).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void UseResilience_WithConfigure_ConfiguresOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		services.AddLogging();
-		var builder = CreateFakeDispatchBuilder(services);
-		var configCalled = false;
-
-		// Act
-		_ = builder.UseResilience(options =>
-		{
-			configCalled = true;
-			options.DefaultRetryCount = 5;
-		});
-
-		var provider = services.BuildServiceProvider();
-
-		// Assert - Configuration action is deferred until options are resolved
-		var options = provider.GetService<Microsoft.Extensions.Options.IOptions<ResilienceOptions>>();
-		options.ShouldNotBeNull();
-		// Access the Value to trigger configuration
-		_ = options.Value;
-		configCalled.ShouldBeTrue();
-		options.Value.DefaultRetryCount.ShouldBe(5);
-	}
-
 	#endregion UseResilience Tests
 
 	#region IServiceCollection Extension Tests
@@ -476,9 +402,9 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		// Act
 		_ = services.AddPollyResilienceAdapters(options =>
 		{
-			options.RetryOptions = new RetryOptions
+			options.RetryOptions = new PollyRetryOptions
 			{
-				MaxRetries = 5,
+				MaxRetryAttempts = 5,
 				BaseDelay = TimeSpan.FromMilliseconds(500),
 			};
 		});
@@ -578,7 +504,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		// Act
 		_ = builder.UsePollyResilienceAdapters(options =>
 		{
-			options.RetryOptions = new RetryOptions
+			options.RetryOptions = new PollyRetryOptions
 			{
 				BackoffStrategy = strategy,
 				BaseDelay = TimeSpan.FromMilliseconds(100),

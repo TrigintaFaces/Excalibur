@@ -123,21 +123,20 @@ public sealed class Soc2AbstractionTypesShould
 					Category = TrustServicesCategory.Security,
 					Level = ComplianceLevel.FullyCompliant,
 					CompliancePercentage = 100,
-					ActiveControls = 5,
-					ControlsWithIssues = 0
+					CriteriaAssessed = 5,
+					CriteriaEnabled = 5,
+					CriteriaWithIssues = 0
 				}
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
-				[TrustServicesCriterion.CC1_ControlEnvironment] = new CriterionStatus
-				{
-					Criterion = TrustServicesCriterion.CC1_ControlEnvironment,
-					IsMet = true,
-					EffectivenessScore = 95,
-					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 10,
-					Gaps = []
-				}
+				[TrustServicesCriterion.CC1_ControlEnvironment] = CriterionStatus.Assessed(
+					TrustServicesCriterion.CC1_ControlEnvironment,
+					met: true,
+					effectivenessScore: 95,
+					lastValidated: DateTimeOffset.UtcNow,
+					controlsAssessed: 1,
+					evidenceCount: 10)
 			},
 			ActiveGaps = [],
 			TenantId = "tenant-1"
@@ -272,7 +271,7 @@ public sealed class Soc2AbstractionTypesShould
 					Notes = "All passed"
 				}
 			],
-			IsMet = true
+			Outcome = CriterionOutcome.Met
 		};
 
 		section.TestResults.ShouldNotBeNull();
@@ -350,7 +349,10 @@ public sealed class Soc2AbstractionTypesShould
 	{
 		var outcomes = Enum.GetValues<TestOutcome>();
 
-		outcomes.Length.ShouldBe(4);
+		// Five since TestOutcome gained NotTested. A bare count is a weak arm -- it passes for any five
+		// members -- so the one that matters is named: a test result must be able to say no test ran.
+		outcomes.Length.ShouldBe(5);
+		outcomes.ShouldContain(TestOutcome.NotTested);
 	}
 
 	[Fact]

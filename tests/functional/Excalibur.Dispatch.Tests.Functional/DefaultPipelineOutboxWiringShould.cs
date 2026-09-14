@@ -30,7 +30,8 @@ namespace Excalibur.Dispatch.Tests.Functional;
 ///     <para>
 ///     <strong>The fix:</strong> replace <c>ForMessageKinds(MessageKinds.All)</c> with
 ///     <c>UseProfile("default")</c>, which resolves <c>DefaultPipelineProfiles.CreateDefaultProfile()</c>
-///     (8 middleware incl. <c>OutboxStagingMiddleware</c> at position 7). The default <c>DispatchAsync</c> then
+///     (<c>DefaultPipelineProfiles.DefaultProfileMiddleware</c>, which seats <c>OutboxStagingMiddleware</c>
+///     last). The default <c>DispatchAsync</c> then
 ///     runs the real default chain and stages.
 ///     </para>
 ///     <para>
@@ -88,7 +89,7 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
                 .DispatchAsync(new PlaceWidgetOrder { OrderId = orderId }, context, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            result.IsSuccess.ShouldBeTrue($"the command dispatch should succeed: {result.ErrorMessage}");
+            result.Succeeded.ShouldBeTrue($"the command dispatch should succeed: {result.ErrorMessage}");
         }
 
         // Assert AC-K.1 — the event is observable as a staged outbox entry. This is ONLY true if the default
@@ -129,8 +130,8 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
     ///         </description></item>
     ///         <item><description>
     ///             <strong>Post-processing stage executed:</strong> the event was staged. Staging is the work of the
-    ///             default profile's <c>OutboxStagingMiddleware</c> at position 7 of the 8-middleware default chain
-    ///             (<c>DefaultPipelineProfiles.CreateDefaultProfile():65</c>). Its post-handler effect being observed
+    ///             default profile's <c>OutboxStagingMiddleware</c>, seated from
+    ///             <c>DefaultPipelineProfiles.DefaultProfileMiddleware</c>. Its post-handler effect being observed
     ///             demonstrates the chain executed THROUGH the pipeline to PostProcessing — a position the empty
     ///             bypass can never reach. (Per the seam pin, the full set of default middleware is not all
     ///             independently observable from a minimal consumer container, so position-7 staging is the grounded
@@ -182,7 +183,7 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
             .ConfigureAwait(false);
 
         staged.ShouldBeTrue(
-            "the post-handler OutboxStagingMiddleware (position 7 of the default chain) must have staged the event — " +
+            "the post-handler OutboxStagingMiddleware seated by the default profile must have staged the event — " +
             "proving the chain executed through the pipeline to PostProcessing, not the empty Direct bypass.");
     }
 
@@ -215,7 +216,7 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
             .DispatchAsync(new PlaceWidgetOrder { OrderId = orderId }, CancellationToken.None)
             .ConfigureAwait(false);
 
-        result.IsSuccess.ShouldBeTrue(
+        result.Succeeded.ShouldBeTrue(
             $"a genuinely-empty consumer must still dispatch via the fast path: {result.ErrorMessage}");
         handlerState.InvocationCount(orderId).ShouldBe(1,
             "the handler still runs on the ultra-local fast path even with no middleware registered");
@@ -234,8 +235,12 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
         var handlerState = new HandlerInvocationState();
         await using var provider = BuildProvider(services =>
         {
-            // No IOutboxStore registration. OutboxStagingOptions stays at its default (Enabled == false) so the
-            // middleware ctor does not throw the "enabled but no store" guard; staging simply no-ops.
+            // No IOutboxStore registration, and Enabled stays at its default, which is TRUE. This arm is the
+            // lock that the default-seated middleware is INERT without a store rather than throwing or staging
+            // into a context nothing drains. The startup refusal for a missing store belongs to hosts that
+            // deliberately called UseOutbox(); this host did not, so it must simply dispatch.
+            // NOTE: the handler here must stay NoOutboxWidgetHandler — one that does not write. A handler that
+            // DOES write with no store is the separate boundary arm below, and it is expected to fail.
             services.AddSingleton(handlerState);
             services.AddScoped<IActionHandler<PlaceWidgetOrder>, NoOutboxWidgetHandler>();
         });
@@ -251,7 +256,7 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
             .DispatchAsync(new PlaceWidgetOrder { OrderId = orderId }, context, CancellationToken.None)
             .ConfigureAwait(false);
 
-        result.IsSuccess.ShouldBeTrue(
+        result.Succeeded.ShouldBeTrue(
             $"dispatch must succeed even when no outbox store is registered (staging self-gates): {result.ErrorMessage}");
         handlerState.InvocationCount(orderId).ShouldBe(1, "the handler still runs when no outbox store is registered");
     }
@@ -315,7 +320,7 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
             .DispatchAsync(new PlaceWidgetOrder { OrderId = orderId }, context, CancellationToken.None)
             .ConfigureAwait(false);
 
-        result.IsSuccess.ShouldBeTrue($"the profile-configured dispatch should succeed: {result.ErrorMessage}");
+        result.Succeeded.ShouldBeTrue($"the profile-configured dispatch should succeed: {result.ErrorMessage}");
 
         var ran = await WaitForConditionAsync(() => marker.Executed, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         ran.ShouldBeTrue(
@@ -348,6 +353,62 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
 
         return services.BuildServiceProvider();
     }
+
+    /// <summary>
+    ///     BOUNDARY ARM. A handler that WRITES to the outbox on a host with NO store registered must FAIL, and
+    ///     the failure must name the store registration.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This arm is what makes seating the middleware by default safe. Staging is inert when no store is
+    ///         present, which is correct for a host that never writes -- but "inert" must not quietly become
+    ///         "accepts and discards" for a host that does. Without this arm, a later change turning the writer
+    ///         into a no-op would produce SILENT MESSAGE LOSS and every other arm here would still pass: the
+    ///         no-store arm asserts only that nothing throws, and every staging arm registers a store.
+    ///     </para>
+    ///     <para>
+    ///         The assertion is on the message naming <c>IOutboxStore</c>, not on the exception type. A consumer
+    ///         who hits this has a handler that writes and a host that cannot store; the only useful thing we can
+    ///         tell them is which registration is missing. Naming the middleware -- as this path used to -- points
+    ///         at a composition detail they never chose and cannot find in their own code.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public async Task FailNamingTheStoreWhenAHandlerWritesWithNoOutboxRegistered()
+    {
+        var handlerState = new HandlerInvocationState();
+        await using var provider = BuildProvider(services =>
+        {
+            // No IOutboxStore, and a handler that DOES write. That pairing is the whole point of the arm.
+            services.AddSingleton(handlerState);
+            services.AddScoped<IActionHandler<PlaceWidgetOrder>, PlaceWidgetOrderHandler>();
+        });
+
+        var orderId = $"order-{Guid.NewGuid():N}";
+
+        await using var scope = provider.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+        var context = scope.ServiceProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+        context.MessageId = Guid.NewGuid().ToString();
+
+        // The write fails INSIDE the handler, so the exception propagates out of DispatchAsync rather than
+        // being folded into a failed IMessageResult. Asserting the throw is therefore asserting the real
+        // behaviour; an earlier draft of this arm asserted a failed result and was wrong about where the
+        // failure surfaces, which is worth recording because the distinction is invisible until you run it.
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await dispatcher
+                .DispatchAsync(new PlaceWidgetOrder { OrderId = orderId }, context, CancellationToken.None)
+                .ConfigureAwait(false)).ConfigureAwait(false);
+
+        // Asserted with Contains rather than Shouldly's ShouldContain: the string overload is ambiguous against
+        // the IEnumerable<char> one here, and an arm that does not compile proves nothing.
+        thrown.Message
+            .Contains(nameof(IOutboxStore), StringComparison.Ordinal)
+            .ShouldBeTrue(
+                "the failure must name the registration the consumer is missing, not the middleware they never "
+                + $"chose. Actual message: {thrown.Message}");
+    }
+
 }
 
 #region Test messages / handlers / observable state (self-contained — no coupling to the S848 T1 harness)

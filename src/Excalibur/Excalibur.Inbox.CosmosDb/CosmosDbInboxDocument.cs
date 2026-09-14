@@ -171,15 +171,22 @@ internal sealed class CosmosDbInboxDocument
 			.Replace(":", "%3A", StringComparison.Ordinal);
 
 	/// <summary>
-	/// Creates a document from an <see cref="InboxEntry"/>.
+	/// Creates a document from an <see cref="InboxEntry"/>, scoped to the given tenant term.
 	/// </summary>
 	/// <param name="entry">The inbox entry.</param>
+	/// <param name="tenantId">
+	/// The tenant term to compose into the dedup id (a real tenant, or the reserved untenanted sentinel).
+	/// Required -- the two-argument form of <see cref="CreateId"/> produces a tenant-less id that collides
+	/// across tenants, so this factory cannot be used to construct one.
+	/// </param>
 	/// <returns>The Cosmos DB document.</returns>
-	public static CosmosDbInboxDocument FromInboxEntry(InboxEntry entry)
+	public static CosmosDbInboxDocument FromInboxEntry(InboxEntry entry, string tenantId)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+
 		return new CosmosDbInboxDocument
 		{
-			Id = CreateId(entry.MessageId, entry.HandlerType),
+			Id = CreateId(entry.MessageId, entry.HandlerType, tenantId),
 			MessageId = entry.MessageId,
 			HandlerType = entry.HandlerType,
 			LogicalHandlerType = entry.HandlerType,
@@ -191,7 +198,8 @@ internal sealed class CosmosDbInboxDocument
 			ProcessedAt = entry.ProcessedAt,
 			LastAttemptAt = entry.LastAttemptAt,
 			RetryCount = entry.RetryCount,
-			LastError = entry.LastError
+			LastError = entry.LastError,
+			TenantId = tenantId
 		};
 	}
 

@@ -70,7 +70,7 @@ public sealed class RetryMiddlewareNonRetryableHierarchyShould
 	{
 		var options = new RetryOptions
 		{
-			MaxAttempts = MaxAttempts,
+			MaxRetryAttempts = MaxAttempts,
 			BaseDelay = TimeSpan.FromMilliseconds(1),
 			BackoffStrategy = BackoffStrategy.Fixed,
 		};
@@ -137,7 +137,8 @@ public sealed class RetryMiddlewareNonRetryableHierarchyShould
 			new TimeoutException("transient")).ConfigureAwait(false);
 
 		attempts.ShouldBe(
-			MaxAttempts,
+			// MaxRetryAttempts is retries AFTER the first, so exhaustion is one more try than that value.
+			MaxAttempts + 1,
 			"a transient exception unrelated to the non-retryable set is still retried to the attempt cap — "
 			+ "the derived-type exclusion must not broaden into suppressing legitimate retries");
 	}
@@ -178,7 +179,8 @@ public sealed class RetryMiddlewareNonRetryableHierarchyShould
 			.ConfigureAwait(false);
 
 		attempts.ShouldBe(
-			MaxAttempts,
+			// MaxRetryAttempts is retries AFTER the first, so exhaustion is one more try than that value.
+			MaxAttempts + 1,
 			"an allow-listed transient unrelated to the non-retryable floor is still retried — checking the "
 			+ "floor first must not suppress the allowlist path");
 	}

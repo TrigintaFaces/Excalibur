@@ -128,7 +128,7 @@ public sealed class ObservabilityFailOpenShould
 
 		var middleware = new MetricsMiddleware(metrics, NullLogger<MetricsMiddleware>.Instance);
 		var expected = A.Fake<IMessageResult>();
-		A.CallTo(() => expected.IsSuccess).Returns(true);
+		A.CallTo(() => expected.Succeeded).Returns(true);
 
 		// Act
 		var actual = await middleware.InvokeAsync(A.Fake<IDispatchMessage>(), CreateFakeContext(), HandlerReturning(expected), CancellationToken.None);
@@ -213,11 +213,11 @@ public sealed class ObservabilityFailOpenShould
 		IContextFlowMetrics metrics,
 		IContextTraceEnricher enricher) =>
 		new(
-			NullLogger<ContextObservabilityMiddleware>.Instance,
 			tracker,
 			metrics,
 			enricher,
-			MsOptions.Create(options));
+			MsOptions.Create(options),
+			NullLogger<ContextObservabilityMiddleware>.Instance);
 
 	private static DispatchRequestDelegate HandlerReturning(IMessageResult result) =>
 		(_, _, _) => ValueTask.FromResult(result);

@@ -210,6 +210,17 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 			{
 				// Concurrent transition — re-read and re-evaluate (terminal check above) on the next iteration.
 			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.Aborted)
+			{
+				// Aborted ("Transaction lock timeout") is Firestore's documented retryable contention signal
+				// -- see the rationale on TryMarkAsProcessedAsync. Unlike that method, this loop reads before
+				// every write, so re-reading on the next iteration is the retry; only the wait between
+				// iterations needs adding, using the provider's shared backoff so this path does not disagree
+				// with the policy the provider advertises.
+				await Task.Delay(
+					FirestoreRetryExecutor.NextDelay(FirestoreRetryPolicy.Instance.BaseRetryDelay, attempt),
+					cancellationToken).ConfigureAwait(false);
+			}
 		}
 
 		throw new InvalidOperationException(
@@ -267,6 +278,16 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 			catch (RpcException ex) when (ex.StatusCode == StatusCode.FailedPrecondition)
 			{
 				// Concurrent transition — re-read and re-evaluate on the next iteration.
+			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.Aborted)
+			{
+				// Aborted ("Transaction lock timeout") is Firestore's documented retryable contention signal
+				// -- see the rationale on TryMarkAsProcessedAsync. This loop already re-reads before every
+				// write, so re-reading on the next iteration is the retry; only the wait between iterations
+				// needs adding, using the provider's shared backoff.
+				await Task.Delay(
+					FirestoreRetryExecutor.NextDelay(FirestoreRetryPolicy.Instance.BaseRetryDelay, attempt),
+					cancellationToken).ConfigureAwait(false);
 			}
 		}
 	}
@@ -425,6 +446,16 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 			{
 				// Another writer changed the document between our read and conditional delete — re-read and
 				// re-evaluate (it may now be Processed → no-op).
+			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.Aborted)
+			{
+				// Aborted ("Transaction lock timeout") is Firestore's documented retryable contention signal
+				// -- see the rationale on TryMarkAsProcessedAsync. This loop already re-reads before every
+				// write, so re-reading on the next iteration is the retry; only the wait between iterations
+				// needs adding, using the provider's shared backoff.
+				await Task.Delay(
+					FirestoreRetryExecutor.NextDelay(FirestoreRetryPolicy.Instance.BaseRetryDelay, attempt),
+					cancellationToken).ConfigureAwait(false);
 			}
 		}
 	}

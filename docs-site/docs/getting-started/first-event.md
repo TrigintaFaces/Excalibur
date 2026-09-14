@@ -222,7 +222,7 @@ app.MapPost("/orders", async (
     var action = new CreateOrderAction(request.CustomerId, request.Items);
     var result = await dispatcher.DispatchAsync<CreateOrderAction, Guid>(action, ct);
 
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.Created($"/orders/{result.ReturnValue}", new { Id = result.ReturnValue })
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });

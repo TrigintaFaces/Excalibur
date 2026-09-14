@@ -44,12 +44,12 @@ public static class AzureCloudEventsServiceCollectionExtensions
 	/// <para>
 	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
 	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
-	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventEncoder{TOutbound}"/>
 	/// backed by a source-generated serializer to compose without the requirement.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
-	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
 	public static IServiceCollection UseCloudEvents(
 		this IServiceCollection services,
 		Action<CloudEventOptions>? configureOptions = null)
@@ -79,8 +79,8 @@ public static class AzureCloudEventsServiceCollectionExtensions
 		services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<CloudEventOptions>>().Value);
 
 		// Register Azure-specific CloudEvent adapters
-		services.AddCloudEventMapper<ServiceBusMessage, AzureServiceBusCloudEventAdapter>();
-		services.AddCloudEventMapper<EventData, AzureEventHubsCloudEventAdapter>();
+		services.AddCloudEventEncoder<ServiceBusMessage, AzureServiceBusCloudEventAdapter>();
+		services.AddCloudEventEncoder<EventData, AzureEventHubsCloudEventAdapter>();
 		services.TryAddSingleton<IAzureEventHubsCloudEventAdapter, AzureEventHubsCloudEventAdapter>();
 
 		return services;
@@ -97,12 +97,12 @@ public static class AzureCloudEventsServiceCollectionExtensions
 	/// <para>
 	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
 	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
-	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventEncoder{TOutbound}"/>
 	/// backed by a source-generated serializer to compose without the requirement.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
-	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForServiceBus(
 		this IServiceCollection services,
 		Action<AzureServiceBusCloudEventOptions>? configureServiceBus = null,
@@ -136,12 +136,12 @@ public static class AzureCloudEventsServiceCollectionExtensions
 	/// <para>
 	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
 	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
-	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventEncoder{TOutbound}"/>
 	/// backed by a source-generated serializer to compose without the requirement.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
-	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForEventHubs(
 		this IServiceCollection services,
 		Action<AzureEventHubsCloudEventOptions>? configureEventHubs = null,

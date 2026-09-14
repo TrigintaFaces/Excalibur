@@ -25,7 +25,6 @@ public sealed class AddGrantCommandHandlerShould
 		ApplicationContext.Init(new Dictionary<string, string?>
 		{
 			["ApplicationName"] = "TestApp",
-			["AuthorizationCacheKey"] = "test-cache",
 		});
 	}
 

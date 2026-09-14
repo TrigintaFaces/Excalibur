@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
@@ -142,6 +142,22 @@ public sealed class MySqlTransactionScope : ITransactionScope
 			transaction.Dispose();
 		}
 
+		// The SYNC path owns the connections exactly as the async one does. This loop was added to
+		// DisposeAsync and not here, so `using var scope = ...` -- the ordinary synchronous form --
+		// leaked every enlisted pooled connection while `await using` did not. A disposal asymmetry
+		// between the two paths is invisible at the call site: both compile, both look complete, and
+		// only one releases the resource.
+		foreach (var connection in _enlistedConnections)
+		{
+			if (connection?.State == ConnectionState.Open)
+			{
+				connection.Close();
+			}
+
+			connection?.Dispose();
+		}
+
+		_enlistedConnections.Clear();
 		_transactions.Clear();
 	}
 
@@ -160,6 +176,22 @@ public sealed class MySqlTransactionScope : ITransactionScope
 			await transaction.DisposeAsync().ConfigureAwait(false);
 		}
 
+		// The scope OWNS these connections. It began a transaction on each one at enlistment, so the
+		// provider that created it deliberately does not dispose it -- doing so would complete the
+		// transaction under the caller and discard uncommitted work. Ownership therefore has to end HERE, or
+		// a pooled connection is leaked on every scope. SqlServerTransactionScope has always closed and
+		// disposed its enlisted connections at this point; this is that model, not a new one.
+		foreach (var connection in _enlistedConnections)
+		{
+			if (connection?.State == ConnectionState.Open)
+			{
+				connection.Close();
+			}
+
+			connection?.Dispose();
+		}
+
+		_enlistedConnections.Clear();
 		_transactions.Clear();
 	}
 }

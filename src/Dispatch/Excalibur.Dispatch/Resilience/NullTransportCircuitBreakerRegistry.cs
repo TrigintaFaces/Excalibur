@@ -42,9 +42,11 @@ internal sealed class NullTransportCircuitBreakerRegistry : ITransportCircuitBre
 	public bool Remove(string transportName) => false;
 
 	/// <inheritdoc />
-	public void ResetAll()
+	/// <remarks>This registry holds no circuits, so there is nothing to close.</remarks>
+	public Task ResetAllAsync(CancellationToken cancellationToken)
 	{
-		// No-op
+		cancellationToken.ThrowIfCancellationRequested();
+		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc />

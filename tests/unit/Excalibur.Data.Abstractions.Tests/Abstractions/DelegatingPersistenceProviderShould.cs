@@ -192,6 +192,29 @@ public sealed class DelegatingPersistenceProviderShould : UnitTestBase, IAsyncDi
     /// Concrete subclass exposing the abstract <see cref="DelegatingPersistenceProvider"/>
     /// for testing without overriding any methods (validates default delegation).
     /// </summary>
+    [Fact]
+    public void AnswerWithItselfRatherThanTheProviderBeneathIt()
+    {
+        // The base contract answers for any capability the instance itself implements, so an inner
+        // provider now answers for IPersistenceProvider. A decorator that forwards without checking
+        // itself first therefore hands the caller the provider underneath it — asked for the provider
+        // it is holding, the caller gets the one whose behaviour the decorator was added to change.
+        A.CallTo(() => _innerProvider.GetService(typeof(IPersistenceProvider))).Returns(_innerProvider);
+
+        _sut.GetService(typeof(IPersistenceProvider)).ShouldBeSameAs(_sut);
+    }
+
+    [Fact]
+    public void StillReachTheInnerProviderForACapabilityItAloneProvides()
+    {
+        // The inverse: answering only for itself would hide every capability of the provider it wraps,
+        // which is why the probe exists rather than a cast.
+        var health = A.Fake<IPersistenceProviderHealth>();
+        A.CallTo(() => _innerProvider.GetService(typeof(IPersistenceProviderHealth))).Returns(health);
+
+        _sut.GetService(typeof(IPersistenceProviderHealth)).ShouldBeSameAs(health);
+    }
+
     private sealed class TestDelegatingProvider : DelegatingPersistenceProvider
     {
         public TestDelegatingProvider(IPersistenceProvider inner) : base(inner) { }

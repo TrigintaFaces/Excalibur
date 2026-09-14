@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.Kafka
 
-Apache Kafka transport implementation for the Excalibur framework, providing high-throughput, distributed event streaming with exactly-once semantics and CloudEvents support.
+Apache Kafka transport implementation for the Excalibur framework, providing high-throughput, distributed event streaming with exactly-once semantics and CloudEvents publishing and decoding.
 
 ## Part Of
 
@@ -18,7 +18,7 @@ This package provides Apache Kafka integration for Excalibur.Dispatch, enabling:
 
 - **High-Throughput Messaging**: Distributed streaming with partitioning and consumer groups
 - **Exactly-Once Semantics**: Idempotent producers and transactional messaging
-- **CloudEvents Support**: Standards-compliant structured event formatting. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
+- **CloudEvents Support**: Standards-compliant structured event formatting on outbound messages. Inbound messages are decoded automatically. On the send path, registering the bundled encoder is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventEncoder<TOutbound>` over a source-generated serializer to avoid the requirement. Inbound decoding is trim-safe and ahead-of-time-safe, attaches the decoded event to the message rather than replacing it, and delivers every message in the batch — a malformed one arrives carrying a decode error instead of a decoded event, never dropped.
 - **Flexible Partitioning**: Multiple strategies including correlation ID, tenant ID, and round-robin
 - **Compression**: Multiple algorithms (Snappy, LZ4, ZSTD, GZIP)
 - **TLS Security**: Secure connections with SSL/SASL authentication
@@ -283,10 +283,6 @@ services.Configure<KafkaCloudEventOptions>(options =>
     options.Producer.EnableCompression = true;
     options.Producer.CompressionType = KafkaCompressionType.Snappy;
     options.Producer.CompressionThreshold = 1024;       // Compress messages > 1 KB
-
-    // Consumer settings
-    options.ConsumerGroupId = "cloudevents-consumer";
-    options.OffsetReset = KafkaOffsetReset.Latest;
 
     // Retry settings
     options.Producer.RetrySettings = new KafkaRetryOptions
@@ -656,10 +652,6 @@ services.Configure<KafkaCloudEventOptions>(options =>
 
     // Partitioning
     options.PartitioningStrategy = KafkaPartitioningStrategy.CorrelationId;
-
-    // Consumer
-    options.ConsumerGroupId = "cloudevents-consumer";
-    options.OffsetReset = KafkaOffsetReset.Latest;
 
     // Exactly-once
     options.Producer.EnableIdempotentProducer = true;

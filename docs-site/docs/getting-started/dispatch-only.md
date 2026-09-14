@@ -52,7 +52,7 @@ var app = builder.Build();
 app.MapPost("/orders", async (CreateOrderRequest req, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new CreateOrderAction(req.CustomerId, req.Items), ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.Created()
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
@@ -61,7 +61,7 @@ app.MapPost("/orders", async (CreateOrderRequest req, IDispatcher dispatcher, Ca
 app.MapGet("/orders/{id}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(new GetOrderQuery(id), ct);
-    return result.IsSuccess
+    return result.Succeeded
         ? Results.Ok(result.ReturnValue)
         : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });

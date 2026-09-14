@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -95,7 +96,7 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 			case CacheKeySource.Declared:
 				return cacheKey;
 
-			case CacheKeySource.ReflectionFailed:
+			case CacheKeySource.KeyUnresolved:
 				// The action declared ICacheable<T> but its key could not be resolved. Skip caching — never
 				// fabricate a key (no identity hash, no serialize-guess): the action explicitly declared that
 				// default serialization is NOT its cache identity, so guessing one risks a false cross-request hit.
@@ -115,7 +116,7 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 				{
 					// Serialization cannot see all of this action's state, so a key derived from it would be
 					// shared by two actions that can produce different results. Skip caching for the same reason
-					// as the ReflectionFailed branch: never fabricate a key. An action in this shape opts back
+					// as the KeyUnresolved branch: never fabricate a key. An action in this shape opts back
 					// into caching by declaring ICacheable<T> and stating its own identity.
 					LogIncompleteIdentity(actionType.Name);
 					return null;
@@ -168,39 +169,41 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 	/// <param name="action"> The action to inspect. </param>
 	/// <param name="cacheKey"> The resolved cache key when the result is <see cref="CacheKeySource.Declared" />; otherwise <see langword="null" />. </param>
 	/// <returns> How the action's cache identity was (or was not) resolved. </returns>
-	[RequiresUnreferencedCode("Uses reflection to detect and invoke ICacheable<T>.GetCacheKey() method")]
 	private CacheKeySource TryGetDeclaredCacheKey(IDispatchAction action, out string? cacheKey)
 	{
+		if (action is not ICacheable cacheable)
+		{
+			cacheKey = null;
+			return CacheKeySource.NotCacheable;
+		}
+
 		try
 		{
-			var actionType = action.GetType();
-
-			// Find any ICacheable<T> interface (regardless of T).
-			var cacheableInterface = actionType.GetInterfaces()
-				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
-
-			if (cacheableInterface != null
-				&& cacheableInterface.GetMethod("GetCacheKey") is { } getCacheKeyMethod
-				&& getCacheKeyMethod.Invoke(action, null) is string key)
+			if (cacheable.GetCacheKey() is { } key)
 			{
 				cacheKey = key;
 				return CacheKeySource.Declared;
 			}
 
+			// Declared cacheable but returned no key. This is NOT the same as throwing: the action opted
+			// in and then declined to name itself, so the serialization fallback derives a content-stable
+			// key. Only a THROWING key builder skips caching, because that is the case where we cannot
+			// tell whether a key exists.
 			cacheKey = null;
 			return CacheKeySource.NotCacheable;
 		}
-		catch (Exception ex) when (ex is System.Reflection.TargetException
-								or System.Reflection.TargetInvocationException
-								or InvalidOperationException
+		catch (Exception ex) when (ex is InvalidOperationException
 								or MemberAccessException
-								or TypeLoadException)
+								or TypeLoadException
+								or NotSupportedException
+								or FormatException)
 		{
-			// Reflection failed for an action that declared ICacheable<T>. Skip caching — do NOT fabricate a key
-			// (no identity hash, no serialize-guess), which would risk a false cross-request cache hit.
+			// The action declared itself cacheable and its own key builder threw. Skip caching -- do NOT
+			// fabricate a key (no identity hash, no serialize-guess), which would risk a false
+			// cross-request cache hit between two different requests of the same type.
 			LogReflectionFallback(action.GetType().Name, ex.GetType().Name);
 			cacheKey = null;
-			return CacheKeySource.ReflectionFailed;
+			return CacheKeySource.KeyUnresolved;
 		}
 	}
 
@@ -214,7 +217,7 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 		NotCacheable,
 
 		/// <summary> The action declares <c>ICacheable&lt;T&gt;</c> but reflection failed; skip caching. </summary>
-		ReflectionFailed,
+		KeyUnresolved,
 	}
 
 	[LoggerMessage(ReflectionFallbackEventId, LogLevel.Debug,
@@ -233,9 +236,10 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 	{
 		var bytes = Encoding.UTF8.GetBytes(input);
 		var hash = SHA256.HashData(bytes);
-		return Convert.ToBase64String(hash)
-			.Replace("=", string.Empty, StringComparison.Ordinal)
-			.Replace('/', '_')
-			.Replace('+', '-');
+		// Byte-for-byte identical to the substitution this replaced -- verified across every length
+		// from 0 to 256 bytes and on the hash shape fed here -- so keys written by earlier versions
+		// still resolve. That equivalence is the whole reason this could be swapped: a cache key is
+		// persisted, and an encoder that differed by one character would strand every existing entry.
+		return Base64Url.EncodeToString(hash);
 	}
 }

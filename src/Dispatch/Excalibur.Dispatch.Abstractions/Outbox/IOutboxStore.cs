@@ -142,12 +142,32 @@ public interface IOutboxStore : IServiceProvider
 	/// are required.
 	/// </para>
 	/// <para>
-	/// <b>Only the claim's owner may report against it.</b> A report from a dispatcher that no longer holds
-	/// the claim is a no-op rather than an error: it is stale, not invalid. Honouring it would release a
-	/// claim its successor is still delivering under, and both would then send the same message. A message
-	/// that was never claimed has no owner and is reported freely. The guard must not be satisfied by
-	/// refusing everybody -- the owner's own report still has to land, or the store cannot record failures
-	/// at all.
+	/// <b>A report from a dispatcher that no longer holds the claim is a no-op rather than an error</b> -- it
+	/// is stale, not invalid. Honouring it would release a claim its successor is still delivering under, and
+	/// both would then send the same message. A message that was never claimed has no owner and is reported
+	/// freely. The guard must not be satisfied by refusing everybody -- the owner's own report still has to
+	/// land, or the store cannot record failures at all.
+	/// </para>
+	/// <para>
+	/// <b>HOW FINELY "no longer holds the claim" IS JUDGED VARIES BY STORE, AND THIS MEMBER DOES NOT PROMISE
+	/// PER-CLAIM PRECISION.</b> An earlier wording here said only the claim's owner may report against it,
+	/// which reads as a per-claim guarantee that no shipped store keeps through this member. What the shipped
+	/// stores actually compare is a per-PROCESS identity, so two successive claims by the same process are
+	/// indistinguishable to it: a report from an expired claim of a still-running dispatcher is accepted, and
+	/// it releases a reservation a live successor of that same process still holds. One store's statement for
+	/// this member carries no ownership term at all, by a deliberate choice -- a predicate a caller satisfies
+	/// by omitting the value it guards is not a guard, so that store offers a separate statement rather than
+	/// one with a hole.
+	/// </para>
+	/// <para>
+	/// <b>For a completion judged against the specific claim the caller holds, use
+	/// <see cref="IClaimScopedOutboxStore"/>.</b> It takes the claim identity as an argument and returns an
+	/// outcome saying whether the store applied the completion or refused it, so a caller whose claim has
+	/// lapsed is told rather than silently succeeding. Discover it with
+	/// <see cref="IServiceProvider.GetService(System.Type)"/> rather than a cast: a cast sees only the
+	/// outermost type and is lossy through any decorator. Not every store implements it; a caller that needs
+	/// the guarantee should check, because the fallback to this member is the weaker comparison described
+	/// above.
 	/// </para>
 	/// <para>
 	/// <b>The recorded attempt count never decreases.</b> Implementations record the greater of the stored
@@ -156,8 +176,25 @@ public interface IOutboxStore : IServiceProvider
 	/// one arrived, and the message would be retried without end.
 	/// </para>
 	/// <para>
-	/// Marking a message that does not exist is a silent no-op. A message that has already been delivered is
-	/// never reopened by a late failure report.
+	/// Marking a message that does not exist is a silent no-op. A message in a <b>terminal</b> state is never
+	/// reopened by a late failure report, and terminal means <b>delivered or dead-lettered</b> -- in both, the
+	/// decision to stop delivering has already been taken and recorded. Guarding only the delivered state is
+	/// the error this wording exists to prevent: a reopened dead-lettered message re-enters the retry
+	/// population it was deliberately removed from. A message merely in flight is <i>not</i> terminal, and a
+	/// failure report against one must land -- that is the ordinary path this method exists to serve.
+	/// </para>
+	/// <para>
+	/// The ownership condition above cannot carry this guarantee, and a store that relies on it will be
+	/// wrong. Dead-lettering releases the delivery lease, so a dead-lettered message presents as
+	/// never-claimed and is therefore reported freely by that rule. The terminal-state check is required in
+	/// its own right and applies unconditionally.
+	/// </para>
+	/// <para>
+	/// <b>The obligation is the property, not the mechanism.</b> A store satisfies it however its data model
+	/// allows: a status term in the mutation's own predicate, a terminal transition that removes the row so
+	/// no later report can match it, a claim record stamped with an identity no caller can present, or a
+	/// claimable predicate keyed on a field the failure path never writes. What is required is that a late
+	/// report cannot reopen a terminal message -- not that any particular column be tested.
 	/// </para>
 	/// </remarks>
 	/// <param name="messageId"> The unique identifier of the message that failed. </param>

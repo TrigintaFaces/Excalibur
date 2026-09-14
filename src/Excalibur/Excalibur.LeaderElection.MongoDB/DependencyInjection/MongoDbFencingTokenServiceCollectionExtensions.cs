@@ -22,8 +22,10 @@ public static class MongoDbFencingTokenServiceCollectionExtensions
 	/// <remarks>
 	/// Requires an <see cref="MongoDB.Driver.IMongoClient"/> to be registered (the same client used by
 	/// <c>UseMongoDB(...)</c> leader election). Uses <c>TryAdd</c> so a consumer-supplied provider takes
-	/// precedence. Pair with <c>WithFencingTokens()</c> on the leader election builder; the startup
-	/// prerequisite check then passes because a provider is registered.
+	/// precedence. <c>UseMongoDB(...)</c> already registers this by default (fencing is on by default;
+	/// <c>WithoutFencingTokens()</c> opts out) — this method exists for a consumer composing services
+	/// manually without going through that entry point, and satisfies the startup prerequisite check the
+	/// same way.
 	/// </remarks>
 	public static IServiceCollection AddMongoDbFencingTokenProvider(this IServiceCollection services)
 	{

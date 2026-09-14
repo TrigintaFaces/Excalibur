@@ -78,4 +78,14 @@ public sealed class DeadLetterEntry
 	/// Gets the timestamp when the entry was replayed, if applicable.
 	/// </summary>
 	public DateTimeOffset? ReplayedAt { get; init; }
+
+	/// <summary>
+	/// Gets the tenant that owns this entry, for operator inspection across a multi-tenant deployment.
+	/// </summary>
+	/// <remarks>
+	/// Provenance only -- it does not confine what this entry can be read alongside or replayed into; a
+	/// store's own confinement guarantee governs that. A provider with no tenant concept (e.g. a
+	/// single-tenant deployment) leaves this <see langword="null"/> rather than inventing a value.
+	/// </remarks>
+	public string? TenantId { get; init; }
 }

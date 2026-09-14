@@ -77,11 +77,11 @@ public sealed class Soc2ReportShould
                     Frequency = ControlFrequency.PerTransaction
                 }
             },
-            IsMet = true
+            Outcome = CriterionOutcome.Met
         };
 
         section.TestResults.ShouldBeNull();
-        section.IsMet.ShouldBeTrue();
+        section.Outcome.ShouldBe(CriterionOutcome.Met);
         section.Controls.Count.ShouldBe(1);
     }
 

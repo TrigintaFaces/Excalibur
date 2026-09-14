@@ -40,7 +40,7 @@ public static class DispatchAwsServiceCollectionExtensions
 		// All TryAdd, so a consumer who registers their own serializer still wins.
 		_ = services.AddPluggableSerialization();
 
-		return services.AddDispatch(dispatch =>
+		_ = services.AddDispatch(dispatch =>
 		{
 			dispatch.UseAwsSqs(configureAws);
 			dispatch.UseResilience();
@@ -57,5 +57,7 @@ public static class DispatchAwsServiceCollectionExtensions
 				configureDispatch(dispatch);
 			}
 		});
+
+		return services;
 	}
 }

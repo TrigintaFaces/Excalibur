@@ -19,7 +19,7 @@ This package provides Azure messaging integration for Excalibur.Dispatch, enabli
 - **Azure Service Bus**: Enterprise messaging with queues, topics, and sessions
 - **Azure Event Hubs**: High-throughput event streaming with partitions
 - **Azure Storage Queues**: Simple, cost-effective queue storage
-- **CloudEvents Support**: Standards-compliant structured and binary event formatting. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
+- **CloudEvents Support**: Standards-compliant structured and binary event formatting on outbound messages. Inbound messages are decoded automatically. On the send path, registering the bundled encoder is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventEncoder<TOutbound>` over a source-generated serializer to avoid the requirement. Inbound decoding is trim-safe and ahead-of-time-safe, attaches the decoded event to the message rather than replacing it, and delivers every message in the batch — a malformed one arrives carrying a decode error instead of a decoded event, never dropped.
 - **Managed Identity**: Passwordless authentication with Azure AD
 - **Dead Letter Handling**: Built-in dead letter queue support
 

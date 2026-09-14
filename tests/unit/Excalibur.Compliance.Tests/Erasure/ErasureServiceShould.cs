@@ -28,7 +28,8 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
-			_dataInventoryService);
+			_dataInventoryService,
+			null);
 	}
 
 	[Fact]
@@ -488,8 +489,19 @@ public sealed class ErasureServiceShould
 		result.InventorySummary!.KeyCount.ShouldBe(1);
 	}
 
+	/// <summary>
+	/// A deployment that operates no legal holds still erases — it just has to SAY it operates none.
+	/// </summary>
+	/// <remarks>
+	/// This replaces an arm that passed <see langword="null"/> for the legal-hold service and asserted
+	/// erasure proceeded. That arm's premise is now deliberately unreachable: the dependency is required,
+	/// because a null one made "this deployment has no holds" and "nobody wired the service" the same
+	/// observation, and the second silently skipped an irreversible check. The capability under test is
+	/// unchanged and still covered — erasure proceeds when nothing blocks it — but it is now reached
+	/// through the declared no-holds service rather than through an absence.
+	/// </remarks>
 	[Fact]
-	public async Task Work_without_legal_hold_service()
+	public async Task Work_when_the_deployment_declares_no_legal_holds()
 	{
 		// Arrange
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
@@ -500,8 +512,9 @@ public sealed class ErasureServiceShould
 			_store, _keyAdmin, options,
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-			null, // no legal hold service
-			null); // no data inventory service
+			new NoLegalHoldsService(), // declared: this deployment operates none
+			null, // no data inventory service
+			null); // no key escrow service
 
 		var request = CreateValidRequest();
 
@@ -513,6 +526,33 @@ public sealed class ErasureServiceShould
 		result.Status.ShouldBe(ErasureRequestStatus.Scheduled);
 	}
 
+	/// <summary>
+	/// The legal-hold service is required, and this is the arm that keeps it required.
+	/// </summary>
+	/// <remarks>
+	/// Without it, a later edit could quietly restore the nullable parameter and every other arm would
+	/// still pass — the skipped-hold-check defect is invisible to tests that never had holds to skip.
+	/// </remarks>
+	[Fact]
+	public void Throw_for_null_legal_hold_service()
+	{
+		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+		{
+			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+		});
+
+		var ex = Should.Throw<ArgumentNullException>(() =>
+			new ErasureService(
+				_store, _keyAdmin, options,
+				NullLogger<ErasureService>.Instance,
+				TestDataSubjectHasher.Instance,
+				null!,
+				null,
+				null));
+
+		ex.ParamName.ShouldBe("legalHoldService");
+	}
+
 	[Fact]
 	public void Throw_for_null_store()
 	{
@@ -521,7 +561,7 @@ public sealed class ErasureServiceShould
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-				null, null));
+				null, null, null));
 	}
 
 
@@ -533,7 +573,7 @@ public sealed class ErasureServiceShould
 				null!,
 				NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-				null, null));
+				null, null, null));
 	}
 
 	[Fact]
@@ -544,7 +584,7 @@ public sealed class ErasureServiceShould
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				null!,
 				TestDataSubjectHasher.Instance,
-				null, null));
+				null, null, null));
 	}
 
 	[Fact]
@@ -584,6 +624,111 @@ public sealed class ErasureServiceShould
 	}
 
 	[Fact]
+	public async Task Revoke_escrow_before_destroying_a_key_that_was_escrowed()
+	{
+		// Arrange -- exb9w4: a subject key that was escrowed must have its escrow revoked BEFORE the
+		// working key is destroyed, so a consumer who escrowed the subject key for disaster recovery
+		// cannot silently defeat erasure via the still-recoverable escrowed spare.
+		var keyEscrowService = A.Fake<IKeyEscrowService>();
+		var sut = new ErasureService(
+			_store, _keyAdmin,
+			Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+			{
+				Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+			}),
+			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
+			_legalHoldService, _dataInventoryService,
+			keyEscrowService);
+
+		var requestId = Guid.NewGuid();
+		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
+
+		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
+			.Returns(Task.FromResult<ErasureStatus?>(status));
+		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
+
+		var inventory = new DataInventory
+		{
+			DataSubjectId = "abc123hash",
+			Locations = [],
+			AssociatedKeys = [new KeyReference { KeyId = "key-1", KeyScope = EncryptionKeyScope.User }],
+		};
+		A.CallTo(() => _dataInventoryService.DiscoverAsync(
+				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(inventory));
+
+		A.CallTo(() => keyEscrowService.RevokeEscrowAsync("key-1", A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-1", A<int>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
+
+		SetupNoLegalHolds();
+
+		// Act
+		var result = await sut.ExecuteAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert -- LIVENESS: escrow revocation does not block a normal destruction; the key is still
+		// destroyed and counted.
+		result.KeysDeleted.ShouldBe(1);
+
+		// Assert -- revoke happened BEFORE destroy (revoke-then-destroy, never the reverse).
+		A.CallTo(() => keyEscrowService.RevokeEscrowAsync("key-1", A<string?>._, A<CancellationToken>._))
+			.MustHaveHappened()
+			.Then(A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-1", A<int>._, A<CancellationToken>._)).MustHaveHappened());
+	}
+
+	[Fact]
+	public async Task Not_destroy_a_key_when_revoking_its_escrow_fails()
+	{
+		// Arrange -- SAFETY: destroying the working key while its escrow revocation failed would leave
+		// a recoverable escrowed spare behind an erasure certificate that attests the data gone.
+		var keyEscrowService = A.Fake<IKeyEscrowService>();
+		var sut = new ErasureService(
+			_store, _keyAdmin,
+			Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+			{
+				Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+			}),
+			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
+			_legalHoldService, _dataInventoryService,
+			keyEscrowService);
+
+		var requestId = Guid.NewGuid();
+		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
+
+		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
+			.Returns(Task.FromResult<ErasureStatus?>(status));
+		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
+
+		var inventory = new DataInventory
+		{
+			DataSubjectId = "abc123hash",
+			Locations = [],
+			AssociatedKeys = [new KeyReference { KeyId = "key-1", KeyScope = EncryptionKeyScope.User }],
+		};
+		A.CallTo(() => _dataInventoryService.DiscoverAsync(
+				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(inventory));
+
+		A.CallTo(() => keyEscrowService.RevokeEscrowAsync("key-1", A<string?>._, A<CancellationToken>._))
+			.Throws(new InvalidOperationException("escrow store unavailable"));
+
+		SetupNoLegalHolds();
+
+		// Act
+		var result = await sut.ExecuteAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert -- not attested as complete, and the key was never destroyed.
+		result.Success.ShouldBeFalse();
+		result.KeysDeleted.ShouldBe(0);
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-1", A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Fact]
 	public async Task Invoke_erasure_contributors()
 	{
 		// Arrange
@@ -603,7 +748,7 @@ public sealed class ErasureServiceShould
 			_store, _keyAdmin, options,
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-			_legalHoldService, _dataInventoryService,
+			_legalHoldService, _dataInventoryService, null,
 			[contributor]);
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))

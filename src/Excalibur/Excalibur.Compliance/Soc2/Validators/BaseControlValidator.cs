@@ -32,9 +32,38 @@ public abstract class BaseControlValidator : IControlValidator
 		{
 			ControlId = controlId,
 			Parameters = parameters,
-			ItemsTested = parameters.SampleSize,
-			ExceptionsFound = validation.IsEffective ? 0 : 1,
-			Outcome = validation.IsEffective ? TestOutcome.NoExceptions : TestOutcome.SignificantExceptions,
+			// This method does not sample anything — it forwards a ValidateAsync verdict. ItemsTested
+			// used to be parameters.SampleSize, the number REQUESTED, so every Type II report told an
+			// auditor that 25 items had been examined when none had. Zero is the true answer and needs
+			// no other state; the requested size remains available on Parameters.
+			ItemsTested = 0,
+
+			// A count of findings asserts a search ran. None did, so there is no number — and that is a
+			// different fact from "we looked and found none", which is what 0 said.
+			ExceptionsFound = null,
+
+			// NotTested is WRONG here, and it was mine: I set it unconditionally, so a control whose
+			// validator RAN and found it effective reported "no test performed" -- which an auditor reads
+			// as a coverage gap the customer does not have. Worse, Soc2ReportGenerator collects every
+			// outcome that is not NoExceptions into the report's findings, so it turned all fourteen
+			// controls into exceptions against the consumer.
+			//
+			// A validator ALWAYS ran by the time we are here -- this method is on the validator. So the
+			// genuine no-validator case is not ours to report; ControlValidationService owns it and
+			// already returns NotTested for an unroutable control. What is true here is that the control
+			// was ASSESSED but not SAMPLED, and that is carried by ItemsTested = 0 and the note below
+			// rather than by overwriting the verdict.
+			// RESOLVED, and the enum did not need a new member. The deadlock was that one field was being
+			// asked to carry two facts: what a TEST found, and whether the CONTROL is effective. NotTested
+			// is the honest answer to the first -- no sample was drawn -- and it only understated anything
+			// while it was also the sole channel for the second.
+			//
+			// The verdict now travels on ControlSection.ValidationResults, which is where the report builds
+			// its findings from, so this field is free to say the true thing about the test.
+			Outcome = TestOutcome.NotTested,
+			Notes =
+				"No sampling was performed. This outcome is the control validation verdict; the item and "
+				+ "exception counts are absent rather than zero because no population was examined.",
 			Evidence = validation.Evidence,
 			Exceptions = validation.IsEffective
 				? []
@@ -77,12 +106,22 @@ public abstract class BaseControlValidator : IControlValidator
 		string controlId,
 		IReadOnlyList<string> issues,
 		int effectivenessScore = 0,
-		IReadOnlyList<EvidenceItem>? evidence = null)
+		IReadOnlyList<EvidenceItem>? evidence = null,
+		bool isConfigured = false)
 	{
 		return new ControlValidationResult
 		{
 			ControlId = controlId,
-			IsConfigured = issues.Count == 0,
+			// Was issues.Count == 0, which in a FAILURE result is false almost by construction: it made
+			// every control we could not verify additionally assert that its mechanism is absent, while
+			// the same method's evidence said the mechanism ships. One validator hand-built its result
+			// inline to escape exactly that, which was the signal this belonged here.
+			//
+			// Deriving it from the score band was tried and is WRONG, which a test caught: AVL-002 and
+			// AVL-003 report Unverified for a declared control that is ABSENT here but may exist as an
+			// external arrangement, while SEC-004 reports Unverified for a mechanism demonstrably
+			// present. Configured-ness and the band are genuinely independent, so the caller states it.
+			IsConfigured = isConfigured,
 			IsEffective = false,
 			EffectivenessScore = effectivenessScore,
 			ConfigurationIssues = issues,

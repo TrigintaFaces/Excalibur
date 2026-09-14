@@ -172,7 +172,15 @@ The `IResilientElasticsearchClient` wraps the Elasticsearch client with retry an
 ```csharp
 public interface IResilientElasticsearchClient
 {
-    // Operations with automatic retry and circuit breaking
+    bool IsCircuitBreakerOpen { get; }
+
+    Task<SearchResponse<TDocument>> SearchAsync<TDocument>(SearchRequest request, CancellationToken cancellationToken);
+    Task<IndexResponse> IndexAsync<TDocument>(IIndexRequest<TDocument> request, CancellationToken cancellationToken);
+    Task<UpdateResponse<TDocument>> UpdateAsync<TDocument>(IUpdateRequest<TDocument, object> request, CancellationToken cancellationToken);
+    Task<DeleteResponse> DeleteAsync(IDeleteRequest request, CancellationToken cancellationToken);
+    Task<BulkResponse> BulkAsync(IBulkRequest request, CancellationToken cancellationToken);
+    Task<GetResponse<TDocument>> GetAsync<TDocument>(IGetRequest request, CancellationToken cancellationToken);
+    Task<bool> IsHealthyAsync(CancellationToken cancellationToken);
 }
 ```
 

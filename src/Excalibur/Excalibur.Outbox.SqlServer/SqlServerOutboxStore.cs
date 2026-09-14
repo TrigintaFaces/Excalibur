@@ -47,7 +47,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class implements multiple ISP sub-interfaces (IMultiTransportOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter) by design.")]
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, ITenantPartitionedStore
+public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, ITenantPartitionedStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;
@@ -494,11 +494,16 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		try
 		{
-			// Fence FIRST: monotonically advance the durable high-water and capture it. The mark UPDATE below
-			// re-guards against this same durable high-water inside its own statement (guard + mutation are one
-			// atomic step), so a leader superseded between this advance and the mark affects zero rows and is
-			// reported fail-closed. The captured value is the recorded high-water reported on the diagnostic —
-			// it survives a cleanup that purges the token-bearing rows, so a stale token stays rejected.
+			// Advance the durable high-water and capture it FOR THE DIAGNOSTIC. This call is not what makes
+			// the mark safe, and the comment here used to say it was: it claimed the mark re-guarded against
+			// this value "inside its own statement (guard + mutation are one atomic step)", which was false —
+			// the mark's guard was a lock-free scalar read that a concurrent advance could slip past under
+			// snapshot isolation. The mark now performs its OWN advance under a range lock and conditions the
+			// write on that result, so the atomicity lives there, in one transaction, and not in the sequence
+			// of these two calls. This advance remains because the captured high-water is what the fail-closed
+			// diagnostic reports, and it survives a cleanup that purges the token-bearing rows. It is
+			// monotonic, so re-advancing to the same token below is a no-op and a superseded token still
+			// leaves the recorded value untouched.
 			long? recordedHighWater = null;
 			if (fencingToken.HasValue)
 			{
@@ -537,7 +542,14 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 							commandTimeout: _options.Processing.CommandTimeoutSeconds,
 							cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-					if (exists > 0)
+					// The row existing is not evidence that the token was refused. A message already marked
+					// sent also fails the mutation's status predicate, with a perfectly current token, and
+					// reporting THAT as a fencing refusal tells a healthy leader it has been superseded --
+					// so it aborts its drain cycle and stands down while still holding leadership. The
+					// recorded high-water is what distinguishes the two: it exceeds the presented token only
+					// when a fresher tenure really did advance past it. Postgres and Oracle already gate
+					// their refusal on exactly this comparison; this brings SQL Server into line with them.
+					if (exists > 0 && recordedHighWater > fencingToken.Value)
 					{
 						// Report the recorded high-water the presented token was fenced against (the fencing
 						// contract's diagnostic). It is the durable OutboxFence high-water captured by the
@@ -555,7 +567,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 				}
 
 				result = WriteStoreTelemetry.Results.NotFound;
-				throw new InvalidOperationException($"Message {messageId} not found or already sent.");
+				throw new InvalidOperationException($"Message {messageId} not found, already sent, or dead-lettered.");
 			}
 
 			_logger.LogDebug("Marked message {MessageId} as sent", messageId);
@@ -572,6 +584,46 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		finally
 		{
 			RecordOperation("mark_sent", result, stopwatch.Elapsed);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async Task<long?> GetFencingHighWaterAsync(CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var request = new Requests.GetOutboxFenceHighWaterRequest(
+			_options.Tables.QualifiedFenceTableName,
+			_options.Tables.QualifiedOutboxTableName,
+			_options.Processing.CommandTimeoutSeconds,
+			cancellationToken);
+
+		return await connection.ResolveAsync(request).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async Task ResetFencingHighWaterAsync(long newHighWater, bool force, CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var request = new Requests.ResetOutboxFenceHighWaterRequest(
+			_options.Tables.QualifiedFenceTableName,
+			_options.Tables.QualifiedOutboxTableName,
+			newHighWater,
+			force,
+			_options.Processing.CommandTimeoutSeconds,
+			cancellationToken);
+
+		var applied = await connection.ResolveAsync(request).ConfigureAwait(false);
+		if (!applied)
+		{
+			var current = await GetFencingHighWaterAsync(cancellationToken).ConfigureAwait(false);
+			throw new InvalidOperationException(
+				$"Refusing to lower the fencing high-water mark from {current} to {newHighWater} without " +
+				"force: true. Lowering it re-admits a leader whose token is now below the (lowered) " +
+				"high-water, which is the split-brain the fence exists to prevent.");
 		}
 	}
 
@@ -594,7 +646,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			var sql = $"""
 				UPDATE {_options.Tables.QualifiedOutboxTableName}
 				SET Status = 2, SentAt = @SentAt, LastError = NULL, LeasedAt = NULL, LeasedBy = NULL
-				WHERE Id IN @Ids AND Status != 2
+				WHERE Id IN @Ids AND Status NOT IN (2, 5)
 				""";
 
 			var affected = await connection.ExecuteAsync(
@@ -738,6 +790,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			                   UPDATE {_options.Tables.QualifiedOutboxTableName}
 			                   SET Status = 2, SentAt = @SentAt, LastError = NULL
 			                   WHERE Id = @MessageId
+			                   AND Status NOT IN (2, 5)
 			                   """;
 
 			var markSentCommand = new CommandDefinition(
@@ -752,7 +805,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			{
 				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
 				result = WriteStoreTelemetry.Results.NotFound;
-				throw new InvalidOperationException($"Message {messageId} not found or already sent.");
+				throw new InvalidOperationException($"Message {messageId} not found, already sent, or dead-lettered.");
 			}
 
 			// Step 2: Insert inbox entry for deduplication
@@ -1000,6 +1053,104 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			RecordOperation("mark_dead_lettered", result, stopwatch.Elapsed);
 		}
 	}
+
+
+	/// <inheritdoc />
+	public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset? nextAttemptAt,
+		OutboxWriteAuthority authority,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+		ArgumentOutOfRangeException.ThrowIfNegative(retryCount);
+
+		// BOTH COMPONENTS ARE VALIDATED. OutboxWriteAuthority is a struct, so its default cannot be
+		// intercepted by any constructor and reaches here carrying a zero token -- and a zero token is
+		// ACCEPTED by the fence on a scope with no recorded mark, because the MERGE creates that mark from
+		// the presented value and it then equals itself. Without this check the only thing refusing a
+		// defaulted authority would be the claim term failing for an unrelated reason, which is one guard
+		// doing the other's job by accident rather than a guard that holds.
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(authority.FencingToken);
+		ArgumentException.ThrowIfNullOrWhiteSpace(authority.ClaimIdentity);
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var result = await connection.ResolveAsync(
+				new Requests.FencedMarkMessageFailedRequest(
+					_options.Tables.QualifiedOutboxTableName,
+					_options.Tables.QualifiedFenceTableName,
+					messageId,
+					errorMessage,
+					retryCount,
+					nextAttemptAt,
+					_options.Processing.FailureBackoffFloorSeconds,
+					authority.FencingToken,
+					authority.ClaimIdentity,
+					_options.Processing.CommandTimeoutSeconds,
+					cancellationToken))
+			.ConfigureAwait(false);
+
+		return ClassifyFenced(result, authority.FencingToken);
+	}
+
+	/// <inheritdoc />
+	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
+		string messageId,
+		string reason,
+		long fencingToken,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+
+		// A zero or negative token is refused before it reaches the statement, for the reason above -- and
+		// it matters more here, because on this member an accepted stale token destroys a row rather than
+		// leaving a retriable one. A leadership tenure always mints a strictly positive token, so nothing
+		// legitimate is rejected.
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fencingToken);
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var result = await connection.ResolveAsync(
+				new Requests.FencedMarkMessageDeadLetteredRequest(
+					_options.Tables.QualifiedOutboxTableName,
+					_options.Tables.QualifiedFenceTableName,
+					messageId,
+					reason,
+					fencingToken,
+					_options.Processing.CommandTimeoutSeconds,
+					cancellationToken))
+			.ConfigureAwait(false);
+
+		return ClassifyFenced(result, fencingToken);
+	}
+
+	/// <summary>
+	/// Maps a fenced completion result onto the outcome the caller acts on.
+	/// </summary>
+	/// <remarks>
+	/// The order is load-bearing. A refused fence is checked FIRST because it is the only outcome meaning
+	/// "stop draining entirely" -- a newer tenure exists and every remaining claim this caller holds is
+	/// void. Reading the row count first would report ClaimLost for a superseded tenure, which tells the
+	/// caller to continue with the rest of its batch: exactly the wrong instruction, and indistinguishable
+	/// from the benign case in a log.
+	/// </remarks>
+	private static OutboxCompletionOutcome ClassifyFenced(
+		Requests.FencedClaimMutationResult result,
+		long presentedToken) =>
+		result.HighWaterToken != presentedToken
+			? OutboxCompletionOutcome.FenceRefused
+			: result.UpdatedCount > 0
+				? OutboxCompletionOutcome.Applied
+				: result.RowExists
+					? OutboxCompletionOutcome.ClaimLost
+					: OutboxCompletionOutcome.MessageNotFound;
 
 	/// <inheritdoc />
 	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(
@@ -2094,7 +2245,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			IsMultiTransport = row.IsMultiTransport,
 			PartitionKey = row.PartitionKey,
 			GroupKey = row.GroupKey,
-			SequenceNumber = row.SequenceNumber
+			SequenceNumber = row.SequenceNumber,
+			DispatcherId = row.DispatcherId
 		};
 
 		return message;

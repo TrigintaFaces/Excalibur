@@ -40,6 +40,21 @@ internal interface IStorageClientSeam
 		CancellationToken cancellationToken);
 
 	/// <summary>
+	/// Reports whether an object exists in a GCS bucket, by asking for its metadata.
+	/// </summary>
+	/// <remarks>
+	/// This exists because Cloud Storage's delete is idempotent and silent: it succeeds identically
+	/// whether or not an object was there, so <c>DeleteObjectAsync</c> cannot answer the question the
+	/// claim-check delete contract asks. The observation has to be taken separately, before deleting.
+	/// A missing object is a normal answer here, not a fault, so implementations return <c>false</c>
+	/// rather than surfacing the SDK's not-found exception.
+	/// </remarks>
+	Task<bool> ObjectExistsAsync(
+		string bucket,
+		string objectName,
+		CancellationToken cancellationToken);
+
+	/// <summary>
 	/// Deletes an object from a GCS bucket. Wraps
 	/// <see cref="Google.Cloud.Storage.V1.StorageClient.DeleteObjectAsync(string, string, Google.Cloud.Storage.V1.DeleteObjectOptions, CancellationToken)"/>.
 	/// </summary>

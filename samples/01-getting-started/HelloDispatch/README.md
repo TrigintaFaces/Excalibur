@@ -24,14 +24,15 @@ dotnet run --project samples/01-getting-started/HelloDispatch
 
 ## Project Structure
 
+One package, one file — everything lives in `Program.cs`: the top-level statements that
+configure and run Dispatch, followed by the messages and handlers (`PingCommand`,
+`PingCommandHandler`, `PingEvent`, `PingHandler`) in a `namespace HelloDispatch { ... }`
+block.
+
 ```
 HelloDispatch/
-├── HelloDispatch.csproj     # Project file
-├── Program.cs               # Console app with Dispatch configuration
-├── PingCommand.cs           # Command: IDispatchAction<string>
-├── PingCommandHandler.cs    # Handler: IActionHandler<PingCommand, string>
-├── PingEvent.cs             # Event: IDispatchEvent
-└── PingHandler.cs           # Handler: IEventHandler<PingEvent>
+├── HelloDispatch.csproj   # Project file
+└── Program.cs             # Console app, messages and handlers -- all of it
 ```
 
 ## Key Configuration

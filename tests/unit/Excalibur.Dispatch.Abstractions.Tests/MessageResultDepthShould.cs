@@ -108,10 +108,10 @@ public sealed class MessageResultDepthShould
 	public void IsSuccess_AliasMatchesSucceeded()
 	{
 		var success = MessageResult.Success();
-		success.IsSuccess.ShouldBeTrue();
+		success.Succeeded.ShouldBeTrue();
 
 		var failed = MessageResult.Failed("err");
-		failed.IsSuccess.ShouldBeFalse();
+		failed.Succeeded.ShouldBeFalse();
 	}
 
 	[Fact]

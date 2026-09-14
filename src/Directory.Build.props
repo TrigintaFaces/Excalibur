@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
 	<!-- ============================================================================================
        Project Classification Metadata
        ============================================================================================
@@ -284,6 +284,32 @@
 	<PropertyGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true' And '$(BannedApiStrict)' == 'true'">
 		<WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
 	</PropertyGroup>
+
+	<!-- The relational tenancy diagnostics run on OUR OWN provider packages, not only on consumers'.
+
+	     Excalibur.Data.Abstractions bundles the analyzer into its package, so anyone who installs that
+	     package from nuget.org gets the diagnostics. That delivery path does NOT reach this repository:
+	     our own packages consume Abstractions by ProjectReference, and an Analyzer item does not travel
+	     across one. So the rules that fail a CONSUMER's build were silent on the code they were written
+	     about — every relational request in this tree — and the only instrument covering it was a source
+	     scan that reads declarations as written rather than the compilation the compiler sees.
+
+	     Declared here rather than in each provider's csproj deliberately. A per-project list is a list
+	     someone has to remember to extend, and a new provider package added without that edit would be
+	     the one place the rules do not run — silently, and in exactly the code most likely to get tenancy
+	     wrong. Scoped by directory so it follows the packages that can actually use the attribute: only
+	     this half of the tree may reference the data layer at all.
+
+	     ReferenceOutputAssembly="false" + PrivateAssets="all": nothing is referenced and nothing ships;
+	     the analyzer runs in the compiler and leaves no trace in the package. The analyzer project itself
+	     is excluded because it cannot analyse its own build, and Data.Abstractions because it already
+	     declares this reference to bundle the DLL — a second one is a duplicate item, not a second run. -->
+	<ItemGroup Condition="'$(MSBuildProjectName)' != 'Excalibur.Data.Analyzers'
+	                      And '$(MSBuildProjectName)' != 'Excalibur.Data.Abstractions'
+	                      And $(MSBuildProjectDirectory.StartsWith('$(MSBuildThisFileDirectory)Excalibur'))">
+		<ProjectReference Include="$(MSBuildThisFileDirectory)Excalibur/Excalibur.Data.Analyzers/Excalibur.Data.Analyzers.csproj"
+		                  OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+	</ItemGroup>
 
 	<!-- Public API surface tracking for breaking change detection (RS0016/RS0017) -->
 	<ItemGroup>

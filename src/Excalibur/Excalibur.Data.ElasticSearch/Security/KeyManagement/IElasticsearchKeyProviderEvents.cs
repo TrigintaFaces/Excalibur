@@ -17,11 +17,6 @@ public interface IElasticsearchKeyProviderEvents
 	event EventHandler<SecretAccessedEventArgs>? SecretAccessed;
 
 	/// <summary>
-	/// Occurs when a key rotation is completed successfully.
-	/// </summary>
-	event EventHandler<KeyRotatedEventArgs>? KeyRotated;
-
-	/// <summary>
 	/// Lists all secrets managed by this provider, optionally filtered by prefix.
 	/// </summary>
 	/// <param name="prefix"> Optional prefix to filter secret names. If null, all secrets are returned. </param>

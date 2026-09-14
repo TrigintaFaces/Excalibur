@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shipped-ddl-sweep.harness-lock.sh — INDEPENDENT (author≠impl) lock for shipped-ddl-sweep.sh
 #
-# Bead: exhkgt (S890 AC-D1-AC2, folds in 5uhy2j). Gate impl: PlatformDeveloper. Seam design: SoftwareArchitect.
+# Independent enforcement arm for eng/ci/shipped-ddl-sweep.sh: gate implementation and seam design are separate seats.
 # Author: TestsDeveloper — INDEPENDENT of the impl author (per issue-remediation-protocol +
 #         forge-integration cl.7: the builder writes the gate + its .test.sh; a DIFFERENT agent writes
 #         the binding lock). The gate's whole thesis is "a gate cannot report a false PASS"; a lock
@@ -16,9 +16,9 @@
 #      gate with NO `SHIPPED_DDL_*` env and prove it still enumerates the REAL docs-site/**+samples/**
 #      DDL (checked>=1). The gate's own self-test only ever exercises the FIXTURE path (its ARM6); a
 #      test seam that never runs the production path lets the seam itself become the vacuity hole —
-#      the exact class this sprint exists to kill (fmvdpg / the session-collision-guard orphan).
+#      the exact class this work exists to kill (the suppression-cap class / the session-collision-guard orphan).
 #   3. It PROVES ITS OWN ARMS NON-VACUOUS with mutant gates (always-PASS / always-DRIFT) — an arm that
-#      also passes a broken gate is the S889 defect.
+#      also passes a broken gate is the vacuity defect.
 #
 # CONTRACT under test (shipped-ddl-sweep.sh):
 #   0 PASS   · every written/read column is declared in the shipped DDL
@@ -132,7 +132,7 @@ is_pass "$rc" \
     || ok "B non-vacuity: liveness arm REJECTS the always-DRIFT mutant (mutant returned $rc, arm demands 0)"
 
 # ── C · REFUSE (empty scan): a doc root with no CREATE TABLE -> REFUSE(2), never a silent PASS;
-#      and the arm must REJECT an always-PASS gate (the fmvdpg empty-scan anti-vacuity seam). ──────
+#      and the arm must REJECT an always-PASS gate (the empty-scan anti-vacuity seam). ──────
 mkdir -p "$TMP/c-empty"
 rc="$(run_fix "$TMP/c-empty" "$TMP/b/src" "$TMP/b/map")"
 is_refuse "$rc" && ok "C refuse: empty doc root (no CREATE TABLE) -> REFUSE (not a silent PASS)" \
@@ -158,7 +158,7 @@ is_refuse "$rc" && ok "D refuse: a shipped table with no MAP entry -> REFUSE (no
 # to drive the WIRED 3-state contract as an external process (A–D) and to prove guard-3 on the real
 # production surface (F) — the two things the gate's own internal-function self-test cannot.
 
-# ── F · GUARD-3 PRODUCTION-PATH (SA 32720, non-negotiable): with NO SHIPPED_DDL_* env, the gate must
+# ── F · GUARD-3 PRODUCTION-PATH (non-negotiable): with NO SHIPPED_DDL_* env, the gate must
 #      enumerate the REAL docs-site/**+samples/** shipped DDL and evaluate >=1 mapped table — proving
 #      (a) the test knobs are INERT when unset and (b) the gate is non-vacuous against REALITY, not
 #      only planted fixtures. A gate that only ever runs its fixture path is untested against the

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
@@ -146,9 +146,14 @@ public sealed partial class MySqlPersistenceProvider : ISqlPersistenceProvider, 
 
 		await transactionScope.EnlistProviderAsync(this, cancellationToken).ConfigureAwait(false);
 
-		using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-
+		// Connection lifecycle passes to the transaction scope at enlistment: the scope BEGAN its
+		// transaction on this connection, so disposing it here completes that transaction and discards every
+		// write the caller has not committed yet. The scope owns disposal, not this method. Matches
+		// SqlServerPersistenceProvider, which has always done it this way.
+#pragma warning disable CA2000
+		var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 		await transactionScope.EnlistConnectionAsync(connection, cancellationToken).ConfigureAwait(false);
+#pragma warning restore CA2000
 
 		var results = new List<object>(requestList.Count);
 

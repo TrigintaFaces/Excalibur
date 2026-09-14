@@ -278,12 +278,17 @@ public sealed class InMemoryAuditStoreShould : IDisposable
     }
 
     [Fact]
-    public async Task Get_last_event_returns_most_recent_for_tenant()
+    public async Task Get_last_event_returns_most_recent_within_the_ambient_partition()
     {
-        await _sut.StoreAsync(CreateEvent("evt-first", tenantId: "t1"), CancellationToken.None);
-        await _sut.StoreAsync(CreateEvent("evt-last", tenantId: "t1"), CancellationToken.None);
+        // _sut's ambient scope is pinned to the untenanted partition (TestTenantHosts.UntenantedAuditHost),
+        // so both events must be stored there to be visible -- GetLastEventAsync resolves the AMBIENT
+        // scope, never a caller-supplied tenant (the parameter was removed, Excalibur_Dispatch-t8n6n5: every
+        // store already ignored it and honouring it directly was the cross-tenant vulnerability). The
+        // per-tenant "most recent" case is covered by InMemoryAuditStoreMultiTenantShould.
+        await _sut.StoreAsync(CreateEvent("evt-first"), CancellationToken.None);
+        await _sut.StoreAsync(CreateEvent("evt-last"), CancellationToken.None);
 
-        var result = await _sut.GetLastEventAsync("t1", CancellationToken.None);
+        var result = await _sut.GetLastEventAsync(CancellationToken.None);
 
         result.ShouldNotBeNull();
         result.EventId.ShouldBe("evt-last");
@@ -292,7 +297,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
     [Fact]
     public async Task Get_last_event_returns_null_for_nonexistent_tenant()
     {
-        var result = await _sut.GetLastEventAsync("nonexistent", CancellationToken.None);
+        var result = await _sut.GetLastEventAsync(CancellationToken.None);
 
         result.ShouldBeNull();
     }
@@ -302,7 +307,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
     {
         await _sut.StoreAsync(CreateEvent("evt-def"), CancellationToken.None);
 
-        var result = await _sut.GetLastEventAsync(null, CancellationToken.None);
+        var result = await _sut.GetLastEventAsync(CancellationToken.None);
 
         result.ShouldNotBeNull();
         result.EventId.ShouldBe("evt-def");

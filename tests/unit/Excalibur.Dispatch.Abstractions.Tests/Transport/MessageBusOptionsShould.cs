@@ -20,12 +20,30 @@ public sealed class MessageBusOptionsShould
 
 		// Assert
 		options.EnableRetries.ShouldBeFalse();
-		options.MaxRetryAttempts.ShouldBe(3);
-		options.RetryStrategy.ShouldBe(RetryStrategy.FixedDelay);
-		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(1));
-		options.JitterFactor.ShouldBe(0);
 		options.TargetUri.ShouldBeNull();
 		options.EnableTelemetry.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void NotExposeRetryTuningSettings()
+	{
+		// Whether a bus retries is a per-bus decision; how it retries is configured once for the
+		// pipeline. Re-adding a tuning knob here would give retry two configuration sites and a
+		// precedence question between them, and — because nothing on this type is read when the
+		// pipeline is built — a consumer who set one would see no error and conclude it applied.
+		var settable = typeof(MessageBusOptions)
+			.GetProperties()
+			.Select(static p => p.Name)
+			.ToArray();
+
+		settable.ShouldNotContain("MaxRetryAttempts");
+		settable.ShouldNotContain("RetryStrategy");
+		settable.ShouldNotContain("RetryDelay");
+		settable.ShouldNotContain("JitterFactor");
+
+		// Liveness: the switch that IS honoured must still be here, or this test passes against a
+		// type with no retry surface at all.
+		settable.ShouldContain("EnableRetries");
 	}
 
 	[Fact]
@@ -39,24 +57,13 @@ public sealed class MessageBusOptionsShould
 	}
 
 	[Fact]
-	public void RetrySettings_CanBeConfigured()
+	public void EnableRetries_CanBeSet()
 	{
 		// Act
-		var options = new TestMessageBusOptions
-		{
-			EnableRetries = true,
-			MaxRetryAttempts = 5,
-			RetryStrategy = RetryStrategy.ExponentialBackoff,
-			RetryDelay = TimeSpan.FromSeconds(1),
-			JitterFactor = 0.2,
-		};
+		var options = new TestMessageBusOptions { EnableRetries = true };
 
 		// Assert
 		options.EnableRetries.ShouldBeTrue();
-		options.MaxRetryAttempts.ShouldBe(5);
-		options.RetryStrategy.ShouldBe(RetryStrategy.ExponentialBackoff);
-		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(1));
-		options.JitterFactor.ShouldBe(0.2);
 	}
 
 	[Fact]

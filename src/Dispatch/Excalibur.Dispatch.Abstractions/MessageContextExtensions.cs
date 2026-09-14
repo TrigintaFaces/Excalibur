@@ -24,6 +24,7 @@ public static class MessageContextExtensions
 	private const string ReplyToKey = "__ReplyTo";
 	private const string MetadataKey = "__Metadata";
 	private const string MessageTypeKey = "__MessageType";
+	private const string MessageTypeIsRoutingDefaultKey = "__MessageTypeIsRoutingDefault";
 	private const string ContentTypeKey = "__ContentType";
 	private const string ReceivedTimestampUtcKey = "__ReceivedTimestampUtc";
 	private const string SentTimestampUtcKey = "__SentTimestampUtc";
@@ -201,6 +202,51 @@ public static class MessageContextExtensions
 	/// </summary>
 	public static void SetMessageType(this IMessageContext context, string? value) =>
 		context.SetProperty(MessageTypeKey, value);
+
+	/// <summary>
+	/// Records that <see cref="GetMessageType"/> holds a routing name the framework defaulted in from
+	/// the CLR type, rather than a foreign identity received from elsewhere and preserved verbatim.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A context's message type has two possible provenances that share one field: a CloudEvent
+	/// identity received from another organisation, which a converter must re-emit verbatim, or a
+	/// routing name this dispatcher defaulted in because nothing set one. The two require opposite
+	/// handling and are otherwise indistinguishable from the stored string alone.
+	/// </para>
+	/// <para>
+	/// Call this only where the value is being defaulted, mirroring
+	/// <see cref="OrderingContextExtensions.MarkOrderingEnforced"/>: mark the case the framework itself
+	/// produces, and leave every other case — an inbound receive bridge stamping a foreign identity —
+	/// unmarked and untouched.
+	/// </para>
+	/// </remarks>
+	/// <param name="context"> The message context. </param>
+	/// <exception cref="ArgumentNullException"> <paramref name="context"/> is <see langword="null"/>. </exception>
+	public static void MarkMessageTypeAsRoutingDefault(this IMessageContext context)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+
+		context.Items[MessageTypeIsRoutingDefaultKey] = true;
+	}
+
+	/// <summary>
+	/// Indicates whether <see cref="GetMessageType"/> holds a framework-defaulted routing name rather
+	/// than a preserved foreign identity.
+	/// </summary>
+	/// <param name="context"> The message context. </param>
+	/// <returns>
+	/// <see langword="true"/> if <see cref="MarkMessageTypeAsRoutingDefault"/> was called for this
+	/// context; otherwise <see langword="false"/>, meaning the value (if any) was set by something
+	/// other than the dispatcher's own default and must be preserved verbatim.
+	/// </returns>
+	/// <exception cref="ArgumentNullException"> <paramref name="context"/> is <see langword="null"/>. </exception>
+	public static bool IsMessageTypeRoutingDefault(this IMessageContext context)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+
+		return context.Items.TryGetValue(MessageTypeIsRoutingDefaultKey, out var raw) && raw is true;
+	}
 
 	/// <summary>
 	/// Gets the content type from Items.

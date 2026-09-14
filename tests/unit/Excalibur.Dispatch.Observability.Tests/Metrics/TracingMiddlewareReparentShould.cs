@@ -228,7 +228,7 @@ public sealed class TracingMiddlewareReparentShould : IDisposable
 	private static IMessageResult SuccessResult()
 	{
 		var result = A.Fake<IMessageResult>();
-		A.CallTo(() => result.IsSuccess).Returns(true);
+		A.CallTo(() => result.Succeeded).Returns(true);
 		return result;
 	}
 

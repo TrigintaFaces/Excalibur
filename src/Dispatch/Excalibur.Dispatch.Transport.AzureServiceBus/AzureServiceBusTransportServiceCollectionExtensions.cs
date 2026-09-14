@@ -123,6 +123,14 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		}
 
 		// Register core Azure Service Bus services
+		// Serialization is the application's choice, so no transport registers a serializer -- but every
+		// transport message bus requires one. State the requirement here so a host missing it stops at
+		// start-up naming the call that fixes it, rather than failing to activate the bus.
+		// Serialization is the application's choice, so no transport registers a serializer -- but every
+		// transport message bus requires one. State the requirement here so a host missing it stops at
+		// start-up naming the call that fixes it, rather than failing to activate the bus.
+		_ = services.RequirePayloadSerializer();
+
 		RegisterAzureServiceBusServices(services, name, transportOptions);
 
 		// Register Azure Service Bus options
@@ -333,11 +341,12 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 
 		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
 		{
-			var client = sp.GetRequiredKeyedService<ServiceBusClient>(name);
 			var logger = sp.GetRequiredService<ILogger<ServiceBusTransportReceiver>>();
 
 			if (transportOptions.Processor.RequiresSession)
 			{
+				var client = sp.GetRequiredKeyedService<ServiceBusClient>(name);
+
 				//: consume session-enabled entities with per-session FIFO ordering. The
 				// session-aware seam accepts one session at a time (AcceptNextSessionAsync) so messages
 				// sharing a SessionId are delivered in order; the base receiver/ack/reject path is
@@ -351,11 +360,32 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 					new ServiceBusSessionReceiverSeam(client, receiveEntityName, sessionOptions, logger),
 					receiveEntityName,
 					logger,
-					transportOptions.Processor.MaxPayloadBytes);
+					transportOptions.Processor.MaxPayloadBytes).WithCloudEventDecoding(CloudEventBinding.Amqp10);
 			}
 
-			var receiver = client.CreateReceiver(receiveEntityName);
-			return new ServiceBusTransportReceiver(receiver, receiveEntityName, logger, transportOptions.Processor.MaxPayloadBytes);
+			// THE DEFAULT PATH DECODES TOO, and it did not. RequiresSession has no initialiser, so it is
+			// false unless a consumer sets it -- making this branch the DEFAULT configuration, and it was
+			// the only receive path with no decoding decorator at all. This transport DOES emit
+			// CloudEvents, so a consumer publishing and consuming over Service Bus with default options got
+			// them delivered as ordinary traffic, indistinguishable from a message that never carried the
+			// markers.
+			//
+			// The binding is not a fresh choice: it is Amqp10 because the SESSION path above already
+			// decodes this transport's own emission with Amqp10, and both paths read the same wire format
+			// from the same sender. A receiver's session-ness does not change how the producer laid the
+			// attributes out, so two bindings on one transport could only ever mean one of them is wrong.
+			// The seam the session branch above already routes through, consulted here too. Constructing
+			// the vendor receiver inline made this path the one branch of the transport with no
+			// substitution point at all -- the session branch takes an IServiceBusReceiverSeam and this
+			// one did not, so the DEFAULT configuration was the less testable of the two.
+			// Resolved BEFORE the vendor client, so a consumer or a conformance suite that supplies a seam
+			// never causes a client to be built for a connection it will not use.
+			var seam = sp.GetKeyedService<IServiceBusReceiverSeam>(name)
+				?? new ServiceBusReceiverAdapter(
+					sp.GetRequiredKeyedService<ServiceBusClient>(name).CreateReceiver(receiveEntityName));
+
+			return new ServiceBusTransportReceiver(seam, receiveEntityName, logger, transportOptions.Processor.MaxPayloadBytes)
+				.WithCloudEventDecoding(CloudEventBinding.Amqp10);
 		});
 	}
 

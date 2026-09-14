@@ -43,5 +43,12 @@ internal static class InMemoryElectionRegistration
 		// invariant treats a resolvable election as the multi-instance signal, so registering the election
 		// without the gate would turn a host that starts today into one that refuses to start.
 		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
+
+		// Fencing is on by default, same as the other seven providers. The in-memory election is
+		// single-process by construction, so an in-process monotonic counter (InMemoryFencingTokenProvider)
+		// is a genuinely correct arbitrated fencing source here, not a weaker stand-in — see its remarks.
+		// WithoutFencingTokens() opts out.
+		services.TryAddDefaultFencingTokenProvider(sp =>
+			ActivatorUtilities.CreateInstance<InMemoryFencingTokenProvider>(sp));
 	}
 }

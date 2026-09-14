@@ -51,10 +51,24 @@ public interface ITransportSender : IAsyncDisposable
 	/// Gets the underlying transport service (e.g., <c>IProducer</c>, <c>ServiceBusSender</c>, <c>IAmazonSQS</c>).
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// Follows the <c>IChatClient.GetService()</c> pattern from Microsoft.Extensions.AI.
 	/// Returns <see langword="null"/> if the requested service type is not available.
+	/// </para>
+	/// <para>
+	/// The default implementation answers for any service this instance itself implements, so a transport
+	/// that provides one directly need not override it. A transport overrides it to hand out its native
+	/// SDK handle, and a decorator overrides it to answer for itself before deferring to the transport it
+	/// wraps.
+	/// </para>
 	/// </remarks>
 	/// <param name="serviceType">The type of service to retrieve.</param>
 	/// <returns>The service instance, or <see langword="null"/> if not available.</returns>
-	object? GetService(Type serviceType) => null;
+	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="serviceType"/> is null. </exception>
+	object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
 }

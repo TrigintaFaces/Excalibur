@@ -279,23 +279,32 @@ public sealed class HandlerDiscoveryAtEveryEntryPointShould
 	// ---------- AC-3c: do the two routes actually converge? ----------
 
 	/// <summary>
-	/// Records that the two routes into dispatch registration do NOT converge, and how they differ.
+	/// Records what still does NOT converge between the two routes into dispatch registration, now that
+	/// gziqqa closed the registration-parity half of the fork.
 	/// </summary>
 	/// <remarks>
 	/// <para>
 	/// A bare <c>AddDispatch()</c> and <c>AddDispatch(configure)</c> were assumed to be interchangeable
 	/// when the configuration only discovers handlers. Measured, they are not: they reach different
-	/// overloads, and only the configure overload materialises the pipeline through the builder. That one
-	/// call is the whole difference, and it is a behavioural fork rather than a formatting artefact.
+	/// overloads, and only the configure overload materialises the pipeline through the builder's
+	/// <c>Build()</c>. That call is the whole remaining difference.
 	/// </para>
 	/// <para>
-	/// The consumer-visible half is the handler LIFETIME. Both routes register the discovered handlers
-	/// transient; the builder route then runs the stateless-handler promotion, so the same handler ends up
-	/// singleton through one entry point and transient through the other. The builder route additionally
-	/// registers the options validators and the start-up diagnostics that the bare route never sees.
+	/// Two halves were originally recorded here. The registration-parity half — the bare route never
+	/// reaching <c>DispatchOptionsValidator</c>, <c>AuthorizationWiringPrerequisiteValidator</c>, or
+	/// <c>NoHandlersRegisteredStartupWarning</c> — is now CLOSED: both routes call
+	/// <c>DispatchBuilder.RegisterOptions()</c> and <c>RegisterStartupSafetyNets()</c>, so a composition
+	/// through either entry point gets the same start-up validation. The LIFETIME half remains open by
+	/// architecture ruling: through <see cref="Excalibur.Dispatch.IDispatcher" /> the two routes behave
+	/// identically (<c>HandlerScopeResolver</c> reads the promotion flag at dispatch time regardless of
+	/// which route composed the container), but the raw DI descriptor still differs — the bare route
+	/// deliberately never calls <c>Build()</c> (so a later <c>AddDispatchMiddleware&lt;T&gt;()</c> stays
+	/// visible to the legacy <c>GetServices&lt;IDispatchMiddleware&gt;()</c> path), so nothing there
+	/// promotes the discovered handler's DI registration from transient to singleton. Only code resolving a
+	/// handler DIRECTLY from the container (bypassing <c>IDispatcher</c>) observes the difference.
 	/// </para>
 	/// <para>
-	/// This is pinned rather than asserted-away because nobody has ruled on which route is correct. If a
+	/// This is pinned rather than asserted-away because nobody has ruled the lifetime half convergent. If a
 	/// ruling lands, this test goes RED and says so, which is the point of writing it down.
 	/// </para>
 	/// </remarks>
@@ -325,10 +334,22 @@ public sealed class HandlerDiscoveryAtEveryEntryPointShould
 			ServiceLifetime.Singleton,
 			"the configure overload calls Build(), which promotes an eligible stateless transient handler "
 			+ "to singleton — the promotion the transient registration exists to keep available. The same "
-			+ "handler therefore has a different lifetime depending on which entry point composed it");
+			+ "handler therefore has a different DI descriptor depending on which entry point composed it, "
+			+ "even though both dispatch identically through IDispatcher");
 
-		// The builder route alone registers the start-up surface. Naming it here keeps the difference
-		// enumerated rather than summarised, so a change to either route is visible.
+		// gziqqa liveness arm: the start-up safety net converged. Both routes now carry it, so it must NOT
+		// appear in the builder-only diff below — a regression that silently drops the registration from
+		// either route would surface here.
+		DescribeAll(bare).ShouldContain(
+			description => description.Contains("NoHandlersRegisteredStartupWarning", StringComparison.Ordinal),
+			"gziqqa: the bare route must reach RegisterStartupSafetyNets() directly, since it deliberately "
+			+ "never calls Build()");
+		DescribeAll(coalesced).ShouldContain(
+			description => description.Contains("NoHandlersRegisteredStartupWarning", StringComparison.Ordinal),
+			"the configure route reaches RegisterStartupSafetyNets() via Build()");
+
+		// What is STILL builder-only. Naming it here keeps the remaining difference enumerated rather than
+		// summarised, so a change to either route is visible.
 		var builderOnly = DescribeAll(coalesced)
 			.Except(DescribeAll(bare), StringComparer.Ordinal)
 			.ToList();
@@ -337,10 +358,17 @@ public sealed class HandlerDiscoveryAtEveryEntryPointShould
 			description => description.Contains("DispatchBuilderSentinel", StringComparison.Ordinal),
 			"only the configure overload marks the collection as builder-configured");
 
-		builderOnly.ShouldContain(
+		builderOnly.ShouldNotContain(
 			description => description.Contains("NoHandlersRegisteredStartupWarning", StringComparison.Ordinal),
-			"only the configure overload registers the empty-composition diagnostic, so a consumer who "
-			+ "reaches dispatch through the bare call never receives that warning");
+			"gziqqa closed this gap -- the empty-composition diagnostic must no longer be builder-only");
+
+		builderOnly.ShouldNotContain(
+			description => description.Contains("AuthorizationWiringPrerequisiteValidator", StringComparison.Ordinal),
+			"gziqqa closed this gap -- the fail-closed authorization guard must no longer be builder-only");
+
+		builderOnly.ShouldNotContain(
+			description => description.Contains("DispatchOptionsValidator", StringComparison.Ordinal),
+			"gziqqa closed this gap -- DispatchOptions validation must no longer be builder-only");
 	}
 
 	private static bool IsProbeHandlerRegistration(ServiceDescriptor descriptor) =>

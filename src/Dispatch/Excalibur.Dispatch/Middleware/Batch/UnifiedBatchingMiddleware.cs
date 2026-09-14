@@ -8,6 +8,7 @@ using System.Diagnostics;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 
@@ -37,7 +38,7 @@ namespace Excalibur.Dispatch.Middleware.Batch;
 public sealed partial class UnifiedBatchingMiddleware(
 	IOptions<UnifiedBatchingOptions> options,
 	ILogger<UnifiedBatchingMiddleware> logger,
-	ILoggerFactory loggerFactory) : IDispatchMiddleware, IAsyncDisposable
+	ILoggerFactory loggerFactory) : IDispatchMiddleware, IAsyncDisposable, IDisposable
 {
 	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.UnifiedBatchingMiddleware, "1.0.0");
 
@@ -74,7 +75,21 @@ public sealed partial class UnifiedBatchingMiddleware(
 		new(StringComparer.Ordinal);
 
 	private readonly CancellationTokenSource _cancellationTokenSource = new();
-	private volatile bool _disposed;
+	/// <summary>
+	/// The disposal claim. An <see langword="int"/> rather than a <see langword="bool"/> because exactly
+	/// one caller must win it, and <c>volatile</c> cannot express that.
+	/// </summary>
+	/// <remarks>
+	/// <b>Visibility is not atomicity.</b> This was a <c>volatile bool</c> tested and then set, which is two
+	/// steps: two threads disposing concurrently could both pass the test, and the window spanned the whole
+	/// teardown because the flag was set on the LAST line rather than the first. Inside that window a second
+	/// disposer could call <see cref="CancellationTokenSource.Dispose()"/> while the first was still inside
+	/// <c>Cancel()</c> -- which Microsoft documents as unsupported, that being the one member of
+	/// <see cref="CancellationTokenSource"/> which is not thread-safe. A single interlocked exchange makes
+	/// the race unrepresentable rather than unlikely, and it is the pattern this middleware's own
+	/// <c>BatchProcessor</c> already uses.
+	/// </remarks>
+	private int _disposed;
 
 	/// <inheritdoc />
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Optimization;
@@ -135,12 +150,14 @@ public sealed partial class UnifiedBatchingMiddleware(
 	/// <inheritdoc />
 	public async ValueTask DisposeAsync()
 	{
-		if (_disposed)
+		// Claim disposal before touching anything. Exactly one caller wins; every other returns.
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
 		{
 			return;
 		}
 
-		// Cancel if not already cancelled/disposed
+		// The only genuinely asynchronous step. CancelAsync runs registered callbacks without blocking the
+		// caller's thread; the synchronous path below cannot do that and says so.
 		try
 		{
 			if (!_cancellationTokenSource.IsCancellationRequested)
@@ -148,12 +165,77 @@ public sealed partial class UnifiedBatchingMiddleware(
 				await _cancellationTokenSource.CancelAsync().ConfigureAwait(false);
 			}
 		}
-		catch (ObjectDisposedException)
+		catch (Exception)
 		{
-			// Already disposed, ignore
+			// DISPOSAL NEVER THROWS, and ObjectDisposedException is not the only thing that reaches here.
+			// Cancel/CancelAsync run callbacks registered on this token, and the token is handed to arbitrary
+			// consumer handler code -- so a consumer callback that throws arrives as an AggregateException.
+			// Letting it escape would surface at the closing brace of the consumer's
+			// `using var provider = ...`, which is precisely the crash this type's synchronous disposal was
+			// added to remove. Cancellation is best-effort; the releases below still run.
 		}
 
-		// Dispose all processors
+		ReleaseResources();
+	}
+
+	/// <summary>
+	/// Releases this middleware's resources synchronously.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This exists because a service resolved from the container MUST be disposable synchronously, and
+	/// omitting it turned the most common line a consumer writes into a crash.</b> Microsoft's dependency
+	/// injection container throws <see cref="InvalidOperationException"/> from its scope disposal when a
+	/// resolved service implements <see cref="IAsyncDisposable"/> and not <see cref="IDisposable"/> — so
+	/// <c>using var provider = services.BuildServiceProvider();</c> threw at the closing brace for any
+	/// consumer whose pipeline seated this middleware. The container is the caller here, not the consumer,
+	/// and it decides which contract to invoke.
+	/// </para>
+	/// <para>
+	/// <b>It does NOT block on the asynchronous path, and that is deliberate.</b> Calling
+	/// <c>DisposeAsync().GetAwaiter().GetResult()</c> would be sync-over-async on a shutdown path and can
+	/// deadlock on a context that serialises continuations. The one step that differs is cancellation:
+	/// <see cref="CancellationTokenSource.Cancel()"/> runs registered callbacks on the calling thread where
+	/// <c>CancelAsync</c> does not. Everything after it — disposing the processors, clearing the map,
+	/// disposing the source — is synchronous in both paths and is shared rather than duplicated.
+	/// </para>
+	/// <para>
+	/// Prefer <see cref="DisposeAsync"/> where the caller can await it. Both are idempotent.
+	/// </para>
+	/// </remarks>
+	public void Dispose()
+	{
+		// Claim disposal before touching anything. Exactly one caller wins; every other returns.
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
+		{
+			return;
+		}
+
+		try
+		{
+			if (!_cancellationTokenSource.IsCancellationRequested)
+			{
+				_cancellationTokenSource.Cancel();
+			}
+		}
+		catch (Exception)
+		{
+			// DISPOSAL NEVER THROWS, and ObjectDisposedException is not the only thing that reaches here.
+			// Cancel/CancelAsync run callbacks registered on this token, and the token is handed to arbitrary
+			// consumer handler code -- so a consumer callback that throws arrives as an AggregateException.
+			// Letting it escape would surface at the closing brace of the consumer's
+			// `using var provider = ...`, which is precisely the crash this type's synchronous disposal was
+			// added to remove. Cancellation is best-effort; the releases below still run.
+		}
+
+		ReleaseResources();
+	}
+
+	/// <summary>
+	/// The disposal steps that are identical on both paths, so the two cannot drift apart.
+	/// </summary>
+	private void ReleaseResources()
+	{
 		foreach (var processor in _processors.Values)
 		{
 			processor.Dispose();
@@ -161,7 +243,6 @@ public sealed partial class UnifiedBatchingMiddleware(
 
 		_processors.Clear();
 		_cancellationTokenSource.Dispose();
-		_disposed = true;
 	}
 
 	private bool ShouldBatch(IDispatchMessage message)
@@ -222,6 +303,25 @@ public sealed partial class UnifiedBatchingMiddleware(
 
 			_ = (activity?.SetTag("batch.duration_ms", elapsedMs));
 			_ = (activity?.SetTag("batch.success", value: true));
+		}
+		catch (HandlerNotRegisteredException ex)
+		{
+			// A missing handler registration is a configuration fault, not a request outcome, so it reaches each
+			// caller AS the fault rather than as a 500-shaped failed result they can neither act on nor fix.
+			// Every item in the batch is failed with it because the registration is missing for the message
+			// TYPE: there is no sibling here that would have succeeded.
+			var configFaultElapsedMs = (long)stopwatch.ElapsedMilliseconds;
+			LogBatchError(batchKey, batch.Count, configFaultElapsedMs, ex);
+
+			foreach (var item in batch)
+			{
+				_ = item.CompletionSource.TrySetException(ex);
+			}
+
+			_ = (activity?.SetTag("batch.duration_ms", configFaultElapsedMs));
+			_ = (activity?.SetTag("batch.success", value: false));
+			_ = (activity?.SetTag("exception.type", ex.GetType().FullName));
+			_ = (activity?.SetTag("exception.message", ex.Message));
 		}
 		catch (Exception ex)
 		{
@@ -304,6 +404,12 @@ public sealed partial class UnifiedBatchingMiddleware(
 		{
 			var result = await item.NextDelegate(item.Message, item.Context, cancellationToken).ConfigureAwait(false);
 			_ = item.CompletionSource.TrySetResult(result);
+		}
+		catch (HandlerNotRegisteredException ex)
+		{
+			// Per-item, so only the caller whose message type has no handler sees the configuration fault;
+			// siblings of a different type in the same batch are unaffected.
+			_ = item.CompletionSource.TrySetException(ex);
 		}
 		catch (Exception ex)
 		{

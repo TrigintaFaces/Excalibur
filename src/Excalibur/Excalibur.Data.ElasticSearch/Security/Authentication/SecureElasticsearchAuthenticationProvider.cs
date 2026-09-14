@@ -5,12 +5,16 @@
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using Polly;
+using Polly.Retry;
 
 namespace Excalibur.Data.ElasticSearch.Security;
 
@@ -21,11 +25,12 @@ namespace Excalibur.Data.ElasticSearch.Security;
 public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAuthenticationProvider, IAsyncDisposable, IDisposable
 {
 	private readonly ElasticsearchSecurityOptions _securitySettings;
-	private readonly IElasticsearchKeyProvider _keyProvider;
+	private readonly IElasticsearchKeyStorage _keyProvider;
 	private readonly IHttpClientFactory _httpClientFactory;
 	private readonly ILogger<SecureElasticsearchAuthenticationProvider> _logger;
 	private readonly Timer _rotationTimer;
 	private readonly SemaphoreSlim _rotationSemaphore;
+	private readonly ResiliencePipeline<AuthenticationRotationResult> _rotationRetryPipeline;
 	private readonly Lock _eventLock = new();
 
 	private volatile bool _disposed;
@@ -35,13 +40,13 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 	/// Initializes a new instance of the <see cref="SecureElasticsearchAuthenticationProvider" /> class.
 	/// </summary>
 	/// <param name="securityOptions"> The security configuration options. </param>
-	/// <param name="keyProvider"> The key management provider for secure credential storage. </param>
+	/// <param name="keyProvider"> The connection-credential store used to persist OAuth tokens, service-account secrets, passwords, and API keys. </param>
 	/// <param name="httpClientFactory"> The HTTP client factory for OAuth2 token operations. </param>
 	/// <param name="logger"> The logger for security events and diagnostics. </param>
 	/// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
 	public SecureElasticsearchAuthenticationProvider(
 		IOptions<ElasticsearchSecurityOptions> securityOptions,
-		IElasticsearchKeyProvider keyProvider,
+		IElasticsearchKeyStorage keyProvider,
 		IHttpClientFactory httpClientFactory,
 		ILogger<SecureElasticsearchAuthenticationProvider> logger)
 	{
@@ -55,6 +60,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 		_httpClientFactory = httpClientFactory;
 		_logger = logger;
 		_rotationSemaphore = new SemaphoreSlim(1, 1);
+		_rotationRetryPipeline = BuildRotationRetryPipeline(_securitySettings.Authentication.CredentialRotation);
 
 		// Initialize credential rotation timer if rotation is enabled
 		if (_securitySettings.Authentication.CredentialRotation.Enabled &&
@@ -765,17 +771,19 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 					gracePeriodExpiry);
 			}
 
-			// Generate a new API key using the key provider (using HMAC type for API key generation)
-			var keyGenerationResult = await _keyProvider.GenerateEncryptionKeyAsync(
+			// Generate a new, cryptographically random API key value and store it. This is credential
+			// material, not an encryption key -- generated directly with a CSPRNG rather than through a
+			// key-management provider, which never exports material for anything it manages.
+			var newApiKey = GenerateSecretValue();
+			var stored = await _keyProvider.SetSecretAsync(
 				$"elasticsearch:apikey:{apiKeyId}",
-				EncryptionKeyType.Hmac,
-				keySize: 256,
+				newApiKey,
 				new SecretMetadata(description: "Elasticsearch API Key"),
 				cancellationToken).ConfigureAwait(false);
 
-			if (!keyGenerationResult.Success)
+			if (!stored)
 			{
-				return AuthenticationRotationResult.Failure($"API key generation failed: {keyGenerationResult.ErrorMessage}");
+				return AuthenticationRotationResult.Failure("API key generation failed: the credential store rejected the write");
 			}
 
 			var nextRotation = DateTimeOffset.UtcNow.Add(_securitySettings.Authentication.CredentialRotation.RotationInterval);
@@ -783,7 +791,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 			_logger.LogInformation("API key rotated successfully. Next rotation scheduled for {NextRotation}", nextRotation);
 
 			return AuthenticationRotationResult.CreateSuccess(
-				$"API key rotation completed. Key version: {keyGenerationResult.KeyVersion}",
+				"API key rotation completed.",
 				nextRotation);
 		}
 		catch (Exception ex)
@@ -839,14 +847,18 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 					gracePeriodExpiry);
 			}
 
-			// Rotate the service account secret using the key provider's rotation capability
-			var rotationResult = await _keyProvider.RotateEncryptionKeyAsync(
+			// Rotate the service account secret: generate a fresh, cryptographically random value and store
+			// it. This is credential material, not an encryption key -- generated directly with a CSPRNG.
+			var newSecret = GenerateSecretValue();
+			var stored = await _keyProvider.SetSecretAsync(
 				"elasticsearch:serviceaccount:secret",
+				newSecret,
+				new SecretMetadata(description: "Elasticsearch Service Account Secret"),
 				cancellationToken).ConfigureAwait(false);
 
-			if (!rotationResult.Success)
+			if (!stored)
 			{
-				return AuthenticationRotationResult.Failure($"Service account secret rotation failed: {rotationResult.ErrorMessage}");
+				return AuthenticationRotationResult.Failure("Service account secret rotation failed: the credential store rejected the write");
 			}
 
 			// After rotating the secret, obtain a fresh token using the new credentials
@@ -863,7 +875,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 				nextRotation);
 
 			return AuthenticationRotationResult.CreateSuccess(
-				$"Service account rotation completed. New key version: {rotationResult.NewKeyVersion}",
+				"Service account rotation completed.",
 				nextRotation);
 		}
 		catch (Exception ex)
@@ -923,14 +935,18 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 					gracePeriodExpiry);
 			}
 
-			// Rotate the OAuth2 client secret using the key provider's rotation capability
-			var rotationResult = await _keyProvider.RotateEncryptionKeyAsync(
+			// Rotate the OAuth2 client secret: generate a fresh, cryptographically random value and store
+			// it. This is credential material, not an encryption key -- generated directly with a CSPRNG.
+			var newSecret = GenerateSecretValue();
+			var stored = await _keyProvider.SetSecretAsync(
 				"elasticsearch:oauth2:clientsecret",
+				newSecret,
+				new SecretMetadata(description: "Elasticsearch OAuth2 Client Secret"),
 				cancellationToken).ConfigureAwait(false);
 
-			if (!rotationResult.Success)
+			if (!stored)
 			{
-				return AuthenticationRotationResult.Failure($"OAuth2 client secret rotation failed: {rotationResult.ErrorMessage}");
+				return AuthenticationRotationResult.Failure("OAuth2 client secret rotation failed: the credential store rejected the write");
 			}
 
 			// After rotating the secret, obtain a fresh token using the new credentials
@@ -947,7 +963,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 				nextRotation);
 
 			return AuthenticationRotationResult.CreateSuccess(
-				$"OAuth2 client rotation completed. New key version: {rotationResult.NewKeyVersion}",
+				"OAuth2 client rotation completed.",
 				nextRotation);
 		}
 		catch (Exception ex)
@@ -958,9 +974,59 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 	}
 
 	/// <summary>
+	/// Generates a new opaque connection-credential value with a cryptographically secure random number
+	/// generator. This is credential material (an API key, a client secret), never encryption-key material,
+	/// so it is generated directly rather than through a key-management provider.
+	/// </summary>
+	private static string GenerateSecretValue() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
+	/// <summary>
+	/// Builds the retry pipeline wrapped around a scheduled rotation attempt.
+	/// </summary>
+	/// <param name="rotation">The configured rotation options.</param>
+	/// <returns>
+	/// A retry pipeline, or an empty pipeline when retries are switched off.
+	/// </returns>
+	/// <remarks>
+	/// The predicate is on the RESULT, not on an exception.
+	/// <see cref="RotateCredentialsAsync(CancellationToken)"/> converts every fault into a failed
+	/// <see cref="AuthenticationRotationResult"/> and does not throw, so a retry keyed on exceptions
+	/// would never fire. Anything that does escape it -- disposal, a programming error -- is not a
+	/// transient rotation failure and is deliberately left to propagate.
+	/// </remarks>
+	private static ResiliencePipeline<AuthenticationRotationResult> BuildRotationRetryPipeline(
+		CredentialRotationOptions rotation)
+	{
+		// Polly rejects a retry strategy configured for zero retries, so that case adds no strategy at
+		// all rather than constructing one it will refuse.
+		if (rotation.MaxRetries <= 0)
+		{
+			return ResiliencePipeline<AuthenticationRotationResult>.Empty;
+		}
+
+		return new ResiliencePipelineBuilder<AuthenticationRotationResult>()
+			.AddRetry(new RetryStrategyOptions<AuthenticationRotationResult>
+			{
+				MaxRetryAttempts = rotation.MaxRetries,
+				Delay = rotation.RetryDelay,
+				BackoffType = DelayBackoffType.Exponential,
+				UseJitter = true,
+				ShouldHandle = new PredicateBuilder<AuthenticationRotationResult>()
+					.HandleResult(static result => !result.Success),
+			})
+			.Build();
+	}
+
+	/// <summary>
 	/// Performs scheduled credential rotation when triggered by the timer.
 	/// </summary>
-	private async Task PerformScheduledRotationAsync()
+	/// <returns>A task that completes when the rotation attempt and any retries have finished.</returns>
+	/// <remarks>
+	/// A single attempt used to be the whole of this method: one transient failure left the credentials
+	/// un-rotated until the next <see cref="CredentialRotationOptions.RotationInterval"/> elapsed, which
+	/// is thirty days by default. The retries happen inside the interval instead.
+	/// </remarks>
+	internal async Task PerformScheduledRotationAsync()
 	{
 		if (_disposed || !SupportsRotation)
 		{
@@ -969,7 +1035,22 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 
 		try
 		{
-			_ = await RotateCredentialsAsync(CancellationToken.None).ConfigureAwait(false);
+			var result = await _rotationRetryPipeline
+				.ExecuteAsync(
+					async token => await RotateCredentialsAsync(token).ConfigureAwait(false),
+					CancellationToken.None)
+				.ConfigureAwait(false);
+
+			if (!result.Success)
+			{
+				_logger.LogError(
+					"Scheduled credential rotation failed for type {AuthType} after {Attempts} attempts: {Message}",
+					AuthenticationType,
+					_securitySettings.Authentication.CredentialRotation.MaxRetries + 1,
+					result.Message);
+				await HandleAuthenticationFailureAsync($"Scheduled rotation failed: {result.Message}", CancellationToken.None)
+					.ConfigureAwait(false);
+			}
 		}
 		catch (Exception ex)
 		{

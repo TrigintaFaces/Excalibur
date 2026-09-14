@@ -91,10 +91,12 @@ public sealed class ControlValidationServiceDepthShould
 
 		result.ControlId.ShouldBe("unknown");
 		result.ItemsTested.ShouldBe(0);
-		result.Outcome.ShouldBe(TestOutcome.ControlFailure);
-		result.Exceptions.ShouldNotBeEmpty();
-		result.Exceptions[0].Description.ShouldContain("No validator registered");
-		result.Exceptions[0].Severity.ShouldBe(GapSeverity.Critical);
+		result.Outcome.ShouldBe(
+			TestOutcome.NotTested,
+			"no validator ran, so neither effectiveness nor failure was observed");
+		result.Notes.ShouldNotBeNullOrWhiteSpace();
+		result.Notes.ShouldContain("No validator registered");
+		result.Exceptions.ShouldBeEmpty("a test that never ran cannot have found an exception");
 	}
 
 	[Fact]

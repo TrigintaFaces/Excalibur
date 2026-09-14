@@ -35,7 +35,10 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// comparison against Wolverine's InvokeAsync (bare in-process handler call).
 /// Fresh context per iteration, warmup + freeze for production-representative numbers.
 /// </remarks>
-[MemoryDiagnoser]
+/// Allocation is NOT measured under this config. It runs one invocation per iteration, so an
+/// Allocated column would report per-iteration setup rather than per-operation cost -- measured at a
+/// ~30% swing across identical consecutive runs, which is not a figure anyone can publish or gate on.
+/// The warm-path subclass carries the memory diagnoser instead, where the number resolves.
 [Config(typeof(ComparativeBenchmarkConfig))]
 public class WolverineComparisonBenchmarks
 {

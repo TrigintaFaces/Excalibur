@@ -5,8 +5,8 @@
 namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
-/// Defines the contract for secure key and secret management providers that integrate with external key management systems for
-/// Elasticsearch security operations.
+/// Defines the contract for providers that store and retrieve Elasticsearch's own connection credentials --
+/// OAuth tokens, service-account secrets, passwords, and API keys -- in a secure secret store.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -14,18 +14,20 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// </para>
 /// <list type="bullet">
 ///   <item><description><see cref="IElasticsearchKeyStorage"/> -- CRUD operations for secret storage and retrieval.</description></item>
-///   <item><description><see cref="IElasticsearchKeyManagement"/> -- key generation, rotation, and provider capabilities.</description></item>
 ///   <item><description><see cref="IElasticsearchKeyProviderEvents"/> -- events and secret listing for audit and monitoring.</description></item>
-///   <item><description><see cref="IVersionedSecretStorage"/> -- version-addressed retrieval and current-version resolution for rotation-safe decryption.</description></item>
 /// </list>
 /// <para>
 /// Consumers that need only a subset of functionality should depend on the specific sub-interface instead of this aggregate interface.
 /// </para>
+/// <para>
+/// This is a connection-credential store, not encryption-key custody: it returns opaque secret strings, never key
+/// material for cryptographic operations. Field-level encryption keys are resolved through
+/// <see cref="Excalibur.Compliance.IKeyManagementProvider"/> and <see cref="Excalibur.Compliance.IEncryptionProviderRegistry"/>
+/// instead, which structurally never expose key material to this package.
+/// </para>
 /// </remarks>
 public interface IElasticsearchKeyProvider :
 	IElasticsearchKeyStorage,
-	IElasticsearchKeyManagement,
-	IElasticsearchKeyProviderEvents,
-	IVersionedSecretStorage
+	IElasticsearchKeyProviderEvents
 {
 }

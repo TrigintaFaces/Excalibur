@@ -124,6 +124,13 @@ internal static class DataCosmosDbEventId
 	/// <summary>Change feed error occurred.</summary>
 	public const int ChangeFeedError = 102405;
 
+	/// <summary>
+	/// A change-feed subscription's checkpoint saves have failed enough consecutive times to report the
+	/// subscription degraded: event delivery continues, but the redelivery window on a future restart
+	/// can grow while this condition persists.
+	/// </summary>
+	public const int ChangeFeedCheckpointDegraded = 102406;
+
 	// ========================================
 	// 102500-102599: Performance/RU
 	// ========================================

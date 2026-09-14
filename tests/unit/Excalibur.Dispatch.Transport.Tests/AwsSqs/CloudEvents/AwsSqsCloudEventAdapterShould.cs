@@ -137,14 +137,6 @@ public sealed class AwsSqsCloudEventAdapterShould
 	}
 
 	[Fact]
-	public async Task ThrowWhenTransportMessageIsNullForFromTransport()
-	{
-		await Should.ThrowAsync<ArgumentNullException>(
-			() => _adapter.FromTransportMessageAsync(
-				(SendMessageRequest)null!, CancellationToken.None));
-	}
-
-	[Fact]
 	public async Task ConvertToSqsMessageWithQueueUrl()
 	{
 		// Arrange
@@ -263,34 +255,6 @@ public sealed class AwsSqsCloudEventAdapterShould
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => AwsSqsCloudEventAdapter.TryDetectMode(
 				(Message)null!, CancellationToken.None).AsTask());
-	}
-
-	[Fact]
-	public async Task RoundTripStructuredCloudEvent()
-	{
-		// Arrange
-		var original = new CloudEvent
-		{
-			Type = "test.roundtrip",
-			Source = new Uri("https://source.example.com"),
-			Id = "roundtrip-1",
-			Data = "round trip data",
-			DataContentType = "text/plain",
-			Time = DateTimeOffset.UtcNow,
-		};
-
-		// Act — serialize to SQS message
-		var sqsRequest = await _adapter.ToTransportMessageAsync(
-			original, CloudEventMode.Structured, CancellationToken.None);
-
-		// Deserialize back from SQS message
-		var deserialized = await _adapter.FromTransportMessageAsync(
-			sqsRequest, CancellationToken.None);
-
-		// Assert
-		deserialized.Type.ShouldBe("test.roundtrip");
-		deserialized.Source.ShouldBe(new Uri("https://source.example.com"));
-		deserialized.Id.ShouldBe("roundtrip-1");
 	}
 
 	[Fact]

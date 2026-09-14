@@ -2,6 +2,10 @@
 Excalibur.Dispatch.Transport.Mqtt.IMqttConnectionProvider
 Excalibur.Dispatch.Transport.Mqtt.IMqttConnectionProvider.BuildClientOptions(string! clientIdSuffix) -> MQTTnet.MqttClientOptions!
 Excalibur.Dispatch.Transport.Mqtt.IMqttConnectionProvider.CreateClient() -> MQTTnet.IMqttClient!
+Excalibur.Dispatch.Transport.Mqtt.MqttCloudEventOptions
+Excalibur.Dispatch.Transport.Mqtt.MqttCloudEventOptions.MqttCloudEventOptions() -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttCloudEventOptions.Retain.get -> bool
+Excalibur.Dispatch.Transport.Mqtt.MqttCloudEventOptions.Retain.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ClientId.get -> string!
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ClientId.set -> void
@@ -16,6 +20,8 @@ Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Port.get -> int
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Port.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.QualityOfService.get -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.QualityOfService.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.RequireTls.get -> bool
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.RequireTls.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ResponseTopic.get -> string?
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ResponseTopic.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.SharedSubscriptionGroup.get -> string!
@@ -32,7 +38,8 @@ Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
 Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService.AtLeastOnce = 1 -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
 Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService.AtMostOnce = 0 -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
 Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService.ExactlyOnce = 2 -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
+Microsoft.Extensions.DependencyInjection.MqttCloudEventsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MqttTransportServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.MqttCloudEventsServiceCollectionExtensions.AddCloudEventsForMqtt(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Mqtt.MqttCloudEventOptions!>? configureMqtt = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MqttCloudEventsServiceCollectionExtensions.UseCloudEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MqttTransportServiceCollectionExtensions.AddMqttTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Mqtt.MqttOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Dispatch.Transport.Mqtt.MqttOptions.RequireTls.get -> bool
-Excalibur.Dispatch.Transport.Mqtt.MqttOptions.RequireTls.set -> void

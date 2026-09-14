@@ -224,9 +224,6 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		var options = new CacheOptions { Enabled = true, CacheMode = CacheMode.Memory };
 		var middleware = CreateMiddleware(options, memoryCache: _fakeMemoryCache, tagTracker: _fakeTagTracker);
 
-		A.CallTo(() => _fakeTagTracker.GetKeysByTagsAsync(A<string[]>._, A<CancellationToken>._))
-			.Returns(new HashSet<string>(["cached-key-1", "cached-key-2"]));
-
 		var message = A.Fake<ICacheInvalidator>();
 		A.CallTo(() => message.GetCacheTagsToInvalidate()).Returns(["tag-a"]);
 		A.CallTo(() => message.GetCacheKeysToInvalidate()).Returns(["direct-key"]);
@@ -238,10 +235,10 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		await middleware.InvokeAsync(
 			message, context, (_, _, _) => new ValueTask<IMessageResult>(expectedResult), CancellationToken.None);
 
-		// Assert — tag tracker resolves keys, then memory cache removes them
-		A.CallTo(() => _fakeTagTracker.GetKeysByTagsAsync(A<string[]>._, A<CancellationToken>._)).MustHaveHappened();
-		A.CallTo(() => _fakeMemoryCache.Remove("cached-key-1")).MustHaveHappened();
-		A.CallTo(() => _fakeMemoryCache.Remove("cached-key-2")).MustHaveHappened();
+		// Assert — the tag tracker's per-tag version stamp is bumped (no key resolution, no per-key
+		// removal: a tagged entry is discovered stale lazily on its next read); the direct key is still
+		// removed from the memory cache.
+		A.CallTo(() => _fakeTagTracker.BumpStampAsync("tag-a", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 		A.CallTo(() => _fakeMemoryCache.Remove("sk:direct-key")).MustHaveHappened();
 	}
 
@@ -277,9 +274,6 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		var fakeMemoryCache = A.Fake<IMemoryCache>();
 		var middleware = CreateMiddleware(options, tagTracker: _fakeTagTracker, memoryCache: fakeMemoryCache);
 
-		A.CallTo(() => _fakeTagTracker.GetKeysByTagsAsync(A<string[]>._, A<CancellationToken>._))
-			.Returns(new HashSet<string>(["dist-key-1"]));
-
 		var message = A.Fake<ICacheInvalidator>();
 		A.CallTo(() => message.GetCacheTagsToInvalidate()).Returns(SingleDTag);
 		A.CallTo(() => message.GetCacheKeysToInvalidate()).Returns(SingleDDirectKey);
@@ -291,10 +285,9 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		await middleware.InvokeAsync(
 			message, context, (_, _, _) => new ValueTask<IMessageResult>(expectedResult), CancellationToken.None);
 
-		// Assert -- tracker resolves tags to keys, memory cache removes them
-		A.CallTo(() => _fakeTagTracker.GetKeysByTagsAsync(A<string[]>._, A<CancellationToken>._)).MustHaveHappened();
-		A.CallTo(() => fakeMemoryCache.Remove("dist-key-1")).MustHaveHappened();
-		A.CallTo(() => _fakeTagTracker.UnregisterKeyAsync("dist-key-1", A<CancellationToken>._)).MustHaveHappened();
+		// Assert -- the tracker's per-tag version stamp is bumped (no key resolution against the memory
+		// cache); the direct key is still removed.
+		A.CallTo(() => _fakeTagTracker.BumpStampAsync("d-tag", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]

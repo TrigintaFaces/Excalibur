@@ -20,7 +20,7 @@ internal static class BenchmarkDispatchServiceCollectionExtensions
 		// helper fails to activate the pipeline and BenchmarkDotNet reports NA rather than a number.
 		_ = services.AddLogging();
 
-		return services.AddDispatch(builder =>
+		_ = services.AddDispatch(builder =>
 		{
 			_ = builder.WithOptions(options =>
 			{
@@ -34,5 +34,7 @@ internal static class BenchmarkDispatchServiceCollectionExtensions
 
 			configure?.Invoke(builder);
 		});
+
+		return services;
 	}
 }

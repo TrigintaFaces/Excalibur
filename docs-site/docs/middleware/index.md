@@ -178,9 +178,9 @@ builder.Services.AddDispatch(dispatch =>
 | `ValidationMiddleware` | Validation | Excalibur.Dispatch | FluentValidation / DataAnnotations |
 | `AspNetCoreAuthorizationMiddleware` | Authorization | Excalibur.Dispatch.Hosting.AspNetCore | ASP.NET Core `[Authorize]` policy bridge |
 | `AuthorizationMiddleware` (A3) | Authorization | Excalibur.A3 | Activity-based `[RequirePermission]` authorization |
-| `ExceptionMiddleware` | ErrorHandling | Excalibur.Dispatch | Exception to result conversion |
-| `MetricsMiddleware` | Logging | Excalibur.Dispatch | OpenTelemetry metrics |
-| `TracingMiddleware` | PreProcessing | Excalibur.Dispatch | Distributed tracing |
+| `ExceptionMappingMiddleware` | ErrorHandling | Excalibur.Dispatch | Exception to result conversion |
+| `MetricsMiddleware` | Logging | Excalibur.Dispatch.Observability | OpenTelemetry metrics |
+| `TracingMiddleware` | PreProcessing | Excalibur.Dispatch.Observability | Distributed tracing |
 
 ## Message Context
 
