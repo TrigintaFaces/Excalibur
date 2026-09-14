@@ -58,65 +58,45 @@ capabilities:
     project: "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
     e2e_test: "Excalibur.Integration.Tests.Data.Projections.SqlServerProjectionRebuildErasureEndToEndShould.NeverHandAnErasedSubjectsEventsToAProjection_WhileStillRebuildingEveryOtherSubject"
 
-  # RESTORED after removal. The entry below was deleted earlier on the reading that inbound decode
-  # was not advertised anywhere, so this file's own rule -- enumerate from what we ADVERTISE -- put
-  # it out of scope. That reading is superseded: supporting CloudEvents in BOTH directions, on every
-  # transport where the protocol allows it, is a stated product requirement. A requirement is a
-  # stronger basis for an entry than an advertisement, so the entry belongs here whether or not any
-  # README mentions receiving.
+  # ARMED 2026-09-14. This entry carried a long note explaining why it was expected to FAIL. That note
+  # was STALE ON ARRIVAL and its central claims are RETRACTED here, at the artifact, because a reader
+  # sizing this work from it would have sized a rewrite that was already written:
   #
-  # The note that stood here prescribed exactly this: "ADD AN ENTRY HERE the moment an advertisement
-  # claims inbound decode, or the moment the seam is wired." The requirement is the first of those,
-  # arriving from the product rather than from a doc.
+  #   it said  "no implementation of that interface has ever been committed"
+  #            git log --oneline -S "ICloudEventDecoder<TransportReceivedMessage>" -- src/
+  #            -> dee9fdc6de  feat(cloudevents): decode inbound CloudEvents on every transport
+  #            dated 2026-09-09, TWO DAYS BEFORE the note that says it does not exist (9f79500e19,
+  #            2026-09-11). The note ran its own query and recorded the answer it expected.
   #
-  # It is NOT REACHABLE, and the shape of what is missing changed once the contract itself was read.
+  #   it said  "It is NOT REACHABLE"
+  #            git grep -n "WithCloudEventDecoding" -- src/
+  #            -> 10 registration call sites across ALL NINE shipping transport packages.
+  #            CONTROL, same query shape on the encode-side sibling WithCloudEventEncoding -> 3.
   #
-  #     src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/ICloudEventDecoder.cs
-  #       "The framework ships exactly one implementation, over TransportReceivedMessage ... so one
-  #        decoder serves every provider instead of nine hand-written, divergent ones ... only build
-  #        a transport-specific decoder if a provider proves it genuinely cannot be decoded from
-  #        TransportReceivedMessage."
+  # The DIRECTIVE the note drew from ICloudEventDecoder's remarks is correct and still binds: ONE
+  # decoder over the transport-neutral inbound type, never nine per-transport ones. That is what
+  # shipped -- TransportReceivedMessageCloudEventDecoder, wrapped by the receive decorator, applied by
+  # each transport's own registration with the binding that transport speaks.
   #
-  # READ THAT AS AN INSTRUCTION, NOT A DESCRIPTION. Its present tense is false and has been since the
-  # commit that introduced it -- no implementation of that interface has ever been committed:
+  # The population is every transport, not a subset, so the requirement's "whose protocol binding
+  # permits it" qualifier excludes nothing here: the two transports the CloudEvents spec assigns no
+  # binding (gRPC, Pulsar) decode structured mode via CloudEventBinding.StructuredOnly.
   #
-  #     git log --oneline -S "ICloudEventDecoder<TransportReceivedMessage>" -- src/   ->  no commits
+  # WHY THIS ARM, and why the weaker one beside it is not enough. The sibling resolution arms assert
+  # the registration wrapped the receiver in the decoding decorator. That type is present on both
+  # sides of the defect this seam actually suffers -- a binding-ARGUMENT mismatch, where a transport
+  # emits attribute names its own registered decoder cannot read -- so a type assertion cannot
+  # discriminate it. The arm named below feeds a resolved receiver the message the real adapter
+  # emitted and asserts the decoded event's attributes are the ones that went out.
   #
-  # Several people sized this work from that sentence's TENSE. The load-bearing half is the DIRECTIVE:
-  # one decoder over the transport-neutral inbound type, never nine per-transport ones.
-  #
-  # CORRECTED. An earlier revision of this note read "most of the decoding is already written and
-  # unreachable", which sizes the work as WIRING. False under that directive: the per-transport decode
-  # methods that exist are the nine divergent ones it tells you not to build, so they are not code
-  # awaiting a wire, and counting them sizes the work downward. What is missing is one decoder, its
-  # registration, and an invocation point.
-  #
-  # NAME THE TIER before citing any of that as done. This entry is about what a CONSUMER gets, so a
-  # working tree does not settle it and neither does an untracked file -- `git rev-parse HEAD:<path>`
-  # does, and a released version is a third tier again.
-  #
-  #     # every decode entry point, found by SHAPE rather than by a name someone remembered:
-  #     N=$(git grep -hoE "Task<CloudEvent\??>\s+[A-Za-z]+Async" -- src/Dispatch | sed -E 's/.*>[[:space:]]*//' | sort -u | paste -sd'|' -)
-  #     git grep -nE "$N" -- src/ | grep -v "/CloudEvents/" | grep -v PublicAPI
-  #     -> 0     CONTROL, encode side, same query shape: ToTransportAsync -> 13
-  #
-  # The shape query matters more than the zero, and it took two corrections to earn that. Enumerating
-  # by a name you already know -- FromTransportMessageAsync -- misses the ones named per transport
-  # (FromSqsMessageAsync, FromKafkaAsync, ParseStructuredModeAsync), so a name-list confirms what you
-  # expect and can never discover what you did not. Then the first shape query written here made the
-  # SAME error one level down: it spelled the return type Task<CloudEvent>, which cannot match a
-  # nullable-returning method, so it missed 2 of 12 -- including TryDecodeAsync, the only entry point
-  # the shipped design uses. The \?? above is that fix, and the zero is re-measured at the wider set.
-  #
-  # No count of adapters is given here on purpose: three people measured that population and got three
-  # defensible answers because each chose a different denominator. The reachability zero above is the
-  # number that does not move, and it is the one that matters.
-  #
-  # So this entry is expected to FAIL until inbound decode is reachable through the supported
-  # composition and has a real end-to-end arm -- that failure is the point of listing it, not a defect
-  # in this file. Do not resolve it by deleting the entry, and do not resolve it by deleting the seam.
+  # NON-VACUITY, measured 2026-09-14 in a throwaway worktree at 0cfd340348, two planted breaks:
+  #   registration decodes with the wrong binding (HouseConvention -> Kafka)  -> RED
+  #   decoder reads id from the type attribute (key survives, value wrong)    -> RED, on the
+  #     attribute assertion specifically: decoded.Id should be "evt-1" but was "order.placed".
+  # The second break is why the arm asserts attribute VALUES and not merely the key's presence: a
+  # decoder that attached an empty or wrong event passes a presence check completely.
 
   - name: cloudevents-inbound-decode
     advertised_in: "Product requirement: CloudEvents support covers both sending and receiving on every transport whose protocol binding permits it. This entry rests on the requirement alone and deliberately cites no document. The transport READMEs are being corrected as this is written, so any sentence quoted here about what they currently claim would be stale on landing -- and the requirement is a stronger basis than an advertisement in any case, which is why the entry does not need one."
-    project: ""
-    e2e_test: ""
+    project: "tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj"
+    e2e_test: "Excalibur.Dispatch.Transport.Tests.CloudEvents.CloudEventRoundTripShould.Decode_what_the_Sqs_adapter_emits"

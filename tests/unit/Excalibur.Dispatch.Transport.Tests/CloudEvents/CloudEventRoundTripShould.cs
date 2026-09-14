@@ -73,15 +73,28 @@ public sealed class CloudEventRoundTripShould
 
         var received = await receiver.ReceiveAsync(1, CancellationToken.None);
 
-        received
-            .ShouldHaveSingleItem()
-            .ProviderData
-            .ShouldContainKey(
-                CloudEventDecodingTransportReceiver.CloudEventProviderDataKey,
-                "SQS publishes these attribute names and the receiver its own registration builds could "
-                + "not read them back, so a CloudEvent this framework emitted arrives at a consumer of "
-                + "this framework as ordinary traffic - indistinguishable from a message that never "
-                + $"carried CloudEvents markers. Names actually emitted: {Names(emitted)}");
+        var providerData = received.ShouldHaveSingleItem().ProviderData;
+
+        providerData.ShouldContainKey(
+            CloudEventDecodingTransportReceiver.CloudEventProviderDataKey,
+            "SQS publishes these attribute names and the receiver its own registration builds could "
+            + "not read them back, so a CloudEvent this framework emitted arrives at a consumer of "
+            + "this framework as ordinary traffic - indistinguishable from a message that never "
+            + $"carried CloudEvents markers. Names actually emitted: {Names(emitted)}");
+
+        // PRESENCE IS A WEAKER CLAIM THAN THE CAPABILITY. A decoder that attached an empty or wrong
+        // event satisfies the key check above completely. The attributes are what a consumer actually
+        // reads off the decoded event, so the round trip is only closed once the values that went out
+        // are the values that come back - which is the property the requirement states, and the one a
+        // per-attribute spelling bug (the defect class this whole seam guards) would break while
+        // leaving the key in place.
+        var decoded = providerData[CloudEventDecodingTransportReceiver.CloudEventProviderDataKey]
+            .ShouldBeOfType<CloudEvent>();
+
+        var sent = Event();
+        decoded.Id.ShouldBe(sent.Id, "the decoded event's id is not the one the adapter emitted");
+        decoded.Type.ShouldBe(sent.Type, "the decoded event's type is not the one the adapter emitted");
+        decoded.Source.ShouldBe(sent.Source, "the decoded event's source is not the one the adapter emitted");
     }
 
     /// <summary>
