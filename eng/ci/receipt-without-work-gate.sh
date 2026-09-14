@@ -206,7 +206,12 @@ self_test() {
 	# false-green in this gate's own self-test before it shipped.
 	finds() { # finds <name> <expected-record-regex> <root>
 		local name="$1" want="$2" root="$3"
-		if python3 "$CENSUS_PY" "$root" 2>/dev/null | grep -qE "$want"; then
+		# NOT `| grep -qE`: the census keeps emitting records after grep -q exits, and under
+		# `set -o pipefail` that SIGPIPE (141) becomes the pipeline's verdict -- the arm would
+		# report "no record matched" for a census that DID match. Collect, then test.
+		local _matched
+		_matched="$(python3 "$CENSUS_PY" "$root" 2>/dev/null | grep -E "$want")"
+		if [ -n "$_matched" ]; then
 			echo "  self-test ok:   $name (record matched)"
 		else
 			echo "  self-test FAIL: $name -- no census record matching /$want/" >&2

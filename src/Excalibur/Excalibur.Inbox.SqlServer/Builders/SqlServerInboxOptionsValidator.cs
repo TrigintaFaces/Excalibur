@@ -20,8 +20,9 @@ internal sealed class SqlServerInboxBuilderOptionsValidator : IValidateOptions<S
 		{
 			return ValidateOptionsResult.Fail(
 				"No connection configured for Inbox. " +
-				"Call ConnectionString(), ConnectionStringName(), ConnectionFactory(), " +
-				"or BindConfiguration() inside UseSqlServer().");
+				"Call ConnectionString(), ConnectionStringName(), or ConnectionFactory() inside " +
+				"UseSqlServer(), or bind the options yourself with " +
+				"services.AddOptions<SqlServerInboxOptions>().BindConfiguration(\"Section:Path\").");
 		}
 
 		return ValidateOptionsResult.Success;

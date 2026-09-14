@@ -12,13 +12,11 @@ internal sealed class LeaderElectionConsulBuilder : ILeaderElectionConsulBuilder
 	internal string? LockKeyValue { get; private set; }
 
 	internal string? ResourceNameValue { get; private set; }
-	internal string? BindConfigurationPath { get; private set; }
 
 	public ILeaderElectionConsulBuilder Address(string address)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(address);
 		AddressValue = address;
-		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -58,14 +56,6 @@ internal sealed class LeaderElectionConsulBuilder : ILeaderElectionConsulBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(lockKey);
 		LockKeyValue = lockKey;
-		return this;
-	}
-
-	public ILeaderElectionConsulBuilder BindConfiguration(string sectionPath)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
-		BindConfigurationPath = sectionPath;
-		AddressValue = null;
 		return this;
 	}
 }

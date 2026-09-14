@@ -21,7 +21,6 @@ internal sealed class PostgresLeaderElectionBuilder : IPostgresLeaderElectionBui
 	internal Func<IServiceProvider, NpgsqlDataSource>? DataSourceFactoryFunc { get; private set; }
 	internal NpgsqlDataSource? DataSourceInstance { get; private set; }
 	internal string? ConnectionStringNameValue { get; private set; }
-	internal string? BindConfigurationPath { get; private set; }
 
 	public IPostgresLeaderElectionBuilder ConnectionString(string connectionString)
 	{
@@ -31,7 +30,6 @@ internal sealed class PostgresLeaderElectionBuilder : IPostgresLeaderElectionBui
 		DataSourceFactoryFunc = null;
 		DataSourceInstance = null;
 		ConnectionStringNameValue = null;
-		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -43,7 +41,6 @@ internal sealed class PostgresLeaderElectionBuilder : IPostgresLeaderElectionBui
 		_options.ConnectionString = null!;
 		DataSourceInstance = null;
 		ConnectionStringNameValue = null;
-		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -55,7 +52,6 @@ internal sealed class PostgresLeaderElectionBuilder : IPostgresLeaderElectionBui
 		_options.ConnectionString = null!;
 		DataSourceFactoryFunc = null;
 		ConnectionStringNameValue = null;
-		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -67,19 +63,6 @@ internal sealed class PostgresLeaderElectionBuilder : IPostgresLeaderElectionBui
 		_options.ConnectionString = null!;
 		DataSourceFactoryFunc = null;
 		DataSourceInstance = null;
-		BindConfigurationPath = null;
-		return this;
-	}
-
-	public IPostgresLeaderElectionBuilder BindConfiguration(string sectionPath)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
-
-		BindConfigurationPath = sectionPath;
-		_options.ConnectionString = null!;
-		DataSourceFactoryFunc = null;
-		DataSourceInstance = null;
-		ConnectionStringNameValue = null;
 		return this;
 	}
 

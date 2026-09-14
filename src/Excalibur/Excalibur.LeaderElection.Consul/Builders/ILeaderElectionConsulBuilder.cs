@@ -8,13 +8,15 @@ namespace Excalibur.LeaderElection.Consul;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Connection methods (<see cref="Address"/>, <see cref="BindConfiguration"/>)
-/// use last-wins semantics: setting one clears the other.
+/// Every method is additive: each sets one value and the rest are unaffected, so they can be
+/// combined in any order.
 /// </para>
 /// <para>
-/// Non-connection methods (<see cref="Token"/>, <see cref="Datacenter"/>,
-/// <see cref="SessionTtl"/>, <see cref="LockKey"/>) are additive
-/// and can be combined with any connection method.
+/// To populate these options from configuration instead of stating them here, call
+/// <c>services.AddOptions&lt;ConsulLeaderElectionOptions&gt;().BindConfiguration("Section:Path")</c>
+/// alongside the registration. That is the standard options idiom, and it keeps this builder --
+/// and the registration entry points that take it -- free of the reflective binding that a trimmed
+/// or native-AOT application cannot use.
 /// </para>
 /// </remarks>
 public interface ILeaderElectionConsulBuilder
@@ -51,7 +53,4 @@ public interface ILeaderElectionConsulBuilder
 	/// into contention for one lock.
 	/// </remarks>
 	ILeaderElectionConsulBuilder ResourceName(string resourceName);
-
-	/// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
-	ILeaderElectionConsulBuilder BindConfiguration(string sectionPath);
 }

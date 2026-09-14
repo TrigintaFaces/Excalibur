@@ -98,7 +98,7 @@ public static class DispatchJsonSerializerOptions
 	/// if you need both string enums and ahead-of-time compilation.
 	/// </remarks>
 	[RequiresDynamicCode(
-		"Writing enums as names uses a converter built per enum type at run time.")]
+		"Writing enums as names uses a converter built per enum type at run time, which native AOT does not support. Use ApplyDefaults, which writes enums as numbers, or name each enum with JsonStringEnumConverter<TEnum> or supply a JsonSerializerContext.")]
 	public static JsonSerializerOptions ApplyDefaultsWithStringEnums(JsonSerializerOptions options)
 	{
 		_ = ApplyDefaults(options);

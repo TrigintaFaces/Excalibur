@@ -80,6 +80,26 @@ public sealed class HarnessCapabilityNonVacuityShould
 	public async Task Fail_The_Filtering_Assertion_Against_A_Non_Filtering_Transport() =>
 		await ShouldFailConformanceAsync(() => AssertFilteringAsync(new NonConformingInMemoryTransport()));
 
+	// ---- Late-bound filtering (Excalibur_Dispatch-2rz404) : the ReceiveTimeFiltering family ----
+
+	/// <summary>
+	/// The receive-time family's own property: a predicate supplied AFTER both messages are already queued
+	/// still refuses the non-matching one. GREEN against the conforming double — which is what MEASURES that
+	/// double as <see cref="TransportCapability.ReceiveTimeFiltering" /> rather than asserting it.
+	/// </summary>
+	[Fact]
+	public async Task Filter_On_A_Late_Bound_Predicate_Against_A_Receive_Time_Filtering_Transport() =>
+		await AssertLateBoundFilteringAsync(new ConformingInMemoryTransport());
+
+	/// <summary>
+	/// AC-U4: the late-bound arm is RED against a transport that ignores the filter, so advertising
+	/// <see cref="TransportCapability.ReceiveTimeFiltering" /> without honouring it cannot pass.
+	/// </summary>
+	[Fact]
+	public async Task Fail_The_Late_Bound_Filtering_Assertion_Against_A_Non_Filtering_Transport() =>
+		await ShouldFailConformanceAsync(
+			() => AssertLateBoundFilteringAsync(new NonConformingInMemoryTransport()));
+
 	/// <summary>
 	/// Runs a capability conformance assertion and requires it to be RED (throw <see cref="ShouldAssertException" />).
 	/// This is the non-vacuity gate: a capability fact that cannot fail against a non-conforming transport is
@@ -177,12 +197,42 @@ public sealed class HarnessCapabilityNonVacuityShould
 
 	private static async Task AssertFilteringAsync(ITransportConformanceCapabilities transport)
 	{
-		transport.Capabilities.HasFlag(TransportCapability.Filtering).ShouldBeTrue();
+		transport.Capabilities.HasFlag(TransportCapability.ReceiveTimeFiltering).ShouldBeTrue();
 
 		var keep = NewMessage("keep");
 		var drop = NewMessage("drop");
 
 		// The non-matching message is sent FIRST so a transport that ignores the filter returns it (RED).
+		await transport.SendFilterableAsync(
+			drop,
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "drop" },
+			CancellationToken.None);
+		await transport.SendFilterableAsync(
+			keep,
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "keep" },
+			CancellationToken.None);
+
+		var received = await transport.ReceiveMatchingAsync<TestMessage>(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "keep" },
+			CancellationToken.None);
+
+		_ = received.ShouldNotBeNull();
+		received.Body!.Content.ShouldBe("keep");
+	}
+
+	/// <summary>
+	/// The late-bound property, asserted exactly as <c>Should_Filter_On_A_Predicate_Supplied_After_The_Sends</c>
+	/// does: no <c>PrepareFilterAsync</c>, both messages queued first, predicate supplied only on the read.
+	/// </summary>
+	private static async Task AssertLateBoundFilteringAsync(ITransportConformanceCapabilities transport)
+	{
+		transport.Capabilities.HasFlag(TransportCapability.ReceiveTimeFiltering).ShouldBeTrue();
+
+		var keep = NewMessage("keep");
+		var drop = NewMessage("drop");
+
+		// Deliberately NO PrepareFilterAsync — the transport has not been told what the predicate is. The
+		// non-matching message is sent FIRST so a transport that ignores the late-bound filter returns it.
 		await transport.SendFilterableAsync(
 			drop,
 			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "drop" },

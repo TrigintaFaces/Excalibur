@@ -174,7 +174,16 @@ _scan() {
 
 # thin wrappers over _scan (single classifier, one source of truth) for the self-test arms
 fragment_decls() { _scan "$1" | awk '/^FRAG /{print $2}' | sort -u; }
-is_used() { _scan "$1" | grep -qx "FRAG $2" && ! _scan "$1" | grep -qx "FINDING $2"; }
+# `| grep -q` would decide this under `set -o pipefail`, and that is a race: grep -q exits on its
+# first hit, _scan's awk is still writing records for a file with many fragments, and the SIGPIPE
+# (141) becomes the PIPELINE's status -- so a match reads as a non-match. Collect, then test.
+# Same defect, same fix, as eng/ci/gate-wiring.sh is_wired.
+is_used() {
+    local frags findings
+    frags="$(_scan "$1" | grep -x "FRAG $2")"
+    findings="$(_scan "$1" | grep -x "FINDING $2")"
+    [ -n "$frags" ] && [ -z "$findings" ]
+}
 
 sweep() {
     local files candidates frag_total=0 findings=0 scanned=0
@@ -358,7 +367,10 @@ EOF
     prod_frags=0
     while IFS= read -r real_file; do
         [ -f "$real_file" ] || continue
-        if _scan "$real_file" | grep -q '^FRAG '; then prod_frags=1; break; fi
+        # not `| grep -q`: _scan keeps writing after grep -q exits, and pipefail turns that
+        # SIGPIPE into the pipeline's status -- ARM6 would then report a fixture-only no-op on a
+        # file that DOES carry fragments. Collect, then test.
+        if [ -n "$(_scan "$real_file" | grep '^FRAG ')" ]; then prod_frags=1; break; fi
     done <<< "$(git grep -lE "$PREFILTER" -- 'src/**/*.cs' 2>/dev/null | head -40)"
     if [ "$prod_frags" -eq 1 ]; then
         echo "  ok  ARM6 prod-path   — real src enumeration (no env) finds predicate fragments to evaluate"

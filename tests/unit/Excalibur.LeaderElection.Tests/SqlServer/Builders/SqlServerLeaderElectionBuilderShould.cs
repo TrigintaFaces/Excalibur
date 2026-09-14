@@ -70,16 +70,6 @@ public sealed class SqlServerLeaderElectionBuilderShould
 		options.Value.ConnectionString.ShouldBeNull();
 	}
 
-	[Fact]
-	public void BindConfiguration_RegisterPath()
-	{
-		var builder = new TestLeaderElectionBuilder();
-		builder.UseSqlServer(sql =>
-			sql.BindConfiguration("LeaderElection:SqlServer").LockResource("test"));
-
-		builder.Services.ShouldNotBeEmpty();
-	}
-
 	// --- LockResource ---
 
 	[Fact]
@@ -158,17 +148,6 @@ public sealed class SqlServerLeaderElectionBuilderShould
 		var builder = new TestLeaderElectionBuilder();
 		Should.Throw<ArgumentException>(() =>
 			builder.UseSqlServer(sql => sql.ConnectionStringName(invalidValue!)));
-	}
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void BindConfiguration_ThrowOnInvalidValue(string? invalidValue)
-	{
-		var builder = new TestLeaderElectionBuilder();
-		Should.Throw<ArgumentException>(() =>
-			builder.UseSqlServer(sql => sql.BindConfiguration(invalidValue!)));
 	}
 
 	[Theory]

@@ -53,7 +53,7 @@ Order retrieved (source-generated serialization):
   {"id":"<guid>","customerId":"CUST-001","status":"Created",...}
 
 --- Demo 4: Query Non-Existent Order ---
-Order not found (as expected): Order <guid> not found
+Order not found (as expected): System.InvalidOperationException: Order '<guid>' was not found.
 
 --- Demo 5: Serialization Round-Trip ---
 Serialized:   {"customerId":"CUST-RT","items":[...]}

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "generatedAt": "2026-09-07",
+  "generatedAt": "2026-09-14",
   "suppressions": [
     {
       "line": 32,
@@ -19,54 +19,6 @@
       "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/EventSerializationDefaults.cs",
       "justification": "Canonical is the reflection-based event-serialization contract; the explicit DefaultJsonTypeInfoResolver is the default reflection resolver, consistent with CreateCanonicalOptions.",
       "warningId": "IL2026"
-    },
-    {
-      "line": 75,
-      "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs",
-      "justification": "Reflection-based serialization is intentional; the trim opt-in is enforced at the constructor.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 77,
-      "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs",
-      "justification": "Reflection-based serialization is intentional; the AOT opt-in is enforced at the constructor.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 101,
-      "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs",
-      "justification": "Event deserialization requires runtime type resolution for polymorphic event types - reflection is intentional; opt-in enforced at the constructor.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 103,
-      "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs",
-      "justification": "Reflection-based deserialization is intentional; the AOT opt-in is enforced at the constructor.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 137,
-      "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs",
-      "justification": "Type resolution from strings is required for event sourcing polymorphic event deserialization. Event types are preserved through event store infrastructure.",
-      "warningId": "IL2057"
-    },
-    {
-      "line": 138,
-      "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs",
-      "justification": "Assembly scanning for type resolution is intentional; the trim opt-in is enforced at the constructor.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 47,
-      "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/UndeclaredEventNameStartupValidator.cs",
-      "justification": "Startup-only diagnostic. Enumerating a trimmed assembly yields fewer types, which can only make this guard report less; it never fabricates a failure, and no dispatch path depends on it.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 51,
-      "file": "src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/UndeclaredEventNameStartupValidator.cs",
-      "justification": "As above: the scan is advisory at startup and degrades to reporting nothing under trimming.",
-      "warningId": "IL2070"
     },
     {
       "line": 191,
@@ -165,32 +117,16 @@
       "warningId": "IL2075"
     },
     {
-      "line": 676,
+      "line": 687,
       "file": "src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs",
       "justification": "The wrapped middleware reflects; IDispatchMiddleware does not declare that, because a ",
       "warningId": "IL2046"
     },
     {
-      "line": 680,
+      "line": 691,
       "file": "src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs",
       "justification": "The wrapped middleware requires runtime code generation; IDispatchMiddleware does not ",
       "warningId": "IL3051"
-    },
-    {
-      "line": 72,
-      "file": "src/Dispatch/Excalibur.Dispatch.ClaimCheck.AwsS3/AwsS3ClaimCheckServiceCollectionExtensions.cs",
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 74,
-      "file": "src/Dispatch/Excalibur.Dispatch.ClaimCheck.AwsS3/AwsS3ClaimCheckServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 37,
@@ -229,48 +165,16 @@
       "warningId": "IL2026"
     },
     {
-      "line": 77,
+      "line": 78,
       "file": "src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/AwsLambdaServiceCollectionExtensions.cs",
       "justification": "AOT-safe: IConfiguration.Bind() requires reflection -- see Action<T> overload as AOT alternative",
       "warningId": "IL2026"
     },
     {
-      "line": 79,
+      "line": 80,
       "file": "src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/AwsLambdaServiceCollectionExtensions.cs",
       "justification": "AOT-safe: IConfiguration.Bind() requires dynamic code -- see Action<T> overload as AOT alternative",
       "warningId": "IL3050"
-    },
-    {
-      "line": 67,
-      "file": "src/Dispatch/Excalibur.Dispatch.Hosting.AzureFunctions/AzureFunctionsServiceCollectionExtensions.cs",
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 69,
-      "file": "src/Dispatch/Excalibur.Dispatch.Hosting.AzureFunctions/AzureFunctionsServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 67,
-      "file": "src/Dispatch/Excalibur.Dispatch.Hosting.GoogleCloudFunctions/GoogleCloudFunctionsServiceCollectionExtensions.cs",
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 69,
-      "file": "src/Dispatch/Excalibur.Dispatch.Hosting.GoogleCloudFunctions/GoogleCloudFunctionsServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 64,
@@ -283,22 +187,6 @@
       "file": "src/Dispatch/Excalibur.Dispatch.Hosting.Serverless.Abstractions/ServerlessHostBuilderExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 60,
-      "file": "src/Dispatch/Excalibur.Dispatch.Hosting.Serverless.Abstractions/ServerlessServiceCollectionExtensions.cs",
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 62,
-      "file": "src/Dispatch/Excalibur.Dispatch.Hosting.Serverless.Abstractions/ServerlessServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 62,
@@ -373,38 +261,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 54,
-      "file": "src/Dispatch/Excalibur.Dispatch.Patterns.Azure/DependencyInjection/AzurePatternsServiceCollectionExtensions.cs",
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 56,
-      "file": "src/Dispatch/Excalibur.Dispatch.Patterns.Azure/DependencyInjection/AzurePatternsServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 197,
-      "file": "src/Dispatch/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory/InMemoryClaimCheckServiceCollectionExtensions.cs",
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 199,
-      "file": "src/Dispatch/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory/InMemoryClaimCheckServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 73,
       "file": "src/Dispatch/Excalibur.Dispatch.Patterns.Hosting.Json/DependencyInjection/DispatchPatternsJsonServiceCollectionExtensions.cs",
       "justification": "ClaimCheck serializer construction uses reflection by design.",
@@ -415,22 +271,6 @@
       "file": "src/Dispatch/Excalibur.Dispatch.Patterns.Hosting.Json/DependencyInjection/DispatchPatternsJsonServiceCollectionExtensions.cs",
       "justification": "ClaimCheck serializer construction uses reflection by design.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 80,
-      "file": "src/Dispatch/Excalibur.Dispatch.Patterns/ClaimCheck/ClaimCheckServiceCollectionExtensions.cs",
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 82,
-      "file": "src/Dispatch/Excalibur.Dispatch.Patterns/ClaimCheck/ClaimCheckServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 105,
@@ -493,49 +333,49 @@
       "warningId": "IL3050"
     },
     {
-      "line": 194,
+      "line": 192,
       "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
       "justification": "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.",
       "warningId": "IL2026"
     },
     {
-      "line": 196,
+      "line": 194,
       "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
       "justification": "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.",
       "warningId": "IL3050"
+    },
+    {
+      "line": 234,
+      "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
+      "justification": "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.",
+      "warningId": "IL2026"
     },
     {
       "line": 236,
       "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
-      "justification": "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 238,
-      "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
       "justification": "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.",
       "warningId": "IL3050"
+    },
+    {
+      "line": 276,
+      "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
+      "justification": "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.",
+      "warningId": "IL2026"
     },
     {
       "line": 278,
       "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
-      "justification": "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 280,
-      "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
       "justification": "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.",
       "warningId": "IL3050"
     },
     {
-      "line": 303,
+      "line": 301,
       "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
       "justification": "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.",
       "warningId": "IL2026"
     },
     {
-      "line": 305,
+      "line": 303,
       "file": "src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs",
       "justification": "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.",
       "warningId": "IL3050"
@@ -631,134 +471,15 @@
       "warningId": "IL3050"
     },
     {
-      "line": 128,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators.Analyzers/Analyzers/AotCompatibilityAnalyzer.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "unknown",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 196,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/Caching/CacheInfoSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2026",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 197,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/Caching/CacheInfoSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL3050",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 189,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/DependencyInjection/ServiceRegistrationSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2026",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 148,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/EventStoreTypeMapGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2026",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 149,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/EventStoreTypeMapGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL3050",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 136,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/HandlerInvokerSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2026",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 138,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/HandlerInvokerSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL3050",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 168,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/HandlerRegistrySourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2026",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 418,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/HandlerRegistrySourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2026",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 420,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/HandlerRegistrySourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL3050",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 282,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/MessageResultExtractorGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2026",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 284,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/MessageResultExtractorGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL3050",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 137,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/MessageTypeSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2062",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 139,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/MessageTypeSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2072",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 150,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/MessageTypeSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2026",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
-      "line": 152,
-      "file": "src/Dispatch/Excalibur.Dispatch.SourceGenerators/MessageTypeSourceGenerator.cs",
-      "justification": "Runs in the compiler, not in the consumer's application. This is a Roslyn source generator or analyzer: it executes at build time and is never present in a published app, so trimming and native-AOT publishing cannot reach it. An AOT annotation here would propagate a warning about code that cannot affect a published application.",
-      "warningId": "IL2075",
-      "verdict": "BUILD-TIME-ONLY"
-    },
-    {
       "line": 38,
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventMapperAdapter.cs",
-      "justification": "Mismatch-only, not a swallow: ICloudEventMapperAdapter is an internal, non-extensible wiring shim over ICloudEventMapper<TTransportMessage> (whose interface member already carries this requirement) \u2014 the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
+      "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventEncoderAdapter.cs",
+      "justification": "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) — the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
       "warningId": "IL2046"
     },
     {
       "line": 42,
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventMapperAdapter.cs",
-      "justification": "Same as IL2046: the interface mismatch is against ICloudEventMapperAdapter, an internal wiring shim with a single implementation, not a consumer-implementable contract. Same as IL2046.",
+      "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventEncoderAdapter.cs",
+      "justification": "Same as IL2046: the interface mismatch is against ICloudEventEncoderAdapter, an internal wiring shim with a single implementation, not a consumer-implementable contract. Same as IL2046.",
       "warningId": "IL3051"
     },
     {
@@ -920,13 +641,13 @@
     {
       "line": 109,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL2026"
     },
     {
       "line": 111,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL3050"
     },
     {
@@ -1124,7 +845,7 @@
     {
       "line": 50,
       "file": "src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/FluentValidatorResolver.cs",
-      "justification": "",
+      "justification": "FluentValidation requires runtime generic type creation. Message types are preserved via source generation.",
       "warningId": "IL2060"
     },
     {
@@ -1212,9 +933,15 @@
       "warningId": "IL3050"
     },
     {
-      "line": 25,
+      "line": 233,
+      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/HandlerScopeResolver.cs",
+      "justification": "A constructor parameter type is resolved from DI; its constructors are preserved by registration. The scope verdict is advisory and AOT consumers use the source-generated dispatcher.",
+      "warningId": "IL2072"
+    },
+    {
+      "line": 26,
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/AotCompatibilityExtensions.cs",
-      "justification": "HandlerInvoker is only registered when RuntimeFeature.IsDynamicCodeSupported is true (JIT environments).",
+      "justification": "The reflective invoker is reached only when DispatchFeatureSwitches.UseReflectionInvoker is true. ",
       "warningId": "IL2026"
     },
     {
@@ -1252,12 +979,6 @@
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/HandlerInvokerRegistry.Manual.cs",
       "justification": "Handler invoker creation uses reflection as fallback. In AOT scenarios, source-generated invokers are used instead.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 233,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/HandlerScopeResolver.cs",
-      "justification": "A constructor parameter type is resolved from DI; its constructors are preserved by registration. The scope verdict is advisory and AOT consumers use the source-generated dispatcher.",
-      "warningId": "IL2072"
     },
     {
       "line": 149,
@@ -1332,6 +1053,36 @@
       "warningId": "IL2026"
     },
     {
+      "line": 206,
+      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
+      "justification": "The only call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes ",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 213,
+      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
+      "justification": "The only call site is behind RuntimeFeature.IsDynamicCodeSupported, and the native compiler removes ",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 301,
+      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
+      "justification": "The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of ",
+      "warningId": "IL2072"
+    },
+    {
+      "line": 372,
+      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
+      "justification": "Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that ",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 379,
+      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
+      "justification": "Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that ",
+      "warningId": "IL3050"
+    },
+    {
       "line": 41,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatcherContextExtensions.cs",
       "justification": "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.",
@@ -1380,36 +1131,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 183,
-      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "The only call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes ",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 190,
-      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "The only call site is behind RuntimeFeature.IsDynamicCodeSupported, and the native compiler removes ",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 278,
-      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of ",
-      "warningId": "IL2072"
-    },
-    {
-      "line": 349,
-      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that ",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 356,
-      "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that ",
-      "warningId": "IL3050"
-    },
-    {
       "line": 67,
       "file": "src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageMiddleware.cs",
       "justification": "Poison message handling relies on dynamic serialization and is not supported for AOT scenarios.",
@@ -1420,6 +1141,54 @@
       "file": "src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageMiddleware.cs",
       "justification": "Poison message handling relies on serialization of known message types registered at startup.",
       "warningId": "IL2026"
+    },
+    {
+      "line": 75,
+      "file": "src/Dispatch/Excalibur.Dispatch/EventSourcing/JsonEventSerializer.cs",
+      "justification": "Reflection-based serialization is intentional; the trim opt-in is enforced at the constructor.",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 77,
+      "file": "src/Dispatch/Excalibur.Dispatch/EventSourcing/JsonEventSerializer.cs",
+      "justification": "Reflection-based serialization is intentional; the AOT opt-in is enforced at the constructor.",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 101,
+      "file": "src/Dispatch/Excalibur.Dispatch/EventSourcing/JsonEventSerializer.cs",
+      "justification": "Event deserialization requires runtime type resolution for polymorphic event types - reflection is intentional; opt-in enforced at the constructor.",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 103,
+      "file": "src/Dispatch/Excalibur.Dispatch/EventSourcing/JsonEventSerializer.cs",
+      "justification": "Reflection-based deserialization is intentional; the AOT opt-in is enforced at the constructor.",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 137,
+      "file": "src/Dispatch/Excalibur.Dispatch/EventSourcing/JsonEventSerializer.cs",
+      "justification": "Type resolution from strings is required for event sourcing polymorphic event deserialization. Event types are preserved through event store infrastructure.",
+      "warningId": "IL2057"
+    },
+    {
+      "line": 138,
+      "file": "src/Dispatch/Excalibur.Dispatch/EventSourcing/JsonEventSerializer.cs",
+      "justification": "Assembly scanning for type resolution is intentional; the trim opt-in is enforced at the constructor.",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 47,
+      "file": "src/Dispatch/Excalibur.Dispatch/EventSourcing/UndeclaredEventNameStartupValidator.cs",
+      "justification": "Startup-only diagnostic. Enumerating a trimmed assembly yields fewer types, which can only make this guard report less; it never fabricates a failure, and no dispatch path depends on it.",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 51,
+      "file": "src/Dispatch/Excalibur.Dispatch/EventSourcing/UndeclaredEventNameStartupValidator.cs",
+      "justification": "As above: the scan is advisory at startup and degrades to reporting nothing under trimming.",
+      "warningId": "IL2070"
     },
     {
       "line": 233,
@@ -1488,19 +1257,19 @@
       "warningId": "IL2026"
     },
     {
-      "line": 141,
+      "line": 147,
       "file": "src/Dispatch/Excalibur.Dispatch/Middleware/Inbox/InboxMiddleware.cs",
       "justification": "Inbox payload serialization is only used for known message types registered at startup.",
       "warningId": "IL2026"
     },
     {
-      "line": 145,
+      "line": 151,
       "file": "src/Dispatch/Excalibur.Dispatch/Middleware/Inbox/InboxMiddleware.cs",
       "justification": "Inbox payload serialization relies on JSON serialization and is not supported in AOT scenarios.",
       "warningId": "IL3050"
     },
     {
-      "line": 257,
+      "line": 263,
       "file": "src/Dispatch/Excalibur.Dispatch/Middleware/Inbox/InboxMiddleware.cs",
       "justification": "Message types are preserved through source generation and DI registration",
       "warningId": "IL2075"
@@ -1542,13 +1311,13 @@
       "warningId": "IL3050"
     },
     {
-      "line": 95,
+      "line": 98,
       "file": "src/Dispatch/Excalibur.Dispatch/Middleware/Outbox/OutboxStagingMiddleware.cs",
       "justification": "Outbox staging uses runtime message serialization for legacy compatibility.",
       "warningId": "IL2026"
     },
     {
-      "line": 99,
+      "line": 102,
       "file": "src/Dispatch/Excalibur.Dispatch/Middleware/Outbox/OutboxStagingMiddleware.cs",
       "justification": "Outbox staging uses runtime message serialization for legacy compatibility.",
       "warningId": "IL3050"
@@ -1722,22 +1491,6 @@
       "warningId": "IL2026"
     },
     {
-      "line": 67,
-      "file": "src/Excalibur/Excalibur.A3.Core/Authorization/Roles/RoleServiceCollectionExtensions.cs",
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 69,
-      "file": "src/Excalibur/Excalibur.A3.Core/Authorization/Roles/RoleServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 70,
       "file": "src/Excalibur/Excalibur.A3.Governance/AccessReviews/AccessReviewGovernanceBuilderExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.",
@@ -1760,22 +1513,6 @@
       "file": "src/Excalibur/Excalibur.A3.Governance/NonHumanIdentity/NonHumanIdentityGovernanceBuilderExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 65,
-      "file": "src/Excalibur/Excalibur.A3.Governance/OrphanedAccess/OrphanedAccessGovernanceBuilderExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 67,
-      "file": "src/Excalibur/Excalibur.A3.Governance/OrphanedAccess/OrphanedAccessGovernanceBuilderExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 71,
@@ -1854,61 +1591,61 @@
       "warningId": "IL3051"
     },
     {
-      "line": 85,
+      "line": 88,
       "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL3050"
     },
     {
-      "line": 85,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
-      "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 191,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
-      "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 191,
+      "line": 88,
       "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL2026"
     },
     {
-      "line": 44,
+      "line": 194,
+      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
+      "justification": "Serialization/reflection inherently not AOT-safe",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 194,
+      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
+      "justification": "Serialization/reflection inherently not AOT-safe",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 47,
       "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL3050"
     },
     {
-      "line": 44,
+      "line": 47,
       "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL2026"
     },
     {
-      "line": 76,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
-      "justification": "Repository uses reflection-based serialization",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 76,
+      "line": 79,
       "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
       "justification": "Repository uses reflection-based serialization",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 79,
+      "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
+      "justification": "Repository uses reflection-based serialization",
       "warningId": "IL2026"
     },
     {
-      "line": 42,
+      "line": 45,
       "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/RevokeGrant/RevokeGrantCommandHandler.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL2026"
     },
     {
-      "line": 42,
+      "line": 45,
       "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/RevokeGrant/RevokeGrantCommandHandler.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL3050"
@@ -2032,22 +1769,6 @@
       "file": "src/Excalibur/Excalibur.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 54,
-      "file": "src/Excalibur/Excalibur.AuditLogging.Postgres/PostgresAuditServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 56,
-      "file": "src/Excalibur/Excalibur.AuditLogging.Postgres/PostgresAuditServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 36,
@@ -2236,49 +1957,33 @@
       "warningId": "IL2075"
     },
     {
-      "line": 30,
-      "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CdcBuilderCosmosDbExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 32,
-      "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CdcBuilderCosmosDbExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 54,
+      "line": 55,
       "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs",
       "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
-      "line": 56,
+      "line": 57,
       "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 84,
-      "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 86,
       "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs",
+      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
+      "warningId": "IL2026",
+      "verdict": "PROPAGATED",
+      "classifiedBy": "inspection"
+    },
+    {
+      "line": 88,
+      "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
-      "line": 143,
+      "line": 146,
       "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs",
       "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026",
@@ -2286,7 +1991,7 @@
       "classifiedBy": "inspection"
     },
     {
-      "line": 145,
+      "line": 148,
       "file": "src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
@@ -2304,160 +2009,28 @@
       "warningId": "IL3050"
     },
     {
-      "line": 50,
+      "line": 49,
       "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcExtensions.cs",
       "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
-      "line": 52,
+      "line": 51,
       "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
+    },
+    {
+      "line": 78,
+      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcExtensions.cs",
+      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
+      "warningId": "IL2026"
     },
     {
       "line": 80,
       "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 82,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 142,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs",
-      "justification": "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this DynamoDB position instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 143,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs",
-      "justification": "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this DynamoDB position instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 81,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 82,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 138,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 139,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 232,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 233,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 240,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 241,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 261,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 262,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 28,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 29,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 53,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 54,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 108,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 109,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 116,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 117,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 140,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 141,
-      "file": "src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.",
-      "warningId": "IL3051"
     },
     {
       "line": 139,
@@ -2472,160 +2045,28 @@
       "warningId": "IL3050"
     },
     {
-      "line": 50,
+      "line": 49,
       "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcExtensions.cs",
       "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
-      "line": 52,
+      "line": 51,
       "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
+    },
+    {
+      "line": 78,
+      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcExtensions.cs",
+      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
+      "warningId": "IL2026"
     },
     {
       "line": 80,
       "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 82,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 190,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs",
-      "justification": "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this Firestore position instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 191,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs",
-      "justification": "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this Firestore position instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 88,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 89,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 125,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 126,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 207,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 208,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 215,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 216,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 232,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 233,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 28,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 29,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 53,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 54,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 110,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 111,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 118,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 119,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 136,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 137,
-      "file": "src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs",
-      "justification": "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.",
-      "warningId": "IL3051"
     },
     {
       "line": 51,
@@ -2664,20 +2105,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 215,
-      "file": "src/Excalibur/Excalibur.Cdc.Postgres/CdcBuilderPostgresExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 217,
-      "file": "src/Excalibur/Excalibur.Cdc.Postgres/CdcBuilderPostgresExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 248,
       "file": "src/Excalibur/Excalibur.Cdc.SqlServer/CdcBuilderSqlServerExtensions.cs",
       "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
@@ -2688,22 +2115,6 @@
       "file": "src/Excalibur/Excalibur.Cdc.SqlServer/CdcBuilderSqlServerExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 57,
-      "file": "src/Excalibur/Excalibur.Cdc.SqlServer/SqlServerCdcHealthChecksBuilderExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 59,
-      "file": "src/Excalibur/Excalibur.Cdc.SqlServer/SqlServerCdcHealthChecksBuilderExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 96,
@@ -2728,22 +2139,6 @@
       "file": "src/Excalibur/Excalibur.Cdc/DependencyInjection/CdcTrackedTablesPostConfigureOptions.cs",
       "justification": "CdcTableTrackingOptions is a simple POCO with primitive properties; no dynamic code required.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 58,
-      "file": "src/Excalibur/Excalibur.Cdc/Diagnostics/CdcHealthChecksBuilderExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 60,
-      "file": "src/Excalibur/Excalibur.Cdc/Diagnostics/CdcHealthChecksBuilderExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 38,
@@ -2794,22 +2189,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 59,
-      "file": "src/Excalibur/Excalibur.Compliance.SqlServer/SqlServerKeyEscrowServiceCollectionExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 61,
-      "file": "src/Excalibur/Excalibur.Compliance.SqlServer/SqlServerKeyEscrowServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 37,
       "file": "src/Excalibur/Excalibur.Compliance.Vault/VaultServiceCollectionExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
@@ -2834,13 +2213,13 @@
       "warningId": "IL3050"
     },
     {
-      "line": 129,
+      "line": 136,
       "file": "src/Excalibur/Excalibur.Compliance/CryptoShredding/SubjectFieldCryptor.cs",
       "justification": "A runtime-resolved record type, matching IEventSerializer.DeserializeEvent(byte[], Type) ",
       "warningId": "IL2067"
     },
     {
-      "line": 249,
+      "line": 256,
       "file": "src/Excalibur/Excalibur.Compliance/CryptoShredding/SubjectFieldCryptor.cs",
       "justification": "object.GetType() over a consumer record; GetPlan is DAM-rooted and the caller throws ",
       "warningId": "IL2072"
@@ -3247,13 +2626,13 @@
       "line": 278,
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotStore.cs",
       "justification": "",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 278,
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotStore.cs",
       "justification": "",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 99,
@@ -3457,13 +2836,13 @@
       "line": 810,
       "file": "src/Excalibur/Excalibur.Data.ElasticSearch/Projections/SchemaEvolutionHandler.cs",
       "justification": "JSON serialization uses reflection",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 810,
       "file": "src/Excalibur/Excalibur.Data.ElasticSearch/Projections/SchemaEvolutionHandler.cs",
       "justification": "JSON serialization uses reflection",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 18,
@@ -3537,7 +2916,7 @@
       "line": 183,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
+      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3545,7 +2924,7 @@
       "line": 183,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL3050",
+      "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3559,7 +2938,7 @@
       "line": 233,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
+      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3567,14 +2946,6 @@
       "line": 233,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 422,
-      "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
-      "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
       "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
@@ -3584,6 +2955,14 @@
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
       "warningId": "IL3050",
+      "verdict": "PROPAGATED",
+      "classifiedBy": "inspection"
+    },
+    {
+      "line": 422,
+      "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
+      "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+      "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3607,7 +2986,7 @@
       "line": 475,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
+      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3615,7 +2994,7 @@
       "line": 475,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL3050",
+      "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3661,7 +3040,7 @@
       "line": 307,
       "file": "src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL3050",
+      "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3669,7 +3048,7 @@
       "line": 307,
       "file": "src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
+      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3717,22 +3096,6 @@
       "line": 324,
       "file": "src/Excalibur/Excalibur.Data.Firestore/Snapshots/FirestoreSnapshotStore.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 82,
-      "file": "src/Excalibur/Excalibur.Data.IdentityMap.SqlServer/DependencyInjection/IdentityMapBuilderSqlServerExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 84,
-      "file": "src/Excalibur/Excalibur.Data.IdentityMap.SqlServer/DependencyInjection/IdentityMapBuilderSqlServerExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
@@ -3936,22 +3299,6 @@
       "warningId": "IL2091"
     },
     {
-      "line": 82,
-      "file": "src/Excalibur/Excalibur.Data.Postgres/DependencyInjection/PostgresServiceCollectionExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 84,
-      "file": "src/Excalibur/Excalibur.Data.Postgres/DependencyInjection/PostgresServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 30,
       "file": "src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceInitializer.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
@@ -3991,13 +3338,13 @@
       "line": 149,
       "file": "src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceServiceCollectionExtensions.cs",
       "justification": "DI registration of persistence provider",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 149,
       "file": "src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceServiceCollectionExtensions.cs",
       "justification": "DI registration of persistence provider",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 40,
@@ -4051,13 +3398,13 @@
       "line": 60,
       "file": "src/Excalibur/Excalibur.Data.SqlServer/ExcaliburDataSqlServerServiceCollectionExtensions.cs",
       "justification": "RegisterTypeHandler uses reflection for Dapper type handler registration",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 60,
       "file": "src/Excalibur/Excalibur.Data.SqlServer/ExcaliburDataSqlServerServiceCollectionExtensions.cs",
       "justification": "RegisterTypeHandler uses reflection for Dapper type handler registration",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 34,
@@ -4204,25 +3551,25 @@
       "warningId": "IL3050"
     },
     {
-      "line": 669,
+      "line": 670,
       "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
       "justification": "",
       "warningId": "IL2026"
     },
     {
-      "line": 669,
+      "line": 670,
       "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
       "justification": "",
       "warningId": "IL3050"
     },
     {
-      "line": 823,
+      "line": 824,
       "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
       "justification": "",
       "warningId": "IL2026"
     },
     {
-      "line": 823,
+      "line": 824,
       "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
       "justification": "",
       "warningId": "IL3050"
@@ -4252,13 +3599,13 @@
       "warningId": "IL3050"
     },
     {
-      "line": 457,
+      "line": 458,
       "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
       "justification": "",
       "warningId": "IL3050"
     },
     {
-      "line": 457,
+      "line": 458,
       "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
       "justification": "",
       "warningId": "IL2026"
@@ -4303,13 +3650,13 @@
       "line": 310,
       "file": "src/Excalibur/Excalibur.EventSourcing.InMemory/InMemoryEventStore.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 310,
       "file": "src/Excalibur/Excalibur.EventSourcing.InMemory/InMemoryEventStore.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 52,
@@ -4336,37 +3683,37 @@
       "warningId": "IL3050"
     },
     {
-      "line": 779,
+      "line": 780,
       "file": "src/Excalibur/Excalibur.EventSourcing.MongoDB/MongoDbEventStore.cs",
       "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
       "warningId": "IL2026"
     },
     {
-      "line": 779,
+      "line": 780,
       "file": "src/Excalibur/Excalibur.EventSourcing.MongoDB/MongoDbEventStore.cs",
       "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
       "warningId": "IL3050"
     },
     {
-      "line": 787,
-      "file": "src/Excalibur/Excalibur.EventSourcing.MongoDB/MongoDbEventStore.cs",
-      "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 787,
+      "line": 788,
       "file": "src/Excalibur/Excalibur.EventSourcing.MongoDB/MongoDbEventStore.cs",
       "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
       "warningId": "IL2026"
     },
     {
-      "line": 594,
+      "line": 788,
+      "file": "src/Excalibur/Excalibur.EventSourcing.MongoDB/MongoDbEventStore.cs",
+      "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 595,
       "file": "src/Excalibur/Excalibur.EventSourcing.Oracle/OracleEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL2026"
     },
     {
-      "line": 594,
+      "line": 595,
       "file": "src/Excalibur/Excalibur.EventSourcing.Oracle/OracleEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
@@ -4441,13 +3788,13 @@
       "line": 710,
       "file": "src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresEventStore.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 710,
       "file": "src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresEventStore.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 111,
@@ -4486,68 +3833,40 @@
       "warningId": "IL3050"
     },
     {
-      "line": 226,
+      "line": 227,
       "file": "src/Excalibur/Excalibur.EventSourcing.Redis/RedisEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL2026"
     },
     {
-      "line": 226,
+      "line": 227,
       "file": "src/Excalibur/Excalibur.EventSourcing.Redis/RedisEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
     },
     {
-      "line": 270,
+      "line": 271,
       "file": "src/Excalibur/Excalibur.EventSourcing.Redis/RedisSnapshotStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL2026"
     },
     {
-      "line": 270,
+      "line": 271,
       "file": "src/Excalibur/Excalibur.EventSourcing.Redis/RedisSnapshotStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
     },
     {
-      "line": 288,
+      "line": 289,
       "file": "src/Excalibur/Excalibur.EventSourcing.Redis/RedisSnapshotStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL2026"
     },
     {
-      "line": 288,
+      "line": 289,
       "file": "src/Excalibur/Excalibur.EventSourcing.Redis/RedisSnapshotStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
-    },
-    {
-      "line": 72,
-      "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/DependencyInjection/SqliteEventSourcingServiceCollectionExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 74,
-      "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/DependencyInjection/SqliteEventSourcingServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 234,
-      "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 234,
-      "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
     },
     {
       "line": 161,
@@ -4648,6 +3967,18 @@
     {
       "line": 913,
       "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
+      "justification": "Serialization inherently uses reflection",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 234,
+      "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs",
+      "justification": "Serialization inherently uses reflection",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 234,
+      "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL2026"
     },
@@ -5036,48 +4367,16 @@
       "warningId": "IL2026"
     },
     {
-      "line": 68,
+      "line": 69,
       "file": "src/Excalibur/Excalibur.Hosting.AwsLambda/ExcaliburAwsLambdaServiceCollectionExtensions.cs",
       "justification": "AOT-safe: IConfiguration.Bind() requires reflection -- see Action<T> overload as AOT alternative",
       "warningId": "IL2026"
     },
     {
-      "line": 70,
+      "line": 71,
       "file": "src/Excalibur/Excalibur.Hosting.AwsLambda/ExcaliburAwsLambdaServiceCollectionExtensions.cs",
       "justification": "AOT-safe: IConfiguration.Bind() requires dynamic code -- see Action<T> overload as AOT alternative",
       "warningId": "IL3050"
-    },
-    {
-      "line": 67,
-      "file": "src/Excalibur/Excalibur.Hosting.AzureFunctions/ExcaliburAzureFunctionsServiceCollectionExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 69,
-      "file": "src/Excalibur/Excalibur.Hosting.AzureFunctions/ExcaliburAzureFunctionsServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 67,
-      "file": "src/Excalibur/Excalibur.Hosting.GoogleCloudFunctions/ExcaliburGoogleCloudFunctionsServiceCollectionExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 69,
-      "file": "src/Excalibur/Excalibur.Hosting.GoogleCloudFunctions/ExcaliburGoogleCloudFunctionsServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 27,
@@ -5224,51 +4523,37 @@
       "warningId": "IL3050"
     },
     {
-      "line": 46,
+      "line": 51,
       "file": "src/Excalibur/Excalibur.Inbox.MongoDB/InboxBuilderMongoDbExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
       "warningId": "IL2026"
     },
     {
-      "line": 48,
+      "line": 53,
       "file": "src/Excalibur/Excalibur.Inbox.MongoDB/InboxBuilderMongoDbExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
       "warningId": "IL3050"
     },
     {
-      "line": 74,
+      "line": 79,
       "file": "src/Excalibur/Excalibur.Inbox.MongoDB/InboxBuilderMongoDbExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
       "warningId": "IL2026"
     },
     {
-      "line": 76,
+      "line": 81,
       "file": "src/Excalibur/Excalibur.Inbox.MongoDB/InboxBuilderMongoDbExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
       "warningId": "IL3050"
     },
     {
-      "line": 94,
-      "file": "src/Excalibur/Excalibur.Inbox.Oracle/InboxBuilderOracleExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 96,
-      "file": "src/Excalibur/Excalibur.Inbox.Oracle/InboxBuilderOracleExtensions.cs",
-      "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 1296,
+      "line": 1318,
       "file": "src/Excalibur/Excalibur.Inbox.Oracle/OracleInboxStore.cs",
       "justification": "JSON serialization for inbox metadata",
       "warningId": "IL2026"
     },
     {
-      "line": 1296,
+      "line": 1318,
       "file": "src/Excalibur/Excalibur.Inbox.Oracle/OracleInboxStore.cs",
       "justification": "JSON serialization for inbox metadata",
       "warningId": "IL3050"
@@ -5286,13 +4571,13 @@
       "warningId": "IL3050"
     },
     {
-      "line": 1189,
+      "line": 1211,
       "file": "src/Excalibur/Excalibur.Inbox.Postgres/PostgresInboxStore.cs",
       "justification": "Serializing IDictionary<string, object> with simple JSON types is trim-safe.",
       "warningId": "IL2026"
     },
     {
-      "line": 1191,
+      "line": 1213,
       "file": "src/Excalibur/Excalibur.Inbox.Postgres/PostgresInboxStore.cs",
       "justification": "Serializing IDictionary<string, object> with simple JSON types does not require dynamic code.",
       "warningId": "IL3050"
@@ -5358,25 +4643,13 @@
       "warningId": "IL2026"
     },
     {
-      "line": 95,
-      "file": "src/Excalibur/Excalibur.Inbox.SqlServer/InboxBuilderSqlServerExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 97,
-      "file": "src/Excalibur/Excalibur.Inbox.SqlServer/InboxBuilderSqlServerExtensions.cs",
-      "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 1175,
+      "line": 1197,
       "file": "src/Excalibur/Excalibur.Inbox.SqlServer/SqlServerInboxStore.cs",
       "justification": "JSON serialization for inbox metadata",
       "warningId": "IL2026"
     },
     {
-      "line": 1175,
+      "line": 1197,
       "file": "src/Excalibur/Excalibur.Inbox.SqlServer/SqlServerInboxStore.cs",
       "justification": "JSON serialization for inbox metadata",
       "warningId": "IL3050"
@@ -5433,13 +4706,13 @@
       "line": 98,
       "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
       "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 98,
       "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
       "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 26,
@@ -5538,22 +4811,6 @@
       "warningId": "IL2026"
     },
     {
-      "line": 73,
-      "file": "src/Excalibur/Excalibur.LeaderElection.InMemory/InMemoryLeaderElectionServiceCollectionExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 75,
-      "file": "src/Excalibur/Excalibur.LeaderElection.InMemory/InMemoryLeaderElectionServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 54,
       "file": "src/Excalibur/Excalibur.LeaderElection.MongoDB/DependencyInjection/MongoDbLeaderElectionBuilderExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
@@ -5578,20 +4835,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 67,
-      "file": "src/Excalibur/Excalibur.LeaderElection.Postgres/DependencyInjection/PostgresLeaderElectionBuilderExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 69,
-      "file": "src/Excalibur/Excalibur.LeaderElection.Postgres/DependencyInjection/PostgresLeaderElectionBuilderExtensions.cs",
-      "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 50,
       "file": "src/Excalibur/Excalibur.LeaderElection.Redis/DependencyInjection/RedisLeaderElectionBuilderExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
@@ -5613,18 +4856,6 @@
       "line": 74,
       "file": "src/Excalibur/Excalibur.LeaderElection.Redis/DependencyInjection/RedisLeaderElectionBuilderExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 178,
-      "file": "src/Excalibur/Excalibur.LeaderElection.SqlServer/DependencyInjection/SqlServerLeaderElectionBuilderExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 180,
-      "file": "src/Excalibur/Excalibur.LeaderElection.SqlServer/DependencyInjection/SqlServerLeaderElectionBuilderExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
@@ -5679,13 +4910,13 @@
       "line": 158,
       "file": "src/Excalibur/Excalibur.Outbox.CosmosDb/CosmosDbOutboxDocument.cs",
       "justification": "",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 158,
       "file": "src/Excalibur/Excalibur.Outbox.CosmosDb/CosmosDbOutboxDocument.cs",
       "justification": "",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 42,
@@ -5751,13 +4982,13 @@
       "line": 1107,
       "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
       "justification": "",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 1107,
       "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
       "justification": "",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 1162,
@@ -5880,13 +5111,13 @@
       "warningId": "IL2026"
     },
     {
-      "line": 131,
+      "line": 130,
       "file": "src/Excalibur/Excalibur.Outbox.InMemory/InMemoryOutboxStore.cs",
       "justification": "In-memory store uses reflection-based serialization",
       "warningId": "IL3050"
     },
     {
-      "line": 131,
+      "line": 130,
       "file": "src/Excalibur/Excalibur.Outbox.InMemory/InMemoryOutboxStore.cs",
       "justification": "In-memory store uses reflection-based serialization",
       "warningId": "IL2026"
@@ -5928,7 +5159,7 @@
       "warningId": "IL3050"
     },
     {
-      "line": 145,
+      "line": 152,
       "file": "src/Excalibur/Excalibur.Outbox.MongoDB/MongoDbOutboxStore.cs",
       "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
       "warningId": "IL3050",
@@ -5936,7 +5167,7 @@
       "classifiedBy": "inspection"
     },
     {
-      "line": 145,
+      "line": 152,
       "file": "src/Excalibur/Excalibur.Outbox.MongoDB/MongoDbOutboxStore.cs",
       "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
       "warningId": "IL2026",
@@ -5992,37 +5223,37 @@
       "warningId": "IL3050"
     },
     {
-      "line": 484,
+      "line": 572,
       "file": "src/Excalibur/Excalibur.Outbox.Redis/RedisOutboxStore.cs",
       "justification": "Outbox payloads use runtime serialization for message types.",
       "warningId": "IL3050"
     },
     {
-      "line": 488,
+      "line": 576,
       "file": "src/Excalibur/Excalibur.Outbox.Redis/RedisOutboxStore.cs",
       "justification": "Outbox payloads use runtime serialization for message types.",
       "warningId": "IL2026"
     },
     {
-      "line": 956,
+      "line": 1127,
       "file": "src/Excalibur/Excalibur.Outbox.Redis/RedisOutboxStore.cs",
       "justification": "Outbox headers are serialized from dynamic payloads.",
       "warningId": "IL3050"
     },
     {
-      "line": 960,
+      "line": 1131,
       "file": "src/Excalibur/Excalibur.Outbox.Redis/RedisOutboxStore.cs",
       "justification": "Outbox headers are serialized from dynamic payloads.",
       "warningId": "IL2026"
     },
     {
-      "line": 1041,
+      "line": 1212,
       "file": "src/Excalibur/Excalibur.Outbox.Redis/RedisOutboxStore.cs",
       "justification": "Outbox headers are deserialized to dynamic payloads.",
       "warningId": "IL3050"
     },
     {
-      "line": 1045,
+      "line": 1216,
       "file": "src/Excalibur/Excalibur.Outbox.Redis/RedisOutboxStore.cs",
       "justification": "Outbox headers are deserialized to dynamic payloads.",
       "warningId": "IL2026"
@@ -6064,52 +5295,52 @@
       "warningId": "IL2026"
     },
     {
-      "line": 1211,
+      "line": 1362,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "JsonSerializer with Type parameter requires unreferenced code",
       "warningId": "IL3050"
     },
     {
-      "line": 1211,
+      "line": 1362,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "JsonSerializer with Type parameter requires unreferenced code",
       "warningId": "IL2026"
     },
     {
-      "line": 1897,
+      "line": 2048,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "JsonSerializer with Type parameter requires unreferenced code",
       "warningId": "IL3050"
     },
     {
-      "line": 1897,
+      "line": 2048,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "JsonSerializer with Type parameter requires unreferenced code",
       "warningId": "IL2026"
     },
     {
-      "line": 1943,
+      "line": 2094,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "JsonSerializer with generic type requires unreferenced code",
       "warningId": "IL3050"
     },
     {
-      "line": 1943,
+      "line": 2094,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "JsonSerializer with generic type requires unreferenced code",
       "warningId": "IL2026"
     },
     {
-      "line": 2075,
-      "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 2075,
+      "line": 2226,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "",
       "warningId": "IL3050"
+    },
+    {
+      "line": 2226,
+      "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
+      "justification": "",
+      "warningId": "IL2026"
     },
     {
       "line": 78,
@@ -6130,7 +5361,7 @@
       "warningId": "IL2026"
     },
     {
-      "line": 968,
+      "line": 979,
       "file": "src/Excalibur/Excalibur.Outbox/Inbox/InboxProcessor.cs",
       "justification": "Inbox dispatch uses runtime deserialization for stored message payloads.",
       "warningId": "IL3050"
@@ -6208,62 +5439,46 @@
       "warningId": "IL2026"
     },
     {
-      "line": 670,
+      "line": 678,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs",
       "justification": "Outbox batch reservation converts outbound records using runtime serialization.",
       "warningId": "IL3050"
     },
     {
-      "line": 693,
+      "line": 701,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs",
       "justification": "Outbox message dispatch requires runtime type resolution from MessageTypeRegistry for polymorphic message types - reflection is intentional",
       "warningId": "IL2026"
     },
     {
-      "line": 696,
+      "line": 704,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs",
       "justification": "Outbox dispatch uses runtime deserialization for stored message payloads.",
       "warningId": "IL3050"
     },
     {
-      "line": 925,
+      "line": 1259,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs",
       "justification": "Outbox message dispatch requires runtime type resolution from MessageTypeRegistry for polymorphic message types - reflection is intentional",
       "warningId": "IL2026"
     },
     {
-      "line": 928,
+      "line": 1262,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs",
       "justification": "Outbox dispatch uses runtime deserialization for stored message payloads.",
       "warningId": "IL3050"
     },
     {
-      "line": 1205,
+      "line": 1662,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs",
       "justification": "Outbox message dispatch requires runtime type resolution from MessageTypeRegistry for polymorphic message types - reflection is intentional",
       "warningId": "IL2026"
     },
     {
-      "line": 1208,
+      "line": 1665,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs",
       "justification": "Outbox dispatch uses runtime deserialization for stored message payloads.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 235,
-      "file": "src/Excalibur/Excalibur.Saga.CosmosDb/CosmosDbSagaStore.cs",
-      "justification": "ISagaStore is implemented by stores that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this cloud store's SaveAsync instead.",
-      "warningId": "IL2046",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 236,
-      "file": "src/Excalibur/Excalibur.Saga.CosmosDb/CosmosDbSagaStore.cs",
-      "justification": "ISagaStore is implemented by stores that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this cloud store's SaveAsync instead.",
-      "warningId": "IL3051",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 43,
@@ -6290,22 +5505,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 201,
-      "file": "src/Excalibur/Excalibur.Saga.DynamoDb/DynamoDbSagaStore.cs",
-      "justification": "ISagaStore is implemented by stores that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this cloud store's SaveAsync instead.",
-      "warningId": "IL2046",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 202,
-      "file": "src/Excalibur/Excalibur.Saga.DynamoDb/DynamoDbSagaStore.cs",
-      "justification": "ISagaStore is implemented by stores that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this cloud store's SaveAsync instead.",
-      "warningId": "IL3051",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 44,
       "file": "src/Excalibur/Excalibur.Saga.DynamoDb/SagaBuilderDynamoDbExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
@@ -6328,22 +5527,6 @@
       "file": "src/Excalibur/Excalibur.Saga.DynamoDb/SagaBuilderDynamoDbExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 202,
-      "file": "src/Excalibur/Excalibur.Saga.Firestore/FirestoreSagaStore.cs",
-      "justification": "ISagaStore is implemented by stores that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this cloud store's SaveAsync instead.",
-      "warningId": "IL2046",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 203,
-      "file": "src/Excalibur/Excalibur.Saga.Firestore/FirestoreSagaStore.cs",
-      "justification": "ISagaStore is implemented by stores that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this cloud store's SaveAsync instead.",
-      "warningId": "IL3051",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 44,
@@ -6392,48 +5575,6 @@
       "file": "src/Excalibur/Excalibur.Saga.MongoDB/SagaBuilderMongoDBExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 81,
-      "file": "src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/SagaBuilderOracleExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 83,
-      "file": "src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/SagaBuilderOracleExtensions.cs",
-      "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 65,
-      "file": "src/Excalibur/Excalibur.Saga.Postgres/DependencyInjection/SagaBuilderPostgresExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 67,
-      "file": "src/Excalibur/Excalibur.Saga.Postgres/DependencyInjection/SagaBuilderPostgresExtensions.cs",
-      "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 99,
-      "file": "src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SagaBuilderSqlServerExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 101,
-      "file": "src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SagaBuilderSqlServerExtensions.cs",
-      "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
     },
     {
       "line": 46,
@@ -6496,13 +5637,13 @@
       "warningId": "IL3050"
     },
     {
-      "line": 382,
+      "line": 384,
       "file": "src/Excalibur/Excalibur.Saga/Orchestration/InMemorySagaStore.cs",
       "justification": "In-memory dev/test store mirrors the persistent providers' reflection-based JSON snapshot to isolate copies.",
       "warningId": "IL2026"
     },
     {
-      "line": 384,
+      "line": 386,
       "file": "src/Excalibur/Excalibur.Saga/Orchestration/InMemorySagaStore.cs",
       "justification": "In-memory dev/test store mirrors the persistent providers' reflection-based JSON snapshot to isolate copies.",
       "warningId": "IL3050"
@@ -6514,13 +5655,13 @@
       "warningId": "IL2026"
     },
     {
-      "line": 242,
+      "line": 243,
       "file": "src/Excalibur/Excalibur.Saga/Orchestration/SagaCoordinator.cs",
       "justification": "Saga types are preserved through configuration and DI registration",
       "warningId": "IL2026"
     },
     {
-      "line": 244,
+      "line": 245,
       "file": "src/Excalibur/Excalibur.Saga/Orchestration/SagaCoordinator.cs",
       "justification": "Saga types are preserved through configuration",
       "warningId": "IL3050"
@@ -6756,37 +5897,25 @@
     {
       "line": 89,
       "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
-      "justification": "",
+      "justification": "AotJustification",
       "warningId": "IL2026"
     },
     {
       "line": 90,
       "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
-      "justification": "",
+      "justification": "AotJustification",
       "warningId": "IL3050"
     },
     {
       "line": 98,
       "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
-      "justification": "",
+      "justification": "AotJustification",
       "warningId": "IL2026"
     },
     {
       "line": 99,
       "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/RabbitMqMessageBus.cs",
-      "justification": "annotated-entry: reachable only after an annotated opt-in call (AddCloudEventsForRabbitMq).",
-      "line": 230,
-      "warningId": "IL2026"
-    },
-    {
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/RabbitMqMessageBus.cs",
-      "justification": "annotated-entry: reachable only after an annotated opt-in call (AddCloudEventsForRabbitMq).",
-      "line": 232,
+      "justification": "AotJustification",
       "warningId": "IL3050"
     }
   ],

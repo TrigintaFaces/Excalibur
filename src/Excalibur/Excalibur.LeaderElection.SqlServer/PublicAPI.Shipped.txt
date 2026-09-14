@@ -1,6 +1,5 @@
 #nullable enable
 Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder
-Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.BindConfiguration(string! sectionPath) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!
 Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!
 Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.ConnectionString(string! connectionString) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!
 Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.ConnectionStringName(string! name) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!

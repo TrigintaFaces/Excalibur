@@ -64,13 +64,6 @@ public interface IPostgresLeaderElectionBuilder
 	/// <returns>The builder for fluent chaining.</returns>
 	IPostgresLeaderElectionBuilder ConnectionStringName(string name);
 
-	/// <summary>
-	/// Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.
-	/// </summary>
-	/// <param name="sectionPath">The configuration section path.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IPostgresLeaderElectionBuilder BindConfiguration(string sectionPath);
-
 	// --- Feature-specific configuration ---
 
 	/// <summary>

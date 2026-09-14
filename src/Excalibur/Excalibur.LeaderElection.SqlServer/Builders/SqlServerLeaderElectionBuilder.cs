@@ -41,11 +41,6 @@ internal sealed class SqlServerLeaderElectionBuilder : ISqlServerLeaderElectionB
 	/// </summary>
 	internal string? ConnectionStringNameValue { get; private set; }
 
-	/// <summary>
-	/// Gets the BindConfiguration section path, if set.
-	/// </summary>
-	internal string? BindConfigurationPath { get; private set; }
-
 	// --- Connection overloads (last-wins: each clears the others) ---
 
 	/// <inheritdoc/>
@@ -56,7 +51,6 @@ internal sealed class SqlServerLeaderElectionBuilder : ISqlServerLeaderElectionB
 		_options.ConnectionString = connectionString;
 		ConnectionFactoryFunc = null;
 		ConnectionStringNameValue = null;
-		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -69,7 +63,6 @@ internal sealed class SqlServerLeaderElectionBuilder : ISqlServerLeaderElectionB
 		ConnectionFactoryFunc = connectionFactory;
 		_options.ConnectionString = null;
 		ConnectionStringNameValue = null;
-		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -81,19 +74,6 @@ internal sealed class SqlServerLeaderElectionBuilder : ISqlServerLeaderElectionB
 		ConnectionStringNameValue = name;
 		_options.ConnectionString = null;
 		ConnectionFactoryFunc = null;
-		BindConfigurationPath = null;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ISqlServerLeaderElectionBuilder BindConfiguration(string sectionPath)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
-
-		BindConfigurationPath = sectionPath;
-		_options.ConnectionString = null;
-		ConnectionFactoryFunc = null;
-		ConnectionStringNameValue = null;
 		return this;
 	}
 

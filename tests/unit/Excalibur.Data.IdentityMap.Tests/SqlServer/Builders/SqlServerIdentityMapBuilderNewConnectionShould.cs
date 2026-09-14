@@ -16,8 +16,8 @@ using Xunit;
 namespace Excalibur.Data.IdentityMap.Tests.SqlServer.Builders;
 
 /// <summary>
-/// Tests for the 3 new connection overloads added to <see cref="ISqlServerIdentityMapBuilder"/>
-/// in Sprint 764 (ConnectionFactory, ConnectionStringName, BindConfiguration).
+/// Tests for the connection overloads on <see cref="ISqlServerIdentityMapBuilder"/>
+/// (ConnectionFactory, ConnectionStringName).
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -76,28 +76,6 @@ public sealed class SqlServerIdentityMapBuilderNewConnectionShould
 		var builder = new TestIdentityMapBuilder();
 		Should.Throw<ArgumentException>(() =>
 			builder.UseSqlServer(sql => sql.ConnectionStringName(invalidValue!)));
-	}
-
-	// --- BindConfiguration ---
-
-	[Fact]
-	public void BindConfiguration_RegisterPath()
-	{
-		var builder = new TestIdentityMapBuilder();
-		builder.UseSqlServer(sql => sql.BindConfiguration("IdentityMap:SqlServer"));
-
-		builder.Services.ShouldNotBeEmpty();
-	}
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void BindConfiguration_ThrowOnInvalidValue(string? invalidValue)
-	{
-		var builder = new TestIdentityMapBuilder();
-		Should.Throw<ArgumentException>(() =>
-			builder.UseSqlServer(sql => sql.BindConfiguration(invalidValue!)));
 	}
 
 	// --- Last-wins ---

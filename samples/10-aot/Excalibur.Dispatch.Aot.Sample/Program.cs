@@ -166,17 +166,15 @@ Console.WriteLine();
 Console.WriteLine("--- Demo 4: Query Non-Existent Order ---");
 
 var missingQuery = new GetOrderQuery { OrderId = Guid.NewGuid() };
-try
-{
-	var missingContext = contextFactory?.CreateContext() ?? new MessageContext();
-	_ = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(missingQuery, missingContext, cancellationToken: default)
-		.ConfigureAwait(false);
-	Console.WriteLine("Unexpected: found order");
-}
-catch (InvalidOperationException ex)
-{
-	Console.WriteLine($"Order not found (as expected): {ex.Message}");
-}
+var missingContext = contextFactory?.CreateContext() ?? new MessageContext();
+// The pipeline captures a handler exception into a failed IMessageResult rather than letting it
+// escape DispatchAsync, so the not-found outcome is read off Succeeded -- a catch here never runs.
+var missingResult = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(missingQuery, missingContext, cancellationToken: default)
+	.ConfigureAwait(false);
+Console.WriteLine(missingResult.Succeeded
+	? "Unexpected: found order"
+	// ErrorMessage carries the handler exception's full ToString(); the first line is the message.
+	: $"Order not found (as expected): {missingResult.ErrorMessage?.Split(Environment.NewLine)[0]}");
 
 Console.WriteLine();
 
@@ -383,7 +381,7 @@ Console.WriteLine();
 // ============================================================================
 // Roots Excalibur.Compliance for AOT publish validation: configuration binding
 // of Soc2Options (including the nested SystemDescription and ControlDefinition
-// report-content types) via AddSoc2Compliance(IConfiguration), and the
+// report-content types) via AddSoc2ComplianceWithBuiltInValidators(IConfiguration), and the
 // reflection-free Soc2ReportExporter (JSON/CSV/XML/text; PDF is opt-in via
 // Excalibur.Compliance.Pdf). NOTE: under a full Native AOT publish, the
 // configuration binding below currently loses SystemDescription's values
@@ -418,7 +416,9 @@ static async Task RunComplianceDemoAsync()
 	var complianceServices = new ServiceCollection();
 	complianceServices.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
 	complianceServices.AddSingleton(TimeProvider.System);
-	complianceServices.AddSoc2Compliance(complianceConfig);
+	// EnabledCategories defaults to [Security]; plain AddSoc2Compliance registers no IControlValidator,
+	// so resolving the options refuses a category nothing can assess. Register the built-in set.
+	complianceServices.AddSoc2ComplianceWithBuiltInValidators(complianceConfig);
 
 	await using var complianceProvider = complianceServices.BuildServiceProvider();
 	var soc2Options = complianceProvider.GetRequiredService<IOptions<Soc2Options>>().Value;

@@ -6,8 +6,31 @@
 #
 # Regenerate deliberately, never to clear a failure you have not read:
 #   python3 eng/ci/aot-annotation-inventory-gate.py --regenerate
-src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/EventTypeRegistrationServiceCollectionExtensions.cs::AddEventTypesFromAssembly
-src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs::JsonEventSerializer
+#
+# Reviewed 2026-09-13. Every entry below was read against the member it names before it was
+# recorded; none was added by a blanket regenerate. The 33 entries added in that pass were not
+# new annotations -- each attribute was already committed (the oldest 2025-12, most 2026-04) and
+# is therefore already carried by published packages. They became visible to this gate only when
+# its declaration walk was corrected, so recording them documents a consumer contract that
+# already exists rather than creating one. Three classes, and what each tells the caller:
+#
+#   IConfiguration binding on an Add*/Use* registration overload (29 entries). The reflective
+#   binder is the hazard; every one of these methods has a sibling overload that configures the
+#   options in code, and the attribute message names it. This is the shape Microsoft ships on
+#   OptionsConfigurationServiceCollectionExtensions.Configure<TOptions>(IServiceCollection,
+#   IConfiguration), which is annotated rather than made trim-safe for the same reason.
+#
+#   Reflective JSON serialization (3 entries). The message names AotJsonEventSerializer, the
+#   JsonSerializerContext-based path, as the AOT-safe alternative.
+#
+#   Assembly scanning for event types (1 entry). The message names the explicit AddEventTypes
+#   registration overloads as the trim-safe alternative.
+#
+# Known gate defect, not a property of the code: a member declared with an attributed generic
+# parameter is keyed here by the attribute name rather than by the method name. Those keys are
+# stable and still lock the member, but they do not read as member names.
+#
+
 src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxStoreDecorator.cs::EnqueueAsync
 src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxStoreDecorator.cs::GetUnsentMessagesAsync
 src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxWriterExtensions.cs::WriteScheduledAsync
@@ -22,13 +45,20 @@ src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::D
 src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::InvokeAsync
 src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::public static IServiceCollection AddDisp
 src/Dispatch/Excalibur.Dispatch.Caching/DefaultCacheKeyBuilder.cs::CreateKey
+src/Dispatch/Excalibur.Dispatch.ClaimCheck.AwsS3/AwsS3ClaimCheckServiceCollectionExtensions.cs::AddAwsS3ClaimCheck
 src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/EndpointRouteBuilderExtensions.cs::public static RouteHandlerBuilder Dispat
 src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/WebApplicationBuilderExtensions.cs::AddDispatch
 src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/AwsLambdaServiceCollectionExtensions.cs::AddAwsLambdaServerless
+src/Dispatch/Excalibur.Dispatch.Hosting.AzureFunctions/AzureFunctionsServiceCollectionExtensions.cs::AddAzureFunctionsServerless
+src/Dispatch/Excalibur.Dispatch.Hosting.GoogleCloudFunctions/GoogleCloudFunctionsServiceCollectionExtensions.cs::AddGoogleCloudFunctionsServerless
+src/Dispatch/Excalibur.Dispatch.Hosting.Serverless.Abstractions/ServerlessServiceCollectionExtensions.cs::AddServerlessHosting
 src/Dispatch/Excalibur.Dispatch.Observability/Context/ContextTraceEnricher.cs::CreateContextOperationSpan
 src/Dispatch/Excalibur.Dispatch.Observability/Context/ContextTraceEnricher.cs::EnrichActivity
 src/Dispatch/Excalibur.Dispatch.Observability/DispatchBuilderObservabilityExtensions.cs::UseObservability
+src/Dispatch/Excalibur.Dispatch.Patterns.Azure/DependencyInjection/AzurePatternsServiceCollectionExtensions.cs::AddAzureBlobClaimCheck
+src/Dispatch/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory/InMemoryClaimCheckServiceCollectionExtensions.cs::AddInMemoryClaimCheck
 src/Dispatch/Excalibur.Dispatch.Patterns/ClaimCheck/ClaimCheckMessageSerializer.cs::ClaimCheckMessageSerializer
+src/Dispatch/Excalibur.Dispatch.Patterns/ClaimCheck/ClaimCheckServiceCollectionExtensions.cs::DynamicallyAccessedMembers
 src/Dispatch/Excalibur.Dispatch.Resilience.Polly/DispatchBuilderResilienceExtensions.cs::UseResilience
 src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs::AddPollyResilience
 src/Dispatch/Excalibur.Dispatch.Serialization.Avro/AvroSerializer.cs::ISerializer
@@ -101,11 +131,13 @@ src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageDispatc
 src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageHandler.cs::HandlePoisonMessageAsync
 src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageHandler.cs::ReplayMessageAsync
 src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageServiceCollectionExtensions.cs::AddPoisonMessageHandling
+src/Dispatch/Excalibur.Dispatch/EventSourcing/EventTypeRegistrationServiceCollectionExtensions.cs::AddEventTypesFromAssembly
+src/Dispatch/Excalibur.Dispatch/EventSourcing/JsonEventSerializer.cs::JsonEventSerializer
 src/Dispatch/Excalibur.Dispatch/Extensions/AssemblyExtensions.cs::GetLoadableTypes
 src/Dispatch/Excalibur.Dispatch/MemoryMessageExtensions.cs::DynamicallyAccessedMembers
 src/Dispatch/Excalibur.Dispatch/Middleware/Outbox/DeferredOutboxWriter.cs::WriteAsync
 src/Dispatch/Excalibur.Dispatch/Middleware/Outbox/DeferredOutboxWriter.cs::WriteScheduledAsync
-src/Dispatch/Excalibur.Dispatch/Options/Serialization/DispatchJsonSerializerOptions.cs::ApplyDefaults
+src/Dispatch/Excalibur.Dispatch/Options/Serialization/DispatchJsonSerializerOptions.cs::ApplyDefaultsWithStringEnums
 src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::PublishPendingMessagesAsync
 src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::PublishScheduledMessagesAsync
 src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::RetryFailedMessagesAsync
@@ -136,6 +168,8 @@ src/Dispatch/Excalibur.Dispatch/Serialization/SystemTextJsonSerializer.cs::ISeri
 src/Dispatch/Excalibur.Dispatch/Threading/ThreadingDispatchBuilderExtensions.cs::WithThreadingOptions
 src/Dispatch/Excalibur.Dispatch/Validation/Context/ContextValidationDispatchBuilderExtensions.cs::UseContextValidation
 src/Dispatch/Excalibur.Dispatch/Validation/Context/ContextValidationServiceCollectionExtensions.cs::AddContextValidation
+src/Excalibur/Excalibur.A3.Core/Authorization/Roles/RoleServiceCollectionExtensions.cs::AddRoles
+src/Excalibur/Excalibur.A3.Governance/OrphanedAccess/OrphanedAccessGovernanceBuilderExtensions.cs::AddOrphanedAccessDetection
 src/Excalibur/Excalibur.A3/A3ServiceCollectionExtensions.cs::AddA3DispatchServices
 src/Excalibur/Excalibur.A3/A3ServiceCollectionExtensions.cs::AddExcaliburA3
 src/Excalibur/Excalibur.A3/Audit/AuditExcaliburBuilderExtensions.cs::AddAudit
@@ -148,12 +182,18 @@ src/Excalibur/Excalibur.A3/Authorization/AttributeAuthorizationCache.cs::HasAttr
 src/Excalibur/Excalibur.A3/Authorization/AuthorizationServiceCollectionExtensions.cs::AddExcaliburAuthorization
 src/Excalibur/Excalibur.A3/Authorization/DispatchBuilderExtensions.cs::AddExcaliburAuthorization
 src/Excalibur/Excalibur.Application/ExcaliburApplicationServiceCollectionExtensions.cs::AddActivities
+src/Excalibur/Excalibur.AuditLogging.Postgres/PostgresAuditServiceCollectionExtensions.cs::AddPostgresAuditStore
 src/Excalibur/Excalibur.Caching/Projections/ExcaliburDispatchBuilderExtensions.cs::WithProjectionResolversFromAssembly
 src/Excalibur/Excalibur.Caching/Projections/ProjectionCacheInvalidator.cs::InvalidateCacheAsync
+src/Excalibur/Excalibur.Cdc.CosmosDb/CdcBuilderCosmosDbExtensions.cs::UseCosmosDb
 src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs::AddCosmosDbCdc
 src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs::AddCosmosDbCdcStateStore
+src/Excalibur/Excalibur.Cdc.Postgres/CdcBuilderPostgresExtensions.cs::UsePostgres
 src/Excalibur/Excalibur.Cdc.SqlServer/DependencyInjection/DataChangeHandlerCdcBuilderExtensions.cs::AddDataChangeHandlersFromAssembly
 src/Excalibur/Excalibur.Cdc.SqlServer/DependencyInjection/DataChangeHandlerServiceCollectionExtensions.cs::AddDataChangeHandlersFromAssembly
+src/Excalibur/Excalibur.Cdc.SqlServer/SqlServerCdcHealthChecksBuilderExtensions.cs::AddCdcHealthCheck
+src/Excalibur/Excalibur.Cdc/Diagnostics/CdcHealthChecksBuilderExtensions.cs::AddCdcHealthCheck
+src/Excalibur/Excalibur.Compliance.SqlServer/SqlServerKeyEscrowServiceCollectionExtensions.cs::AddSqlServerKeyEscrow
 src/Excalibur/Excalibur.Compliance/Encryption/Decorators/EncryptingOutboxStoreDecorator.cs::EnqueueAsync
 src/Excalibur/Excalibur.Compliance/Encryption/Decorators/EncryptingOutboxStoreDecorator.cs::GetUnsentMessagesAsync
 src/Excalibur/Excalibur.Compliance/Encryption/EncryptionDecryptionService.cs::DynamicallyAccessedMembers
@@ -225,6 +265,7 @@ src/Excalibur/Excalibur.Data.OpenSearch/MaterializedViews/OpenSearchMaterialized
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.Data.Postgres/DependencyInjection/PostgresServiceCollectionExtensions.cs::AddPostgresDeadLetterStore
 src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceServiceCollectionExtensions.cs::AddPostgresPersistence
 src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceServiceCollectionExtensions.cs::AddPostgresPersistenceFromSection
 src/Excalibur/Excalibur.Data.SqlServer/Persistence/SqlServerPersistenceExtensions.cs::AddSqlServerPersistence
@@ -254,6 +295,7 @@ src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::Get
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::QueryPagedAsync
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing.Sqlite/DependencyInjection/SqliteEventSourcingServiceCollectionExtensions.cs::UseSqlite
 src/Excalibur/Excalibur.EventSourcing/Decorators/IsolatingProjectionStoreDecorator.cs::GetByIdAsync
 src/Excalibur/Excalibur.EventSourcing/Decorators/IsolatingProjectionStoreDecorator.cs::QueryAsync
 src/Excalibur/Excalibur.EventSourcing/Decorators/IsolatingProjectionStoreDecorator.cs::UpsertAsync
@@ -304,6 +346,8 @@ src/Excalibur/Excalibur.EventSourcing/Views/ViewStoreAccessor.cs::GetAsync
 src/Excalibur/Excalibur.EventSourcing/Views/ViewStoreAccessor.cs::SaveAsync
 src/Excalibur/Excalibur.EventSourcing/Views/ViewStoreAccessor.cs::SaveWithPositionAsync
 src/Excalibur/Excalibur.Hosting.AwsLambda/ExcaliburAwsLambdaServiceCollectionExtensions.cs::AddExcaliburAwsLambdaServerless
+src/Excalibur/Excalibur.Hosting.AzureFunctions/ExcaliburAzureFunctionsServiceCollectionExtensions.cs::AddExcaliburAzureFunctionsServerless
+src/Excalibur/Excalibur.Hosting.GoogleCloudFunctions/ExcaliburGoogleCloudFunctionsServiceCollectionExtensions.cs::AddExcaliburGoogleCloudFunctionsServerless
 src/Excalibur/Excalibur.Hosting.HealthChecks/ApplicationBuilderExtensions.cs::UseExcaliburHealthChecks
 src/Excalibur/Excalibur.Hosting.Jobs/ApplicationBuilderExtensions.cs::UseExcaliburJobHost
 src/Excalibur/Excalibur.Hosting.Jobs/Builders/JobsExcaliburBuilderExtensions.cs::AddJobs
@@ -317,6 +361,10 @@ src/Excalibur/Excalibur.Jobs.SqlServer/SqlServerJobCoordinator.cs::DistributeJob
 src/Excalibur/Excalibur.Jobs.SqlServer/SqlServerJobCoordinator.cs::ReportJobCompletionAsync
 src/Excalibur/Excalibur.Jobs/Core/ConfigurationExtensions.cs::public static TOptions GetJobConfigurati
 src/Excalibur/Excalibur.Jobs/Quartz/ApplicationBuilderExtensions.cs::UseExcaliburJobHost
+src/Excalibur/Excalibur.LeaderElection.InMemory/InMemoryLeaderElectionServiceCollectionExtensions.cs::AddInMemoryLeaderElection
+src/Excalibur/Excalibur.LeaderElection.Kubernetes/DependencyInjection/KubernetesLeaderElectionBuilderExtensions.cs::UseKubernetes
+src/Excalibur/Excalibur.LeaderElection.Kubernetes/KubernetesLeaderElectionExtensions.cs::AddExcaliburKubernetesLeaderElection
+src/Excalibur/Excalibur.LeaderElection.Kubernetes/KubernetesLeaderElectionExtensions.cs::AddExcaliburKubernetesLeaderElectionHostedService
 src/Excalibur/Excalibur.LeaderElection/Watch/LeaderElectionWatchServiceCollectionExtensions.cs::AddLeaderElectionWatcher
 src/Excalibur/Excalibur.Outbox.ElasticSearch/ElasticsearchOutboxStore.cs::EnqueueAsync
 src/Excalibur/Excalibur.Outbox.ElasticSearch/ElasticsearchOutboxStore.cs::GetUnsentMessagesAsync
@@ -350,11 +398,14 @@ src/Excalibur/Excalibur.Saga.MongoDB/MongoDbSagaStore.cs::public async Task Save
 src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::AddOracleSagaStore
 src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::UseOracleSagaStore
 src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::public static IServiceCollection AddOrac
+src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/SagaBuilderOracleExtensions.cs::UseOracle
 src/Excalibur/Excalibur.Saga.Oracle/OracleSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.Saga.Oracle/Requests/SaveSagaRequest.cs::SaveSagaRequest
 src/Excalibur/Excalibur.Saga.Postgres/DependencyInjection/PostgresSagaExtensions.cs::AddPostgresSagaStore
+src/Excalibur/Excalibur.Saga.Postgres/DependencyInjection/SagaBuilderPostgresExtensions.cs::UsePostgres
 src/Excalibur/Excalibur.Saga.Postgres/PostgresSagaStore.cs::public async Task SaveAsync<TSagaState>(
 src/Excalibur/Excalibur.Saga.Postgres/Requests/SaveSagaRequest.cs::SaveSagaRequest
+src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SagaBuilderSqlServerExtensions.cs::UseSqlServer
 src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::AddSqlServerSagaStore
 src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::UseSqlServerSagaStore
 src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::public static IServiceCollection AddSqlS
@@ -399,6 +450,3 @@ src/metapackages/Excalibur.Dispatch.RabbitMQ/DispatchRabbitMQServiceCollectionEx
 src/metapackages/Excalibur.Dispatch.SqlServer/DispatchSqlServerServiceCollectionExtensions.cs::AddDispatchWithSqlServer
 src/metapackages/Excalibur.Postgres/ExcaliburPostgresServiceCollectionExtensions.cs::AddExcaliburPostgres
 src/metapackages/Excalibur.SqlServer/ExcaliburSqlServerServiceCollectionExtensions.cs::AddExcaliburSqlServer
-src/Excalibur/Excalibur.LeaderElection.Kubernetes/KubernetesLeaderElectionExtensions.cs::AddExcaliburKubernetesLeaderElection
-src/Excalibur/Excalibur.LeaderElection.Kubernetes/KubernetesLeaderElectionExtensions.cs::AddExcaliburKubernetesLeaderElectionHostedService
-src/Excalibur/Excalibur.LeaderElection.Kubernetes/DependencyInjection/KubernetesLeaderElectionBuilderExtensions.cs::UseKubernetes

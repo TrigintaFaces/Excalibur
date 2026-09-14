@@ -10,6 +10,7 @@ using Excalibur.Compliance.Soc2.Validators;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -235,9 +236,11 @@ public static class Soc2ServiceCollectionExtensions
 
 		// A category enabled here that no registered validator can assess is reported honestly in the
 		// finished attestation and nowhere the person configuring it will look. This says it at the
-		// configuration site instead.
+		// configuration site instead — as a startup warning, never a refusal: validators are opt-in, so
+		// zero coverage is a legitimate state the report states honestly, and whether one is registered
+		// is a property of the service graph rather than of the options value.
 		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<Soc2Options>, Soc2CoverageOptionsValidator>());
+			ServiceDescriptor.Singleton<IHostedService, Soc2CoverageStartupDiagnostic>());
 
 		// Register core services
 		services.TryAddScoped<ISoc2ComplianceService, Soc2ComplianceService>();

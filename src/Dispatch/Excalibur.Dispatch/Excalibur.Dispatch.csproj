@@ -129,6 +129,16 @@
        @(Analyzer) is resolved by the same build that is about to consume it, so it cannot go stale that way.
        The trailing Error additionally fails the pack loudly if resolution ever comes back empty, so a
        genuinely broken reference can't ship silently either. -->
+  <!-- ResolveProjectReferences below invokes the DEFAULT targets (Build) on every ProjectReference.
+       Under a no-build pack the SDK sets NoBuild=true and errors NETSDK1085 the moment any project's
+       Build target is entered, so the official pack step died on Excalibur.Dispatch.Abstractions, a
+       project this one only reads a path from. BuildProjectReferences=false makes the resolution ask
+       references for GetTargetPath instead of building them, which is all @(Analyzer) needs and is what
+       a no-build pack already promised. The Error inside the target still fails loudly if resolution
+       comes back empty. -->
+  <PropertyGroup Condition="'$(NoBuild)' == 'true'">
+    <BuildProjectReferences>false</BuildProjectReferences>
+  </PropertyGroup>
   <Target Name="_ResolveBundledAnalyzerFiles" BeforeTargets="_GetPackageFiles" DependsOnTargets="ResolveProjectReferences">
     <ItemGroup>
       <_BundledAnalyzerOutput Include="@(Analyzer)"

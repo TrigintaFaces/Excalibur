@@ -1,6 +1,5 @@
 #nullable enable
 Excalibur.Inbox.Oracle.IOracleInboxBuilder
-Excalibur.Inbox.Oracle.IOracleInboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Inbox.Oracle.IOracleInboxBuilder!
 Excalibur.Inbox.Oracle.IOracleInboxBuilder.CommandTimeoutSeconds(int seconds) -> Excalibur.Inbox.Oracle.IOracleInboxBuilder!
 Excalibur.Inbox.Oracle.IOracleInboxBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Oracle.ManagedDataAccess.Client.OracleConnection!>!>! connectionFactory) -> Excalibur.Inbox.Oracle.IOracleInboxBuilder!
 Excalibur.Inbox.Oracle.IOracleInboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Inbox.Oracle.IOracleInboxBuilder!

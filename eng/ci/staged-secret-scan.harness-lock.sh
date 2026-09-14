@@ -9,6 +9,10 @@
 #                  scan runs, and RED against a no-op scanner (the inert control never fires).
 #     * LIVENESS — a clean staged tree → scanner exits 0 (a normal commit is allowed). This is the arm
 #                  that catches a "block everything" scanner — the inert-control class. Do NOT omit.
+#     * SAFETY (SIZE) -- a secret on LINE 1 of a MULTI-MEGABYTE staged addition -> scanner exits 1.
+#                  SIZE is the discriminator, not pattern: the small-payload SAFETY arms above pass
+#                  7/7 against a scanner that decides through `printf | grep -q` under pipefail,
+#                  which silently misses an early match in a long payload. Do NOT shrink the payload.
 #     * ALLOWLIST — a staged secret on a line marked `# pragma: allowlist secret` → scanner exits 0
 #                  (the exemption is honoured at the authoring site; the scanner is not weakened —
 #                  the SAFETY arms prove it still catches a non-pragma key).
@@ -59,13 +63,18 @@ PEM_TOKEN="-----BEGIN RSA PRIVATE ""KEY-----"                        # pragma: a
 
 # run_scan <rc-var-unused> <file-content...> — writes content to a staged fixture in a fresh temp repo,
 # runs the scanner with cwd=repo, echoes the scanner's exit code.
+# <filler-lines> (optional, default 0) appends that many innocuous lines AFTER the content, so the
+# staged addition can be made arbitrarily large without the payload ever passing through a shell
+# variable. The content stays on line 1 -- the position that matters (see the SIZE arm below).
 run_scan() {
     local content="$1"
+    local filler="${2:-0}"
     local repo; repo="$(mktemp -d)"
     (
         cd "$repo" || exit 99
         git init -q . >/dev/null 2>&1 || exit 99
         printf '%s\n' "$content" > staged.txt
+        [ "$filler" -eq 0 ] || awk -v n="$filler" 'BEGIN { for (i = 0; i < n; i++) print "padding-line-" i " lorem ipsum dolor sit amet consectetur adipiscing elit" }' >> staged.txt || exit 99
         git add staged.txt >/dev/null 2>&1 || exit 99
         bash "$SCAN_ABS" >/dev/null 2>&1
     )
@@ -114,6 +123,33 @@ rc="$(run_scan "BASELINE=eng/ci/task-delay-syncwait-baseline.txt")"
 rc="$(run_scan "aws_key = ${AWS_TOKEN}   # pragma: allowlist secret")"
 [ "$rc" = "0" ] && ok "ALLOWLIST: pragma-marked example token → scanner exits 0 (exempted at authoring site)" \
                 || bad "ALLOWLIST: a pragma-marked line must be exempted" "scanner exit $rc"
+
+# SAFETY (SIZE) -- a secret on LINE 1 of a multi-megabyte staged addition is still reported.
+#
+# This arm exists because the scanner's deciding line USED to be a `printf | grep -qE` pipeline, and
+# `set -o pipefail` is on. `grep -q` exits at its FIRST match, so when the match is EARLY and the
+# payload is LONG, printf is still writing: printf takes SIGPIPE, pipefail promotes 141 to the
+# pipeline, the `if` does not fire, and the secret is NOT reported. Exit 0 -- a false GREEN on a
+# BLOCKING credential scan, in exactly the case the scan exists for. A large commit is also the one
+# a human reviewer is least able to check by eye, so nothing downstream catches it either.
+#
+# The other six arms CANNOT see this. Every one of them stages a payload far below the 64 KiB pipe
+# buffer, where the SIGPIPE is unreachable -- they pass 7/7 against the broken scanner. The
+# discriminator is SIZE, not pattern, which is why this arm changes the payload size and NOTHING
+# else: same token, same position, same assertion as the first SAFETY arm.
+#
+# ~60k filler lines = ~4.3 MB, two orders of magnitude past the pipe buffer, so the miss is
+# deterministic rather than racy (measured: 0/40 at 3 lines, 40/40 at 200k lines).
+# DO NOT shrink this payload -- below the buffer the arm silently stops discriminating and becomes
+# a duplicate of the first SAFETY arm.
+#
+# To prove it can still FAIL, point the lock at a scanner whose deciding line pipes again:
+#   SCAN_BIN=/tmp/old-piped-scanner.sh bash eng/ci/staged-secret-scan.harness-lock.sh
+# -> 6 pass, 1 FAIL, and the one that fails is this arm.
+rc="$(run_scan "config aws_key = ${AWS_TOKEN}" 60000)"
+[ "$rc" = "1" ] && ok "SAFETY (SIZE): AWS key on line 1 of a ~4.3 MB staged addition -> scanner exits 1" \
+                || bad "SAFETY (SIZE): a secret early in a LARGE staged addition MUST still be reported" \
+                       "scanner exit $rc (0 = the SIGPIPE false-green is back: the deciding line is piping again)"
 
 echo
 printf 'passed %d · failed %d\n' "$PASS" "$FAIL"

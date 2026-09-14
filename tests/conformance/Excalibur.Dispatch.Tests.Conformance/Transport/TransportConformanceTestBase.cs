@@ -418,7 +418,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// R2.15: Transport MUST support message filtering capabilities.
 	/// </summary>
 	/// <remarks>
-	/// Capability-gated on <see cref="TransportCapability.Filtering" />. A transport that advertises server-side
+	/// Capability-gated on EITHER filtering family — this is the arm every filtering transport owes. A transport that advertises server-side
 	/// filtering via <see cref="AdvancedCapabilities" /> is asserted to deliver ONLY the matching message; a
 	/// transport that does not advertise it no-ops (the seam design — no false conformance). The assertion is
 	/// proven RED-able against a non-filtering double in <c>HarnessCapabilityNonVacuityShould</c>.
@@ -429,9 +429,9 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 		RequireTransport();
 
 		var capabilities = AdvancedCapabilities;
-		if (capabilities is null || !capabilities.Capabilities.HasFlag(TransportCapability.Filtering))
+		if (capabilities is null || !FiltersServerSide(capabilities.Capabilities))
 		{
-			Assert.Skip("[capability-not-applicable] This transport does not advertise server-side filtering, so the filtering fact does NOT apply to it. Reported skipped rather than passed: a transport that cannot filter must not appear to have conformed.");
+			Assert.Skip("[capability-not-applicable] This transport advertises neither PublishTimeFiltering nor ReceiveTimeFiltering, so the filtering fact does NOT apply to it. Reported skipped rather than passed: a transport that cannot filter must not appear to have conformed.");
 		}
 
 		// Arrange: a message to drop and a message to keep, tagged with distinct filter attributes. The
@@ -450,6 +450,12 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 		};
 
 		using var cts = new CancellationTokenSource(ReceiveTimeout);
+
+		// Declared BEFORE the sends so a publish-time-filtered broker has its rule live when the
+		// non-matching message arrives. A receive-time transport no-ops here.
+		var keepFilter = new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "keep" };
+		await capabilities.PrepareFilterAsync(keepFilter, cts.Token).ConfigureAwait(false);
+
 		await capabilities.SendFilterableAsync(
 			drop,
 			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "drop" },
@@ -460,15 +466,95 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 			cts.Token).ConfigureAwait(false);
 
 		// Act: receive only messages matching the "keep" filter.
-		var received = await capabilities.ReceiveMatchingAsync<TestMessage>(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "keep" },
-			cts.Token).ConfigureAwait(false);
+		var received = await capabilities.ReceiveMatchingAsync<TestMessage>(keepFilter, cts.Token)
+			.ConfigureAwait(false);
 
 		// Assert: the matching message is delivered; the non-matching one is filtered out.
 		_ = received.ShouldNotBeNull();
 		_ = received.Body.ShouldNotBeNull();
 		received.Body.Content.ShouldBe("keep");
 	}
+
+	/// <summary>
+	/// The transport honours a filter predicate supplied AFTER both messages are already in the broker.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is a NEW requirement, not a restored one.</b> R2.15's recorded acceptance criterion asks only
+	/// that "a filtered SUBSCRIPTION delivers only matching messages", and subscription semantics are
+	/// publish-time: late binding of the predicate appears nowhere in it. The kit once demanded late binding
+	/// of every transport, which made the arm structurally unpassable for the whole publish-time class — so
+	/// the demand was an artifact of the harness, never a requirement anyone wrote down. It is asserted here
+	/// as its own property, of the transports that can actually satisfy it.
+	/// </para>
+	/// <para>
+	/// Capability-gated on <see cref="TransportCapability.ReceiveTimeFiltering" /> ONLY. The distinction is
+	/// load-bearing: <see cref="Should_Support_Message_Filtering" /> declares the filter BEFORE the sends, so
+	/// a publish-time broker has its rule live when the non-matching message arrives. Here nothing is
+	/// declared up front — both messages are accepted, and the predicate arrives on the read. A publish-time
+	/// broker cannot pass this and is not asked to.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public virtual async Task Should_Filter_On_A_Predicate_Supplied_After_The_Sends()
+	{
+		RequireTransport();
+
+		var capabilities = AdvancedCapabilities;
+		if (capabilities is null || !capabilities.Capabilities.HasFlag(TransportCapability.ReceiveTimeFiltering))
+		{
+			Assert.Skip("[capability-not-applicable] This transport does not advertise ReceiveTimeFiltering, so the late-bound filtering fact does NOT apply to it. Reported skipped rather than passed: a publish-time-filtering broker decides a message's fate when it is sent and structurally cannot honour a predicate first supplied on the read — it must not appear to have conformed to a property it cannot hold.");
+		}
+
+		var keep = new TestMessage
+		{
+			Id = Guid.NewGuid().ToString(),
+			Content = "keep",
+			Timestamp = DateTimeOffset.UtcNow
+		};
+		var drop = new TestMessage
+		{
+			Id = Guid.NewGuid().ToString(),
+			Content = "drop",
+			Timestamp = DateTimeOffset.UtcNow
+		};
+
+		using var cts = new CancellationTokenSource(ReceiveTimeout);
+
+		// Deliberately NO PrepareFilterAsync: the whole point is that the transport has not been told what
+		// the predicate is. Both messages reach the broker; the non-matching one FIRST, so a transport that
+		// ignores the late-bound filter returns it (RED).
+		await capabilities.SendFilterableAsync(
+			drop,
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "drop" },
+			cts.Token).ConfigureAwait(false);
+		await capabilities.SendFilterableAsync(
+			keep,
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "keep" },
+			cts.Token).ConfigureAwait(false);
+
+		// Act: the predicate is supplied here, and only here.
+		var received = await capabilities.ReceiveMatchingAsync<TestMessage>(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "keep" },
+			cts.Token).ConfigureAwait(false);
+
+		// Assert: the already-queued non-matching message is refused on the read.
+		_ = received.ShouldNotBeNull();
+		_ = received.Body.ShouldNotBeNull();
+		received.Body.Content.ShouldBe("keep");
+	}
+
+	/// <summary>
+	/// Whether the transport filters server-side at all, in either family.
+	/// </summary>
+	/// <remarks>
+	/// Not a composite enum member on purpose. A <c>Filtering = PublishTime | ReceiveTime</c> member would
+	/// read as "either" and mean "both" under <see cref="Enum.HasFlag" />, which is the same silent-default
+	/// trap the partition exists to remove.
+	/// </remarks>
+	private static bool FiltersServerSide(TransportCapability capabilities) =>
+		capabilities.HasFlag(TransportCapability.PublishTimeFiltering)
+		|| capabilities.HasFlag(TransportCapability.ReceiveTimeFiltering);
 
 	/// <summary>
 	/// R4.5: Transport MUST route poison messages to DLQ after retry exhaustion.

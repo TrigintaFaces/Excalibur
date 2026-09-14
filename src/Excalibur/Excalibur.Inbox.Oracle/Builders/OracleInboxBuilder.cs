@@ -25,8 +25,6 @@ internal sealed class OracleInboxBuilder : IOracleInboxBuilder
 
 	internal string? ConnectionStringNameValue { get; private set; }
 
-	internal string? BindConfigurationPath { get; private set; }
-
 	// --- Connection overloads (last-wins) ---
 
 	/// <inheritdoc/>
@@ -37,7 +35,6 @@ internal sealed class OracleInboxBuilder : IOracleInboxBuilder
 		_options.ConnectionString = connectionString;
 		ConnectionFactoryFunc = null;
 		ConnectionStringNameValue = null;
-		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -50,7 +47,6 @@ internal sealed class OracleInboxBuilder : IOracleInboxBuilder
 		ConnectionFactoryFunc = connectionFactory;
 		_options.ConnectionString = string.Empty;
 		ConnectionStringNameValue = null;
-		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -62,19 +58,6 @@ internal sealed class OracleInboxBuilder : IOracleInboxBuilder
 		ConnectionStringNameValue = name;
 		_options.ConnectionString = string.Empty;
 		ConnectionFactoryFunc = null;
-		BindConfigurationPath = null;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IOracleInboxBuilder BindConfiguration(string sectionPath)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
-
-		BindConfigurationPath = sectionPath;
-		_options.ConnectionString = string.Empty;
-		ConnectionFactoryFunc = null;
-		ConnectionStringNameValue = null;
 		return this;
 	}
 

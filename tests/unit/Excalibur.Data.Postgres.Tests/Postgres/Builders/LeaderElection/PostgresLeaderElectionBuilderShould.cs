@@ -71,16 +71,6 @@ public sealed class PostgresLeaderElectionBuilderShould : UnitTestBase
         builder.ConnectionStringNameValue.ShouldBe("LeaderElection");
     }
 
-    [Fact]
-    public void BindConfiguration_StorePath()
-    {
-        var (builder, _) = CreateBuilder();
-
-        builder.BindConfiguration("LeaderElection:Postgres");
-
-        builder.BindConfigurationPath.ShouldBe("LeaderElection:Postgres");
-    }
-
     // --- Last-wins semantics (5 overloads) ---
 
     [Fact]
@@ -95,7 +85,6 @@ public sealed class PostgresLeaderElectionBuilderShould : UnitTestBase
         builder.DataSourceFactoryFunc.ShouldNotBeNull();
         builder.DataSourceInstance.ShouldBeNull();
         builder.ConnectionStringNameValue.ShouldBeNull();
-        builder.BindConfigurationPath.ShouldBeNull();
     }
 
     [Fact]
@@ -111,7 +100,6 @@ public sealed class PostgresLeaderElectionBuilderShould : UnitTestBase
         builder.DataSourceInstance.ShouldBeNull();
         builder.DataSourceFactoryFunc.ShouldBeNull();
         builder.ConnectionStringNameValue.ShouldBeNull();
-        builder.BindConfigurationPath.ShouldBeNull();
     }
 
     [Fact]
@@ -127,7 +115,6 @@ public sealed class PostgresLeaderElectionBuilderShould : UnitTestBase
         builder.DataSourceInstance.ShouldBe(dataSource);
         builder.DataSourceFactoryFunc.ShouldBeNull();
         builder.ConnectionStringNameValue.ShouldBeNull();
-        builder.BindConfigurationPath.ShouldBeNull();
     }
 
     [Fact]
@@ -142,23 +129,6 @@ public sealed class PostgresLeaderElectionBuilderShould : UnitTestBase
         builder.DataSourceFactoryFunc.ShouldBeNull();
         builder.DataSourceInstance.ShouldBeNull();
         builder.ConnectionStringNameValue.ShouldBe("LeaderElection");
-        builder.BindConfigurationPath.ShouldBeNull();
-    }
-
-    [Fact]
-    public void BindConfiguration_ClearAll()
-    {
-        var (builder, options) = CreateBuilder();
-        using var dataSource = NpgsqlDataSource.Create(TestConnectionString);
-
-        builder.DataSource(dataSource);
-        builder.BindConfiguration("LE:Postgres");
-
-        options.ConnectionString.ShouldBeNull();
-        builder.DataSourceFactoryFunc.ShouldBeNull();
-        builder.DataSourceInstance.ShouldBeNull();
-        builder.ConnectionStringNameValue.ShouldBeNull();
-        builder.BindConfigurationPath.ShouldBe("LE:Postgres");
     }
 
     // --- Feature methods ---
@@ -215,14 +185,6 @@ public sealed class PostgresLeaderElectionBuilderShould : UnitTestBase
     {
         var (builder, _) = CreateBuilder();
         var result = builder.ConnectionStringName("LeaderElection");
-        result.ShouldBeSameAs(builder);
-    }
-
-    [Fact]
-    public void BindConfiguration_ReturnBuilderForChaining()
-    {
-        var (builder, _) = CreateBuilder();
-        var result = builder.BindConfiguration("LE:Postgres");
         result.ShouldBeSameAs(builder);
     }
 

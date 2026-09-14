@@ -515,7 +515,6 @@
       "excalibur.dispatch.hosting.serverless.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch": "[1.0.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",

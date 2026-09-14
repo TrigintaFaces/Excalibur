@@ -24,7 +24,10 @@ rm -rf "$generated_dir"
     -p:EmitCompilerGeneratedFiles=true \
     -p:CompilerGeneratedFilesOutputPath="$generated_subdir"
 
-generated_file="$(find "$generated_dir" -iname 'BindingExtensions.g.cs' | head -1)"
+# `|| true`: `head -1` closes the pipe on a multi-hit find, find dies of SIGPIPE (141), and under
+# `set -euo pipefail` that aborts the gate -- BEFORE the honest REFUSE two lines down. The emptiness
+# of the value is the verdict here, never the pipeline's status.
+generated_file="$(find "$generated_dir" -iname 'BindingExtensions.g.cs' | head -1)" || true
 if [ -z "$generated_file" ]; then
     echo "config-binder-completeness-gate: BindingExtensions.g.cs not found -- generator not enabled?" >&2
     exit 2

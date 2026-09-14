@@ -9,7 +9,7 @@ namespace Excalibur.LeaderElection.Tests.Consul.Builders;
 
 /// <summary>
 /// Unit tests for <see cref="LeaderElectionConsulBuilder"/> — Address, Token, Datacenter,
-/// SessionTtl, LockKey, BindConfiguration, last-wins semantics, fluent chaining, and validation guards.
+/// SessionTtl, LockKey, additive semantics, fluent chaining, and validation guards.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, "LeaderElection")]
@@ -27,16 +27,6 @@ public sealed class LeaderElectionConsulBuilderShould : UnitTestBase
         builder.Address("http://localhost:8500");
 
         builder.AddressValue.ShouldBe("http://localhost:8500");
-    }
-
-    [Fact]
-    public void BindConfiguration_StorePathOnBuilder()
-    {
-        var builder = CreateBuilder();
-
-        builder.BindConfiguration("Consul:LeaderElection");
-
-        builder.BindConfigurationPath.ShouldBe("Consul:LeaderElection");
     }
 
     // --- Happy path: additive methods ---
@@ -81,34 +71,8 @@ public sealed class LeaderElectionConsulBuilderShould : UnitTestBase
         builder.LockKeyValue.ShouldBe("service/leader");
     }
 
-    // --- Last-wins semantics: Address vs BindConfiguration ---
-
     [Fact]
-    public void Address_ClearBindConfiguration()
-    {
-        var builder = CreateBuilder();
-        builder.BindConfiguration("Consul:LeaderElection");
-
-        builder.Address("http://localhost:8500");
-
-        builder.BindConfigurationPath.ShouldBeNull();
-        builder.AddressValue.ShouldBe("http://localhost:8500");
-    }
-
-    [Fact]
-    public void BindConfiguration_ClearAddress()
-    {
-        var builder = CreateBuilder();
-        builder.Address("http://localhost:8500");
-
-        builder.BindConfiguration("Consul:LeaderElection");
-
-        builder.AddressValue.ShouldBeNull();
-        builder.BindConfigurationPath.ShouldBe("Consul:LeaderElection");
-    }
-
-    [Fact]
-    public void AdditiveProperties_PreservedAcrossConnectionChanges()
+    public void AdditiveProperties_PreservedAcrossAddressChange()
     {
         var builder = CreateBuilder();
 
@@ -118,8 +82,9 @@ public sealed class LeaderElectionConsulBuilderShould : UnitTestBase
             .LockKey("service/leader")
             .Address("http://localhost:8500");
 
-        builder.BindConfiguration("Consul:LeaderElection");
+        builder.Address("http://other:8500");
 
+        builder.AddressValue.ShouldBe("http://other:8500");
         builder.TokenValue.ShouldBe("my-token");
         builder.DatacenterValue.ShouldBe("dc1");
         builder.SessionTtlValue.ShouldBe(TimeSpan.FromSeconds(30));
@@ -140,14 +105,6 @@ public sealed class LeaderElectionConsulBuilderShould : UnitTestBase
             .SessionTtl(TimeSpan.FromSeconds(30))
             .LockKey("service/leader");
 
-        result.ShouldBeSameAs(builder);
-    }
-
-    [Fact]
-    public void BindConfiguration_ReturnBuilderForChaining()
-    {
-        var builder = CreateBuilder();
-        var result = builder.BindConfiguration("Consul:LeaderElection");
         result.ShouldBeSameAs(builder);
     }
 
@@ -205,15 +162,5 @@ public sealed class LeaderElectionConsulBuilderShould : UnitTestBase
     {
         var builder = CreateBuilder();
         Should.Throw<ArgumentException>(() => builder.LockKey(invalidValue!));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void BindConfiguration_ThrowOnInvalidValue(string? invalidValue)
-    {
-        var builder = CreateBuilder();
-        Should.Throw<ArgumentException>(() => builder.BindConfiguration(invalidValue!));
     }
 }

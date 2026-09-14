@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Consul;
@@ -27,10 +26,13 @@ public static class ConsulLeaderElectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Configuration action for the Consul builder.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[RequiresUnreferencedCode(
-		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
-	[RequiresDynamicCode(
-		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
+	/// <remarks>
+	/// To populate the options from configuration, call
+	/// <c>services.AddOptions&lt;ConsulLeaderElectionOptions&gt;().BindConfiguration("Section:Path")</c>
+	/// alongside this registration. Configuration binding is reflective, so it is not trim- or
+	/// native-AOT-safe; doing it at your own call site puts the warning where the trimmer can see it
+	/// rather than on this method, which is otherwise trim-safe.
+	/// </remarks>
 	public static IServiceCollection AddConsulLeaderElection(
 		this IServiceCollection services,
 		Action<ILeaderElectionConsulBuilder> configure)
@@ -101,10 +103,6 @@ public static class ConsulLeaderElectionExtensions
 		return services;
 	}
 
-	[RequiresUnreferencedCode(
-		"Binds options from IConfiguration, which reads and writes properties reflectively and is therefore not trim-safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>), which replaces the reflective path at compile time.")]
-	[RequiresDynamicCode(
-		"Binds options from IConfiguration, which is not native-AOT safe. Configure the options with the fluent builder instead, or enable the .NET configuration binding source generator (<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>).")]
 	private static void RegisterOptionsAndServices(
 		IServiceCollection services,
 		LeaderElectionConsulBuilder consulBuilder)
@@ -138,14 +136,6 @@ public static class ConsulLeaderElectionExtensions
 				opt.KeyPrefix = consulBuilder.LockKeyValue;
 			}
 		});
-
-		// Register BindConfiguration if set
-		if (consulBuilder.BindConfigurationPath is not null)
-		{
-			services.AddOptions<ConsulLeaderElectionOptions>()
-				.BindConfiguration(consulBuilder.BindConfigurationPath)
-				.ValidateOnStart();
-		}
 
 		optionsBuilder.ValidateOnStart();
 

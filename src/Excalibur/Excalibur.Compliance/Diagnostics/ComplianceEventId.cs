@@ -545,6 +545,9 @@ internal static class ComplianceEventId
 	/// <summary>Control validation failure logged (low).</summary>
 	public const int ControlValidationFailureLow = 92813;
 
+	/// <summary>A Trust Services category is enabled that no registered control validator can assess.</summary>
+	public const int Soc2CategoryWithoutValidatorCoverage = 92840;
+
 	/// <summary>Erasure store health check passed.</summary>
 	public const int ErasureHealthCheckPassed = 92830;
 

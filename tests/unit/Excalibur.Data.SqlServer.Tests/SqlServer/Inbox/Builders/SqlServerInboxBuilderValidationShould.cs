@@ -61,20 +61,6 @@ public sealed class SqlServerInboxBuilderValidationShould : UnitTestBase
 			builder.UseSqlServer(sql => sql.ConnectionStringName(invalidValue!)));
 	}
 
-	// --- BindConfiguration guards ---
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void BindConfiguration_ThrowOnInvalidValue(string? invalidValue)
-	{
-		var builder = new TestInboxBuilder();
-
-		Should.Throw<ArgumentException>(() =>
-			builder.UseSqlServer(sql => sql.BindConfiguration(invalidValue!)));
-	}
-
 	// --- Feature method guards ---
 
 	[Theory]

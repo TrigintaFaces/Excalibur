@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch;
@@ -110,7 +110,7 @@ internal static class InboxSchemaContract
 			return;
 		}
 
-		// ADR-345 Decision 1 draws a line this check has to respect: the STORED partition and the AMBIENT
+		// The tenancy model draws a line this check has to respect: the STORED partition and the AMBIENT
 		// context are different states with different representations, and conflating them has already cost
 		// a bead filed against correct design. Stored "no tenant" is the reserved value. Ambient "no tenant"
 		// is an ABSENCE -- ITenantContext.TenantId is nullable, and that null is load-bearing, because the

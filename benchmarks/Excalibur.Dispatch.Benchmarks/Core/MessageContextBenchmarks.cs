@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // MessageContext Performance Benchmarks
-// Sprint 71 - Epic yvpn: MessageContext Performance Optimization
+// MessageContext performance: hot-path property and header access
 // Task miii: Create baseline performance benchmarks
 //
 // Purpose: Establish baseline performance metrics BEFORE optimization
@@ -11,7 +11,6 @@
 #pragma warning disable MA0160 // Use ContainsKey instead of TryGetValue (benchmarking TryGetValue specifically)
 
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch;
@@ -21,7 +20,7 @@ namespace Excalibur.Dispatch.Benchmarks.Core;
 
 /// <summary>
 /// Benchmarks for MessageContext property and dictionary access patterns.
-/// These benchmarks capture BASELINE performance before Sprint 71 optimizations.
+/// These benchmarks capture BASELINE performance for the hot-path access patterns below.
 /// </summary>
 /// <remarks>
 /// Key metrics to track:
@@ -31,7 +30,6 @@ namespace Excalibur.Dispatch.Benchmarks.Core;
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
-[DisassemblyDiagnoser(maxDepth: 2)]
 public class MessageContextBenchmarks
 {
 	private Messaging.MessageContext _context = null!;

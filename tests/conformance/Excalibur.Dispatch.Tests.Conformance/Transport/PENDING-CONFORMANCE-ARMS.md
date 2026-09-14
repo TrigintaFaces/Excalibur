@@ -50,8 +50,9 @@ It returns as a real test when all three of these are true. None is test wiring 
 1. **`IChannelReceiver` grows an ack/nack surface.** Today it is one
    `Task<T?> ReceiveAsync<T>(CancellationToken)`. With no way to decline a message, no test can force the
    redelivery that the guarantee is about. This is a production API change and the real blocker.
-2. **The base gates on `TransportCapability.AckNackRedelivery`.** It currently gates only on `Filtering`,
-   so the capability is declared and never consumed.
+2. **The base gates on `TransportCapability.AckNackRedelivery`.** It currently gates only on the two
+   filtering families (`PublishTimeFiltering`, `ReceiveTimeFiltering`), so this capability is declared and
+   never consumed.
 3. **At least one transport overrides `AdvancedCapabilities`.** No suite does; every transport advertises
    `null`, so a capability-gated arm no-ops everywhere.
 

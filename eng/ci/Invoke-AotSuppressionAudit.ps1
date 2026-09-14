@@ -12,10 +12,39 @@
     Baseline-first approach: existing suppressions are grandfathered. Only new
     unapproved suppressions block the build.
 
+    POPULATION -- what this audit does and does NOT cover.
+
+    IN SCOPE: a suppression that takes effect in THIS repository's own compilation --
+    an [UnconditionalSuppressMessage] attribute applied to a member, and a
+    `#pragma warning disable IL2xxx/IL3xxx` region.
+
+    OUT OF SCOPE, DELIBERATELY: the suppressions our source generators EMIT into a
+    consumer's compilation. A generator holds the attribute as a C# string literal
+    (`sb.AppendLine("[UnconditionalSuppressMessage(...)]")`); that literal suppresses
+    nothing here, and the suppression it produces exists only after the generator has
+    run against consumer code. Counting the template line is not an audit of the
+    emitted suppression -- it is a different artifact in a different compilation, and
+    treating one as the other reports a population this repository does not have.
+    Auditing the emitted set requires compiling a representative consumer and reading
+    the generated sources, which is a build-time job and is NOT performed by any gate
+    in this repository today. Until one exists, generator-emitted suppressions are
+    UNAUDITED, and this header is the record of that gap rather than a silent
+    omission. Template lines are excluded from the population below, not counted.
+
+    THREE-STATE RESULT. A suppression this script can SEE but cannot PARSE is
+    reported as REFUSE and is never silently fingerprinted on an empty justification.
+    REFUSE is not PASS: the fingerprint used for the NEW/STALE comparison is
+    (file, warningId, justification), so a justification that fails to parse yields a
+    row that can never match its baseline entry and reports NEW *and* STALE on every
+    run, forever, while burning the CI summary's display cap. Refusing is what makes
+    that failure visible instead of permanent.
+
     Exit codes:
-      0 = No new suppressions found
-      1 = New unapproved suppressions detected (CI should fail)
-      2 = Script error
+      0 = PASS   -- evaluated, no new suppressions found
+      1 = FAIL   -- evaluated, new unapproved suppressions detected
+      2 = ERROR  -- script error
+      3 = REFUSE -- one or more suppressions could not be parsed; the population is
+                   not trustworthy, so NOTHING is asserted about it. Not a pass.
 
 .PARAMETER BaselinePath
     Path to the suppression baseline JSON file.
@@ -28,6 +57,15 @@
 
 .PARAMETER GenerateBaseline
     When set, generates a new baseline from the current source instead of auditing.
+
+    DESTRUCTIVE. It OVERWRITES -BaselinePath and writes only file/line/warningId/
+    justification. The committed baseline additionally carries hand-authored fields
+    (verdict, classifiedBy, note) that this switch does not emit, so regenerating
+    DELETES them and nothing can restore them from the scan. Prefer editing the file
+    for a small change; diff the result before committing a large one.
+
+    Refuses outright when -SrcPath is overridden without an explicit -BaselinePath,
+    which is the shape that writes a fixture scan over the repository baseline.
 
 .EXAMPLE
     ./Invoke-AotSuppressionAudit.ps1
@@ -53,6 +91,28 @@ if (-not $BaselinePath) {
     $BaselinePath = Join-Path $repoRoot 'eng' 'ci' 'aot-suppression-baseline.json'
 }
 
+# ---- REFUSE a fixture scan that would write the REPOSITORY baseline ----------------------------
+# -BaselinePath defaults to the repo file. -SrcPath does not have to be overridden for that to be
+# fine, but the COMBINATION "scan somewhere else, write the real baseline" has no legitimate use:
+# a scan of a fixture tree cannot produce a baseline for this repository, and writing one destroys
+# whatever was there. That is not hypothetical -- a fixture run proving this script's own REFUSE arm
+# non-vacuous overwrote the real baseline with three rows, and the file it destroyed carried
+# hand-authored fields (verdict / classifiedBy / note) that -GenerateBaseline does not emit and a
+# regeneration therefore cannot restore.
+#
+# Deliberately narrow: it fires only when BOTH conditions hold. A normal full regeneration (both
+# paths defaulted) is untouched, and an explicit -BaselinePath is always honoured.
+if ($GenerateBaseline -and $PSBoundParameters.ContainsKey('SrcPath') -and -not $PSBoundParameters.ContainsKey('BaselinePath')) {
+    Write-Host "REFUSING to generate a baseline." -ForegroundColor Red
+    Write-Host "  -SrcPath was overridden but -BaselinePath was not, so this run would scan" -ForegroundColor Yellow
+    Write-Host "    $SrcPath" -ForegroundColor Yellow
+    Write-Host "  and write the result over the REPOSITORY baseline at" -ForegroundColor Yellow
+    Write-Host "    $BaselinePath" -ForegroundColor Yellow
+    Write-Host "  A scan of one tree cannot produce a baseline for another. Pass -BaselinePath" -ForegroundColor Yellow
+    Write-Host "  explicitly (a scratch file for a fixture run), or omit -SrcPath for a real one." -ForegroundColor Yellow
+    exit 2
+}
+
 New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 
 # ============================================================================
@@ -66,6 +126,8 @@ function Get-SourceSuppressions {
     $csFiles = Get-ChildItem -Path $SourceRoot -Filter '*.cs' -Recurse -File |
         Where-Object { $_.FullName -notmatch '(\\|/)obj(\\|/)' -and $_.FullName -notmatch '(\\|/)bin(\\|/)' }
 
+    $script:ParseFailures = @()
+
     foreach ($file in $csFiles) {
         $content = Get-Content -Path $file.FullName -Raw -ErrorAction SilentlyContinue
         if ($null -eq $content) { continue }
@@ -77,12 +139,55 @@ function Get-SourceSuppressions {
         $lines = $content -split "`n"
         for ($i = 0; $i -lt $lines.Count; $i++) {
             if ($lines[$i] -match 'UnconditionalSuppressMessage') {
-                # Collect the full attribute text (may span multiple lines)
+
+                # IS THIS AN ATTRIBUTE, OR A STRING THAT CONTAINS ONE?
+                #
+                # A source generator emits the attribute as C# text:
+                #     sb.AppendLine("[UnconditionalSuppressMessage(\"AOT\", \"IL2026:...\",")
+                # and an analyzer names it as a plain string in a list of attribute names it
+                # searches for. Neither line suppresses anything in THIS compilation -- the
+                # first produces a suppression only in a consumer's compilation, the second
+                # produces none anywhere. Counted as suppressions they are phantom rows, and
+                # because their escaped quotes also defeat justification parsing they report
+                # NEW and STALE forever (see the header).
+                #
+                # The discriminator is quote parity: an occurrence preceded on its line by an
+                # ODD number of unescaped double quotes is inside a string literal.
+                # Path-based exclusion was rejected -- it would also hide a REAL suppression
+                # written inside a generator's own code, which is a false negative in a gate.
+                #
+                # Ceiling: an escaped backslash immediately before a quote (\\") would be
+                # miscounted. No such line exists in this tree; if one appears, the row lands
+                # in REFUSE rather than being silently mis-scored.
+                $col = $lines[$i].IndexOf('UnconditionalSuppressMessage')
+                $prefix = $lines[$i].Substring(0, $col)
+                if (([regex]::Matches($prefix, '(?<!\\)"')).Count % 2 -eq 1) {
+                    continue
+                }
+
+                # Collect the full attribute text (may span multiple lines).
+                #
+                # The terminator is ')]', NOT a bare ']'. A bare ']' is satisfied by any
+                # array or indexer inside the attribute's own string arguments -- e.g. a
+                # diagnostic message quoting 'MakeGenericType(params Type[])' -- which ended
+                # the scan on the FIRST line and discarded the Justification sitting on the
+                # second. That row then fingerprinted on an empty justification, which is the
+                # exact silent failure this script now refuses.
+                #
+                # Bounded, so a malformed attribute cannot run the scan to end-of-file: an
+                # attribute that does not terminate within the bound is a REFUSE, not a guess.
                 $attrText = $lines[$i]
                 $j = $i + 1
-                while ($j -lt $lines.Count -and $attrText -notmatch '\]') {
+                $joinBudget = 10
+                while ($j -lt $lines.Count -and $attrText -notmatch '\)\s*\]' -and $joinBudget -gt 0) {
                     $attrText += $lines[$j]
                     $j++
+                    $joinBudget--
+                }
+
+                $refuseReason = ''
+                if ($attrText -notmatch '\)\s*\]') {
+                    $refuseReason = "attribute never terminated within $joinBudget joined lines"
                 }
 
                 # Extract warning ID (IL2xxx or IL3xxx)
@@ -90,11 +195,40 @@ function Get-SourceSuppressions {
                 if ($attrText -match '"(IL[23]\d{3})') {
                     $warningId = $matches[1]
                 }
+                elseif (-not $refuseReason) {
+                    $refuseReason = 'no IL2xxx/IL3xxx diagnostic id could be read from the attribute'
+                }
 
-                # Extract justification
+                # Extract justification -- BOTH spellings the language allows.
+                # A quoted literal, and a reference to a constant (Justification = AotJustification),
+                # which a quote-only pattern cannot see. The constant's NAME is a stable,
+                # distinguishable fingerprint value; resolving its text would require symbol
+                # resolution this script does not have, and is not needed for NEW/STALE matching.
                 $justification = ''
-                if ($attrText -match 'Justification\s*=\s*"([^"]+)"') {
+                $justificationParsed = $false
+                if ($attrText -match 'Justification\s*=\s*"([^"]*)"') {
                     $justification = $matches[1]
+                    $justificationParsed = $true
+                }
+                elseif ($attrText -match 'Justification\s*=\s*([A-Za-z_][A-Za-z0-9_.]*)') {
+                    $justification = $matches[1]
+                    $justificationParsed = $true
+                }
+
+                # A Justification argument that is PRESENT but unreadable is the refusable case.
+                # An attribute with no Justification argument at all is a different thing --
+                # parsed correctly, genuinely absent -- and is reported, not refused.
+                if (-not $refuseReason -and -not $justificationParsed -and $attrText -match 'Justification') {
+                    $refuseReason = 'a Justification argument is present but is in a form this script cannot read'
+                }
+
+                if ($refuseReason) {
+                    $script:ParseFailures += @{
+                        File   = $relativePath
+                        Line   = $i + 1
+                        Reason = $refuseReason
+                    }
+                    continue
                 }
 
                 $suppressions += @{
@@ -139,6 +273,24 @@ function Get-SourceSuppressions {
 Write-Host "Scanning source for suppressions -- [UnconditionalSuppressMessage] attributes AND #pragma warning disable of IL2xxx/IL3xxx..." -ForegroundColor Cyan
 $sourceSuppressions = @(Get-SourceSuppressions -SourceRoot $SrcPath)
 Write-Host "  Found $($sourceSuppressions.Count) suppression(s) in source" -ForegroundColor Green
+
+# REFUSE gate -- runs BEFORE the baseline is loaded, because an unparsed row makes the
+# population itself untrustworthy and there is nothing honest to compare against. A green
+# printed over a population we could not read is the failure this gate exists to prevent.
+if ($script:ParseFailures.Count -gt 0) {
+    Write-Host ""
+    Write-Host "REFUSE: $($script:ParseFailures.Count) suppression(s) were found but could not be parsed." -ForegroundColor Red
+    foreach ($f in $script:ParseFailures) {
+        Write-Host "  $($f.File):$($f.Line) -- $($f.Reason)" -ForegroundColor Red
+    }
+    Write-Host ""
+    Write-Host "  Nothing was asserted about the suppression population. This is NOT a pass, and it is" -ForegroundColor Yellow
+    Write-Host "  NOT 'no new suppressions'. Either write the suppression in a form this script reads" -ForegroundColor Yellow
+    Write-Host "  (a quoted justification, or a constant reference), or teach the extractor the new form." -ForegroundColor Yellow
+    Write-Host "  Do NOT clear it by deleting the justification -- an empty one fingerprints as NEW and" -ForegroundColor Yellow
+    Write-Host "  STALE on every run forever." -ForegroundColor Yellow
+    exit 3
+}
 
 # ============================================================================
 # Generate baseline mode
@@ -277,6 +429,10 @@ if ($newSuppressions.Count -gt 0) {
     Write-Host "To approve these suppressions, add them to the baseline:" -ForegroundColor Yellow
     Write-Host "  ./eng/ci/Invoke-AotSuppressionAudit.ps1 -GenerateBaseline" -ForegroundColor Yellow
     Write-Host "  Then review and commit eng/ci/aot-suppression-baseline.json" -ForegroundColor Yellow
+    Write-Host "  WARNING: -GenerateBaseline OVERWRITES the baseline and emits only" -ForegroundColor Red
+    Write-Host "  file/line/warningId/justification. Any hand-authored field on an existing row" -ForegroundColor Red
+    Write-Host "  (verdict, classifiedBy, note) is DELETED, and no regeneration restores it." -ForegroundColor Red
+    Write-Host "  Diff the result before committing; for a few rows, edit the file instead." -ForegroundColor Red
     Write-Host ""
 }
 
@@ -288,6 +444,8 @@ if ($staleEntries.Count -gt 0) {
     Write-Host ""
     Write-Host "Consider regenerating the baseline to remove stale entries:" -ForegroundColor Yellow
     Write-Host "  ./eng/ci/Invoke-AotSuppressionAudit.ps1 -GenerateBaseline" -ForegroundColor Yellow
+    Write-Host "  WARNING: this OVERWRITES the baseline and deletes any hand-authored verdict/" -ForegroundColor Red
+    Write-Host "  classifiedBy/note fields on rows it rewrites. Diff before committing." -ForegroundColor Red
     Write-Host ""
 }
 

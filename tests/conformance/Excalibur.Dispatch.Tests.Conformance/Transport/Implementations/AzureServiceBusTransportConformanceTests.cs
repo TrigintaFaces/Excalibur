@@ -37,16 +37,21 @@ public sealed class AzureServiceBusTransportConformanceTests
 	protected override bool AllowUnavailableTransport => true;
 
 	/// <summary>
-	/// Only <see cref="TransportCapability.Filtering" /> is advertised (R2.15, bd-uzzze3): Azure Service Bus
-	/// supports real server-side content filtering via a topic subscription's SQL rule. The other capability
-	/// flags are not implemented here -- this suite exists to prove filtering, not the full capability set.
+	/// Only <see cref="TransportCapability.PublishTimeFiltering" /> is advertised (R2.15, bd-uzzze3): Azure
+	/// Service Bus supports real server-side content filtering via a topic subscription's SQL rule, and that
+	/// rule is evaluated when a message is PUBLISHED to the topic. MEASURED from this suite's own
+	/// implementation, not assumed: the rule is installed in <c>PrepareFilterAsync</c> before the sends, and
+	/// <c>ReceiveMatchingAsync</c> never consults its <c>filter</c> argument -- it reads whatever the broker
+	/// already admitted. A predicate first supplied on the read therefore cannot be honoured here, which is
+	/// exactly why <see cref="TransportCapability.ReceiveTimeFiltering" /> is NOT advertised. The other
+	/// capability flags are not implemented here -- this suite exists to prove filtering, not the full set.
 	/// Returns null until the emulator client exists, so the capability-gated fact skips rather than NREs
 	/// if it somehow ran before <see cref="CreateSenderAsync" />.
 	/// </summary>
 	protected override ITransportConformanceCapabilities? AdvancedCapabilities => _client is null ? null : this;
 
 	/// <inheritdoc />
-	TransportCapability ITransportConformanceCapabilities.Capabilities => TransportCapability.Filtering;
+	TransportCapability ITransportConformanceCapabilities.Capabilities => TransportCapability.PublishTimeFiltering;
 
 	private ServiceBusContainer? _serviceBusContainer;
 	private ServiceBusClient? _client;
@@ -69,8 +74,13 @@ public sealed class AzureServiceBusTransportConformanceTests
 		var connectionString = _serviceBusContainer.GetConnectionString();
 		_client = new ServiceBusClient(connectionString);
 
-		// Create the queue using the administration client
-		var adminClient = new ServiceBusAdministrationClient(connectionString);
+		// The emulator serves messaging over AMQP (5672) and management over a SEPARATE HTTP endpoint
+		// (5300), and GetConnectionString() addresses only the former. Handing it to the administration
+		// client sends every management request to a port that answers nothing, which surfaces as the
+		// SDK's transport-level "An error occurred while sending the request" after its four retries --
+		// no queue is created, initialization throws, and every arm in this suite skips. Testcontainers
+		// exposes GetHttpConnectionString() for exactly this client.
+		var adminClient = new ServiceBusAdministrationClient(_serviceBusContainer.GetHttpConnectionString());
 		_adminClient = adminClient;
 		if (!await adminClient.QueueExistsAsync(QueueName))
 		{
@@ -96,6 +106,39 @@ public sealed class AzureServiceBusTransportConformanceTests
 
 		var sender = new AzureServiceBusChannelSender(_sender);
 		return sender;
+	}
+
+	/// <inheritdoc />
+	async Task ITransportConformanceCapabilities.PrepareFilterAsync(
+		IReadOnlyDictionary<string, string> filter,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(filter);
+		if (_adminClient is null)
+		{
+			throw new InvalidOperationException("Admin client not initialized. CreateSenderAsync must run first.");
+		}
+
+		// A subscription's rules are broker-side and are evaluated when a message is PUBLISHED to the topic,
+		// so the fixed default rule ($Default, TrueFilter -> matches everything) is replaced with a real SQL
+		// rule built from the caller's filter before anything is sent. That ordering is what makes this a
+		// server-side filtering assertion rather than a client-side re-implementation of it: the broker is
+		// offered the non-matching message while this rule is live, and declines it.
+		var sqlExpression = string.Join(
+			" AND ",
+			filter.Select(kv => $"{kv.Key} = '{kv.Value.Replace("'", "''", StringComparison.Ordinal)}'"));
+
+		await foreach (var rule in _adminClient.GetRulesAsync(TopicName, SubscriptionName, cancellationToken))
+		{
+			await _adminClient.DeleteRuleAsync(TopicName, SubscriptionName, rule.Name, cancellationToken)
+				.ConfigureAwait(false);
+		}
+
+		_ = await _adminClient.CreateRuleAsync(
+			TopicName,
+			SubscriptionName,
+			new CreateRuleOptions("conformance-filter", new SqlRuleFilter(sqlExpression)),
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -126,31 +169,13 @@ public sealed class AzureServiceBusTransportConformanceTests
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(filter);
-		if (_client is null || _adminClient is null)
+		if (_client is null)
 		{
 			throw new InvalidOperationException("Client not initialized. CreateSenderAsync must run first.");
 		}
 
-		// A subscription's rules are broker-side and persist across calls, so the fixed default rule
-		// ($Default, TrueFilter -> matches everything) is replaced with a real SQL rule built from the
-		// caller's filter. That is what makes this a server-side filtering assertion rather than a
-		// client-side re-implementation of it.
-		var sqlExpression = string.Join(
-			" AND ",
-			filter.Select(kv => $"{kv.Key} = '{kv.Value.Replace("'", "''", StringComparison.Ordinal)}'"));
-
-		await foreach (var rule in _adminClient.GetRulesAsync(TopicName, SubscriptionName, cancellationToken))
-		{
-			await _adminClient.DeleteRuleAsync(TopicName, SubscriptionName, rule.Name, cancellationToken)
-				.ConfigureAwait(false);
-		}
-
-		_ = await _adminClient.CreateRuleAsync(
-			TopicName,
-			SubscriptionName,
-			new CreateRuleOptions("conformance-filter", new SqlRuleFilter(sqlExpression)),
-			cancellationToken).ConfigureAwait(false);
-
+		// The rule was installed by PrepareFilterAsync before the sends -- it has to be, because Service Bus
+		// applies a subscription's rules at publish time. Nothing to do here but read what the broker let in.
 		await using var subscriptionReceiver = _client.CreateReceiver(TopicName, SubscriptionName);
 		var received = await subscriptionReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30), cancellationToken)
 			.ConfigureAwait(false);
@@ -171,13 +196,13 @@ public sealed class AzureServiceBusTransportConformanceTests
 		IReadOnlyDictionary<string, string> headers,
 		CancellationToken cancellationToken) =>
 		throw new NotSupportedException(
-			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.Filtering)}.");
+			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.PublishTimeFiltering)}.");
 
 	/// <inheritdoc />
 	Task<ConformanceReceiveResult<T>?> ITransportConformanceCapabilities.ReceiveWithContextAsync<T>(
 		CancellationToken cancellationToken) =>
 		throw new NotSupportedException(
-			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.Filtering)}.");
+			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.PublishTimeFiltering)}.");
 
 	/// <inheritdoc />
 	Task ITransportConformanceCapabilities.SendCloudEventAsync(
@@ -185,14 +210,14 @@ public sealed class AzureServiceBusTransportConformanceTests
 		CloudEventBinding binding,
 		CancellationToken cancellationToken) =>
 		throw new NotSupportedException(
-			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.Filtering)}.");
+			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.PublishTimeFiltering)}.");
 
 	/// <inheritdoc />
 	Task<CloudEvent?> ITransportConformanceCapabilities.ReceiveCloudEventAsync(
 		CloudEventBinding binding,
 		CancellationToken cancellationToken) =>
 		throw new NotSupportedException(
-			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.Filtering)}.");
+			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.PublishTimeFiltering)}.");
 
 	protected override async Task<AzureServiceBusChannelReceiver> CreateReceiverAsync()
 	{
@@ -204,7 +229,13 @@ public sealed class AzureServiceBusTransportConformanceTests
 		_receiver = _client.CreateReceiver(QueueName, new ServiceBusReceiverOptions
 		{
 			ReceiveMode = ServiceBusReceiveMode.PeekLock,
-			PrefetchCount = 10
+
+			// Zero, deliberately. A prefetching link keeps pulling and LOCKING messages in the background
+			// for as long as this receiver is open, including messages published by another arm of the same
+			// test -- the dead-letter arm re-publishes to this queue and then waits on its own receiver for a
+			// message this one has already taken. Prefetch buys throughput the conformance arms do not need
+			// and costs the suite a fault that looks like the broker losing a message.
+			PrefetchCount = 0
 		});
 
 		var receiver = new AzureServiceBusChannelReceiver(_receiver);
@@ -362,21 +393,29 @@ public sealed class AzureServiceBusDeadLetterQueueManager : IDeadLetterQueueMana
 		Exception? exception,
 		CancellationToken cancellationToken)
 	{
-		// In Azure Service Bus, messages are moved to DLQ by dead-lettering them
-		// This is typically done during message processing, not directly
-		// For conformance testing, we simulate this behavior
+		ArgumentNullException.ThrowIfNull(message);
+
+		// Service Bus has no writable dead-letter endpoint: $DeadLetterQueue is a sub-queue the broker fills,
+		// and the only way in is to dead-letter a message the broker is currently leasing to you. The caller
+		// has already consumed and COMPLETED the message it is naming here, so the live queue is empty --
+		// receiving from it returned null, nothing was dead-lettered, and this method used to hand back
+		// message.Id anyway, reporting a move it had not performed. Re-publish the named message and
+		// dead-letter that, which is the only sequence the broker actually offers.
+		await using var sender = _client.CreateSender(_queueName);
+		await sender.SendMessageAsync(
+			new ServiceBusMessage(BinaryData.FromBytes(message.Body)) { MessageId = message.Id },
+			cancellationToken).ConfigureAwait(false);
+
 		await using var receiver = _client.CreateReceiver(_queueName);
-		var receivedMessage = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(5), cancellationToken)
+		var receivedMessage = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30), cancellationToken)
+			.ConfigureAwait(false)
+			?? throw new InvalidOperationException(
+				$"Dead-lettering '{message.Id}' failed: the message was re-published to '{_queueName}' but did "
+				+ "not come back within 30s, so nothing could be dead-lettered.");
+
+		await receiver.DeadLetterMessageAsync(receivedMessage, reason, exception?.Message, cancellationToken)
 			.ConfigureAwait(false);
-
-		if (receivedMessage != null)
-		{
-			await receiver.DeadLetterMessageAsync(receivedMessage, reason, exception?.Message, cancellationToken)
-				.ConfigureAwait(false);
-			return receivedMessage.MessageId;
-		}
-
-		return message.Id;
+		return receivedMessage.MessageId;
 	}
 
 	public async Task<IReadOnlyList<DeadLetterMessage>> GetDeadLetterMessagesAsync(

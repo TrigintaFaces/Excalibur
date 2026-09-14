@@ -8,7 +8,13 @@ namespace Excalibur.Data.IdentityMap.SqlServer;
 /// <summary>
 /// Configuration options for the SQL Server identity map store.
 /// </summary>
-internal sealed class SqlServerIdentityMapOptions
+/// <remarks>
+/// Public because it is the type a consumer names to configure the store from their own call site --
+/// <c>services.AddOptions&lt;SqlServerIdentityMapOptions&gt;().BindConfiguration("Section:Path")</c>,
+/// <c>Configure&lt;T&gt;</c> and <c>IValidateOptions&lt;T&gt;</c> all require it to be nameable there.
+/// An options type the consumer cannot name cannot participate in the options pattern.
+/// </remarks>
+public sealed class SqlServerIdentityMapOptions
 {
 	/// <summary>
 	/// Gets or sets the SQL Server connection string.

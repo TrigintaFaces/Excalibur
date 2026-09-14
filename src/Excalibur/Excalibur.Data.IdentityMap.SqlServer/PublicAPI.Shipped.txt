@@ -1,6 +1,5 @@
 #nullable enable
 Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder
-Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
 Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.CommandTimeout(System.TimeSpan timeout) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
 Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
 Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
@@ -9,5 +8,17 @@ Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.Enabl
 Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.MaxBatchSize(int maxBatchSize) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
 Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.SchemaName(string! schemaName) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
 Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.TableName(string! tableName) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.ConnectionString.get -> string?
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.ConnectionString.set -> void
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.MaxBatchSize.get -> int
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.MaxBatchSize.set -> void
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.SchemaName.get -> string!
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.SchemaName.set -> void
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.SqlServerIdentityMapOptions() -> void
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.TableName.get -> string!
+Excalibur.Data.IdentityMap.SqlServer.SqlServerIdentityMapOptions.TableName.set -> void
 Microsoft.Extensions.DependencyInjection.IdentityMapBuilderSqlServerExtensions
 static Microsoft.Extensions.DependencyInjection.IdentityMapBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Data.IdentityMap.Builders.IIdentityMapBuilder! builder, System.Action<Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!>! configure) -> Excalibur.Data.IdentityMap.Builders.IIdentityMapBuilder!

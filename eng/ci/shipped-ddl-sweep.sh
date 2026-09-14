@@ -198,6 +198,9 @@ load_map() {
 # because it manufactures the belief that the schema was checked. (Same class: f5-sweep prints "clean"
 # and exits 0 when its suppression cap swallows every token; we answered the same class with
 # -MinExpectedAssemblies 40.) An empty enumeration is not a clean result.
+# APPLIED ONLY WHEN THE PARSE CAME UP SHORT OF THE DECLARED SHAPE (src-written-cols < ddl-cols).
+# A table whose parsed set matches its declared set is a COMPLETE reading, however narrow, and is
+# evaluated normally -- see the verdict block below.
 MIN_WRITTEN_COLS="${SHIPPED_DDL_MIN_COLS:-3}"
 
 # ── list files under a set of globs/dirs: git-tracked for the real run, find-fallback for an ─────
@@ -270,9 +273,25 @@ src_written_columns() {
         [ -f "$f" ] || continue
         awk -v tv="$tvar" '
             {
-                if ($0 ~ /(UPDATE|INSERT[ \t]+INTO|DELETE[ \t]+FROM|MERGE[ \t]+INTO|FROM)[ \t]*[]["`]*\{/ \
+                # `MERGE INTO` is OPTIONAL-INTO in T-SQL: `MERGE <target> WITH (<hints>) AS <alias>`
+                # is the same statement and is the form every fenced writer here uses. Requiring INTO
+                # meant the extractor never ENTERED those statements and recovered zero columns, which
+                # the non-vacuity floor then reported as an unevaluable table -- a REFUSE that reads
+                # like a coverage gap in the DDL when it is really a gap in this regex.
+                # Taught generally rather than only far enough to clear the one MAPPED row: a parser
+                # that recognises exactly the statements some gate happens to consult makes every
+                # future negative result unreliable, with nothing in the output to reveal it.
+                if ($0 ~ /(UPDATE|INSERT[ \t]+INTO|DELETE[ \t]+FROM|MERGE([ \t]+INTO)?|FROM)[ \t]*[]["`]*\{/ \
                     && $0 ~ ("\\{" tv "\\}")) inblk=1
                 if (inblk) print
+                # A CTE-closing line ENDS the block. Without this the block ran to the raw-string
+                # terminator, which assumes one raw string writes one table. That is false for a
+                # wCTE folding a fence compare-and-advance and an outbox claim into ONE statement:
+                # entering at the FIRST CTE swallowed every later one and attributed the outbox
+                # columns to the fence control table, reporting drift that does not exist.
+                # A later CTE targeting a mapped table re-enters on its own UPDATE/INSERT/FROM
+                # line, so leaving here loses nothing.
+                if (inblk && $0 ~ /^[ \t]*\)[,;]?[ \t]*$/) inblk=0
                 if (inblk && $0 ~ /"""/) inblk=0
             }
         ' "$f" 2>/dev/null || true
@@ -413,7 +432,18 @@ sweep() {
                     # Non-vacuity floor BEFORE any verdict: too few parsed columns means the parser
                     # missed the statement. Refusing here is what stops a parse failure from
                     # masquerading as a clean schema.
-                    if [ "$nd" -eq 0 ] || [ "$ns" -lt "$MIN_WRITTEN_COLS" ]; then
+                    # The floor asks "did the parser miss the statement?" and used to answer it with
+                    # "are there few columns?", which conflates a THIN PARSE with a NARROW TABLE. The
+                    # discriminator was already on this very line: a parse that came up SHORT of the
+                    # DECLARED shape (ns < nd) is evidence the extractor missed something; a parse that
+                    # MATCHES the declared shape is a complete reading of a table that genuinely has
+                    # few columns. The fence control tables are two columns by design -- one monotonic
+                    # high-water per scope -- so under the old form the two tables implementing the
+                    # leader-election fencing guarantee were the only ones the gate could never
+                    # evaluate, and their correctness rested on a hand-check recorded in a comment.
+                    # The floor is NOT lowered: at ns < nd it applies exactly as before, so a
+                    # 1-of-24-column parse is still refused.
+                    if [ "$nd" -eq 0 ] || { [ "$ns" -lt "$MIN_WRITTEN_COLS" ] && [ "$ns" -lt "$nd" ]; }; then
                         echo "  REFUSE  $t ($label)"
                         echo "          ddl-cols=$nd src-written-cols=$ns (floor=$MIN_WRITTEN_COLS) — cannot evaluate."
                         echo "          A parse this thin means the extractor missed the write statement;"
@@ -676,11 +706,72 @@ EOF
         fi
     fi
 
+    # ARM 8 (THE FLOOR'S OWN BOUNDARY, both sides). The non-vacuity floor decides whether a table is
+    # evaluated at all, and until this arm existed NOTHING tested its behaviour: ARM3 and ARM6 exercise
+    # the no-MAP and empty-scan REFUSE paths, which are different paths, and ARM6 additionally sets
+    # SHIPPED_DDL_MIN_COLS=1 so its fixtures sit above the floor and never reach it. The only other
+    # mention anywhere was a grep for the string MIN_WRITTEN_COLS in the source, which proves the floor
+    # is PRESENT and nothing whatever about what it DOES.
+    #
+    # Both sides are pinned because the floor is conditional (ns < MIN *and* ns < nd) and each half can
+    # regress independently:
+    #   (a) a parse that recovered NOTHING must still REFUSE      -- deleting the floor breaks this
+    #   (b) a NARROW table whose parse MATCHES its declared        -- restoring the unconditional floor
+    #       shape must be EVALUATED, not refused                      breaks this
+    # (b) is the region the fence control tables occupy: two columns by design, fully recovered.
+    #
+    # Runs at the DEFAULT floor deliberately -- an arm that lowers SHIPPED_DDL_MIN_COLS would test a
+    # configuration nothing ships with.
+    #
+    # Asserts the REASON, not merely the verdict: a bare exit-code check would also pass if the table
+    # REFUSEd for some unrelated cause, which would make this arm agree with a broken gate.
+    local fl="$tmp/floor"; mkdir -p "$fl/docs" "$fl/zero" "$fl/full"
+    cat > "$fl/docs/fence.md" <<'EOF'
+```sql
+CREATE TABLE fence_probe (
+    scope_key  TEXT   NOT NULL,
+    high_water BIGINT NOT NULL
+);
+```
+EOF
+    # zero-recovery: the mapped table var is never interpolated, so the extractor enters no statement
+    # and recovers 0 columns against 2 declared.
+    cat > "$fl/zero/w.cs" <<'EOF'
+var sql = "SELECT 1";
+EOF
+    # full-recovery: a narrow table written completely -- 2 recovered against 2 declared.
+    cat > "$fl/full/w.cs" <<'EOF'
+var sql = $"""
+   UPDATE {t} SET high_water = @HighWater
+   WHERE scope_key = @ScopeKey
+   """;
+EOF
+    printf 'fence_probe|%s/**|t|floor probe\n' "$fl/zero" > "$fl/map-zero"
+    printf 'fence_probe|%s/**|t|floor probe\n' "$fl/full" > "$fl/map-full"
+
+    local out_zero rc_zero out_full rc_full
+    out_zero="$( SHIPPED_DDL_DOC_ROOTS="$fl/docs" SHIPPED_DDL_SRC_ROOTS="$fl/zero" \
+                 SHIPPED_DDL_MAP_FILE="$fl/map-zero" sweep 2>&1 )"
+    rc_zero=$?
+    out_full="$( SHIPPED_DDL_DOC_ROOTS="$fl/docs" SHIPPED_DDL_SRC_ROOTS="$fl/full" \
+                 SHIPPED_DDL_MAP_FILE="$fl/map-full" sweep 2>&1 )"
+    rc_full=$?
+
+    if [ "$rc_zero" -ne "$E_REFUSE" ] || ! printf '%s' "$out_zero" | grep -q 'src-written-cols=0'; then
+        echo "self-test ARM8a FAIL: a ZERO-column parse against a 2-column DDL did not REFUSE for the floor's reason (rc=$rc_zero). The non-vacuity floor is gone or unreachable; a failed parse would now certify a schema nobody read." >&2
+        bad=1
+    elif [ "$rc_full" -ne "$E_PASS" ] || ! printf '%s' "$out_full" | grep -q 'fence_probe'; then
+        echo "self-test ARM8b FAIL: a NARROW table whose parse matches its declared shape (2 of 2) was not evaluated (rc=$rc_full). The floor is refusing complete readings of small tables -- the control tables that implement fencing are exactly this shape." >&2
+        bad=1
+    else
+        echo "  ok  ARM8 floor    — zero-recovery=REFUSE(2) · narrow-but-complete (2 of 2)=PASS(0), at the default floor"
+    fi
+
     if [ "$bad" -ne 0 ]; then
         echo "shipped-ddl-sweep --self-test: FAILED (the gate is broken or vacuous)" >&2
         return $E_SELFTEST
     fi
-    echo "shipped-ddl-sweep --self-test: all arms pass (safety + where + liveness + refuse + insert + output + e2e + prod-path)"
+    echo "shipped-ddl-sweep --self-test: all arms pass (safety + where + liveness + refuse + insert + output + e2e + prod-path + floor)"
     return 0
 }
 

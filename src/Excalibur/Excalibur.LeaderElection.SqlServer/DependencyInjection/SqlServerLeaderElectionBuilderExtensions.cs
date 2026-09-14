@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch;
@@ -71,16 +70,17 @@ public static class SqlServerLeaderElectionBuilderExtensions
 	///         .LockResource("MyApp.Leader");
 	///     })));
 	///
-	/// // Bind from appsettings.json
-	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
-	///     le.UseSqlServer(sql =&gt;
-	///     {
-	///         sql.BindConfiguration("LeaderElection:SqlServer");
-	///     })));
+	/// // Populate the options from appsettings.json (your own call site)
+	/// services.AddOptions&lt;SqlServerLeaderElectionOptions&gt;().BindConfiguration("LeaderElection:SqlServer");
 	/// </code>
 	/// </example>
-	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
-	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
+	/// <remarks>
+	/// To populate the options from configuration, call
+	/// <c>services.AddOptions&lt;SqlServerLeaderElectionOptions&gt;().BindConfiguration("Section:Path")</c>
+	/// after this registration. Configuration binding is reflective, so it is not trim- or
+	/// native-AOT-safe; doing it at your own call site puts the warning where the trimmer can see it
+	/// rather than on this method, which is otherwise trim-safe.
+	/// </remarks>
 	public static ILeaderElectionBuilder UseSqlServer(
 		this ILeaderElectionBuilder builder,
 		Action<ISqlServerLeaderElectionBuilder> configure)
@@ -100,7 +100,7 @@ public static class SqlServerLeaderElectionBuilderExtensions
 		var hasBuilderConnection = sqlBuilder.ConnectionFactoryFunc is not null
 			|| sqlBuilder.ConnectionStringNameValue is not null;
 
-		RegisterOptionsAndServices(builder, sqlBuilder, options, connectionFactory, hasBuilderConnection);
+		RegisterOptionsAndServices(builder, options, connectionFactory, hasBuilderConnection);
 
 		return builder;
 	}
@@ -177,7 +177,7 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			};
 		}
 
-		// 3 & 4. Connection string from options (direct or via BindConfiguration)
+		// 3 & 4. Connection string from options
 		return sp =>
 		{
 			var opts = sp.GetRequiredService<IOptions<SqlServerLeaderElectionOptions>>();
@@ -188,13 +188,8 @@ public static class SqlServerLeaderElectionBuilderExtensions
 	/// <summary>
 	/// Registers options, services, and validation for the standard leader election pattern.
 	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-			Justification = "The public entry point that reaches this private helper carries RequiresUnreferencedCode and RequiresDynamicCode, so a caller already receives the trimming and AOT diagnostics at their own call site. Annotating this helper as well adds no signal a consumer can see.")]
-		[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-			Justification = "The public entry point that reaches this private helper carries RequiresUnreferencedCode and RequiresDynamicCode, so a caller already receives the trimming and AOT diagnostics at their own call site. Annotating this helper as well adds no signal a consumer can see.")]
 	private static void RegisterOptionsAndServices(
 		ILeaderElectionBuilder builder,
-		SqlServerLeaderElectionBuilder sqlBuilder,
 		SqlServerLeaderElectionOptions options,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
 		bool hasBuilderConnection)
@@ -205,25 +200,6 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			opt.ConnectionString = options.ConnectionString;
 			opt.LockResource = options.LockResource;
 		});
-
-		// Register BindConfiguration if set
-		if (sqlBuilder.BindConfigurationPath is not null)
-		{
-			builder.Services.AddOptions<SqlServerLeaderElectionOptions>()
-				.BindConfiguration(sqlBuilder.BindConfigurationPath)
-				.ValidateOnStart();
-
-			// When ConnectionString() was explicitly called alongside BindConfiguration,
-			// re-apply via PostConfigure so the explicit value takes precedence over config.
-			if (!string.IsNullOrWhiteSpace(options.ConnectionString))
-			{
-				var explicitConnectionString = options.ConnectionString;
-				_ = builder.Services.PostConfigure<SqlServerLeaderElectionOptions>(opt =>
-				{
-					opt.ConnectionString = explicitConnectionString;
-				});
-			}
-		}
 
 		// Register ValidateOnStart with connection awareness
 		builder.Services.AddSingleton<IValidateOptions<SqlServerLeaderElectionOptions>>(
@@ -240,7 +216,7 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			var leOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerLeaderElection>>();
 
-			// Resolve lock resource: use builder value, or fall back to options (from BindConfiguration)
+			// Resolve lock resource: use builder value, or fall back to options (bound by the consumer)
 			var resolvedLockResource = !string.IsNullOrWhiteSpace(lockResource)
 				? lockResource
 				: sp.GetRequiredService<IOptions<SqlServerLeaderElectionOptions>>().Value.LockResource

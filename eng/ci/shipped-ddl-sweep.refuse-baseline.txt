@@ -14,12 +14,17 @@
 # A line is closed by MAPPING the table or scoping it out with a written reason — never by suppression.
 #
 # Format: the sweep's REFUSE label, verbatim (everything after "REFUSE " up to the " — " explanation).
-public.outbox_fence (postgres outbox fence)
-# Both fence tables are written by an UPSERT — Postgres via INSERT ... ON CONFLICT DO UPDATE, SQL Server
-# via MERGE ... WHEN MATCHED THEN UPDATE / WHEN NOT MATCHED THEN INSERT. The column extractor reads plain
-# INSERT and UPDATE statements, so it cannot recover the written column set from either shape and refuses
-# rather than guessing. Both rows are mapped (see MAP_ROWS); the gap is in the extractor, not the map.
-# Reviewed by hand for the SQL Server fence: the shipped DDL declares OutboxTable and HighWaterToken, and
-# the MERGE writes and reads exactly those two, so there is no drift today. Closing this line means
-# teaching the extractor the upsert shapes, not deleting it.
-dbo.OutboxFence (sqlserver outbox fence)
+#
+# THE SET IS CURRENTLY EMPTY. Both fence tables left it: the sweep now evaluates
+# public.outbox_fence and dbo.OutboxFence on every run, at 2 written/read columns against 2
+# declared each.
+#
+# An empty set is NOT a weaker gate here, and the reason is worth stating because "no entries"
+# reads like "nothing is being checked". Vacuity is caught by the wrapper's LIVENESS arm, which
+# fails when the sweep reports zero evaluated-table lines -- a sweep that skipped, hung or died
+# reds the build whatever this file contains. This file answers a different question: which
+# coverage gaps are ACCEPTED. Today, none are.
+#
+# Adding a line here is still the reviewable act it always was: a table ENTERING the REFUSE set
+# fails the gate until someone maps it, or records it here with a written reason and a filed
+# issue. Do not add one to clear a red.

@@ -73,20 +73,6 @@ public sealed class SqlServerInboxBuilderShould : UnitTestBase
 		options.Value.ConnectionString.ShouldBe(string.Empty);
 	}
 
-	[Fact]
-	public void BindConfiguration_RegisterPath()
-	{
-		// Arrange
-		var builder = new TestInboxBuilder();
-
-		// Act — should not throw during builder configuration
-		builder.UseSqlServer(sql => sql.BindConfiguration("Inbox:SqlServer"));
-
-		// Assert — BindConfiguration registers an options binder (requires IConfiguration at resolve time)
-		// Just verify the call succeeded and services were registered
-		builder.Services.ShouldNotBeEmpty();
-	}
-
 	// --- Last-wins semantics ---
 
 	[Fact]

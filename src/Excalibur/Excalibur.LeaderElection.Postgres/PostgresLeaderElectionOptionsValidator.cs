@@ -23,8 +23,9 @@ internal sealed class PostgresLeaderElectionOptionsValidator : IValidateOptions<
 		{
 			return ValidateOptionsResult.Fail(
 				"No connection configured for LeaderElection (Postgres). " +
-				"Call ConnectionString(), ConnectionStringName(), DataSource(), DataSourceFactory(), " +
-				"or BindConfiguration() inside UsePostgres().");
+				"Call ConnectionString(), ConnectionStringName(), DataSource(), or DataSourceFactory() " +
+				"inside UsePostgres(), or bind the options yourself with " +
+				"services.AddOptions<PostgresLeaderElectionOptions>().BindConfiguration(\"Section:Path\").");
 		}
 
 		return ValidateOptionsResult.Success;

@@ -433,14 +433,38 @@ if [ "${RESERVATION_GUARD:-}" = "off" ]; then
     echo -e "${YELLOW}⚠ staged-reservation-guard BYPASSED (RESERVATION_GUARD=off).${NC}"
 elif [ -f "$RESV_GUARD" ]; then
     bash "$RESV_GUARD" && rg_rc=0 || rg_rc=$?
-    if [ "$rg_rc" -eq 1 ]; then
-        echo -e "${RED}✗ COMMIT REJECTED: staged files are exclusively reserved by another agent.${NC}" >&2
-        echo -e "${CYAN}  Drop them, or RESERVATION_GUARD=off if the holder has agreed.${NC}" >&2
-        exit 1
-    elif [ "$rg_rc" -eq 3 ]; then
-        echo -e "${YELLOW}⚠ staged-reservation-guard REFUSED (could not reach OPCOM). NOT a pass -- proceeding,${NC}" >&2
-        echo -e "${YELLOW}  but nothing was checked. Verify by hand if you are integrating someone else's lane.${NC}" >&2
-    fi
+    # Three-state, and EVERY code the guard declares is mapped explicitly (its header declares 0/1/3).
+    # The catch-all is what makes this honest: a guard that could not RUN -- a syntax error (2), a
+    # timeout (124), not-found (127), killed (143) -- exits a code it never declared, and reading an
+    # undeclared code as "nobody holds it" is the inverted failure this hook's own dispatch gate exists
+    # to catch. Before this case existed those codes fell through to PASS, in silence.
+    #
+    # DISPOSITION: fail-open, LOUD -- deliberately the opposite of the secret-scan site below, for a
+    # stated reason. What that gate protects is irreversible (a leaked credential cannot be recalled),
+    # so an unevaluable scan BLOCKS. This one protects an in-flight edit from being clobbered, which is
+    # recoverable, and the operator direction recorded above is explicit that a reservation check must
+    # never become a wall ("if it starts hindering commits ... we will remove it"). So an unevaluable
+    # guard says loudly that NOTHING was checked and lets the commit through -- the same disposition
+    # already chosen for the declared REFUSE (3), which is the nearest state to it.
+    case "$rg_rc" in
+        0)
+            : ;;
+        1)
+            echo -e "${RED}✗ COMMIT REJECTED: staged files are exclusively reserved by another agent.${NC}" >&2
+            echo -e "${CYAN}  Drop them, or RESERVATION_GUARD=off if the holder has agreed.${NC}" >&2
+            exit 1
+            ;;
+        3)
+            echo -e "${YELLOW}⚠ staged-reservation-guard REFUSED (could not reach OPCOM). NOT a pass -- proceeding,${NC}" >&2
+            echo -e "${YELLOW}  but nothing was checked. Verify by hand if you are integrating someone else's lane.${NC}" >&2
+            ;;
+        *)
+            echo -e "${YELLOW}⚠ staged-reservation-guard could not be EVALUATED (undeclared exit ${rg_rc}).${NC}" >&2
+            echo -e "${YELLOW}  It declares 0/1/3 only, so this is the guard failing to RUN -- NOT a pass.${NC}" >&2
+            echo -e "${YELLOW}  Nothing was checked. Verify by hand if you are integrating someone else's lane:${NC}" >&2
+            echo -e "${CYAN}    bash .claude/harness/staged-reservation-guard.sh${NC}" >&2
+            ;;
+    esac
 fi
 
 
@@ -934,6 +958,58 @@ else
     echo -e "${RED}X COMMIT REFUSED: ${NIR_GATE} is missing — the public-surface scan never ran.${NC}" >&2
     echo -e "${RED}  Nothing was checked, which is NOT a clean bill of health.${NC}" >&2
     exit 1
+fi
+
+# @@ Gate membership manifest @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# eng/governance/gate-manifest.yaml is the answer to "which gates exist and where does each one run".
+# It is only worth having while it is TRUE to the tree, and it rots invisibly: a membership list that
+# has drifted still reads as an authoritative answer. The gate checks both rot directions -- a script
+# on disk with no row (a new gate nobody can see) and a row whose script is gone (coverage that is
+# fiction) -- plus the field vocabulary and the UNREVIEWED ratchet.
+#
+# WHY HERE AND NOT IN CI. Half its population is unpublished: it scans .claude/harness/** as well as
+# eng/ci/**, and .claude/** does not travel to the mirror where CI runs. Wired into the CI battery it
+# would see ~30 rows whose subjects are absent by design, call them dead rows, and red every run on a
+# non-defect -- the same trap the CI battery already documents for the six locks it deliberately does
+# not enumerate. The pre-commit hook is the one place the WHOLE population exists, and it is also the
+# moment the manifest can still be corrected cheaply: the author is holding the change that added the
+# script. Cost is a `git ls-files` over four globs plus a hand-rolled parse of one file -- measured
+# 167-304 ms across three runs, which is the grep-speed bar a pre-commit hook has to meet.
+GM_GATE="$REPO_ROOT/eng/ci/gate-manifest-gate.py"
+if [ -f "$GM_GATE" ]; then
+    python3 "$GM_GATE" --check && gm_rc=0 || gm_rc=$?
+    # Three-state, every declared code mapped, catch-all last. The gate declares 0/1/2.
+    case "$gm_rc" in
+        0)
+            : ;;
+        1)
+            echo -e "${RED}X COMMIT REJECTED: eng/governance/gate-manifest.yaml no longer matches the tree.${NC}" >&2
+            echo -e "${CYAN}  A new gate needs a row; a deleted gate's row must go. Detail is above.${NC}" >&2
+            echo -e "${CYAN}  Do NOT stamp a kind you did not derive -- UNREVIEWED is legal and ratcheted.${NC}" >&2
+            exit 1
+            ;;
+        2)
+            # BLOCKS, and the reason is what a REFUSE means HERE: the manifest or the ratchet floor --
+            # both tracked files -- is missing or unparseable, or the scan found no scripts at all.
+            # Every one of those is a defect in the repository you are committing to, not a hiccup in
+            # the environment, and each is local and cheap to fix right now.
+            echo -e "${RED}X COMMIT REFUSED: the gate manifest could not be evaluated.${NC}" >&2
+            echo -e "${RED}  NOTHING was compared. That is not a clean manifest, it is no measurement.${NC}" >&2
+            echo -e "${CYAN}    python3 eng/ci/gate-manifest-gate.py --check${NC}" >&2
+            exit 1
+            ;;
+        *)
+            # FAILS OPEN, loudly, and only because the cause is different from the one above: an
+            # undeclared code means the gate did not RUN -- most plausibly no python3 on this machine,
+            # which this hook does not otherwise require. Walling every commit on a missing interpreter
+            # would turn a governance-metadata check into the kind of gate people route around, and
+            # what it protects is an internal list that is recoverable, not a consumer-facing surface.
+            # So: say plainly that nothing was checked, and let the commit through.
+            echo -e "${YELLOW}! gate-manifest check could not be EVALUATED (undeclared exit ${gm_rc}).${NC}" >&2
+            echo -e "${YELLOW}  It declares 0/1/2 only, so the gate did not run -- NOT a pass. Nothing was checked.${NC}" >&2
+            echo -e "${CYAN}    python3 eng/ci/gate-manifest-gate.py --check${NC}" >&2
+            ;;
+    esac
 fi
 
 exit 0

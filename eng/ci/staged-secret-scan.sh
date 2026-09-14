@@ -114,7 +114,17 @@ while IFS= read -r f; do
     for entry in "${PATTERNS[@]}"; do
         label="${entry%%|*}"
         re="${entry#*|}"
-        if printf '%s\n' "$added" | grep -qE -e "$re"; then
+        # A HERESTRING, not `printf | grep -q`. `set -o pipefail` is on (line 30), and this is the
+        # line that DECIDES whether a staged secret is reported. Through a pipe, `grep -q` exits at
+        # the first hit while `printf` is still writing the rest of "$added"; printf takes SIGPIPE,
+        # pipefail promotes 141 to the pipeline, the `if` does not fire -- and the secret is NOT
+        # reported. The failure direction is a FALSE GREEN on the blocking secret scan, and it is
+        # likeliest in exactly the bad case: a secret EARLY in a large staged addition.
+        # Measured 2026-09-13: a 4.2 MB "$added" with the token on line 1 was MISSED 5 times out of 5
+        # through the pipe and 0 out of 5 through the herestring. (The capture above already reasons
+        # about pipefail; this line was the one still deciding through a pipe.)
+        # Same fix, same reason, as eng/ci/assert-tests-executed.sh.
+        if grep -qE -e "$re" <<<"$added"; then
             if [ "$hits" -eq 0 ]; then
                 echo "staged-secret-scan: secret-shaped token(s) found in staged changes:" >&2
             fi

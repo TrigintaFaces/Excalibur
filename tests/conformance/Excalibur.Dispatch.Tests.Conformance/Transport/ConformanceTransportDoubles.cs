@@ -21,12 +21,21 @@ internal sealed class CarrierMessage
 
 /// <summary>
 /// A <b>conforming</b> in-memory transport double: faithfully preserves carrier headers, binds CloudEvents
-/// (all attributes survive), redelivers nack'd messages, and honors filtering. Capability-gated conformance
-/// assertions MUST pass against this double.
+/// (all attributes survive), redelivers nack'd messages, and honors filtering at RECEIVE time.
+/// Capability-gated conformance assertions MUST pass against this double.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Reference behavior for the urttf7 non-vacuity gate (AC-U4): every capability assertion is GREEN here and
 /// RED against <see cref="NonConformingInMemoryTransport" />.
+/// </para>
+/// <para>
+/// <see cref="TransportCapability.ReceiveTimeFiltering" /> is MEASURED, not assumed. <c>SendFilterableAsync</c>
+/// merely enqueues the body with its attributes; <c>PrepareFilterAsync</c> is not overridden, so the
+/// declare-before-send seam does nothing here; and <c>ReceiveMatchingAsync</c> scans the queue against the
+/// predicate it is handed on the read. The late-bound property is proven GREEN against this double in
+/// <c>HarnessCapabilityNonVacuityShould</c>, not inferred from this comment.
+/// </para>
 /// </remarks>
 public sealed class ConformingInMemoryTransport : ITransportConformanceCapabilities
 {
@@ -45,7 +54,7 @@ public sealed class ConformingInMemoryTransport : ITransportConformanceCapabilit
 		TransportCapability.HeaderSurfacing
 		| TransportCapability.CloudEventsBinding
 		| TransportCapability.AckNackRedelivery
-		| TransportCapability.Filtering;
+		| TransportCapability.ReceiveTimeFiltering;
 
 	/// <inheritdoc />
 	public Task SendWithHeadersAsync<T>(
@@ -243,7 +252,9 @@ public sealed class ConformingInMemoryTransport : ITransportConformanceCapabilit
 /// <summary>
 /// A <b>non-conforming</b> in-memory transport double that <i>advertises</i> all capabilities but implements
 /// them incorrectly: it discards carrier headers, yields no CloudEvent (zero CE binding), never redelivers a
-/// nack'd message, and ignores filtering. Every capability-gated conformance assertion MUST go RED against
+/// nack'd message, and ignores filtering -- including a late-bound predicate, which is why it advertises
+/// <see cref="TransportCapability.ReceiveTimeFiltering" />: a family it does not belong to could not be
+/// proven RED-able against it. Every capability-gated conformance assertion MUST go RED against
 /// this double — the non-vacuity gate (AC-U4) the htcbgu false-conformance defect requires.
 /// </summary>
 public sealed class NonConformingInMemoryTransport : ITransportConformanceCapabilities
@@ -256,7 +267,7 @@ public sealed class NonConformingInMemoryTransport : ITransportConformanceCapabi
 		TransportCapability.HeaderSurfacing
 		| TransportCapability.CloudEventsBinding
 		| TransportCapability.AckNackRedelivery
-		| TransportCapability.Filtering;
+		| TransportCapability.ReceiveTimeFiltering;
 
 	/// <inheritdoc />
 	public Task SendWithHeadersAsync<T>(

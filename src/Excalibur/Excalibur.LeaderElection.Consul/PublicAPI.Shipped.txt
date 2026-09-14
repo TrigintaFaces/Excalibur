@@ -42,9 +42,9 @@ Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptionsValidator.ConsulLeade
 Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptionsValidator.Validate(string? name, Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
 Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder
 Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder.Address(string! address) -> Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!
-Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder.BindConfiguration(string! sectionPath) -> Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!
 Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder.Datacenter(string! datacenter) -> Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!
 Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder.LockKey(string! lockKey) -> Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!
+Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder.ResourceName(string! resourceName) -> Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!
 Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder.SessionTtl(System.TimeSpan ttl) -> Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!
 Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder.Token(string! token) -> Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!
 Microsoft.Extensions.DependencyInjection.ConsulFencingTokenServiceCollectionExtensions
@@ -55,4 +55,3 @@ static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionBuilderExten
 static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionExtensions.AddConsulHealthBasedLeaderElectionForResource(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! resourceName, string? candidateId = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionExtensions.AddConsulLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionExtensions.AddConsulLeaderElectionForResource(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! resourceName, string? candidateId = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder.ResourceName(string! resourceName) -> Excalibur.LeaderElection.Consul.ILeaderElectionConsulBuilder!

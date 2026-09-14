@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport;
 /// <see cref="IChannelSender" />/<see cref="IChannelReceiver" /> surface.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The production <see cref="IChannelReceiver" /> is intentionally minimal (body-only
 /// <c>ReceiveAsync&lt;T&gt;</c>) — transport-carrier concerns (Kafka <c>Headers</c>, RabbitMQ
 /// <c>BasicProperties</c>, CloudEvents protocol binding, ack/nack) are <b>conformance-harness</b>
@@ -17,6 +18,13 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport;
 /// <b>real, RED-able</b> assertion (no false conformance). A transport that does not advertise a
 /// capability simply skips the capability-gated facts; a transport that advertises one but implements
 /// it incorrectly FAILS the corresponding assertion (the htcbgu vacuity this seam exists to prevent).
+/// </para>
+/// <para>
+/// <b>Filtering is partitioned, and the partition is fail-closed.</b> There is no bare <c>Filtering</c>
+/// member to advertise: a transport that filters MUST name its family — <see cref="PublishTimeFiltering" />
+/// or <see cref="ReceiveTimeFiltering" /> — because the two satisfy different contracts and the weaker one
+/// must not be inherited by silence. The omission is not documented-and-unlikely, it is a compile error
+/// (<c>CS0117</c>): the member a forgetful deriver would reach for does not exist.
 /// </remarks>
 [Flags]
 public enum TransportCapability
@@ -43,10 +51,21 @@ public enum TransportCapability
 	AckNackRedelivery = 1 << 2,
 
 	/// <summary>
-	/// The transport supports server-side message filtering (Azure Service Bus / AWS SQS) so a deriver can
-	/// assert a non-matching message is not received and a matching one is (bd-1rbj0a).
+	/// The transport filters server-side at PUBLISH time: the broker decides a message's fate when it is
+	/// sent, against a rule that was already live. Azure Service Bus subscription rules and Google Pub/Sub
+	/// subscription filters are this family. Such a transport implements
+	/// <see cref="ITransportConformanceCapabilities.PrepareFilterAsync" /> to install the rule before the
+	/// sends, and cannot honour a predicate first supplied at receive time.
 	/// </summary>
-	Filtering = 1 << 3,
+	PublishTimeFiltering = 1 << 3,
+
+	/// <summary>
+	/// The transport filters at RECEIVE time: it honours a predicate supplied AFTER the messages are already
+	/// in flight, with no rule declared up front. This is a strictly stronger property than
+	/// <see cref="PublishTimeFiltering" /> — the non-matching message was accepted by the broker and is
+	/// refused on the read — and only transports advertising it are held to the late-bound arm.
+	/// </summary>
+	ReceiveTimeFiltering = 1 << 4,
 }
 
 /// <summary>
@@ -146,8 +165,26 @@ public interface ITransportConformanceCapabilities
 	Task<CloudEvent?> ReceiveCloudEventAsync(CloudEventBinding binding, CancellationToken cancellationToken);
 
 	/// <summary>
+	/// Declares the filter the run will later receive on, BEFORE any filterable message is sent
+	/// (<see cref="TransportCapability.PublishTimeFiltering" />). Defaults to a no-op.
+	/// </summary>
+	/// <remarks>
+	/// A broker that evaluates its filters at PUBLISH time -- Azure Service Bus subscription rules, Google
+	/// Pub/Sub subscription filters -- decides a message's fate when it is sent, not when it is read. Such a
+	/// transport cannot honour a filter first supplied at receive time: by then the non-matching message has
+	/// already been accepted and is waiting at the head of the queue, and the arm reads "drop" no matter how
+	/// correct the broker's filtering is. Declaring the filter up front is what lets the assertion mean what
+	/// it says -- the broker saw the non-matching message WHILE the rule was live and refused it.
+	/// A <see cref="TransportCapability.ReceiveTimeFiltering" /> transport needs nothing here, which is why
+	/// the default does nothing — and why a publish-time transport that forgets to override it fails closed:
+	/// with no rule installed the broker admits the non-matching message and the arm goes RED.
+	/// </remarks>
+	Task PrepareFilterAsync(IReadOnlyDictionary<string, string> filter, CancellationToken cancellationToken) =>
+		Task.CompletedTask;
+
+	/// <summary>
 	/// Sends <paramref name="body" /> tagged with the supplied filter attributes
-	/// (<see cref="TransportCapability.Filtering" />).
+	/// (<see cref="TransportCapability.PublishTimeFiltering" /> / <see cref="TransportCapability.ReceiveTimeFiltering" />).
 	/// </summary>
 	Task SendFilterableAsync<T>(
 		T body,
@@ -156,7 +193,8 @@ public interface ITransportConformanceCapabilities
 
 	/// <summary>
 	/// Receives the next message matching <paramref name="filter" />; messages not matching the filter MUST NOT
-	/// be returned (<see cref="TransportCapability.Filtering" />).
+	/// be returned (<see cref="TransportCapability.PublishTimeFiltering" /> /
+	/// <see cref="TransportCapability.ReceiveTimeFiltering" />).
 	/// </summary>
 	Task<ConformanceReceiveResult<T>?> ReceiveMatchingAsync<T>(
 		IReadOnlyDictionary<string, string> filter,

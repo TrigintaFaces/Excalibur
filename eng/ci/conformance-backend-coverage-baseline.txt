@@ -55,7 +55,6 @@ ISagaStore:TenantRoutingSagaStore
 ISagaStore:TenantScopedSagaStore
 IInboxStore:EncryptingInboxStoreDecorator
 IInboxStore:TelemetryInboxStoreDecorator
-IAuditStore:RbacAuditStore
 ILeaderElection:TelemetryLeaderElection
 IEventStore:TenantRoutingEventStore
 IEventStore:TieredEventStoreDecorator

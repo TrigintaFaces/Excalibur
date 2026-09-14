@@ -71,16 +71,6 @@ public interface ISqlServerIdentityMapBuilder
 	/// </exception>
 	ISqlServerIdentityMapBuilder ConnectionStringName(string name);
 
-	/// <summary>
-	/// Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.
-	/// </summary>
-	/// <param name="sectionPath">The configuration section path (e.g., "IdentityMap:SqlServer").</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="sectionPath"/> is null or whitespace.
-	/// </exception>
-	ISqlServerIdentityMapBuilder BindConfiguration(string sectionPath);
-
 	// --- Feature-specific configuration ---
 
 	/// <summary>

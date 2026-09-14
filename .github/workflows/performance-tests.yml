@@ -325,6 +325,30 @@ jobs:
           path: BenchmarkDotNet.Artifacts
           retention-days: 30
 
+      # Same three-state guard the hot-path job uses, in existence-only mode: this job has
+      # no recorded baselines, so the question it can honestly answer is whether the run
+      # executed anything. BenchmarkDotNet exits 0 when a critical validator aborts before
+      # any benchmark runs, so `dotnet run` succeeding plus an artifact upload is NOT
+      # evidence that anything was measured -- that combination kept a sibling leg of this
+      # very workflow green for over a week while it uploaded an artifact with zero results.
+      - name: Benchmark execution check
+        shell: bash
+        run: |
+          # GitHub runs this block as `bash -e {0}`. `set -uo pipefail` does NOT disable
+          # errexit, so a bare `cmd` followed by `rc=$?` is UNREACHABLE on any non-zero
+          # exit - the shell aborts at cmd and the REFUSE diagnostic never prints.
+          # `|| rc=$?` is the form that survives errexit.
+          set -uo pipefail
+          rc=0
+          pwsh -NoProfile -File ./eng/ci/perf-regression-check.ps1 \
+            -ResultsPath './BenchmarkDotNet.Artifacts' \
+            -RequireResultsOnly || rc=$?
+          if [ "$rc" -eq 2 ]; then
+            echo "::error::Memory benchmarks REFUSED - the run executed nothing. Treating as failure: an empty benchmark run is not a passing benchmark run."
+            exit 1
+          fi
+          exit $rc
+
   # Throughput benchmarks for messaging patterns
   throughput-benchmarks:
     name: Throughput Benchmarks
@@ -394,6 +418,30 @@ jobs:
           path: |
             ThroughputBenchmarks
           retention-days: 30
+
+      # Same three-state guard the hot-path job uses, in existence-only mode: this job has
+      # no recorded baselines, so the question it can honestly answer is whether the run
+      # executed anything. BenchmarkDotNet exits 0 when a critical validator aborts before
+      # any benchmark runs, so `dotnet run` succeeding plus an artifact upload is NOT
+      # evidence that anything was measured -- that combination kept a sibling leg of this
+      # very workflow green for over a week while it uploaded an artifact with zero results.
+      - name: Benchmark execution check
+        shell: bash
+        run: |
+          # GitHub runs this block as `bash -e {0}`. `set -uo pipefail` does NOT disable
+          # errexit, so a bare `cmd` followed by `rc=$?` is UNREACHABLE on any non-zero
+          # exit - the shell aborts at cmd and the REFUSE diagnostic never prints.
+          # `|| rc=$?` is the form that survives errexit.
+          set -uo pipefail
+          rc=0
+          pwsh -NoProfile -File ./eng/ci/perf-regression-check.ps1 \
+            -ResultsPath './ThroughputBenchmarks' \
+            -RequireResultsOnly || rc=$?
+          if [ "$rc" -eq 2 ]; then
+            echo "::error::Throughput benchmarks REFUSED - the run executed nothing. Treating as failure: an empty benchmark run is not a passing benchmark run."
+            exit 1
+          fi
+          exit $rc
 
   # Performance analysis and reporting
   performance-analysis:

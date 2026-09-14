@@ -27,6 +27,28 @@
 .PARAMETER RegressionThreshold
     Optional override of the threshold in the baselines file (0.10 = 10%).
 
+.PARAMETER RequireResultsOnly
+    Answer the narrower question "did this benchmark run actually EXECUTE anything?"
+    and skip the baseline comparison entirely.
+
+    This exists so the benchmark jobs that have no recorded baselines reuse THIS
+    guard rather than growing a second one. BenchmarkDotNet exits 0 when a critical
+    validator aborts the run before any benchmark executes, so a job whose success
+    criterion is the exit code of `dotnet run` plus an artifact upload reports green
+    over a run that measured nothing. That is a property of the shape, not a rare
+    accident: any such job satisfies it by construction.
+
+    Do NOT reach for this on a job that HAS baselines. There it would answer a
+    weaker question than the one that matters and would report PASS over a real
+    regression.
+
+    Why a mode instead of the full comparison: the recorded baselines contain only
+    hot-path method names, and zero of them are produced by the memory or throughput
+    filters. Running the full comparison against those jobs would take the
+    "read result files but matched no baseline" path on every run, forever -- a gate
+    that is permanently REFUSE is indistinguishable from one that is broken, and it
+    trains readers to route around the signal.
+
 .PARAMETER AllowEmpty
     Downgrade REFUSE to PASS. For local/manual use only; CI must never pass this,
     because it re-creates the exact defect this script exists to prevent.
@@ -34,8 +56,12 @@
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory)][string]$ResultsPath,
-	[Parameter(Mandatory)][string]$BaselinesPath,
+	# NOT mandatory, so -RequireResultsOnly can be used without inventing a baselines
+	# file for a job that has none. Omitting it WITHOUT that switch still REFUSEs
+	# through the not-found path below -- the failure direction stays safe.
+	[string]$BaselinesPath = '',
 	[double]$RegressionThreshold = -1,
+	[switch]$RequireResultsOnly,
 	[switch]$AllowEmpty
 )
 
@@ -54,6 +80,50 @@ function Write-Verdict {
 	Write-Host "  baseline entries     : $Baselines"
 	Write-Host "  result files read    : $Files"
 	Write-Host "  reason               : $Reason"
+}
+
+# ---- EXISTENCE-ONLY MODE ------------------------------------------------------------
+# Same three-state contract, narrower question: did the run execute any benchmark at all?
+# Counts BENCHMARK RECORDS, not files. A report file can exist and carry an empty
+# 'Benchmarks' array, and a file-only check would read that as a successful run -- which is
+# the same "green over nothing" defect one layer in.
+if ($RequireResultsOnly) {
+	$resultFiles = @(Get-ChildItem -Path $ResultsPath -Filter '*-report.json' -Recurse -ErrorAction SilentlyContinue)
+
+	if ($resultFiles.Count -eq 0) {
+		Write-Verdict -State 'REFUSE' -Reason "no '*-report.json' files under '$ResultsPath'" -Compared 0 -Baselines 0 -Files 0
+		if ($AllowEmpty) {
+			Write-Host "::warning::AllowEmpty set - downgrading REFUSE to PASS. Never use this in CI."
+			exit $EXIT_PASS
+		}
+		Write-Host "::error::perf-regression-check REFUSED: the benchmark run produced no results."
+		exit $EXIT_REFUSE
+	}
+
+	$executed = 0
+	foreach ($resultFile in $resultFiles) {
+		try {
+			$results = Get-Content $resultFile.FullName -Raw | ConvertFrom-Json
+			if (-not ($results.PSObject.Properties.Name -contains 'Benchmarks')) { continue }
+			$executed += @($results.Benchmarks).Count
+		}
+		catch {
+			Write-Host "::warning::Error processing $($resultFile.Name): $_"
+		}
+	}
+
+	if ($executed -eq 0) {
+		Write-Verdict -State 'REFUSE' -Reason "read $($resultFiles.Count) result file(s) but they contain zero benchmark records" -Compared 0 -Baselines 0 -Files $resultFiles.Count
+		if ($AllowEmpty) {
+			Write-Host "::warning::AllowEmpty set - downgrading REFUSE to PASS. Never use this in CI."
+			exit $EXIT_PASS
+		}
+		Write-Host "::error::perf-regression-check REFUSED: the benchmark run executed nothing."
+		exit $EXIT_REFUSE
+	}
+
+	Write-Verdict -State 'PASS' -Reason 'existence-only check: the run executed benchmarks (no baseline comparison requested)' -Compared $executed -Baselines 0 -Files $resultFiles.Count
+	exit $EXIT_PASS
 }
 
 # ---- REFUSE: baselines file absent -------------------------------------------------

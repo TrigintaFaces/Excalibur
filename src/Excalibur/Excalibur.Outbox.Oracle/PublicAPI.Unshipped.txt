@@ -1,3 +1,0 @@
-#nullable enable
-Excalibur.Outbox.Oracle.OracleOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>
-Excalibur.Outbox.Oracle.OracleOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset? nextAttemptAt, Excalibur.Dispatch.OutboxWriteAuthority authority, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>

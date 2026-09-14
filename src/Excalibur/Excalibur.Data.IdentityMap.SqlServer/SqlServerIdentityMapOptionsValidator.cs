@@ -29,8 +29,9 @@ internal sealed partial class SqlServerIdentityMapOptionsValidator : IValidateOp
 		{
 			failures.Add(
 				"No connection configured for IdentityMap. " +
-				"Call ConnectionString(), ConnectionStringName(), ConnectionFactory(), " +
-				"or BindConfiguration() inside UseSqlServer().");
+				"Call ConnectionString(), ConnectionStringName(), or ConnectionFactory() inside " +
+				"UseSqlServer(), or bind the options yourself with " +
+				"services.AddOptions<SqlServerIdentityMapOptions>().BindConfiguration(\"Section:Path\").");
 		}
 
 		if (string.IsNullOrWhiteSpace(options.SchemaName))

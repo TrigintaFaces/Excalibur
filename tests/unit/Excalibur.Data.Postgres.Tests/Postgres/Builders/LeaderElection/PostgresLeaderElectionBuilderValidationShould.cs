@@ -60,18 +60,6 @@ public sealed class PostgresLeaderElectionBuilderValidationShould : UnitTestBase
         Should.Throw<ArgumentException>(() => builder.ConnectionStringName(invalidValue!));
     }
 
-    // --- BindConfiguration guards ---
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void BindConfiguration_ThrowOnInvalidValue(string? invalidValue)
-    {
-        var builder = CreateBuilder();
-        Should.Throw<ArgumentException>(() => builder.BindConfiguration(invalidValue!));
-    }
-
     // --- LockKey guards ---
 
     [Theory]

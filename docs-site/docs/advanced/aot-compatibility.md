@@ -34,8 +34,8 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.Dispatch` | Annotated | Source-generated handler resolution via `PrecompiledHandlerRegistry`. Annotated paths: `AddAdaptiveTimeAwareScheduling`, `AddContextValidation`, `AddDefaultDispatchPipelines` and 58 more. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Abstractions` | Annotated | All interfaces and base types are trim-safe. Annotated paths: `AddEventTypesFromAssembly`, `EnqueueAsync`, `GetUnsentMessagesAsync` and 2 more. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Patterns` | Annotated | Annotated paths: `ClaimCheckMessageSerializer`. The rest of the surface publishes clean. |
-| `Excalibur.Dispatch.Patterns.Azure` | AOT-safe | |
-| `Excalibur.Dispatch.Patterns.ClaimCheck.InMemory` | AOT-safe | |
+| `Excalibur.Dispatch.Patterns.Azure` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddAzureBlobClaimCheck`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
+| `Excalibur.Dispatch.Patterns.ClaimCheck.InMemory` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddInMemoryClaimCheck`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Patterns.Hosting.Json` | AOT-safe | |
 
 ### Middleware and Pipeline
@@ -73,9 +73,9 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 |---------|-----------|-------|
 | `Excalibur.Dispatch.Hosting.AspNetCore` | Annotated | Annotated paths: `AddDispatch`, `public static RouteHandlerBuilder Dispat`. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Hosting.AwsLambda` | Annotated | Annotated paths: `AddAwsLambdaServerless`. The rest of the surface publishes clean. |
-| `Excalibur.Dispatch.Hosting.AzureFunctions` | AOT-safe | |
-| `Excalibur.Dispatch.Hosting.GoogleCloudFunctions` | AOT-safe | |
-| `Excalibur.Dispatch.Hosting.Serverless.Abstractions` | AOT-safe | |
+| `Excalibur.Dispatch.Hosting.AzureFunctions` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddAzureFunctionsServerless`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
+| `Excalibur.Dispatch.Hosting.GoogleCloudFunctions` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddGoogleCloudFunctionsServerless`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
+| `Excalibur.Dispatch.Hosting.Serverless.Abstractions` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddServerlessHosting`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
 
 ### Observability
 
@@ -112,7 +112,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.AuditLogging.Elasticsearch` | AOT-safe | |
 | `Excalibur.AuditLogging.GoogleCloud` | AOT-safe | |
 | `Excalibur.AuditLogging.OpenSearch` | AOT-safe | |
-| `Excalibur.AuditLogging.Postgres` | AOT-safe | |
+| `Excalibur.AuditLogging.Postgres` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddPostgresAuditStore`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
 | `Excalibur.AuditLogging.Sentinel` | AOT-safe | |
 | `Excalibur.AuditLogging.Splunk` | AOT-safe | |
 | `Excalibur.AuditLogging.SqlServer` | AOT-safe | |
@@ -181,7 +181,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.EventSourcing.Postgres` | Annotated | Analysis reports 24 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
 | `Excalibur.EventSourcing.MongoDB` | AOT-safe | Analysis reports 8 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
 | `Excalibur.EventSourcing.Redis` | AOT-safe | Analysis reports 24 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
-| `Excalibur.EventSourcing.Sqlite` | AOT-safe | Analysis reports 8 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
+| `Excalibur.EventSourcing.Sqlite` | Annotated | Annotated path: the `IConfiguration`-binding overload of `UseSqlite`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
 | `Excalibur.EventSourcing.AwsS3` | AOT-safe | Analysis reports 12 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
 | `Excalibur.EventSourcing.AzureBlob` | AOT-safe | Analysis reports 12 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
 | `Excalibur.EventSourcing.Gcs` | AOT-safe | Analysis reports 12 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
@@ -210,7 +210,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 |---------|-----------|-------|
 | `Excalibur.Inbox` | AOT-safe | |
 | `Excalibur.Inbox.InMemory` | AOT-safe | |
-| `Excalibur.Inbox.SqlServer` | AOT-safe | Analysis reports 4 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
+| `Excalibur.Inbox.SqlServer` | AOT-safe | `UseSqlServer` no longer binds configuration for you, so it publishes clean. To read options from configuration, call `services.AddOptions<SqlServerInboxOptions>().BindConfiguration("Section:Path")` alongside the registration — binding is reflective, so the trim/AOT warning belongs at your own call site where the trimmer can see it. |
 | `Excalibur.Inbox.Postgres` | AOT-safe | |
 | `Excalibur.Inbox.Redis` | AOT-safe | |
 | `Excalibur.Inbox.ElasticSearch` | AOT-safe | |
@@ -235,9 +235,9 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Cdc` | AOT-safe | |
+| `Excalibur.Cdc` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddCdcHealthCheck`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
 | `Excalibur.Cdc.SqlServer` | Annotated | Annotated paths: `AddDataChangeHandlersFromAssembly`. The rest of the surface publishes clean. |
-| `Excalibur.Cdc.Postgres` | AOT-safe | |
+| `Excalibur.Cdc.Postgres` | Annotated | Annotated path: `UsePostgres` — its only overload. The annotation covers the configuration-binding path the builder exposes, so the call site warns even when you configure in code. The rest of the surface publishes clean. |
 | `Excalibur.Cdc.MongoDB` | AOT-safe | |
 | `Excalibur.Cdc.DynamoDb` | **Not compatible** | Ships `Excalibur.Data.DynamoDb`, which is not AOT-compatible |
 | `Excalibur.Cdc.Firestore` | **Not compatible** | Ships `Excalibur.Data.Firestore`, which is not AOT-compatible |
@@ -248,9 +248,9 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
 | `Excalibur.LeaderElection` | Annotated | Annotated paths: `AddLeaderElectionWatcher`. The rest of the surface publishes clean. |
-| `Excalibur.LeaderElection.InMemory` | AOT-safe | |
-| `Excalibur.LeaderElection.SqlServer` | AOT-safe | |
-| `Excalibur.LeaderElection.Postgres` | AOT-safe | |
+| `Excalibur.LeaderElection.InMemory` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddInMemoryLeaderElection`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
+| `Excalibur.LeaderElection.SqlServer` | AOT-safe | `UseSqlServer` no longer binds configuration for you, so it publishes clean. To read options from configuration, call `services.AddOptions<SqlServerLeaderElectionOptions>().BindConfiguration("Section:Path")` alongside the registration — binding is reflective, so the trim/AOT warning belongs at your own call site where the trimmer can see it. |
+| `Excalibur.LeaderElection.Postgres` | AOT-safe | `UsePostgres` no longer binds configuration for you, so it publishes clean. To read options from configuration, call `services.AddOptions<PostgresLeaderElectionOptions>().BindConfiguration("Section:Path")` alongside the registration — binding is reflective, so the trim/AOT warning belongs at your own call site where the trimmer can see it. |
 | `Excalibur.LeaderElection.Redis` | AOT-safe | |
 | `Excalibur.LeaderElection.MongoDB` | AOT-safe | |
 | `Excalibur.LeaderElection.Consul` | **Not compatible** | Consul SDK dependency |
@@ -264,8 +264,8 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.Hosting.Web` | AOT-safe | |
 | `Excalibur.Hosting.Aws` | AOT-safe | |
 | `Excalibur.Hosting.AwsLambda` | Annotated | Annotated paths: `AddExcaliburAwsLambdaServerless`. The rest of the surface publishes clean. |
-| `Excalibur.Hosting.AzureFunctions` | AOT-safe | |
-| `Excalibur.Hosting.GoogleCloudFunctions` | AOT-safe | |
+| `Excalibur.Hosting.AzureFunctions` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddExcaliburAzureFunctionsServerless`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
+| `Excalibur.Hosting.GoogleCloudFunctions` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddExcaliburGoogleCloudFunctionsServerless`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
 | `Excalibur.Hosting.HealthChecks` | Annotated | Annotated paths: `UseExcaliburHealthChecks`. The rest of the surface publishes clean. |
 | `Excalibur.Hosting.Jobs` | **Not compatible** | Ships `Excalibur.Jobs`, which is not AOT-compatible |
 | `Excalibur.Hosting.Observability` | AOT-safe | |
@@ -278,8 +278,8 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.A3` | Annotated | Annotated paths: `AddA3DispatchServices`, `AddExcaliburA3`, `ExtractResourceId` and 4 more. The rest of the surface publishes clean. |
 | `Excalibur.A3.Abstractions` | AOT-safe | |
 | `Excalibur.A3.AspNetCore` | AOT-safe | |
-| `Excalibur.A3.Core` | AOT-safe | |
-| `Excalibur.A3.Governance` | AOT-safe | |
+| `Excalibur.A3.Core` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddRoles`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
+| `Excalibur.A3.Governance` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddOrphanedAccessDetection`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
 | `Excalibur.A3.Governance.Abstractions` | AOT-safe | |
 | `Excalibur.A3.Policy.Cedar` | AOT-safe | |
 | `Excalibur.A3.Policy.Opa` | AOT-safe | |
@@ -290,7 +290,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 |---------|-----------|-------|
 | `Excalibur.Security.Abstractions` | AOT-safe | |
 | `Excalibur.Security` | Annotated | `[DynamicallyAccessedMembers]` annotations for property-level encryption. Annotated paths: `AddDispatchSecurity`, `AddDispatchSecurityMiddleware`, `AddInputValidation` and 8 more. The rest of the surface publishes clean. |
-| `Excalibur.Compliance.SqlServer` | AOT-safe | |
+| `Excalibur.Compliance.SqlServer` | Annotated | Annotated path: the `IConfiguration`-binding overload of `AddSqlServerKeyEscrow`, which reflects over the options type. The overload that takes its options in code publishes clean. The rest of the surface publishes clean. |
 | `Excalibur.Compliance.Postgres` | AOT-safe | |
 | `Excalibur.Caching` | **Not compatible** | HybridCache uses reflection |
 
@@ -397,12 +397,12 @@ directly from each project's `IsAotCompatible` property, the same source the sec
 | `Excalibur.AuditLogging.Abstractions` | AOT-safe |  |
 | `Excalibur.Compliance.MongoDb` | AOT-safe |  |
 | `Excalibur.Compliance.Pdf` | **Not compatible** |  |
-| `Excalibur.Data.IdentityMap.SqlServer` | AOT-safe |  |
+| `Excalibur.Data.IdentityMap.SqlServer` | AOT-safe | `UseSqlServer` no longer binds configuration for you, so it publishes clean. To read options from configuration, call `services.AddOptions<SqlServerIdentityMapOptions>().BindConfiguration("Section:Path")` alongside the registration — binding is reflective, so the trim/AOT warning belongs at your own call site where the trimmer can see it. |
 | `Excalibur.Data.IdentityMap` | AOT-safe |  |
 | `Excalibur.Data.Spanner` | **Not compatible** | NOT compatible. Google.Cloud.Spanner.Data uses gRPC + reflection-based value conversion. |
 | `Excalibur.EventSourcing.Handlers` | AOT-safe |  |
 | `Excalibur.EventSourcing.Oracle` | AOT-safe | Analysis reports 16 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
-| `Excalibur.Inbox.Oracle` | AOT-safe | Analysis reports 4 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
+| `Excalibur.Inbox.Oracle` | AOT-safe | `UseOracle` no longer binds configuration for you, so it publishes clean. To read options from configuration, call `services.AddOptions<OracleInboxOptions>().BindConfiguration("Section:Path")` alongside the registration — binding is reflective, so the trim/AOT warning belongs at your own call site where the trimmer can see it. |
 | `Excalibur.MultiTenancy` | **Not compatible** | Row-discriminator decoration of open-generic IProjectionStore&lt;T&gt; uses reflective MakeGenericType over the DI descriptor set, so this composition |
 | `Excalibur.Operations.Dashboard.EventSourcing` | AOT-safe |  |
 | `Excalibur.Operations.Dashboard.Spa` | AOT-safe |  |

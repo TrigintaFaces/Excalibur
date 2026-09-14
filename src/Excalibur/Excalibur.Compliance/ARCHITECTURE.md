@@ -69,7 +69,11 @@ not-met.
 
 **Consumer obligations.** Validators are opt-in. A report generated with none registered for a criterion
 is not a deficient report — it is a report that says, in the document handed to an assessor, that this
-framework did not assess that criterion. Substantiating it is the consumer's to arrange.
+framework did not assess that criterion. Substantiating it is the consumer's to arrange. Because that
+state is legitimate, it is never a startup failure: a host whose enabled categories include one that no
+registered validator can assess starts normally and logs a warning naming the category and the
+registration that would cover it. The signal reaches the person who wrote the configuration, and the
+report remains the contract.
 
 **Known gap, stated because it bounds the guarantee above.** The guarantee covers the criterion layer.
 One layer below it, a control validator reports effectiveness as a `bool`, so a validator whose own check

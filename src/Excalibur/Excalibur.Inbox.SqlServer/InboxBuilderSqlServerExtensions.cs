@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Dispatch;
 using Excalibur.Inbox;
 using Excalibur.Inbox.DependencyInjection;
@@ -43,8 +41,13 @@ public static class InboxBuilderSqlServerExtensions
 	/// });
 	/// </code>
 	/// </example>
-	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
-	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
+	/// <remarks>
+	/// To populate the options from configuration, call
+	/// <c>services.AddOptions&lt;SqlServerInboxOptions&gt;().BindConfiguration("Section:Path")</c>
+	/// after this registration. Configuration binding is reflective, so it is not trim- or
+	/// native-AOT-safe; doing it at your own call site puts the warning where the trimmer can see it
+	/// rather than on this method, which is otherwise trim-safe.
+	/// </remarks>
 	public static IInboxBuilder UseSqlServer(
 		this IInboxBuilder builder,
 		Action<ISqlServerInboxBuilder> configure)
@@ -94,10 +97,6 @@ public static class InboxBuilderSqlServerExtensions
 		};
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-			Justification = "The public entry point that reaches this private helper carries RequiresUnreferencedCode and RequiresDynamicCode, so a caller already receives the trimming and AOT diagnostics at their own call site. Annotating this helper as well adds no signal a consumer can see.")]
-		[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-			Justification = "The public entry point that reaches this private helper carries RequiresUnreferencedCode and RequiresDynamicCode, so a caller already receives the trimming and AOT diagnostics at their own call site. Annotating this helper as well adds no signal a consumer can see.")]
 	private static void RegisterOptionsAndServices(
 		IInboxBuilder builder,
 		SqlServerInboxBuilder sqlBuilder,
@@ -113,22 +112,6 @@ public static class InboxBuilderSqlServerExtensions
 			opt.CommandTimeoutSeconds = options.CommandTimeoutSeconds;
 			opt.MaxRetryCount = options.MaxRetryCount;
 		});
-
-		if (sqlBuilder.BindConfigurationPath is not null)
-		{
-			builder.Services.AddOptions<SqlServerInboxOptions>()
-				.BindConfiguration(sqlBuilder.BindConfigurationPath)
-				.ValidateOnStart();
-
-			if (!string.IsNullOrWhiteSpace(options.ConnectionString))
-			{
-				var explicitConnectionString = options.ConnectionString;
-				_ = builder.Services.PostConfigure<SqlServerInboxOptions>(opt =>
-				{
-					opt.ConnectionString = explicitConnectionString;
-				});
-			}
-		}
 
 		// Register ValidateOnStart
 		builder.Services.AddSingleton<IValidateOptions<SqlServerInboxOptions>>(

@@ -44,6 +44,26 @@
 #
 # Exit: 0 = every gate is wired or baselined | 1 = at least one UN-baselined orphan | 64 = environment error.
 
+# OPEN QUESTION -- READ THIS BEFORE TRUSTING AN ORPHAN COUNT FROM A DIFFERENT MACHINE.
+# On 2026-09-13 this gate reported 36 orphans (28 un-baselined) on the Linux CI runner and 9 orphans
+# (1 un-baselined) in the development repository, at the same commit, with the same 118-gate
+# population. That discrepancy is NOT EXPLAINED. Two hypotheses were tested and BOTH were refuted by
+# measurement, so do not re-run them:
+#
+#   1. "the mirror is missing caller files."  Refuted: all 27 flipped gates are invoked on
+#      non-comment lines of .github/workflows/**, eng/hooks/pre-commit or harness-gates-ci.sh, and
+#      four of them are named by harness-gates-ci.sh -- the script that was EXECUTING this gate when
+#      it reported them orphaned. Had those surfaces been absent, 43 FURTHER gates would also have
+#      flipped, including this one.
+#   2. "the pipefail/SIGPIPE race in is_wired."  Refuted: see the measurement at that function.
+#      Replaying the old idiom over the real corpus produced zero SIGPIPEs.
+#
+# No third theory is offered here on purpose. What the run now does instead is STATE ITS OWN SCOPE --
+# how many caller surfaces it found, bucketed, how many lines each corpus received, and which
+# surfaces contributed nothing. Compare those numbers between the two machines before theorising:
+# an orphan count published without its caller set is unfalsifiable, and working out after the fact
+# what a past run had actually read is what made this expensive.
+
 set -uo pipefail
 
 GW_ROOT="${GW_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)}"
@@ -83,6 +103,23 @@ for c in "$GW_ROOT"/.github/workflows/*.yml \
     [ -f "$c" ] && callers+=("$c")
 done
 
+# SCOPE DISCLOSURE. The verdict below is only as wide as the caller set above, and which of those
+# surfaces EXIST is environment-dependent -- .claude/** does not travel to the mirrored copy this
+# runs against in CI. An orphan count published without its caller set is unfalsifiable, and working
+# out after the fact which surfaces a past run actually read cost a whole investigation that one
+# printed line would have ended. So the run states what it read, bucketed, every time.
+n_wf=0; n_hook=0; n_orch=0; n_gate=0; n_lock=0; n_skill=0
+for c in "${callers[@]:-}"; do
+    case "$c" in
+        */harness-gates-ci.sh)  n_orch=$((n_orch + 1)) ;;
+        *.harness-lock.sh)      n_lock=$((n_lock + 1)) ;;
+        */SKILL.md)             n_skill=$((n_skill + 1)) ;;
+        *"/.github/"*)          n_wf=$((n_wf + 1)) ;;
+        *"/eng/hooks/"*)        n_hook=$((n_hook + 1)) ;;
+        *)                      n_gate=$((n_gate + 1)) ;;
+    esac
+done
+
 # is_wired <gate-basename> — true if the gate's FULL FILENAME (its <name>.sh) appears as a whole token
 # on a non-comment line of any caller. A real caller RUNS the gate by its .sh filename; matching the
 # full ".sh" filename — not the bare stem — is what makes a self-test reference inert. A caller (e.g. the
@@ -108,12 +145,29 @@ CODE_CORPUS="$CORPUS_DIR/code"; MD_CORPUS="$CORPUS_DIR/md"
 # were wired only by themselves, and for one of them this meta-gate went on to recommend deleting its
 # baseline entry as "now wired" — advice that would have converted a tracked orphan into an invisible
 # one. The tag lets is_wired ignore hits whose only source is the gate itself, at no extra pass.
+# COUNTED IS NOT READ. Both appends below swallow their errors (2>/dev/null), so a caller that
+# contributes NOTHING -- unreadable, or emptied by the comment strip -- is indistinguishable from one
+# that was read, and a partially-built corpus produces exactly the shape of a missing-wiring bug. The
+# surface count alone cannot see that, so measure what each caller actually CONTRIBUTED.
+# ZERO ADDED PROCESSES. The first version of this check measured the corpus with `wc -l` before and
+# after each caller -- 372 extra spawns, which cost 283 SECONDS on a Windows/MSYS box where an
+# antivirus inspects every process creation. Latency is paid by every run, by everyone, forever
+# (when-to-create-a-gate.md), so the emptiness test is done in the shell instead: capture what the
+# caller contributes, test it, then append. Same spawn count as the plain append it replaced.
+n_empty=0; empty_list=""
 for cf in "${callers[@]:-}"; do
     [ -n "$cf" ] || continue
+    _contrib=""
     case "$cf" in
-        *.md) cat "$cf" >>"$MD_CORPUS" 2>/dev/null ;;
-        *)    grep -vE '^[[:space:]]*#' "$cf" | sed "s|^|$(basename "$cf")\||" >>"$CODE_CORPUS" 2>/dev/null ;;
+        *.md) _contrib="$(<"$cf")"
+              [ -n "$_contrib" ] && printf '%s\n' "$_contrib" >>"$MD_CORPUS" ;;
+        *)    _contrib="$(grep -vE '^[[:space:]]*#' "$cf" | sed "s|^|$(basename "$cf")\||")"
+              [ -n "$_contrib" ] && printf '%s\n' "$_contrib" >>"$CODE_CORPUS" ;;
     esac
+    if [ -z "$_contrib" ]; then
+        n_empty=$((n_empty + 1))
+        empty_list="$empty_list ${cf#"$GW_ROOT"/}"
+    fi
 done
 
 # A skill IS a caller surface: the gates for the LOCAL runners (a full-suite shard completeness check,
@@ -126,8 +180,31 @@ is_wired() {
     # A hit counts only if it came from a file OTHER than the gate itself (see the provenance note
     # above): match the token, then drop the lines tagged with this gate's own basename. If anything
     # survives, a real caller names it.
-    grep -E "(^|[^A-Za-z0-9_|-])${esc}([^A-Za-z0-9_-]|\$)" "$CODE_CORPUS" 2>/dev/null \
-        | grep -qvE "^${esc}\|" && return 0
+    #
+    # NEVER `| grep -q` HERE, and the reason is a measured hazard rather than style.
+    # This was `grep -E ... | grep -qvE ... && return 0`. Under the `set -o pipefail` at the top of
+    # this file that idiom can report a FALSE ORPHAN for a gate that genuinely matched: `grep -q`
+    # exits the instant it sees its first line and closes the pipe; if the upstream `grep -E` still
+    # has matches to write it dies of SIGPIPE (141); pipefail promotes 141 to the PIPELINE's status,
+    # the `&&` never fires, and a WIRED gate is reported as having no caller.
+    #
+    # SCOPE OF THAT CLAIM, measured 2026-09-13 so nobody inherits more than was shown. The hazard is
+    # real and, past the pipe buffer, CERTAIN -- not a rare race:
+    #     3-line payload        SIGPIPE in   0 / 300 trials
+    #     100000-line payload   SIGPIPE in 300 / 300 trials
+    # But replaying the OLD idiom over THIS gate's real corpus (17,445 lines, 118 gates) produced
+    # ZERO SIGPIPEs: a real gate filename matches only a handful of lines, so the upstream grep has
+    # nothing left to write when the reader goes away. So this is a LATENT defect that a
+    # high-match token would trip, NOT the explanation for any orphan count observed to date.
+    # Do not cite it as one.
+    #
+    # Collect into a variable instead: both greps read to EOF, nobody closes a pipe early, no SIGPIPE
+    # is possible, and the verdict is a function of the corpus rather than of scheduling. Do not
+    # "optimise" this back with `head -n1` or `grep -m1` -- either re-introduces the early close.
+    local hits
+    hits="$(grep -E "(^|[^A-Za-z0-9_|-])${esc}([^A-Za-z0-9_-]|\$)" "$CODE_CORPUS" 2>/dev/null \
+            | grep -vE "^${esc}\|")"
+    [ -n "$hits" ] && return 0
     grep -qE "(^|[^A-Za-z0-9_-])(bash|sh|pwsh|python3?|\./)[[:space:]]*[^[:space:]]*${esc}([^A-Za-z0-9_-]|\$)" "$MD_CORPUS" 2>/dev/null && return 0
     return 1
 }
@@ -165,6 +242,19 @@ for e in "${baseline[@]:-}"; do
 done
 
 echo "gate-wiring: ${#gates[@]} gate(s) enumerated, ${#orphans[@]} orphan(s), ${#baseline[@]} baselined."
+echo "gate-wiring: caller scope -- ${#callers[@]} surface(s): ${n_wf} workflow/action, ${n_hook} git hook," \
+     "${n_orch} orchestrator, ${n_gate} gate, ${n_lock} harness lock, ${n_skill} skill."
+# The two corpora are reported SEPARATELY on purpose: the skill surfaces feed the markdown corpus and
+# contribute nothing to the code corpus, so one combined number invites dividing a code-line count by a
+# surface count that includes them.
+echo "gate-wiring: corpus -- code $(wc -l <"$CODE_CORPUS") line(s) from $((${#callers[@]} - n_skill)) surface(s)," \
+     "markdown $(wc -l <"$MD_CORPUS") line(s) from ${n_skill}; ${n_empty} surface(s) contributed NOTHING."
+if [ "$n_empty" -gt 0 ]; then
+    echo "gate-wiring: NOTE -- these caller surfaces were counted but contributed no corpus lines:"
+    for e in $empty_list; do echo "   (empty) $e"; done
+fi
+[ "$n_orch" -eq 0 ] && echo "gate-wiring: NOTE -- harness-gates-ci.sh was NOT among the callers; a gate wired only there reads as an orphan."
+[ "$n_wf" -eq 0 ] && echo "gate-wiring: NOTE -- no workflow/action surfaces were found; a gate wired only in CI reads as an orphan."
 
 if [ "${#stale[@]}" -gt 0 ]; then
     echo "gate-wiring: NOTE — ${#stale[@]} stale baseline entry(ies) (now wired or removed); delete from ${BASELINE##*/}:"

@@ -276,6 +276,23 @@ nir_is_exempt() {
         # which only 7 were planted fixture data.
         */no-internal-refs-gate.sh|no-internal-refs-gate.sh) return 0 ;;
 
+        # GENERATED LOCKFILES, exempted HERE rather than only in the pathspec list.
+        #
+        # nir_public_pathspecs already excludes them, which covers the whole-tree scan and does
+        # nothing for --staged: that mode builds its specs from the staged set filtered through
+        # THIS function, so a lockfile was scanned on every commit while being excluded from the
+        # sweep. That is precisely the scanned-but-not-judged drift the comment in the staged
+        # block says the single exemption list exists to prevent -- the list was single, the
+        # lockfile rule simply was not in it.
+        #
+        # Measured: a commit was REJECTED because docs-site/package-lock.json contains
+        # `sha512-...KBBHOGSV+J2q/S671rcq9...`, whose base64 carries `S671` and matches the
+        # sprint-id shape. A long enough hash collides with any token pattern eventually, and a
+        # lockfile is machine-written dependency metadata -- nobody reads it as prose and nothing
+        # in it is authored. The surface is excluded because that is what it is.
+        package-lock.json|*/package-lock.json) return 0 ;;
+        packages.lock.json|*/packages.lock.json) return 0 ;;
+
         # eng/** and .github/workflows/** are NOT exempt -- they are PUBLIC SURFACE.
         #
         # They were exempt here, and that was the defect: the operator's recorded directive

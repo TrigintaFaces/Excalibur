@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.LeaderElection;
@@ -44,8 +43,13 @@ public static class PostgresLeaderElectionBuilderExtensions
 	/// });
 	/// </code>
 	/// </example>
-	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
-	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
+	/// <remarks>
+	/// To populate the options from configuration, call
+	/// <c>services.AddOptions&lt;PostgresLeaderElectionOptions&gt;().BindConfiguration("Section:Path")</c>
+	/// after this registration. Configuration binding is reflective, so it is not trim- or
+	/// native-AOT-safe; doing it at your own call site puts the warning where the trimmer can see it
+	/// rather than on this method, which is otherwise trim-safe.
+	/// </remarks>
 	public static ILeaderElectionBuilder UsePostgres(
 		this ILeaderElectionBuilder builder,
 		Action<IPostgresLeaderElectionBuilder> configure)
@@ -66,8 +70,6 @@ public static class PostgresLeaderElectionBuilderExtensions
 		return builder.UsePostgresCore();
 	}
 
-	[RequiresUnreferencedCode("Binding configuration to the options type reflects over its members, which trimming may remove. Configure the options in code instead of binding IConfiguration.")]
-	[RequiresDynamicCode("Binding configuration to the options type can require runtime code generation, which native AOT does not support. Configure the options in code instead of binding IConfiguration.")]
 	private static void RegisterOptionsAndServices(
 		ILeaderElectionBuilder builder,
 		PostgresLeaderElectionBuilder pgBuilder,
@@ -80,13 +82,6 @@ public static class PostgresLeaderElectionBuilderExtensions
 			opt.LockKey = options.LockKey;
 			opt.CommandTimeoutSeconds = options.CommandTimeoutSeconds;
 		});
-
-		if (pgBuilder.BindConfigurationPath is not null)
-		{
-			builder.Services.AddOptions<PostgresLeaderElectionOptions>()
-				.BindConfiguration(pgBuilder.BindConfigurationPath)
-				.ValidateOnStart();
-		}
 
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>>(
