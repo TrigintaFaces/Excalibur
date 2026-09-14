@@ -132,6 +132,9 @@ jobs:
     timeout-minutes: 30
     needs: performance-unit-tests
     strategy:
+      # Same reason as the hot-path matrix below: these two builds are independent, and
+      # cancelling one because the other failed hides whether a build break is platform-specific.
+      fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
         include:
@@ -186,6 +189,15 @@ jobs:
     timeout-minutes: 90
     needs: [performance-unit-tests, benchmark-build]
     strategy:
+      # A cancelled leg reports NO verdict, but the UI renders it beside a real failure and a
+      # reader infers one. Under the default (fail-fast: true) the first leg to fail kills the
+      # others mid-benchmark, so a platform-independent defect is indistinguishable from a
+      # macOS-only one -- which is exactly how it was read on 2026-09-14, when one leg failed a
+      # results check and the other two were cancelled 5s and 16s later, 8 and 7 benchmarks into
+      # a 17-benchmark run. Each platform is an independent measurement and must produce its own
+      # verdict; that is the whole point of running three. Legs are ~5-6 minutes, so the saved
+      # runner time was never worth the destroyed evidence.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         include:

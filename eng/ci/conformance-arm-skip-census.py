@@ -76,7 +76,20 @@ def derivations(src, kit):
 
 # The kit's contract, read from its own store-factory return type. A table would go stale the day a
 # kit is added, and a naming convention is wrong on first contact with a composite contract name.
+#
+# There are TWO factory shapes in the shipped kits and a reader that knows only one is blind to the
+# other. Most kits expose an awaitable arm-facing accessor; some expose a plain synchronous factory and
+# never wrap it. A kit of the second shape declares skip sites the census can read and a contract it
+# cannot, which surfaces as a refusal over a kit that is perfectly well formed -- the instrument's gap
+# wearing the costume of a finding.
+#
+# The awaitable form is tried over the whole file FIRST and the synchronous form only where it finds
+# nothing, so this is strictly additive: every kit that resolves today resolves to exactly the same
+# contract. The fallback is anchored on `abstract` because a kit's required factory is abstract by
+# construction, which keeps it off the `protected virtual X CreateSomething()` conveniences that sit
+# beside it in the same file and would otherwise be read as the contract.
 CONTRACT = re.compile(r"Task<\s*(I[A-Za-z0-9_]*)\s*\??\s*>\s+Create[A-Za-z0-9_]*Async")
+CONTRACT_SYNC = re.compile(r"\babstract\s+(I[A-Za-z0-9_]*)\s*\??\s+Create[A-Za-z0-9_]*\s*\(")
 
 
 def collect_declarations(*trees):
@@ -234,7 +247,7 @@ def main():
             sites = [(m.group(1), m.group(2)) for m in SKIP.finditer(src)]
             if not sites:
                 continue
-            contract = CONTRACT.search(src)
+            contract = CONTRACT.search(src) or CONTRACT_SYNC.search(src)
             kits[name] = {
                 "contract": contract.group(1) if contract else None,
                 "sites": sites,

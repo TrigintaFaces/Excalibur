@@ -296,6 +296,23 @@ would hide a live problem from anyone reading only the newest section.
 
 ### Fixed
 
+- **A conformance kit no longer records a skipped arm as missing a contract the implementation
+  satisfies.** `CacheTagTrackerConformanceTestKit` declines its two cross-instance arms when a tracker
+  does not claim cross-instance stamp sharing -- an opt-in property of the backing store, not an
+  interface. Both skips named `ICacheTagTracker` as the absent capability, which every tracker
+  implements, so the record asserted something false about your implementation and could be read by
+  tooling as an arm that reached a capability it never reached. The capability is now recorded as
+  unnamed, which is what it is. If you derive from this kit, skip records for those two arms change
+  accordingly; no arm's pass/fail behaviour changes.
+
+- **The Operations Dashboard shows saga and dead-letter times correctly again.** Saga `dueAt` and
+  dead-letter `enqueuedAt` values were rendered through a bare date parse, so a value carrying no UTC
+  offset was read as the viewer's LOCAL time -- an operator in UTC+10 saw an overdue saga ten hours away
+  from where it actually was, with nothing on screen indicating a conversion had happened. The parsing was
+  corrected in source some time ago; the shipped browser bundle was never rebuilt from it, so the fix
+  reached nobody until now. The dashboard's static assets are rebuilt here, and the drift gate that
+  compares them against their source is green.
+
 - **SOC 2 compliance registration no longer fails at startup on its defaults.** `AddSoc2Compliance(configuration)` enabled the Security category by default while registering no control validator for it, so resolving the options threw and the host never started. Coverage is now reported as a startup **warning** naming the uncovered categories and the registration that would cover them, which matches the documented contract: validators are opt-in, and a report generated with none registered states honestly that the criterion was not assessed. If you want the built-in validators, call `AddSoc2ComplianceWithBuiltInValidators(configuration)` as before.
 
 - **The ahead-of-time compatibility table now states each package's status truthfully.** Twenty packages were listed as AOT-safe while containing members annotated as requiring reflection, in several cases while the same row's note described those diagnostics. Status is now stated per API, the way the .NET documentation states it: a package whose reflective path is annotated is listed as annotated, and the note names the clean alternative where one exists.

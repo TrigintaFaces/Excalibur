@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 # Verify that the STAGED SNAPSHOT is internally coherent — i.e. that the commit you are about to
+#
+# STATUS: UNWIRED — A MANUAL TOOL, NOT AN ENFORCEMENT GATE.
+# Nothing invokes this script. It ran on the commit path until 2026-09-14 and was removed there on the
+# operator's standing ruling that a pre-commit hook must be grep-speed and that anything needing a
+# compiler runs in CI: it materialised the index as a dangling commit and BUILT it, costing three to
+# five minutes on every commit by everyone.
+# It cannot simply be re-wired elsewhere. At pre-push and in CI the index is EMPTY, so it would hit its
+# own nothing-staged arm and exit 0 forever — an advertised-but-unwired control wearing a caller, which
+# is worse than being honestly unwired. Its subject exists only between `git add` and `git commit`.
+# The property it predicts IS verified, later and against the real commit: six CI workflows check out
+# the commit and build it. Run this by hand when you want that answer before pushing.
+#
 # create can actually be built by a clean checkout.
 #
 # WHY THIS EXISTS, and why the sibling gate cannot do it.

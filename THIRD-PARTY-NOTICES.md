@@ -125,7 +125,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Microsoft.Extensions.Options.ConfigurationExtensions | 10.0.10 | MIT |
 | Microsoft.Extensions.Options.DataAnnotations | 10.0.10 | MIT |
 | Microsoft.IdentityModel.Tokens | 8.17.0 | MIT |
-| MongoDB.Driver | 3.8.0 | Apache-2.0 |
+| MongoDB.Driver | 3.11.1 | Apache-2.0 |
 | MySqlConnector | 2.5.0 | MIT |
 | NCrontab | 3.4.0 | Apache-2.0 |
 | Npgsql | 10.0.2 | PostgreSQL |
@@ -159,7 +159,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Shouldly | 4.3.0 | BSD-3-Clause |
 | Snappier | 1.3.1 | BSD-3-Clause |
 | StackExchange.Redis | 2.12.14 | MIT |
-| Swashbuckle.AspNetCore.SwaggerGen | 10.1.7 | MIT |
+| Swashbuckle.AspNetCore.SwaggerGen | 10.2.3 | MIT |
 | System.CommandLine | 2.0.0-beta4.22272.1 | MIT |
 | System.Diagnostics.DiagnosticSource | 10.0.7 | MIT |
 | System.Diagnostics.PerformanceCounter | 10.0.7 | MIT |

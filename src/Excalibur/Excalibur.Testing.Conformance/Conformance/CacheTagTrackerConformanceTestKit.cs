@@ -247,9 +247,16 @@ public abstract class CacheTagTrackerConformanceTestKit : ConformanceTestKit
 	{
 		if (!SupportsCrossInstanceSharing)
 		{
+			// The capability argument is null because no capability TYPE names what is missing.
+			// Cross-instance stamp sharing is an opt-in property of the backing store, not an
+			// interface a tracker either does or does not implement -- every tracker implements
+			// ICacheTagTracker, this one included. Naming it would record that the arm declined
+			// for want of the very contract the implementation satisfies, which is false, and
+			// would read to anything auditing these records as an arm that reached a capability
+			// it never reached.
 			SkipArm(
 				nameof(CrossInstanceBump_ShouldInvalidateEntriesOnAnotherInstance),
-				typeof(ICacheTagTracker),
+				null,
 				"This implementation does not claim cross-instance stamp sharing (SupportsCrossInstanceSharing is false).");
 			return;
 		}
@@ -312,9 +319,16 @@ public abstract class CacheTagTrackerConformanceTestKit : ConformanceTestKit
 	{
 		if (!SupportsCrossInstanceSharing)
 		{
+			// The capability argument is null because no capability TYPE names what is missing.
+			// Cross-instance stamp sharing is an opt-in property of the backing store, not an
+			// interface a tracker either does or does not implement -- every tracker implements
+			// ICacheTagTracker, this one included. Naming it would record that the arm declined
+			// for want of the very contract the implementation satisfies, which is false, and
+			// would read to anything auditing these records as an arm that reached a capability
+			// it never reached.
 			SkipArm(
 				nameof(CrossInstanceNoBump_ShouldStillHitOnAnotherInstance),
-				typeof(ICacheTagTracker),
+				null,
 				"This implementation does not claim cross-instance stamp sharing (SupportsCrossInstanceSharing is false).");
 			return;
 		}

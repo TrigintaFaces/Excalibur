@@ -619,78 +619,33 @@ if [ -f "$CSBG" ]; then
     esac
 fi
 
-# ── STAGED-SNAPSHOT COHERENCE — the BUILD half of the check above ─────────────────────────────────
+# ── STAGED-SNAPSHOT COHERENCE — MOVED OFF THE COMMIT PATH ─────────────────────────────────────────
 #
-# The gate above is the INSTANT half: it asserts `git status` is clean for the inputs of every project
-# the commit touches, which catches UNDER-STAGING (a file dirty in your tree and absent from the
-# commit). It is structurally blind to the opposite shape — a staged SET that is individually valid
-# file-by-file and INCOHERENT as a snapshot. Measured examples, in opposite directions: a PublicAPI
-# baseline staged describing members the interface at that same commit does not declare (RS0017), and
-# a source file staged adding a public member whose baseline line is in no commit at all (RS0016).
-# Neither is visible to `git status` — in both cases the coupled file is not dirty, so there is
-# nothing for a cleanliness check to report — and neither is visible to any working-tree build,
-# because the tree holds both files and therefore compiles. The incoherence exists ONLY in the commit.
+# This gate used to run here. It materialised the index as a dangling commit and BUILT it, which
+# cost three to five minutes on EVERY commit. It is removed from the commit path on the operator's
+# standing ruling, which the gate policy already stated: a pre-commit hook must be grep-speed, and
+# anything that needs a compiler runs in CI (.claude/rules/process/when-to-create-a-gate.md).
 #
-# PLACEMENT IS LOAD-BEARING, and this is the ONLY placement that works: the gate materialises the
-# INDEX (`git write-tree` + `git commit-tree`, a dangling commit — no ref, no index, no working-tree
-# file is touched). Pre-push was considered and REJECTED on measurement: at push time the index is
-# empty, so the gate would hit its own "nothing staged" arm and exit 0 forever. That would be worse
-# than leaving it unwired — the orphan check would go green while the gate enforced nothing, an
-# advertised-but-unwired control wearing a caller. A gate must be placed where its subject exists.
+# THE CHECK IS NOT LOST, and that is the reason this is a relocation rather than a deletion. The
+# class it catches is real and the instant gate above is genuinely blind to it: a staged set that is
+# valid file-by-file and incoherent as a snapshot — a PublicAPI baseline describing members the
+# interface at that commit does not declare, or a source file adding a public member whose baseline
+# line is in no commit at all. `git status` cannot see either, because neither coupled file is dirty,
+# and no working-tree build can see them, because the tree holds both files and compiles.
 #
-# UNCONDITIONAL, with a named escape hatch. It was opt-in for one sprint and that was WRONG — falsified
-# by evidence, not by argument:
+# CI sees them. Six workflows check out the actual commit and build it — ci, official-build,
+# quality-gates, governance, release, samples-ci — so an incoherent snapshot fails there, against the
+# real commit rather than a prediction of it. That is strictly better evidence than this gate
+# produced, arriving later.
 #
-#   the commit that WIRED this gate also SHIPPED the defect it exists to catch. A test landed calling a
-#   kit member that did not, HEAD stopped compiling, and the gate was silent — because it was opt-in and
-#   nobody exports a variable they are not thinking about. The person who needs this check is, by
-#   definition, the person who has not noticed they need it. An opt-in gate is not a weaker control than
-#   an unconditional one; on that evidence it is not a control at all.
+# WHAT WAS TRADED, stated plainly so nobody rediscovers it as a surprise: a bad snapshot now lands on
+# main and is fixed forward, instead of being blocked before it exists. That is the cost the ruling
+# accepts, and it is the trade every large framework makes. The counter-argument is preserved in the
+# script's own header if it ever needs re-litigating.
 #
-# It also failed its own bead's acceptance criterion, which reads "the commit path verifies the STAGED
-# SNAPSHOT ... failing the commit if the snapshot does not compile" — a gate that runs only when asked
-# does not make the commit path verify anything.
-#
-#   STAGED_SNAPSHOT_GATE=off git commit …    deliberate, disclosed bypass (one logical change, a known
-#                                            partial stage, or a genuinely wedged machine)
-#
-# COST is real and is the reason for the hatch rather than for opt-in: this one BUILDS, though only the
-# projects the staged files touch, and it exits without building at all when nothing is staged. If the
-# added latency ever becomes the binding constraint, bound the build or narrow the trigger — do NOT go
-# back to opt-in, which trades a measurable cost for an unmeasurable false sense of coverage.
-if [ "${STAGED_SNAPSHOT_GATE:-}" != "off" ]; then
-    SSC="$REPO_ROOT/eng/ci/staged-snapshot-coherence.sh"
-    if [ -f "$SSC" ]; then
-        bash "$SSC" && ssc_rc=0 || ssc_rc=$?
-        # Three-state contract (0 PASS · 1 FAIL · 64 REFUSE); every declared code mapped, catch-all REFUSE.
-        case "${ssc_rc:-0}" in
-            0) ;;  # the staged snapshot compiles as its own commit — common path, say nothing
-            1)
-                echo -e "${RED}✗ COMMIT REJECTED: the STAGED SNAPSHOT does not compile.${NC}" >&2
-                echo -e "${RED}  This commit would create a HEAD no clean checkout can build. Your tree${NC}" >&2
-                echo -e "${RED}  compiling is not evidence — it holds files this commit omits.${NC}" >&2
-                echo -e "${CYAN}  Usual cause: a public member staged without its PublicAPI baseline line,${NC}" >&2
-                echo -e "${CYAN}  or a baseline staged without the source change it describes.${NC}" >&2
-                exit 1
-                ;;
-            *)
-                # REFUSE. Fails CLOSED, unlike the hook-drift check in pre-push, and deliberately so:
-                # that check guards a recoverable condition (reinstall the hooks), whereas this one is
-                # the last thing standing between an incoherent snapshot and committed HEAD. "The check
-                # did not run" is not "your snapshot is coherent", and the gate was explicitly opted
-                # into — so refusing is what the caller asked for.
-                echo -e "${RED}✗ COMMIT REFUSED: staged-snapshot-coherence could not be evaluated (exit ${ssc_rc}).${NC}" >&2
-                echo -e "${RED}  Nothing was checked — that is not a clean bill of health. Fix the gate (${SSC}).${NC}" >&2
-                exit 1
-                ;;
-        esac
-    else
-        echo -e "${RED}✗ COMMIT REFUSED: ${SSC} is missing — the staged snapshot was NOT verified.${NC}" >&2
-        echo -e "${RED}  A gate whose script has vanished must not pass silently. Restore it, or bypass${NC}" >&2
-        echo -e "${CYAN}  deliberately with: STAGED_SNAPSHOT_GATE=off git commit …${NC}" >&2
-        exit 1
-    fi
-fi
+# The script is still there and still correct. Run it by hand when you want the answer before pushing:
+#   bash eng/ci/staged-snapshot-coherence.sh
+#   bash eng/ci/committed-sha-build-gate.sh --staged   # the same question, one layer down
 
 echo -e "${CYAN}Namespace Depth Validation (Pre-Commit)${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

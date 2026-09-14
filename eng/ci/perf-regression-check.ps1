@@ -87,11 +87,18 @@ function Write-Verdict {
 # Counts BENCHMARK RECORDS, not files. A report file can exist and carry an empty
 # 'Benchmarks' array, and a file-only check would read that as a successful run -- which is
 # the same "green over nothing" defect one layer in.
+# GLOB NOTE, and it is why this gate had never passed: BenchmarkDotNet NEVER writes '*-report.json'.
+# Every JSON exporter carries a suffix -- Brief -> '-report-brief.json', Full -> '-report-full.json',
+# FullCompressed (the DEFAULT) -> '-report-full-compressed.json'. Measured in this tree: 48 files named
+# '*-report-full-compressed.json' under BenchmarkDotNet.Artifacts/results and ZERO named '*-report.json'.
+# So the original filter was unsatisfiable by construction: no --exporters value could ever satisfy it,
+# and the gate reported REFUSE on every healthy run. It had never executed in CI until 2026-09-14, which
+# is the only reason that went unnoticed. '*-report*.json' matches every JSON exporter variant.
 if ($RequireResultsOnly) {
-	$resultFiles = @(Get-ChildItem -Path $ResultsPath -Filter '*-report.json' -Recurse -ErrorAction SilentlyContinue)
+	$resultFiles = @(Get-ChildItem -Path $ResultsPath -Filter '*-report*.json' -Recurse -ErrorAction SilentlyContinue)
 
 	if ($resultFiles.Count -eq 0) {
-		Write-Verdict -State 'REFUSE' -Reason "no '*-report.json' files under '$ResultsPath'" -Compared 0 -Baselines 0 -Files 0
+		Write-Verdict -State 'REFUSE' -Reason "no BenchmarkDotNet JSON report files under '$ResultsPath'" -Compared 0 -Baselines 0 -Files 0
 		if ($AllowEmpty) {
 			Write-Host "::warning::AllowEmpty set - downgrading REFUSE to PASS. Never use this in CI."
 			exit $EXIT_PASS
@@ -157,12 +164,12 @@ if ($baselineLookup.Count -eq 0) {
 	exit $EXIT_REFUSE
 }
 
-$resultFiles = @(Get-ChildItem -Path $ResultsPath -Filter '*-report.json' -Recurse -ErrorAction SilentlyContinue)
+$resultFiles = @(Get-ChildItem -Path $ResultsPath -Filter '*-report*.json' -Recurse -ErrorAction SilentlyContinue)
 
 # ---- REFUSE: no result files -------------------------------------------------------
 # The originally filed defect: a benchmark run that produced no output passed the gate.
 if ($resultFiles.Count -eq 0) {
-	Write-Verdict -State 'REFUSE' -Reason "no '*-report.json' files under '$ResultsPath'" -Compared 0 -Baselines $baselineLookup.Count -Files 0
+	Write-Verdict -State 'REFUSE' -Reason "no BenchmarkDotNet JSON report files under '$ResultsPath'" -Compared 0 -Baselines $baselineLookup.Count -Files 0
 	if ($AllowEmpty) {
 		Write-Host "::warning::AllowEmpty set - downgrading REFUSE to PASS. Never use this in CI."
 		exit $EXIT_PASS

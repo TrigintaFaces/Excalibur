@@ -303,6 +303,15 @@ self_test() {
 	suite_unresolvable "$tmp/nostore"
 	arm "an unresolvable store REFUSES (not a pass)" 2 "$tmp/nostore"
 
+	# ---- PASS 10: a kit whose store factory is SYNCHRONOUS. Most kits expose an awaitable
+	# arm-facing accessor and a reader that knows only that shape is blind to the plain factory some
+	# kits ship instead -- it then refuses over a kit that is perfectly well formed, which is the
+	# instrument's own gap wearing the costume of a finding. The refusal below must stay a refusal;
+	# this arm is what separates 'unreadable' from 'written the other way'.
+	cp -r "$tmp/binds" "$tmp/syncfactory"
+	kit_sync_factory "$tmp/syncfactory"
+	arm "a kit with a SYNCHRONOUS store factory is read, not refused" 0 "$tmp/syncfactory"
+
 	# ---- REFUSE 7: the kit's contract cannot be read from its store factory.
 	cp -r "$tmp/binds" "$tmp/nocontract"
 	sed -i 's|protected abstract Task<IWidgetStore> CreateStoreAsync();|protected abstract Task<object> BuildIt();|' \
@@ -332,7 +341,7 @@ self_test() {
 		echo "self-test: FAILED ($fails arm(s))" >&2
 		return 3
 	fi
-	echo "self-test: PASS (18 arms; four of them fail the gate, which is what proves it can)"
+	echo "self-test: PASS (19 arms; four of them fail the gate, which is what proves it can)"
 	return 0
 }
 
@@ -494,6 +503,11 @@ probe_beside_real_suite() {
 		'			throw new NotSupportedException("never resolved");' \
 		'	}' \
 		'}' > "$1/tests/Widget.Tests/SqlWidgetStoreConformanceShould.cs"
+}
+
+kit_sync_factory() {
+	sed -i 's|protected abstract Task<IWidgetStore> CreateStoreAsync();|protected abstract IWidgetStore CreateStore();|' \
+		"$1/kits/WidgetStoreConformanceTestKit.cs"
 }
 
 suite_unresolvable() {

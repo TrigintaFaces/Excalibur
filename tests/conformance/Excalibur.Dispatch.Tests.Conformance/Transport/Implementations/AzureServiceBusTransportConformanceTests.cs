@@ -424,11 +424,18 @@ public sealed class AzureServiceBusDeadLetterQueueManager : IDeadLetterQueueMana
 	{
 		await using var dlqReceiver = _client.CreateReceiver(_queueName, new ServiceBusReceiverOptions
 		{
-			SubQueue = SubQueue.DeadLetter,
-			ReceiveMode = ServiceBusReceiveMode.PeekLock
+			SubQueue = SubQueue.DeadLetter
 		});
 
-		var messages = await dlqReceiver.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(5), cancellationToken)
+		// Peek, not receive. ReceiveMessagesAsync issues maxMessages of link credit and, when fewer
+		// messages than that exist, reclaims the unused credit by DRAINING the link -- a round trip the
+		// caller never asked for, bounded by the client's own 60s TryTimeout rather than by the 5s wait
+		// passed here. Asking for 10 against a dead-letter sub-queue holding one message therefore spends
+		// 1 message and 9 credits, and an emulator that is slow to answer the drain fails the arm with
+		// "did not complete within the allocated time 00:01:00 for object drain". Peek is a management
+		// request/response: no credit, no lock, no drain, and it carries every field read below. The
+		// suite only ever READS the dead-letter queue, so nothing here needs a lock in the first place.
+		var messages = await dlqReceiver.PeekMessagesAsync(maxMessages, cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
 
 		var result = new List<DeadLetterMessage>();
