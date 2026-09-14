@@ -54,7 +54,8 @@ public sealed class IbmMqTransportConformanceTests
     {
         if (!_fixture.Available)
         {
-            throw new InvalidOperationException("IBM MQ container is not available.");
+            throw new InvalidOperationException(
+                $"IBM MQ container is not available: {_fixture.UnavailableReason}");
         }
 
         return _provider ??= new ServiceCollection()
@@ -168,6 +169,9 @@ public sealed class IbmMqContainerFixture : IAsyncLifetime
     /// <summary>Whether the IBM MQ container started successfully.</summary>
     public bool Available { get; private set; }
 
+    /// <summary>Why the container did not start, when <see cref="Available" /> is false.</summary>
+    public string? UnavailableReason { get; private set; }
+
     public async ValueTask InitializeAsync()
     {
         try
@@ -191,7 +195,11 @@ public sealed class IbmMqContainerFixture : IAsyncLifetime
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            Console.WriteLine($"IBM MQ container unavailable: {ex.Message}");
+            // Carried into the thrown message rather than written to Console. This fixture reports its
+            // failure through seven conformance failures, and a class fixture's Console output does not
+            // reach the CI log -- so the one sentence naming the cause was being discarded at exactly
+            // the point it was needed, leaving every cause indistinguishable from every other.
+            UnavailableReason = ex.ToString();
             Available = false;
         }
     }

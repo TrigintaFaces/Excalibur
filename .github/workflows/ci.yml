@@ -1732,6 +1732,32 @@ jobs:
         with:
           solution-filter: eng/ci/shards/TestsOnly.slnf
 
+      # IBM MQ is the only image this suite pulls from a registry other than Docker Hub, and its
+      # fixture reports every startup failure as the same "container is not available" line, so a
+      # registry problem arrives as seven identical conformance failures carrying no diagnosis.
+      # Pulling here moves the pull out of the test process: a rate limit, an auth refusal or a
+      # withdrawn tag now fails this step with the registry's own message. It is not a budget fix --
+      # measured against the real image, the queue manager logs "Started queue manager" 6.7s after
+      # container start and the pull is ~479 MB, so the per-test window the suite already sidesteps
+      # with a class fixture was never the constraint. Retried because an unauthenticated icr.io pull
+      # from a shared runner IP is the one cause here that is plausibly transient.
+      - name: Pre-pull the IBM MQ image
+        run: |
+          set -euo pipefail
+          fixture=tests/conformance/Excalibur.Dispatch.Tests.Conformance/Transport/Implementations/IbmMqTransportConformanceTests.cs
+          image=$(grep -o 'icr\.io/ibm-messaging/mq:[^"]*' "$fixture" | head -1 || true)
+          if [ -z "$image" ]; then
+            echo "::error::$fixture no longer names an icr.io IBM MQ image; this pre-pull is warming nothing"
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if docker pull "$image"; then exit 0; fi
+            echo "::warning::pull of $image failed (attempt $attempt of 3)"
+            sleep $((attempt * 15))
+          done
+          echo "::error::could not pull $image from icr.io after 3 attempts"
+          exit 1
+
       - name: Run conformance tests
         run: |
           dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
