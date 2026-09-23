@@ -196,7 +196,6 @@ for t in \
     "eng/ci/perf-regression-check.test.sh" \
     "eng/ci/task-delay-syncwait-gate.test.sh" \
     "eng/ci/docs-csharp-extract.test.sh" \
-    "eng/ci/pre-commit-dispatch-gate.test.sh" \
     "eng/ci/shard-hang-timeout-gate.test.sh" \
     "eng/ci/full-ci-shard-completeness.sh --self-test" \
     "eng/ci/cosmos-fixture-pattern-gate.sh --self-test" \
@@ -292,13 +291,6 @@ _installer_assert() {
     return 0
 }
 run "installer-assert (verify-hooks-current non-vacuity)" _installer_assert
-
-# ── 6. FUNCTIONAL audit: run the dispatch-honesty gate against the REAL eng/hooks/pre-commit,
-#       not just its hermetic self-test. This is the anti-inert wiring (the self-test-only class: a gate wired
-#       only by a self-test trigger validates itself and nothing else, forever). If any capture-then-
-#       branch site in the real hook reads a non-verdict exit as PASS, the gate exits non-zero and this
-#       job goes red — CI-authoritative, un-bypassable.
-run "pre-commit-dispatch-honesty (real hook)" bash eng/ci/pre-commit-dispatch-gate.sh
 
 # FUNCTIONAL audit: run the tenant-range-op coverage gate against the REAL src/Excalibur tree, not
 # just its hermetic self-test above. Self-test-only wiring validates the gate's detection logic but

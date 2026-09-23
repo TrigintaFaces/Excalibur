@@ -35,3 +35,12 @@ The audit-relevant who/what/when/where of a `SecurityEvent` round-trips lossless
 has no compliant home — the free-form `AuditEvent.Metadata` is contractually "references/identifiers
 only, no sensitive values." Full forensic persistence (encryption-at-rest + retention) is a dedicated
 security-event store (planned; not yet implemented).
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

@@ -53,6 +53,7 @@
   <!-- DataProcessing -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
   <!-- Runtime adapters -->
   <ItemGroup>

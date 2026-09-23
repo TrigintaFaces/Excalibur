@@ -279,6 +279,8 @@ packages:
     category: Provider
   - id: Excalibur.Data.ElasticSearch
     category: Provider
+  - id: Excalibur.Data.ElasticSearch.Azure
+    category: Provider
   - id: Excalibur.Data.Firestore
     category: Provider
   - id: Excalibur.Data.IdentityMap.SqlServer

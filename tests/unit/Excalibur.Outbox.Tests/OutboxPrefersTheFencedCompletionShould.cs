@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
@@ -175,7 +175,8 @@ public sealed class OutboxPrefersTheFencedCompletionShould
 			new DispatchJsonSerializer(),
 			A.Fake<IServiceProvider>(),
 			NullLogger<OutboxProcessor>.Instance,
-			leaderGate: gate);
+			leaderGate: gate,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		processor.Init("fenced-completion-routing-test");
 

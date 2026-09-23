@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.IbmMq;
@@ -64,7 +64,12 @@ public static class IbmMqTransportServiceCollectionExtensions
 			var provider = sp.GetRequiredKeyedService<IIbmMqConnectionProvider>(name);
 			var options = sp.GetRequiredService<IOptionsMonitor<IbmMqOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<IbmMqTransportReceiver>>();
-			return new IbmMqTransportReceiver(provider, options.QueueName, options.Receive, logger).WithCloudEventDecoding(CloudEventBinding.HouseConvention);
+			// The IBM MQ spelling, not the house one. The house convention's hyphenated names are
+			// UNSETTABLE on this platform -- a property name is validated as a Java identifier, so the
+			// queue manager refuses the hyphen and both the sender and a real queue drop the property
+			// rather than failing the send. Decoding a spelling nothing can put on the wire made every
+			// binary-mode CloudEvent arrive here as ordinary traffic.
+			return new IbmMqTransportReceiver(provider, options.QueueName, options.Receive, logger).WithCloudEventDecoding(CloudEventBinding.IbmMq);
 		});
 
 		return services;

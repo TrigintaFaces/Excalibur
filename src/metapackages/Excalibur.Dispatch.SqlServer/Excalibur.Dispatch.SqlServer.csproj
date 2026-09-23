@@ -2,6 +2,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Composition metapackage: bundles Dispatch with a persistence stack on purpose.
+         Exempts this project from the dispatch-no-excalibur boundary rule, and ONLY while its
+         public surface stays its registration extension alone. -->
+    <CompositionMetapackage>true</CompositionMetapackage>
     <PackageId>Excalibur.Dispatch.SqlServer</PackageId>
     <Description>Experience metapackage bundling Excalibur.Dispatch with SQL Server event sourcing and a SQL Server outbox store. Provides a single AddDispatchWithSqlServer() call for the common SQL Server scenario. The outbox stages messages durably; background delivery is opt-in.</Description>
     <PackageTags>excalibur;dispatch;sqlserver;event-sourcing;outbox;metapackage</PackageTags>

@@ -29,7 +29,7 @@ Deploy Excalibur applications to AWS Lambda for serverless, event-driven workloa
 
 ### HTTP API with Lambda
 
-```csharp
+```csharp ignore
 // Function.cs
 using Amazon.Lambda.Core;
 using Amazon.Lambda.APIGatewayEvents;
@@ -86,11 +86,13 @@ public class Function
         }
         catch (Exception ex)
         {
-            context.Logger.LogError($"Error: {ex.Message}");
+            // Log the detail; never return it. An exception message can carry connection
+            // strings, SQL or file paths.
+            context.Logger.LogError(ex.ToString());
             return new APIGatewayProxyResponse
             {
                 StatusCode = 500,
-                Body = JsonSerializer.Serialize(new { error = ex.Message })
+                Body = JsonSerializer.Serialize(new { error = "An internal error occurred." })
             };
         }
     }
@@ -201,7 +203,7 @@ aws lambda update-function-code \
 
 ### SQS Event Handler
 
-```csharp
+```csharp ignore
 // SqsFunction.cs
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;

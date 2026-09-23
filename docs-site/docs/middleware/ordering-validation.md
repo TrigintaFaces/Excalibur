@@ -57,7 +57,7 @@ transport that stops supplying its sequence must fail loudly, not silently stop 
 ## Register the middleware
 
 ```csharp
-services.AddDispatch(typeof(Program).Assembly); // or the parameterless services.AddDispatch()
+services.AddDispatch(typeof(Program).Assembly); // or services.AddDispatch(dispatch => { ... })
 services.AddOrderingValidation();
 ```
 
@@ -66,23 +66,16 @@ dispatch in the process. What scopes it to the messages it is about is the recei
 not where you register it. A message that never entered a marked receive path — an outbound send, an
 in-process command — passes through unchanged.
 
-:::warning Composed with `AddDispatch(configure)`, this middleware does not currently activate
-
-`AddOrderingValidation()` must be paired with the assembly-scanning `AddDispatch(...)` overload shown
-above. Composed instead with the builder-lambda form —
+Both `AddDispatch` overloads compose the same pipeline, and both include middleware registered this
+way, so the builder-lambda form works identically:
 
 ```csharp
-// NOT YET SUPPORTED for AddOrderingValidation() -- see the warning above.
 services.AddDispatch(dispatch => dispatch.AddHandlersFromAssembly(typeof(Program).Assembly));
 services.AddOrderingValidation();
 ```
 
-— the middleware is registered in the container but does not run: nothing throws, nothing logs, and
-out-of-order messages are silently accepted. If your composition already uses the builder-lambda form
-for other middleware, add ordering validation through the assembly-scanning call above in the same
-composition; the two are not mutually exclusive. This is a known gap, not an ordering choice you can
-work around by moving the call.
-:::
+The order of the two calls does not matter: the pipeline is composed when it is first resolved, after
+your registrations are complete.
 
 ## Which transports carry a native sequence
 

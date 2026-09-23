@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.RegularExpressions;
 
@@ -117,6 +117,19 @@ public sealed class TenantContextResolvedWithoutSeamShould
 		// ITenantScopingCapability<IEventStore> family marker through this same seam at ITS OWN
 		// registration. This file constructs no fresh, unattested store.
 		"src/Excalibur/Excalibur.EventSourcing/DependencyInjection/TieredStorageServiceCollectionExtensions.cs",
+
+		// Encryption decorators, verified by reading: every ITenantContext resolution here is an argument to
+		// an encrypting DECORATOR over `inner`, a store ALREADY registered through its own seam (reached via
+		// DecorateKeyedStores<IInboxStore> / the outbox equivalent). The tenant is bound as AES-GCM associated
+		// data, not used to construct a store. Decorating replaces the store descriptor, never the separately
+		// registered ITenantScopingCapability marker, so the inner store's attestation survives. No fresh,
+		// unattested store is constructed in this file.
+		"src/Excalibur/Excalibur.Compliance/Encryption/DependencyInjection/StoreEncryptionServiceCollectionExtensions.cs",
+
+		// Same shape: EncryptingEventStoreDecorator and EncryptingProjectionStoreDecorator wrap the ALREADY
+		// registered event and projection stores (DecorateEventStore / DecorateProjectionStore) and resolve
+		// ITenantContext only to bind it as AES-GCM associated data. No store is hand-constructed here.
+		"src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventSourcingUtilitiesServiceCollectionExtensions.cs",
 
 		// Conformance test-kit harness code: reads the ambient tenant from an already-built provider to
 		// verify the harness itself is wired correctly, not a production registration.

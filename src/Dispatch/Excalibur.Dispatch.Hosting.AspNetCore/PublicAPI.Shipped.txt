@@ -1,13 +1,11 @@
 #nullable enable
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.MessageKinds
-Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware.AspNetCoreAuthorizationMiddleware(Microsoft.AspNetCore.Http.IHttpContextAccessor! httpContextAccessor, Microsoft.AspNetCore.Authorization.IAuthorizationService! authorizationService, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions!>! options) -> void
+Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware.AspNetCoreAuthorizationMiddleware(Microsoft.AspNetCore.Http.IHttpContextAccessor! httpContextAccessor, Microsoft.AspNetCore.Authorization.IAuthorizationService! authorizationService, Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider! policyProvider, Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry! handlerRegistry, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware!>! logger) -> void
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions.AspNetCoreAuthorizationOptions() -> void
-Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions.DefaultPolicy.get -> string?
-Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions.DefaultPolicy.set -> void
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions.Enabled.get -> bool
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions.Enabled.set -> void
 Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions.RequireAuthenticatedUser.get -> bool

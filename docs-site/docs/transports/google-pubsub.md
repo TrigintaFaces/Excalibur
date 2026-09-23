@@ -153,6 +153,45 @@ The policy is applied only when `AutoApplyDeadLetterPolicy` is enabled, a dead l
 | `AutoApplyDeadLetterPolicy` | `bool` | `false` | Attaches the configured dead letter policy to the subscription at startup. |
 | `DeadLetterMaxDeliveryAttempts` | `int` | `5` | Delivery attempts before a message is dead-lettered (applies when auto-apply is enabled). |
 
+## Publish Failures and Retryability
+
+When a publish fails, the returned `SendError.IsRetryable` tells you whether trying again can succeed.
+It is classified from the gRPC status code the Pub/Sub service returned, so you do not have to
+interpret status codes yourself:
+
+| Status code | `IsRetryable` | Why |
+|---|---|---|
+| `UNAVAILABLE` | `true` | Transient. Retry with exponential backoff. |
+| `DEADLINE_EXCEEDED` | `true` | The deadline passed; the outcome is unknown. |
+| `INTERNAL` | `true` | Transient server-side condition. |
+| `RESOURCE_EXHAUSTED` | `true` | A traffic spike; backoff is the correct response. |
+| `CANCELLED` | `true` | Transient, unless *you* cancelled — see below. |
+| `INVALID_ARGUMENT` | `false` | The message is malformed; it will fail again unchanged. |
+| `PERMISSION_DENIED` / `UNAUTHENTICATED` | `false` | Fix the credentials, not the retry policy. |
+| `FAILED_PRECONDITION` / `ALREADY_EXISTS` | `false` | Retrying cannot change the condition. |
+| `NOT_FOUND` | `false` | Treated as permanent for a configured topic. |
+| anything else | `false` | Unrecognised codes are conservatively non-retryable. |
+
+```csharp
+var result = await sender.SendAsync(message, cancellationToken);
+
+if (!result.IsSuccess && result.Error?.IsRetryable == true)
+{
+    // Safe to retry with backoff.
+}
+```
+
+:::warning Retryable does not mean the publish did not happen
+`CANCELLED` and `DEADLINE_EXCEEDED` are **ambiguous** outcomes: the service may already have accepted
+the message before the call ended. Retrying one of these can therefore deliver the message twice. That
+is consistent with the at-least-once delivery this transport provides — your consumers must be
+idempotent regardless.
+:::
+
+**Cancellation you requested is never reported as retryable.** If the cancellation token you passed is
+already cancelled, whether to try again is a decision you have made, and the token would still be
+cancelled on a retry — so the failure is reported as non-retryable rather than inviting a loop.
+
 ## Health Checks
 When using transport adapters, register aggregate health checks:
 

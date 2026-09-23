@@ -142,6 +142,8 @@ services.AddCdcProcessor(cdc =>
         sql.ConnectionString(connectionString)
            .SchemaName("Cdc")
            .StateTableName("CdcProcessingState");
+        // SQL Server: apply 001_CreateCdcStateSchema.sql from the package first —
+        // this renames the table the provider looks for, it does not create it.
     })
     .WithRecovery(recovery =>
     {

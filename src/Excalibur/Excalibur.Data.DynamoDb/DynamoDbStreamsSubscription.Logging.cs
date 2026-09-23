@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.DynamoDb.Diagnostics;
 
@@ -22,4 +22,14 @@ public sealed partial class DynamoDbStreamsSubscription<TDocument>
 	[LoggerMessage(DataDynamoDbEventId.StreamsReceivedBatch, LogLevel.Debug,
 		"DynamoDB Streams '{SubscriptionId}' received batch of {Count} records")]
 	private partial void LogReceivedBatch(string subscriptionId, int count);
+
+	[LoggerMessage(DataDynamoDbEventId.StreamsNoOpenShards, LogLevel.Warning,
+		"DynamoDB Streams '{SubscriptionId}' has no open shard on table '{TableName}'; the change feed is "
+		+ "delivering nothing until one appears")]
+	private partial void LogNoOpenShards(string subscriptionId, string tableName);
+
+	[LoggerMessage(DataDynamoDbEventId.StreamsShardRefreshFailed, LogLevel.Warning,
+		"DynamoDB Streams '{SubscriptionId}' could not refresh its shard set; continuing with {ShardCount} "
+		+ "already-open shards and retrying on the next poll")]
+	private partial void LogShardRefreshFailed(string subscriptionId, int shardCount, Exception exception);
 }

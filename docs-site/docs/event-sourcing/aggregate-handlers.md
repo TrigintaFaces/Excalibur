@@ -59,6 +59,8 @@ services.AddDispatch(dispatch =>
 });
 ```
 
+This call also states that the host stages, so it **requires an `IOutboxStore`** — register one for your provider alongside it, or the host refuses to start and names the registration it is missing. An event-sourced host that cascades needs a store in any case, since that is where the follow-up messages go.
+
 The cascade step costs nothing when you are not using it: it returns immediately for any result that does not implement `ICascade`.
 
 **How to tell whether cascading is live.** Dispatch a message whose handler returns a non-empty `ICascade` result and read the logs:

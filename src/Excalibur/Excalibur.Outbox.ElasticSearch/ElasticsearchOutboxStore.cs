@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
@@ -8,6 +8,7 @@ using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
+using Excalibur.Data.ElasticSearch.Persistence;
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
@@ -556,6 +557,21 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	{
 		var now = _timeProvider.GetUtcNow();
 
+		// THE READ REFRESHES, AND IT DOES SO REGARDLESS OF THE WRITE POLICY. Every count below is computed
+		// server-side, so each one sees only what the index has made searchable. A consumer who sets the
+		// write policy to None for throughput -- a legitimate choice -- would otherwise get a statistics
+		// surface that reports FEWER FAILURES THAN EXIST, with nothing to indicate the number is short.
+		//
+		// The direction of that error is what makes it worth a round trip: it hides a problem rather than
+		// inventing one, and the operator watching a failure count is precisely the reader who must not be
+		// told a comfortable number. Correctness here must not depend on a performance knob.
+		//
+		// Refreshing on the READ rather than forcing an immediate refresh on every transition is both the
+		// honest fix and the cheap one: this is a monitoring query, and the alternative taxes every dispatch
+		// to serve it. A failure to refresh is not fatal -- the counts are then merely as stale as they were
+		// before -- so it is not allowed to take down the statistics call.
+		_ = await _client.Indices.RefreshAsync(_options.IndexName, cancellationToken).ConfigureAwait(false);
+
 		// Compute statistics with server-side counts and a single oldest-document lookup per status,
 		// rather than materializing up to 10k documents into memory and aggregating client-side.
 		var staged = await CountAsync(
@@ -637,10 +653,22 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 		return oldest is null ? null : oldest.CreatedAt;
 	}
 
+	/// <summary>
+	/// Maps the configured write-refresh policy onto the client's own refresh argument.
+	/// </summary>
+	/// <remarks>
+	/// Total over the enumeration by construction: every declared member has a case, and a value outside the
+	/// enumeration cannot be produced by a caller assigning the property. The string form this replaced had
+	/// no such totality -- it compared ordinally against two literals and quietly used the fall-through for
+	/// everything else, so a typo configured a policy the consumer never chose.
+	/// </remarks>
 	private Refresh GetRefresh() =>
-		_options.RefreshPolicy == "true" ? Refresh.True
-		: _options.RefreshPolicy == "false" ? Refresh.False
-		: Refresh.WaitFor;
+		_options.RefreshPolicy switch
+		{
+			ElasticsearchRefreshPolicy.Immediate => Refresh.True,
+			ElasticsearchRefreshPolicy.None => Refresh.False,
+			_ => Refresh.WaitFor,
+		};
 
 	private static ElasticsearchOutboxDocument ToDocument(OutboundMessage message) =>
 		new()

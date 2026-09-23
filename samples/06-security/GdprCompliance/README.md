@@ -151,5 +151,8 @@ GdprCompliance/
 - Swap `AddInMemoryErasureStore` for `AddSqlServerErasureStore(...)` in production.
 - For encrypted-at-rest PII, also register `IEncryptionProvider` + an active key
   in your KMS provider of choice.
-- Retention enforcement (`RetentionDays`) is driven by
-  `RetentionEnforcementBackgroundService` once registered.
+- `RetentionDays` does not delete anything by itself. Declare the types whose retention is
+  enforced with `AddRetentionPolicies<T>()`, then `AddRetentionEnforcement()` runs a periodic pass
+  that hands those types' retention periods -- and no others -- to your registered
+  `IRetentionContributor` implementations, which perform the deletion. Enabling enforcement with
+  nothing declared fails at startup.

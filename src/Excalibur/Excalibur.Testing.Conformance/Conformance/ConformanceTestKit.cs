@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Testing.Conformance;
 
@@ -167,5 +167,73 @@ public abstract class ConformanceTestKit
 		}
 
 		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Reads repeatedly until <paramref name="satisfied"/> holds or <paramref name="timeout"/> elapses,
+	/// returning the last observation either way.
+	/// </summary>
+	/// <typeparam name="T"> The type the read returns. </typeparam>
+	/// <param name="read"> The read to repeat. Invoked at least once. </param>
+	/// <param name="satisfied"> Tests an observation for the property the arm is waiting on. </param>
+	/// <param name="timeout"> How long to keep reading before returning the last observation. </param>
+	/// <param name="cancellationToken"> Cancellation token. </param>
+	/// <returns>
+	/// The first observation for which <paramref name="satisfied"/> holds, or the last one taken before the
+	/// deadline passed.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// A store that orders a read through a separately-maintained, eventually-consistent index can omit a
+	/// just-written record from that read for a brief interval after the write returns. That is a latency
+	/// property, not a loss one -- the record is durably present on the primary store throughout -- so an arm
+	/// that reads once, immediately, can fail against a store that fully honours its contract. An arm reading
+	/// back something it has just written polls to a bounded deadline instead of reading once.
+	/// </para>
+	/// <para>
+	/// This returns the final observation rather than throwing when the deadline passes, so the calling arm's
+	/// own assertion produces the failure. A generic timeout message would replace the description of the
+	/// property being checked with a description of this helper.
+	/// </para>
+	/// <para>
+	/// The wait is taken against the real clock deliberately. The interval being tolerated is a physical
+	/// property of the store under test, so a substitutable clock would let a caller collapse the wait and
+	/// reintroduce the single immediate read this exists to avoid.
+	/// </para>
+	/// </remarks>
+	protected static async Task<T> ReadUntilAsync<T>(
+		Func<CancellationToken, Task<T>> read,
+		Func<T, bool> satisfied,
+		TimeSpan timeout,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(read);
+		ArgumentNullException.ThrowIfNull(satisfied);
+
+		// TimeProvider.System rather than a substitutable clock: the interval being tolerated is a
+		// physical property of the store under test, so a fake clock would collapse the wait and
+		// reintroduce the single immediate read this exists to avoid.
+		var startedAt = TimeProvider.System.GetTimestamp();
+		var delay = TimeSpan.FromMilliseconds(25);
+		var maximumDelay = TimeSpan.FromMilliseconds(250);
+
+		while (true)
+		{
+			var observation = await read(cancellationToken).ConfigureAwait(false);
+
+			if (satisfied(observation) || TimeProvider.System.GetElapsedTime(startedAt) >= timeout)
+			{
+				return observation;
+			}
+
+			await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+
+			// Back off so a provider that propagates immediately costs one extra read, while a slower one is
+			// not polled hot for the whole window.
+			if (delay < maximumDelay)
+			{
+				delay += delay;
+			}
+		}
 	}
 }

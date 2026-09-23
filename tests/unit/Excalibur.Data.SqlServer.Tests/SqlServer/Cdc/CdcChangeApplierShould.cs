@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 using System.Threading.Channels;
@@ -427,13 +427,17 @@ public sealed class CdcChangeApplierShould : UnitTestBase
 		object applier,
 		IReadOnlyList<DataChangeEvent>? batch,
 		Func<DataChangeEvent, CancellationToken, Task>? eventHandler,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		HashSet<string>? failedTables = null)
 	{
 		try
 		{
+			// The failed-table barrier is owned by the RUN and supplied by the consumer loop, so a direct
+			// call to the per-batch method has to supply one. A fresh set per call reproduces exactly one
+			// batch in isolation, which is what these arms are about.
 			var task = (Task)ProcessBatchMethod.Invoke(
 				applier,
-				[batch, eventHandler, cancellationToken])!;
+				[batch, eventHandler, failedTables ?? new HashSet<string>(StringComparer.Ordinal), cancellationToken])!;
 			await task.ConfigureAwait(false);
 		}
 		catch (TargetInvocationException ex) when (ex.InnerException is not null)

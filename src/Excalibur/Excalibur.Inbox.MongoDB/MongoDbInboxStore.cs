@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -506,7 +506,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -516,38 +516,29 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var id = ScopedId(messageId, handlerType);
-		var idOnly = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
-
-		// Processed is absorbing: the predicate refuses rather than demoting a finalized entry to
-		// Failed, which would make it re-admittable and run the handler again. It sits on the write
-		// itself, so a concurrent finalize between the existence read below and the update is also
-		// refused.
-		var filter = Builders<MongoDbInboxDocument>.Filter.And(
-			idOnly,
-			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed));
-
-		_ = await _collection!.Find(idOnly).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
-			?? throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-
-		var update = Builders<MongoDbInboxDocument>.Update
-			.Set(d => d.Status, (int)InboxStatus.Failed)
-			.Set(d => d.LastError, errorMessage)
-			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow)
-			// The attempt is over, so its lease goes with it. A Failed entry has no holder; leaving a term on
-			// it would leave a value a later comparison could match.
-			.Set(d => d.LeaseExpiresAt, null)
-			.Inc(d => d.RetryCount, 1);
-
-		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+		// The attempt count is advanced by the statement, not by a number computed from an earlier read:
+		// this overload increments in place, so a count read and re-written around the write could not
+		// lose an attempt recorded in the window. The tenant-scoped overload below sets the count exactly
+		// instead, which is that overload's contract rather than a variation on this one.
+		return await MarkFailedCoreAsync(
+			ScopedId(messageId, handlerType),
+			messageId,
+			handlerType,
+			errorMessage,
+			new BsonDocument("$add", new BsonArray { "$retryCount", 1 }),
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
@@ -556,34 +547,100 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var id = ScopedId(messageId, handlerType);
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. A caller reading the estate-wide drain sees
+		// entries from every partition, so an _id composed from ambient context would address a different
+		// partition than the read that produced the entry, with nothing in either signature to say so.
+		var id = MongoDbInboxDocument.CreateId(messageId, handlerType, tenant.TenantId);
+
+		// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
+		// re-admittable without consuming a delivery attempt.
+		return await MarkFailedCoreAsync(
+			id,
+			messageId,
+			handlerType,
+			errorMessage,
+			new BsonInt32(retryCount),
+			cancellationToken).ConfigureAwait(false);
+	}
+
+	// The one statement both mark-failed overloads decide from. They differ only in which document the
+	// _id addresses and in how the attempt count moves; the guard, the classification and the atomicity
+	// argument are identical, so they are stated once rather than twice.
+	private async ValueTask<InboxMarkFailedOutcome> MarkFailedCoreAsync(
+		string id,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		BsonValue retryCount,
+		CancellationToken cancellationToken)
+	{
 		var idOnly = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
 
-		// Processed is absorbing: the predicate refuses rather than demoting a finalized entry to
-		// Failed, which would make it re-admittable and run the handler again. It sits on the write
-		// itself, so a concurrent finalize between the existence read below and the update is also
-		// refused.
-		var filter = Builders<MongoDbInboxDocument>.Filter.And(
+		// THE GUARD SITS IN THE UPDATE, NOT IN THE FILTER, AND THAT PLACEMENT IS THE WHOLE POINT.
+		//
+		// Processed is absorbing: the document must not be demoted to Failed, which would re-admit it to the
+		// drain and run its handler again over side effects already committed. A filter-side
+		// "status != processed" enforces that, but it also makes a refused terminal document and an absent
+		// one produce the identical null result, so the caller cannot tell "already done" from "not there"
+		// -- the two diagnoses whose next steps are opposite. That is exactly why the existence read that
+		// used to sit here, and threw, could not classify anything: it observed the document before the
+		// write rather than as part of it.
+		//
+		// An aggregation-pipeline update moves the guard onto the write. The filter matches on _id alone, so
+		// findAndModify's own return decides existence; each $set expression reads the document as it was
+		// when the stage began, so the refused branch assigns every field its own value and the document is
+		// left unchanged. ReturnDocument.Before hands back the pre-image, whose status separates the two
+		// non-applied cases -- all inside one atomic document operation, with nothing read back afterwards.
+		var processed = (int)InboxStatus.Processed;
+		var guardedSet = new BsonDocument("$set", new BsonDocument
+		{
+			{ "status", Conditional("status", processed, new BsonInt32((int)InboxStatus.Failed)) },
+			{ "lastError", Conditional("lastError", processed, new BsonString(errorMessage)) },
+			{ "retryCount", Conditional("retryCount", processed, retryCount) },
+			{ "lastAttemptAt", Conditional("lastAttemptAt", processed, new BsonDateTime(DateTime.UtcNow)) },
+			{ "leaseExpiresAt", Conditional("leaseExpiresAt", processed, BsonNull.Value) }
+		});
+
+		var update = Builders<MongoDbInboxDocument>.Update.Pipeline(
+			PipelineDefinition<MongoDbInboxDocument, MongoDbInboxDocument>.Create(guardedSet));
+
+		var before = await _collection!.FindOneAndUpdateAsync(
 			idOnly,
-			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed));
+			update,
+			new FindOneAndUpdateOptions<MongoDbInboxDocument> { ReturnDocument = ReturnDocument.Before },
+			cancellationToken).ConfigureAwait(false);
 
-		_ = await _collection!.Find(idOnly).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
-			?? throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		if (before is null)
+		{
+			// REPORTED, NOT THROWN. This used to raise InvalidOperationException while the SQL stores
+			// affected zero rows in silence, so no caller could be written correct against both. The call
+			// is issued from inside a drain's failure handling, where an exception abandons every other
+			// entry the caller still holds -- a refusal on one entry must cost that entry only.
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
 
-		// Set RetryCount EXACTLY (.Set, not .Inc) so a transient short-circuit leaves the entry
-		// re-admittable without consuming a delivery attempt.
-		var update = Builders<MongoDbInboxDocument>.Update
-			.Set(d => d.Status, (int)InboxStatus.Failed)
-			.Set(d => d.LastError, errorMessage)
-			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow)
-			.Set(d => d.LeaseExpiresAt, null)
-			.Set(d => d.RetryCount, retryCount);
-
-		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+		if (before.Status == processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
 
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
+
+	// One field of the guarded $set above: keep the field's existing value when the document is already in
+	// the terminal processed state, otherwise take the new one. Written once rather than five times so the
+	// guard cannot be stated differently on one field than on the others -- a single field taking the new
+	// value on the refused branch is a partial demotion, which is worse than a full one because the
+	// document then describes a state it was never in.
+	private static BsonDocument Conditional(string field, int processedStatus, BsonValue whenNotProcessed) =>
+		new("$cond", new BsonArray
+		{
+			new BsonDocument("$eq", new BsonArray { "$status", processedStatus }),
+			"$" + field,
+			whenNotProcessed
+		});
 
 	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable CA2012 // FakeItEasy .Returns() stores ValueTask/Task
 
@@ -30,12 +30,12 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// surfaces. A <see langword="null"/> limit opts out (unbounded); the boundary is inclusive (N bytes OK).
 /// </para>
 /// <para>
-/// Seam note: the gRPC transport takes a sealed <see cref="GrpcChannel"/> and creates its
-/// <c>CallInvoker</c> in the constructor, so the full <c>ReceiveAsync</c>/<c>SubscribeAsync</c> loop is
-/// not unit-drivable without a live gRPC server (unlike the SQS <c>IAmazonSQS</c> / RabbitMQ
-/// <c>IChannel</c> fakes). These locks therefore drive the smallest real seam that runs the guard — the
-/// private convert method where <c>EnsureWithinLimit</c> executes — asserting the reject/accept/opt-out
-/// differential directly at the guard's execution site.
+/// Seam note: both types now also accept a <c>CallInvoker</c> through an internal constructor, so the
+/// full <c>ReceiveAsync</c>/<c>SubscribeAsync</c> loop IS drivable against a fake invoker (see
+/// <c>GrpcSettlementResponseShould</c>). These locks predate that seam and stay at the smallest real
+/// seam that runs the guard — the private convert method where <c>EnsureWithinLimit</c> executes —
+/// asserting the reject/accept/opt-out differential directly at the guard's execution site, which is
+/// still the tightest place to bind it.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]

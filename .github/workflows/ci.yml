@@ -226,6 +226,10 @@ jobs:
         run: |
           echo "Validating packageable projects..."
           dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./packages
+          # Packed separately because templates/ is isolated from the root build policy and is not a
+          # solution member, so no solution filter can reach it. Validated here so a template package
+          # that cannot pack fails on the pull request rather than at the release boundary.
+          dotnet pack templates/Excalibur.Dispatch.Templates.csproj --configuration Release --verbosity minimal --output ./packages
           echo "Package creation successful"
 
       # No artifact upload here, deliberately.
@@ -1983,6 +1987,17 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
+
+      - name: Prove the smoke gate can fail (self-test)
+        shell: pwsh
+        run: |
+          # Runs BEFORE the gate it guards. A gate that has never been shown to reject something is
+          # indistinguishable from one that cannot, so a green below is only evidence if this passed.
+          ./eng/smoke-test-packages.ps1 -SelfTest
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Smoke gate SELF-TEST failed: the gate is not enforcing what it claims." -ForegroundColor Red
+            exit 1
+          }
 
       - name: Run packaging smoke tests
         shell: pwsh

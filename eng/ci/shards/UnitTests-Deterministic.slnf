@@ -13,6 +13,7 @@
       "tests\\unit\\Excalibur.Application.Tests\\Excalibur.Application.Tests.csproj",
       "tests\\unit\\Excalibur.Caching.Tests\\Excalibur.Caching.Tests.csproj",
       "tests\\unit\\Excalibur.Cdc.Tests\\Excalibur.Cdc.Tests.csproj",
+      "tests\\unit\\Excalibur.Compliance.Analyzers.Tests\\Excalibur.Compliance.Analyzers.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Abstractions.Tests\\Excalibur.Data.Abstractions.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Analyzers.Tests\\Excalibur.Data.Analyzers.Tests.csproj",
       "tests\\unit\\Excalibur.Data.CosmosDb.Tests\\Excalibur.Data.CosmosDb.Tests.csproj",

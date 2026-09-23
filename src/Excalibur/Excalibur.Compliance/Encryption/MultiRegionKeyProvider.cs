@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.Metrics;
 
@@ -32,7 +32,7 @@ namespace Excalibur.Compliance.Encryption;
 ///   <item><description>HashiCorp Vault: Enterprise with replication or OSS with manual sync</description></item>
 /// </list>
 /// </remarks>
-public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IKeyManagementAdmin, IMultiRegionHealthMonitor, IAsyncDisposable
+public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IKeyManagementAdmin, IKeyDestructionStatusProvider, IMultiRegionHealthMonitor, IAsyncDisposable
 {
 	private static readonly Meter Meter = new("Excalibur.Compliance.MultiRegion", "1.0.0");
 
@@ -471,6 +471,22 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 		"Ensure provider supports replication or implement IKeyMaterialExportable in future.")]
 	private partial void LogUnknownProviderForSync(string providerName);
 
+	[LoggerMessage(LogLevel.Error,
+		"Key destruction FAILED in region {RegionId} for key {KeyId}. The key may remain readable in that " +
+		"region, so this destruction is partial and must not be attested as complete.")]
+	private partial void LogRegionalKeyDeletionFailed(string keyId, string regionId, Exception exception);
+
+	private static async Task<bool> IsDestroyedInRegionAsync(
+		IKeyManagementProvider region,
+		string keyId,
+		CancellationToken cancellationToken)
+	{
+		// A region that cannot answer authoritatively is not reported destroyed: its key lookup cannot tell a
+		// destroyed key from one still inside a recovery window.
+		return region.GetService(typeof(IKeyDestructionStatusProvider)) is IKeyDestructionStatusProvider destructionStatus
+			&& await destructionStatus.IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false);
+	}
+
 	#region IKeyManagementProvider + IKeyManagementAdmin Implementation (delegated to active region)
 
 	/// <inheritdoc />
@@ -525,11 +541,123 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 	}
 
 	/// <inheritdoc />
-	public Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
+	/// <remarks>
+	/// <para>
+	/// <b>Destruction is attempted in EVERY region, not only the active one.</b> Crypto-shredding is complete
+	/// only when the key is unreadable everywhere it was replicated: a key destroyed in one of two regions is
+	/// not destroyed, because <see cref="ActiveProvider"/> flips to the secondary on automatic failover and the
+	/// surviving copy becomes readable again. Deleting only from the active region therefore produces a
+	/// certificate that is true when issued and falsified later by a routine, designed event.
+	/// </para>
+	/// <para>
+	/// The combined outcome is the weakest of the regional outcomes, so a partial destruction can never be read
+	/// as a complete one: <see cref="KeyDestructionState.Completed"/> only when every region that held the key
+	/// reports it, <see cref="KeyDestructionState.ScheduledIrreversible"/> carrying the LATEST regional instant
+	/// (the key is recoverable until the last region purges), and <see cref="KeyDestructionState.NotFound"/>
+	/// only when no region held it. If any region fails outright this throws rather than returning a state,
+	/// because there is no value in the tri-state that means "destroyed here, unknown there" — and the caller
+	/// records the failure as an error, which is what keeps a completion attestation unreachable.
+	/// </para>
+	/// </remarks>
+	public async Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		// Deletion propagates through provider-specific replication
-		return ActiveAdmin.DeleteKeyAsync(keyId, retentionDays, cancellationToken);
+
+		var regions = new[]
+		{
+			(RegionId: _options.Primary.RegionId, Admin: (IKeyManagementAdmin)_primaryProvider),
+			(RegionId: _options.Secondary.RegionId, Admin: (IKeyManagementAdmin)_secondaryProvider),
+		};
+
+		var outcomes = new List<(string RegionId, KeyDestructionOutcome Outcome)>(regions.Length);
+		var failures = new List<string>();
+
+		foreach (var (regionId, admin) in regions)
+		{
+			try
+			{
+				var regional = await admin.DeleteKeyAsync(keyId, retentionDays, cancellationToken).ConfigureAwait(false);
+				outcomes.Add((regionId, regional));
+			}
+			catch (OperationCanceledException)
+			{
+				throw;
+			}
+#pragma warning disable CA1031 // Every regional failure must be reported together, not just the first.
+			catch (Exception ex)
+#pragma warning restore CA1031
+			{
+				LogRegionalKeyDeletionFailed(keyId, regionId, ex);
+				failures.Add($"{regionId}: {ex.Message}");
+			}
+		}
+
+		if (failures.Count > 0)
+		{
+			var destroyed = outcomes
+				.Where(o => o.Outcome.State != KeyDestructionState.NotFound)
+				.Select(o => o.RegionId)
+				.ToArray();
+
+			throw new InvalidOperationException(
+				$"Key '{keyId}' was not destroyed in every region, so its destruction is PARTIAL and must not be "
+				+ $"attested as complete. Failed region(s): {string.Join("; ", failures)}. "
+				+ (destroyed.Length > 0
+					? $"Destruction did proceed in: {string.Join(", ", destroyed)}. "
+					: "No region reported destruction. ")
+				+ "Retry the erasure once the failing region is reachable.");
+		}
+
+		// NotFound in every region is the idempotent no-op: nothing held the key.
+		if (outcomes.TrueForAll(o => o.Outcome.State == KeyDestructionState.NotFound))
+		{
+			return KeyDestructionOutcome.NotFound;
+		}
+
+		// The key is recoverable until the LAST region that scheduled it actually purges, so a single
+		// scheduled region downgrades the whole outcome and contributes the latest instant.
+		var scheduled = outcomes
+			.Where(o => o.Outcome.State == KeyDestructionState.ScheduledIrreversible)
+			.ToArray();
+
+		if (scheduled.Length > 0)
+		{
+			var latest = scheduled.Max(o => o.Outcome.IrreversibleAt ?? DateTimeOffset.MaxValue);
+
+			return KeyDestructionOutcome.ScheduledAt(latest);
+		}
+
+		// Every region that held the key destroyed it outright.
+		var completedAt = outcomes
+			.Where(o => o.Outcome.State == KeyDestructionState.Completed)
+			.Max(o => o.Outcome.IrreversibleAt ?? DateTimeOffset.UtcNow);
+
+		return KeyDestructionOutcome.CompletedAt(completedAt);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// A key is destroyed only when it is destroyed in EVERY region. Asking the active region alone -- which is
+	/// what <see cref="GetKeyAsync"/> does -- would confirm a key that another region still holds, the same
+	/// partial destruction <see cref="DeleteKeyAsync"/> refuses to report as complete. Each region is asked through
+	/// its own <see cref="IKeyDestructionStatusProvider"/>; a region whose provider does not implement it is never
+	/// reported destroyed, because its key lookup cannot tell a destroyed key from a recoverable one. A region that
+	/// cannot be asked throws.
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		foreach (var region in new[] { _primaryProvider, _secondaryProvider })
+		{
+			if (!await IsDestroyedInRegionAsync(region, keyId, cancellationToken).ConfigureAwait(false))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/// <inheritdoc />
@@ -741,36 +869,30 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 
 		// Determine sync strategy based on provider type
 		// Cloud providers use native geo-replication; in-memory providers need future interface support
+		// NO BRANCH BELOW STAMPS LastSuccessfulSync, AND THAT IS THE POINT. None of them copies key
+		// material, so stamping a successful-sync instant recorded a success that never happened -- and a
+		// recorded success is exactly what would make a broken replication look like a working one. The
+		// stamp now belongs to whichever branch actually transfers material; until one does, it stays
+		// null, CheckRpoThresholdAsync returns early rather than reporting a met RPO, and the absence is
+		// visible instead of papered over.
 		if (IsCloudProvider(source) || IsCloudProvider(target))
 		{
-			// Cloud providers (Azure Key Vault, AWS KMS) handle replication natively
-			// Log guidance about using their built-in features
+			// Azure Key Vault / AWS KMS replicate through their own geo-replication, configured outside
+			// this framework. We cannot observe whether it is enabled for this key, so we report the
+			// delegation and claim nothing about its outcome.
 			var cloudProviderName = IsCloudProvider(source) ? sourceTypeName : targetTypeName;
 			LogCloudProviderNativeReplication(cloudProviderName);
-
-			// For cloud providers, "sync" means the native replication is already active
-			// Update LastSuccessfulSync to indicate the sync operation was acknowledged
-			LastSuccessfulSync = DateTimeOffset.UtcNow;
-			LogKeySyncCompleted(cloudProviderName, isPartialSync);
 		}
 		else if (IsInMemoryProvider(source) || IsInMemoryProvider(target))
 		{
-			// InMemoryKeyManagementProvider does not support actual key material sync.
-			// IKeyMaterialExportable/IKeyMaterialImportable interfaces will enable this.
+			// InMemoryKeyManagementProvider cannot export or import key material, so there is no sync to
+			// perform and none is claimed.
 			LogInMemoryProviderSyncDeferred();
-
-			// Still update LastSuccessfulSync to avoid RPO threshold breach alerts
-			// but log warning that actual sync is not implemented
-			LastSuccessfulSync = DateTimeOffset.UtcNow;
-			LogKeySyncCompleted(sourceTypeName, isPartialSync);
 		}
 		else
 		{
-			// Unknown provider type - log warning for operator awareness
+			// Unknown provider type - no sync path is known for it, so nothing is claimed.
 			LogUnknownProviderForSync(sourceTypeName);
-
-			// Update LastSuccessfulSync to indicate the sync operation was attempted
-			LastSuccessfulSync = DateTimeOffset.UtcNow;
 		}
 
 		return Task.CompletedTask;

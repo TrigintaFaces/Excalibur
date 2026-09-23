@@ -80,7 +80,14 @@ builder.Services.AddSingleton<ICustomerRepository, InMemoryCustomerRepository>()
 
 builder.Services.AddSingleton<ICustomerPrivacyViewStore, InMemoryCustomerPrivacyViewStore>();
 
+// Unhandled exceptions become RFC 9457 Problem Details responses, with the status code taken from
+// the exception (404 for ResourceNotFoundException, 409 for ConcurrencyException). Details of a
+// 5xx response are hidden outside Development.
+builder.Services.AddGlobalExceptionHandler();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 // Seed two demo customers
 using (var scope = app.Services.CreateScope())

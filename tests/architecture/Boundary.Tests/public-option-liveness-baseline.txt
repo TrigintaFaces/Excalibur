@@ -36,7 +36,6 @@ Excalibur.A3.Governance.AccessReviews.AccessReviewOptions::DefaultExpiryPolicy
 Excalibur.A3.Governance.Provisioning.ProvisioningOptions::RequireRiskAssessment
 Excalibur.AuditLogging.Alerting.AuditAlertOptions::EvaluationMode
 Excalibur.AuditLogging.Splunk.SplunkConnectionOptions::EnableCompression
-Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions::PartitionKeyValues
 Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions::MaxWaitTime
 Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions::StreamViewType
 Excalibur.Cdc.Firestore.FirestoreCdcOptions::MaxWaitTime
@@ -385,7 +384,6 @@ Excalibur.Dispatch.Options.Core.InMemoryBusOptions::ProcessingDelay
 Excalibur.Dispatch.Options.Middleware.LoggingMiddlewareOptions::FailureLevel
 Excalibur.Dispatch.Options.Middleware.LoggingMiddlewareOptions::SuccessLevel
 Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions::ConsistencyMode
-Excalibur.Dispatch.TenantContextOptions::DefaultTenantId
 Excalibur.Dispatch.Transport.Kafka.KafkaAdminOptions::BootstrapServers
 Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::MaxDeliveryAttempts
 Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::TopicSuffix

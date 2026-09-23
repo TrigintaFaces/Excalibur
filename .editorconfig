@@ -4544,3 +4544,8 @@ generated_code = true
 # target is the suite deriving from the kit, which is compiled into a test project and is neither
 # trimmed nor published ahead-of-time. 16 sites: one per kit, plus two seam lookups.
 dotnet_diagnostic.IL2075.severity = suggestion
+
+# License header for shipped source. Keep identical to eng/license/HEADER.txt.
+# Enforced by IDE0073 (warning -> error under TreatWarningsAsErrors); samples/ keep their own Apache-2.0 header.
+[src/**.cs]
+file_header_template = SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project\nSPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0

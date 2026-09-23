@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
 
@@ -31,29 +31,26 @@ public sealed class ExcaliburPostgresOptions
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to register the inbox STORE (default: <see langword="true"/>).
+	/// Gets or sets a value indicating whether the inbox is operative — inbound messages are deduplicated
+	/// (default: <see langword="true"/>).
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// <b>This registers the store only. It does NOT deduplicate anything on its own.</b> Deduplication is
-	/// performed by <c>InboxMiddleware</c>, which no shipped pipeline profile contains — a host opts into it
-	/// with <c>UseInbox()</c> on the dispatch builder:
+	/// This registers the inbox store <b>and</b> places the inbox middleware in the dispatch pipeline, which is
+	/// what performs the deduplication. Taking the default is enough; no further call is required:
 	/// </para>
 	/// <code>
-	/// services.AddExcaliburPostgres(o =&gt;
-	/// {
-	///     o.ConnectionString = connectionString;      // UseInboxStore defaults to true
-	///     o.ConfigureDispatch(d =&gt; d.UseInbox());  // and THIS is what deduplicates
-	/// });
+	/// services.AddExcaliburPostgres(o =&gt; o.ConnectionString = connectionString);
+	/// // a redelivered message is now suppressed before it reaches its handler
 	/// </code>
 	/// <para>
-	/// The two halves are deliberately separate: the store is also what the estate-wide retry drain and the
-	/// manual <c>IInboxProcessor</c> path read, both of which are useful without the middleware. That is why
-	/// this option does not place the middleware for you — and why leaving it at its default while never
-	/// calling <c>UseInbox()</c> gives you a populated store and no deduplication.
+	/// Setting this to <see langword="false"/> registers neither half. A host that wants the store on its own —
+	/// for the estate-wide retry drain or the manual <c>IInboxProcessor</c> path, both of which are useful
+	/// without deduplication — turns this off and registers the store directly with
+	/// <c>services.AddExcaliburInbox(...)</c>.
 	/// </para>
 	/// </remarks>
-	public bool UseInboxStore { get; set; } = true;
+	public bool UseInbox { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to register saga services (default: <see langword="true"/>).

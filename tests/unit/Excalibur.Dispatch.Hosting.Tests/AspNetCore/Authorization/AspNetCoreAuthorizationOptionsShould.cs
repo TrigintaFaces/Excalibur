@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+
+using System.Reflection;
 
 using Excalibur.Dispatch.Hosting.AspNetCore;
 
@@ -32,14 +34,23 @@ public sealed class AspNetCoreAuthorizationOptionsShould
 		options.RequireAuthenticatedUser.ShouldBeTrue();
 	}
 
+	/// <summary>
+	/// The middleware composes a bare <c>[Authorize]</c> through the host's own policy provider, so the
+	/// host's <c>AuthorizationOptions.DefaultPolicy</c> is the single place a default policy is configured.
+	/// A second knob here would be a second place for the two to disagree, and the one that silently won
+	/// was the weaker of the pair. This arm goes RED if one is ever re-added.
+	/// </summary>
 	[Fact]
-	public void HaveDefaultPolicyNullByDefault()
+	public void ExposeExactlyTheTwoSupportedOptions()
 	{
 		// Arrange & Act
-		var options = new AspNetCoreAuthorizationOptions();
+		var propertyNames = typeof(AspNetCoreAuthorizationOptions)
+			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+			.Select(p => p.Name)
+			.ToArray();
 
 		// Assert
-		options.DefaultPolicy.ShouldBeNull();
+		propertyNames.ShouldBe(["Enabled", "RequireAuthenticatedUser"], ignoreOrder: true);
 	}
 
 	[Fact]
@@ -69,29 +80,29 @@ public sealed class AspNetCoreAuthorizationOptionsShould
 	}
 
 	[Fact]
-	public void AllowSettingDefaultPolicy()
+	public void SetEnabled_WithoutDisturbingRequireAuthenticatedUser()
 	{
 		// Arrange
 		var options = new AspNetCoreAuthorizationOptions();
 
 		// Act
-		options.DefaultPolicy = "MyPolicy";
+		options.Enabled = false;
 
 		// Assert
-		options.DefaultPolicy.ShouldBe("MyPolicy");
+		options.RequireAuthenticatedUser.ShouldBeTrue();
 	}
 
 	[Fact]
-	public void AllowSettingDefaultPolicyToNull()
+	public void SetRequireAuthenticatedUser_WithoutDisturbingEnabled()
 	{
 		// Arrange
-		var options = new AspNetCoreAuthorizationOptions { DefaultPolicy = "InitialPolicy" };
+		var options = new AspNetCoreAuthorizationOptions();
 
 		// Act
-		options.DefaultPolicy = null;
+		options.RequireAuthenticatedUser = false;
 
 		// Assert
-		options.DefaultPolicy.ShouldBeNull();
+		options.Enabled.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -101,13 +112,11 @@ public sealed class AspNetCoreAuthorizationOptionsShould
 		var options = new AspNetCoreAuthorizationOptions
 		{
 			Enabled = false,
-			RequireAuthenticatedUser = false,
-			DefaultPolicy = "CustomPolicy"
+			RequireAuthenticatedUser = false
 		};
 
 		// Assert
 		options.Enabled.ShouldBeFalse();
 		options.RequireAuthenticatedUser.ShouldBeFalse();
-		options.DefaultPolicy.ShouldBe("CustomPolicy");
 	}
 }

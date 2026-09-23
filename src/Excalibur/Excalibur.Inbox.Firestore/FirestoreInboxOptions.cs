@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.ComponentModel.DataAnnotations;
@@ -56,6 +56,27 @@ public sealed class FirestoreInboxOptions
 	/// </summary>
 	[Range(1, int.MaxValue)]
 	public int TimeoutInSeconds { get; set; } = 30;
+	/// <summary>
+	/// Gets or sets the maximum number of optimistic-concurrency attempts the store makes when a competing
+	/// writer invalidates its read between the read and the conditional write.
+	/// </summary>
+	/// <value>The attempt bound. Defaults to 5. Must be at least 1.</value>
+	/// <remarks>
+	/// <para>
+	/// Each losing attempt writes nothing, so the entry is left exactly as it was found. When every attempt
+	/// loses, the store reports <see cref="Excalibur.Dispatch.InboxMarkFailedOutcome.Undecided"/> rather than throwing — it was
+	/// asked, it answered, and the call is safe to re-drive.
+	/// </para>
+	/// <para>
+	/// <b>This bound is configuration, not a constant, because the guarantee it governs must be bindable.</b>
+	/// While it was hard-coded, the exhaustion branch could be reached only by losing every race in a row,
+	/// so no deterministic arm could assert what the store does there — and a bound that makes its own seam's
+	/// required arm unwritable is itself the defect. Lowering it narrows the window a caller tolerates before
+	/// being told the outcome is undecided; raising it trades latency under contention for fewer undecided
+	/// answers.
+	/// </para>
+	/// </remarks>
+	public int MaxConcurrencyRetries { get; set; } = 5;
 
 	/// <summary>
 	/// Validates the options and throws if invalid.
@@ -63,6 +84,12 @@ public sealed class FirestoreInboxOptions
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
+		if (MaxConcurrencyRetries < 1)
+		{
+			throw new InvalidOperationException(
+				"MaxConcurrencyRetries must be at least 1. A bound below 1 skips the conditional write entirely, "
+				+ "so the store would report Undecided without ever having attempted the transition.");
+		}
 		if (string.IsNullOrWhiteSpace(ProjectId) && string.IsNullOrWhiteSpace(EmulatorHost))
 		{
 			throw new InvalidOperationException(

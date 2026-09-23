@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System;
 using System.Collections.Generic;
@@ -7,7 +7,9 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 
+using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Middleware.PipelineDiagnostics;
+using Excalibur.Domain;
 using Excalibur.Dispatch.Serialization.MessagePack;
 using Excalibur.Dispatch.Serialization.Protobuf;
 using Excalibur.Dispatch.Threading;
@@ -25,6 +27,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using Xunit;
 
@@ -91,6 +94,166 @@ public sealed class PackageDiSmokeTests
 
 		// Assert
 		exception.ShouldBeNull($"Package '{packageName}' ServiceProvider build failed");
+	}
+
+	/// <summary>
+	/// Verifies that each consumer-supplied entry point actually registers the service it advertises.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The two theories above are <b>liveness-blind</b> for these entry points. An <c>Add*()</c> that takes
+	/// the consumer's implementation as a type argument and registers nothing of the framework's own would
+	/// pass both: nothing throws, and a container with one fewer descriptor still builds. Deleting the body
+	/// of <c>AddGooglePubSubSchemaManager</c> would go entirely undetected -- a case that cannot fail.
+	/// </para>
+	/// <para>
+	/// This is the arm that can. Asserting the descriptor exists is what makes the registration itself
+	/// falsifiable; the build below is what makes its <i>dependencies</i> falsifiable. Both are needed:
+	/// the first catches an entry point that stopped registering, the second catches one that registers a
+	/// component nothing can supply a dependency for.
+	/// </para>
+	/// </remarks>
+	[Theory]
+	[MemberData(nameof(AdvertisedServicesData))]
+	public void EntryPoint_Registers_Its_Advertised_Service(string caseName, Type serviceType)
+	{
+		// Arrange
+		var services = CreateHostServices();
+
+		// Act
+		GetRegistration(caseName)(services);
+
+		// Assert
+		services.ShouldContain(
+			d => d.ServiceType == serviceType,
+			$"'{caseName}' registered no {serviceType} -- the entry point advertises one.");
+
+		AddConsumerSuppliedSeams(services);
+		using var provider = services.BuildServiceProvider(
+			new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+	}
+
+	/// <summary>
+	/// Verifies <c>UseTenant</c> contributes a tenant configuration of its own.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Bare presence cannot discriminate: <c>AddExcalibur</c> configures <c>TenantContextOptions</c>
+	/// itself, so one <c>IConfigureOptions&lt;TenantContextOptions&gt;</c> is there either way. A second
+	/// one is what <c>UseTenant</c> adds, so the COUNT is falsifiable where presence is not -- empty out
+	/// <c>UseTenant</c> and this drops to one.
+	/// </para>
+	/// <para>
+	/// A count proves the call is wired; it cannot prove the value wins. That is asserted by
+	/// <see cref="UseTenant_Value_Is_The_Resolved_Default_Tenant"/>, below.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void UseTenant_Contributes_A_Tenant_Configuration()
+	{
+		// Arrange
+		var services = CreateHostServices();
+
+		// Act
+		GetRegistration("Excalibur.Hosting [BuilderContext]")(services);
+
+		// Assert
+		services.Count(d => d.ServiceType == typeof(IConfigureOptions<TenantContextOptions>))
+			.ShouldBeGreaterThanOrEqualTo(
+				2,
+				"UseTenant should add a tenant configuration alongside the one AddExcalibur registers.");
+	}
+
+	/// <summary>
+	/// Verifies the tenant passed to <c>UseTenant</c> is the default tenant the host actually resolves.
+	/// </summary>
+	/// <remarks>
+	/// <c>AddExcalibur</c> configures <c>TenantContextOptions</c> AFTER the builder callback returns, and
+	/// options configuration is last-wins. This arm is what fails if the framework's own default ever
+	/// overwrites the value the consumer configured again: it was RED, resolving <c>__default__</c>, until
+	/// the framework stopped seating its default over a configured one.
+	/// </remarks>
+	[Fact]
+	public void UseTenant_Value_Is_The_Resolved_Default_Tenant()
+	{
+		// Arrange
+		var services = CreateHostServices();
+		GetRegistration("Excalibur.Hosting [BuilderContext]")(services);
+
+		// Act
+		using var provider = services.BuildServiceProvider();
+		var resolved = provider.GetRequiredService<IOptions<TenantContextOptions>>().Value.DefaultTenantId;
+
+		// Assert
+		resolved.ShouldBe("smoke-tenant", "the tenant passed to UseTenant must be the default tenant the host resolves");
+	}
+
+	/// <summary>
+	/// Verifies <c>UseLocalClientAddress</c> replaces the scoped default with the local-machine singleton.
+	/// </summary>
+	/// <remarks>
+	/// Both the default (<c>TryAddClientAddress</c>, scoped) and the override
+	/// (<c>TryAddLocalClientAddress</c>, singleton) register <see cref="IClientAddress"/>, so presence
+	/// proves nothing and the LIFETIME is what discriminates. Resolving the instance would make the test
+	/// depend on a DNS lookup, which is not what is under test.
+	/// </remarks>
+	[Fact]
+	public void UseLocalClientAddress_Replaces_The_Scoped_Default_With_A_Singleton()
+	{
+		// Arrange
+		var services = CreateHostServices();
+
+		// Act
+		GetRegistration("Excalibur.Hosting [BuilderContext]")(services);
+
+		// Assert
+		var clientAddress = services.Single(d => d.ServiceType == typeof(IClientAddress));
+		clientAddress.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+	}
+
+	public static TheoryData<string, Type> AdvertisedServicesData
+	{
+		get
+		{
+			var data = new TheoryData<string, Type>();
+
+			foreach (var (caseName, serviceType) in AdvertisedServices())
+			{
+				data.Add(caseName, serviceType);
+			}
+
+			return data;
+		}
+	}
+
+	/// <summary>
+	/// The service each consumer-supplied entry point advertises, paired with the case that calls it.
+	/// </summary>
+	private static IEnumerable<(string CaseName, Type ServiceType)> AdvertisedServices()
+	{
+		yield return ("Excalibur.Dispatch.Transport.Abstractions [CloudEventEncoder]",
+			typeof(Excalibur.Dispatch.Transport.ICloudEventEncoder<SmokeTransportMessage>));
+		yield return ("Excalibur.Dispatch.Transport.Abstractions [CloudEventEncoderFactory]",
+			typeof(Excalibur.Dispatch.Transport.ICloudEventEncoder<SmokeTransportMessage>));
+		yield return ("Excalibur.Dispatch.Transport.GooglePubSub [SchemaManager]",
+			typeof(Excalibur.Dispatch.Transport.Google.IPubSubSchemaManager));
+		yield return ("Excalibur.Dispatch.Transport.GooglePubSub [SchemaManagerFactory]",
+			typeof(Excalibur.Dispatch.Transport.Google.IPubSubSchemaManager));
+		yield return ("Excalibur.Dispatch.Transport.AzureServiceBus [Transactions]",
+			typeof(Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransaction));
+		yield return ("Excalibur.Data.DynamoDb [ProjectionStore]",
+			typeof(Excalibur.EventSourcing.IProjectionStore<SmokeProjection>));
+		yield return ("Excalibur.Data.Firestore [ProjectionStore]",
+			typeof(Excalibur.EventSourcing.IProjectionStore<SmokeProjection>));
+		yield return ("Excalibur.Caching [ProjectionResolvers]",
+			typeof(Excalibur.Caching.Projections.IProjectionTagResolver<SmokeProjectionMessage>));
+		yield return ("Excalibur.Caching [ProjectionResolversFromAssembly]",
+			typeof(Excalibur.Caching.Projections.IProjectionTagResolver<SmokeProjectionMessage>));
+		// Nothing in CreateHostServices registers a hosted service, and this case calls only
+		// AddInboxSchemaValidation, so IHostedService presence is specific to that call.
+		yield return ("Excalibur.Inbox [SchemaValidation]", typeof(IHostedService));
+		yield return ("Excalibur.Operations.Dashboard [Throughput]",
+			typeof(Excalibur.Operations.Dashboard.IDashboardEndpointModule));
 	}
 
 	/// <summary>
@@ -758,6 +921,65 @@ public sealed class PackageDiSmokeTests
 			s.AddGooglePubSubOrderingKey());
 		yield return Reg("Excalibur.Dispatch.Transport.Kafka [Admin]", s =>
 			s.AddKafkaAdmin(admin => admin.BootstrapServers = "localhost:9092"));
+
+		// ══════════════════════════════════════════════════════════
+		// ENTRY POINTS THAT NEED A CONSUMER-SUPPLIED TYPE ARGUMENT
+		// ══════════════════════════════════════════════════════════
+		// These take the consumer's implementation as a TYPE ARGUMENT rather than resolving one, so a
+		// stub factory cannot stand in for it -- without a concrete type the call does not compile. That
+		// is why they sat outside this gate; the doubles in SmokeConsumerDoubles.cs are what closes it.
+
+		yield return Reg("Excalibur.Dispatch.Transport.Abstractions [CloudEventEncoder]", s =>
+			s.AddCloudEventEncoder<SmokeTransportMessage, SmokeCloudEventEncoder>());
+		yield return Reg("Excalibur.Dispatch.Transport.Abstractions [CloudEventEncoderFactory]", s =>
+			s.AddCloudEventEncoder<SmokeTransportMessage>(static _ => new SmokeCloudEventEncoder()));
+		yield return Reg("Excalibur.Dispatch.Transport.GooglePubSub [SchemaManager]", s =>
+			s.AddGooglePubSubSchemaManager<SmokePubSubSchemaManager>());
+		yield return Reg("Excalibur.Dispatch.Transport.GooglePubSub [SchemaManagerFactory]", s =>
+			s.AddGooglePubSubSchemaManager(static _ => new SmokePubSubSchemaManager()));
+		yield return Reg("Excalibur.Dispatch.Transport.AzureServiceBus [Transactions]", s =>
+			s.AddAzureServiceBusTransactions<SmokeAzureServiceBusTransaction>());
+
+		// ══════════════════════════════════════════════════════════
+		// PROJECTION STORES (per-projection generic registration)
+		// ══════════════════════════════════════════════════════════
+		// Each store's constructor takes the provider's own client, which is a consumer choice the case
+		// must make -- registered here rather than in AddConsumerSuppliedSeams so it is scoped to these
+		// two cases and cannot silently satisfy a dependency some other package owes.
+
+		yield return Reg("Excalibur.Data.DynamoDb [ProjectionStore]", s =>
+		{
+			Stub<Amazon.DynamoDBv2.IAmazonDynamoDB>(s);
+			s.AddDynamoDbProjectionStore<SmokeProjection>(o => o.TableName = "smoke-projections");
+		});
+		yield return Reg("Excalibur.Data.Firestore [ProjectionStore]", s =>
+		{
+			Stub<Google.Cloud.Firestore.FirestoreDb>(s);
+			s.AddFirestoreProjectionStore<SmokeProjection>(o => o.CollectionName = "smoke-projections");
+		});
+
+		// ══════════════════════════════════════════════════════════
+		// BUILDER-SCOPED ENTRY POINTS
+		// ══════════════════════════════════════════════════════════
+		// These hang off IExcaliburBuilder / IDispatchBuilder rather than IServiceCollection, so they are
+		// only reachable through the composition the builder's own Add*() opens.
+
+		yield return Reg("Excalibur.Hosting [BuilderContext]", s =>
+			s.AddExcalibur(b => b.UseTenant("smoke-tenant").UseLocalClientAddress()));
+		yield return Reg("Excalibur.Caching [ProjectionResolvers]", s =>
+			s.AddDispatch().WithProjectionResolvers(typeof(SmokeProjectionTagResolver)));
+		yield return Reg("Excalibur.Caching [ProjectionResolversFromAssembly]", s =>
+			s.AddDispatch().WithProjectionResolversFromAssembly(typeof(PackageDiSmokeTests).Assembly));
+
+		// ══════════════════════════════════════════════════════════
+		// PACKAGES THE SMOKE PROJECT DID NOT REFERENCE
+		// ══════════════════════════════════════════════════════════
+		// Both ship as NuGet packages and both register a hosted/enumerable service, which is exactly
+		// the shape that fails at host start rather than at registration. The missing project reference
+		// was the only thing keeping them out; it is now present.
+
+		yield return Reg("Excalibur.Inbox [SchemaValidation]", s => s.AddInboxSchemaValidation());
+		yield return Reg("Excalibur.Operations.Dashboard [Throughput]", s => s.AddThroughputDashboard());
 
 		// ══════════════════════════════
 		// METAPACKAGES

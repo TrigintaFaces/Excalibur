@@ -6,13 +6,21 @@ description: Detailed compliance checklists for FedRAMP, SOC 2, GDPR, and HIPAA
 
 # Compliance Checklists
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../../legal/compliance-disclaimer.md).
+:::
+
 Step-by-step checklists for achieving and maintaining compliance with major regulatory frameworks.
 
 ## Available Checklists
 
 | Framework | Description | Checklist coverage |
 |-----------|-------------|--------------------|
-| [FedRAMP](fedramp.md) | Federal Risk and Authorization Management Program | 12 of 14 controls satisfied; 2 partial |
+| [FedRAMP](fedramp.md) | Federal Risk and Authorization Management Program | 4 of 14 controls satisfied; 10 partial |
 | [SOC 2](soc2.md) | Service Organization Control 2 Trust Services Criteria | All criteria walked through |
 | [GDPR](gdpr.md) | General Data Protection Regulation | 5 of 9 articles satisfied; 4 partial (business process) |
 | [HIPAA](hipaa.md) | Health Insurance Portability and Accountability Act | All safeguards walked through |

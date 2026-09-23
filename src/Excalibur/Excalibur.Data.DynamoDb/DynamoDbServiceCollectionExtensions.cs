@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -37,10 +37,8 @@ public static class DynamoDbServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode("Binds and validates DynamoDB options by reflection, which requires types that trimming may remove. There is no ahead-of-time-clean path through this package: Excalibur.Data.DynamoDb is not AOT-compatible because the AWS SDK marshals by reflection. Use a different persistence provider if you publish ahead-of-time.")]
+	[RequiresDynamicCode("Binds and validates DynamoDB options by reflection, and the AWS SDK constructs marshallers at runtime. There is no ahead-of-time-clean path through this package: Excalibur.Data.DynamoDb is not AOT-compatible. Use a different persistence provider if you publish ahead-of-time.")]
 	public static IServiceCollection AddExcaliburDynamoDb(
 		this IServiceCollection services,
 		Action<IDynamoDBDataBuilder> configure)
@@ -59,10 +57,8 @@ public static class DynamoDbServiceCollectionExtensions
 		return services;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
+	[RequiresUnreferencedCode("Binds and validates DynamoDB options by reflection.")]
+	[RequiresDynamicCode("Binds and validates DynamoDB options by reflection.")]
 	private static void RegisterOptionsAndServices(
 		IServiceCollection services,
 		DynamoDBDataBuilder dynamoBuilder,

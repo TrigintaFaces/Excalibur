@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.A3.Diagnostics;
@@ -10,6 +10,8 @@ using Excalibur.EventSourcing;
 using Microsoft.Extensions.Logging;
 
 using StoreGrant = Excalibur.A3.Authorization.Grant;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.A3.Authorization.Grants;
 
@@ -170,8 +172,8 @@ public partial class GrantRepository : IGrantRepository
 		}
 
 		var storeGrants = await _queryStore.GetMatchingGrantsAsync(
-			userId,
 			scope.TenantId,
+			userId,
 			scope.GrantType,
 			scope.Qualifier,
 			cancellationToken).ConfigureAwait(false);
@@ -206,7 +208,8 @@ public partial class GrantRepository : IGrantRepository
 	private static Grant ToDomainGrant(StoreGrant storeGrant)
 	{
 		var grant = Grant.Create(
-			$"{storeGrant.UserId}:{storeGrant.TenantId}:{storeGrant.GrantType}:{storeGrant.Qualifier}");
+			SegmentedKey.Compose(
+					storeGrant.UserId, storeGrant.TenantId, storeGrant.GrantType, storeGrant.Qualifier));
 
 		grant.UserId = storeGrant.UserId;
 		grant.FullName = storeGrant.FullName;

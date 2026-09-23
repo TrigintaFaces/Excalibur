@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
 
@@ -59,6 +59,31 @@ public sealed class CosmosDbDataChangeEventShould
 
 		// Assert
 		evt.PartitionKey.ShouldBeNull();
+		evt.PartitionKeyKind.ShouldBe(
+			CosmosDbPartitionKeyKind.None,
+			"an event with no partition key must say so, not claim an explicit JSON null.");
+	}
+
+	[Fact]
+	public void PartitionKeyKind_RoundTripsThroughTheFactories()
+	{
+		// The kind is what separates the number 42 from the string "42" — two different Cosmos partitions
+		// that render to the same text. A factory that dropped it would merge them.
+		var position = CosmosDbCdcPosition.Beginning();
+		using var document = JsonDocument.Parse("{}");
+		var timestamp = DateTimeOffset.UtcNow;
+
+		CosmosDbDataChangeEvent
+			.CreateInsert(position, "d1", "42", document, timestamp, 1, null, CosmosDbPartitionKeyKind.Number)
+			.PartitionKeyKind.ShouldBe(CosmosDbPartitionKeyKind.Number);
+
+		CosmosDbDataChangeEvent
+			.CreateUpdate(position, "d1", "42", document, null, timestamp, 1, null, CosmosDbPartitionKeyKind.String)
+			.PartitionKeyKind.ShouldBe(CosmosDbPartitionKeyKind.String);
+
+		CosmosDbDataChangeEvent
+			.CreateDelete(position, "d1", "true", null, timestamp, 1, CosmosDbPartitionKeyKind.Boolean)
+			.PartitionKeyKind.ShouldBe(CosmosDbPartitionKeyKind.Boolean);
 	}
 
 	[Fact]

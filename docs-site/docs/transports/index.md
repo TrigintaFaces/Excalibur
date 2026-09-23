@@ -125,6 +125,69 @@ public interface ITransportReceiver : IAsyncDisposable
 }
 ```
 
+### Settlement: acknowledge and reject
+
+`AcknowledgeAsync` and `RejectAsync` are how you tell the broker what became of a message. Returning
+normally means the broker accepted the settlement; it is not a best-effort call whose outcome you have to
+infer from a later redelivery.
+
+When a settlement does not happen, the transport raises `TransportSettlementException`. Read
+`RedeliveryExpectation` on it to decide what to do — `Expected` means the broker still owns the message and
+your handler's work may run again, so handlers must be idempotent. Treat `Unspecified` the same way: it
+means the transport could not determine the outcome, and assuming the work returns is the safe direction.
+
+`requeue` states the outcome you require rather than a hint: `true` asks the broker to deliver the message
+again, `false` asks it not to.
+
+:::caution This contract is newly stated and not every transport meets it yet
+IBM MQ reports settlement failures as `TransportSettlementException` today. Several other receivers still
+let their broker client's own exception escape, and a settlement that times out surfaces as an
+`OperationCanceledException`. Until each transport is converted, portable code that must not fault should
+catch `InvalidOperationException` — the base of `TransportSettlementException` — and treat an unrecognised
+exception from a settlement call as an outcome it cannot confirm: assume the message may be redelivered.
+
+MQTT and IBM MQ do not yet honour `requeue: false`; both currently cause redelivery. If you dead-letter a
+poison message on those transports, make the dead-letter write idempotent — see
+[dead-letter queues](../patterns/dead-letter.md#a-rejection-that-fails-after-the-dead-letter-write).
+:::
+
+### Batch results and selective retry
+
+`SendBatchAsync` returns one result per input, in the order the inputs were given: `Results[i]` is the
+outcome of `messages[i]`, and `Results.Count` always equals the number of messages you passed. That holds
+however the provider actually sent them — including when it splits the batch across several calls to the
+broker, or cannot fit every message into one native batch and sends the remainder individually. Results
+are never grouped into successes followed by failures.
+
+This is what makes a partial failure recoverable. Resend only the inputs whose result failed:
+
+```csharp
+var result = await sender.SendBatchAsync(messages, cancellationToken);
+
+if (!result.IsCompleteSuccess)
+{
+    var retry = new List<TransportMessage>();
+    for (var i = 0; i < messages.Count; i++)
+    {
+        if (!result.Results[i].IsSuccess && result.Results[i].Error?.IsRetryable == true)
+        {
+            retry.Add(messages[i]);
+        }
+    }
+
+    await sender.SendBatchAsync(retry, cancellationToken);
+}
+```
+
+Without index alignment the only safe recovery would be resending the whole batch, which on an
+at-least-once transport duplicates every message that was already delivered.
+
+:::note
+`SendResult.MessageId` is not yet a portable way to confirm which input a result belongs to — providers
+differ over whether they report the broker's identifier or the message's own `Id`. Use the index, as
+above, rather than matching on `MessageId`.
+:::
+
 ### ITransportSubscriber (Push-Based)
 
 For transports with native push semantics (Kafka consumer groups, RabbitMQ `BasicConsume`, Azure Event Hubs, Google Pub/Sub streaming pull), `ITransportSubscriber` provides a push-based alternative to the pull-based `ITransportReceiver`:

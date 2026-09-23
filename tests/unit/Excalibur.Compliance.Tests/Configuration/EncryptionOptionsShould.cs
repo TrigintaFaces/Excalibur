@@ -24,14 +24,6 @@ public sealed class EncryptionOptionsShould
 	}
 
 	[Fact]
-	public void Have_null_default_tenant_id()
-	{
-		var options = new EncryptionOptions();
-
-		options.DefaultTenantId.ShouldBeNull();
-	}
-
-	[Fact]
 	public void Include_timing_metadata_by_default()
 	{
 		var options = new EncryptionOptions();
@@ -78,7 +70,6 @@ public sealed class EncryptionOptionsShould
 		{
 			DefaultPurpose = "field-encryption",
 			RequireFipsCompliance = true,
-			DefaultTenantId = "tenant-1",
 			IncludeTimingMetadata = false,
 			EncryptionAgeWarningThreshold = TimeSpan.FromDays(30),
 			Mode = EncryptionMode.DecryptOnlyWritePlaintext,
@@ -88,7 +79,6 @@ public sealed class EncryptionOptionsShould
 
 		options.DefaultPurpose.ShouldBe("field-encryption");
 		options.RequireFipsCompliance.ShouldBeTrue();
-		options.DefaultTenantId.ShouldBe("tenant-1");
 		options.IncludeTimingMetadata.ShouldBeFalse();
 		options.EncryptionAgeWarningThreshold.ShouldBe(TimeSpan.FromDays(30));
 		options.Mode.ShouldBe(EncryptionMode.DecryptOnlyWritePlaintext);

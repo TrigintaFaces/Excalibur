@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using System.Data;
@@ -9,16 +9,30 @@ using Excalibur.EventSourcing.Decorators;
 namespace Excalibur.EventSourcing.Sharding;
 
 /// <summary>
-/// Fail-closed tenant-scoping decorator for <see cref="IEventStore"/> (the row-discriminator multi-tenancy
-/// strategy). Every operation requires an ambient tenant: when none is resolved it throws
-/// <see cref="TenantRequiredException"/> rather than proceeding with an unscoped (false-isolation) operation.
+/// Tenant-scoping decorator for <see cref="IEventStore"/> (the row-discriminator multi-tenancy strategy).
+/// Refuses an operation whose ambient context resolves no tenant, at the call boundary rather than inside the
+/// store, by throwing <see cref="TenantRequiredException"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This decorator enforces the fail-closed guarantee at the tenant-facing surface. It delegates to the inner
-/// store, which reads the same ambient <see cref="ITenantContext"/> and applies the <c>TenantId</c> row
-/// predicate inside the same atomic SQL statement — so isolation is enforced by the store's own query, not by
-/// a client-side post-filter.
+/// <b>What provides isolation.</b> Not this decorator. Every tenant-owned statement binds a tenant term
+/// because <see cref="TenantScope"/> has no inhabitant meaning "absent": <see cref="TenantScope.TenantId"/> is
+/// total, so a scope always yields a term and a statement carrying no tenant predicate cannot be constructed
+/// from one. A store resolving its scope through <see cref="TenantScope.FromContext(ITenantContext)"/>
+/// therefore fails closed on an unresolved tenant whether or not it is decorated, and applies the
+/// <c>TenantId</c> row predicate inside its own atomic statement rather than as a client-side post-filter.
+/// </para>
+/// <para>
+/// <b>What this decorator adds.</b> Defence in depth, and an earlier failure. It moves the refusal from inside
+/// the store — mid-operation, possibly mid-transaction — to the call boundary, before a connection is opened;
+/// and it gives a store that does <em>not</em> resolve its scope through <see cref="TenantScope"/> a
+/// fail-closed boundary it would otherwise lack.
+/// </para>
+/// <para>
+/// <b>What it does not guarantee.</b> It resolves the ambient tenant once; the store it wraps resolves it
+/// again. Those reads agree because <see cref="ITenantContext"/> requires the resolved tenant of an execution
+/// flow to be stable — the history constraint stated on that contract — not because this decorator pins
+/// anything. An implementation that violates that constraint is not made safe by this decorator.
 /// </para>
 /// <para>
 /// Registered only when multi-tenancy uses the row-discriminator strategy. Non-multi-tenant deployments use
@@ -26,9 +40,9 @@ namespace Excalibur.EventSourcing.Sharding;
 /// </para>
 /// <para>
 /// The base <see cref="DelegatingEventStore"/> forwards <see cref="IEventStoreErasure"/> to the inner store, so
-/// erasure survives the decoration chain. This decorator <b>overrides</b> the erase path to apply the same
-/// fail-closed tenant guard that reads and appends have — an unscoped erase can never emit a predicate-less
-/// statement across every tenant's rows; it throws <see cref="TenantRequiredException"/> before delegating.
+/// erasure survives the decoration chain. This decorator <b>overrides</b> the erase path so that the erase
+/// boundary refuses an unresolved tenant exactly as reads and appends do, rather than letting the refusal
+/// surface from inside the store part-way through.
 /// </para>
 /// </remarks>
 public sealed class TenantScopedEventStore : IsolatingEventStoreDecorator
@@ -106,15 +120,18 @@ public sealed class TenantScopedEventStore : IsolatingEventStoreDecorator
 		return base.IsErasedAsync(aggregateId, aggregateType, cancellationToken);
 	}
 
-	private void RequireTenant()
-	{
-		// Unify the empty-tenant predicate to IsNullOrWhiteSpace, matching TenantScope.Scoped so whitespace
-		// yields exactly one exception type (TenantRequiredException) across the decorator and the request type.
-		if (string.IsNullOrWhiteSpace(_tenantContext.TenantId))
-		{
-			throw new TenantRequiredException();
-		}
-	}
+	/// <summary>
+	/// Resolves the ambient partition once, and throws if the context resolves none.
+	/// </summary>
+	/// <remarks>
+	/// The gate <em>is</em> the conversion the inner store uses to build its row predicate, rather than a
+	/// restatement of it. A restatement is a second definition of "this context resolves a partition", and
+	/// two definitions drift: a decorator that tested only null-or-empty admitted a whitespace term that the
+	/// conversion refuses, so the gate passed and the operation failed a layer down. Calling the conversion
+	/// makes that divergence inexpressible — there is nothing here to keep in step.
+	/// </remarks>
+	/// <exception cref="TenantRequiredException">The context resolves no tenant.</exception>
+	private void RequireTenant() => _ = TenantScope.FromContext(_tenantContext);
 
 	/// <summary>
 	/// Wraps a capability of the decorated store so it cannot be reached without the ambient-tenant check.

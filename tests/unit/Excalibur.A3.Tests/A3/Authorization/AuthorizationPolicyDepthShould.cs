@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
+using Excalibur.Dispatch;
 using Excalibur.A3.Authorization.Grants;
 
 namespace Excalibur.Tests.A3.Authorization;
@@ -15,7 +16,7 @@ public sealed class AuthorizationPolicyDepthShould
 {
 	private static AuthorizationPolicy CreatePolicy(
 		IDictionary<string, object> grants,
-		IDictionary<string, object>? activityGroups = null,
+		IReadOnlyDictionary<string, IReadOnlyCollection<string>>? activityGroups = null,
 		string tenantId = "tenant-1",
 		string userId = "user-1")
 	{
@@ -24,7 +25,7 @@ public sealed class AuthorizationPolicyDepthShould
 
 		return new AuthorizationPolicy(
 			grants,
-			activityGroups ?? new Dictionary<string, object>(),
+			activityGroups ?? new Dictionary<string, IReadOnlyCollection<string>>(),
 			tenant,
 			userId);
 	}
@@ -96,9 +97,9 @@ public sealed class AuthorizationPolicyDepthShould
 		{
 			{ $"tenant-1:{GrantType.ActivityGroup}:AdminGroup", new object() },
 		};
-		var activityGroups = new Dictionary<string, object>
+		var activityGroups = new Dictionary<string, IReadOnlyCollection<string>>
 		{
-			{ "AdminGroup", new List<object> { "ReadData", "WriteData" } },
+			{ SegmentedKey.Compose("tenant-1", "AdminGroup"), new List<string> { "ReadData", "WriteData" } },
 		};
 		var policy = CreatePolicy(grants, activityGroups);
 
@@ -114,9 +115,9 @@ public sealed class AuthorizationPolicyDepthShould
 		{
 			{ $"tenant-1:{GrantType.ActivityGroup}:ViewerGroup", new object() },
 		};
-		var activityGroups = new Dictionary<string, object>
+		var activityGroups = new Dictionary<string, IReadOnlyCollection<string>>
 		{
-			{ "ViewerGroup", new List<object> { "ViewReport" } },
+			{ SegmentedKey.Compose("tenant-1", "ViewerGroup"), new List<string> { "ViewReport" } },
 		};
 		var policy = CreatePolicy(grants, activityGroups);
 

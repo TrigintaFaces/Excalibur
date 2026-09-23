@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Cdc.Diagnostics;
 
@@ -25,6 +25,7 @@ public sealed class CdcHealthState
 	private long _totalCycles;
 	private long _lastActivityTicks;
 	private int _isRunning;
+	private int _consecutiveTransientFailures;
 
 	/// <summary>
 	/// Gets the total number of events processed since the processor started.
@@ -91,6 +92,23 @@ public sealed class CdcHealthState
 	{
 		_ = Interlocked.Exchange(ref _isRunning, 1);
 		_ = Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.Ticks);
+	}
+
+	/// <summary>
+	/// Gets the number of consecutive transient failures a streaming processor has reported without
+	/// making progress.
+	/// </summary>
+	/// <value>Zero while the processor is making progress.</value>
+	public int ConsecutiveTransientFailures => Volatile.Read(ref _consecutiveTransientFailures);
+
+	/// <summary>
+	/// Records the current count of consecutive transient failures, as reported by a processor's reconnect loop.
+	/// </summary>
+	/// <param name="count">The count; zero once the processor makes progress again.</param>
+	public void RecordConsecutiveTransientFailures(int count)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegative(count);
+		Volatile.Write(ref _consecutiveTransientFailures, count);
 	}
 
 	/// <summary>

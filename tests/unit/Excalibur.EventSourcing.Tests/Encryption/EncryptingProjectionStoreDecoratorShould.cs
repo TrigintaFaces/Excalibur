@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
@@ -42,9 +42,8 @@ public sealed class EncryptingProjectionStoreDecoratorShould
 		{
 			Mode = mode,
 			DefaultPurpose = "test",
-			DefaultTenantId = "tenant-1"
 		});
-		return new EncryptingProjectionStoreDecorator<TestProjection>(_innerStore, _registry, options);
+		return new EncryptingProjectionStoreDecorator<TestProjection>(_innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 	}
 
 	private EncryptingProjectionStoreDecorator<PlainProjection> CreatePlainDecorator(
@@ -55,9 +54,8 @@ public sealed class EncryptingProjectionStoreDecoratorShould
 		{
 			Mode = mode,
 			DefaultPurpose = "test",
-			DefaultTenantId = "tenant-1"
 		});
-		return new EncryptingProjectionStoreDecorator<PlainProjection>(innerPlain, _registry, options);
+		return new EncryptingProjectionStoreDecorator<PlainProjection>(innerPlain, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 	}
 
 	#region Constructor Tests
@@ -70,7 +68,7 @@ public sealed class EncryptingProjectionStoreDecoratorShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingProjectionStoreDecorator<TestProjection>(null!, _registry, options));
+			new EncryptingProjectionStoreDecorator<TestProjection>(null!, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]
@@ -81,7 +79,7 @@ public sealed class EncryptingProjectionStoreDecoratorShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingProjectionStoreDecorator<TestProjection>(_innerStore, null!, options));
+			new EncryptingProjectionStoreDecorator<TestProjection>(_innerStore, null!, options, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]
@@ -89,7 +87,7 @@ public sealed class EncryptingProjectionStoreDecoratorShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingProjectionStoreDecorator<TestProjection>(_innerStore, _registry, null!));
+			new EncryptingProjectionStoreDecorator<TestProjection>(_innerStore, _registry, null!, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	#endregion
@@ -440,7 +438,7 @@ public sealed class EncryptingProjectionStoreDecoratorShould
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "test"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<PlainProjection>(innerPlain, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<PlainProjection>(innerPlain, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 		var projection = new PlainProjection { Id = "p1", Name = "Test" };
 		A.CallTo(() => innerPlain.GetByIdAsync("p1", _ct))
 			.Returns(Task.FromResult<PlainProjection?>(projection));

@@ -1,6 +1,6 @@
 using Excalibur.Compliance.Configuration;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Configuration;
 
@@ -31,16 +31,6 @@ public sealed class EncryptionOptionsShould
 
 		// Assert
 		options.RequireFipsCompliance.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void EncryptionOptions_DefaultTenantIdToNull()
-	{
-		// Arrange & Act
-		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
-
-		// Assert
-		options.DefaultTenantId.ShouldBeNull();
 	}
 
 	[Fact]
@@ -91,19 +81,6 @@ public sealed class EncryptionOptionsShould
 
 		// Assert
 		options.RequireFipsCompliance.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void EncryptionOptions_AllowSettingTenantId()
-	{
-		// Arrange
-		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
-
-		// Act
-		options.DefaultTenantId = "tenant-123";
-
-		// Assert
-		options.DefaultTenantId.ShouldBe("tenant-123");
 	}
 
 	[Fact]

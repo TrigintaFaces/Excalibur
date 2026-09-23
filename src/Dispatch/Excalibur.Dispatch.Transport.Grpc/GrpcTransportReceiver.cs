@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// </summary>
 internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 {
-	private readonly GrpcChannel _channel;
+	private readonly GrpcChannel? _channel;
 	private readonly CallInvoker _invoker;
 	private readonly GrpcTransportOptions _options;
 	private readonly int? _maxPayloadBytes;
@@ -38,6 +38,29 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 		_maxPayloadBytes = _options.MaxPayloadBytes;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_invoker = _channel.CreateCallInvoker();
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="GrpcTransportReceiver"/> class with an explicit
+	/// <see cref="CallInvoker"/> (the gRPC injection seam) instead of a channel. Used to substitute a fake
+	/// invoker under test so receive and settlement RPCs — including the server's acknowledge response —
+	/// can be observed without a live server. There is no owned channel on this path, so
+	/// <see cref="GetService(Type)"/> returns <see langword="null"/> for <see cref="GrpcChannel"/> and
+	/// disposal has no channel to release.
+	/// </summary>
+	/// <param name="invoker">The gRPC call invoker that issues receive and settlement RPCs.</param>
+	/// <param name="options">The transport options.</param>
+	/// <param name="logger">The logger instance.</param>
+	internal GrpcTransportReceiver(
+		CallInvoker invoker,
+		IOptions<GrpcTransportOptions> options,
+		ILogger<GrpcTransportReceiver> logger)
+	{
+		_invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_maxPayloadBytes = _options.MaxPayloadBytes;
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_channel = null;
 	}
 
 	/// <inheritdoc />
@@ -107,8 +130,15 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 			using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			var callOptions = CreateCallOptions(ackCts.Token);
 
-			await _invoker.AsyncUnaryCall(method, null, callOptions, request)
+			var response = await _invoker.AsyncUnaryCall(method, null, callOptions, request)
 				.ConfigureAwait(false);
+
+			if (!GrpcSettlement.IsAccepted(response))
+			{
+				var rejection = SettlementRejected(message.Id, "acknowledge");
+				LogAcknowledgeFailed(message.Id, Source, rejection);
+				throw rejection;
+			}
 
 			LogMessageAcknowledged(message.Id, Source);
 		}
@@ -140,8 +170,15 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 			using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			var callOptions = CreateCallOptions(rejectCts.Token);
 
-			await _invoker.AsyncUnaryCall(method, null, callOptions, request)
+			var response = await _invoker.AsyncUnaryCall(method, null, callOptions, request)
 				.ConfigureAwait(false);
+
+			if (!GrpcSettlement.IsAccepted(response))
+			{
+				var rejection = SettlementRejected(message.Id, requeue ? "requeue" : "reject");
+				LogRejectFailed(message.Id, Source, rejection);
+				throw rejection;
+			}
 
 			LogMessageRejected(message.Id, Source, reason ?? "no reason");
 		}
@@ -173,7 +210,7 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 		}
 
 		_disposed = true;
-		_channel.Dispose();
+		_channel?.Dispose();
 		LogDisposed(Source);
 		GC.SuppressFinalize(this);
 		return ValueTask.CompletedTask;
@@ -216,6 +253,38 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 			ProviderData = providerData,
 		};
 	}
+
+	/// <summary>
+	/// Builds the exception raised when the server completed the settlement RPC but reported that it did
+	/// NOT accept the settlement. A SUCCESSFUL RPC IS NOT A SUCCESSFUL SETTLEMENT: the two are separate
+	/// outcomes and only the transport half was ever checked here. Awaiting the call and discarding its
+	/// <c>IsSuccess</c> made a refused acknowledge indistinguishable from an accepted one, so the caller
+	/// logged the message settled and moved on while the broker still held it undelivered — the message
+	/// is then redelivered on the broker's own timeout with nothing having observed the failure. This
+	/// surface returns <see cref="Task"/> and so has no result channel; throwing is the only way to say
+	/// the settlement did not happen, and it mirrors the send path, which throws on a rejected send.
+	/// </summary>
+	/// <remarks>
+	/// The type is <see cref="TransportSettlementException"/> rather than a bare
+	/// <see cref="InvalidOperationException"/> so that a caller can tell a refused settlement from an
+	/// unrelated invalid operation raised by handler code in the same <c>try</c> block. It derives from
+	/// <see cref="InvalidOperationException"/>, so an existing handler catching that keeps working.
+	/// </remarks>
+	private TransportSettlementException SettlementRejected(string messageId, string action) =>
+		new($"The gRPC transport completed the {action} RPC for message {messageId} on {Source}, but the "
+			+ $"server reported the settlement was not accepted. The message has NOT been settled and "
+			+ $"remains owned by the server.")
+		{
+			TransportName = "Grpc",
+
+			// The server still owns the message, so it is expected to deliver it again. That is the whole
+			// reason the refusal is worth reporting: the caller's handler may run a second time.
+			RedeliveryExpectation = TransportRedeliveryExpectation.Expected,
+
+			// The server reported a refusal without saying why, so this transport cannot tell a transient
+			// refusal from a permanent one. Saying so is honest; guessing Retryable would loop a caller.
+			Retryability = SettlementRetryability.Unspecified,
+		};
 
 	private CallOptions CreateCallOptions(CancellationToken cancellationToken) =>
 		new(

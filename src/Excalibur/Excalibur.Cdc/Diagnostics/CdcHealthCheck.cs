@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CloudNative;
 
@@ -18,7 +18,7 @@ namespace Excalibur.Cdc.Diagnostics;
 /// <list type="bullet">
 /// <item><b>Healthy:</b> Processor is running and processing is current.</item>
 /// <item><b>Degraded:</b> Recent inactivity beyond degraded threshold.</item>
-/// <item><b>Unhealthy:</b> Processor has failed, or no activity beyond timeout.</item>
+/// <item><b>Unhealthy:</b> Processor has failed, has failed to reconnect repeatedly without progress, or no activity beyond timeout.</item>
 /// </list>
 /// </remarks>
 internal sealed class CdcHealthCheck : IHealthCheck
@@ -53,7 +53,19 @@ internal sealed class CdcHealthCheck : IHealthCheck
 			["TotalProcessed"] = _state.TotalProcessed,
 			["TotalFailed"] = _state.TotalFailed,
 			["TotalCycles"] = _state.TotalCycles,
+			["ConsecutiveTransientFailures"] = _state.ConsecutiveTransientFailures,
 		};
+
+		// Checked first, and independently of IsRunning: a streaming processor reports its reconnect failures
+		// here without marking itself started, and a processor that cannot reconnect is not healthy merely
+		// because nothing recorded a start.
+		var consecutiveFailures = _state.ConsecutiveTransientFailures;
+		if (consecutiveFailures >= _options.UnhealthyConsecutiveTransientFailures)
+		{
+			return Task.FromResult(HealthCheckResult.Unhealthy(
+				$"CDC processor has failed {consecutiveFailures} consecutive times without progress (threshold: {_options.UnhealthyConsecutiveTransientFailures}).",
+				data: data));
+		}
 
 		if (_state.LastActivityTime.HasValue)
 		{

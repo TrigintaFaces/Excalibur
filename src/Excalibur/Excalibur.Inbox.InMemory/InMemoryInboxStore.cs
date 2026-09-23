@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -52,10 +52,19 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 	private readonly System.Threading.Lock _stateLock = new();
 	private readonly Dictionary<InboxKey, InboxEntry> _entries = [];
 
-	// Companion lease-expiry map (unix-ms) for the lease-based claim overload. A single-process store has
-	// no distributed clock skew, so the local wall clock is the authority here. Absence of a key here means
+	// Companion lease map for the lease-based claim overload. A single-process store has no distributed
+	// clock skew, so the local wall clock is the authority for the DEADLINE. Absence of a key here means
 	// "claim carries no expiry", never "expired" — see the reclaim guard in the lease overload.
-	private readonly Dictionary<InboxKey, long> _leaseExpiryUnixMs = [];
+	//
+	// The entry carries a SERIAL beside the deadline because the two answer different questions, and
+	// conflating them was a defect: the deadline says WHEN the claim lapses, the serial says WHICH
+	// acquisition this is. See <see cref="LeaseState"/>.
+	private readonly Dictionary<InboxKey, LeaseState> _leases = [];
+
+	// Monotonic across the store's lifetime, so no two successful acquisitions of ANY key can share an
+	// identity. Interlocked because acquisitions are not all taken under _stateLock on every path, and a
+	// counter that can repeat is the whole defect being fixed here.
+	private long _leaseSerial;
 	private readonly InMemoryInboxOptions _options;
 	private readonly ITenantContext _tenantContext;
 	private readonly ILogger<InMemoryInboxStore> _logger;
@@ -192,7 +201,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 			// claim is not merely stale: this key can be removed and re-admitted later (release, cleanup,
 			// eviction), and the next lease-less claim on it would then find an ancient expiry sitting
 			// beside a live Processing entry and read it as a dead processor to reclaim.
-			_ = _leaseExpiryUnixMs.Remove(key);
+			_ = _leases.Remove(key);
 		}
 
 		_logger.LogDebug("Marked inbox entry as processed for message {MessageId} and handler {HandlerType}",
@@ -349,8 +358,8 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 				|| existing!.Status == InboxStatus.Received
 				|| existing.Status == InboxStatus.Failed
 				|| (existing.Status == InboxStatus.Processing
-					&& _leaseExpiryUnixMs.TryGetValue(key, out var expiry)
-					&& expiry < nowMs);
+					&& _leases.TryGetValue(key, out var expiry)
+					&& expiry.ExpiresAtUnixMs < nowMs);
 
 			if (!claimable)
 			{
@@ -392,16 +401,23 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 			}
 
 			var expiresAtMs = nowMs + (long)leaseDuration.TotalMilliseconds;
-			_leaseExpiryUnixMs[key] = expiresAtMs;
+			var state = new LeaseState(expiresAtMs, Interlocked.Increment(ref _leaseSerial));
+			_leases[key] = state;
 
 			_logger.LogDebug("Lease-claimed inbox entry for message {MessageId} and handler {HandlerType}",
 				messageId, handlerType);
 
-			// The term is the expiry this call just wrote. Reclaim above requires the recorded expiry to be
-			// STRICTLY less than now, and this replacement is now plus a non-negative duration, so a newly
-			// written term is always strictly greater than the one it displaced. That is what makes the
-			// value usable as an identity rather than merely a deadline.
-			return new ValueTask<LeaseToken?>(ToLeaseToken(expiresAtMs));
+			// The term carries the SERIAL, not the deadline. The previous argument for using the expiry as
+			// an identity held only for reclaim-after-expiry: reclaim requires the recorded expiry to be
+			// strictly in the past, so a replacement written at now+duration is strictly greater than what
+			// it displaced. That reasoning is sound and it does not cover this overload's OTHER admission
+			// path -- a Failed entry is claimable IMMEDIATELY, with no expiry needing to have passed. Two
+			// acquisitions of one key in the same millisecond with the same duration then produce the same
+			// deadline, so A's stale Complete/Fail would be accepted against B's claim.
+			//
+			// A monotonic serial makes distinct acquisitions distinct by construction rather than by a
+			// timing argument, which is the invariant the contract actually needs.
+			return new ValueTask<LeaseToken?>(ToLeaseToken(state));
 		}
 	}
 
@@ -428,7 +444,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 			}
 
 			entry.MarkProcessed();
-			_ = _leaseExpiryUnixMs.Remove(key);
+			_ = _leases.Remove(key);
 		}
 
 		_logger.LogDebug("Marked inbox entry as processed for message {MessageId} and handler {HandlerType}",
@@ -467,7 +483,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 
 			// The attempt is over; its lease goes with it, so a Failed entry never carries an expiry that
 			// could be compared against a later claim on the same key.
-			_ = _leaseExpiryUnixMs.Remove(key);
+			_ = _leases.Remove(key);
 		}
 
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
@@ -479,15 +495,15 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 	/// <summary>
 	/// Renders a lease expiry as the opaque ownership term handed back to the caller.
 	/// </summary>
-	private static LeaseToken ToLeaseToken(long expiresAtUnixMs) =>
-		new(expiresAtUnixMs.ToString(System.Globalization.CultureInfo.InvariantCulture));
+	private static LeaseToken ToLeaseToken(LeaseState state) =>
+		new(state.Serial.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
 	/// <summary>
 	/// Reports whether <paramref name="lease"/> is still the term recorded for <paramref name="key"/>.
 	/// Callers MUST hold <c>_stateLock</c>.
 	/// </summary>
 	private bool HoldsLease(InboxKey key, LeaseToken lease) =>
-		_leaseExpiryUnixMs.TryGetValue(key, out var expiry) && ToLeaseToken(expiry) == lease;
+		_leases.TryGetValue(key, out var state) && ToLeaseToken(state) == lease;
 
 	/// <inheritdoc/>
 	public ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
@@ -557,7 +573,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 	}
 
 	/// <inheritdoc/>
-	public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -568,37 +584,51 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 
 		var key = GetKey(messageId, handlerType);
 
+		// _stateLock IS the atomic step. The existence test, the terminal test and the mutation all happen
+		// inside this one acquisition, so the value returned describes the state the write saw rather than
+		// a state read before or after it. A TryGetValue outside the lock followed by a write inside it
+		// would be two steps, and another thread can finalize the entry between them.
 		lock (_stateLock)
 		{
 			if (!_entries.TryGetValue(key, out var entry))
 			{
-				throw new InvalidOperationException(
-					$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+				// REPORTED, NOT THROWN. This used to raise InvalidOperationException while the SQL stores
+				// affected zero rows in silence, so no caller could be written correct against both. The
+				// call is issued from inside a drain's failure handling, where an exception abandons every
+				// other entry the caller still holds -- a refusal on one entry must cost that entry only.
+				return new ValueTask<InboxMarkFailedOutcome>(InboxMarkFailedOutcome.EntryNotFound);
 			}
 
 			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which
-			// would make it re-admittable and run the handler again.
+			// would make it re-admittable and run the handler again. The entry is left UNCHANGED.
 			if (entry.Status == InboxStatus.Processed)
 			{
-				return default;
+				return new ValueTask<InboxMarkFailedOutcome>(InboxMarkFailedOutcome.AlreadyProcessed);
 			}
 
 			entry.MarkFailed(errorMessage);
 
 			// The attempt is over; its lease goes with it, so a Failed entry never carries an expiry that
 			// could be read beside a later claim on the same key.
-			_ = _leaseExpiryUnixMs.Remove(key);
+			_ = _leases.Remove(key);
 		}
 
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
 
-		return default;
+		return new ValueTask<InboxMarkFailedOutcome>(InboxMarkFailedOutcome.Applied);
 	}
 
 	/// <inheritdoc/>
-	public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
@@ -606,21 +636,28 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
-		var key = GetKey(messageId, handlerType);
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. A caller reading the estate-wide drain sees
+		// entries from every partition, so a key recomposed from ambient context would address a different
+		// partition than the read that produced the entry, with nothing in either signature to say so.
+		var key = GetKey(tenant.TenantId, messageId, handlerType);
 
 		lock (_stateLock)
 		{
 			if (!_entries.TryGetValue(key, out var entry))
 			{
-				throw new InvalidOperationException(
-					$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+				// REPORTED, NOT THROWN. This used to raise InvalidOperationException while the SQL stores
+				// affected zero rows in silence, so no caller could be written correct against both. The
+				// call is issued from inside a drain's failure handling, where an exception abandons every
+				// other entry the caller still holds -- a refusal on one entry must cost that entry only.
+				return new ValueTask<InboxMarkFailedOutcome>(InboxMarkFailedOutcome.EntryNotFound);
 			}
 
-			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which
-			// would make it re-admittable and run the handler again.
+			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which would
+			// make it re-admittable and run the handler again. Decided under the same lock that performs
+			// the write, so the classification is not read from outside the window it describes.
 			if (entry.Status == InboxStatus.Processed)
 			{
-				return default;
+				return new ValueTask<InboxMarkFailedOutcome>(InboxMarkFailedOutcome.AlreadyProcessed);
 			}
 
 			// Set the retry count EXACTLY (no increment) so a transient short-circuit (e.g. an open circuit
@@ -630,13 +667,13 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 			entry.RetryCount = retryCount;
 			entry.LastAttemptAt = _timeProvider.GetUtcNow();
 
-			_ = _leaseExpiryUnixMs.Remove(key);
+			_ = _leases.Remove(key);
 		}
 
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
 
-		return default;
+		return new ValueTask<InboxMarkFailedOutcome>(InboxMarkFailedOutcome.Applied);
 	}
 
 	/// <inheritdoc/>
@@ -673,8 +710,8 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 		// address a different partition and silently find no lease -- reading every other tenant's dead
 		// processor as a live one.
 		return entry.Status == InboxStatus.Processing
-			&& _leaseExpiryUnixMs.TryGetValue(key, out var expiry)
-			&& expiry < nowMs;
+			&& _leases.TryGetValue(key, out var expiry)
+			&& expiry.ExpiresAtUnixMs < nowMs;
 	}
 
 	// Split out only so the two-pass scan is not re-indented under the lock. Requires _stateLock held.
@@ -818,7 +855,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 		lock (_stateLock)
 		{
 			_entries.Clear();
-			_leaseExpiryUnixMs.Clear();
+			_leases.Clear();
 		}
 
 		_disposed = true;
@@ -843,7 +880,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 	private void RemoveEntry(InboxKey key)
 	{
 		_ = _entries.Remove(key);
-		_ = _leaseExpiryUnixMs.Remove(key);
+		_ = _leases.Remove(key);
 	}
 
 	/// <summary>
@@ -979,6 +1016,21 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 	/// </para>
 	/// </remarks>
 	private readonly record struct InboxKey(string TenantId, string MessageId, string HandlerType);
+
+	/// <summary>
+	/// The state of one lease: WHEN it lapses, and WHICH acquisition it is.
+	/// </summary>
+	/// <remarks>
+	/// The two are separate fields because they answer separate questions, and using the deadline as the
+	/// identity was a defect. Two acquisitions of one key can share a deadline -- a Failed entry is
+	/// readmitted immediately, so a second claimant in the same millisecond with the same duration computes
+	/// the identical expiry -- and a stale completion from the first holder would then be accepted against
+	/// the second holder's lease. The serial is monotonic across the store, so distinct acquisitions are
+	/// distinct by construction rather than by a timing argument.
+	/// </remarks>
+	/// <param name="ExpiresAtUnixMs">The instant the lease lapses and the entry becomes reclaimable.</param>
+	/// <param name="Serial">The identity of this acquisition, unique for the life of the store.</param>
+	private readonly record struct LeaseState(long ExpiresAtUnixMs, long Serial);
 
 	// Requires _stateLock held: the scan below decides which entry to reclaim and then removes it, and the
 	// entry must not change state in between.

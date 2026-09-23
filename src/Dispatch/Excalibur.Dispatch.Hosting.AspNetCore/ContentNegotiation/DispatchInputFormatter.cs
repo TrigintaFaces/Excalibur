@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Serialization;
 
@@ -79,7 +79,22 @@ public sealed class DispatchInputFormatter : InputFormatter
 			return await InputFormatterResult.FailureAsync().ConfigureAwait(false);
 		}
 
-		var result = serializer.DeserializeObject(data, context.ModelType);
+		object? result;
+		try
+		{
+			result = serializer.DeserializeObject(data, context.ModelType);
+		}
+		catch (SerializationException ex)
+		{
+			// A malformed request body is a CLIENT error and belongs in model state, not thrown out of
+			// the formatter. MVC's BodyModelBinder only translates InputFormatterException or a
+			// formatter's explicitly opted-in exception types; it does not inspect ApiException.StatusCode,
+			// so letting this escape bypasses the normal model-state 400 entirely. This is what ASP.NET
+			// Core's own SystemTextJsonInputFormatter does with a JsonException.
+			context.ModelState.TryAddModelError(context.ModelName, ex, context.Metadata);
+			return await InputFormatterResult.FailureAsync().ConfigureAwait(false);
+		}
+
 		return await InputFormatterResult.SuccessAsync(result).ConfigureAwait(false);
 	}
 

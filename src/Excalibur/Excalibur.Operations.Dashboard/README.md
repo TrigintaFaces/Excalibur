@@ -33,3 +33,12 @@ plus every registered subsystem's read endpoints under the configured route pref
   `500`.
 - **Read-only by default**: mutating endpoints are not mapped at all unless `EnableMutatingActions` is
   set, and when set they additionally require an authenticated, authorized caller.
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

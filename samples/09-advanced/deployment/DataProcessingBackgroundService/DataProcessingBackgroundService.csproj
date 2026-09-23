@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data\Excalibur.Data.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" />

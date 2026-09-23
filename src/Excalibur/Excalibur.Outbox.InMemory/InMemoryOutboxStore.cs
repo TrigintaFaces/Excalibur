@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Text.Json;
@@ -34,7 +34,7 @@ namespace Excalibur.Outbox.InMemory;
 /// interface states the claim this store's own behaviour otherwise leaves silent.
 /// </para>
 /// </remarks>
-public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreAdmin, IDeadLetterableOutboxStore, ITenantPartitionedStore, IAsyncDisposable, IDisposable
+public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreAdmin, IDeadLetterableOutboxStore, ITenantPartitionedStore, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, OutboundMessage> _messages = new(StringComparer.Ordinal);
 
@@ -213,6 +213,14 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedOut
 			{
 				claimed[i] = candidates[i];
 				_leases[candidates[i].Id] = (now, _processorId);
+
+				// STAMP THE CLAIM ONTO THE MESSAGE, not only into the side-map. The drain reads the claim
+				// identity it completes under from the message it was handed; a store that records the
+				// lease privately and hands back a message with no DispatcherId leaves that identity null,
+				// and the drain's claim-scoped completion -- fenced or not -- is then unreachable no matter
+				// which capabilities this store advertises. The capability would be inert and would read as
+				// present to every guard that probes for it.
+				claimed[i].DispatcherId = _processorId;
 			}
 
 			return new ValueTask<IEnumerable<OutboundMessage>>(claimed);
@@ -359,55 +367,65 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedOut
 		ArgumentNullException.ThrowIfNull(errorMessage);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		if (!_messages.TryGetValue(messageId, out var message))
+		// Every read-then-mutate below runs under the SAME lock the claim path and the fenced completion
+		// overloads take. Without it two completions on one message -- one fenced, one not -- interleave
+		// between the terminal-status test and the mutation, and the terminal exclusion above stops
+		// excluding anything: a failure report evaluated before a concurrent send commits still writes
+		// Failed afterwards, which returns a DELIVERED message to the claimable set to be sent again.
+		// The guard is only as atomic as the section containing it.
+		lock (_claimLock)
 		{
-			// Silent return for missing messages per conformance tests expectation
-			return default;
+			if (!_messages.TryGetValue(messageId, out var message))
+			{
+				// Silent return for missing messages per conformance tests expectation
+				return default;
+			}
+
+			// TERMINAL-STATUS exclusion. Sent and DeadLettered are final, and no completion may move a message
+			// out of either -- not a superseded caller's and not the CURRENT claim holder's. Without this a
+			// failure reported after a successful send returns the message to the Failed status, which IS in the
+			// claim predicate, so a delivered message is delivered again. Silent like the missing case: the
+			// report is stale rather than erroneous.
+			if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
+			{
+				return default;
+			}
+
+			var now = DateTimeOffset.UtcNow;
+
+			// R2 — reservation-ownership guard: a MarkFailed reported against a reservation a DIFFERENT
+			// processor now holds is a no-op. A superseded/zombie processor's late failure report cannot free a
+			// live successor's lease, so it can never trigger a second concurrent delivery. Mirrors the SQL
+			// family's "dispatcher_id IN (NULL, @caller)" claim predicate; the unreserved-input path (stage then
+			// fail without ever claiming) has no lease and proceeds.
+			if (_leases.TryGetValue(messageId, out var lease)
+				&& !string.Equals(lease.LeasedBy, _processorId, StringComparison.Ordinal))
+			{
+				return default;
+			}
+
+			// R3 — attempts are non-decreasing across re-claims: never let a stale late writer move the count
+			// DOWN, which would weaken the processor's DLQ-ceiling (termination) guarantee. Capture the prior
+			// persisted count BEFORE MarkFailed (which itself increments RetryCount) and take the max against
+			// the caller-reported count, so a stale lower report cannot lower the authoritative value.
+			var priorRetryCount = message.RetryCount;
+			message.MarkFailed(errorMessage);
+			message.RetryCount = Math.Max(priorRetryCount, retryCount);
+			message.LastAttemptAt = now;
+
+			// R1 — failure-anchored visibility floor: the message re-enters the claimable set only after the
+			// dedicated failure-backoff floor F elapses FROM THE FAILURE INSTANT — never the same drain cycle (no
+			// zero-backoff hot-loop), never terminally (at-least-once; the outbox must not silently drop it). F is
+			// decoupled from the crash-recovery lease window and sized to exceed the poll interval. The failure
+			// stays observable via GetFailedMessages / GetStatistics (Status == Failed). Fine-grained backoff
+			// remains the separate MarkFailedWithBackoffAsync path. Free the caller-owned reservation so the
+			// floor — not a lingering lease — governs the next claim.
+			_nextAttempt[messageId] = now + TimeSpan.FromSeconds(_options.FailureBackoffFloorSeconds);
+			_ = _leases.TryRemove(messageId, out _);
+
+			LogMessageFailed(messageId, errorMessage, retryCount);
+
 		}
-
-		// TERMINAL-STATUS exclusion. Sent and DeadLettered are final, and no completion may move a message
-		// out of either -- not a superseded caller's and not the CURRENT claim holder's. Without this a
-		// failure reported after a successful send returns the message to the Failed status, which IS in the
-		// claim predicate, so a delivered message is delivered again. Silent like the missing case: the
-		// report is stale rather than erroneous.
-		if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
-		{
-			return default;
-		}
-
-		var now = DateTimeOffset.UtcNow;
-
-		// R2 — reservation-ownership guard: a MarkFailed reported against a reservation a DIFFERENT
-		// processor now holds is a no-op. A superseded/zombie processor's late failure report cannot free a
-		// live successor's lease, so it can never trigger a second concurrent delivery. Mirrors the SQL
-		// family's "dispatcher_id IN (NULL, @caller)" claim predicate; the unreserved-input path (stage then
-		// fail without ever claiming) has no lease and proceeds.
-		if (_leases.TryGetValue(messageId, out var lease)
-			&& !string.Equals(lease.LeasedBy, _processorId, StringComparison.Ordinal))
-		{
-			return default;
-		}
-
-		// R3 — attempts are non-decreasing across re-claims: never let a stale late writer move the count
-		// DOWN, which would weaken the processor's DLQ-ceiling (termination) guarantee. Capture the prior
-		// persisted count BEFORE MarkFailed (which itself increments RetryCount) and take the max against
-		// the caller-reported count, so a stale lower report cannot lower the authoritative value.
-		var priorRetryCount = message.RetryCount;
-		message.MarkFailed(errorMessage);
-		message.RetryCount = Math.Max(priorRetryCount, retryCount);
-		message.LastAttemptAt = now;
-
-		// R1 — failure-anchored visibility floor: the message re-enters the claimable set only after the
-		// dedicated failure-backoff floor F elapses FROM THE FAILURE INSTANT — never the same drain cycle (no
-		// zero-backoff hot-loop), never terminally (at-least-once; the outbox must not silently drop it). F is
-		// decoupled from the crash-recovery lease window and sized to exceed the poll interval. The failure
-		// stays observable via GetFailedMessages / GetStatistics (Status == Failed). Fine-grained backoff
-		// remains the separate MarkFailedWithBackoffAsync path. Free the caller-owned reservation so the
-		// floor — not a lingering lease — governs the next claim.
-		_nextAttempt[messageId] = now + TimeSpan.FromSeconds(_options.FailureBackoffFloorSeconds);
-		_ = _leases.TryRemove(messageId, out _);
-
-		LogMessageFailed(messageId, errorMessage, retryCount);
 
 		return default;
 	}
@@ -419,27 +437,34 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedOut
 		ArgumentNullException.ThrowIfNull(reason);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		if (!_messages.TryGetValue(messageId, out var message))
+		// Under the same lock as every other completion on this type, for the reason stated on
+		// MarkFailedAsync: a terminal-status test that is not in the same critical section as the
+		// mutation it guards can be true when read and false when acted on.
+		lock (_claimLock)
 		{
-			// Mirror MarkFailedAsync: silent return for missing messages
-			return default;
+			if (!_messages.TryGetValue(messageId, out var message))
+			{
+				// Mirror MarkFailedAsync: silent return for missing messages
+				return default;
+			}
+
+			// Terminal exclusion, mirroring MarkFailedAsync. A dead-letter applied to an already-sent message
+			// records a delivery failure that did not happen; repeated on an already-dead-lettered one it writes
+			// a second dead-letter for one message. Binds the current claim holder as much as a stale caller.
+			if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
+			{
+				return default;
+			}
+
+			message.Status = OutboxStatus.DeadLettered;
+			message.LastError = reason;
+
+			// Clear the claim lease and failure-visibility floor for hygiene. DeadLettered is
+			// terminal — the claim predicate already excludes it, so no floor is needed to keep it out.
+			_ = _leases.TryRemove(messageId, out _);
+			_ = _nextAttempt.TryRemove(messageId, out _);
+
 		}
-
-		// Terminal exclusion, mirroring MarkFailedAsync. A dead-letter applied to an already-sent message
-		// records a delivery failure that did not happen; repeated on an already-dead-lettered one it writes
-		// a second dead-letter for one message. Binds the current claim holder as much as a stale caller.
-		if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
-		{
-			return default;
-		}
-
-		message.Status = OutboxStatus.DeadLettered;
-		message.LastError = reason;
-
-		// Clear the claim lease and failure-visibility floor for hygiene. DeadLettered is
-		// terminal — the claim predicate already excludes it, so no floor is needed to keep it out.
-		_ = _leases.TryRemove(messageId, out _);
-		_ = _nextAttempt.TryRemove(messageId, out _);
 
 		return default;
 	}

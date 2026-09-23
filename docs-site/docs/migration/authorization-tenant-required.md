@@ -91,3 +91,57 @@ literal `__null__` as its tenant on Cosmos DB, DynamoDB, and Firestore, and a nu
 An absent tenant is refused at the point it enters the framework rather than translated into a stored
 value. An activity-group payload that omits the tenant, and a provisioning request that never named one,
 are both rejected with a message naming the entry involved.
+
+---
+
+## If you implement `IActivityGroupStore` yourself
+
+**This section is for a different reader from the rest of this page.** Everything above is about *data*
+you have already written. This is about *code you have written* — a custom `IActivityGroupStore` — and it
+applies whichever provider you use, including the ones the data migration does not affect.
+
+If you registered your own store, you have this:
+
+```csharp
+services.AddExcaliburA3Core()
+    .UseActivityGroupStore<MyActivityGroupStore>();
+```
+
+Three members changed. **These are compile errors, not silent behaviour changes** — your build tells you,
+which is the failure mode we would choose.
+
+| Member | Before | After |
+|---|---|---|
+| `ActivityGroupExistsAsync` | `(string activityGroupName, CancellationToken)` | `(string tenantId, string activityGroupName, CancellationToken)` |
+| `FindActivityGroupsAsync` | `(CancellationToken)` | `(string tenantId, CancellationToken)` |
+| `DeleteAllActivityGroupsAsync` | returns `Task<int>` | returns `Task<IReadOnlyCollection<string>>` |
+
+### The two reads now take a tenant
+
+They previously answered across your whole estate. A lookup by bare group name could match a group
+belonging to another tenant, so a grant in one tenant could resolve against another's definition. Add the
+parameter and scope your query by it — the tenant you are handed is the one being asked about, not an
+ambient value to ignore.
+
+### The estate-wide delete stays, and now tells you what it did
+
+`DeleteAllActivityGroupsAsync` still clears every tenant. **That is deliberate and it is not a defect:**
+the built-in sync performs a full refresh, and a refresh that cleared only one tenant while repopulating
+all of them would duplicate every other tenant's rows.
+
+What changed is the return. The old `int` row count answered a question nobody asked; the new
+`IReadOnlyCollection<string>` names the tenants you actually emptied, so a caller can invalidate exactly
+those caches instead of guessing. Return the distinct tenants whose rows you removed.
+
+### If you wanted to clear one tenant
+
+There is now a tenant-scoped sibling. **Reach for it by name rather than passing a filter to the
+estate-wide one** — the operation that can empty everything is named for what it does, so a reader of
+your call site can see the blast radius without checking an argument.
+
+### Cache keys
+
+If you cache activity groups yourself, the framework's key helper gained a tenant segment. A key built
+without one is no longer correct, because the value behind it is tenant-scoped. Your first read after
+upgrading will miss and reload; that is expected and needs no action.
+

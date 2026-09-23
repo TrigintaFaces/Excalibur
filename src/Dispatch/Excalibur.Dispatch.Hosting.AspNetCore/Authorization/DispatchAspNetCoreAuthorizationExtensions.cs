@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Hosting.AspNetCore;
@@ -31,19 +31,34 @@ public static class DispatchAspNetCoreAuthorizationExtensions
 	/// <returns>The builder for fluent configuration.</returns>
 	/// <remarks>
 	/// <para>
-	/// This method registers middleware that reads <c>[Authorize]</c> attributes from message and handler types,
-	/// evaluates named policies via <c>IAuthorizationService</c>, and checks roles against the
-	/// <c>ClaimsPrincipal</c> from <c>HttpContext.User</c>.
+	/// This method registers middleware that reads <c>[Authorize]</c> attributes from message and handler types
+	/// and evaluates them against the <c>ClaimsPrincipal</c> from <c>HttpContext.User</c>.
+	/// </para>
+	/// <para>
+	/// Policies are composed by the host's own <c>IAuthorizationPolicyProvider</c> and evaluated by its
+	/// <c>IAuthorizationService</c>, so everything configured through <c>AddAuthorization</c> applies here
+	/// unchanged: named policies, requirements, handlers, and the default policy a bare <c>[Authorize]</c>
+	/// resolves to. There is no separate default-policy setting on this middleware, deliberately — a second
+	/// place to configure the same thing is a second place for the two to disagree, and the host's is the one
+	/// that governs the rest of the application.
 	/// </para>
 	/// <para>
 	/// Usage:
 	/// <code>
+	/// // The host configures authorization once, as it would for controllers or endpoints.
+	/// services.AddAuthorization(options =>
+	/// {
+	///     options.DefaultPolicy = new AuthorizationPolicyBuilder()
+	///         .RequireAuthenticatedUser()
+	///         .RequireClaim("scope", "orders.write")
+	///         .Build();
+	/// });
+	///
 	/// services.AddDispatch(dispatch =>
 	/// {
 	///     dispatch.UseAspNetCoreAuthorization(options =>
 	///     {
 	///         options.RequireAuthenticatedUser = true;
-	///         options.DefaultPolicy = "MyPolicy";
 	///     });
 	/// });
 	/// </code>

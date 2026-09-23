@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Text;
@@ -220,15 +220,20 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 	}
 
 	[Fact]
-	public async Task ThrowOnMarkingNonExistentMessageAsFailed()
+	public async Task ReportEntryNotFoundOnMarkingNonExistentMessageAsFailed()
 	{
 		// Arrange
 		var options = new InMemoryInboxOptions();
 		var store = CreateStore(options);
 
-		// Act & Assert - MarkFailedAsync throws InvalidOperationException for non-existent entries
-		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
-			await store.MarkFailedAsync("non-existent-message", TestHandler, "Test error", CancellationToken.None)).ConfigureAwait(false);
+		// Act -- the contract forbids throwing here: an absent entry returns EntryNotFound and MUST NOT
+		// throw, because a store that throws cannot be substituted for one that does not. This arm used to
+		// assert the throw, pinning the behaviour the contract removed.
+		var outcome = await store.MarkFailedAsync(
+			"non-existent-message", TestHandler, "Test error", CancellationToken.None).ConfigureAwait(false);
+
+		// Assert
+		outcome.ShouldBe(InboxMarkFailedOutcome.EntryNotFound);
 	}
 
 	[Fact]

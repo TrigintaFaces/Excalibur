@@ -121,8 +121,10 @@ Two distinct secret-handling capabilities live in this package, and they are del
 
 `IElasticsearchKeyStorage` stores the opaque credentials this package uses to authenticate to Elasticsearch
 itself -- OAuth tokens, service-account secrets, passwords, API keys. An in-memory development store is wired
-by default; call `AddAzureKeyVaultCredentialStorage(configuration)` before registering authentication to back
-it with Azure Key Vault instead.
+by default. To back it with Azure Key Vault instead, install the optional
+**`Excalibur.Data.ElasticSearch.Azure`** package and call `AddAzureKeyVaultCredentialStorage(configuration)`
+before registering authentication. That provider lives in its own package so this one does not put the Azure
+SDK on consumers who never use Key Vault.
 
 ### Field-level encryption key management
 
@@ -501,3 +503,12 @@ services.Configure<ElasticsearchConfigurationOptions>(options =>
 
 - [Elasticsearch Official Documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html)
 - [Elastic.Clients.Elasticsearch NuGet](https://www.nuget.org/packages/Elastic.Clients.Elasticsearch)
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Globalization;
@@ -27,7 +27,11 @@ internal sealed partial class CdcChangeDetector
 	private readonly ICdcRepositoryLsnMapping _cdcLsnMapping;
 	private readonly IDatabaseOptions _dbConfig;
 	private readonly IDataAccessPolicyFactory _policyFactory;
-	private readonly CdcCheckpointManager _checkpointManager;
+	// The producer holds only the in-memory fetch frontier, never the checkpoint manager itself: the
+	// manager can also write the DURABLE resume position, and this loop runs ahead of delivery, so any
+	// durable write from here could land past changes that are fetched but not yet delivered. See
+	// ICdcFetchProgress for the invariant.
+	private readonly ICdcFetchProgress _checkpointManager;
 	private readonly ILogger _logger;
 
 	internal CdcChangeDetector(
@@ -35,7 +39,7 @@ internal sealed partial class CdcChangeDetector
 		ICdcRepositoryLsnMapping cdcLsnMapping,
 		IDatabaseOptions dbConfig,
 		IDataAccessPolicyFactory policyFactory,
-		CdcCheckpointManager checkpointManager,
+		ICdcFetchProgress checkpointManager,
 		ILogger logger)
 	{
 		_cdcRepository = cdcRepository;
@@ -193,7 +197,7 @@ internal sealed partial class CdcChangeDetector
 
 			if (changes.Count == 0)
 			{
-				await HandleNoChangesAsync(changeProcessingState, combinedToken).ConfigureAwait(false);
+				HandleNoChanges(changeProcessingState);
 				break;
 			}
 
@@ -292,7 +296,7 @@ internal sealed partial class CdcChangeDetector
 		}
 	}
 
-	private async Task HandleNoChangesAsync(ChangeProcessingState state, CancellationToken cancellationToken)
+	private void HandleNoChanges(ChangeProcessingState state)
 	{
 		if (state.TotalRowsReadInThisLsn > 0)
 		{
@@ -300,11 +304,12 @@ internal sealed partial class CdcChangeDetector
 		}
 		else
 		{
+			// Nothing is written here. This branch used to record the DURABLE resume position when a fetch
+			// returned zero rows, and that write could overtake delivery: after a stale-position recovery
+			// moves every capture instance forward, a zero-row read persisted a position past changes still
+			// in the channel, and a crash before they were delivered lost them silently. The durable position
+			// is advanced only by the delivery path, after the change it covers has been delivered.
 			LogNoChangesFound(state.TableName);
-
-			var commitTime = await _cdcLsnMapping.GetLsnToTimeAsync(state.Lsn, cancellationToken).ConfigureAwait(false);
-			await _checkpointManager.UpdateTableLastProcessedAsync(state.TableName, state.Lsn, state.SequenceValue, commitTime, cancellationToken)
-				.ConfigureAwait(false);
 		}
 	}
 

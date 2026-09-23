@@ -79,6 +79,8 @@
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Cdc.SqlServer/Excalibur.Cdc.SqlServer.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Outbox.InMemory/Excalibur.Outbox.InMemory.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Inbox.InMemory/Excalibur.Inbox.InMemory.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Inbox/Excalibur.Inbox.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Operations.Dashboard/Excalibur.Operations.Dashboard.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.MongoDb/Excalibur.Compliance.MongoDb.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Excalibur.Compliance.Postgres.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Excalibur.Compliance.SqlServer.csproj" />
@@ -87,6 +89,7 @@
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.DataProcessing/Excalibur.Data.DataProcessing.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.DynamoDb/Excalibur.Data.DynamoDb.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.ElasticSearch/Excalibur.Data.ElasticSearch.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.ElasticSearch.Azure/Excalibur.Data.ElasticSearch.Azure.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.Firestore/Excalibur.Data.Firestore.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.InMemory/Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.MongoDB/Excalibur.Data.MongoDB.csproj" />

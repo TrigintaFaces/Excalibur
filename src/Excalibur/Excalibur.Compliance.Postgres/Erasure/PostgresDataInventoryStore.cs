@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -121,10 +121,10 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		var sql = $@"
 			INSERT INTO {_options.FullRegistrationsTableName}
 				(table_name, field_name, tenant_id, data_category, data_subject_id_column, id_type,
-				 key_id_column, tenant_id_column, description, created_at, updated_at)
+				 key_id_column, tenant_id_column, description, store_kind, created_at, updated_at)
 			VALUES
 				(@TableName, @FieldName, @ScopedTenantId, @DataCategory, @DataSubjectIdColumn, @IdType,
-				 @KeyIdColumn, @TenantIdColumn, @Description, @Now, @Now)
+				 @KeyIdColumn, @TenantIdColumn, @Description, @StoreKind, @Now, @Now)
 			ON CONFLICT (table_name, field_name, tenant_id) DO UPDATE SET
 				data_category = EXCLUDED.data_category,
 				data_subject_id_column = EXCLUDED.data_subject_id_column,
@@ -132,6 +132,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 				key_id_column = EXCLUDED.key_id_column,
 				tenant_id_column = EXCLUDED.tenant_id_column,
 				description = EXCLUDED.description,
+				store_kind = EXCLUDED.store_kind,
 				updated_at = EXCLUDED.updated_at";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
@@ -150,6 +151,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			// registering the same table and field are two rows, not one overwriting the other.
 			ScopedTenantId = CurrentTenantTerm,
 			registration.Description,
+			StoreKind = registration.StoreKind == DataStoreKind.Unknown ? null : registration.StoreKind.Value,
 			Now = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
@@ -189,7 +191,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 
 		var sql = $@"
 			SELECT table_name, field_name, data_category, data_subject_id_column, id_type,
-				   key_id_column, tenant_id_column, description
+				   key_id_column, tenant_id_column, description, store_kind
 			FROM {_options.FullRegistrationsTableName}
 			WHERE tenant_id IN (@ScopedTenantId, @UntenantedTenantId)
 			ORDER BY table_name, field_name";
@@ -293,7 +295,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 
 		var sql = $@"
 			SELECT table_name, field_name, data_category, data_subject_id_column, id_type,
-				   key_id_column, tenant_id_column, description
+				   key_id_column, tenant_id_column, description, store_kind
 			FROM {_options.FullRegistrationsTableName}
 			WHERE {whereClause}
 			ORDER BY table_name, field_name";
@@ -701,6 +703,10 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		public string key_id_column { get; init; } = string.Empty;
 		public string? tenant_id_column { get; init; }
 		public string? description { get; init; }
+
+		// Nullable so a row written before the column existed reads as Unknown rather than failing: an
+		// unclassified registration is offered to no contributor and therefore discharges nothing.
+		public string? store_kind { get; init; }
 		// ReSharper restore InconsistentNaming
 
 		public DataLocationRegistration ToRegistration() => new()
@@ -710,6 +716,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			DataCategory = data_category,
 			DataSubjectIdColumn = data_subject_id_column,
 			IdType = (DataSubjectIdType)id_type,
+			StoreKind = string.IsNullOrWhiteSpace(store_kind) ? DataStoreKind.Unknown : DataStoreKind.Create(store_kind),
 			KeyIdColumn = key_id_column,
 			TenantIdColumn = tenant_id_column,
 			Description = description

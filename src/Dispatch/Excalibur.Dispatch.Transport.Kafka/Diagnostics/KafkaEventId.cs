@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Transport.Kafka;
 
@@ -505,6 +505,9 @@ internal static class KafkaEventId
 	/// <summary>Transport receiver: oversized inbound payload rejected before materialization.</summary>
 	public const int TransportReceiverPayloadTooLarge = 22918;
 
+	/// <summary>Transport receiver: commit position committed for a partition.</summary>
+	public const int TransportReceiverPrefixCommitted = 22919;
+
 	// ========================================
 	// 22920-22927: ITransportSubscriber
 	// ========================================
@@ -535,4 +538,91 @@ internal static class KafkaEventId
 
 	/// <summary>Transport subscriber: oversized inbound payload rejected before materialization.</summary>
 	public const int TransportSubscriberPayloadTooLarge = 22928;
+
+	// ========================================
+	// 22929-22939: ITransportReceiver progress tracking
+	// ========================================
+	/// <summary>Transport receiver: an already-terminal offset replayed by a requeue seek was not redispatched.</summary>
+	public const int TransportReceiverRedeliveryOfSettledOffsetSkipped = 22929;
+
+	/// <summary>Transport receiver: a settlement carrying a stale assignment generation was ignored.</summary>
+	public const int TransportReceiverStaleGenerationIgnored = 22930;
+
+	/// <summary>Transport receiver: partition sought backwards to redeliver requeued work.</summary>
+	public const int TransportReceiverRequeueSeek = 22931;
+
+	/// <summary>Transport receiver: could not seek back after a batch failed part-way through.</summary>
+	public const int TransportReceiverUndeliveredBatchSeekFailed = 22932;
+
+	/// <summary>
+	/// The offset store could not be written for a settled prefix, usually because the partition was
+	/// revoked between the settlement and the store. The commit that follows still names an absolute
+	/// position, so nothing is lost; only the revoke-time backstop is missing until the next settlement.
+	/// </summary>
+	public const int TransportReceiverOffsetStoreFailed = 22933;
+
+	/// <summary>
+	/// A partition was revoked without this tenure having settled anything, so there was no stored
+	/// position to commit. Repeated occurrences mean handlers are not completing between rebalances and
+	/// the group is making no progress.
+	/// </summary>
+	public const int CommitOnRevokeNothingSettled = 22934;
+	/// <summary>
+	/// The subscriber could not seek back after a handler threw or requeued. The offset is already recorded
+	/// as owed, so no commit can pass it, but nothing is replaying it: the partition's position holds until
+	/// the partition is reassigned or the consumer restarts, and the message is redelivered then.
+	/// </summary>
+	public const int TransportSubscriberRedeliverySeekFailed = 22935;
+
+	/// <summary>A requeue named an offset the receiver had already settled, so it was treated as an idempotent success.</summary>
+	public const int TransportReceiverRequeueOfSettledOffsetIgnored = 22936;
+
+	/// <summary>A handler succeeded but settling its offset failed; the position is re-committed by the next settle.</summary>
+	public const int TransportSubscriberSettlementCommitFailed = 22937;
+
+	/// <summary>
+	/// The receiver could not convert a fetched record into a message. The record can never be processed,
+	/// so it is settled as terminal rather than left owed, which would pin the partition's position on it.
+	/// </summary>
+	public const int TransportReceiverConversionFailed = 22938;
+
+	/// <summary>
+	/// The subscriber could not convert a fetched record into a message. The record can never be processed,
+	/// so it is settled as terminal rather than left owed, which would pin the partition's position on it.
+	/// </summary>
+	public const int TransportSubscriberConversionFailed = 22939;
+
+	// 22940-22949: partition progress recovery
+
+	/// <summary>The receiver sought a partition back because its fetch position had passed an offset still owed.</summary>
+	public const int TransportReceiverOwedOffsetReseek = 22940;
+
+	/// <summary>The receiver released an owed offset that no longer exists in the log.</summary>
+	public const int TransportReceiverOwedOffsetAbandoned = 22941;
+
+	/// <summary>The subscriber sought a partition back because its fetch position had passed an offset still owed.</summary>
+	public const int TransportSubscriberOwedOffsetReseek = 22942;
+
+	/// <summary>The subscriber released an owed offset that no longer exists in the log.</summary>
+	public const int TransportSubscriberOwedOffsetAbandoned = 22943;
+
+	// 22944-22946: poison records (cannot become a message)
+
+	/// <summary>A record that could not become a message was written to the dead-letter queue.</summary>
+	public const int PoisonRecordDeadLettered = 22944;
+
+	/// <summary>A record that could not become a message was discarded because no dead-letter queue is configured.</summary>
+	public const int PoisonRecordDiscarded = 22945;
+
+	/// <summary>A record that could not become a message could not be written to the dead-letter queue; it is not settled.</summary>
+	public const int PoisonRecordDeadLetterFailed = 22946;
+
+	/// <summary>The dead-letter queue permanently refused a poison record, so no retry can succeed.</summary>
+	public const int PoisonRecordDeadLetterRefused = 22947;
+
+	/// <summary>A poison record was recorded in the dead-letter queue without its body, which could not be written.</summary>
+	public const int PoisonRecordTombstoned = 22948;
+
+	/// <summary>Neither a poison record nor a tombstone for it could be written to the dead-letter queue.</summary>
+	public const int PoisonRecordDiscardedAfterRefusal = 22949;
 }

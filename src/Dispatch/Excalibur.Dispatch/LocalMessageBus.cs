@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Buffers;
@@ -2712,12 +2712,30 @@ internal sealed partial class LocalMessageBus(
 			return concrete.GetAll();
 		}
 
-		// Fallback: interface path — entries must be HandlerRegistryEntry instances.
+		// Fallback: a registry this assembly did not build. It answers with IHandlerRegistryEntry, which is
+		// what the interface promises, so COPY each entry into the native shape rather than requiring it to
+		// already be one.
+		//
+		// This branch used to cast: (HandlerRegistryEntry)iface[i]. HandlerRegistryEntry is internal sealed,
+		// so no implementation outside this assembly could ever produce one -- which made IHandlerRegistry a
+		// PUBLIC, SHIPPED extension point that threw InvalidCastException at dispatch for every consumer who
+		// implemented it. The branch written to serve foreign registries rejected everything a foreign
+		// registry can produce, and its own comment stated that requirement as though it were satisfiable.
+		//
+		// The copy costs four field reads on a path only a foreign registry reaches; the native path above
+		// returns the stored list untouched, so the default composition is unchanged and the hot path keeps
+		// its sealed-type access.
 		var iface = registry.GetAll();
 		var result = new List<HandlerRegistryEntry>(iface.Count);
 		for (var i = 0; i < iface.Count; i++)
 		{
-			result.Add((HandlerRegistryEntry)iface[i]);
+			var entry = iface[i];
+			result.Add(entry as HandlerRegistryEntry
+				?? new HandlerRegistryEntry(
+					entry.MessageType,
+					entry.HandlerType,
+					entry.ExpectsResponse,
+					entry.ResponseType));
 		}
 
 		return result;

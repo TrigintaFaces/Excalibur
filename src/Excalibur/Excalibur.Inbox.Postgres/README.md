@@ -32,3 +32,12 @@ In multi-tenant mode `tenant_id` **must be `NOT NULL`**: a nullable column in th
 lets pre-15 Postgres treat `NULL`s as distinct, so `ON CONFLICT` never fires and duplicates
 slip through. The shipped DDL ships the single-tenant pair key by default with the multi-tenant
 triple key as a documented alternative.
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

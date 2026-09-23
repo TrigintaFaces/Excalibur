@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
 using System.Text.Json;
@@ -279,22 +279,22 @@ public sealed class EncryptingAuditEventStore : IAuditStore
 
 		if (_options.EncryptActorId && !string.IsNullOrEmpty(actorId))
 		{
-			actorId = await DecryptStringAsync(actorId, context, cancellationToken).ConfigureAwait(false);
+			actorId = await DecryptStringAsync(actorId, context, "ActorId", auditEvent.EventId, cancellationToken).ConfigureAwait(false);
 		}
 
 		if (_options.EncryptIpAddress && !string.IsNullOrEmpty(ipAddress))
 		{
-			ipAddress = await DecryptStringAsync(ipAddress, context, cancellationToken).ConfigureAwait(false);
+			ipAddress = await DecryptStringAsync(ipAddress, context, "IpAddress", auditEvent.EventId, cancellationToken).ConfigureAwait(false);
 		}
 
 		if (_options.EncryptReason && !string.IsNullOrEmpty(reason))
 		{
-			reason = await DecryptStringAsync(reason, context, cancellationToken).ConfigureAwait(false);
+			reason = await DecryptStringAsync(reason, context, "Reason", auditEvent.EventId, cancellationToken).ConfigureAwait(false);
 		}
 
 		if (_options.EncryptUserAgent && !string.IsNullOrEmpty(userAgent))
 		{
-			userAgent = await DecryptStringAsync(userAgent, context, cancellationToken).ConfigureAwait(false);
+			userAgent = await DecryptStringAsync(userAgent, context, "UserAgent", auditEvent.EventId, cancellationToken).ConfigureAwait(false);
 		}
 
 		return auditEvent with
@@ -316,14 +316,50 @@ public sealed class EncryptingAuditEventStore : IAuditStore
 		return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
 	}
 
-	private async Task<string> DecryptStringAsync(string encodedCiphertext, EncryptionContext context, CancellationToken cancellationToken)
+	/// <summary>
+	/// Reads one encrypted audit field back to its plaintext.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>A value that cannot be read as an envelope is NEVER returned as though it had been decrypted.</b>
+	/// This method used to hand the caller <c>encodedCiphertext</c> unchanged when the deserialization
+	/// yielded <see langword="null"/>, which made "this field was decrypted" and "this field could not be
+	/// read" the same observation — and made them the same observation on the AUDIT path, where the whole
+	/// purpose of the record is to be evidence. A reader had no way to tell a genuine audit value from an
+	/// unreadable one, and the stored ciphertext would have been shown, exported or attested as the value.
+	/// </para>
+	/// <para>
+	/// <b>The reachable case is specifically valid-Base64-but-not-an-envelope</b> — a truncated or corrupt
+	/// envelope, or a value written before encryption was enabled on this store. A value that is not valid
+	/// Base64 at all already threw here, so the silent branch was the narrower and quieter one of the two.
+	/// </para>
+	/// <para>
+	/// Failing loudly is the same disposition taken on the crypto-shredding field path for the same class of
+	/// defect: an unreadable value is an error to be surfaced, never a plaintext to be handed on.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="EncryptionException">
+	/// Thrown when the stored value decodes but does not deserialize to an encryption envelope.
+	/// </exception>
+	private async Task<string> DecryptStringAsync(
+		string encodedCiphertext,
+		EncryptionContext context,
+		string fieldName,
+		string auditEventId,
+		CancellationToken cancellationToken)
 	{
 		var json = Encoding.UTF8.GetString(Convert.FromBase64String(encodedCiphertext));
-		var encryptedData = JsonSerializer.Deserialize(json, AuditEncryptionJsonContext.Default.EncryptedData);
-		if (encryptedData is null)
-		{
-			return encodedCiphertext;
-		}
+		var encryptedData = JsonSerializer.Deserialize(json, AuditEncryptionJsonContext.Default.EncryptedData)
+			?? throw new EncryptionException(
+				$"Audit record '{auditEventId}' (tenant '{context.TenantId ?? "none"}') has a '{fieldName}' value that " +
+				$"cannot be read as an encryption envelope. It decodes as Base64 but does not deserialize to the " +
+				$"envelope this store writes, so it is corrupt, truncated, or was written before encryption was " +
+				$"enabled for this field. It is NOT returned as the field value: an unreadable audit field must be " +
+				$"visible as an error rather than presented as evidence. " +
+				$"To get reading again: inspect that record's '{fieldName}' column directly. If the value predates " +
+				$"encryption, either re-encrypt the affected rows or turn off this field's encryption option until " +
+				$"they are migrated; if it is corrupt, the record's integrity is already in question and it should " +
+				$"be treated as a tamper finding rather than a read failure.");
 
 		var decrypted = await _encryption.DecryptAsync(encryptedData, context, cancellationToken).ConfigureAwait(false);
 		return Encoding.UTF8.GetString(decrypted);

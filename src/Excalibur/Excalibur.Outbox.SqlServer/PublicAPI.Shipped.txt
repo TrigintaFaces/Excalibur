@@ -35,8 +35,6 @@ Excalibur.Outbox.SqlServer.Requests.MarkMessageDeadLetteredRequest
 Excalibur.Outbox.SqlServer.Requests.MarkMessageDeadLetteredRequest.MarkMessageDeadLetteredRequest(string! tableName, string! messageId, string! reason, int commandTimeout, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.MarkMessageFailedRequest
 Excalibur.Outbox.SqlServer.Requests.MarkMessageFailedRequest.MarkMessageFailedRequest(string! tableName, string! messageId, string! errorMessage, int retryCount, string! leasedBy, int commandTimeout, System.Threading.CancellationToken cancellationToken, System.DateTimeOffset? nextAttemptAt = null, int? floorSeconds = null) -> void
-Excalibur.Outbox.SqlServer.Requests.MarkMessageSentRequest
-Excalibur.Outbox.SqlServer.Requests.MarkMessageSentRequest.MarkMessageSentRequest(string! tableName, string! messageId, int commandTimeout, long? fencingToken, string! fenceTableName, string! fenceScope, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.MarkTransportFailedRequest
 Excalibur.Outbox.SqlServer.Requests.MarkTransportFailedRequest.MarkTransportFailedRequest(string! tableName, string! messageId, string! transportName, string! errorMessage, int commandTimeout, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.MarkTransportSentRequest

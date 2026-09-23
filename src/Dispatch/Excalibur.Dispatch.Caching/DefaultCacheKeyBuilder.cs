@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Buffers.Text;
@@ -74,7 +74,12 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 	{
 		var tenant = tenantId ?? "global";
 		var user = userId ?? "anonymous";
-		return $"{tenant}:{user}:{baseKey}";
+
+		// Composed, not interpolated. TWO of these three terms are consumer-supplied identities and the
+		// result is then hashed, so a raw join lets one tenant's identity absorb the separator and land
+		// on another tenant's key -- serving one tenant a response cached for another. The hash makes
+		// that collision unrecoverable rather than merely visible.
+		return SegmentedKey.Compose(tenant, user, baseKey);
 	}
 
 	/// <summary>

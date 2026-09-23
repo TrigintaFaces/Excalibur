@@ -76,7 +76,7 @@ The fixture throws `TestFixtureAssertionException` on failures, which all test r
 
 ## Quick Example
 
-```csharp
+```csharp ignore
 using Excalibur.Testing;
 using Xunit;
 

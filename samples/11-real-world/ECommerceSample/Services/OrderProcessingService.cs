@@ -1,161 +1,160 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text.Json;
 
-using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
-using Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample.Infrastructure;
+using Excalibur.Dispatch.Examples.ECommerceSample.Infrastructure;
 
 using Microsoft.Extensions.Logging;
 
-namespace Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample;
+namespace Excalibur.Dispatch.Examples.ECommerceSample;
+
+/// <summary>How a submitted order was resolved.</summary>
+public enum OrderProcessingOutcome
+{
+	/// <summary>The order was accepted, persisted, and its confirmation staged in the outbox.</summary>
+	Processed,
+
+	/// <summary>The inbox already held this order for this handler, so the submission was suppressed.</summary>
+	Duplicate,
+
+	/// <summary>The order was rejected by business validation and the inbox entry was marked failed.</summary>
+	Failed
+}
 
 /// <summary>
-/// Order processing service demonstrating enhanced inbox store capabilities including advanced deduplication and hot-path optimizations.
+/// Processes orders exactly once per handler using the inbox store, and stages the customer confirmation in
+/// the outbox as part of the same flow.
 /// </summary>
 public sealed partial class OrderProcessingService(
 	IInboxStore inboxStore,
 	InMemoryOrderRepository orderRepository,
+	NotificationService notificationService,
 	PerformanceMonitor monitor,
-	ILogger<OrderProcessingService> logger) : IDisposable
+	ILogger<OrderProcessingService> logger)
 {
-	private static readonly string HandlerType =
-		typeof(OrderProcessingService).FullName ?? nameof(OrderProcessingService);
+	/// <summary>
+	/// The deduplication scope orders are keyed under, together with the order identifier.
+	/// </summary>
+	/// <remarks>
+	/// A stable literal, deliberately: deriving it from a type name would silently reopen the deduplication
+	/// window the first time the class is renamed, and every entry already written would stop matching.
+	/// </remarks>
+	public const string HandlerType = "ECommerce.OrderProcessing.OrderHandler";
+
+	/// <summary>The status a successfully processed order is persisted with.</summary>
+	public const string ConfirmedStatus = "Confirmed";
 
 	private readonly IInboxStore _inboxStore = inboxStore ?? throw new ArgumentNullException(nameof(inboxStore));
 	private readonly InMemoryOrderRepository _orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
+
+	private readonly NotificationService _notificationService =
+		notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+
 	private readonly PerformanceMonitor _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
 	private readonly ILogger<OrderProcessingService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly ActivitySource _activitySource = new("ECommerce.OrderProcessing");
 
 	/// <summary>
-	/// Processes an order using enhanced inbox store for deduplication.
+	/// Processes an order, suppressing a repeat submission of an order this handler has already seen.
 	/// </summary>
-	public async Task ProcessOrderAsync(OrderCreated order)
+	public async Task<OrderProcessingOutcome> ProcessOrderAsync(OrderCreated order, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(order);
-		using var activity = _activitySource.StartActivity("OrderProcessing.ProcessOrder");
-		_ = (activity?.SetTag("order.id", order.OrderId));
-		_ = (activity?.SetTag("customer.id", order.CustomerId));
 
-		var stopwatch = Stopwatch.StartNew();
+		using var activity = SampleTelemetry.Orders.StartActivity("OrderProcessing.ProcessOrder");
+		_ = activity?.SetTag("order.id", order.OrderId);
+		_ = activity?.SetTag("customer.id", order.CustomerId);
+
+		var payload = JsonSerializer.SerializeToUtf8Bytes(order);
+		var metadata = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["customerId"] = order.CustomerId,
+			["productId"] = order.ProductId,
+			["orderDate"] = order.OrderDate.ToString("O", CultureInfo.InvariantCulture),
+			["totalAmount"] = (order.Price * order.Quantity).ToString("F2", CultureInfo.InvariantCulture)
+		};
+
+		// Creating the entry IS the claim: the store admits one (messageId, handlerType) pair and documents an
+		// InvalidOperationException for any later one. Claiming before the work runs -- rather than checking a
+		// flag first and acting on it afterwards -- is what makes the suppression hold when two submissions
+		// arrive at once.
+		try
+		{
+			_ = await _inboxStore
+				.CreateEntryAsync(order.OrderId, HandlerType, nameof(OrderCreated), payload, metadata, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		catch (InvalidOperationException)
+		{
+			_monitor.RecordDuplicateSuppressed();
+			_ = activity?.SetTag("order.duplicate", true);
+			LogDuplicateOrderSuppressed(order.OrderId);
+			return OrderProcessingOutcome.Duplicate;
+		}
+
+		LogClaimedOrder(order.OrderId);
 
 		try
 		{
-			// Serialize order for storage in inbox
-			var orderJson = JsonSerializer.Serialize(order);
-			var orderBytes = System.Text.Encoding.UTF8.GetBytes(orderJson);
+			var record = BuildOrderRecord(order);
+			await _orderRepository.SaveOrderAsync(record).ConfigureAwait(false);
 
-			var metadata = new Dictionary<string, object>
-			{
-				["customerId"] = order.CustomerId,
-				["productId"] = order.ProductId,
-				["orderDate"] = order.OrderDate.ToString("O"),
-				["totalAmount"] = (order.Price * order.Quantity).ToString("F2", CultureInfo.InvariantCulture)
-			};
+			// Staged inside the claim, so a confirmation exists for every persisted order and for no other.
+			await _notificationService.QueueOrderConfirmationAsync(record, cancellationToken).ConfigureAwait(false);
 
-			// Create inbox entry - enhanced store will handle deduplication
-			var inboxEntry = await _inboxStore.CreateEntryAsync(
-				order.OrderId,
-				HandlerType,
-				nameof(OrderCreated),
-				orderBytes,
-				metadata,
-				CancellationToken.None).ConfigureAwait(false);
+			await _inboxStore.MarkProcessedAsync(order.OrderId, HandlerType, cancellationToken).ConfigureAwait(false);
 
-			LogCreatedInboxEntry(order.OrderId);
+			_monitor.RecordOrderProcessed();
+			LogProcessedOrder(order.OrderId, record.FinalAmount);
+			_ = activity?.SetStatus(ActivityStatusCode.Ok);
 
-			// Process the order business logic
-			await ProcessOrderBusinessLogic(order).ConfigureAwait(false);
-
-			// Mark as processed in inbox
-			await _inboxStore.MarkProcessedAsync(order.OrderId, HandlerType, CancellationToken.None)
-				.ConfigureAwait(false);
-
-			stopwatch.Stop();
-			_monitor.RecordOrderProcessed(stopwatch.Elapsed.TotalMilliseconds);
-
-			LogSuccessfullyProcessedOrder(order.OrderId, stopwatch.Elapsed.TotalMilliseconds);
-
-			_ = (activity?.SetStatus(ActivityStatusCode.Ok));
-		}
-		catch (InvalidOperationException ex) when (ex.Message.Contains("Duplicate message", StringComparison.Ordinal))
-		{
-			stopwatch.Stop();
-			_monitor.RecordDuplicateDetected();
-
-			LogDuplicateOrderDetected(order.OrderId);
-			_ = (activity?.SetTag("duplicate_detected", true));
+			return OrderProcessingOutcome.Processed;
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
-			await _inboxStore.MarkFailedAsync(
-				order.OrderId,
-				HandlerType,
-				ex.Message,
-				CancellationToken.None).ConfigureAwait(false);
+			// Recording the failure must not replace it. If the inbox write itself throws, the original
+			// error is what the operator needs, and a bookkeeping fault must not take the host down on a
+			// path whose whole job is to survive a bad order.
+			try
+			{
+				await _inboxStore.MarkFailedAsync(order.OrderId, HandlerType, ex.Message, cancellationToken).ConfigureAwait(false);
+			}
+			catch (Exception recordingFailure)
+			{
+				LogFailedToRecordFailure(recordingFailure, order.OrderId);
+			}
 
-			LogFailedToProcessOrder(ex, order.OrderId);
-			_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
-			throw;
+			_monitor.RecordOrderFailed();
+			LogFailedOrder(ex, order.OrderId);
+			_ = activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+
+			return OrderProcessingOutcome.Failed;
 		}
 	}
 
-	/// <summary>
-	/// Disposes of resources used by the service.
-	/// </summary>
-	public void Dispose()
-	{
-		_activitySource?.Dispose();
-	}
-
-	private static decimal CalculateDiscount(decimal totalAmount) =>
-		// Simple discount logic for demonstration
+	private static decimal DiscountFor(decimal totalAmount) =>
 		totalAmount switch
 		{
-			>= 1000m => 0.15m, // 15% discount for orders over $1000
-			>= 500m => 0.10m, // 10% discount for orders over $500
-			>= 200m => 0.05m, // 5% discount for orders over $200
-			_ => 0m // No discount
+			>= 1000m => 0.15m,
+			>= 500m => 0.10m,
+			>= 200m => 0.05m,
+			_ => 0m
 		};
 
-	[LoggerMessage(1001, LogLevel.Information, "📦 Created inbox entry for order {OrderId}")]
-	private partial void LogCreatedInboxEntry(string orderId);
-
-	[LoggerMessage(1002, LogLevel.Information, "✅ Successfully processed order {OrderId} in {ProcessingTime}ms")]
-	private partial void LogSuccessfullyProcessedOrder(string orderId, double processingTime);
-
-	[LoggerMessage(1003, LogLevel.Warning, "🔄 Duplicate order detected and rejected: {OrderId}")]
-	private partial void LogDuplicateOrderDetected(string orderId);
-
-	[LoggerMessage(1004, LogLevel.Error, "❌ Failed to process order {OrderId}")]
-	private partial void LogFailedToProcessOrder(Exception ex, string orderId);
-
-	[LoggerMessage(1005, LogLevel.Information, "💰 Order {OrderId}: ${TotalAmount:F2} -> ${FinalAmount:F2} (discount: {Discount:P})")]
-	private partial void LogOrderPricing(string orderId, decimal totalAmount, decimal finalAmount, decimal discount);
-
-	private async Task ProcessOrderBusinessLogic(OrderCreated order)
+	private static OrderRecord BuildOrderRecord(OrderCreated order)
 	{
-		// Simulate order validation
-		await Task.Delay(RandomNumberGenerator.GetInt32(10, 50)).ConfigureAwait(false);
-
 		if (order.Price <= 0 || order.Quantity <= 0)
 		{
-			throw new ArgumentException("Invalid order: price and quantity must be positive");
+			throw new ArgumentException($"Order '{order.OrderId}' is invalid: price and quantity must be positive.", nameof(order));
 		}
 
-		// Calculate total and apply business rules
 		var totalAmount = order.Price * order.Quantity;
-		var discountPercentage = CalculateDiscount(totalAmount);
-		var finalAmount = totalAmount * (1 - discountPercentage);
+		var discount = DiscountFor(totalAmount);
 
-		// Save order to repository
-		var orderRecord = new OrderRecord
+		return new OrderRecord
 		{
 			OrderId = order.OrderId,
 			CustomerId = order.CustomerId,
@@ -164,131 +163,102 @@ public sealed partial class OrderProcessingService(
 			UnitPrice = order.Price,
 			Quantity = order.Quantity,
 			TotalAmount = totalAmount,
-			DiscountPercentage = discountPercentage,
-			FinalAmount = finalAmount,
+			DiscountPercentage = discount,
+			FinalAmount = totalAmount * (1 - discount),
 			OrderDate = order.OrderDate,
-			Status = "Confirmed",
+			Status = ConfirmedStatus,
 			ProcessedAt = DateTimeOffset.UtcNow
 		};
-
-		await _orderRepository.SaveOrderAsync(orderRecord).ConfigureAwait(false);
-
-		LogOrderPricing(order.OrderId, totalAmount, finalAmount, discountPercentage);
 	}
+
+	[LoggerMessage(1001, LogLevel.Information, "Claimed inbox entry for order {OrderId}")]
+	private partial void LogClaimedOrder(string orderId);
+
+	[LoggerMessage(1002, LogLevel.Information, "Processed order {OrderId} for {FinalAmount}")]
+	private partial void LogProcessedOrder(string orderId, decimal finalAmount);
+
+	[LoggerMessage(1003, LogLevel.Warning, "Duplicate order {OrderId} suppressed by the inbox")]
+	private partial void LogDuplicateOrderSuppressed(string orderId);
+
+	[LoggerMessage(1004, LogLevel.Error, "Order {OrderId} failed and was marked failed in the inbox")]
+	private partial void LogFailedOrder(Exception ex, string orderId);
+
+	[LoggerMessage(1005, LogLevel.Error, "Could not record the failure of order {OrderId} in the inbox")]
+	private partial void LogFailedToRecordFailure(Exception ex, string orderId);
 }
 
 /// <summary>
-/// Notification service demonstrating enhanced outbox store capabilities including batch staging and exponential backoff.
+/// Stages customer notifications in the outbox. Nothing here sends mail: the message is handed to the outbox
+/// and a separate worker drains it, which is what makes the send survivable and retryable.
 /// </summary>
 public sealed partial class NotificationService(
 	IOutboxStore outboxStore,
 	PerformanceMonitor monitor,
-	ILogger<NotificationService> logger) : IDisposable
+	ILogger<NotificationService> logger)
 {
+	/// <summary>The outbox destination confirmations are staged against.</summary>
+	public const string Destination = "email-notifications";
+
 	private readonly IOutboxStore _outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
 	private readonly PerformanceMonitor _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
 	private readonly ILogger<NotificationService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly ActivitySource _activitySource = new("ECommerce.OrderProcessing");
 
-	/// <summary>
-	/// Queues a welcome email using enhanced outbox store for reliable delivery.
-	/// </summary>
-	public async Task QueueWelcomeEmailAsync(string customerEmail)
+	/// <summary>Stages the order confirmation for a persisted order.</summary>
+	public async Task QueueOrderConfirmationAsync(OrderRecord order, CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(order);
+
+		using var activity = SampleTelemetry.Orders.StartActivity("NotificationService.StageConfirmation");
+		_ = activity?.SetTag("order.id", order.OrderId);
+		_ = activity?.SetTag("email.to", order.CustomerId);
+
 		var notification = new EmailNotification
 		{
-			ToEmail = customerEmail,
-			Subject = "Welcome to Our Store!",
-			Body = $"Hello {customerEmail}! Thank you for joining our store. Enjoy shopping!",
-			NotificationType = "Welcome"
+			ToEmail = order.CustomerId,
+			Subject = $"Order {order.OrderId} confirmed",
+			Body = string.Create(
+				CultureInfo.InvariantCulture,
+				$"Thank you. Order {order.OrderId} for {order.Quantity} x {order.ProductName} totalling {order.FinalAmount:F2} is confirmed."),
+			NotificationType = "OrderConfirmation"
 		};
 
-		await QueueEmailAsync(notification).ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Queues a promotional email using enhanced outbox store.
-	/// </summary>
-	public async Task QueuePromotionalEmailAsync(string customerEmail, string promotion)
-	{
-		var notification = new EmailNotification
+		var metadata = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
-			ToEmail = customerEmail,
-			Subject = $"Special Offer: {promotion}",
-			Body = $"Hi {customerEmail}! Don't miss out on our latest promotion: {promotion}. Shop now!",
-			NotificationType = "Promotional"
+			["orderId"] = order.OrderId,
+			["emailTo"] = notification.ToEmail,
+			["emailType"] = notification.NotificationType
 		};
 
-		await QueueEmailAsync(notification).ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Disposes of resources used by the service.
-	/// </summary>
-	public void Dispose()
-	{
-		_activitySource?.Dispose();
-	}
-
-	[LoggerMessage(1001, LogLevel.Information, "📧 Queued {EmailType} email for {CustomerEmail}")]
-	private partial void LogQueuedEmail(string emailType, string customerEmail);
-
-	[LoggerMessage(1002, LogLevel.Error, "❌ Failed to queue email for {CustomerEmail}")]
-	private partial void LogFailedToQueueEmail(Exception ex, string customerEmail);
-
-	private async Task QueueEmailAsync(EmailNotification notification)
-	{
-		using var activity = _activitySource.StartActivity("NotificationService.QueueEmail");
-		_ = (activity?.SetTag("email.to", notification.ToEmail));
-		_ = (activity?.SetTag("email.type", notification.NotificationType));
-
-		try
+		// The message id is derived from the order, so re-staging the same confirmation is refused by the
+		// store rather than producing a second e-mail.
+		var message = new OutboundMessage(nameof(EmailNotification), JsonSerializer.SerializeToUtf8Bytes(notification), Destination, metadata)
 		{
-			var messageId = $"email-{Guid.NewGuid()}";
-			var payload = JsonSerializer.SerializeToUtf8Bytes(notification);
+			Id = $"order-confirmation-{order.OrderId}"
+		};
 
-			var metadata = new Dictionary<string, object>
-			{
-				["emailTo"] = notification.ToEmail,
-				["emailType"] = notification.NotificationType,
-				["queuedAt"] = notification.QueuedAt.ToString("O")
-			};
+		await _outboxStore.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
 
-			// Stage message in outbox - enhanced store will handle batching
-			var outboundMessage = new OutboundMessage(
-				nameof(EmailNotification),
-				payload,
-				"email-notifications",
-				metadata)
-			{ Id = messageId };
-
-			await _outboxStore.StageMessageAsync(outboundMessage, CancellationToken.None)
-				.ConfigureAwait(false);
-
-			_monitor.RecordEmailQueued();
-
-			LogQueuedEmail(notification.NotificationType, notification.ToEmail);
-
-			_ = (activity?.SetStatus(ActivityStatusCode.Ok));
-		}
-		catch (Exception ex)
-		{
-			LogFailedToQueueEmail(ex, notification.ToEmail);
-			_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
-			throw;
-		}
+		_monitor.RecordNotificationStaged();
+		LogStagedConfirmation(order.OrderId, notification.ToEmail);
+		_ = activity?.SetStatus(ActivityStatusCode.Ok);
 	}
+
+	[LoggerMessage(1001, LogLevel.Information, "Staged confirmation for order {OrderId} to {CustomerEmail}")]
+	private partial void LogStagedConfirmation(string orderId, string customerEmail);
 }
 
 /// <summary>
-/// Inventory service demonstrating enhanced schedule store capabilities including duplicate detection and execution time indexing.
+/// Schedules inventory checks in the schedule store and executes them when the worker hands them back.
 /// </summary>
 public sealed partial class InventoryService(
 	IScheduleStore scheduleStore,
 	InMemoryInventoryRepository inventoryRepository,
 	PerformanceMonitor monitor,
-	ILogger<InventoryService> logger) : IDisposable
+	ILogger<InventoryService> logger)
 {
+	/// <summary>The message name scheduled inventory checks are stored under.</summary>
+	public const string ScheduledMessageName = nameof(ScheduledInventoryCheck);
+
 	private readonly IScheduleStore _scheduleStore = scheduleStore ?? throw new ArgumentNullException(nameof(scheduleStore));
 
 	private readonly InMemoryInventoryRepository _inventoryRepository =
@@ -296,121 +266,72 @@ public sealed partial class InventoryService(
 
 	private readonly PerformanceMonitor _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
 	private readonly ILogger<InventoryService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly ActivitySource _activitySource = new("ECommerce.OrderProcessing");
 
-	/// <summary>
-	/// Schedules an inventory check using enhanced schedule store with duplicate detection.
-	/// </summary>
-	public async Task ScheduleInventoryCheckAsync(string productId, DateTimeOffset executeAt)
+	/// <summary>Schedules a stock-level check for a product.</summary>
+	public async Task ScheduleInventoryCheckAsync(string productId, DateTimeOffset executeAt, CancellationToken cancellationToken)
 	{
-		using var activity = _activitySource.StartActivity("InventoryService.ScheduleCheck");
-		_ = (activity?.SetTag("product.id", productId));
-		_ = (activity?.SetTag("execute.at", executeAt.ToString("O")));
+		ArgumentException.ThrowIfNullOrWhiteSpace(productId);
 
-		try
+		using var activity = SampleTelemetry.Inventory.StartActivity("InventoryService.ScheduleCheck");
+		_ = activity?.SetTag("product.id", productId);
+
+		var check = new ScheduledInventoryCheck
 		{
-			var scheduleId = $"inventory-check-{productId}-{executeAt:yyyyMMddHHmm}";
+			ProductId = productId,
+			CheckType = "StockLevel",
+			ExecuteAt = executeAt
+		};
 
-			var scheduledCheck = new ScheduledInventoryCheck
-			{
-				ScheduleId = scheduleId,
-				ProductId = productId,
-				ExecuteAt = executeAt,
-				CheckType = "StockLevel"
-			};
-
-			var payload = JsonSerializer.SerializeToUtf8Bytes(scheduledCheck);
-
-			var metadata = new Dictionary<string, object>
-			{
-				["productId"] = productId,
-				["checkType"] = scheduledCheck.CheckType,
-				["scheduledAt"] = DateTimeOffset.UtcNow.ToString("O")
-			};
-
-			// Schedule using enhanced store - will handle duplicates and indexing
-			var scheduledMessage = new ScheduledMessage
-			{
-				Id = Guid.NewGuid(),
-				MessageName = nameof(ScheduledInventoryCheck),
-				MessageBody = System.Text.Encoding.UTF8.GetString(payload),
-				NextExecutionUtc = executeAt,
-				Enabled = true,
-				CronExpression = string.Empty
-			};
-
-			await _scheduleStore.StoreAsync(scheduledMessage, CancellationToken.None).ConfigureAwait(false);
-
-			_monitor.RecordInventoryCheckScheduled();
-
-			LogScheduledInventoryCheck(productId, executeAt);
-
-			_ = (activity?.SetStatus(ActivityStatusCode.Ok));
-		}
-		catch (Exception ex)
+		// Everything the worker needs to run the check travels in the message body. The schedule identifier
+		// is an opaque handle for completion and carries no business meaning.
+		var scheduled = new ScheduledMessage
 		{
-			LogFailedToScheduleInventoryCheck(ex, productId);
-			_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
-			throw;
-		}
+			Id = Guid.NewGuid(),
+			MessageName = ScheduledMessageName,
+			MessageBody = JsonSerializer.Serialize(check),
+			NextExecutionUtc = executeAt,
+			Enabled = true,
+			CronExpression = string.Empty
+		};
+
+		await _scheduleStore.StoreAsync(scheduled, cancellationToken).ConfigureAwait(false);
+
+		_monitor.RecordInventoryCheckScheduled();
+		LogScheduledCheck(productId, executeAt);
+		_ = activity?.SetStatus(ActivityStatusCode.Ok);
 	}
 
-	/// <summary>
-	/// Executes scheduled inventory checks.
-	/// </summary>
-	public async Task ExecuteInventoryCheckAsync(ScheduledInventoryCheck check)
+	/// <summary>Runs a due inventory check and records the result.</summary>
+	public async Task ExecuteInventoryCheckAsync(ScheduledInventoryCheck check, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(check);
-		using var activity = _activitySource.StartActivity("InventoryService.ExecuteCheck");
-		_ = (activity?.SetTag("product.id", check.ProductId));
 
-		try
-		{
-			// Simulate inventory check logic
-			await Task.Delay(RandomNumberGenerator.GetInt32(100, 500)).ConfigureAwait(false);
+		using var activity = SampleTelemetry.Inventory.StartActivity("InventoryService.ExecuteCheck");
+		_ = activity?.SetTag("product.id", check.ProductId);
 
-			var currentStock = await _inventoryRepository.GetStockLevelAsync(check.ProductId).ConfigureAwait(false);
-			var recommendedReorder = currentStock < 10;
+		var currentStock = await _inventoryRepository.GetStockLevelAsync(check.ProductId).ConfigureAwait(false);
+		var item = await _inventoryRepository.GetInventoryItemAsync(check.ProductId).ConfigureAwait(false);
+		var reorderRecommended = item is not null && currentStock <= item.ReorderLevel;
 
-			await _inventoryRepository.UpdateInventoryCheckAsync(check.ProductId,
-				new InventoryCheckResult
-				{
-					ProductId = check.ProductId,
-					CheckDate = DateTimeOffset.UtcNow,
-					StockLevel = currentStock,
-					ReorderRecommended = recommendedReorder,
-					CheckType = check.CheckType
-				}).ConfigureAwait(false);
+		await _inventoryRepository.UpdateInventoryCheckAsync(
+			check.ProductId,
+			new InventoryCheckResult
+			{
+				ProductId = check.ProductId,
+				CheckDate = DateTimeOffset.UtcNow,
+				StockLevel = currentStock,
+				ReorderRecommended = reorderRecommended,
+				CheckType = check.CheckType
+			}).ConfigureAwait(false);
 
-			LogInventoryCheckCompleted(check.ProductId, currentStock, recommendedReorder);
-
-			_ = (activity?.SetStatus(ActivityStatusCode.Ok));
-		}
-		catch (Exception ex)
-		{
-			LogFailedToExecuteInventoryCheck(ex, check.ProductId);
-			_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
-			throw;
-		}
+		_monitor.RecordInventoryCheckExecuted();
+		LogExecutedCheck(check.ProductId, currentStock, reorderRecommended);
+		_ = activity?.SetStatus(ActivityStatusCode.Ok);
 	}
 
-	/// <summary>
-	/// Disposes of resources used by the service.
-	/// </summary>
-	public void Dispose()
-	{
-		_activitySource?.Dispose();
-	}
+	[LoggerMessage(1001, LogLevel.Information, "Scheduled inventory check for {ProductId} at {ExecuteAt}")]
+	private partial void LogScheduledCheck(string productId, DateTimeOffset executeAt);
 
-	[LoggerMessage(1001, LogLevel.Information, "📅 Scheduled inventory check for product {ProductId} at {ExecuteAt}")]
-	private partial void LogScheduledInventoryCheck(string productId, DateTimeOffset executeAt);
-
-	[LoggerMessage(1002, LogLevel.Error, "❌ Failed to schedule inventory check for product {ProductId}")]
-	private partial void LogFailedToScheduleInventoryCheck(Exception ex, string productId);
-
-	[LoggerMessage(1003, LogLevel.Information, "📊 Inventory check completed for {ProductId}: Stock={Stock}, Reorder={Reorder}")]
-	private partial void LogInventoryCheckCompleted(string productId, int stock, bool reorder);
-
-	[LoggerMessage(1004, LogLevel.Error, "❌ Failed to execute inventory check for product {ProductId}")]
-	private partial void LogFailedToExecuteInventoryCheck(Exception ex, string productId);
+	[LoggerMessage(1002, LogLevel.Information, "Inventory check for {ProductId}: stock={Stock}, reorder={Reorder}")]
+	private partial void LogExecutedCheck(string productId, int stock, bool reorder);
 }

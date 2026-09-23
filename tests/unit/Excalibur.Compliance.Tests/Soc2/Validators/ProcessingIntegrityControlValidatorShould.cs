@@ -36,12 +36,16 @@ public sealed class ProcessingIntegrityControlValidatorShould
 		var result = await sut.ValidateAsync("INT-001", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("INT-001");
-		// This arm was named "always passes" and required exactly that: IsEffective true at full
+		// This arm was named "always passes" and required exactly that: Effective at full
 		// score from a method that observes nothing. The capability really is shipped, which is
 		// what the Configuration evidence says; whether this deployment operates it is not
 		// observable from here, so the control is unverified rather than effective.
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.Evidence.ShouldNotBeEmpty();
 	}
@@ -54,12 +58,16 @@ public sealed class ProcessingIntegrityControlValidatorShould
 		var result = await sut.ValidateAsync("INT-002", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("INT-002");
-		// This arm was named "always passes" and required exactly that: IsEffective true at full
+		// This arm was named "always passes" and required exactly that: Effective at full
 		// score from a method that observes nothing. The capability really is shipped, which is
 		// what the Configuration evidence says; whether this deployment operates it is not
 		// observable from here, so the control is unverified rather than effective.
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.Evidence.ShouldNotBeEmpty();
 	}
@@ -72,12 +80,16 @@ public sealed class ProcessingIntegrityControlValidatorShould
 		var result = await sut.ValidateAsync("INT-003", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("INT-003");
-		// This arm was named "always passes" and required exactly that: IsEffective true at full
+		// This arm was named "always passes" and required exactly that: Effective at full
 		// score from a method that observes nothing. The capability really is shipped, which is
 		// what the Configuration evidence says; whether this deployment operates it is not
 		// observable from here, so the control is unverified rather than effective.
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.Evidence.ShouldNotBeEmpty();
 	}
@@ -89,7 +101,7 @@ public sealed class ProcessingIntegrityControlValidatorShould
 
 		var result = await sut.ValidateAsync("UNKNOWN", CancellationToken.None).ConfigureAwait(false);
 
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Unknown control"));
 	}
 

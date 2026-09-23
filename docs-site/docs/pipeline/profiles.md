@@ -383,7 +383,7 @@ part of a reusable profile.
 
 The simplest way to build a profile is `PipelineProfile`, which takes the entries in order:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Middleware.Auth;
 

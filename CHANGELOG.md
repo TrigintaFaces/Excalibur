@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **How to read this file.** `10.0.0` has not been released. `[Unreleased]` collects what has landed
-> since the `10.0.0-alpha.10` pre-release; each `[10.0.0-alpha.*]` section below records what shipped in
+> since the `10.0.0-alpha.11` pre-release; each `[10.0.0-alpha.*]` section below records what shipped in
 > that pre-release. Releases earlier than `10.0.0-alpha.8` are not documented individually — if you are on
 > one of those, move to the newest and read every section from yours forward; that is the upgrade path we
 > support.
@@ -17,39 +17,280 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Changes landed since `10.0.0-alpha.10`. Breaking changes are marked **BREAKING** and are grouped at the
-top of each heading; this line is pre-RC, so they are frequent and are the first thing to read.
-Everything requiring action from you is also collected under **Before you upgrade** on the
+Changes landed since `10.0.0-alpha.11`. **BREAKING** marks a change that will not compile, or that
+changes behaviour silently; this line is pre-RC, so they are frequent and are the first thing to read.
+Anything needing action from you is also collected under **Before you upgrade** on the
 [What's New](https://docs.excalibur-dispatch.dev/docs/whats-new) page.
 
 ### Known Issues
 
-Defects identified and classified as affecting this pre-release. The full descriptions, with the action
-each one requires of you, are on the **Known issues in this pre-release** section of the What's New page;
-they are kept there rather than duplicated here so the two cannot drift apart. This list reflects what we
-have classified, not everything that exists — see the What's New page for the limits of that claim.
+Defects classified as affecting this pre-release, and the action each one requires of you, are on the
+[Known issues](https://docs.excalibur-dispatch.dev/docs/known-issues) page. They are kept there and
+**not repeated here**, so the two cannot drift apart. That list reflects what we have classified, not
+everything that exists — the page states the limits of that claim.
 
-They are stated here as of this release rather than split across the sections below: a defect that is
-still open is still open regardless of which pre-release first carried it, and fragmenting them by origin
-would hide a live problem from anyone reading only the newest section.
+### Security
 
-- **A database provisioned by an earlier pre-release keeps a wider tenant column, and re-running the create script will not narrow it.** The tenant identifier column is now declared 64 characters wide across every provider that stores one. The shipped create scripts skip any table that already exists, so an upgraded database keeps whatever width it was created with while a fresh install gets 64. Nothing breaks at runtime: collation and nullability are unchanged, and reads and writes behave identically on both shapes. It matters where the two shapes meet -- a restore, a replica, or a move to another provider -- because two tenant identifiers differing only after the 64th character are distinct in the wider column and identical in the narrower one, and the tenant identifier is part of some primary keys. You are unaffected in practice unless you set tenant identifiers longer than 64 characters before the limit existed. **A narrowing script now ships for each affected store, so this is something you can act on.** Run the one for your provider against an upgraded database; it narrows the column in place. It refuses and changes nothing if any stored tenant identifier is longer than 64 characters, rather than truncating a value that identifies a tenant -- so shorten or re-key those tenants first, then re-run it. Running one against a database that is already narrow does nothing. Affected stores: outbox, inbox, saga, snapshot, audit and dead-letter on SQL Server, Oracle and PostgreSQL, depending on provider. The PostgreSQL inbox is the sharpest case: its tenant column was previously unbounded rather than merely wider, and the tenant is the third component of that table's deduplication key -- so on an upgraded database two tenants whose identifiers agree in their first 64 characters are distinct today and would share one deduplication scope if the column were narrowed by truncation, silently suppressing one tenant's message as a duplicate of the other's. Its script refuses for that reason.
+- **`Excalibur.Outbox.Marten` declared Marten 9.12.0, which carries a CVSS 9.1 SQL-injection advisory.**
+  Every published version of that package declares it. Upgrade the Marten reference, or pin it yourself.
+- **BREAKING: a 401 or 403 body no longer names the policy, role or permission that refused you.**
+  `AspNetCoreAuthorizationMiddleware`, the A3 path, and `DispatchProblemDetails.ForForbidden/ForUnauthorized`
+  now return a constant `Detail`; the specific reason is logged at `Warning` with the correlation id.
+  Disclosing your authorization vocabulary to an unauthenticated caller is reconnaissance value (CWE-200).
+  **What to do:** if anything branches on the text of `ProblemDetails.Detail`, move it to the log, or to
+  the status code and `Title`, which are unchanged. `ForForbidden`/`ForUnauthorized` keep their `reason`
+  parameter and expose it on a non-serialized `DiagnosticReason` for you to log.
+- **Trace baggage is copied default-deny.** W3C baggage is no longer propagated wholesale; an allowlist
+  is validated at startup.
 
-- **Packages published at `10.0.0-alpha.8` declare a benchmarking harness as a direct dependency.** 103 of the 195 packages published at that version bring `BenchmarkDotNet` and three compiler-platform packages into your restore graph. Nothing calls into them at runtime, so this changes what you restore and audit rather than what you run. Move to a later pre-release; there is no workaround while you remain on that version.
+### Added
 
-- **The bundled Cosmos DB emulator fixture cannot connect using its documented approach.** Its documentation blames the emulator's self-signed certificate; the actual obstacle is that the client is sent to the emulator's advertised port rather than the mapped one. Set `CosmosClientOptions.LimitToEndpoint = true`.
+- **`ITenantContext` is a first-class read.** The ambient tenant is resolvable directly rather than
+  through a shadow contract, and resolution follows a stated precedence instead of whichever package
+  registered last.
+- **Opt-in bound on consecutive transient CDC failures.** `MaxConsecutiveTransientFailures` stops a
+  streaming processor after N failures without progress; exhaustion stops **without** writing a position.
+- **Background execution gains an exception-behaviour policy** — see the breaking entry under Changed.
+- **IBM MQ gains a real connection provider and queue abstractions**, and MQTT sessions are durable.
 
-- **Integration coverage has known failures.** Cosmos DB integration tests now run nightly rather than being excluded outright, but **we have not yet published a build in which they executed and passed.** Until we do, treat the Cosmos DB provider as materially less proven than the others and validate the operations you depend on against your own infrastructure. When those tests are run manually, some do not pass, and we have not resolved those failures. A recent full run also showed failures outside Cosmos DB, but almost all were test containers failing to start on the machine running the suite — a local resource limit rather than provider defects, and we are not reporting them as such.
+### Changed
 
-- **Unexplained not-found responses from the Cosmos DB snapshot store.** Cause not determined, and we have not established whether it originates in the provider or in our own test setup. If you see one where data should be present, do not treat it as authoritative, and please report it.
+**Authorization (A3)**
 
-- **A `string` property marked `[EncryptedField]` is not encrypted.** All three encryption paths select only `byte[]` properties, so the attribute applies, compiles and does nothing on a `string` -- with no warning and no error. Every documented example of the attribute uses a `string`, so following the guidance exactly is the way to hit it. **This is not yet fixed.** When it is, it will encrypt new writes only: nothing decrypts, because nothing was ever encrypted. The crypto-shredding path is unaffected -- it already handles `string` and `byte[]` alike -- so a field marked for crypto-shredding is processed correctly.
+- **BREAKING: `IActivityGroupStore` requires a tenant on every member, and the estate-wide delete is gone.**
 
-- **A property marked `[Sensitive]` is not encrypted; the attribute drives masking and classification only.** Its own documentation -- which ships in the package and appears in IntelliSense -- says it marks data "requiring encryption" and names trade secrets, API keys and credentials as its subjects. No encryptor reads it. Masking redacts a value in logs and output; it does nothing for the value at rest, so a consumer who annotated credentials on the strength of that sentence is storing them in plaintext and has no signal that anything is wrong. **Use `[PersonalData]` on records that also carry `[DataSubjectId]` for at-rest encryption**, or `[EncryptedField]` on a `byte[]` property -- and see the entry below about `[EncryptedField]` on a `string`, which is a distinct and equally silent gap. Our SOC 2 checklist states the correct position in its C2 attestation text but still lists `[Sensitive]` under field-level encryption in its control summary; the attestation text is the accurate one. **This is not yet fixed**, and the intended fix is to make the behaviour match the name rather than to quietly reword the attribute.
+  | Old | Replaced by |
+  |---|---|
+  | `ActivityGroupExistsAsync(name, ct)` | `ActivityGroupExistsAsync(tenantId, name, ct)` |
+  | `FindActivityGroupsAsync(ct)` → `IReadOnlyDictionary<string, object>` | `FindActivityGroupsAsync(tenantId, ct)` → `IReadOnlyDictionary<string, IReadOnlyCollection<string>>` |
+  | `DeleteAllActivityGroupsAsync(ct)` → `int` | **removed** — use `ReplaceAllActivityGroupsAsync(catalogue, ct)` for a full refresh, or `DeleteActivityGroupsForTenantAsync(tenantId, ct)` for one tenant |
+  | `CreateActivityGroupAsync(name, activity, ct)` | `CreateActivityGroupAsync(tenantId, name, activity, ct)` |
 
-- **A handler that writes to the outbox throws on the zero-configuration pipeline.** `OutboxStagingMiddleware` is not among the middleware the default profile auto-seeds, so a host that calls `AddDispatch()`, registers outbox infrastructure, and dispatches a message whose handler stages to the outbox fails at dispatch rather than at startup. **Call `UseOutbox()` to seat the middleware explicitly, which works today.** The failure is loud rather than silent -- nothing is lost and no message is half-written -- but it arrives at the first dispatch instead of at composition time, which is the wrong moment to learn it. **This is not yet fixed**, and two functional tests covering it are deliberately left red rather than suppressed, so the gap stays visible.
+  The reads answered across the whole estate, so one tenant's groups could satisfy another tenant's
+  check. The delete emptied every tenant's groups before repopulating, leaving the catalogue truncated
+  if it failed part-way. `ReplaceAllActivityGroupsAsync` swaps the whole catalogue in one step, returns
+  the tenants that previously held groups, and refuses to run inside an ambient transaction.
+  The SQL Server and PostgreSQL stores change with the contract.
+- **BREAKING: activity-group existence checks and their cache key require a tenant.**
+  `IActivityGroupService.ExistsAsync` and `AuthorizationCacheKey.ForActivityGroups()` both gain a
+  leading `tenantId`.
+- **BREAKING: `AuthorizationPolicy`'s `activityGroups` parameter is typed** —
+  `IReadOnlyDictionary<string, IReadOnlyCollection<string>>` instead of `IDictionary<string, object>`.
+- **BREAKING: `GrantKeyFormat` is removed; compose and parse grant keys through `GrantScope`.**
+  `ComposeScope`, `Escape` and `Unescape` are gone. Use `new GrantScope(tenant, type, qualifier).ToString()`
+  and `GrantScope.FromString(...)`; `Escape`/`Unescape` become `SegmentedKey.Escape`/`.Unescape`.
+  **`SegmentedKey` lives in `Excalibur.Dispatch.Abstractions`** — add that reference if you lack it
+  transitively. Key composition had more than one owner, so a hand-rolled `Split` could disagree with
+  the format that wrote the key. **The stored key shape also changed**; what that means for existing
+  grants is under **Before you upgrade** on the What's New page.
+- **BREAKING: `Excalibur.A3.ActivityContextExtensions` is removed** (`AccessToken`, `ApplicationName`,
+  `ClientAddress`, `CorrelationId`, `TenantId`, `UserId`, `Get<T>`). Use the `Excalibur.Data` accessors —
+  and note their nullability changed, below.
 
-- **Consumers who followed the previously-published `[EncryptedField]` example are storing plaintext.** The entry below records that `[EncryptedField]` on a `string` is silently ignored. What that entry did not say is that every example we published used a `string`, so following the documentation exactly was the way to hit it. Those examples now show `byte[]`, which does encrypt -- but that change makes the gap **less** discoverable, not more: the documented path no longer trips it, while any property already annotated on a `string` from the earlier guidance is still in plaintext and still silent. **Audit existing `[EncryptedField]` annotations for `string` properties rather than assuming the corrected examples fixed anything.** Crypto-shredding is unaffected; it has always handled `string` and `byte[]` alike.
+**Results and dispositions**
+
+- **BREAKING: `CacheHit` is removed from the result surface; read `Disposition`.** Gone are
+  `IMessageResult.CacheHit`, `AuthenticationFailedResult.CacheHit`, `RateLimitExceededResult.CacheHit`
+  and the `bool cacheHit` parameter on both `MessageResult.Success(...)` overloads. `IMessageResult.Disposition`
+  returns `MessageDisposition` — `Handled`, `ServedFromCache` or `SuppressedAsDuplicate` — and `Success(...)`
+  takes `MessageDisposition disposition = MessageDisposition.Handled`. A bool had two states where the
+  pipeline produces three: a duplicate suppressed by the inbox reported `CacheHit == false`, indistinguishable
+  from ordinary work. **Map `CacheHit == true` to `Disposition == ServedFromCache`**; `MessageResult.SuccessFromCache()`
+  covers the common case.
+
+**Inbox and outbox**
+
+- **BREAKING: `IInboxStoreAdmin.MarkFailedAsync` takes the tenant explicitly and reports what it did.**
+  It now takes a leading `KeyedTenantPartition` and returns `ValueTask<InboxMarkFailedOutcome>`
+  (`Applied`, `EntryNotFound`, `AlreadyProcessed`, `Unknown`). The tenant came from ambient context, so
+  an operator listing failures across the estate could mark an entry in a partition they did not choose;
+  and zero rows affected meant either "absent" or "already processed", which no caller could tell apart.
+  Existence semantics were split five/five across the ten stores — all ten now report.
+  **What to do:** pass the partition you mean and switch on the outcome.
+- **BREAKING: the MongoDB and Redis outbox stores no longer accept a fencing token.** The fenced
+  `GetUnsentMessagesAsync`/`MarkSentAsync` overloads are removed from both; call the unfenced ones they
+  keep. The stores implemented `IFencedOutboxStore` but could not honour it — the fence check and the
+  mutation it guards are separate round trips — so accepting the token advertised protection that did
+  not exist. A host registering leader election alongside a store lacking completion-path capabilities
+  now **refuses to start** rather than running partly fenced.
+- **BREAKING: `DynamoDbOutboxStreamsSubscription` takes `DynamoDbOutboxOptions` in place of a table name**,
+  and **`DynamoDbStreamsSubscription<TDocument>` now requires the partition-key and sort-key attribute
+  names**. A table name does not determine them, and the subscription reads change records positionally.
+
+**Sagas**
+
+- **BREAKING: claiming and completing a saga timeout exchanges a claim object, not a bare id.**
+  `MarkDeliveredAsync(string timeoutId, ct)` is removed; pass the `ClaimedSagaTimeout` returned by
+  `ClaimDueTimeoutsAsync`, which changes shape to return claims. Completing by id could not prove the
+  caller still held the claim, so one worker could mark another's timeout delivered.
+
+**Compliance and data classification**
+
+- **BREAKING: `ControlValidationResult.IsEffective` is removed — reading it breaks, not only setting it.**
+  Read `Outcome` (`ControlOutcome`: `Deficient`, `NotVerified`, `Effective`). A bool had to report a control
+  nobody assessed as either effective or deficient, and both are assessments no one made.
+- **BREAKING: `ControlValidationResult.EffectivenessScore` is a `ControlEffectiveness` enum**, carrying the
+  old numbers as underlying values (`MechanismAbsent = 0`, `ViolationDetected = 20`, `Unverified = 40`,
+  `Effective = 100`). `ControlValidationResult` also gains `IsConfigured`.
+- **BREAKING: `BaseControlValidator.CreateFailureResult` requires the enum and gains `isConfigured`.** The
+  old `int effectivenessScore = 0` was optional; the replacement is **required**, so a call that omitted it
+  no longer compiles.
+- **BREAKING: the SOC 2 report counts CRITERIA, not CONTROLS.** `CategoryStatus.ActiveControls` and
+  `ControlsWithIssues` become `CriteriaEnabled`, `CriteriaAssessed` and `CriteriaWithIssues`. **The unit
+  changed — this is not a mechanical rename.** An unassessed criterion used to score as not-met, lowering
+  a compliance percentage on evidence nobody gathered.
+- **BREAKING: `CriterionStatus` is no longer object-initializable** (the `init` accessors are gone; the
+  properties remain readable) and gains `Outcome`. **`ControlSection.IsMet`, `ControlTestResult.ExceptionsFound`
+  and `TestResult.ExceptionsFound` are removed** — read the criterion's outcome.
+- **BREAKING: three inert properties are removed from `[Sensitive]` and `[PersonalData]`** —
+  `SensitiveAttribute.EncryptionKeyPurpose`, and `ExcludeFromErrors` on both. **They never did anything:**
+  no code read them, so a consumer who set one believed they had chosen a key purpose or withheld a value
+  from exception details, and neither happened. Delete the assignment; there is nothing to adopt.
+  **`MaskInLogs` is the property the framework does read**, on both attributes.
+
+**Persistence and data access**
+
+- **BREAKING: three cloud-native providers no longer expose raw text query.** `QueryAsync<TDocument>(string queryText, ...)`
+  is removed from `ICloudNativePersistenceQueryOperations` and from the Cosmos DB, DynamoDB and Firestore
+  providers. A provider-neutral interface cannot accept provider-specific query text safely — use the
+  provider's own client, or the typed projection APIs.
+- **BREAKING: four `Excalibur.Data` activity-context accessors are now nullable.** `ApplicationName` and
+  `TenantId` return `string?`, `CorrelationId` returns `Guid?`, `Get<T>` returns `T?`. The old signatures
+  could not express absence, so they returned `string.Empty`/`Guid.Empty`/`default(T)!` and "nothing is set"
+  read identically to "set, and empty". **With nullable reference types enabled this is a compile break —
+  the good case. With nullable disabled it is a silent behaviour change**: callers that received a sentinel
+  now receive `null`. **Audit the call sites rather than adding `!`.**
+- **`DynamoDbRepositoryBase.ScanAsync` returns `CloudQueryResult<TDocument>`** instead of
+  `IReadOnlyList<TDocument>`, carrying the continuation token a scan needs to page.
+- **BREAKING: `CosmosDbCdcOptions.PartitionKeyValues` is removed.** Use `PartitionKeyPath`, which sat
+  beside it and is how the partition key is configured. Delete the assignment; there is no value to carry.
+- **BREAKING: Azure Key Vault support for Elasticsearch moves to `Excalibur.Data.ElasticSearch.Azure`.**
+  `AzureKeyVaultOptions`, `AzureKeyVaultProvider` and the secret operations leave the base package; the
+  registration moves with them (`AddAzureKeyVaultCredentialStorage(configuration)`). **The namespace is
+  unchanged** (`Excalibur.Data.ElasticSearch.Security`) — add the package reference and it resolves. The
+  base package forced the Azure SDK on every consumer. **Not to be confused with `Excalibur.Compliance.Azure`**,
+  which has a same-named options type for field encryption. Also: `ClientId`, `MaxConcurrentOperations`
+  and `PurgeOnDelete` are no longer `init`-settable — bind them from configuration.
+- **BREAKING: `ElasticsearchInboxOptions.RefreshPolicy` and `ElasticsearchOutboxOptions.RefreshPolicy` are
+  an enum.** `string` (default `"wait_for"`) becomes `ElasticsearchRefreshPolicy` (default `WaitFor`), with
+  `None`, `WaitFor`, `Immediate`. The string was compared against a literal and **fell back silently** when
+  it did not match, so a typo produced the default and nothing said so. `"wait_for"` → `WaitFor`,
+  `"false"` → `None`, `"true"` → `Immediate`.
+
+**Hosting, registration and resilience**
+
+- **BREAKING: `IExecuteInBackground.PropagateExceptions` is removed; failure behaviour is host-level.**
+  The interface is a pure marker again. Set `BackgroundExecutionOptions.ExceptionBehavior` —
+  `LogOnly` (the default, matching the old `false`) or `StopHost`. The property let one message type's
+  author stop a process shared with everyone else's. `BackgroundExecutionMiddleware`'s constructor takes
+  the options and an optional `IHostApplicationLifetime`; registration through the framework is unaffected.
+- **BREAKING: `AspNetCoreAuthorizationOptions.DefaultPolicy` is removed with no replacement.** Configure
+  the fallback through ASP.NET Core's own `AuthorizationOptions`. `AspNetCoreAuthorizationMiddleware`'s
+  constructor also takes `IAuthorizationPolicyProvider` and `IHandlerRegistry`; only direct construction
+  is affected.
+- **BREAKING: circuit-breaker reset is asynchronous.** `ICircuitBreakerPolicy.Reset()` becomes
+  `ResetAsync(CancellationToken)` and `ITransportCircuitBreakerDiagnostics.ResetAll()` becomes
+  `ResetAllAsync(CancellationToken)`; the Polly adapters follow. A distributed breaker's reset has to
+  reach the shared store holding its state.
+- **BREAKING: the `Excalibur.Dispatch.Transport.RetryStrategy` enum is removed.** Nothing read it — no
+  transport consulted it, no option bound to it. Retry is configured through the resilience pipeline.
+- **BREAKING: `IIbmMqConnectionProvider` is no longer public and has no public replacement.** The transport
+  now owns connection creation. `IbmMqOptions.QueueManager` is a name string, not a substitute. If you
+  supplied your own connection management, say so on the issue tracker before upgrading — the seam can be
+  reopened with a contract rather than restored by accident.
+- **Three leader-election constructors gain a trailing optional parameter** (`DateTimeOffset? timestamp`,
+  `TimeProvider? timeProvider`); existing calls still compile.
+- **`CosmosDbDataChangeEvent.CreateInsert/CreateUpdate/CreateDelete` gain a trailing optional
+  `CosmosDbPartitionKeyKind`**; existing calls still compile.
+
+**Conformance kits**
+
+- **BREAKING: `ControlValidatorConformanceTestKit.RunTestAsync_UnsupportedControl_ShouldReturnExceptions`
+  is renamed to `...ShouldNotFabricateAPass`, and its assertion is inverted.** The old arm expected an
+  unsupported control to *produce a finding*; the new one requires it *not to claim a pass*. The rename
+  surfaces at compile time; **the meaning change does not** — re-read what your validator does with a
+  control it does not support.
+
+### Fixed
+
+**Message loss and duplication**
+
+- Kafka: a routine rebalance committed past messages still in handlers, losing them. A revoke now commits
+  the tracked position, and a commit past unsettled work is structurally inexpressible.
+- Kafka: a poison record stalled the partition indefinitely; it is now dead-lettered or tombstoned.
+- Kafka: requeue was ignored, and a commit failure was reported as a handler failure.
+- Transports: a transport could report settlement success for a settlement the broker **refused**
+  (IBM MQ confirmed); both IBM MQ and gRPC ignored requeue.
+- gRPC sent an empty body under a correct type label; IBM MQ bound a CloudEvents spelling it cannot express.
+- Outbox: registering a change-feed subscription **and** the claim drain published every message twice,
+  silently.
+- Outbox: the Cosmos atomic claim was inert on a consumer-supplied `CosmosClient` — the framework does not
+  own that client's serializer.
+- Outbox: MongoDB and Redis advertised a fence they cannot honour (see Changed); the inert diagnostics and
+  dead fence branches are removed.
+- Outbox: a failure report for a terminal message reports `AlreadyTerminal`, not `ClaimLost`.
+- Inbox: the lease term **was** the expiry instant, so two acquisitions in the same millisecond collided.
+- Saga: the dedup guard was inert in **every** durable store; dedup keys also collided on simple type name,
+  silently discarding distinct events.
+- Saga: a timeout whose dispatch failed was marked delivered and deleted, so the retry it was owed never
+  happened; a timeout could also be retired by a tenure that no longer owned it. The Oracle lease was
+  stamped on the server clock and judged against the caller's.
+- CDC (SQL Server): up to `QueueSize` captured changes were dropped on a second poll; the producer could
+  write the durable checkpoint on a zero-row fetch; a failed change stopped barring its table as soon as
+  the next batch was dequeued; an off-by-one starved the last transaction on a quiet table.
+- CDC (Postgres): a `using` block leaked a replication slot silently; overlapping invocations are refused;
+  checkpoint refusal is numeric rather than lexical.
+- CDC (DynamoDB): a closed shard was skipped whenever it had an ending sequence number, read or not.
+- Projections (DynamoDB): a query returned a silently wrong page.
+
+**Authorization and tenancy**
+
+- A wildcard activity-group grant authorized you for **every tenant's** groups.
+- Activity-group permissions were silently denied on every cache hit.
+- Activity-group lookup keys omitted the tenant, so one tenant's group name resolved another's activities.
+- Grant queries filtered by empty string rather than by value, so access reviews and entitlement reports
+  found no grants.
+- Authorization cache entries gain an absolute expiry bound, so a revoked grant cannot authorize indefinitely.
+- Grant sync replaces a user's grants atomically per grant type instead of deleting the estate and repopulating.
+- The SQL Server authorization store shipped **PostgreSQL syntax**, so every call against it failed to parse.
+- `AddExcaliburA3` was not idempotent.
+- ASP.NET Core: handler-declared `[Authorize]` was bypassed, and an undeterminable handler passed;
+  publishing an event with zero subscribers was refused with 403; content negotiation built a second container.
+- `HasTenant` vouched for a tenant the conversion then rejected.
+
+**Compliance**
+
+- The erasure "atomic claim" was an unconditional `UPDATE` in both durable stores.
+- `[Sensitive]` said it required encryption and no encryption path had ever heard of it.
+- A legacy crypto-shredded field was handed back as **plaintext**, because nothing marked our writes.
+- A retried append re-encrypted an already-encrypted field, double-wrapping it.
+- Multi-region key deletion destroyed only the active region.
+- SQL erasure stores round-trip every signed certificate claim; a certificate stored on Postgres verifies
+  instead of reporting TAMPERED.
+- A SOC 2 control nobody assessed was reported to the auditor as a finding.
+- `[EncryptedField]` is honoured on `string` properties, and a corrupt envelope is no longer returned as plaintext.
+
+**Everything else**
+
+- **The templates package had never been packed, so no consumer could install it.**
+- `Excalibur.Data` forced `Azure.Core` and an OpenTelemetry exporter onto every consumer, for a package it
+  never used.
+- A **named** retry policy silently used the default options, because nothing read the name.
+- Claim check: a wire-supplied id could shape the storage key on three live providers; the in-memory store
+  handed the producer's own array back to the consumer; the media type used a tree RFC 6648 deprecated.
+- MySQL batch execution could not run any request that issues SQL.
+- Cloud providers had no paging intake, so a second page could not be requested.
+- AOT: reflective JSON is replaced by source-generated contexts in three outbox providers, and DynamoDB
+  snapshots use a resolver seam.
+- Audit: a detected chain break was reported as "nothing to look at", because an absence was tested first.
+- Performance: the message type name resolves once per type instead of on every dispatch; the weighted
+  balancer no longer materialises one entry per unit of weight.
+
+## [10.0.0-alpha.11] - 2026-09-14
+
+Shipped. Cut from what had accumulated under `[Unreleased]` at the `v10.0.0-alpha.11` tag; the entries are
+unchanged, only relocated to the release that actually carried them. Breaking changes are marked
+**BREAKING** and are grouped at the top of each heading.
 
 ### Changed
 
@@ -316,7 +557,6 @@ would hide a live problem from anyone reading only the newest section.
 - **SOC 2 compliance registration no longer fails at startup on its defaults.** `AddSoc2Compliance(configuration)` enabled the Security category by default while registering no control validator for it, so resolving the options threw and the host never started. Coverage is now reported as a startup **warning** naming the uncovered categories and the registration that would cover them, which matches the documented contract: validators are opt-in, and a report generated with none registered states honestly that the criterion was not assessed. If you want the built-in validators, call `AddSoc2ComplianceWithBuiltInValidators(configuration)` as before.
 
 - **The ahead-of-time compatibility table now states each package's status truthfully.** Twenty packages were listed as AOT-safe while containing members annotated as requiring reflection, in several cases while the same row's note described those diagnostics. Status is now stated per API, the way the .NET documentation states it: a package whose reflective path is annotated is listed as annotated, and the note names the clean alternative where one exists.
-
 
 - **The Kafka and RabbitMQ package summaries said "CloudEvents support" when only publishing was implemented.** Both now say "CloudEvents publishing". The feature bullet was always accurate — it names `ICloudEventEncoder<TOutbound>` and describes outgoing formatting — but the opening sentence, which is the text nuget.org shows as the package description, was unqualified, and "CloudEvents support" reads as both directions. At that point, receiving a CloudEvent from a non-Excalibur producer was not implemented on any transport. Inbound decoding has since been added on every transport — see **CloudEvents on the receive path** under Added — so a package selected for inbound decoding now does it.
 

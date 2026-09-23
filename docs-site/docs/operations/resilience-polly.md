@@ -94,6 +94,24 @@ services.AddPollyRetryPolicy("transient-retry", options =>
 });
 ```
 
+The name is not decorative. Each named policy is registered as a **keyed** service and carries its own
+options, so you resolve it by the same name — exactly as you would a named circuit breaker:
+
+```csharp
+// Constructor injection
+public sealed class OrderHandler(
+    [FromKeyedServices("transient-retry")] IRetryPolicy retryPolicy)
+{
+    // ...
+}
+
+// Or from a provider
+var retry = serviceProvider.GetRequiredKeyedService<IRetryPolicy>("transient-retry");
+```
+
+Resolving the **unkeyed** `IRetryPolicy` gives you the default options, not the ones you configured under
+a name. Two different names are two independent policies and never share configuration.
+
 `BackoffStrategy` supports `Fixed`, `Linear`, `Exponential`, `ExponentialWithJitter`, `Fibonacci`,
 `FullJitter`, and `DecorrelatedJitter`. Use **`BackoffStrategy.FullJitter`** for AWS-style full jitter — the
 delay is sampled uniformly from `[0, min(maxDelay, baseDelay * multiplier^(attempt-1))]`, maximally
@@ -367,9 +385,15 @@ public interface ITransportCircuitBreakerRegistry
 
 :::caution The registry holds at most 1024 distinct circuits
 
-Once 1024 circuits exist, a key that is not already present shares one overflow circuit instead of
-allocating another, so the map cannot grow without bound. Protection is preserved but coarser: one
-failing key can open the circuit for every other key that landed in the overflow.
+Once 1024 circuits exist, the registry makes room for a new key by evicting an existing circuit, so the
+map cannot grow without bound. Every key still gets its own circuit: a circuit is never shared between
+keys, and a key `GetOrCreate(...)` returned a circuit for is stored, so `TryGet(...)` finds that same circuit until it is evicted.
+
+It evicts the least recently used circuit that is **idle** — closed and carrying no consecutive
+failures. **If no circuit is idle, it evicts the least recently used one whatever its state**, including
+one that is open or half-open. The key that loses its circuit gets a fresh, closed one next time, so its
+failure history is lost and it can be called again before its dependency has recovered. Keeping the
+number of keys well under the cap is what prevents that.
 
 This matters when the key is derived from the message. `CircuitBreakerOptions.CircuitKeySelector` is
 a `Func<IDispatchMessage, string>` you supply, so a selector returning a tenant id, a route or any
@@ -377,8 +401,8 @@ other high-cardinality value can exceed the cap. **Return a bounded set of keys*
 family or tenant tier rather than by identity. Transport names, the intended use of this registry,
 are naturally far below the cap.
 
-Diagnostics reflect the sharing: `GetAllStates()` reports the shared circuit under the reserved key
-`__overflow__`, and `TryGet(...)` returns `null` for a key that ended up in it.
+`GetAllStates()` reports one entry per key currently held. An evicted key simply disappears from it
+until it is used again.
 
 :::
 

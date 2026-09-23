@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -469,13 +469,16 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		var start = Stopwatch.GetTimestamp();
 
 		try
 		{
-			await _inner.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken)
+			// The inner store's outcome is returned verbatim. Observing an operation must not change what
+			// the caller learns from it: a decorator that reported Applied regardless would make every
+			// refusal downstream of telemetry invisible, which is the defect the return type removes.
+			return await _inner.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken)
 				.ConfigureAwait(false);
 		}
 		finally
@@ -485,7 +488,7 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedWithBackoffAsync(
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedWithBackoffAsync(
 		string messageId,
 		string handlerType,
 		string errorMessage,
@@ -499,16 +502,23 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 		{
 			// Backoff is an optional optimization (fail-open): forward to the inner store if it supports the
 			// schedule, otherwise fall back to the plain failed status so the decorator never regresses behavior.
+			// Either way the inner store's outcome is returned verbatim -- including on the fallback, where the
+			// entry really was marked failed and really was not given a schedule.
 			if (_inner is IBackoffSchedulableInboxStore schedulable)
 			{
-				await schedulable.MarkFailedWithBackoffAsync(messageId, handlerType, errorMessage, retryCount, nextAttemptAt, cancellationToken)
+				return await schedulable.MarkFailedWithBackoffAsync(messageId, handlerType, errorMessage, retryCount, nextAttemptAt, cancellationToken)
 					.ConfigureAwait(false);
 			}
-			else
-			{
-				await _inner.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken)
-					.ConfigureAwait(false);
-			}
+
+			// The caller ignored the documented probe. SupportsBackoffScheduling reports the EFFECTIVE
+			// capability and is false here, so reaching this line is a programming error, not a runtime
+			// condition. Returning the inner store's plain mark-failed would answer Applied -- which on THIS
+			// member asserts a backoff was scheduled -- while no schedule exists.
+			throw new NotSupportedException(
+				"The inner inbox store cannot schedule a per-entry backoff, so this decorator forwards the "
+				+ "capability without being able to honour it. Probe IInboxStoreCapabilities."
+				+ "SupportsBackoffScheduling before calling MarkFailedWithBackoffAsync -- a bare type test is "
+				+ "satisfied by this decorator and does not tell you whether the schedule can actually be kept.");
 		}
 		finally
 		{
@@ -545,7 +555,8 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
 		string messageId,
 		string handlerType,
 		string errorMessage,
@@ -556,8 +567,11 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 
 		try
 		{
-			await Admin
-				.MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, cancellationToken)
+			// The tenant and the outcome are both forwarded verbatim: a decorator that resolved a partition
+			// of its own, or that collapsed the inner store's refusal into a completed task, would
+			// reintroduce on this seam exactly what the parameter and the return type exist to remove.
+			return await Admin
+				.MarkFailedAsync(tenant, messageId, handlerType, errorMessage, retryCount, cancellationToken)
 				.ConfigureAwait(false);
 		}
 		finally

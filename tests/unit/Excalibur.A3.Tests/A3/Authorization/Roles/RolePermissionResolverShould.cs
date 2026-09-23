@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
+using Excalibur.Dispatch;
 using Excalibur.A3.Authorization.Roles;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -16,6 +17,10 @@ namespace Excalibur.Tests.A3.Authorization.Roles;
 [Trait("Component", "A3")]
 public sealed class RolePermissionResolverShould : UnitTestBase
 {
+	// A role name identifies one role WITHIN a tenant; the resolver is a process-wide singleton, so
+	// every call has to say which tenant it is asking about.
+	private const string TenantId = "tenant-a";
+
 	private readonly IRoleStore _roleStore = A.Fake<IRoleStore>();
 	private readonly IActivityGroupStore _activityGroupStore = A.Fake<IActivityGroupStore>();
 	private readonly RolePermissionResolver _sut;
@@ -45,7 +50,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Admin", A<CancellationToken>._))
 			.Returns(MakeRole("Admin", [], ["ExportData", "ImportData"]));
 
-		var result = await _sut.ResolveRolePermissionsAsync("Admin", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Admin", CancellationToken.None);
 
 		result.Count.ShouldBe(2);
 		result.ShouldContain("ExportData");
@@ -58,14 +63,14 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Admin", A<CancellationToken>._))
 			.Returns(MakeRole("Admin", ["Finance"], []));
 
-		var groups = new Dictionary<string, object>
+		var groups = new Dictionary<string, IReadOnlyCollection<string>>
 		{
-			["Finance"] = new List<string> { "CreatePayment", "ApprovePayment" },
+			[SegmentedKey.Compose(TenantId, "Finance")] = new List<string> { "CreatePayment", "ApprovePayment" },
 		};
-		A.CallTo(() => _activityGroupStore.FindActivityGroupsAsync(A<CancellationToken>._))
+		A.CallTo(() => _activityGroupStore.FindActivityGroupsAsync(TenantId, A<CancellationToken>._))
 			.Returns(groups);
 
-		var result = await _sut.ResolveRolePermissionsAsync("Admin", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Admin", CancellationToken.None);
 
 		result.Count.ShouldBe(2);
 		result.ShouldContain("CreatePayment");
@@ -78,14 +83,14 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Admin", A<CancellationToken>._))
 			.Returns(MakeRole("Admin", ["Finance"], ["ExportData"]));
 
-		var groups = new Dictionary<string, object>
+		var groups = new Dictionary<string, IReadOnlyCollection<string>>
 		{
-			["Finance"] = new List<string> { "CreatePayment" },
+			[SegmentedKey.Compose(TenantId, "Finance")] = new List<string> { "CreatePayment" },
 		};
-		A.CallTo(() => _activityGroupStore.FindActivityGroupsAsync(A<CancellationToken>._))
+		A.CallTo(() => _activityGroupStore.FindActivityGroupsAsync(TenantId, A<CancellationToken>._))
 			.Returns(groups);
 
-		var result = await _sut.ResolveRolePermissionsAsync("Admin", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Admin", CancellationToken.None);
 
 		result.Count.ShouldBe(2);
 		result.ShouldContain("ExportData");
@@ -98,7 +103,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Missing", A<CancellationToken>._))
 			.Returns((RoleSummary?)null);
 
-		var result = await _sut.ResolveRolePermissionsAsync("Missing", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Missing", CancellationToken.None);
 		result.ShouldBeEmpty();
 	}
 
@@ -108,7 +113,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Inactive", A<CancellationToken>._))
 			.Returns(MakeRole("Inactive", ["Finance"], ["Export"], state: RoleState.Inactive));
 
-		var result = await _sut.ResolveRolePermissionsAsync("Inactive", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Inactive", CancellationToken.None);
 		result.ShouldBeEmpty();
 	}
 
@@ -118,7 +123,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Old", A<CancellationToken>._))
 			.Returns(MakeRole("Old", [], ["X"], state: RoleState.Deprecated));
 
-		var result = await _sut.ResolveRolePermissionsAsync("Old", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Old", CancellationToken.None);
 		result.ShouldBeEmpty();
 	}
 
@@ -128,7 +133,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Empty", A<CancellationToken>._))
 			.Returns(MakeRole("Empty", [], []));
 
-		var result = await _sut.ResolveRolePermissionsAsync("Empty", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Empty", CancellationToken.None);
 		result.ShouldBeEmpty();
 	}
 
@@ -143,9 +148,9 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 			.Returns(MakeRole("Admin", [], ["ExportData"]));
 
 		// First call
-		await _sut.ResolveRolePermissionsAsync("Admin", CancellationToken.None);
+		await _sut.ResolveRolePermissionsAsync(TenantId, "Admin", CancellationToken.None);
 		// Second call -- should use cache
-		var result = await _sut.ResolveRolePermissionsAsync("Admin", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Admin", CancellationToken.None);
 
 		result.ShouldContain("ExportData");
 		// Role store should only be called once (cached on second call)
@@ -165,8 +170,8 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Admin", A<CancellationToken>._))
 			.Returns(MakeRole("Admin", [], ["ExportData"]));
 
-		await resolver.ResolveRolePermissionsAsync("Admin", CancellationToken.None);
-		await resolver.ResolveRolePermissionsAsync("Admin", CancellationToken.None);
+		await resolver.ResolveRolePermissionsAsync(TenantId, "Admin", CancellationToken.None);
+		await resolver.ResolveRolePermissionsAsync(TenantId, "Admin", CancellationToken.None);
 
 		// Should call store twice since caching is disabled
 		A.CallTo(() => _roleStore.GetRoleAsync("Admin", A<CancellationToken>._))
@@ -187,7 +192,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 			.Returns(MakeRole("Parent", [], ["ParentActivity"]));
 
 		// Act
-		var result = await _sut.ResolveRolePermissionsAsync("Child", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Child", CancellationToken.None);
 
 		// Assert -- union of child + parent
 		result.Count.ShouldBe(2);
@@ -207,7 +212,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 			.Returns(MakeRole("Parent", [], ["ParentActivity"]));
 
 		// Act
-		var result = await _sut.ResolveRolePermissionsAsync("Grandchild", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Grandchild", CancellationToken.None);
 
 		// Assert -- union of all 3 levels
 		result.Count.ShouldBe(3);
@@ -226,7 +231,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 			.Returns(MakeRole("RoleB", [], ["ActivityB"], parentRoleName: "RoleA"));
 
 		// Act -- should not infinite loop
-		var result = await _sut.ResolveRolePermissionsAsync("RoleA", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "RoleA", CancellationToken.None);
 
 		// Assert -- visits both once, stops on cycle
 		result.ShouldContain("ActivityA");
@@ -256,7 +261,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 			.Returns(MakeRole("Level3", [], ["Act3"]));
 
 		// Act
-		var result = await resolver.ResolveRolePermissionsAsync("Level0", CancellationToken.None);
+		var result = await resolver.ResolveRolePermissionsAsync(TenantId, "Level0", CancellationToken.None);
 
 		// Assert -- only Level0 (depth=0), Level1 (depth=1), Level2 (depth=2) resolved
 		result.ShouldContain("Act0");
@@ -277,7 +282,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 			.Returns(MakeRole("Grandparent", [], ["GrandparentActivity"]));
 
 		// Act
-		var result = await _sut.ResolveRolePermissionsAsync("Child", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Child", CancellationToken.None);
 
 		// Assert -- stops at inactive parent, grandparent not reached
 		result.Count.ShouldBe(1);
@@ -296,7 +301,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 			.Returns((RoleSummary?)null);
 
 		// Act
-		var result = await _sut.ResolveRolePermissionsAsync("Child", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Child", CancellationToken.None);
 
 		// Assert -- only child activities
 		result.Count.ShouldBe(1);
@@ -310,7 +315,7 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Root", A<CancellationToken>._))
 			.Returns(MakeRole("Root", [], ["RootActivity"]));
 
-		var result = await _sut.ResolveRolePermissionsAsync("Root", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Root", CancellationToken.None);
 
 		result.Count.ShouldBe(1);
 		result.ShouldContain("RootActivity");
@@ -325,15 +330,15 @@ public sealed class RolePermissionResolverShould : UnitTestBase
 		A.CallTo(() => _roleStore.GetRoleAsync("Parent", A<CancellationToken>._))
 			.Returns(MakeRole("Parent", ["Finance"], []));
 
-		var groups = new Dictionary<string, object>
+		var groups = new Dictionary<string, IReadOnlyCollection<string>>
 		{
-			["Finance"] = new List<string> { "CreatePayment", "ApprovePayment" },
+			[SegmentedKey.Compose(TenantId, "Finance")] = new List<string> { "CreatePayment", "ApprovePayment" },
 		};
-		A.CallTo(() => _activityGroupStore.FindActivityGroupsAsync(A<CancellationToken>._))
+		A.CallTo(() => _activityGroupStore.FindActivityGroupsAsync(TenantId, A<CancellationToken>._))
 			.Returns(groups);
 
 		// Act
-		var result = await _sut.ResolveRolePermissionsAsync("Child", CancellationToken.None);
+		var result = await _sut.ResolveRolePermissionsAsync(TenantId, "Child", CancellationToken.None);
 
 		// Assert -- child direct + parent groups expanded
 		result.Count.ShouldBe(3);

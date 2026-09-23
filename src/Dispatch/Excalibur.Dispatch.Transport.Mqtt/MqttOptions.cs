@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
 
@@ -38,6 +38,40 @@ public sealed class MqttOptions
 	/// <summary>Gets or sets the quality-of-service level (delivery guarantee).</summary>
 	/// <value>The QoS level. Defaults to <see cref="MqttQualityOfService.AtLeastOnce"/> (QoS 1).</value>
 	public MqttQualityOfService QualityOfService { get; set; } = MqttQualityOfService.AtLeastOnce;
+
+	/// <summary>Gets or sets a value indicating whether the broker keeps this client's session across disconnects.</summary>
+	/// <remarks>
+	/// <para>
+	/// This is a durability decision with a cost on the broker, and it is the setting that makes rejection with
+	/// redelivery either true or false. Rejecting a message withholds its acknowledgement and relies on the broker
+	/// redelivering the unacknowledged QoS 1/2 message when the session resumes. Under a clean start the broker
+	/// discards the session the moment the connection closes, so there is nothing to resume and the rejected
+	/// message is <b>lost</b> rather than redelivered.
+	/// </para>
+	/// <para>
+	/// Defaults to <see langword="true"/> because this transport offers rejection with redelivery. Set it to
+	/// <see langword="false"/> only if you do not rely on that: a rejected message is then dropped at the first
+	/// disconnect, with no error and no warning.
+	/// </para>
+	/// <para>
+	/// Resuming a session requires the <b>same client id</b>, so <see cref="ClientId"/> must be stable across
+	/// restarts. A per-process random id satisfies validation and still cannot resume anything.
+	/// </para>
+	/// </remarks>
+	/// <value><see langword="true"/> to keep the session; otherwise <see langword="false"/>. Defaults to <see langword="true"/>.</value>
+	public bool PersistentSession { get; set; } = true;
+
+	/// <summary>Gets or sets how long the broker keeps the session after the connection closes.</summary>
+	/// <remarks>
+	/// This is the recovery window: a subscriber that reconnects within it resumes its session and receives the
+	/// messages it left unacknowledged; one that reconnects after it gets a fresh session, and anything rejected
+	/// in the previous session is gone. Sized for reconnects and rolling restarts rather than for outages.
+	/// Ignored when <see cref="PersistentSession"/> is <see langword="false"/>. The protocol encodes this as a
+	/// whole number of seconds, so sub-second precision is not representable and values are rejected at startup
+	/// if they cannot be expressed.
+	/// </remarks>
+	/// <value>The recovery window; must be positive and a whole number of seconds. Defaults to one hour.</value>
+	public TimeSpan SessionExpiryInterval { get; set; } = TimeSpan.FromHours(1);
 
 	/// <summary>Gets or sets a value indicating whether to connect over TLS.</summary>
 	/// <value><see langword="true"/> to use TLS; otherwise <see langword="false"/>. Defaults to <see langword="false"/>.</value>

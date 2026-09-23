@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Resilience;
 
@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Tests.Resilience;
 /// </summary>
 /// <remarks>
 /// The registry had no registration in core, so those drains resolved nothing and fell back to a
-/// null registry whose breakers do nothing. Nothing failed and nothing logged: the drains simply ran
+/// null registry whose breakers did nothing. Nothing failed and nothing logged: the drains simply ran
 /// unprotected unless the host had taken the opt-in resilience package.
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -32,9 +32,13 @@ public sealed class OutboxBreakerIsReachableShould
 		var registry = provider.GetService<ITransportCircuitBreakerRegistry>();
 
 		registry.ShouldNotBeNull("a host that never opted into the resilience package still needs a breaker");
-		registry.GetType().Name.ShouldNotBe(
-			"NullTransportCircuitBreakerRegistry",
-			"the null registry hands out breakers that never open");
+
+		// Asserted POSITIVELY. The original arm named the null registry it had to avoid; that type has
+		// since been deleted, so the negative could never match again and the arm would have gone
+		// vacuous while still reporting green. Naming the type that MUST be there keeps it falsifiable.
+		registry.GetType().Name.ShouldBe(
+			"TransportCircuitBreakerRegistry",
+			"a plain host must resolve the real bounded registry, not a substitute that never opens");
 	}
 
 	[Fact]

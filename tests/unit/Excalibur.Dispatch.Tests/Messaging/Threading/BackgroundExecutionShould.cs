@@ -1,11 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Options.Threading;
 using Excalibur.Dispatch.Threading;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+
+using MicrosoftOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Threading;
 
@@ -20,7 +23,15 @@ public sealed class BackgroundExecutionShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new BackgroundExecutionMiddleware(null!));
+			new BackgroundExecutionMiddleware(MicrosoftOptions.Create(new BackgroundExecutionOptions()), null!));
+	}
+
+	[Fact]
+	public void Constructor_WithNullOptions_Throws()
+	{
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() =>
+			new BackgroundExecutionMiddleware(null!, NullLogger<BackgroundExecutionMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -28,6 +39,7 @@ public sealed class BackgroundExecutionShould
 	{
 		// Arrange
 		var middleware = new BackgroundExecutionMiddleware(
+			MicrosoftOptions.Create(new BackgroundExecutionOptions()),
 			NullLogger<BackgroundExecutionMiddleware>.Instance);
 
 		// Assert
@@ -40,6 +52,7 @@ public sealed class BackgroundExecutionShould
 	{
 		// Arrange
 		var middleware = new BackgroundExecutionMiddleware(
+			MicrosoftOptions.Create(new BackgroundExecutionOptions()),
 			NullLogger<BackgroundExecutionMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
@@ -63,6 +76,7 @@ public sealed class BackgroundExecutionShould
 	{
 		// Arrange
 		var middleware = new BackgroundExecutionMiddleware(
+			MicrosoftOptions.Create(new BackgroundExecutionOptions()),
 			NullLogger<BackgroundExecutionMiddleware>.Instance);
 		var message = new TestBackgroundMessage();
 		var context = A.Fake<IMessageContext>();
@@ -81,6 +95,7 @@ public sealed class BackgroundExecutionShould
 	{
 		// Arrange
 		var middleware = new BackgroundExecutionMiddleware(
+			MicrosoftOptions.Create(new BackgroundExecutionOptions()),
 			NullLogger<BackgroundExecutionMiddleware>.Instance);
 		var context = A.Fake<IMessageContext>();
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -96,6 +111,7 @@ public sealed class BackgroundExecutionShould
 	{
 		// Arrange
 		var middleware = new BackgroundExecutionMiddleware(
+			MicrosoftOptions.Create(new BackgroundExecutionOptions()),
 			NullLogger<BackgroundExecutionMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -111,6 +127,7 @@ public sealed class BackgroundExecutionShould
 	{
 		// Arrange
 		var middleware = new BackgroundExecutionMiddleware(
+			MicrosoftOptions.Create(new BackgroundExecutionOptions()),
 			NullLogger<BackgroundExecutionMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
@@ -199,8 +216,5 @@ public sealed class BackgroundExecutionShould
 
 	// --- Test helpers ---
 
-	private sealed class TestBackgroundMessage : IDispatchMessage, IExecuteInBackground
-	{
-		public bool PropagateExceptions => false;
-	}
+	private sealed class TestBackgroundMessage : IDispatchMessage, IExecuteInBackground;
 }

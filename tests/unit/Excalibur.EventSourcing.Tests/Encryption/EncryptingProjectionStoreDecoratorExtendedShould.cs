@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
 
@@ -104,9 +104,8 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 		{
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "test",
-			DefaultTenantId = "tenant-1"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		var encryptedBytes = CreateEncryptedFieldBytes(new byte[] { 99, 98, 97 });
 		var decryptedData = new byte[] { 10, 20, 30 };
@@ -134,7 +133,7 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "test"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		var encryptedBytes = CreateEncryptedFieldBytes(new byte[] { 99 });
 		var projection = new TestProjection { Id = "p1", Name = "Test", SensitiveData = encryptedBytes };
@@ -162,9 +161,8 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 		{
 			Mode = EncryptionMode.EncryptNewDecryptAll,
 			DefaultPurpose = "test",
-			DefaultTenantId = "tenant-1"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		var plainData = new byte[] { 10, 20, 30 };
 		var projection = new TestProjection { Id = "p1", Name = "Test", SensitiveData = plainData };
@@ -209,7 +207,7 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 			Mode = EncryptionMode.DecryptOnlyWritePlaintext,
 			DefaultPurpose = "test"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		// Act
 		await decorator.DeleteAsync("p1", _ct);
@@ -229,7 +227,7 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 			Mode = EncryptionMode.EncryptNewDecryptAll,
 			DefaultPurpose = "test"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		// Act
 		await decorator.DeleteAsync("p1", _ct);
@@ -252,9 +250,8 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 		{
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "test",
-			DefaultTenantId = "tenant-1"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		var plainData = new byte[] { 10, 20, 30 }; // Not encrypted (no magic bytes)
 		var projections = new List<TestProjection>
@@ -282,9 +279,8 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 		{
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "test",
-			DefaultTenantId = "tenant-1"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		var encryptedBytes = CreateEncryptedFieldBytes(new byte[] { 99 });
 		var decryptedData = new byte[] { 10, 20, 30 };
@@ -319,7 +315,7 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "test"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 		var filters = new Dictionary<string, object> { { "Name", "Test" } };
 
 		A.CallTo(() => innerStore.CountAsync(A<IDictionary<string, object>?>._, _ct))
@@ -348,7 +344,7 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "test"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<PlainProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<PlainProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		var projection = new PlainProjection { Id = "p1", Name = "Test", Data = new byte[] { 1, 2, 3 } };
 
@@ -370,7 +366,7 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "test"
 		});
-		var decorator = new EncryptingProjectionStoreDecorator<PlainProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<PlainProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		var projections = new List<PlainProjection>
 		{
@@ -401,12 +397,11 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 		{
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "fips-test",
-			DefaultTenantId = "tenant-fips",
 			RequireFipsCompliance = true
 		});
 
 		// Act - should not throw
-		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options);
+		var decorator = new EncryptingProjectionStoreDecorator<TestProjection>(innerStore, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		// Assert
 		decorator.ShouldNotBeNull();

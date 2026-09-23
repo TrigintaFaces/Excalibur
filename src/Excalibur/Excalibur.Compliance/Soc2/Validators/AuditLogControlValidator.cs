@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 
@@ -48,7 +48,13 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 		{
 			ControlSec004 => await ValidateAuditLoggingAsync(cancellationToken).ConfigureAwait(false),
 			ControlSec005 => ValidateSecurityMonitoring(),
-			_ => CreateFailureResult(controlId, [$"Unknown control: {controlId}"])
+			// NotVerified, never the default score. A control this validator does not support was never
+			// examined, so the honest outcome is "not assessed" -- Deficient means examined-and-failing and
+			// reaches the assessor as a finding against the consumer.
+			_ => CreateFailureResult(
+				controlId,
+				[$"Unknown control: {controlId}"],
+				effectivenessScore: ControlEffectiveness.Unverified)
 		};
 	}
 
@@ -89,7 +95,9 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 		if (_auditLogger == null)
 		{
 			issues.Add("Audit logger not configured");
-			return CreateFailureResult(ControlSec004, issues);
+			// The band is stated because there is no longer a default to inherit, and this is the case
+			// the removed default happened to be right about: the mechanism is genuinely not present.
+			return CreateFailureResult(ControlSec004, issues, ControlEffectiveness.MechanismAbsent);
 		}
 
 		// Verify integrity of recent audit logs
@@ -198,7 +206,7 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 					"Audit log integrity was not verified in this window, so this period evidences that audit "
 					+ "logging is configured but not that the trail is intact."
 				],
-				effectivenessScore: Soc2EffectivenessScore.Unverified,
+				effectivenessScore: ControlEffectiveness.Unverified,
 				evidence,
 				isConfigured: true);
 		}
@@ -216,7 +224,7 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 		// The only issue reachable here is a DETECTED integrity violation -- the trail was examined and
 		// found tampered. Counting the remark gave that 75, which outranked a control nobody could check.
 		return CreateFailureResult(
-			ControlSec004, issues, Soc2EffectivenessScore.ViolationDetected, evidence, isConfigured: true);
+			ControlSec004, issues, ControlEffectiveness.ViolationDetected, evidence, isConfigured: true);
 	}
 
 	private ControlValidationResult ValidateSecurityMonitoring()
@@ -263,7 +271,7 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 					"Audit infrastructure is present, but no security-monitoring activity was exercised in "
 					+ "this period, so this control is unverified and requires independent attestation."
 				],
-				effectivenessScore: Soc2EffectivenessScore.Unverified,
+				effectivenessScore: ControlEffectiveness.Unverified,
 				evidence,
 				isConfigured: true);
 		}
@@ -271,6 +279,6 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 		// The sole issue reachable here is that NO audit infrastructure is configured. That is an absent
 		// mechanism, not a partial one, and it was scoring 67 of 100.
 		return CreateFailureResult(
-			ControlSec005, issues, Soc2EffectivenessScore.MechanismAbsent, evidence);
+			ControlSec005, issues, ControlEffectiveness.MechanismAbsent, evidence);
 	}
 }

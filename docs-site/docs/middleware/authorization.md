@@ -97,7 +97,7 @@ The middleware will check whether the current user has a grant for `"Orders.Crea
 
 Use `IRequireActivityAuthorization` when the permission is scoped to a specific resource:
 
-```csharp
+```csharp ignore
 using Excalibur.A3.Authorization;
 
 public record UpdateOrderAction(Guid OrderId, string NewStatus)
@@ -128,7 +128,7 @@ public record DeleteUserAction(Guid UserId)
 
 Use `IRequireCustomAuthorization` to supply arbitrary `IAuthorizationRequirement` instances:
 
-```csharp
+```csharp ignore
 using Excalibur.A3.Authorization;
 using Microsoft.AspNetCore.Authorization;
 
@@ -247,7 +247,7 @@ bool hasResourceGrant = policy.HasGrant("Order", "order-123");
 
 `IAccessToken` combines `IAuthenticationToken` and `IAuthorizationPolicy` into a single object — it provides both identity and authorization checks:
 
-```csharp
+```csharp ignore
 using Excalibur.A3;
 
 IAccessToken token = ...;
@@ -296,10 +296,19 @@ var result = await dispatcher.DispatchAsync(action, ct);
 
 if (!result.Succeeded && result.ProblemDetails is { Status: 403 } problem)
 {
-    // problem.Title == "Authorization Failed"
-    // problem.Detail contains failure reason
+    // problem.Title  == "Authorization Failed"
+    // problem.Detail == "You do not have permission to access this resource"
+    //
+    // The detail is a CONSTANT. It deliberately does not name the policy, role or
+    // permission that refused the request: a legitimate caller cannot act on that name,
+    // and disclosing it tells an attacker enumerating your endpoints which authorization
+    // vocabulary gates them. Do not branch on it, and do not surface it as a diagnosis.
 }
 ```
+
+The specific reason is written to **your** logs instead, at `Warning`. See
+[Diagnosing a Denial](../advanced/security.md#diagnosing-a-denial) for the log categories to
+search and what each one emits.
 
 ## Next Steps
 

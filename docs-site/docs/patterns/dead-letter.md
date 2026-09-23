@@ -327,20 +327,32 @@ while (result.Truncated);
 
 ## Dead Letter Reasons
 
-Messages can be dead lettered for various reasons:
+Every entry in `IDeadLetterQueue` carries a `DeadLetterReason`:
 
-| Reason | Description |
-|--------|-------------|
-| `MaxRetriesExceeded` | Message exceeded the maximum number of retry attempts |
-| `CircuitBreakerOpen` | Circuit breaker was open. **Note:** the built-in inbox/outbox processors no longer dead-letter on this condition — a transient open breaker leaves the message for retry (attempt count unchanged). This enum value is retained for compatibility and custom DLQ routing. |
-| `DeserializationFailed` | Message could not be deserialized |
-| `HandlerNotFound` | No handler was registered for the message type |
-| `ValidationFailed` | Message failed validation |
-| `ManualRejection` | Handler explicitly rejected the message |
-| `MessageExpired` | Message TTL expired before processing |
-| `AuthorizationFailed` | Authorization check failed |
-| `UnhandledException` | Unhandled exception during processing |
-| `PoisonMessage` | Message detected as poison (repeatedly causing failures) |
+| Reason | Meaning | Assigned by the framework |
+|--------|---------|---------------------------|
+| `MaxRetriesExceeded` | The message exhausted its retry attempts | **Yes** |
+| `DeserializationFailed` | A stored message could not be deserialized | **Yes** (outbox processor) |
+| `CircuitBreakerOpen` | A circuit breaker was open. A transient open breaker leaves the message for retry rather than dead-lettering it | No |
+| `HandlerNotFound` | No handler was registered for the message type | No |
+| `ValidationFailed` | The message failed validation | No |
+| `ManualRejection` | A handler explicitly rejected the message | No |
+| `MessageExpired` | The message expired before it was processed | No |
+| `AuthorizationFailed` | An authorization check failed | No |
+| `UnhandledException` | An unhandled exception occurred during processing | No |
+| `PoisonMessage` | The message was classified as poison | No — see below |
+| `Unknown` | The reason is unknown or unclassified | No |
+
+**The framework assigns two of these.** A built-in component writes an entry with
+`MaxRetriesExceeded` when a message exhausts its retries (the inbox and outbox processors, and the
+dead-letter-on-exhaustion middleware), and with `DeserializationFailed` when the outbox processor cannot
+read a stored message. The other values exist so that your own code can classify the entries it
+enqueues through `IDeadLetterQueue`; nothing in the framework produces them. Filtering by one of them
+returns only entries you wrote yourself.
+
+Poison-message detection is recorded separately: `PoisonMessageMiddleware` hands a detected message to
+`IPoisonMessageHandler`, which stores it through `IDeadLetterStore` with a free-text reason rather than
+a `DeadLetterReason` value.
 
 ## DeadLetterEntry Structure
 
@@ -431,7 +443,7 @@ var lastWeek = await _dlq.GetEntriesAsync(
 ```csharp
 var filter = new DeadLetterQueryFilter
 {
-    Reason = DeadLetterReason.UnhandledException,
+    Reason = DeadLetterReason.MaxRetriesExceeded,
     FromDate = DateTimeOffset.UtcNow.AddDays(-1),
     IsReplayed = false,
     SourceQueue = "orders-queue",
@@ -464,10 +476,10 @@ public class DeadLetterRecoveryService
         return await _dlq.ReplayAsync(entryId, ct);
     }
 
-    // Batch replay all validation failures (after fixing validation logic)
-    public async Task<ReplayBatchResult> ReplayValidationFailuresAsync(CancellationToken ct)
+    // Batch replay every message that exhausted its retries (after fixing the cause)
+    public async Task<ReplayBatchResult> ReplayExhaustedAsync(CancellationToken ct)
     {
-        var filter = DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed);
+        var filter = DeadLetterQueryFilter.ByReason(DeadLetterReason.MaxRetriesExceeded);
         return await _dlqAdmin.ReplayBatchAsync(filter, limit: 500, ct);
     }
 
@@ -654,6 +666,8 @@ builder.Services.AddPoisonMessageHandling(options =>
 {
     // Immediately poison these exceptions (no retry)
     options.PoisonExceptionTypes.Add(typeof(InvalidOperationException));
+    // NOTE: TransportSettlementException derives from InvalidOperationException. Do NOT poison it —
+    // see "Do not poison a settlement failure" below.
     options.PoisonExceptionTypes.Add(typeof(ArgumentNullException));
     options.PoisonExceptionTypes.Add(typeof(BusinessRuleViolationException));
 
@@ -663,6 +677,36 @@ builder.Services.AddPoisonMessageHandling(options =>
     options.TransientExceptionTypes.Add(typeof(SqlException));
 });
 ```
+
+### Do not poison a settlement failure
+
+`TransportSettlementException` derives from `InvalidOperationException`, so adding that base type to
+`PoisonExceptionTypes` classifies settlement failures as poison — and they are close to the opposite.
+
+A poison classification says *this message can never be processed, stop retrying it*. A settlement failure
+says *your handler may well have succeeded; the broker would not accept the acknowledgement, and it is
+going to deliver the message again*. Treating the second as the first dead-letters work that was fine and
+suppresses the retry that would have settled it.
+
+If you poison `InvalidOperationException`, exclude the settlement type:
+
+```csharp
+options.PoisonExceptionTypes.Add(typeof(InvalidOperationException));
+options.TransientExceptionTypes.Add(typeof(TransportSettlementException)); // more specific wins
+```
+
+Read `RedeliveryExpectation` on the exception to decide what to do: `Expected` — and `Unspecified`, which
+you treat the same way — means the message is coming back, so your handler must be idempotent.
+
+### A rejection that fails after the dead-letter write
+
+`UseDeadLetterQueue` writes to your dead-letter handler **before** it rejects the message on the broker.
+If the rejection then fails, the message is already in your dead-letter store **and** the broker still owns
+it, so it will be delivered again — and on the next delivery it is dead-lettered again.
+
+**Make your dead-letter write idempotent**, keyed on the message id. That is the single thing that makes
+this safe, and it is worth doing regardless: at-least-once delivery means a dead-letter handler can see the
+same message twice for several reasons, of which this is only one.
 
 ## Adding Custom Metadata to Dead Letters
 

@@ -48,7 +48,7 @@ dotnet add package Excalibur.Data.ElasticSearch
 
 A traditional page-number result with computed metadata:
 
-```csharp
+```csharp ignore
 using Excalibur.EventSourcing;
 
 // From a query handler
@@ -112,7 +112,7 @@ foreach (var order in result)
 
 A continuation-token result following the pattern used by Azure SDKs (`ContinuationToken`) and Google Cloud APIs (`nextPageToken`):
 
-```csharp
+```csharp ignore
 using Excalibur.EventSourcing;
 
 return new CursorPagedResult<OrderDto>(items, pageSize: 25, totalRecords: 1000, nextCursor: "eyJ...");

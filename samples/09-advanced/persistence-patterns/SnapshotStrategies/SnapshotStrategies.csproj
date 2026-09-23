@@ -23,6 +23,10 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
+    <!-- In-memory snapshot store. A snapshot strategy decides WHEN to snapshot; the store decides
+         WHERE, and the two are registered separately so the strategy can be demonstrated against
+         any provider. -->
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
   </ItemGroup>
   <!-- Logging -->
   <ItemGroup>

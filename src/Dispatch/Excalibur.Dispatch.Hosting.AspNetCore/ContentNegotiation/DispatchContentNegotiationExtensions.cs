@@ -1,8 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation;
 using Excalibur.Dispatch.Serialization;
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -25,13 +29,12 @@ public static class DispatchContentNegotiationExtensions
 	/// automatically becomes a supported media type.
 	/// </para>
 	/// <para>
-	/// Requires the Dispatch serialization infrastructure to be configured first:
+	/// Requires the Dispatch serialization infrastructure. Registration ORDER does not matter: the
+	/// formatters are built when <c>MvcOptions</c> is first materialised, which is after every
+	/// serializer registration has run, so a serializer added after this call is still picked up.
 	/// <code>
-	/// services.AddDispatchSerialization(serializers =>
-	/// {
-	///     serializers.AddSystemTextJson();
-	///     serializers.AddMessagePack();
-	/// });
+	/// services.AddPluggableSerialization();
+	/// services.AddPluggableSerializer(id: 1, new SystemTextJsonSerializer());
 	///
 	/// services.AddControllers()
 	///     .AddDispatchContentNegotiation();
@@ -42,16 +45,12 @@ public static class DispatchContentNegotiationExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		builder.AddMvcOptions(options =>
-		{
-			// Build a temporary service provider to resolve the registry
-			// This is acceptable since formatters are configured once at startup
-			var sp = builder.Services.BuildServiceProvider();
-			var registry = sp.GetRequiredService<ISerializerRegistry>();
-
-			options.InputFormatters.Insert(0, new DispatchInputFormatter(registry));
-			options.OutputFormatters.Insert(0, new DispatchOutputFormatter(registry));
-		});
+		// Configure MvcOptions through the options system rather than building a second container.
+		// The setup class takes ISerializerRegistry by constructor injection, so the formatters get the
+		// APPLICATION's registry, resolved when MvcOptions is first materialised -- which is after every
+		// serializer registration has run, whatever order the Add* calls were made in.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Transient<IConfigureOptions<MvcOptions>, DispatchContentNegotiationMvcOptionsSetup>());
 
 		return builder;
 	}

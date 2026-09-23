@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -45,6 +45,30 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	/// Available after <see cref="InitializeAsync"/> completes.
 	/// </summary>
 	protected IInboxStoreAdmin AdminStore { get; private set; } = null!;
+
+	/// <summary>
+	/// The tenant context this deriver hands its store.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Admin arms address a partition EXPLICITLY, while an entry created through <see cref="Store"/> lands
+	/// in whatever partition the store derives from this context. The two must agree: addressed
+	/// anywhere else, a correct store answers <see cref="InboxMarkFailedOutcome.EntryNotFound"/> for an
+	/// entry that exists -- in another partition -- which is tenant isolation working, not a defect.
+	/// </para>
+	/// <para>
+	/// Abstract so a deriver cannot omit it. A default would silently assume the store is untenanted,
+	/// which is exactly the assumption that made this arm fail against every store whose context
+	/// carries a tenant.
+	/// </para>
+	/// </remarks>
+	protected abstract ITenantContext StoreTenantContext { get; }
+
+	/// <summary>
+	/// The partition <see cref="Store"/> writes ambient entries into, computed by the same mapping the
+	/// stores use rather than asserted by the test.
+	/// </summary>
+	private KeyedTenantPartition StorePartition => KeyedTenantPartition.FromContext(StoreTenantContext);
 
 	/// <inheritdoc/>
 	public async ValueTask InitializeAsync()
@@ -357,7 +381,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 
 	/// <summary>
 	/// bd-v9jq1a (CEO condition 1 / AC-7): the no-increment
-	/// <c>IInboxStoreAdmin.MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, ct)</c> overload
+	/// <c>IInboxStoreAdmin.MarkFailedAsync(tenant, messageId, handlerType, errorMessage, retryCount, ct)</c> overload
 	/// MUST <b>set</b> RetryCount to the supplied value <b>exactly</b> (never <c>+1</c>) and leave the entry
 	/// re-admittable for retry. Runs uniformly across every <c>IInboxStoreAdmin</c> store via the kit (InMemory
 	/// at IMPLEMENT; the 8 DB stores under TestContainers at TEST). Non-vacuity: a copy-pasted auto-incrementing
@@ -375,8 +399,14 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act — set the retry count to an explicit value via the no-increment overload.
-		await AdminStore.MarkFailedAsync(messageId, handlerType, "transient cb-open", 7, CancellationToken.None)
+		var outcome = await AdminStore.MarkFailedAsync(
+				StorePartition, messageId, handlerType, "transient cb-open", 7, CancellationToken.None)
 			.ConfigureAwait(false);
+
+		outcome.ShouldBe(
+			InboxMarkFailedOutcome.Applied,
+			"the entry exists in the partition that was passed, so the mark must be applied AND say so -- the "
+			+ "retry-count assertions below are meaningless against a store that declined in silence");
 
 		// Assert — RetryCount is SET to exactly 7 (an auto-increment body would yield 1 or 8).
 		var entry = await Store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
@@ -384,8 +414,11 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		entry.RetryCount.ShouldBe(7);
 
 		// Idempotent set (not cumulative): calling again with the same value stays exactly 7.
-		await AdminStore.MarkFailedAsync(messageId, handlerType, "transient cb-open", 7, CancellationToken.None)
+		var secondOutcome = await AdminStore.MarkFailedAsync(
+				StorePartition, messageId, handlerType, "transient cb-open", 7, CancellationToken.None)
 			.ConfigureAwait(false);
+
+		secondOutcome.ShouldBe(InboxMarkFailedOutcome.Applied);
 		var entry2 = await Store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
 		_ = entry2.ShouldNotBeNull();
 		entry2.RetryCount.ShouldBe(7);

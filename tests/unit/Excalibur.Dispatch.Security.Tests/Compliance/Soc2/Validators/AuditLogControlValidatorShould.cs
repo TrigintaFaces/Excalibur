@@ -1,6 +1,6 @@
 using Excalibur.Compliance.Soc2.Validators;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2.Validators;
 
@@ -66,7 +66,7 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-004", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain("Audit logger not configured");
 	}
 
@@ -84,8 +84,8 @@ public sealed class AuditLogControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-004", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
-		result.EffectivenessScore.ShouldBe(100);
+		result.Outcome.ShouldBe(ControlOutcome.Effective);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Effective);
 	}
 
 	[Fact]
@@ -102,7 +102,7 @@ public sealed class AuditLogControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-004", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("integrity check failed"));
 	}
 
@@ -139,13 +139,13 @@ public sealed class AuditLogControlValidatorShould
 			"nothing was examined, so no integrity assurance may be claimed.");
 
 		// An unexercised window is not itself a control failure -- that reasoning is this arm's and it
-		// stands. It is also not a verification. ControlValidationResult.IsEffective is a bool, so
+		// stands. It is also not a verification. ControlValidationResult.Outcome == ControlOutcome.Effective is a bool, so
 		// "unknown" has to be spelled as one of the two verdicts, and BOTH spellings state something
 		// nobody established -- true claims a check that did not happen, false claims a deficiency that
 		// was never observed. This arm therefore asserts what both readings agree on and does not
 		// encode the coin-flip: no detected violation, and no full-marks pass.
 		result.ConfigurationIssues.ShouldNotContain(i => i.Contains("integrity check failed", StringComparison.Ordinal));
-		result.EffectivenessScore.ShouldBeLessThan(100);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 	}
 
 	[Fact]
@@ -166,7 +166,7 @@ public sealed class AuditLogControlValidatorShould
 		// could not run is not evidence the trail is broken. What it did NOT license is the pass this
 		// arm went on to require: the trail's integrity is UNKNOWN here, and an assessor must be able
 		// to tell that from verified-intact.
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldNotContain(i => i.Contains("integrity check failed", StringComparison.Ordinal));
 		result.Evidence.ShouldContain(e => e.Description.Contains("Connection failed"));
 	}
@@ -230,7 +230,7 @@ public sealed class AuditLogControlValidatorShould
 		// a component being CONFIGURED was read as the control SUCCEEDING. The mechanism is present and
 		// the result still says so; nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 	}
 
 	[Fact]
@@ -244,7 +244,7 @@ public sealed class AuditLogControlValidatorShould
 
 		// Assert
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.Evidence.ShouldContain(e => e.Description.Contains("Audit store configured"));
 	}
 
@@ -259,7 +259,7 @@ public sealed class AuditLogControlValidatorShould
 
 		// Assert
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.Evidence.ShouldContain(e => e.Description.Contains("logger-based monitoring"));
 	}
 
@@ -273,7 +273,7 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-005", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain("No audit infrastructure configured for security monitoring");
 	}
 
@@ -288,7 +288,7 @@ public sealed class AuditLogControlValidatorShould
 		var result = await _sut.ValidateAsync("UNKNOWN-001", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Unknown control"));
 	}
 

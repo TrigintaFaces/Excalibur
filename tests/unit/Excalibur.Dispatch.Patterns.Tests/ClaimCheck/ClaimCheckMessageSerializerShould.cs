@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
@@ -100,13 +100,30 @@ public sealed class ClaimCheckMessageSerializerShould
 	}
 
 	[Fact]
-	public void DelegateContentType_ToBaseSerializer()
+	public void DeclareTheFramingAsItsContentType_NotTheBaseFormat()
 	{
 		// Arrange
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
 
-		// Act & Assert
-		serializer.ContentType.ShouldBe("application/json");
+		// Act & Assert — this assertion previously read "application/json" and certified the defect.
+		// The base serializer here IS configured as application/json (see the fixture), so a value that
+		// merely delegated would still pass; asserting the framing type is what distinguishes the two.
+		serializer.ContentType.ShouldBe("application/vnd.excalibur.claimcheck");
+	}
+
+	[Fact]
+	public void StillDescribeTheSTOREDPayloadWithTheBaseContentType()
+	{
+		// The OTHER ContentType in this component is a different thing and must NOT move with it.
+		// What goes into the claim-check store is the base serializer's output, UNFRAMED — the frame
+		// tag is added only to the bytes handed back to the transport. So the stored object genuinely
+		// is application/json, and relabelling it would make the store's own metadata lie in the
+		// opposite direction. This arm exists so a later "make them consistent" change cannot quietly
+		// collapse the distinction.
+		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
+
+		serializer.ContentType.ShouldNotBe(_fakeBaseSerializer.ContentType);
+		_fakeBaseSerializer.ContentType.ShouldBe("application/json");
 	}
 
 	#endregion

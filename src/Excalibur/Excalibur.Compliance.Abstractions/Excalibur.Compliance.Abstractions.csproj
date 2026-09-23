@@ -18,6 +18,20 @@
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The field-encryption diagnostics (EXCMP001-004) run on this project's own build AND are bundled into
+         this package below, so every consumer that annotates a model gets them with no extra install and no
+         runtime weight (analyzer-only, ReferenceOutputAssembly=false). -->
+    <ProjectReference Include="..\Excalibur.Compliance.Analyzers\Excalibur.Compliance.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- BUNDLE the analyzer into this package at analyzers/dotnet/cs, the pattern Excalibur.Data.Abstractions
+         already uses. This package defines [EncryptedField], [Sensitive] and [PersonalData], so an analyzer
+         about them must travel with them or it protects only this repository. ONE delivery path: do not also
+         ship the analyzer as a standalone package, or consumers get every diagnostic twice. -->
+    <None Include="..\Excalibur.Compliance.Analyzers\bin\$(Configuration)\netstandard2.0\Excalibur.Compliance.Analyzers.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+  <ItemGroup>
     <EmbeddedResource Update="Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

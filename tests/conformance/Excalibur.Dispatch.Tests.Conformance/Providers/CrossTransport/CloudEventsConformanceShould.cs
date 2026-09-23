@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.IO;
 using System.Reflection;
@@ -16,26 +16,40 @@ using Excalibur.Dispatch.Transport.RabbitMQ;
 namespace Excalibur.Dispatch.Tests.Conformance.Providers.CrossTransport;
 
 /// <summary>
-/// Verifies each transport has the STATIC shape of CloudEvents support:
-/// - At least one <c>ICloudEventEncoder&lt;T&gt;</c> implementation
-/// - A CloudEvents adapter class
-/// - A CloudEvents DI extension method
+/// Verifies that each transport shipping its own CloudEvents adapter declares the spec-version wire
+/// name ITS OWN protocol binding assigns, and that the derived transport population is partitioned
+/// totally so no transport is asserted by nothing at all.
 /// </summary>
 /// <remarks>
-/// This checks presence, not behavior -- it passes the moment a mapper/adapter/DI-extension class
-/// exists, whether or not it is actually wired onto a transport's default send/receive path. It is
-/// NOT a substitute for the per-transport round-trip conformance arms (2hgehp/j3f6so) that assert the
-/// emitted wire message and exercise send+receive against the real mapper -- see
-/// <c>MqttCloudEventAdapterShould</c> (unit, real MQTTnet types) and
-/// <c>AwsSqsMessageBusShould.PublishEvent_WhenCloudEventsConfigured_EmitsCloudEventAttributesOnDefaultSend</c>
-/// for that stronger bar.
+/// <para>
+/// <b>This file no longer asserts that types exist.</b> It previously carried four arms that counted
+/// <c>ICloudEventEncoder&lt;T&gt;</c> implementations, adapter classes, DI extension classes and options
+/// classes, and passed when the count was above zero. Those arms could not distinguish a transport that
+/// encodes and decodes CloudEvents from one that merely declares the classes for doing so, and they
+/// would have gone green the moment four unwired classes were dropped in. Left standing beside a
+/// behavioural suite they were worse than absent: they produced a green that could be cited as evidence
+/// of conformance, borrowing credibility from arms that actually drive the contract.
+/// </para>
+/// <para>
+/// <b>Where the behavioural bar lives.</b> Round-tripping a CloudEvent through a transport's own
+/// encoding and the receiver its own registration builds -- in both binary and structured mode -- is
+/// asserted by <c>CloudEventTransportConformanceTests</c> and its per-transport derivations. That suite
+/// resolves the registered receiver rather than constructing one, so a transport that registers a
+/// decoder and never routes receive through it fails there. Nothing in THIS file can observe a
+/// registration call site: reflection over a loaded assembly sees declared types only.
+/// </para>
+/// <para>
+/// <b>What remains here is a question reflection can actually answer.</b> The CloudEvents binary-mode
+/// attribute prefix is assigned per protocol binding, and an adapter's declared constant is the wire
+/// name a conformant peer will see. Asserting those constants catches a consistency sweep that
+/// flattens several bindings onto one spelling -- a defect a round-trip cannot see, because both ends
+/// of a round trip share the error and agree.
+/// </para>
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 public sealed class CloudEventsConformanceShould
 {
-	private static readonly Type s_cloudEventEncoderOpenGeneric = typeof(ICloudEventEncoder<>);
-
 	// ── the transport population, DERIVED rather than typed ──────────────────────────
 	// This was six names someone had remembered to add, and it was three short. Every arm below
 	// iterates it, so the suite's coverage was "whatever was last typed here" -- which is the same
@@ -137,12 +151,16 @@ public sealed class CloudEventsConformanceShould
 	// derivation deliberately excludes the Abstractions assembly.
 	//
 	// The correct capability signal is the REGISTRATION CALL SITE in the transport's own package, and
-	// reflection over a loaded assembly cannot observe a call site. Establishing it needs an arm that
-	// resolves ITransportSender/ITransportReceiver from the transport's real DI registration and
-	// asserts the resolved instance IS or WRAPS the encoding/decoding decorator. That arm is not in
-	// this file, and until it exists THIS SUITE MAKES NO STATEMENT ABOUT WHICH TRANSPORTS CAN SEND OR
-	// RECEIVE CLOUDEVENTS. It states only which of them carry their own adapter, and what that adapter
-	// puts on the wire.
+	// reflection over a loaded assembly cannot observe a call site. THIS SUITE THEREFORE MAKES NO
+	// STATEMENT ABOUT WHICH TRANSPORTS CAN SEND OR RECEIVE CLOUDEVENTS. It states only which of them
+	// carry their own adapter, and what that adapter puts on the wire.
+	//
+	// That capability question is answered elsewhere, by round-tripping an event through each
+	// transport's own encoding and the receiver its own registration builds -- see
+	// CloudEventTransportConformanceTests and its per-transport derivations. Do not answer it here by
+	// re-adding a type-presence arm: a count of declared classes is green for a transport that
+	// registers a decoder and never routes receive through it, which is the exact defect that suite
+	// exists to detect.
 	private static readonly (string Name, Assembly Assembly)[] s_cloudEventTransports =
 		s_transports.Where(static t => HasAnyCloudEventType(t.Assembly)).ToArray();
 
@@ -153,84 +171,17 @@ public sealed class CloudEventsConformanceShould
 		assembly.GetTypes().Any(static t => t.Name.Contains("CloudEvent", StringComparison.OrdinalIgnoreCase));
 
 
-	[Theory]
-	[MemberData(nameof(TransportNames))]
-	public void Have_CloudEventEncoder_Implementation(string transportName)
-	{
-		var assembly = GetAssembly(transportName);
-		var mapperTypes = FindCloudEventEncoderImplementations(assembly);
-		mapperTypes.Length.ShouldBeGreaterThan(
-			0, $"{transportName} transport MUST have at least one ICloudEventEncoder<T> implementation");
-	}
-
-	[Theory]
-	[MemberData(nameof(TransportNames))]
-	public void Have_CloudEventAdapter_Class(string transportName)
-	{
-		var assembly = GetAssembly(transportName);
-		var adapterTypes = assembly.GetTypes()
-			.Where(t => t is { IsAbstract: false, IsInterface: false }
-				&& t.Name.Contains("CloudEventAdapter", StringComparison.OrdinalIgnoreCase))
-			.ToArray();
-
-		adapterTypes.Length.ShouldBeGreaterThan(
-			0, $"{transportName} transport MUST have at least one CloudEventAdapter class");
-	}
-
-	[Theory]
-	[MemberData(nameof(TransportNames))]
-	public void Have_CloudEvents_DI_Extension(string transportName)
-	{
-		var assembly = GetAssembly(transportName);
-		var extensionTypes = assembly.GetTypes()
-			.Where(t => t.IsAbstract && t.IsSealed && t.Name.Contains("CloudEvents", StringComparison.OrdinalIgnoreCase))
-			.ToArray();
-
-		extensionTypes.Length.ShouldBeGreaterThan(
-			0, $"{transportName} transport MUST have a CloudEvents DI extension class (static class with 'CloudEvents' in name)");
-	}
-
-	[Theory]
-	[MemberData(nameof(TransportNames))]
-	public void Have_CloudEventOptions_Class(string transportName)
-	{
-		var assembly = GetAssembly(transportName);
-		var optionsTypes = assembly.GetTypes()
-			.Where(t => t is { IsAbstract: false, IsInterface: false }
-				&& t.Name.Contains("CloudEventOptions", StringComparison.OrdinalIgnoreCase))
-			.ToArray();
-
-		optionsTypes.Length.ShouldBeGreaterThan(
-			0, $"{transportName} transport MUST have a CloudEventOptions configuration class");
-	}
-
-	public static TheoryData<string> TransportNames()
-	{
-		var data = new TheoryData<string>();
-		foreach (var (name, _) in s_cloudEventTransports)
-		{
-			data.Add(name);
-		}
-
-		return data;
-	}
-
 	private static Assembly GetAssembly(string transportName) =>
 		s_transports.First(t => t.Name == transportName).Assembly;
 
-	private static Type[] FindCloudEventEncoderImplementations(Assembly assembly) =>
-		assembly.GetTypes()
-			.Where(t => t is { IsAbstract: false, IsInterface: false }
-				&& t.GetInterfaces().Any(i =>
-					i.IsGenericType && i.GetGenericTypeDefinition() == s_cloudEventEncoderOpenGeneric))
-			.ToArray();
-
 	// ── per-transport wire names ───────────────────────────────────────────────────────────────
 	// The CloudEvents binary-mode prefix is assigned PER PROTOCOL BINDING, not once for the product:
-	// HTTP "ce-", Kafka "ce_", AMQP "cloudEvents_", MQTT none. The arms above assert a mapper EXISTS;
-	// they say nothing about what it puts on the wire, so a well-meant sweep that made every adapter
-	// agree on one prefix would leave them all green while breaking conformance on the ones that were
-	// already right. That is not hypothetical -- MQTT shipped with "ce-" and was corrected.
+	// HTTP "ce-", Kafka "ce_", AMQP "cloudEvents_", MQTT none. A round trip cannot see a sweep that
+	// flattens them, because both ends of a round trip share the error and agree; a well-meant change
+	// that made every adapter use one prefix would leave every round-trip arm green while breaking
+	// conformance against real peers on the transports that were already right. That is not
+	// hypothetical -- MQTT shipped with "ce-" and was corrected. This is the question reflection over
+	// declared constants answers better than behaviour does, which is why these arms remain.
 	//
 	// These constants are the wire names themselves: each adapter writes them directly as the header
 	// or user-property key, so asserting the constant asserts what a conformant peer will see.

@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.Decorators;
 
 using Microsoft.Extensions.Options;
@@ -35,7 +36,18 @@ public sealed class EncryptingProjectionStoreDecorator<
 	private readonly IProjectionStore<TProjection> _inner;
 	private readonly IEncryptionProviderRegistry _registry;
 	private readonly IOptions<EncryptionOptions> _options;
-	private readonly EncryptionContext _defaultContext;
+	/// <summary>
+	/// Resolves the tenant of the operation in flight. Consulted PER CALL, never captured.
+	/// </summary>
+	/// <remarks>
+	/// The AES-GCM provider binds this into the Additional Authenticated Data, and its own comment
+	/// names cross-tenant decryption as the thing that prevents. Stamping it once at construction from
+	/// a process-wide option made every record in a multi-tenant host carry the SAME tenant, so the
+	/// component advertised as the cross-tenant control contributed nothing on exactly the paths that
+	/// encrypt stored data. A construction-time context cannot carry a per-operation value, so the
+	/// cached field is removed rather than corrected -- a constant stamp now has nowhere to live.
+	/// </remarks>
+	private readonly ITenantContext _tenantContext;
 	private readonly PropertyInfo[] _encryptedProperties;
 
 	/// <summary>
@@ -44,30 +56,23 @@ public sealed class EncryptingProjectionStoreDecorator<
 	/// <param name="inner">The underlying projection store to decorate.</param>
 	/// <param name="registry">The encryption provider registry for multi-provider support.</param>
 	/// <param name="options">The encryption configuration options.</param>
+	/// <param name="tenantContext">
+	/// Resolves the tenant each operation runs as, so the AAD binds the DATA's tenant rather than a
+	/// process-wide constant. Required: a single-tenant host receives the framework's single-tenant default.
+	/// </param>
 	public EncryptingProjectionStoreDecorator(
 		IProjectionStore<TProjection> inner,
 		IEncryptionProviderRegistry registry,
-		IOptions<EncryptionOptions> options)
+		IOptions<EncryptionOptions> options,
+		ITenantContext tenantContext)
 		: base(inner)
 	{
 		_inner = Inner;
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
-		_defaultContext = new EncryptionContext
-		{
-			Purpose = options.Value.DefaultPurpose,
-			TenantId = options.Value.DefaultTenantId,
-			RequireFipsCompliance = options.Value.RequireFipsCompliance
-		};
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 
-		_encryptedProperties =
-		[
-			.. typeof(TProjection)
-				.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-				.Where(p => p.PropertyType == typeof(byte[]) &&
-							p.GetCustomAttribute<EncryptedFieldAttribute>() is not null &&
-							p.CanRead && p.CanWrite)
-		];
+		_encryptedProperties = EncryptedFieldBinding.Select<TProjection>();
 	}
 
 	/// <inheritdoc/>
@@ -289,17 +294,13 @@ public sealed class EncryptingProjectionStoreDecorator<
 
 		foreach (var prop in _encryptedProperties)
 		{
-			var value = (byte[]?)prop.GetValue(projection);
-			if (value is null || value.Length == 0)
+			if (!EncryptedFieldBinding.TryReadEnvelope(prop, projection, out var stored))
 			{
 				continue;
 			}
 
-			if (EncryptedData.IsFieldEncrypted(value))
-			{
-				var decrypted = await TryDecryptFieldAsync(value, cancellationToken).ConfigureAwait(false);
-				prop.SetValue(projection, decrypted);
-			}
+			var decrypted = await TryDecryptFieldAsync(stored, cancellationToken).ConfigureAwait(false);
+			EncryptedFieldBinding.WritePlaintext(prop, projection, decrypted);
 		}
 
 		return projection;
@@ -314,27 +315,31 @@ public sealed class EncryptingProjectionStoreDecorator<
 
 		foreach (var prop in _encryptedProperties)
 		{
-			var value = (byte[]?)prop.GetValue(projection);
-			if (value is null || value.Length == 0)
+			// Don't double-encrypt. A WRITER asks only whether the value is marked, and deliberately does
+			// not validate it: refusing to store a record because the value already in the field is damaged
+			// would make a row whose ciphertext was truncated permanently unwritable, and truncation is a
+			// write-side cause. Reading the marker rather than decoding also stops a plaintext that happens
+			// to be Base64 of magic-prefixed bytes being mistaken for ciphertext.
+			if (EncryptedFieldBinding.IsMarkedEncrypted(prop, projection))
 			{
 				continue;
 			}
 
-			// Don't double-encrypt
-			if (EncryptedData.IsFieldEncrypted(value))
+			var plaintext = EncryptedFieldBinding.ReadPlaintext(prop, projection);
+			if (plaintext is null)
 			{
 				continue;
 			}
 
-			var encrypted = await EncryptPayloadAsync(value, cancellationToken).ConfigureAwait(false);
-			prop.SetValue(projection, encrypted);
+			var encrypted = await EncryptPayloadAsync(plaintext, cancellationToken).ConfigureAwait(false);
+			EncryptedFieldBinding.WriteEnvelope(prop, projection, encrypted);
 		}
 	}
 
 	private async ValueTask<byte[]> EncryptPayloadAsync(byte[] data, CancellationToken cancellationToken)
 	{
 		var provider = _registry.GetPrimary();
-		var encryptedData = await provider.EncryptAsync(data, _defaultContext, cancellationToken).ConfigureAwait(false);
+		var encryptedData = await provider.EncryptAsync(data, CurrentEncryptionContext(), cancellationToken).ConfigureAwait(false);
 		return SerializeEncryptedData(encryptedData);
 	}
 
@@ -350,6 +355,22 @@ public sealed class EncryptingProjectionStoreDecorator<
 					   ?? throw new EncryptionException(
 						   Resources.Encryption_NoProviderCanDecrypt);
 
-		return await provider.DecryptAsync(encryptedData, _defaultContext, cancellationToken).ConfigureAwait(false);
+		return await provider.DecryptAsync(encryptedData, CurrentEncryptionContext(), cancellationToken).ConfigureAwait(false);
 	}
+
+	/// <summary>
+	/// Builds the encryption context for the operation in flight, binding the tenant it is running as.
+	/// </summary>
+	/// <remarks>
+	/// Falls back to the configured default ONLY when no tenant context is registered at all, which is
+	/// the single-tenant composition -- there a constant is the correct answer and always was, so this
+	/// keeps existing single-tenant ciphertext decryptable. A multi-tenant host always resolves a tenant
+	/// and therefore always gets real separation, which is the case the defect was about.
+	/// </remarks>
+	private EncryptionContext CurrentEncryptionContext() => new()
+	{
+		Purpose = _options.Value.DefaultPurpose,
+		TenantId = _tenantContext.TenantId,
+		RequireFipsCompliance = _options.Value.RequireFipsCompliance
+	};
 }

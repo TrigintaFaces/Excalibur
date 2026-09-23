@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
 
@@ -25,7 +25,18 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	private readonly IInboxStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
 	private readonly IOptions<EncryptionOptions> _options;
-	private readonly EncryptionContext _defaultContext;
+	/// <summary>
+	/// Resolves the tenant of the operation in flight. Consulted PER CALL, never captured.
+	/// </summary>
+	/// <remarks>
+	/// The AES-GCM provider binds this into the Additional Authenticated Data, and its own comment
+	/// names cross-tenant decryption as the thing that prevents. Stamping it once at construction from
+	/// a process-wide option made every record in a multi-tenant host carry the SAME tenant, so the
+	/// component advertised as the cross-tenant control contributed nothing on exactly the paths that
+	/// encrypt stored data. A construction-time context cannot carry a per-operation value, so the
+	/// cached field is removed rather than corrected -- a constant stamp now has nowhere to live.
+	/// </remarks>
+	private readonly ITenantContext _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EncryptingInboxStoreDecorator" /> class.
@@ -33,20 +44,20 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	/// <param name="inner"> The underlying inbox store to decorate. </param>
 	/// <param name="registry"> The encryption provider registry for multi-provider support. </param>
 	/// <param name="options"> The encryption configuration options. </param>
+	/// <param name="tenantContext">
+	/// Resolves the tenant each operation runs as, so the AAD binds the DATA's tenant rather than a
+	/// process-wide constant. Required: a single-tenant host receives the framework's single-tenant default.
+	/// </param>
 	public EncryptingInboxStoreDecorator(
 		IInboxStore inner,
 		IEncryptionProviderRegistry registry,
-		IOptions<EncryptionOptions> options)
+		IOptions<EncryptionOptions> options,
+		ITenantContext tenantContext)
 	{
 		_inner = inner ?? throw new ArgumentNullException(nameof(inner));
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
-		_defaultContext = new EncryptionContext
-		{
-			Purpose = options.Value.DefaultPurpose,
-			TenantId = options.Value.DefaultTenantId,
-			RequireFipsCompliance = options.Value.RequireFipsCompliance
-		};
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 	}
 
 	/// <inheritdoc />
@@ -377,24 +388,37 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 			return null;
 		}
 
-		return await DecryptEntryAsync(entry, cancellationToken).ConfigureAwait(false);
+		// A tenant-scoped read: bind the tenant the caller is running as, so an entry that reached this caller
+		// from another tenant's partition fails authentication rather than decrypting.
+		return await DecryptEntryAsync(entry, AmbientTenantId, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
+		// The outcome is forwarded verbatim. A decorator that collapsed the inner store's refusal into a
+		// completed task would reintroduce on this seam exactly what the return type exists to remove.
 		return _inner.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken);
 	}
 
 	/// <inheritdoc />
-	public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
-		// errorMessage is not encrypted by the core MarkFailedAsync path; delegate the admin overload likewise.
-		return Admin.MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, cancellationToken);
+		// errorMessage is not encrypted by the core MarkFailedAsync path; delegate the admin overload
+		// likewise. The tenant and the outcome are both forwarded verbatim: a decorator that resolved a
+		// partition of its own, or that collapsed the inner store's refusal into a completed task, would
+		// reintroduce on this seam exactly what the parameter and the return type exist to remove.
+		return Admin.MarkFailedAsync(tenant, messageId, handlerType, errorMessage, retryCount, cancellationToken);
 	}
 
 	/// <inheritdoc />
-	public ValueTask MarkFailedWithBackoffAsync(
+	public ValueTask<InboxMarkFailedOutcome> MarkFailedWithBackoffAsync(
 		string messageId,
 		string handlerType,
 		string errorMessage,
@@ -411,7 +435,15 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 			return schedulable.MarkFailedWithBackoffAsync(messageId, handlerType, errorMessage, retryCount, nextAttemptAt, cancellationToken);
 		}
 
-		return _inner.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken);
+		// The caller ignored the documented probe. SupportsBackoffScheduling reports the EFFECTIVE capability
+		// and is false here, so reaching this line is a programming error, not a runtime condition. Returning
+		// the inner store's plain mark-failed would answer Applied -- which on THIS member asserts a backoff
+		// was scheduled -- while no schedule exists, and nothing downstream would ever learn otherwise.
+		throw new NotSupportedException(
+			"The inner inbox store cannot schedule a per-entry backoff, so this decorator forwards the "
+			+ "capability without being able to honour it. Probe IInboxStoreCapabilities."
+			+ "SupportsBackoffScheduling before calling MarkFailedWithBackoffAsync -- a bare type test is "
+			+ "satisfied by this decorator and does not tell you whether the schedule can actually be kept.");
 	}
 
 	/// <inheritdoc />
@@ -474,13 +506,15 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 		var results = new List<InboxEntry>();
 		foreach (var entry in entries)
 		{
-			results.Add(await DecryptEntryAsync(entry, cancellationToken).ConfigureAwait(false));
+			// A cross-tenant administrative read, run outside any tenant scope: only the stored entry's own
+			// tenant can be re-derived here.
+			results.Add(await DecryptEntryAsync(entry, entry.TenantId, cancellationToken).ConfigureAwait(false));
 		}
 
 		return results;
 	}
 
-	private async ValueTask<InboxEntry> DecryptEntryAsync(InboxEntry entry, CancellationToken cancellationToken)
+	private async ValueTask<InboxEntry> DecryptEntryAsync(InboxEntry entry, string? tenantId, CancellationToken cancellationToken)
 	{
 		var mode = _options.Value.Mode;
 
@@ -494,7 +528,7 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 			return entry;
 		}
 
-		var decryptedPayload = await TryDecryptFieldAsync(entry.Payload, cancellationToken).ConfigureAwait(false);
+		var decryptedPayload = await TryDecryptFieldAsync(entry.Payload, tenantId, cancellationToken).ConfigureAwait(false);
 		entry.Payload = decryptedPayload;
 		return entry;
 	}
@@ -502,11 +536,11 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	private async ValueTask<byte[]> EncryptPayloadAsync(byte[] data, CancellationToken cancellationToken)
 	{
 		var provider = _registry.GetPrimary();
-		var encryptedData = await provider.EncryptAsync(data, _defaultContext, cancellationToken).ConfigureAwait(false);
+		var encryptedData = await provider.EncryptAsync(data, ContextFor(AmbientTenantId), cancellationToken).ConfigureAwait(false);
 		return SerializeEncryptedData(encryptedData);
 	}
 
-	private async ValueTask<byte[]> TryDecryptFieldAsync(byte[] data, CancellationToken cancellationToken)
+	private async ValueTask<byte[]> TryDecryptFieldAsync(byte[] data, string? tenantId, CancellationToken cancellationToken)
 	{
 		if (!EncryptedData.IsFieldEncrypted(data))
 		{
@@ -518,6 +552,29 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 			?? throw new EncryptionException(
 				Resources.Encryption_NoProviderCanDecryptKeyRemoved);
 
-		return await provider.DecryptAsync(encryptedData, _defaultContext, cancellationToken).ConfigureAwait(false);
+		return await provider.DecryptAsync(encryptedData, ContextFor(tenantId), cancellationToken).ConfigureAwait(false);
 	}
+
+	/// <summary>
+	/// The tenant a new entry is written under: the ambient tenant, which is what every inbox store stamps
+	/// onto the entry it creates.
+	/// </summary>
+	private string? AmbientTenantId => _tenantContext.TenantId;
+
+	/// <summary>
+	/// Builds the encryption context for one entry, binding the tenant that ENTRY belongs to.
+	/// </summary>
+	/// <remarks>
+	/// Written under the ambient tenant the store stamps. A tenant-scoped read binds the caller's ambient
+	/// tenant, so an entry from another tenant's partition fails the tag check. A cross-tenant administrative
+	/// read (the retry sweep, which runs outside any tenant scope) binds the tenant the stored entry carries,
+	/// which is correct only when the store returns the entry's tenant on that read. All values go through the
+	/// stores' own read-back conversion, so the untenanted spellings agree.
+	/// </remarks>
+	private EncryptionContext ContextFor(string? tenantId) => new()
+	{
+		Purpose = _options.Value.DefaultPurpose,
+		TenantId = KeyedTenantPartition.FromStoredValue(tenantId).TenantId,
+		RequireFipsCompliance = _options.Value.RequireFipsCompliance
+	};
 }

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using TestResult = global::Excalibur.Compliance.TestResult;
 
@@ -21,8 +21,7 @@ public sealed class Soc2TypesShould : UnitTestBase
 		{
 			ControlId = "CC6.1",
 			IsConfigured = true,
-			IsEffective = true,
-			EffectivenessScore = 95,
+			EffectivenessScore = ControlEffectiveness.Effective,
 			ConfigurationIssues = ["Minor issue 1"],
 			Evidence = []
 		};
@@ -30,8 +29,8 @@ public sealed class Soc2TypesShould : UnitTestBase
 		// Assert
 		validation.ControlId.ShouldBe("CC6.1");
 		validation.IsConfigured.ShouldBeTrue();
-		validation.IsEffective.ShouldBeTrue();
-		validation.EffectivenessScore.ShouldBe(95);
+		validation.Outcome.ShouldBe(ControlOutcome.Effective);
+		validation.EffectivenessScore.ShouldBe(ControlEffectiveness.Effective);
 		validation.ConfigurationIssues.Count.ShouldBe(1);
 	}
 
@@ -46,8 +45,7 @@ public sealed class Soc2TypesShould : UnitTestBase
 		{
 			ControlId = "TEST",
 			IsConfigured = true,
-			IsEffective = true,
-			EffectivenessScore = 100
+			EffectivenessScore = ControlEffectiveness.Effective
 		};
 
 		var after = DateTimeOffset.UtcNow;
@@ -132,14 +130,14 @@ public sealed class Soc2TypesShould : UnitTestBase
 	}
 
 	[Theory]
-	[InlineData(AuditorOpinion.Unqualified)]
-	[InlineData(AuditorOpinion.Qualified)]
-	[InlineData(AuditorOpinion.Adverse)]
-	[InlineData(AuditorOpinion.Disclaimer)]
-	public void SupportAllAuditorOpinions(AuditorOpinion opinion)
+	[InlineData(ComplianceLevel.FullyCompliant)]
+	[InlineData(ComplianceLevel.SubstantiallyCompliant)]
+	[InlineData(ComplianceLevel.NonCompliant)]
+	[InlineData(ComplianceLevel.Unknown)]
+	public void SupportAllComplianceLevels(ComplianceLevel overallLevel)
 	{
 		// Assert
-		Enum.IsDefined(opinion).ShouldBeTrue();
+		Enum.IsDefined(overallLevel).ShouldBeTrue();
 	}
 
 	[Fact]

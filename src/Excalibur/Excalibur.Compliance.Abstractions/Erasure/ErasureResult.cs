@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance;
@@ -131,7 +131,29 @@ public enum ErasureRequestStatus
 	/// <summary>
 	/// Partially completed (some data retained per exception).
 	/// </summary>
-	PartiallyCompleted = 7
+	PartiallyCompleted = 7,
+
+	/// <summary>
+	/// Executed, and every remaining obligation is a key the key-management provider has irreversibly
+	/// scheduled for destruction but not yet destroyed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is a correct intermediate state, not a failure. Everything else the erasure required has been
+	/// done; what remains is the provider's own deletion window (for example AWS KMS pending deletion, or an
+	/// Azure Key Vault soft-delete retention period that cannot be purged early). Until that window ends the
+	/// key material is still recoverable, so the request is <b>not</b> <see cref="Completed"/> and no completion
+	/// certificate is issued.
+	/// </para>
+	/// <para>
+	/// The request is revisitable: <see cref="IErasureCompletionProcessor"/> asks the provider whether each key
+	/// is actually gone and moves the request to <see cref="Completed"/>, with its certificate, only once the
+	/// provider confirms it. The provider is the authority on destruction; the scheduled instant it reported
+	/// is informational and is never treated as proof. A request in this state cannot be cancelled, because
+	/// the key destruction it is waiting on can no longer be withdrawn by the framework.
+	/// </para>
+	/// </remarks>
+	AwaitingKeyDestruction = 8
 }
 
 /// <summary>

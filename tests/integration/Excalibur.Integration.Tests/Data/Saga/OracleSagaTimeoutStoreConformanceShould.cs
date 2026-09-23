@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Oracle;
@@ -68,4 +68,54 @@ public sealed class OracleSagaTimeoutStoreConformanceShould
 
 	/// <inheritdoc/>
 	protected override Task CleanupAsync() => _fixture.CleanupTableAsync();
+
+	/// <summary>
+	/// The lease must be judged against the SAME clock it was stamped with. Regression lock for
+	/// <c>OracleSagaTimeoutStore.ClaimDueTimeoutsAsync</c>, which used to compare <c>ClaimedAt</c> (stamped
+	/// with <c>SYSTIMESTAMP</c> -- the Oracle server's clock) against <c>:AsOf - LeaseTimeoutSeconds</c>
+	/// (the CALLER's clock). A second claimant whose wall clock leads the server's judged a lease it had
+	/// just taken as already expired and reclaimed it immediately -- not a race, a steady state: with the
+	/// shipped default 120s lease, a claimant only two minutes ahead of the database saw every claim expire
+	/// before the claiming statement returned.
+	/// </summary>
+	/// <remarks>
+	/// This does not need real elapsed time or a short lease to discriminate. The first claim stamps
+	/// <c>ClaimedAt</c> to the server's actual "now". The second call passes an <c>asOf</c> two days in the
+	/// future, simulating a claimant whose clock is skewed forward by that much -- the exact shape of the
+	/// defect, since <c>DueAt &lt;= :AsOf</c> must still admit the row for the second call to reach the
+	/// lease check at all. Judged against <c>:AsOf</c> (pre-fix), <c>:AsOf - 120s</c> is ~2 days ahead of the
+	/// just-stamped <c>ClaimedAt</c>, so the row reads as expired and is reclaimed -- RED. Judged against
+	/// <c>SYSTIMESTAMP</c> (post-fix), the server's actual now is milliseconds past the stamp, so the lease
+	/// still holds -- GREEN.
+	/// </remarks>
+	[Fact]
+	public async Task ClaimDueTimeoutsAsync_StillExcludesASecondClaimant_WhenTheSecondClaimantsClockIsSkewedForward()
+	{
+		var realNow = DateTimeOffset.UtcNow;
+
+		await Store.ScheduleTimeoutAsync(
+			new SagaTimeout(
+				TimeoutId: Guid.NewGuid().ToString(),
+				SagaId: Guid.NewGuid().ToString(),
+				SagaType: "ConformanceSaga",
+				TimeoutType: "ConformanceTimeout",
+				TimeoutData: null,
+				DueAt: realNow.AddSeconds(-1),
+				ScheduledAt: realNow.AddMinutes(-1)),
+			CancellationToken.None).ConfigureAwait(false);
+
+		// Claimant 1: an honest clock. Stamps ClaimedAt = the server's SYSTIMESTAMP.
+		var firstClaim = await Store.ClaimDueTimeoutsAsync(realNow, batchSize: 10, CancellationToken.None)
+			.ConfigureAwait(false);
+		firstClaim.Count.ShouldBe(1, "the due timeout must be claimable before either claimant touches it");
+
+		// Claimant 2: a clock skewed two days ahead of the server's -- but its own claim just landed
+		// milliseconds ago on the server's real clock, so the lease must still exclude it.
+		var skewedClaim = await Store.ClaimDueTimeoutsAsync(
+			realNow.AddDays(2), batchSize: 10, CancellationToken.None).ConfigureAwait(false);
+
+		skewedClaim.ShouldBeEmpty(
+			"a lease taken moments ago must still exclude a second claimant, regardless of what clock that "
+			+ "claimant's caller supplies -- the lease is judged against the server's clock, not the caller's");
+	}
 }

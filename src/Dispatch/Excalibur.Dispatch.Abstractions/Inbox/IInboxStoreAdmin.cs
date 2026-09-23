@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch;
@@ -84,8 +84,9 @@ public interface IInboxStoreAdmin
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Marks an existing inbox entry as failed/retryable, setting its retry count <strong>exactly</strong> to
-	/// <paramref name="retryCount"/> without auto-incrementing.
+	/// Marks an existing inbox entry in <paramref name="tenant"/> as failed/retryable, setting its retry count
+	/// <strong>exactly</strong> to <paramref name="retryCount"/> without auto-incrementing, and reports which of
+	/// the three possible things actually happened.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -97,18 +98,47 @@ public interface IInboxStoreAdmin
 	/// <see cref="IOutboxStore.MarkFailedAsync(string, string, int, CancellationToken)"/>.
 	/// </para>
 	/// <para>
-	/// The entry must already exist; existence semantics match the core method (implementations that update
-	/// in place leave a missing entry unchanged or throw, consistent with their existing behavior). This is a
-	/// retry-only path that processes already-persisted failed entries, so no insert/upsert is performed.
+	/// <b>Scope: exactly one tenant, and the caller names it.</b> This is the only member on this interface
+	/// that writes, and it is therefore the only one whose scope is a parameter rather than a word in its
+	/// name. The estate-wide readers above announce their breadth by being called "AllTenants"; this one
+	/// announces its narrowness by making the caller construct the partition it means. There is no inhabitant
+	/// of <see cref="KeyedTenantPartition"/> that means "whatever tenant happens to be ambient", so a caller
+	/// cannot reach a partition it did not choose — which is what an operator listing failed entries
+	/// estate-wide and then marking one needs, because the two calls would otherwise address different
+	/// populations with nothing in either signature to say so. Take the partition from the entry's own
+	/// <see cref="InboxEntry.TenantId"/> via <see cref="KeyedTenantPartition.FromStoredValue(string?)"/>,
+	/// never from whatever scope happened to be current at the call site.
+	/// </para>
+	/// <para>
+	/// <b>The store decides the outcome inside the statement that performs the write, and reports it rather
+	/// than throwing.</b> All three results are ordinary returns: an absent entry is
+	/// <see cref="InboxMarkFailedOutcome.EntryNotFound"/>, not an exception, because this call is issued from
+	/// inside a drain's failure handling where an exception abandons every other entry the caller still holds.
+	/// A store must not classify by reading the entry back after the write — that reads a value from outside
+	/// the window it claims to describe, and is wrong exactly when a concurrent finalize makes the refusal
+	/// real.
+	/// </para>
+	/// <para>
+	/// No insert or upsert is performed: this is a retry-only path over already-persisted entries.
 	/// </para>
 	/// </remarks>
+	/// <param name="tenant">
+	/// The tenant partition the entry lives in. Required; there is no ambient fallback.
+	/// </param>
 	/// <param name="messageId">The unique identifier of the message that failed.</param>
 	/// <param name="handlerType">The handler type the entry is keyed to.</param>
 	/// <param name="errorMessage">The error description to record.</param>
 	/// <param name="retryCount">The retry count to set on the entry, exactly (not incremented).</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task representing the asynchronous mark-failed operation.</returns>
-	ValueTask MarkFailedAsync(
+	/// <returns>
+	/// <see cref="InboxMarkFailedOutcome.Applied"/> when the entry was mutated;
+	/// <see cref="InboxMarkFailedOutcome.EntryNotFound"/> when no such entry exists in
+	/// <paramref name="tenant"/>; <see cref="InboxMarkFailedOutcome.AlreadyProcessed"/> when the entry is
+	/// present but terminal and the transition was refused.
+	/// </returns>
+	/// <exception cref="ArgumentNullException"><paramref name="tenant"/> is <see langword="null"/>.</exception>
+	ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
 		string messageId,
 		string handlerType,
 		string errorMessage,

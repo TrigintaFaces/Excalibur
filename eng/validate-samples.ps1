@@ -38,6 +38,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# The run-mode smoke verdict (a success is DECLARED, never inferred from the absence of a crash).
+# Kept in its own dot-sourced file so it can be asserted directly instead of only by building and
+# running a real sample -- see the call site further down, and the harness lock that binds it.
+. "$PSScriptRoot/validate-samples.smoke-verdict.ps1"
+
 function ConvertFrom-JsonCompat {
     param(
         [Parameter(Mandatory = $true)]$Json,
@@ -148,9 +153,13 @@ foreach ($profile in $SmokeProfiles) {
         throw "Run smoke profile must define timeoutSeconds > 0 for $projectPath."
     }
 
+    # successMarker is carried through here DELIBERATELY. This projection rebuilds the profile, so a
+    # field that is not copied is silently dropped and every later read of it sees $null -- which for
+    # a success signal means the gate degrades to 'no marker declared' without saying so.
     $smokeByProject[$projectPath] = [PSCustomObject]@{
         mode = $mode
         timeoutSeconds = $timeoutSeconds
+        successMarker = $(if ($profile.PSObject.Properties['successMarker']) { $profile.PSObject.Properties['successMarker'].Value } else { $null })
     }
 }
 
@@ -176,7 +185,8 @@ if ($orphanSourceFiles.Count -gt 0) {
 $results = @()
 $buildPassed = 0
 $buildFailed = 0
-$smokePassed = 0
+$smokeRan = 0
+$smokeBuiltOnly = 0
 $smokeFailed = 0
 
 # --- Fast path: one parallel MSBuild over an .slnf filter (certified samples are already in Excalibur.sln).
@@ -328,7 +338,7 @@ foreach ($result in $results | Where-Object { $_.BuildStatus -eq 'PASS' }) {
     if ($profile.mode -eq 'build') {
         $result.SmokeStatus = 'PASS'
         $result.Message = 'Build-mode smoke profile'
-        $smokePassed++
+        $smokeBuiltOnly++
         continue
     }
 
@@ -381,25 +391,49 @@ foreach ($result in $results | Where-Object { $_.BuildStatus -eq 'PASS' }) {
         Set-Content -Path $stdoutPath -Value $stdout -NoNewline
         Set-Content -Path $stderrPath -Value $stderr -NoNewline
 
-        if ($timedOut) {
-            Write-Host 'OK (timed out after startup)' -ForegroundColor Green
-            $result.SmokeStatus = 'PASS'
-            $result.Message = "Run-mode smoke passed (process started, timed out after ${timeoutSeconds}s)"
-            $smokePassed++
+        # A SUCCESS IS DECLARED, NEVER INFERRED FROM AN ABSENCE.
+        #
+        # The verdict used to report PASS, print it green, and increment $smokeRan whenever the
+        # process was still alive at the timeout -- so a run-mode sample that started and then HUNG
+        # FOREVER was certified as having run, in the very counter that was introduced to be the
+        # trustworthy one. "It did not crash within N seconds" is not "the scenario completed".
+        #
+        # The nuance that had to survive the fix: for a genuinely long-running host sample, timing
+        # out IS the success shape -- you cannot wait for a web host to exit. So the remedy is NOT
+        # to fail every timeout, which would red such a sample. It is for the profile to DECLARE the
+        # signal that means success ('successMarker', a line the sample prints once it is up), and
+        # for the gate to look for that. A timeout then means the marker never appeared, which is a
+        # real failure, and the green is earned.
+        #
+        # THE RULE ITSELF LIVES IN validate-samples.smoke-verdict.ps1 and is called, not copied.
+        # It was inline here, which made every branch unreachable by any test short of building and
+        # running a real sample -- so the two dishonest-green branches had no coverage at all. It is
+        # bound by .claude/harness/sample-smoke-verdict.harness-lock.sh, which asserts the full
+        # decision table AND asserts that this file still delegates rather than re-deriving it.
+        $successMarker = $null
+        $markerProp = $profile.PSObject.Properties['successMarker']
+        if ($markerProp -and $null -ne $markerProp.Value -and -not [string]::IsNullOrWhiteSpace([string]$markerProp.Value)) {
+            $successMarker = [string]$markerProp.Value
         }
-        elseif ($process.ExitCode -eq 0) {
-            Write-Host 'OK' -ForegroundColor Green
-            $result.SmokeStatus = 'PASS'
-            $result.Message = 'Run-mode smoke passed'
-            $smokePassed++
+
+        $verdict = Get-SampleSmokeVerdict `
+            -TimedOut $timedOut `
+            -ExitCode $(if ($timedOut) { $null } else { $process.ExitCode }) `
+            -Stdout $stdout `
+            -SuccessMarker $successMarker `
+            -TimeoutSeconds $timeoutSeconds
+
+        Write-Host $verdict.Display -ForegroundColor $verdict.Color
+        $result.SmokeStatus = $verdict.Status
+        $result.Message = $verdict.Message
+
+        if ($verdict.Status -eq 'PASS') {
+            $smokeRan++
         }
         else {
-            Write-Host "FAIL (exit $($process.ExitCode))" -ForegroundColor Red
-            $result.SmokeStatus = 'FAIL'
-            $result.Message = "Run-mode smoke failed with exit code $($process.ExitCode)"
             $smokeFailed++
 
-            if ($Detailed) {
+            if ($Detailed -and $verdict.Kind -eq 'ExitCodeFailure') {
                 Write-Host "    stdout: $stdoutPath" -ForegroundColor DarkGray
                 Write-Host "    stderr: $stderrPath" -ForegroundColor DarkGray
                 Get-Content $stderrPath -ErrorAction SilentlyContinue | ForEach-Object {
@@ -432,7 +466,11 @@ Write-Host "`n[3/4] Results Summary..." -ForegroundColor Yellow
 Write-Host "`n--- Certified Sample Validation Results ---" -ForegroundColor White
 Write-Host "  Build Passed: $buildPassed" -ForegroundColor Green
 Write-Host "  Build Failed: $buildFailed" -ForegroundColor $(if ($buildFailed -gt 0) { 'Red' } else { 'Green' })
-Write-Host "  Smoke Passed: $smokePassed" -ForegroundColor Green
+# Reported as two numbers that are never summed. A sample validated in build mode was COMPILED
+# against the current API; it was not executed, so its scenario is unverified. Collapsing the two
+# into one "certified" figure states the second while measuring the first.
+Write-Host "  Smoke RAN (executed):       $smokeRan" -ForegroundColor Green
+Write-Host "  Smoke BUILT-ONLY (compiled, not executed): $smokeBuiltOnly" -ForegroundColor Yellow
 Write-Host "  Smoke Failed: $smokeFailed" -ForegroundColor $(if ($smokeFailed -gt 0) { 'Red' } else { 'Green' })
 Write-Host "  Quarantined: $($QuarantinedSamples.Count)" -ForegroundColor DarkGray
 Write-Host "  Unclassified: $($unclassified.Count)" -ForegroundColor $(if ($unclassified.Count -eq 0) { 'DarkGray' } else { 'Red' })

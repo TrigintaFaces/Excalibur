@@ -1,0 +1,74 @@
+#
+# Conformance suite wiring baseline.
+#
+# One non-comment line per entry: a repository-relative path, forward slashes. Lines starting with #
+# and blank lines are ignored. Inline comments are NOT supported: the whole trimmed line is the
+# identity, so rationale lives on the # lines above each group.
+#
+# An entry is a test file declaring a type that derives a *ConformanceTestKit and never invokes
+# ConformanceSuite_ShouldWireEveryArm. Such a suite runs only the arms someone remembered to wrap,
+# and an arm nobody wrapped is indistinguishable in the results from an arm that passed.
+#
+# ConformanceSuiteWiresEveryArmShould fails if a NEW one appears that is not listed here, and fails
+# if a listed one starts wiring the guard (remove it) or stops deriving a kit (remove it). The list
+# is a one-directional ratchet: it may shrink, never grow.
+#
+# THE ENTRIES ARE NOT ONE POPULATION. Do not "fix" them as a batch -- the second group is exempt by
+# design and adding a guard there would break the non-vacuity proofs it exists to provide.
+#
+
+#
+# GROUP 1 -- MinimalWiring family. Already tracked as its own work item; the count matches that
+# item's own enumeration exactly. Listed here so this guard does not re-report them, NOT because
+# they are acceptable.
+#
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddAuditBridgeMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCdcBridgeMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCdcProcessorUseSqlServerMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCronTimerTransportMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddDataProcessingBridgeMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddDispatchBridgeMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddElasticSearchProjectionsBridgeMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddEventBindingsMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddEventSourcingMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAuditMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAwsLambdaServerlessMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAzureFunctionsServerlessMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburGoogleCloudFunctionsServerlessMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddGdprErasureMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddJobsMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddLeaderElectionMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddOutboxMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddProjectionCachingMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/EnableTenantShardingMinimalWiringConformanceTests.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/ExcaliburContextFamilyMinimalWiringConformanceTests.cs
+
+#
+# GROUP 2 -- kit PROBES. These derive a kit in order to test the kit itself: several deliberately
+# omit an arm so that a guard has something to catch. A completeness guard on a probe would assert
+# the probe is complete, which is the opposite of its purpose. Exempt by design -- but the exemption
+# is recorded here rather than assumed, so a reader can tell "deliberately unguarded" from
+# "forgotten", which was the whole defect.
+#
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/AuditStoreTenantArmsBindShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/CloudNativePendingReadPropagationShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ConformanceKitCleanupIsInvokedShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ConformanceTestKitHelperMethodsShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/DecoratedDeadLetterStoreConformanceShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/DecoratedOutboxStoreConformanceShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/EventStoreTenantArmsBindShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/FencingHighWaterSurvivesTwoKitRunsShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreConcurrencyArmBindsShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreLeaseArmsBindShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreTenantArmsBindShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceKitOptionalCapabilityShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceProviderNameArmsBindShould.cs
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/SagaStoreTenantArmsBindShould.cs
+
+#
+# GROUP 3 -- a real provider suite. The only entry here that is a plain provider conformance suite
+# rather than a probe or a tracked family. Probable genuine miss; needs reading before it is either
+# guarded or exempted. Do not close the parent work item while this line is still present.
+#
+tests/integration/Excalibur.Integration.Tests/EventSourcing/Redis/RedisEventStoreTenancyConformanceShould.cs

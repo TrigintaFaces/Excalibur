@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Transport;
 
@@ -37,7 +37,12 @@ public interface ITransportSender : IAsyncDisposable
 	/// </summary>
 	/// <param name="messages">The messages to send.</param>
 	/// <param name="cancellationToken">Cancellation token for the operation.</param>
-	/// <returns>The results of the batch send operation.</returns>
+	/// <returns>
+	/// The results of the batch send operation. <see cref="BatchSendResult.Results"/> carries exactly one
+	/// entry per input, index-aligned with <paramref name="messages"/>; see that property for the full
+	/// contract every implementation must satisfy, including how entries that took a fallback path are
+	/// reported.
+	/// </returns>
 	Task<BatchSendResult> SendBatchAsync(IReadOnlyList<TransportMessage> messages, CancellationToken cancellationToken);
 
 	/// <summary>

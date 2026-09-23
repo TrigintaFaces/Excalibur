@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Cdc.Diagnostics;
 using Excalibur.Cdc.Postgres.Diagnostics;
+using System.Runtime.ExceptionServices;
+
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
@@ -18,6 +20,20 @@ namespace Excalibur.Cdc.Postgres;
 /// <summary>
 /// Postgres CDC processor using logical replication with pgoutput protocol.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Where processing resumes.</b> Both <see cref="StartAsync"/> and <see cref="ProcessBatchAsync"/> resume from
+/// the replication slot's confirmed position, which PostgreSQL records durably alongside the write-ahead log. The
+/// slot is acknowledged only after the changes of a transaction have been handed to your handler, so a restart
+/// never resumes past a change that was not delivered. A change may be delivered again after a restart, so
+/// handlers must be idempotent.
+/// </para>
+/// <para>
+/// The position saved to the CDC state store is for observation, reported by
+/// <see cref="GetCurrentPositionAsync"/> and useful for monitoring. It does not decide where processing resumes,
+/// so editing or rewinding it does not cause a replay. To replay, reposition or recreate the replication slot.
+/// </para>
+/// </remarks>
 public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 {
 	private readonly PostgresCdcOptions _options;
@@ -29,7 +45,34 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 	// with the in-flight event for a per-event fatal, or null for a connection/poll-level fatal.
 	private readonly CdcFatalErrorHandler<PostgresDataChangeEvent>? _onFatalError;
 	private readonly IMessageFailureClassifier? _failureClassifier;
+	private readonly CdcFatalErrorOptions<PostgresDataChangeEvent> _fatalErrorOptions;
+	private readonly TimeProvider _timeProvider;
+	private readonly CdcHealthState? _healthState;
 	private PostgresDataChangeEvent? _inFlightEvent;
+
+	// The reconnect bound for the current StartAsync call, and the position confirmed when the current
+	// attempt began. Both are touched only by the single consume loop the single-flight gate admits.
+	private CdcTransientFailureBackoff? _backoff;
+	private PostgresCdcPosition _attemptStartPosition;
+
+	// SINGLE-ENTRY GATE. The fields below are per-STREAM state that the replication loop mutates as
+	// messages arrive -- _currentTransactionId and _currentCommitTime are stamped by Begin and read by
+	// every Handle* that follows it -- while this processor is registered TryAddSingleton and its batch
+	// API is documented for a serverless timer trigger, where OVERLAPPING invocations are ordinary. Two
+	// callers sharing one instance interleave that state: A's Begin(xid=100) is overwritten by B's
+	// Begin(xid=200) and A's later changes are stamped with B's transaction identity. The same
+	// interleaving reaches the durable checkpoint, which can then advance past changes whose handler
+	// never ran.
+	//
+	// DETECTED AND REFUSED rather than serialized. A SemaphoreSlim would make the second caller WAIT,
+	// but the replication loop is unbounded in time -- it blocks awaiting the next message while the
+	// publication is quiet -- so waiting converts a safety bug into a liveness bug, and a timer trigger
+	// firing on a schedule piles invocations up behind one that may never return. Refusing loudly is
+	// also what the framework does in the same situation: EF Core's ConcurrencyDetector throws
+	// InvalidOperationException on a second concurrent operation rather than silently serializing it.
+	//
+	// 0 = idle, 1 = a replication loop is running.
+	private int _activeOperation;
 
 	private LogicalReplicationConnection? _replicationConnection;
 	private PostgresCdcPosition _currentPosition;
@@ -56,12 +99,21 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 	/// transient. When omitted, a conservative built-in fallback is used (only definitively non-retryable
 	/// faults are fatal; everything else is retried with backoff).
 	/// </param>
+	/// <param name="timeProvider">
+	/// The clock the reconnect backoff waits on and measures stable connections with; defaults to the
+	/// system clock.
+	/// </param>
+	/// <param name="healthState">
+	/// Where consecutive reconnect failures are reported for the CDC health check, when one is registered.
+	/// </param>
 	public PostgresCdcProcessor(
 		IOptions<PostgresCdcOptions> options,
 		IPostgresCdcStateStore stateStore,
 		ILogger<PostgresCdcProcessor> logger,
 		IOptions<CdcFatalErrorOptions<PostgresDataChangeEvent>>? fatalErrorOptions = null,
-		IMessageFailureClassifier? failureClassifier = null)
+		IMessageFailureClassifier? failureClassifier = null,
+		TimeProvider? timeProvider = null,
+		CdcHealthState? healthState = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(stateStore);
@@ -72,8 +124,11 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 		_stateStore = stateStore;
 		_logger = logger;
-		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
+		_fatalErrorOptions = fatalErrorOptions?.Value ?? new CdcFatalErrorOptions<PostgresDataChangeEvent>();
+		_onFatalError = _fatalErrorOptions.OnFatalError;
 		_failureClassifier = failureClassifier;
+		_timeProvider = timeProvider ?? TimeProvider.System;
+		_healthState = healthState;
 		_currentPosition = PostgresCdcPosition.Start;
 		_confirmedPosition = PostgresCdcPosition.Start;
 	}
@@ -86,6 +141,26 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
+		if (!TryEnterSingleFlight())
+		{
+			LogConcurrentInvocationSkipped(nameof(StartAsync));
+			return;
+		}
+
+		try
+		{
+			await StartCoreAsync(eventHandler, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			ExitSingleFlight();
+		}
+	}
+
+	private async Task StartCoreAsync(
+		Func<PostgresDataChangeEvent, CancellationToken, Task> eventHandler,
+		CancellationToken cancellationToken)
+	{
 		LogStarting(_options.ReplicationSlotName, _options.PublicationName);
 
 		// Load last confirmed position
@@ -97,10 +172,19 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 		LogResuming(_confirmedPosition.LsnString);
 
+		_backoff = new CdcTransientFailureBackoff(
+			_options.PollingInterval,
+			_fatalErrorOptions.MaxReconnectDelay,
+			_fatalErrorOptions.MaxConsecutiveTransientFailures,
+			_timeProvider,
+			_healthState);
+
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
+				_backoff.BeginAttempt();
+				_attemptStartPosition = _confirmedPosition;
 				await EnsureConnectionAsync(cancellationToken).ConfigureAwait(false);
 				await ProcessChangesAsync(eventHandler, cancellationToken).ConfigureAwait(false);
 			}
@@ -123,25 +207,21 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 				if (decision.Stop)
 				{
 					// Fatal (non-retryable) — stop loud, never an infinite silent reconnect.
-					LogFatalError(ex);
-
-					if (_replicationConnection is not null)
-					{
-						await _replicationConnection.DisposeAsync().ConfigureAwait(false);
-						_replicationConnection = null;
-					}
-
-					if (_onFatalError is not null)
-					{
-						// In-flight event for a per-event fatal; null for a connection/poll-level fatal.
-						await _onFatalError(ex, _inFlightEvent).ConfigureAwait(false);
-						return; // handler took over → terminal; do not reconnect.
-					}
-
-					throw; // default: fail-loud — propagate and stop.
+					await StopTerminallyAsync(ex).ConfigureAwait(false);
+					return; // the fatal handler took over → terminal; do not reconnect.
 				}
 
-				// Transient (non-fatal: decision.Stop == false) — reconnect and retry from the un-advanced checkpoint.
+				// Transient (non-fatal: decision.Stop == false). Counted BEFORE the in-flight event is cleared,
+				// so a limit reached on a poisoned change still hands that change to the fatal handler.
+				var outcome = _backoff.RecordTransientFailure();
+				if (outcome.Exhausted)
+				{
+					await StopTerminallyAsync(new CdcRetryExhaustedException(outcome.ConsecutiveFailures, ex))
+						.ConfigureAwait(false);
+					return;
+				}
+
+				// Reconnect and retry from the un-advanced checkpoint.
 				LogError(ex);
 				_inFlightEvent = null;
 
@@ -152,8 +232,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 					_replicationConnection = null;
 				}
 
-				// Wait before reconnecting
-				await Task.Delay(_options.PollingInterval, cancellationToken).ConfigureAwait(false);
+				await Task.Delay(outcome.Delay, _timeProvider, cancellationToken).ConfigureAwait(false);
 			}
 		}
 	}
@@ -166,6 +245,27 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
+		if (!TryEnterSingleFlight())
+		{
+			// SPECIFIED BEHAVIOUR, NOT AN ERROR. See the remarks on TryEnterSingleFlight.
+			LogConcurrentInvocationSkipped(nameof(ProcessBatchAsync));
+			return 0;
+		}
+
+		try
+		{
+			return await ProcessBatchCoreAsync(eventHandler, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			ExitSingleFlight();
+		}
+	}
+
+	private async Task<int> ProcessBatchCoreAsync(
+		Func<PostgresDataChangeEvent, CancellationToken, Task> eventHandler,
+		CancellationToken cancellationToken)
+	{
 		// Load last confirmed position
 		_confirmedPosition = await _stateStore
 			.GetLastPositionAsync(_options.ProcessorId, _options.ReplicationSlotName, cancellationToken)
@@ -191,17 +291,21 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 						   .StartReplication(slot, replicationOptions, cancellationToken)
 						   .ConfigureAwait(false))
 		{
-			var changeEvent = await ProcessMessageAsync(message, cancellationToken).ConfigureAwait(false);
-
-			if (changeEvent is not null)
+			// One replication message can carry MORE THAN ONE change (multi-table TRUNCATE) — see
+			// ProcessMessageAsync. Handing every change off inside THIS iteration, before the commit
+			// boundary below, keeps the durable checkpoint from advancing past an unhandled relation.
+			foreach (var changeEvent in await ProcessMessageAsync(message, cancellationToken).ConfigureAwait(false))
 			{
 				// Apply the table filter symmetrically with ProcessChangesAsync — a change on a
-				// non-matching table must not be handed to the handler here either.
-				if (ShouldProcessTable(changeEvent.FullTableName))
+				// non-matching table must not be handed to the handler here either, and the filter is
+				// applied per change so a later-named truncate relation is not discarded with the first.
+				if (!ShouldProcessTable(changeEvent.FullTableName))
 				{
-					await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
-					count++;
+					continue;
 				}
+
+				await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+				count++;
 			}
 
 			// Observed position advances as messages are read; it is NOT durably acknowledged here.
@@ -263,7 +367,24 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		LogConfirmed(position.LsnString);
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Marks this processor as disposed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This method cannot release the underlying Postgres logical replication connection.</b>
+	/// Npgsql's replication connection exposes only asynchronous disposal (it does not implement
+	/// <see cref="IDisposable"/>), so a synchronous <c>using</c> block leaves the connection — and
+	/// the replication slot it holds open on the server — alive. An unreleased slot accumulates
+	/// WAL until the connection is eventually closed by the server or the process exits.
+	/// </para>
+	/// <para>
+	/// Always dispose this processor with <c>await using</c> (see <see cref="DisposeAsync"/>) so
+	/// the connection and its replication slot are released deterministically. This method exists
+	/// only to satisfy <see cref="IDisposable"/>; when it detects a live replication connection it
+	/// logs an error identifying the leaked slot instead of leaking it silently.
+	/// </para>
+	/// </remarks>
 	public void Dispose()
 	{
 		if (_disposed)
@@ -271,7 +392,15 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			return;
 		}
 
-		// LogicalReplicationConnection doesn't have sync Dispose, just mark as disposed
+		if (_replicationConnection is not null)
+		{
+			// Npgsql's LogicalReplicationConnection implements only IAsyncDisposable — there is no
+			// synchronous release path. Sync-over-async here is both banned repo-wide (RS0030) and
+			// unsafe on a network connection, so the honest fix is to make the leak loud: only
+			// DisposeAsync actually releases the connection and the replication slot it holds open.
+			LogSyncDisposeLeaksReplicationConnection(_options.ReplicationSlotName);
+		}
+
 		_disposed = true;
 	}
 
@@ -365,6 +494,38 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		})];
 	}
 
+	/// <summary>
+	/// Claims the processor for one replication loop. Returns <see langword="false"/> when another loop is
+	/// already running; the caller then returns without touching the stream.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The loser returns rather than throwing, and that is a deliberate consumer-facing choice.</b> The
+	/// realistic collision here is not two hosts — it is ONE timer tick overlapping the previous one
+	/// because the previous is still draining under load, which is exactly the shape of the published
+	/// timer-trigger example. Throwing would make that example start failing under precisely the load it
+	/// exists to handle, and an exception raised out of a timer callback is, in most hosts, an unobserved
+	/// task exception or a crashed background service. A skip is benign: the next tick picks the work up.
+	/// </para>
+	/// <para>
+	/// <b>A silent skip would be indistinguishable from a hang</b>, which is why this is not merely a
+	/// no-op: every refusal is logged under
+	/// <see cref="Diagnostics.CdcPostgresEventId.CdcConcurrentInvocationSkipped"/>, and
+	/// <c>ProcessBatchAsync</c> documents that a return of zero may mean "another call held the
+	/// processor" as well as "no changes were available". Specified single-flight behaviour is a
+	/// contract; an undocumented one is a defect.
+	/// </para>
+	/// <para>
+	/// The claim is what closes the interleaving: the per-stream fields below are instance state, so
+	/// making them unreachable by two callers is the invariant. Note that this PREVENTS the corruption
+	/// rather than making it INEXPRESSIBLE — anyone adding a third entry point must take this claim too.
+	/// </para>
+	/// </remarks>
+	private bool TryEnterSingleFlight() => Interlocked.CompareExchange(ref _activeOperation, 1, 0) == 0;
+
+	/// <summary>Releases the claim taken by <see cref="TryEnterSingleFlight"/>.</summary>
+	private void ExitSingleFlight() => _ = Interlocked.Exchange(ref _activeOperation, 0);
+
 	private async Task EnsureConnectionAsync(CancellationToken cancellationToken)
 	{
 		if (_replicationConnection is not null)
@@ -427,31 +588,42 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			binary: _options.Replication.UseBinaryProtocol);
 #pragma warning restore CS0618
 
-		// Start from confirmed position or beginning
-		var startLsn = _confirmedPosition.IsValid ? _confirmedPosition.Lsn : default;
-
+		// Resume from the REPLICATION SLOT, exactly as the batch loop does, never from the state-store row.
+		// PostgreSQL starts a logical stream at the requested LSN or the slot's confirmed_flush_lsn, whichever
+		// is greater, so passing the row could only ever move the start FORWARD of the slot, and a row ahead of
+		// an undelivered change would skip that change for good. The slot's confirmed_flush_lsn advances only
+		// from the flush position reported by SetReplicationStatus in ConfirmCommitAsync, which runs after the
+		// transaction's changes were handed off, so it is the one position that cannot run ahead of delivery.
+		// The state-store row is recorded for observation (GetCurrentPositionAsync, monitoring) and does not
+		// decide where either loop resumes.
 		var count = 0;
 
 		await foreach (var message in _replicationConnection!
-						   .StartReplication(slot, replicationOptions, cancellationToken, startLsn)
+						   .StartReplication(slot, replicationOptions, cancellationToken)
 						   .ConfigureAwait(false))
 		{
-			var changeEvent = await ProcessMessageAsync(message, cancellationToken).ConfigureAwait(false);
-
-			if (changeEvent is not null)
+			// One replication message can carry MORE THAN ONE change — a multi-table TRUNCATE arrives as a
+			// single message naming every truncated relation (see ProcessMessageAsync). Every change is
+			// handed off inside THIS iteration, before the commit boundary below, so a handler that throws
+			// on any of them unwinds the replication stream before ConfirmCommitAsync: the durable
+			// checkpoint cannot advance past a relation that was not handled.
+			foreach (var changeEvent in await ProcessMessageAsync(message, cancellationToken).ConfigureAwait(false))
 			{
-				// Apply table filter if configured
-				if (ShouldProcessTable(changeEvent.FullTableName))
+				// Apply table filter if configured — per change, so a truncate whose only configured table
+				// is named after the first relation is still delivered.
+				if (!ShouldProcessTable(changeEvent.FullTableName))
 				{
-					// Track the in-flight event so a fatal raised by the handler is attributed to it and the
-					// fatal path unwinds before ConfirmCommitAsync (durable checkpoint not advanced past it).
-					_inFlightEvent = changeEvent;
-					await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
-					_inFlightEvent = null;
-					count++;
-
-					LogProcessed(changeEvent.ChangeType, changeEvent.FullTableName, changeEvent.Position.LsnString);
+					continue;
 				}
+
+				// Track the in-flight event so a fatal raised by the handler is attributed to it and the
+				// fatal path unwinds before ConfirmCommitAsync (durable checkpoint not advanced past it).
+				_inFlightEvent = changeEvent;
+				await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+				_inFlightEvent = null;
+				count++;
+
+				LogProcessed(changeEvent.ChangeType, changeEvent.FullTableName, changeEvent.Position.LsnString);
 			}
 
 			// Observed position advances as messages are read; it is NOT durably acknowledged here.
@@ -463,6 +635,14 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			if (message is CommitMessage commitMessage)
 			{
 				await ConfirmCommitAsync(commitMessage, cancellationToken).ConfigureAwait(false);
+
+				// Progress is a position STRICTLY past the one confirmed when this attempt began. The slot can
+				// re-send a transaction already confirmed to the state store, and re-confirming it proves nothing:
+				// counting it as progress would let a fault that recurs right after it retry forever.
+				if (_confirmedPosition.CompareTo(_attemptStartPosition) > 0)
+				{
+					_backoff?.RecordProgress();
+				}
 			}
 		}
 
@@ -472,25 +652,51 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		}
 	}
 
-	private async Task<PostgresDataChangeEvent?> ProcessMessageAsync(
+	/// <summary>
+	/// Maps one replication message to every change it carries, in message order.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Returns a LIST, not a single change, because one pgoutput message can represent more than one
+	/// change: PostgreSQL encodes a multi-table <c>TRUNCATE</c> (and the extra tables a <c>CASCADE</c>
+	/// reaches) as a SINGLE <see cref="TruncateMessage"/> naming every truncated relation. Reporting only
+	/// one change per message silently dropped every relation after the first, and dropped the truncate
+	/// entirely when the only configured table was not the first relation named — while the transaction
+	/// commit still advanced the durable checkpoint past it.
+	/// </para>
+	/// <para>
+	/// Both processing loops hand off every element of this list inside the same loop iteration, BEFORE
+	/// the commit boundary that calls <see cref="ConfirmCommitAsync"/>. A handler that throws on any
+	/// element therefore unwinds the replication stream before the confirm — the same mechanism that
+	/// already keeps the checkpoint behind the individual row changes of a multi-row transaction.
+	/// </para>
+	/// </remarks>
+	private async Task<IReadOnlyList<PostgresDataChangeEvent>> ProcessMessageAsync(
 		PgOutputReplicationMessage message,
 		CancellationToken cancellationToken)
 	{
 		return message switch
 		{
-			BeginMessage begin => HandleBegin(begin),
-			CommitMessage commit => HandleCommit(commit),
-			InsertMessage insert => await HandleInsertAsync(insert, cancellationToken).ConfigureAwait(false),
-			FullUpdateMessage fullUpdate => await HandleFullUpdateAsync(fullUpdate, cancellationToken).ConfigureAwait(false),
-			IndexUpdateMessage indexUpdate => await HandleIndexUpdateAsync(indexUpdate, cancellationToken).ConfigureAwait(false),
-			UpdateMessage update => await HandleDefaultUpdateAsync(update, cancellationToken).ConfigureAwait(false),
-			FullDeleteMessage fullDelete => await HandleFullDeleteAsync(fullDelete, cancellationToken).ConfigureAwait(false),
-			KeyDeleteMessage keyDelete => await HandleKeyDeleteAsync(keyDelete, cancellationToken).ConfigureAwait(false),
-			DeleteMessage delete => await HandleDefaultDeleteAsync(delete, cancellationToken).ConfigureAwait(false),
+			BeginMessage begin => OneOrNone(HandleBegin(begin)),
+			CommitMessage commit => OneOrNone(HandleCommit(commit)),
+			InsertMessage insert => OneOrNone(await HandleInsertAsync(insert, cancellationToken).ConfigureAwait(false)),
+			FullUpdateMessage fullUpdate => OneOrNone(await HandleFullUpdateAsync(fullUpdate, cancellationToken).ConfigureAwait(false)),
+			IndexUpdateMessage indexUpdate => OneOrNone(await HandleIndexUpdateAsync(indexUpdate, cancellationToken).ConfigureAwait(false)),
+			UpdateMessage update => OneOrNone(await HandleDefaultUpdateAsync(update, cancellationToken).ConfigureAwait(false)),
+			FullDeleteMessage fullDelete => OneOrNone(await HandleFullDeleteAsync(fullDelete, cancellationToken).ConfigureAwait(false)),
+			KeyDeleteMessage keyDelete => OneOrNone(await HandleKeyDeleteAsync(keyDelete, cancellationToken).ConfigureAwait(false)),
+			DeleteMessage delete => OneOrNone(await HandleDefaultDeleteAsync(delete, cancellationToken).ConfigureAwait(false)),
 			TruncateMessage truncate => HandleTruncate(truncate),
-			_ => null, // Ignore relation, type, origin messages
+			_ => [], // Ignore relation, type, origin messages
 		};
 	}
+
+	/// <summary>
+	/// Lifts a message handler that yields at most one change into the list shape
+	/// <see cref="ProcessMessageAsync"/> returns.
+	/// </summary>
+	private static IReadOnlyList<PostgresDataChangeEvent> OneOrNone(PostgresDataChangeEvent? changeEvent) =>
+		changeEvent is null ? [] : [changeEvent];
 
 	private PostgresDataChangeEvent? HandleBegin(BeginMessage begin)
 	{
@@ -504,6 +710,38 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		// Save position after each transaction
 		_currentPosition = new PostgresCdcPosition(commit.TransactionEndLsn);
 		return null;
+	}
+
+	/// <summary>
+	/// Stops the consume loop for good: releases the replication connection, then hands the failure to the
+	/// fatal-error handler when one is configured, or throws it.
+	/// </summary>
+	/// <remarks>
+	/// Shared by a fatal error and an exhausted retry so the two cannot drift apart. Releasing the connection
+	/// matters on both: a connection left open keeps the replication slot held, and the next instance would
+	/// fail to start replication until it closed. Nothing here writes a position.
+	/// </remarks>
+	/// <param name="reason">The fatal error, or the exception describing an exhausted retry.</param>
+	/// <returns>A task that completes only when the fatal-error handler took over.</returns>
+	private async Task StopTerminallyAsync(Exception reason)
+	{
+		LogFatalError(reason);
+
+		if (_replicationConnection is not null)
+		{
+			await _replicationConnection.DisposeAsync().ConfigureAwait(false);
+			_replicationConnection = null;
+		}
+
+		if (_onFatalError is not null)
+		{
+			// In-flight event for a per-event failure; null for a connection-level one.
+			await _onFatalError(reason, _inFlightEvent).ConfigureAwait(false);
+			return;
+		}
+
+		// Rethrow preserving the original stack when the reason was thrown; an exhaustion wrapper was not.
+		ExceptionDispatchInfo.Throw(reason);
 	}
 
 	/// <summary>
@@ -644,17 +882,33 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			[]));
 	}
 
-	private PostgresDataChangeEvent HandleTruncate(TruncateMessage truncate)
+	/// <summary>
+	/// Maps a truncate message to one truncate change per truncated relation.
+	/// </summary>
+	/// <remarks>
+	/// <c>TRUNCATE a, b</c> — and the further tables a <c>CASCADE</c> reaches — arrive as ONE message
+	/// naming every affected relation, so this fans out over <see cref="TruncateMessage.Relations"/>
+	/// rather than reporting only the first. Every change carries the same WAL position, transaction id
+	/// and commit time, because they are one transactional act; the caller applies the table filter per
+	/// change, so a configured table named after the first relation is still delivered.
+	/// </remarks>
+	private IReadOnlyList<PostgresDataChangeEvent> HandleTruncate(TruncateMessage truncate)
 	{
-		// Truncate affects all tables in the list
-		var firstRelation = truncate.Relations[0];
+		var relations = truncate.Relations;
+		var position = new PostgresCdcPosition(truncate.WalEnd);
+		var changes = new List<PostgresDataChangeEvent>(relations.Count);
 
-		return PostgresDataChangeEvent.CreateTruncate(
-			new PostgresCdcPosition(truncate.WalEnd),
-			firstRelation.Namespace,
-			firstRelation.RelationName,
-			_currentTransactionId,
-			_currentCommitTime);
+		foreach (var relation in relations)
+		{
+			changes.Add(PostgresDataChangeEvent.CreateTruncate(
+				position,
+				relation.Namespace,
+				relation.RelationName,
+				_currentTransactionId,
+				_currentCommitTime));
+		}
+
+		return changes;
 	}
 
 	private bool ShouldProcessTable(string fullTableName)
@@ -676,6 +930,12 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 	[LoggerMessage(CdcPostgresEventId.CdcResumingFromPosition, LogLevel.Information, "Resuming from LSN position {Position}")]
 	private partial void LogResuming(string position);
+
+	[LoggerMessage(CdcPostgresEventId.CdcConcurrentInvocationSkipped, LogLevel.Information,
+		"{Operation} found a replication loop already running on this processor and returned without "
+		+ "processing. This is specified single-flight behaviour; the next invocation picks the work up. "
+		+ "Persistent occurrences mean invocations are overlapping faster than a batch drains.")]
+	private partial void LogConcurrentInvocationSkipped(string operation);
 
 	[LoggerMessage(CdcPostgresEventId.CdcConnectedToReplicationStream, LogLevel.Information, "Connected to Postgres replication stream")]
 	private partial void LogConnected();
@@ -701,4 +961,10 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 	[LoggerMessage(CdcPostgresEventId.CdcFatalError, LogLevel.Critical,
 		"Fatal (non-retryable) error in Postgres CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]
 	private partial void LogFatalError(Exception ex);
+
+	[LoggerMessage(CdcPostgresEventId.CdcSyncDisposeLeaksReplicationConnection, LogLevel.Error,
+		"Dispose() was called synchronously on a Postgres CDC processor with an open replication connection. " +
+		"The replication slot '{SlotName}' was NOT released and remains open on the server. Dispose this " +
+		"processor with 'await using' (DisposeAsync) instead to release the connection and the slot.")]
+	private partial void LogSyncDisposeLeaksReplicationConnection(string slotName);
 }

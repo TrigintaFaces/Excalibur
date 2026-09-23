@@ -7,6 +7,7 @@
       "src\\Excalibur\\Excalibur.Testing\\Excalibur.Testing.csproj",
       "src\\Excalibur\\Excalibur.Testing.Conformance\\Excalibur.Testing.Conformance.csproj",
       "src\\Excalibur\\Excalibur.Testing.Containers\\Excalibur.Testing.Containers.csproj",
+      "tests\\unit\\Excalibur.Compliance.Analyzers.Tests\\Excalibur.Compliance.Analyzers.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Tests\\Excalibur.Dispatch.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Abstractions.Tests\\Excalibur.Dispatch.Abstractions.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Configuration.Tests\\Excalibur.Dispatch.Configuration.Tests.csproj",

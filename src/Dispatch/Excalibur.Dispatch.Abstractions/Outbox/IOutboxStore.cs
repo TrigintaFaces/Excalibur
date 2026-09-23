@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 
@@ -154,10 +154,24 @@ public interface IOutboxStore : IServiceProvider
 	/// which reads as a per-claim guarantee that no shipped store keeps through this member. What the shipped
 	/// stores actually compare is a per-PROCESS identity, so two successive claims by the same process are
 	/// indistinguishable to it: a report from an expired claim of a still-running dispatcher is accepted, and
-	/// it releases a reservation a live successor of that same process still holds. One store's statement for
-	/// this member carries no ownership term at all, by a deliberate choice -- a predicate a caller satisfies
-	/// by omitting the value it guards is not a guard, so that store offers a separate statement rather than
-	/// one with a hole.
+	/// it releases a reservation a live successor of that same process still holds.
+	/// </para>
+	/// <para>
+	/// <b>THE FLOOR A CALLER MAY RELY ON, stated because "varies by store" is not a contract.</b> Every
+	/// shipped store that offers this member refuses a report against a message currently held by a
+	/// DIFFERENT dispatcher process, and admits one against a message nobody holds. That is the floor, and
+	/// it is uniform: what varies above it is only whether a store can also distinguish two claim cycles of
+	/// the SAME process, and none of them can through this member. An implementor of this interface is
+	/// required to meet the floor; a store that matches on the message identifier alone does not implement
+	/// this member's contract, however well it records the identity elsewhere.
+	/// </para>
+	/// <para>
+	/// The floor is expressed differently by different data models -- a prefix of a stored claim token, an
+	/// equality against a configured processor identity, a conditional script, an in-process comparison --
+	/// and the obligation is the property, not the mechanism. Note what the floor deliberately does NOT
+	/// require: an "ownership term" a caller can satisfy by omitting the value it guards is not a guard, so
+	/// a store whose only option would be such a predicate must instead offer the claim-scoped member below
+	/// and refuse here, rather than carry a predicate with a hole in it.
 	/// </para>
 	/// <para>
 	/// <b>For a completion judged against the specific claim the caller holds, use

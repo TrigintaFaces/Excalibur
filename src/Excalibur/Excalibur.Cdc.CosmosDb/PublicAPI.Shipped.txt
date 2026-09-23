@@ -32,8 +32,6 @@ Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.DatabaseId.get -> string!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.DatabaseId.set -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyPath.get -> string?
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyPath.set -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyValues.get -> System.Collections.Generic.List<string!>?
-Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyValues.set -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.ProcessorName.get -> string!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.ProcessorName.set -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.Validate() -> void
@@ -44,7 +42,7 @@ Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.IsBeginning.get -> bool
 Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.ToBase64() -> string!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.CosmosDbCdcProcessor(Microsoft.Azure.Cosmos.CosmosClient! client, Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore! stateStore, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CdcFatalErrorOptions<Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!>!>? fatalErrorOptions = null, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null) -> void
+Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.CosmosDbCdcProcessor(Microsoft.Azure.Cosmos.CosmosClient! client, Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore! stateStore, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CdcFatalErrorOptions<Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!>!>? fatalErrorOptions = null, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null, System.TimeProvider? timeProvider = null, Excalibur.Cdc.Diagnostics.CdcHealthState? healthState = null) -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.Dispose() -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!>!
@@ -114,6 +112,8 @@ Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.Lsn.get -> long
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.Lsn.init -> void
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.PartitionKey.get -> string?
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.PartitionKey.init -> void
+Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.PartitionKeyKind.get -> Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind
+Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.PartitionKeyKind.init -> void
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.Position.get -> Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.Position.init -> void
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.PreviousDocument.get -> System.Text.Json.JsonDocument?
@@ -125,6 +125,12 @@ Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType.Delete = 2 -> Excalibur.Cdc.Cosmos
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType.Insert = 0 -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType.Update = 1 -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeTypeExtensions
+Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind
+Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind.Boolean = 4 -> Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind
+Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind.None = 0 -> Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind
+Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind.Null = 1 -> Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind
+Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind.Number = 3 -> Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind
+Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind.String = 2 -> Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder
@@ -168,9 +174,9 @@ static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.FromContinuationToken(string! 
 static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.FromTimestamp(System.DateTimeOffset timestamp) -> Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!
 static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Now() -> Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!
 static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.TryFromBase64(string? base64, out Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position) -> bool
-static Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.CreateDelete(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, string! documentId, string? partitionKey, System.Text.Json.JsonDocument? previousDocument, System.DateTimeOffset timestamp, long lsn) -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!
-static Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.CreateInsert(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, string! documentId, string? partitionKey, System.Text.Json.JsonDocument! document, System.DateTimeOffset timestamp, long lsn, string? etag) -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!
-static Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.CreateUpdate(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, string! documentId, string? partitionKey, System.Text.Json.JsonDocument! document, System.Text.Json.JsonDocument? previousDocument, System.DateTimeOffset timestamp, long lsn, string? etag) -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!
+static Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.CreateDelete(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, string! documentId, string? partitionKey, System.Text.Json.JsonDocument? previousDocument, System.DateTimeOffset timestamp, long lsn, Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind partitionKeyKind = Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind.None) -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!
+static Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.CreateInsert(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, string! documentId, string? partitionKey, System.Text.Json.JsonDocument! document, System.DateTimeOffset timestamp, long lsn, string? etag, Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind partitionKeyKind = Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind.None) -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!
+static Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent.CreateUpdate(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, string! documentId, string? partitionKey, System.Text.Json.JsonDocument! document, System.Text.Json.JsonDocument? previousDocument, System.DateTimeOffset timestamp, long lsn, string? etag, Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind partitionKeyKind = Excalibur.Cdc.CosmosDb.CosmosDbPartitionKeyKind.None) -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!
 static Excalibur.Cdc.CosmosDb.CosmosDbDataChangeTypeExtensions.ToCdcChangeType(this Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType changeType) -> Excalibur.Cdc.CdcChangeType
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.CreateEventArgs(System.Exception! exception, string! processorId, Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition? stalePosition = null, Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition? newPosition = null, string? databaseName = null, string? containerName = null, string? partitionKeyRangeId = null) -> Excalibur.Cdc.CdcPositionResetEventArgs!
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.GetReasonCode(Microsoft.Azure.Cosmos.CosmosException? exception) -> string!

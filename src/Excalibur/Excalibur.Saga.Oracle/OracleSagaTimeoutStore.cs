@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 
@@ -262,7 +262,7 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 	}
 
 	/// <inheritdoc />
-	public async Task<IReadOnlyList<SagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
+	public async Task<IReadOnlyList<ClaimedSagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
@@ -279,13 +279,23 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		// already locked by a concurrent claimer's open cursor, so two concurrent claimers always
 		// claim disjoint id sets. The FORALL then stamps ClaimedBy/ClaimedAt on exactly those n
 		// rows under the locks; the select-back reads the rows this processor now owns.
+		// SYSTIMESTAMP, not :AsOf, judges the lease. ClaimedAt is stamped with SYSTIMESTAMP below, so the
+		// expiry check must read the same clock it was written with. Comparing the stamp against the
+		// caller-supplied :AsOf instead compares two different clocks: a claimant whose wall clock leads the
+		// Oracle server's by D stamps ClaimedAt = t-D in claimant-clock terms, and this claimant (or the next
+		// poll) then judges it expired once asOf > t-D+LeaseTimeoutSeconds -- an effective lease of
+		// LeaseTimeoutSeconds-D, not LeaseTimeoutSeconds. With a claimant even a couple of minutes ahead of the
+		// database and the shipped default lease, that effective lease is already negative: a claim looks
+		// expired to its own claimer before the claiming statement returns. DueAt <= :AsOf is unaffected -- DueAt
+		// denotes when the caller's saga clock said the timeout was due, not a lease boundary, and comparing it
+		// against the caller's own :AsOf is the correct, offset-preserving comparison of that instant.
 		var claimSql = $"""
 			DECLARE
 			    CURSOR eligible IS
 			        SELECT TimeoutId
 			        FROM {_options.QualifiedTableName}
 			        WHERE DueAt <= :AsOf
-			          AND (ClaimedAt IS NULL OR ClaimedAt < :AsOf - NUMTODSINTERVAL(:LeaseTimeoutSeconds, 'SECOND'))
+			          AND (ClaimedAt IS NULL OR ClaimedAt < SYSTIMESTAMP - NUMTODSINTERVAL(:LeaseTimeoutSeconds, 'SECOND'))
 			        ORDER BY DueAt
 			        FOR UPDATE SKIP LOCKED;
 			    TYPE id_table IS TABLE OF {_options.QualifiedTableName}.TimeoutId%TYPE;
@@ -325,11 +335,11 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 			""";
 
 		// Per-statement DynamicParameters. Both statements are wrapped in OracleDynamicParameters, which sets
-		// OracleCommand.BindByName = true, so parameters bind by name and the claim's repeated :AsOf resolves
-		// correctly. Do not "correct" that: under ODP.NET's positional default, a placeholder appearing twice
-		// consumes two parameters and this statement would silently mis-bind. The per-statement split is kept
-		// because each statement should carry only the parameters it names — a shared set is a standing
-		// invitation to reintroduce the positional footgun the moment BindByName is lost.
+		// OracleCommand.BindByName = true, so parameters bind by name. Do not "correct" that: under ODP.NET's
+		// positional default, a placeholder appearing twice in one statement consumes two parameters and would
+		// silently mis-bind -- a risk any future edit reintroducing a repeated placeholder would hit immediately.
+		// The per-statement split is kept because each statement should carry only the parameters it names — a
+		// shared set is a standing invitation to lose track of that.
 		//
 		// Unique per claim call. Not security material -- it identifies a batch, it does not authorize
 		// anything -- so a Guid is the right primitive here rather than a CSPRNG draw.
@@ -355,8 +365,10 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		var results = await connection.QueryAsync<TimeoutRecord>(new CommandDefinition(
 			selectSql, new OracleDynamicParameters(selectParameters), cancellationToken: cancellationToken)).ConfigureAwait(false);
 
+		// The token minted above is CARRIED OUT with each row. It was already sound -- unique per claim
+		// call -- and was then discarded inside this method, so the fence it represented fenced nothing.
 		var timeouts = results
-			.Select(r => new SagaTimeout(
+			.Select(r => new ClaimedSagaTimeout(new SagaTimeout(
 				r.TimeoutId,
 				r.SagaId,
 				r.SagaType,
@@ -369,7 +381,7 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 				// Read through the store-read factory, which maps a legacy NULL or the sentinel onto the
 				// untenanted partition without rejecting either.
 				TenantId = KeyedTenantPartition.FromStoredValue(r.TenantId).TenantId,
-			})
+			}, claimToken))
 			.ToList();
 
 		_ = (activity?.SetTag("timeout.count", timeouts.Count));
@@ -428,9 +440,11 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 	}
 
 	/// <inheritdoc />
-	public async Task MarkDeliveredAsync(string timeoutId, CancellationToken cancellationToken)
+	public async Task<SagaTimeoutRetirementOutcome> MarkDeliveredAsync(ClaimedSagaTimeout claim, CancellationToken cancellationToken)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(timeoutId);
+		ArgumentNullException.ThrowIfNull(claim);
+
+		var timeoutId = claim.Timeout.TimeoutId;
 
 		using var activity = ActivitySource.StartActivity("MarkDelivered");
 		_ = (activity?.SetTag("timeout.id", timeoutId));
@@ -441,22 +455,35 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		// must be the timeout's own, or the DELETE matches nothing and the timeout is redelivered forever. The
 		// delivery service establishes each claimed timeout's tenant around both the dispatch and this call.
 		var partition = CurrentPartition();
-		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = :TenantId AND TimeoutId = :TimeoutId";
+		// AND ClaimedBy = :ClaimToken makes the retirement owned rather than merely addressed. The tenant
+		// term stops a foreign tenant retiring by identifier; it says nothing about a processor whose lease
+		// has already been taken over. One conditional DELETE keeps the ownership test and the removal in a
+		// single atomic step.
+		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = :TenantId AND TimeoutId = :TimeoutId AND ClaimedBy = :ClaimToken";
 
 		var dp = new DynamicParameters();
 		dp.Add("TenantId", partition.TenantId);
 		dp.Add("TimeoutId", timeoutId);
+		dp.Add("ClaimToken", claim.ClaimToken);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(new CommandDefinition(
+		var rowsAffected = await connection.ExecuteAsync(new CommandDefinition(
 			sql, new OracleDynamicParameters(dp), cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+		// Zero rows means this caller's claim is no longer the current one. Reported, not swallowed.
+		if (rowsAffected == 0)
+		{
+			return SagaTimeoutRetirementOutcome.Superseded;
+		}
 
 		if (_logger.IsEnabled(LogLevel.Debug))
 		{
 			LogTimeoutDelivered(timeoutId);
 		}
+
+		return SagaTimeoutRetirementOutcome.Retired;
 	}
 
 	private static Func<OracleConnection> CreateConnectionFactory(string connectionString)

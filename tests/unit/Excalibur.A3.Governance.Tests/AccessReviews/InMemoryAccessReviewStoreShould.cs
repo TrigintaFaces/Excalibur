@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Governance.AccessReviews;
 using Excalibur.A3.Governance.Stores.InMemory;
@@ -22,7 +22,7 @@ public sealed class InMemoryAccessReviewStoreShould : UnitTestBase
 		AccessReviewState state = AccessReviewState.Created,
 		int totalItems = 5,
 		int decidedItems = 0) =>
-		new(id, name,
+		new(id, "tenant-1", name,
 			new AccessReviewScope(AccessReviewScopeType.AllGrants, null),
 			"admin",
 			new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),

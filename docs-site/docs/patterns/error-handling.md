@@ -229,20 +229,13 @@ services.AddDispatch(dispatch =>
 });
 ```
 
-Every message that enters the DLQ is tagged with a reason:
-
-| Reason | What Happened |
-|--------|--------------|
-| `MaxRetriesExceeded` | Handler failed on every retry attempt |
-| `CircuitBreakerOpen` | Circuit breaker was open. **Note:** the built-in inbox/outbox processors no longer dead-letter on this condition — a transient open breaker leaves the message for retry. This enum value is retained for compatibility and custom DLQ routing. |
-| `DeserializationFailed` | Message payload could not be deserialized |
-| `HandlerNotFound` | No handler registered for this message type |
-| `ValidationFailed` | Message failed validation middleware |
-| `AuthorizationFailed` | Authorization check rejected the message |
-| `MessageExpired` | Message TTL expired before processing |
-| `ManualRejection` | Handler explicitly rejected the message |
-| `PoisonMessage` | Detected as poison by a detector |
-| `UnhandledException` | Unhandled exception in processing |
+Every message that enters the DLQ is tagged with a `DeadLetterReason`. **The framework itself assigns
+only two of them:** `MaxRetriesExceeded`, when a handler fails on every retry attempt, and
+`DeserializationFailed`, when the outbox processor cannot read a stored message. The remaining values —
+`CircuitBreakerOpen`, `HandlerNotFound`, `ValidationFailed`, `AuthorizationFailed`, `MessageExpired`,
+`ManualRejection`, `PoisonMessage`, `UnhandledException` and `Unknown` — are for your own code to use
+when it enqueues entries. Poison-message detection records its entries separately, with a free-text
+reason. See [Dead Letter Reasons](./dead-letter.md#dead-letter-reasons).
 
 ## Two Levels of Dead Letter Handling
 

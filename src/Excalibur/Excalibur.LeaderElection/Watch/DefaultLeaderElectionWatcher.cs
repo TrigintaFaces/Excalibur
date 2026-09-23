@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
@@ -33,6 +33,7 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 	private readonly ILeaderElection _leaderElection;
 	private readonly LeaderWatchOptions _options;
 	private readonly ILogger<DefaultLeaderElectionWatcher> _logger;
+	private readonly TimeProvider _timeProvider;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DefaultLeaderElectionWatcher"/> class.
@@ -40,10 +41,17 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 	/// <param name="leaderElection">The leader election service to poll.</param>
 	/// <param name="options">The watcher configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">
+	/// Optional time source for the <c>ChangedAt</c> stamp on emitted change events. Defaults to
+	/// <see cref="TimeProvider.System"/>. Supplying the same provider the election was given keeps the
+	/// watcher's stamps on the same clock as the election's own, which is what makes a watch loop
+	/// deterministic under test.
+	/// </param>
 	public DefaultLeaderElectionWatcher(
 		ILeaderElection leaderElection,
 		IOptions<LeaderWatchOptions> options,
-		ILogger<DefaultLeaderElectionWatcher> logger)
+		ILogger<DefaultLeaderElectionWatcher> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(leaderElection);
 		ArgumentNullException.ThrowIfNull(options);
@@ -52,6 +60,7 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 		_leaderElection = leaderElection;
 		_options = options.Value;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <inheritdoc />
@@ -98,7 +107,7 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 					var initialEvent = new LeaderChangeEvent(
 						PreviousLeader: null,
 						NewLeader: currentLeader,
-						ChangedAt: DateTimeOffset.UtcNow,
+						ChangedAt: _timeProvider.GetUtcNow(),
 						Reason: currentLeader is not null ? LeaderChangeReason.Elected : LeaderChangeReason.Expired);
 
 					await writer.WriteAsync(initialEvent, cancellationToken).ConfigureAwait(false);
@@ -114,7 +123,7 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 					var changeEvent = new LeaderChangeEvent(
 						PreviousLeader: previousLeader,
 						NewLeader: currentLeader,
-						ChangedAt: DateTimeOffset.UtcNow,
+						ChangedAt: _timeProvider.GetUtcNow(),
 						Reason: reason);
 
 					await writer.WriteAsync(changeEvent, cancellationToken).ConfigureAwait(false);
@@ -128,7 +137,7 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 					var heartbeat = new LeaderChangeEvent(
 						PreviousLeader: currentLeader,
 						NewLeader: currentLeader,
-						ChangedAt: DateTimeOffset.UtcNow,
+						ChangedAt: _timeProvider.GetUtcNow(),
 						Reason: LeaderChangeReason.Elected);
 
 					await writer.WriteAsync(heartbeat, cancellationToken).ConfigureAwait(false);

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Transport.Grpc;
 
@@ -88,4 +88,13 @@ internal static class GrpcTransportEventId
 
 	/// <summary>gRPC transport subscriber: oversized inbound payload rejected before materialization.</summary>
 	public const int SubscriberPayloadTooLarge = 25049;
+
+	/// <summary>gRPC transport subscriber: the server refused the settlement it was asked to perform.</summary>
+	public const int SubscriberSettlementRejected = 25050;
+
+	/// <summary>
+	/// The server returned a different number of batch results than the batch contained, so no result
+	/// could be attributed to an input.
+	/// </summary>
+	public const int SenderBatchResultCountMismatch = 25051;
 }

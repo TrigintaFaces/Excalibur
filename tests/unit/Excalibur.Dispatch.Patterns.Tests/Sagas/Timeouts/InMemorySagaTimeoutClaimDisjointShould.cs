@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Storage;
@@ -57,9 +57,9 @@ public sealed class InMemorySagaTimeoutClaimDisjointShould
 		// Two delivery workers claim concurrently from the SAME due set.
 		var claims = await Task.WhenAll(
 			Task.Run(async () =>
-				(await store.ClaimDueTimeoutsAsync(asOf, batchSize, CancellationToken.None)).Select(t => t.TimeoutId).ToList()),
+				(await store.ClaimDueTimeoutsAsync(asOf, batchSize, CancellationToken.None)).Select(c => c.Timeout.TimeoutId).ToList()),
 			Task.Run(async () =>
-				(await store.ClaimDueTimeoutsAsync(asOf, batchSize, CancellationToken.None)).Select(t => t.TimeoutId).ToList()));
+				(await store.ClaimDueTimeoutsAsync(asOf, batchSize, CancellationToken.None)).Select(c => c.Timeout.TimeoutId).ToList()));
 
 		var a = claims[0];
 		var b = claims[1];
@@ -81,11 +81,11 @@ public sealed class InMemorySagaTimeoutClaimDisjointShould
 		var asOf = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		await store.ScheduleTimeoutAsync(DueTimeout("only", asOf.AddMinutes(-1)), CancellationToken.None);
 
-		var first = (await store.ClaimDueTimeoutsAsync(asOf, 10, CancellationToken.None)).Select(t => t.TimeoutId).ToList();
+		var first = (await store.ClaimDueTimeoutsAsync(asOf, 10, CancellationToken.None)).Select(c => c.Timeout.TimeoutId).ToList();
 		first.ShouldBe(["only"], "the single due timeout is claimed by the first worker");
 
 		// Second claim at the same asOf (well within the 120s lease) must NOT re-hand-out the leased timeout.
-		var second = (await store.ClaimDueTimeoutsAsync(asOf, 10, CancellationToken.None)).Select(t => t.TimeoutId).ToList();
+		var second = (await store.ClaimDueTimeoutsAsync(asOf, 10, CancellationToken.None)).Select(c => c.Timeout.TimeoutId).ToList();
 		second.ShouldBeEmpty(
 			"a timeout under a still-valid claim lease must not be re-claimed (no double delivery)");
 	}

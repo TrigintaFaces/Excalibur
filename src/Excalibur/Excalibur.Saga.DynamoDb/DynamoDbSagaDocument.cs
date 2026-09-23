@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Globalization;
@@ -46,7 +46,6 @@ internal static class DynamoDbSagaDocument
 	public const string Version = "version";
 	public const string CreatedUtc = "createdUtc";
 	public const string UpdatedUtc = "updatedUtc";
-	public const string Ttl = "ttl";
 
 	// Partition key prefix
 	public const string SagaPrefix = "SAGA#";
@@ -119,6 +118,11 @@ SagaPrefix + TenantScopedKey.Compose(tenantId, sagaId.ToString());
 	/// <param name="updatedUtc">The update timestamp.</param>
 	/// <param name="tenantId">The owning tenant term, which forms the leading segment of the partition key.</param>
 	/// <param name="ttlSeconds">Optional TTL in seconds (0 = no TTL).</param>
+	/// <param name="ttlAttributeName">
+	/// The table's configured TTL attribute name. The expiry is written under THIS name: DynamoDB only expires
+	/// an item by the attribute named in the table's TTL specification, which is set from the same option, so
+	/// writing a fixed name instead would leave every item unexpired once the option is renamed.
+	/// </param>
 	/// <returns>The DynamoDB item attributes.</returns>
 	public static Dictionary<string, AttributeValue> FromSagaState<TSagaState>(
 		TSagaState sagaState,
@@ -127,7 +131,8 @@ SagaPrefix + TenantScopedKey.Compose(tenantId, sagaId.ToString());
 		DateTimeOffset createdUtc,
 		DateTimeOffset updatedUtc,
 		string tenantId,
-		int ttlSeconds = 0)
+		int ttlSeconds,
+		string ttlAttributeName)
 		where TSagaState : SagaState
 	{
 		var sagaType = typeof(TSagaState).Name;
@@ -155,7 +160,7 @@ SagaPrefix + TenantScopedKey.Compose(tenantId, sagaId.ToString());
 		if (ttlSeconds > 0)
 		{
 			var ttlValue = DateTimeOffset.UtcNow.AddSeconds(ttlSeconds).ToUnixTimeSeconds();
-			item[Ttl] = new() { N = ttlValue.ToString(CultureInfo.InvariantCulture) };
+			item[ttlAttributeName] = new() { N = ttlValue.ToString(CultureInfo.InvariantCulture) };
 		}
 
 		return item;

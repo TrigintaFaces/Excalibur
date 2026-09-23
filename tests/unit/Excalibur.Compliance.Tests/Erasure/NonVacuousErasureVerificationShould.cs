@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
@@ -29,7 +29,7 @@ namespace Excalibur.Compliance.Tests.Erasure;
 public sealed class NonVacuousErasureVerificationShould
 {
     private readonly IErasureStore _erasureStore = A.Fake<IErasureStore>();
-    private readonly IKeyManagementProvider _keyProvider = A.Fake<IKeyManagementProvider>();
+    private readonly IKeyManagementProvider _keyProvider = KeyDestructionFakes.ProviderThatReportsDestruction();
     private readonly IDataInventoryService _inventoryService = A.Fake<IDataInventoryService>();
     private readonly IAuditStore _auditStore = A.Fake<IAuditStore>();
     private readonly NullLogger<ErasureVerificationService> _logger = NullLogger<ErasureVerificationService>.Instance;
@@ -54,8 +54,7 @@ public sealed class NonVacuousErasureVerificationShould
 
         // KMS confirms the key is gone — so the ONLY thing that can fail verification is the vacuous
         // KeysDeleted-with-no-key-IDs claim (non-vacuity: the failure is the 412fo4 check, not a KMS miss).
-        A.CallTo(() => _keyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
-            .Returns((KeyMetadata?)null);
+        _keyProvider.ReportsEveryKeyDestroyed();
 
         // KMS-only verification keeps the assertion isolated to the vacuous-keys check (no AuditLog setup needed).
         var sut = CreateService(new ErasureOptions { VerificationMethods = VerificationMethod.KeyManagementSystem });
@@ -89,8 +88,7 @@ public sealed class NonVacuousErasureVerificationShould
         A.CallTo(() => _erasureStore.GetService(typeof(IErasureCertificateStore)))
             .Returns(certificateStore);
 
-        A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
-            .Returns((KeyMetadata?)null); // key confirmed gone
+        _keyProvider.ReportsDestroyed("key-1", true); // key confirmed destroyed by the provider
 
         var sut = CreateService(new ErasureOptions { VerificationMethods = VerificationMethod.KeyManagementSystem });
 
@@ -135,13 +133,15 @@ public sealed class NonVacuousErasureVerificationShould
     private static ErasureCertificate CreateCertificate(Guid requestId, Guid certificateId, string[] deletedKeyIds) =>
         new()
         {
-            CertificateId = certificateId,
-            RequestId = requestId,
-            DataSubjectReference = "hash-abc123",
-            RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-2),
-            CompletedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
-            Method = ErasureMethod.CryptographicErasure,
-            Summary = new ErasureSummary
+			Payload = new()
+			{
+				CertificateId = certificateId,
+				RequestId = requestId,
+				DataSubjectReference = "hash-abc123",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-2),
+				CompletedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary
             {
                 KeysDeleted = 1, // CLAIMS a key was deleted
                 RecordsAffected = 1,
@@ -149,15 +149,16 @@ public sealed class NonVacuousErasureVerificationShould
                 TablesAffected = ["Orders"],
                 DataSizeBytes = 128,
             },
-            Verification = new VerificationSummary
+				Verification = new VerificationSummary
             {
                 Verified = true,
                 Methods = VerificationMethod.KeyManagementSystem,
                 VerifiedAt = DateTimeOffset.UtcNow,
                 DeletedKeyIds = deletedKeyIds, // empty == vacuous claim
             },
-            LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
-            Signature = "test-signature",
-            RetainUntil = DateTimeOffset.UtcNow.AddYears(7),
-        };
+				LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "test-signature"
+		};
 }

@@ -49,7 +49,8 @@ Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.FindUserGrantsAsync(str
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
-Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetMatchingGrantsAcrossTenantsAsync(string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetMatchingGrantsAsync(string! tenantId, string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -166,7 +167,7 @@ Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.InitializeAsync(System.Threa
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.Name.get -> string!
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.QueryAsync<TDocument>(string! queryText, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IDictionary<string!, object!>? parameters, Excalibur.Data.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!
+Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.QueryAsync<TDocument>(Excalibur.Data.CloudNative.CloudQueryRequest! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.SupportsChangeFeed.get -> bool
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.SupportsMultiRegionWrites.get -> bool

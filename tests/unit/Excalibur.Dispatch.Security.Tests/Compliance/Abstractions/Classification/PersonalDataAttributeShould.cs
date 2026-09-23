@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Classification;
 
@@ -24,7 +24,6 @@ public sealed class PersonalDataAttributeShould : UnitTestBase
 		attribute.LegalBasis.ShouldBe(LegalBasis.Consent);
 		attribute.RetentionDays.ShouldBe(0);
 		attribute.MaskInLogs.ShouldBeTrue();
-		attribute.ExcludeFromErrors.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -38,8 +37,7 @@ public sealed class PersonalDataAttributeShould : UnitTestBase
 			Purpose = "Medical service delivery",
 			LegalBasis = LegalBasis.VitalInterests,
 			RetentionDays = 365 * 10,
-			MaskInLogs = true,
-			ExcludeFromErrors = true
+			MaskInLogs = true
 		};
 
 		// Assert
@@ -131,15 +129,10 @@ public sealed class PersonalDataAttributeShould : UnitTestBase
 	public void AllowDisablingLoggingMasking()
 	{
 		// Act - in some cases logs may be secured and masking unnecessary
-		var attribute = new PersonalDataAttribute
-		{
-			MaskInLogs = false,
-			ExcludeFromErrors = false
-		};
+		var attribute = new PersonalDataAttribute { MaskInLogs = false };
 
 		// Assert
 		attribute.MaskInLogs.ShouldBeFalse();
-		attribute.ExcludeFromErrors.ShouldBeFalse();
 	}
 
 	[Fact]

@@ -28,3 +28,12 @@ services.AddExcaliburA3(a3 =>
 - **IHttpClientFactory integration**: Managed HTTP client lifetime with proper pooling
 - **STJ source-gen ready**: Zero-reflection JSON serialization for AOT compatibility
 - **Minimal dependencies**: Only `Microsoft.Extensions.Http` and `System.Text.Json`
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

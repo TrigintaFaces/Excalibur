@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -27,6 +27,8 @@ public static class InMemoryServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">An optional delegate to configure the in-memory provider options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[RequiresUnreferencedCode("Enabling InMemoryProviderOptions.PersistToDisk serialises the store through reflection-based System.Text.Json, which trimming may break. Leave PersistToDisk disabled (the default) for a trim-safe host.")]
+	[RequiresDynamicCode("Enabling InMemoryProviderOptions.PersistToDisk serialises the store through reflection-based System.Text.Json, whose converters are constructed at runtime. Leave PersistToDisk disabled (the default) for an AOT host.")]
 	public static IServiceCollection AddExcaliburInMemory(
 		this IServiceCollection services,
 		Action<InMemoryProviderOptions>? configure = null)
@@ -69,6 +71,8 @@ public static class InMemoryServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Enabling InMemoryProviderOptions.PersistToDisk serialises the store through reflection-based System.Text.Json, which trimming may break. Leave PersistToDisk disabled (the default) for a trim-safe host.")]
+	[RequiresDynamicCode("Enabling InMemoryProviderOptions.PersistToDisk serialises the store through reflection-based System.Text.Json, whose converters are constructed at runtime. Leave PersistToDisk disabled (the default) for an AOT host.")]
 	public static IServiceCollection AddExcaliburInMemory(
 		this IServiceCollection services,
 		Action<IInMemoryDataBuilder> configure)
@@ -111,10 +115,8 @@ public static class InMemoryServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode("Binds IConfiguration to InMemoryProviderOptions by reflection, which requires types that trimming may remove. Use the AddExcaliburInMemory(IServiceCollection, Action<InMemoryProviderOptions>) overload to configure the options in code, or enable the source-generated configuration binder (EnableConfigurationBindingGenerator).")]
+	[RequiresDynamicCode("Binds IConfiguration to InMemoryProviderOptions by reflection, which constructs accessors at runtime. Use the AddExcaliburInMemory(IServiceCollection, Action<InMemoryProviderOptions>) overload to configure the options in code, or enable the source-generated configuration binder (EnableConfigurationBindingGenerator).")]
 	public static IServiceCollection AddExcaliburInMemory(
 		this IServiceCollection services,
 		IConfiguration configuration)

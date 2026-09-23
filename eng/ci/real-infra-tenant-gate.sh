@@ -132,7 +132,13 @@ fi
 #
 #      So: count what actually failed. A missing assembly is neither a pass nor a tenancy failure --
 #      it is a run we could not evaluate, which is REFUSE.
-if printf '%s' "$output" | grep -qE 'test source file .* was not found|could not be found\.'; then
+# Herestring, NOT a pipe. Under `set -o pipefail` a piped `grep -q` exits at the first match and
+# SIGPIPEs the producer, so the PIPELINE reports 141 and this `if` does not fire -- the REFUSE for an
+# incomplete run is skipped precisely when the evidence for it appears EARLY in a large output. That
+# is fail-open, and $output is a full `dotnet test` capture over a .slnf, which is routinely multi-MB.
+# A herestring has no producer process to kill, so grep's only reachable exits are 0 and 1.
+# Same fix, same reason, as eng/ci/staged-secret-scan.sh:127 and eng/ci/assert-tests-executed.sh.
+if grep -qE 'test source file .* was not found|could not be found\.' <<<"$output"; then
     err "REFUSE: an assembly in '${SLNF}' was not present to run, so this gate evaluated an INCOMPLETE set. Build the filter's projects before invoking it; a missing assembly is not a passing one."
     exit $EXIT_REFUSE
 fi

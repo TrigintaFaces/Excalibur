@@ -28,6 +28,13 @@ message was not accepted instead of believing it was queued.
 > **Consumer obligation:** size `MaxMessages` for the drain you actually run. A store that is persistently
 > full of undelivered messages is a drain that is not keeping up, and staging will fail until it does.
 
+**Enforced** by `OutboxCapacityEvictionShould`, which carries both arms this claim needs:
+`RefuseToStage_RatherThanDiscardAnUnsentLeasedMessage` is the safety half — a full store of undelivered
+messages refuses rather than evicting one — and `EvictTheDeliveredMessage_WhenOneIsAvailable` plus
+`EvictTheDeadLetteredMessage_RatherThanRefusing` are the liveness half, without which the first would be
+satisfied by a store that refuses every stage forever. It needs no backing service and runs
+unconditionally.
+
 ### The central invariant
 
 > **D1 — Lease before dispatch.** A message is handed to a transport only from a lease this dispatcher won
@@ -46,20 +53,78 @@ selects messages by its own query and hands them to a transport without going th
 it, and S1 below is stated against the claim for that reason — a claim-scoped property is what a store can
 enforce, since the store cannot see a dispatch it was never asked to authorise.
 
+**D1 is UNVERIFIED.** The statement above was checked by reading the three call sites, and it is true of
+the code as written. No conformance arm enforces it: nothing fails when a drain path is changed to hand a
+message to a transport without claiming it first. S1's arm is not a substitute — it proves two concurrent
+claims are disjoint, which says nothing about whether a dispatch was preceded by a claim at all. **The
+falsification condition, so it is not left implied:** add a fourth loop, or redirect an existing one past
+`DrainClaimedBatchAsync`, and every arm in this document still passes. Until an arm RED-detects that, D1
+rests on review of the drain rather than on a test, and a reader should treat a change to the publisher's
+loop structure as unguarded on this property.
+
 Sub-guarantees (invariants):
 
 | # | Property | Statement | Status |
 |---|---|---|---|
 | **S1** | At-most-once **per claim** | Two concurrent claimers never claim the same message — each claim returns a set **disjoint** from every concurrent claim. | Holds **on the claim path**. All three loops the default drain runs claim before dispatch. A caller that selects messages by its own query and hands them to a transport without claiming is outside this property, as D1 states; the store cannot enforce a claim it was never asked for. |
 | **R1** | Backoff floor | A message failed through the claim path is not re-claimable within the floor **F**, and is re-claimable after **F**. No zero-backoff retry hot-loop. | Holds for the **claim predicate**, on both the plain and the computed-backoff failure paths, on every store implementing the computed-backoff seam — SQL Server, Postgres, MongoDB, Oracle and Redis. Each composes the caller's schedule with F as a maximum, so a shorter delay is raised and a longer one is preserved. On all five that maximum is taken over **durations** and anchored to the server clock, so no dispatcher clock reaches the persisted gate. |
-| **R2** | Reservation ownership on **release** | Only the dispatcher holding a message's current reservation may **release** it (mark-failed / unreserve). | **Enforced — but by different mechanisms, to different depths.** Each store implements this in its own terms: a stored-identity comparison in the failure statement (SQL Server matches a `LeasedBy` column against the store's configured processor identity; Oracle matches the process-stable prefix of the stored claim token), an in-process comparison against the store's own identity (the in-memory store), or an exact claim-token match supplied by the caller (PostgreSQL, on the claim-scoped route only). **PostgreSQL's unscoped failure statement carries no ownership term at all**, by a deliberate choice recorded at the statement: a predicate a caller satisfies by omitting the value it guards is not a guard, so that store offers two statements rather than one with a hole. **The depth is decided TWICE — once by what the claim records, once by how much of it the release compares — and a store can do the first well and discard it at the second.** **Oracle** stamps a fresh per-claim token on both its ordinary and its fenced claim, and then its failure statement matches only the **process-stable prefix** of that token. The per-claim half is recorded and projected away, so the release is process-granular. **PostgreSQL** mints a per-claim token on every claim, and its claim-scoped route compares the whole token, so that route distinguishes two claim cycles of one process. Its unscoped statement carries no ownership term, so nothing is refused there. **SQL Server** and the **in-memory** store compare a per-process (respectively per-store-instance) identity, so both are process-granular by construction. **Net effect, stated by capability and by named interface, because two nearly-identical capability names now sit in this paragraph and the two cases otherwise read as a contradiction.** A store that implements the claim-scoped completion (`IClaimScopedOutboxStore`) is handed the claim its caller holds and compares the whole token, so two claim cycles of one process are distinguished; where that store also implements the fenced form of it (`IFencedClaimScopedOutboxStore`), the same statement additionally refuses a caller whose leadership tenure has been superseded. **One shipped store implements either. On every other store the unscoped member is the only route available, the strongest comparison made there is a process identity, and two claim cycles of one process are NOT distinguished.** That second half is a warning and is stated widely on purpose. **What is NOT claimed here, and over what population.** Eleven outbox store packages ship, and they are not eleven of the same thing: **eight expose a failure-report member and are what this section is about; three (the change-feed family) expose no failure-report member at all**, so a statement about ownership on release is not weaker for them — it does not apply. **Six of the eight have been read directly**, and the statements above describe those six. **The two that have not been read are the Elasticsearch and Marten stores**; whether either refuses a report from a different dispatcher process is not characterised, because it has not been measured — do not read their absence from this section as an assurance about them. **Consequence, as the observable outcome.** A failure reported by an expired claim of a still-running dispatcher is accepted wherever the compared value is process-granular. It releases a reservation a live successor of that same process still holds, and clears the reservation deadline with it — so the duplicate-delivery window stops being bounded by the reservation timeout and falls back to the failure floor, which is typically an order of magnitude shorter. Sizing that floor is a consumer obligation. **Known gap — the fallback, not the route.** Two components complete outbox failures, and both now ask a store for the claim-scoped capability and use it where it is present. (A third component claims messages without ever completing a failure, so it is outside this row; "drain" is avoided here because it names a different set depending on whether one means claiming or completing.) **What remains is the fallback beneath them:** on a store that does not implement the claim-scoped completion — every shipped store but one — the unscoped member is the only route available, and the strongest comparison made there is a process identity. A release guard can also discriminate no more finely than the claim recorded, so a store that records only a process identity, or compares only a prefix of what it recorded, gains nothing from the route alone. Closing this requires the remaining stores to implement the capability, or the unscoped member to carry an ownership term a caller cannot satisfy by omitting the value it guards. **Evidence.** `MarkFailed_ByANonOwner_ShouldNotReleaseTheClaim` binds the process-granular arm. **Read it as bound, not as run** — it returns without asserting where a store exposes no way to give a message a foreign owner, and where its backing service is absent. **No arm binds the per-claim depth, and none binds the same-process two-cycle case. Both are documented UNVERIFIED.** |
+| **R2** | Reservation ownership on **release** | Only the dispatcher holding a message's current reservation may **release** it (mark-failed / unreserve). | **Enforced — but by different mechanisms, to different depths.** Each store implements this in its own terms: a stored-identity comparison in the failure statement (SQL Server matches a `LeasedBy` column against the store's configured processor identity; Oracle matches the process-stable prefix of the stored claim token), an in-process comparison against the store's own identity (the in-memory store), or an exact claim-token match supplied by the caller (PostgreSQL, on the claim-scoped route only). **PostgreSQL's unscoped failure statement carries no ownership term at all**, by a deliberate choice recorded at the statement: a predicate a caller satisfies by omitting the value it guards is not a guard, so that store offers two statements rather than one with a hole. **The depth is decided TWICE — once by what the claim records, once by how much of it the release compares — and a store can do the first well and discard it at the second.** **Oracle** stamps a fresh per-claim token on both its ordinary and its fenced claim, and then its failure statement matches only the **process-stable prefix** of that token. The per-claim half is recorded and projected away, so the release is process-granular. **PostgreSQL** mints a per-claim token on every claim, and its claim-scoped route compares the whole token, so that route distinguishes two claim cycles of one process. Its unscoped statement carries no ownership term, so nothing is refused there. **SQL Server** records a per-claim token and then compares a different amount of it on each of its two routes: the claim stamps `{processorId}:{claimId}` per call (`Requests/GetUnsentMessagesRequest.cs:123`), the unscoped failure statement matches only the process-stable prefix of it (`Requests/OutboxFailureMark.cs:110-112`) and is therefore process-granular, while the fenced claim-scoped statement matches the whole stamped value (`Requests/FencedMarkMessageFailedRequest.cs:106`) and does distinguish two claim cycles of one process. The **in-memory** store is the same point from the other side: its claim-scoped route compares the recorded owner exactly (`InMemoryOutboxStore.FencedCompletion.cs:87`), but what the claim recorded is a per-store-instance identity (`InMemoryOutboxStore.cs:215`), so an exact comparison is still only store-instance-granular there. A release guard discriminates no more finely than the claim recorded, whichever route it takes. **Net effect, stated by capability and by named interface, because two nearly-identical capability names now sit in this paragraph and the two cases otherwise read as a contradiction.** A store that implements the claim-scoped completion (`IClaimScopedOutboxStore`) is handed the claim its caller holds, and on the one store that implements it, it compares the whole token, so two claim cycles of one process are distinguished — but that depth is the store's, not the interface's, and the enumeration below says which stores actually reach it; where that store also implements the fenced form of it (`IFencedClaimScopedOutboxStore`), the same statement additionally refuses a caller whose leadership tenure has been superseded. **Measured at the shipped source, by interface, because the two counts differ and a single number was wrong here before:** `IClaimScopedOutboxStore` — the unfenced claim-scoped completion — is implemented by **PostgreSQL alone**. `IFencedClaimScopedOutboxStore` — the same statement additionally refusing a superseded tenure — is implemented by **four** stores: **InMemory, Oracle, PostgreSQL and SQL Server**. **Implementing that interface is not the same as gaining a per-claim comparison**, which is the distinction the paragraph above draws and the reason the two counts here differ. On **Oracle, PostgreSQL and SQL Server** the statement compares the whole per-claim token, so a caller holding a claim has a per-claim comparison available on **three** stores, not one. On **InMemory** the same route compares its recorded owner exactly, but that owner is a per-store-instance value, so it separates store instances rather than claim cycles. **On the remaining stores — MongoDB, Marten, Redis and ElasticSearch, none of which declares either claim-scoped interface — the unscoped member is the only route available, the strongest comparison made there is a process identity, and two claim cycles of one process are NOT distinguished.** That second half is a warning and is stated widely on purpose. **What is NOT claimed here, and over what population.** Eleven outbox store packages ship, and they are not eleven of the same thing: **eight expose a failure-report member and are what this section is about; three (the change-feed family) expose no failure-report member at all**, so a statement about ownership on release is not weaker for them — it does not apply. **Six of the eight have been read directly**, and the statements above describe those six. **The two that have not been read are the Elasticsearch and Marten stores**; whether either refuses a report from a different dispatcher process is not characterised, because it has not been measured — do not read their absence from this section as an assurance about them. **Consequence, as the observable outcome.** A failure reported by an expired claim of a still-running dispatcher is accepted wherever the compared value is process-granular. It releases a reservation a live successor of that same process still holds, and clears the reservation deadline with it — so the duplicate-delivery window stops being bounded by the reservation timeout and falls back to the failure floor, which is typically an order of magnitude shorter. Sizing that floor is a consumer obligation. **Known gap — the fallback, not the route.** Two components complete outbox failures, and both now ask a store for the claim-scoped capability and use it where it is present. (A third component claims messages without ever completing a failure, so it is outside this row; "drain" is avoided here because it names a different set depending on whether one means claiming or completing.) **What remains is the fallback beneath them:** on a store that does not implement the claim-scoped completion — four of the eight stores that expose a failure-report member: MongoDB, Marten, Redis and ElasticSearch — the unscoped member is the only route available, and the strongest comparison made there is a process identity. A release guard can also discriminate no more finely than the claim recorded, so a store that records only a process identity, or compares only a prefix of what it recorded, gains nothing from the route alone. Closing this requires the remaining stores to implement the capability, or the unscoped member to carry an ownership term a caller cannot satisfy by omitting the value it guards. **Evidence.** `MarkFailed_ByANonOwner_ShouldNotReleaseTheClaim` binds the process-granular arm. **Read it as bound, not as run** — it returns without asserting where a store exposes no way to give a message a foreign owner, and where its backing service is absent. **No arm binds the per-claim depth, and none binds the same-process two-cycle case. Both are documented UNVERIFIED.** |
 
 
 
 
 | **R2′** | Mark-sent is **not** ownership-guarded | `MarkSentAsync` takes only a message id, so mark-sent matches on the id — plus, where fencing is active, the leadership high-water. It carries **no** reservation-ownership term. | This is the contract, not an omission to read around. |
 | **R3** | Monotonic attempts, and **termination** | The recorded attempt count never decreases (`GREATEST(attempts, n)`), **and it advances whenever a failure is recorded**, so a repeatedly failing message reaches the dead-letter ceiling in bounded attempts rather than retrying forever. | Holds **on the claim path**. Monotonicity alone is not the point of R3: a store that never decreases the count but also never advances it satisfies the letter and loses the reason, so termination is stated here explicitly rather than left implied by the ceiling. Termination holds on every provider and on both paths: the scheduled read projects the stored attempt count (`attempts AS Attempts` → `RetryCount`), so a scheduled message resumes its attempt history rather than restarting at zero. |
-| **F1** | Leadership fencing *(optional)* | On stores implementing `IFencedOutboxStore`, a superseded leader presenting a stale token is refused on **claim and mark-sent**. Those are the only two fenced members. On Postgres and Oracle mark-sent is realised as a row DELETE, so on those stores the fenced mark-sent IS a fenced delete statement — that is the storage form of mark-sent, not a third fenced operation a consumer can invoke. Refusal on the failure members is **per store and per member**, and it is no longer uniform. Where a store implements the fenced form of the claim-scoped completion, its mark-failed statement carries both the leadership token and the claim identity and is refused on either — **one shipped store does.** Its ordinary mark-failed and its backoff statement carry a claim identity but **no leadership token**, so they refuse a foreign claim and not a superseded tenure. **Dead-lettering now depends on which of two statements the caller reaches, on the one store whose statements have been read whole.** PostgreSQL ships both: a fenced form that advances the durable high-water and conditions **both** the copy into the dead-letter table **and** the delete from the outbox on the presented token still matching it — so a superseded tenure moves nothing and deletes nothing — and the original form, which matches the message id alone and refuses no one. **The fenced form carries the leadership token only**: it separates tenures and does not separate two claim cycles of one tenure. **The other stores' dead-letter paths have not been characterised and no claim is made about them here** — do not read that silence as an assurance. **Note what the unfenced statement does and does not do:** the row's payload is copied to the dead-letter table before the outbox row is deleted, so a message terminated by a superseded tenure is recoverable from that table — the defect is a wrong terminal decision, not a lost message. Both shipped completion paths treat a mark-sent refusal as an abort of the cycle rather than routing it into one of those members. | **Holds** for every message that was claimed through the fenced claim on InMemory, MongoDB, Oracle, Postgres and Redis — this is every message either shipped drain path ever presents to mark-sent. **Holds on SQL Server.** The guard advances the durable high-water under a range lock and conditions the write on that advance accepting the token, in one transaction. Enforced by `SqlServerOutboxFenceClaimsUnderSnapshotShould`, which runs against a dedicated database with snapshot isolation enabled and fails against the pre-fix guard. MongoDB's and Redis's fence checks and the mutation each guards are still two round trips, but the mutation now also carries a per-document (Mongo) / per-key (Redis) term the fence check alone cannot see past — see the mechanism table below. A concurrent conformance arm covers the PER-DOCUMENT guard only: it places the row in the state a fresher tenure's own claim would have left it in and deliberately does NOT advance the scope-wide high-water, so it proves the per-document term is honoured and is **not** evidence about the scope-wide dimension. **The scope-wide case is now covered by its own arm**, `Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent`: a tenure claims a message while it is genuinely still the leader, a fresher tenure then advances the high-water by completing an unrelated message through the ordinary fenced path, and the first tenure's mark-sent must be refused. It takes no per-store hook, so unlike the per-document arm it applies to every store that participates in fencing rather than only those that can place per-document state. The distinction it draws is the one that matters here: a store treating a completed claim as standing authority to finish the message passes the per-document arm and fails this one, because the fence must be re-judged against the durable high-water at mutation time rather than at claim time. **And read "an arm covers this" as bound, not as run.** The fencing arms are referenced by all six fenced stores' conformance classes, but five of those classes are integration-gated and execute only where their real backing service is available; only the in-memory store's arms run unconditionally. A claim whose only enforcement is an arm that does not run in a given suite is, for that suite, unenforced — so the arms named here establish enforcement **where the provider's service is present**, and nowhere else. A suite that declares it participates in fencing and whose store then stops presenting `IFencedOutboxStore` now FAILS rather than skipping, so a silently dropped capability is a red. A suite that declares no participation still skips, which is the honest outcome for a store that never claimed the capability -- the distinction is the declaration, not the skip. **Known residual gap on MongoDB and Redis only:** a message marked sent WITHOUT ever being claimed through the fenced claim is judged by the scope-wide check alone, which is still two round trips from its own mutation — a consumer calling `IFencedOutboxStore.MarkSentAsync` directly on a message it never claimed through `GetUnsentMessagesAsync(int, long, CancellationToken)` does not get the per-document/per-key protection. Neither shipped drain path does this. |
+| **F1** | Leadership fencing *(optional)* | On stores implementing `IFencedOutboxStore`, a superseded leader presenting a stale token is refused on **claim and mark-sent** on every store that participates in fencing. **Which further members are fenced is per store, and the honest form is a matrix rather than a sentence — see the fenced-member matrix below.** Four stores additionally fence the **completion path** — **InMemory, Oracle, PostgreSQL and SQL Server**: they implement `IFencedClaimScopedOutboxStore` (mark-failed, carrying both the leadership token and the claim identity) and `IFencedDeadLetterableOutboxStore` (dead-lettering, carrying the leadership token), both returning an outcome rather than throwing. InMemory is in that set because it is the development and testing store and is held to the same contract; the three a production deployment can choose from are Oracle, PostgreSQL and SQL Server. **MongoDB and Redis implement neither, and that is now a startup refusal rather than a degraded configuration** — see the note on composition below. On Postgres and Oracle mark-sent is realised as a row DELETE, so on those stores the fenced mark-sent IS a fenced delete statement — that is the storage form of mark-sent, not a third fenced operation a consumer can invoke. Refusal on the failure members is **per store and per member**, and it is no longer uniform. Where a store implements the fenced form of the claim-scoped completion, its mark-failed statement carries both the leadership token and the claim identity and is refused on either — **one shipped store does.** Its ordinary mark-failed and its backoff statement carry a claim identity but **no leadership token**, so they refuse a foreign claim and not a superseded tenure. **Dead-lettering now depends on which of two statements the caller reaches, on the one store whose statements have been read whole.** PostgreSQL ships both: a fenced form that advances the durable high-water and conditions **both** the copy into the dead-letter table **and** the delete from the outbox on the presented token still matching it — so a superseded tenure moves nothing and deletes nothing — and the original form, which matches the message id alone and refuses no one. **The fenced form carries the leadership token only**: it separates tenures and does not separate two claim cycles of one tenure. **The other stores' dead-letter paths have not been characterised and no claim is made about them here** — do not read that silence as an assurance. **Note what the unfenced statement does and does not do:** the row's payload is copied to the dead-letter table before the outbox row is deleted, so a message terminated by a superseded tenure is recoverable from that table — the defect is a wrong terminal decision, not a lost message. Both shipped completion paths treat a mark-sent refusal as an abort of the cycle rather than routing it into one of those members. | **Holds** for every message that was claimed through the fenced claim on InMemory, Oracle and Postgres — this is every message either shipped drain path ever presents to mark-sent. MongoDB and Redis are outside this property entirely: they do not fence (see the composition note). Per this document's own standard, a guarantee whose cited arm does not establish it is documented UNVERIFIED rather than asserted. **Holds on SQL Server.** The guard advances the durable high-water under a range lock and conditions the write on that advance accepting the token, in one transaction. Enforced by `SqlServerOutboxFenceClaimsUnderSnapshotShould`, which runs against a dedicated database with snapshot isolation enabled and fails against the pre-fix guard. A concurrent conformance arm covers the PER-DOCUMENT guard only: it places the row in the state a fresher tenure's own claim would have left it in and deliberately does NOT advance the scope-wide high-water, so it proves the per-document term is honoured and is **not** evidence about the scope-wide dimension. **The scope-wide case is now covered by its own arm**, `Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent`: a tenure claims a message while it is genuinely still the leader, a fresher tenure then advances the high-water by completing an unrelated message through the ordinary fenced path, and the first tenure's mark-sent must be refused. It takes no per-store hook, so unlike the per-document arm it applies to every store that participates in fencing rather than only those that can place per-document state. The distinction it draws is the one that matters here: a store treating a completed claim as standing authority to finish the message passes the per-document arm and fails this one, because the fence must be re-judged against the durable high-water at mutation time rather than at claim time. **Coverage splits by mechanism, and the bound-vs-run caveat applies to one half of it.** The in-memory store is covered **structurally**: `FenceCheckAndGuardedMutationShareOneLockTests` asserts, over the store's syntax, that every touch of the fencing high-water sits inside one lock region and that the mutations the fence authorises sit inside that same region — so a check separated from the write it guards is a compile-time-visible defect rather than a race a test must win. That guard needs no backing service and runs unconditionally. It is used because the window it protects is in-process: a behavioural arm for it passes on both sides of the defect and therefore locks nothing. Oracle, Postgres and SQL Server are covered **behaviourally**, by the fencing arms their conformance classes bind — and those classes are integration-gated, executing only where the real backing service is available. **For those five, read "an arm covers this" as bound, not as run:** a claim whose only enforcement is an arm that does not execute in a given suite is, for that suite, unenforced, so the arms named here establish enforcement where the provider's service is present and nowhere else. A claim whose only enforcement is an arm that does not run in a given suite is, for that suite, unenforced — so the arms named here establish enforcement **where the provider's service is present**, and nowhere else. A suite that declares it participates in fencing and whose store then stops presenting `IFencedOutboxStore` now FAILS rather than skipping, so a silently dropped capability is a red. A suite that declares no participation still skips, which is the honest outcome for a store that never claimed the capability -- the distinction is the declaration, not the skip. **COMPOSITION NOTE.** When a leader election is registered, the host refuses to start unless the outbox store implements `IFencedOutboxStore` **and both completion-path capabilities** (`IFencedClaimScopedOutboxStore`, `IFencedDeadLetterableOutboxStore`). **MongoDB and Redis implement none of the three, so neither can be composed under a leader election: the host throws at startup unless it opts into `AsSingleWriter()` and takes responsibility for there being exactly one active writer.** Both can express the atomic comparison a fence needs, but neither can keep the high-water durable: a value an asynchronous replica can roll backwards across failover or promotion is not a fence, so they do not offer the fenced contract at all rather than offering a weaker one. The refusal turns on the conjunction: all three are required, and implementing the first alone does not satisfy it. Everything said above about their fencing mechanisms therefore describes how they behave **where fencing is inactive**, which is the only configuration in which they can run; it is not a description of a degraded-but-live fenced deployment, and must not be read as one. A consumer wanting a fenced outbox today uses Oracle, PostgreSQL or SQL Server. **Whether that refusal is the right trade — fail-closed at startup versus a documented partial guarantee — is a product decision recorded elsewhere, not a property of this store.** |
+
+**L1 — a message is never simultaneously DELIVERED and ACTIONABLE in the dead-letter queue. UNVERIFIED.**
+
+The external dead-letter entry is written **before** the fenced terminal mark, deliberately. The ordering
+was weighed and this is the safer half of it:
+
+```
+mark-then-enqueue, crash between   row TERMINAL, no entry       -> the message is present NOWHERE. Silent loss.
+enqueue-then-mark, crash between   entry present, row claimable -> a duplicate on redrive. Visible over-count.
+```
+
+**An over-count a human can see beats a loss nobody can**, so the failure mode this ordering selects is
+the one that has an observer. When the mark is instead **refused synchronously**, the entry is withdrawn,
+because a refusal is precisely the case where withdrawal is sound: we learned in-band that our mark did
+not take, so nothing else is relying on the entry.
+
+**SCOPE — L1 is claimed ONLY for the synchronous-refusal path.** A crash between the enqueue and the mark
+leaves it violated **by design**, per the trade above.
+
+**And on that path it holds only under four conditions, all of which a consumer can observe or cause:**
+
+1. **The composed dead-letter queue implements the admin surface** that exposes entry withdrawal. A
+   consumer-supplied queue without it makes withdrawal unavailable; the framework logs an error and
+   returns, and L1 does not hold for that composition. **This is the condition a consumer is most likely
+   to cause, because the queue is theirs to supply.**
+2. **The withdrawal succeeds.** A negative result or an exception leaves the entry in place; it is logged,
+   not retried, and not thrown.
+3. **The withdrawal completes within its own deadline.** The compensation is **not** cancellable by the
+   drain: it does not take the drain's cancellation token but opens its own
+   `CancellationTokenSource(DeadLetterCompensationTimeout)`, so a host shutting down does not prevent it
+   attempting. The bound is deliberate — this runs on the way out, and an unbounded call to a remote
+   queue would hold shutdown open indefinitely. What remains is therefore an ordinary timeout rather
+   than a certainty: if the withdrawal does not finish inside that deadline the entry stays, and the
+   cancellation observed on that path is the compensation's own deadline expiring, not the host stopping.
+4. **The enqueue does not throw after writing the entry.** That call is not inside a try, so a throw after
+   the external write unwinds the whole operation with no mark, no compensation, and the entry's handle
+   never captured — **withdrawal is then impossible for want of a reference.** This is distinguishable
+   from the crash case above: in a crash nobody is left who knows the entry should not exist; here
+   somebody is, and cannot act.
+
+**Why UNVERIFIED rather than asserted:** no arm exercises this. Nothing refuses a fenced mark and then
+asserts the entry is gone, so the compensation has never been observed to fire. The conditions above come
+from an independent reading of the committed code, not from a run. **Per this document's own standard, a
+guarantee whose only support is a reading is documented and not claimed.**
+
+**Consumer obligation:** handlers must be idempotent — the same at-least-once contract as the rest of this
+document. Redrive is not an exception to it, and under condition 1 in particular — the one a consumer is
+most likely to cause, since the queue is theirs to supply — an operator may find an entry for a message a
+live successor is also about to deliver.
 
 **On R2.** An earlier revision stated R2 as *"only the dispatcher that holds a message's current
 reservation may mark **or** unreserve it."* The **mark** half was never implementable as written:
@@ -75,6 +140,21 @@ three relational claims now apply it: SQL Server, PostgreSQL and Oracle each ord
 sequence number, then creation time. There is **no** cross-drain total order. `PartitionKey` and
 `SequenceNumber` are the real sort keys — set them deliberately rather than treating them as a hint for
 keeping related messages together.
+
+**Enforced on all three relational providers, each by its own never-skipped lock against a real
+container.** Each stages a partition's messages *out* of sequence order and requires the claim to hand
+them back ascending:
+
+| provider | lock | the ordering arm |
+|---|---|---|
+| SQL Server | `OutboxOrderingPersistenceIntegrationShould` | `ClaimSamePartitionMessagesInAscendingSequenceOrder`, plus `RestorePartitionOrderingOnReclaimAfterFailure` for the order surviving a reclaim after failure |
+| PostgreSQL | `PostgresOutboxKeystoneRoundTripShould` | `ClaimSamePartitionMessages_InAscendingSequenceNumberOrder_AcrossSuccessiveSingleClaims` |
+| Oracle | `OracleOutboxKeystoneRoundTripShould` | the same arm name |
+
+Each is paired with a round-trip arm — `PersistAndRoundTripTheOrderingColumns` on SQL Server,
+`PreserveTheCallersCreatedAt_AndCanonicalFields_OnStageThenReload` on the other two — without which the
+ordering assertions would be comparing values the store never read back, and would pass against a store
+that returned the columns as nulls.
 
 ## How it is achieved (the seam)
 
@@ -144,7 +224,16 @@ keeping related messages together.
    Oracle return the high-water from the same folded statement and disambiguate three ways, which is the
    shape this path should adopt. UNVERIFIED: no arm RED-detects the misclassification.
 
-   `MarkFailedAsync`, backoff scheduling, dead-lettering and the release path take no token, so a
+   **This paragraph is now PER STORE. On InMemory, Oracle, PostgreSQL and SQL Server the two completion
+   members below DO take a token** — `IFencedClaimScopedOutboxStore.MarkFailedAsync` carries the leadership token
+   and the claim identity, `IFencedDeadLetterableOutboxStore.MarkDeadLetteredAsync` carries the leadership
+   token, and both return an outcome instead of throwing. **Backoff scheduling and the release path still
+   take no token on every store.** On a store implementing neither completion interface the whole
+   paragraph below applies unchanged — but note that such a store can no longer be composed under a leader
+   election at all (see the composition note at the end of this row), so the configuration it describes is
+   reachable only where fencing is inactive.
+
+   Where the completion members take no token, a
    superseded leader is refused on the success path and admitted on every failure path if a caller routes
    a refusal into one of them. **A caller MUST treat `OutboxFenceRefusedException` — the abstract base of both `StaleOutboxFencingTokenException` and `OutboxFencingTokenUnavailableException`, so catching the base covers a refusal this document does not enumerate — as an abort of the
    whole drain cycle with no further store write** — it means "this message is no longer mine", never
@@ -155,8 +244,11 @@ keeping related messages together.
    **PARTIAL, and stated so it is not inferred complete.** That recognition is placed at the points a
    refusal is observed, not at every point one can arise: the failure members (`MarkFailedAsync`, backoff
    scheduling, dead-lettering, release) accept no token, so a refusal reaching one of them by a path that
-   does not classify it is admitted. **The falsifiable form:** this is complete exactly when those four
-   members take a fencing token and refuse a stale one, and incomplete while any of them does not. The obligation above is
+   does not classify it is admitted. **The falsifiable form, now per store:** this is complete for a given store exactly when all four
+   members take a fencing token and refuse a stale one, and incomplete while any of them does not.
+   **Measured: two of the four — mark-failed and dead-lettering — now do so on InMemory, Oracle,
+   PostgreSQL and SQL Server. Backoff scheduling and the release path do so nowhere.** So the row is
+   complete on no store, and it is closer on those four than on the rest. The obligation above is
    therefore the **promise**, and the construction that discharges it in full is fenced overloads for those
    members. Until those exist, a caller — ours or a consumer's — that does not itself treat the refusal as
    an abort of the whole cycle can still produce an unfenced write.
@@ -212,31 +304,20 @@ keeping related messages together.
      Read this as a correctness argument about locks, not as a measurement.
    - **InMemory** — a single in-process lock spans the fence check and the mutation it guards, on both
      claim and mark-sent, so there is no round trip for a fresher tenure to land inside.
-     **UNVERIFIED:** no conformance arm yet fails when this property is broken. It is held by the shape of
-     the code — one critical section, which makes the interleaving unwritable rather than merely unlikely —
-     and that shape is what a reader should check, because no test detects a future change that splits it
-     back into two regions. Treat it as a design intent that has not been proven by a test until
-     a cross-provider arm exists that RED-detects a superseded tenure's write landing.
-   - **MongoDB** — a stored high-water compared and advanced on a **separate** round trip from the claim
-     or mark-sent it guards, **plus** a per-document token. The scope-wide high-water alone left a window:
-     a caller's own fence check can pass, and only afterwards does a fresher tenure reclaim the exact
-     message the caller is about to mark sent — the caller's mark-sent mutation, evaluated a round trip
-     after its own check, could not see that. The claim now stamps its presented token onto the document
-     in the SAME atomic write that performs the claim; mark-sent's mutation requires that stamped token to
-     be null (never claimed under fencing) or no greater than the token it presents, evaluated in the SAME
-     atomic write as the mark-sent mutation itself. A reclaim landing in the gap between a caller's own
-     fence check and its mark-sent is therefore visible to the mutation even though the scope-wide check
-     that preceded it already passed. This closes the round trip gap for a message that was claimed under
-     fencing; a message marked sent without ever being claimed is judged by the scope-wide check alone, as
-     before.
-   - **Redis** — the same two-round-trip-plus-per-key shape as MongoDB, expressed with a single-key
-     scope-wide high-water (a `GET`-then-`SET` inside one atomic Lua script — Redis scripts run to
-     completion without interleaving, so this needs no transaction) and a per-message `FencingToken`
-     hash field stamped inside the SAME atomic claim script that leases the message. Mark-sent's Lua
-     script checks that field, if present, against the presented token in the SAME atomic script that
-     performs the status mutation, before checking the scope-wide high-water on its own separate round
-     trip. A message marked sent without ever being claimed under fencing carries no `FencingToken`
-     field and is judged by the scope-wide check alone, as on MongoDB.
+     **Enforced structurally**, by `FenceCheckAndGuardedMutationShareOneLockTests`: it scans this store's
+     syntax and fails when any touch of the fencing high-water, or any mutation the fence authorises, sits
+     outside the one lock region. It runs unconditionally — no backing service — and carries four arms that
+     each feed it a deliberately broken store and require an offence, so a split that silently stopped being
+     detected is itself a red. A future change that splits this back into two regions therefore fails a test
+     rather than passing unnoticed.
+     **What it does NOT establish:** it is a statement about the SHAPE of the code, not a behavioural proof.
+     No cross-provider arm yet RED-detects a superseded tenure's write actually landing. The structural guard
+     is used here deliberately, because the window is in-process and a behavioural arm passes on both sides
+     of the defect — see the coverage-by-mechanism note under F1.
+   - **MongoDB and Redis do not fence.** Both could express the atomic comparison, but neither can keep the
+     high-water durable across failover or replica promotion, and a high-water that can move backwards is not
+     a fence. They therefore implement none of the fenced contracts, and under a leader election the host
+     refuses to start with either unless it opts into `AsSingleWriter()` (`OutboxFencingStartupInvariant.cs`).
 
    **Where the high-water lives matters.** On the fenced relational stores it is a dedicated fence record,
    independent of the message rows, so it survives cleanup: a superseded leader's stale token is still
@@ -246,7 +327,7 @@ keeping related messages together.
    **Fencing is opt-in, but its absence is refused rather than tolerated.** When a leader election is
    registered and the consumer has not set `OutboxDeliveryOptions.SingleActiveWriter`, **two** conditions are
    rejected at host startup by `OutboxFencingStartupInvariant.EnsureFencingCapableStore`
-   (`src/Excalibur/Excalibur.Outbox/Outbox/OutboxFencingStartupInvariant.cs:48`), invoked from the outbox
+   (`src/Excalibur/Excalibur.Outbox/Outbox/OutboxFencingStartupInvariant.cs:51`), invoked from the outbox
    prerequisite validator so it covers **every** drain path: a store that does not implement
    `IFencedOutboxStore`, and a drain with no `ILeaderProcessingGate` to fence it. You cannot silently run an
    unfenced store, or an ungated drain, behind a leader election.
@@ -525,8 +606,11 @@ message can be absent from a `GetPendingAsync`/`ClaimPendingAsync` read on that 
 property (the row is durably present on DynamoDB's strongly-consistent base table throughout; the next read
 sees it) and not a loss property. AWS documents GSI propagation as typically completing within a fraction
 of a second under normal conditions, with no formal upper bound — a recovery sweep run on an interval, not
-a single immediate read, is what the guarantee is designed around. Messages a read does return are always
-in creation order on every provider.
+a single immediate read, is what the guarantee is designed around. Messages a read does return come back
+in creation order on these three providers: Cosmos DB and Firestore order the query by creation time, and
+DynamoDB reads through its partition-and-creation-time index. **UNVERIFIED:** no conformance arm locks
+this ordering for the cloud-native providers yet. The relational providers' ordering is locked, as
+described under Ordering.
 
 ### The claim capability — `ICloudNativeOutboxStoreClaim`
 
@@ -558,11 +642,43 @@ the result. An unconditional write in any of those three positions — an upsert
 followed by a separate write — has no precondition to fail, so every claimant wins and every claimant
 publishes.
 
+**The claim also depends on the stored document reaching the wire under the names the predicate reads, and
+that is part of the guarantee rather than an implementation detail.** The Cosmos predicate is
+`NOT IS_DEFINED(c.leasedAt) OR IS_NULL(c.leasedAt) OR c.leasedAt < @leaseCutoff`. A serializer that emitted
+the lease field under any other name would leave `c.leasedAt` undefined on every document, making the first
+clause true for every row: every message would read as unclaimed regardless of who held the lease, so the
+claim would be **inert while appearing to work**, and two instances would publish the same message. This
+predicate fails **open**, so the correspondence cannot be left to configuration.
+
+It is not. Every persisted property on the Cosmos document is mapped explicitly, for **both** System.Text.Json
+and Newtonsoft, to the exact name the queries read. That matters because the builder lets a consumer supply
+their own client, which bypasses the serializer options this package configures and falls back to the SDK
+default — so the framework does not own the serializer on that path. Explicit dual mapping makes the naming
+policy irrelevant instead of load-bearing. **Consumer obligation: a persisted property added to that document
+must carry the same explicit mapping**; anything relying on a naming policy is correct only on the paths where
+this package happens to build the client.
+
 > **The two delivery models are mutually exclusive. This is the load-bearing sentence in this section.**
 > Use the change-feed trigger **or** a claim-based self-managed poller — never both against the same
 > container. The trigger path does not observe the claim's lease: a message a poller holds is still handed to
 > the trigger's handler, and both publish it. Combining them reproduces precisely the duplicate delivery the
 > claim exists to prevent, and is therefore worse than either alone. They are alternatives, not layers.
+>
+> **Enforced, not merely stated.** A host that registers both an `IChangeFeedSubscription<CloudOutboxMessage>`
+> and the claim-based drain is refused at host start, with a message naming both registrations
+> (`OutboxDeliveryExclusivity`, checked from `OutboxPrerequisiteValidator.Validate`). Locked by
+> `OutboxRefusesTwoDeliveryMechanismsShould`, whose liveness arms prove each mechanism *alone* still starts —
+> so the refusal means this pair specifically, and cannot be satisfied by refusing every host.
+>
+> **What the refusal cannot see**, stated because the gap is yours to close and not ours to detect: it reads
+> the container. A subscription you construct and start yourself, without registering it, is outside what the
+> host was told about. The rule above still governs that deployment; only the automatic refusal is out of
+> reach of it.
+>
+> **Projecting the lease into the feed document does not substitute for choosing one.** It lets the handler
+> read the lease, but a read is not a conditional write: if the handler reads an unleased message before the
+> poller claims it, both still publish. The observation is stale by the time it is acted on, which is why the
+> mechanisms are exclusive rather than cooperative.
 
 **No fencing.** The claim provides S1 and a lease. It does **not** provide F1. There is no leadership
 high-water on any of these three providers and no token to present, so a superseded leader is not refused —
@@ -624,12 +740,22 @@ survive a restart at all); this guarantee applies only when a durable store is c
 currently no automatic escalation beyond the health-signal surface — a persistently degraded subscription
 keeps running and keeps delivering events indefinitely; an operator decides whether and when to intervene.
 
-## Tenant scoping — which statements carry a tenant term, and why none does
+**Evidence.** `CosmosDbChangeFeedCheckpointFailOpenShould`, with both arms:
+`KeepDeliveringEvents_LogTheFailure_AndDegradeAtTheBound_WhenCheckpointSavesAreForcedToFail` forces every
+checkpoint save to fail and requires delivery to continue and the degraded signal to raise at the bound —
+so a subscription that tore down on a checkpoint failure, or one that stayed silent while degraded, is
+red. `PersistTheCheckpointAndResumeFromIt_OnTheHealthyPath` is the liveness arm: without it the first
+would be satisfied by a subscription that never persisted a checkpoint at all, which is fail-open taken
+to the point of uselessness.
+
+## Tenant scoping — which statements carry a tenant term, and why most do not
 
 Every relational outbox statement now declares its tenancy decision, and the decision is part of the type
 rather than a property of the SQL you have to read to discover. A request either confines itself to the
-caller's partition or states, at its declaration, why it spans every tenant. As of this writing every
-statement is in the second group.
+caller's partition or states, at its declaration, why it spans every tenant. **Almost every statement is
+in the second group, and the exception is named below rather than rounded away** — the consumer-facing
+transport-delivery read is confined, and an earlier revision of this section said none was while the rest
+of the section described that read as confined twice over.
 
 A third state does exist, and this document previously denied it. The declaration is advisory: the
 member carrying it is `protected` on the request base and absent from the request interface, so no
@@ -637,7 +763,14 @@ executor can read it, and a request that records no decision compiles and runs l
 declaration as a note from its author about intent, never as evidence that the statement below it
 carries a tenant term.
 
-**Confined to the caller's partition.** None is.
+**Confined to the caller's partition.** One statement is: the consumer-facing read of a message's
+transport deliveries. It binds a tenant the caller supplies explicitly as a server-evaluated predicate
+(`src/Excalibur/Excalibur.Outbox.SqlServer/Requests/GetTenantScopedTransportDeliveriesRequest.cs:59`),
+and it is the only statement in the family that does — SQL Server is the only provider implementing the
+multi-transport surface this read belongs to, so the question does not arise on the others. A caller
+scoped to one tenant that supplies another tenant's message identifier matches zero rows rather than
+receiving that message's delivery records. Read the detail — including what that confinement is and is
+not — under *Reading a message's transport deliveries* below. Every other statement is estate-wide.
 
 This document previously listed the statistics read here, with the harm of an unscoped form given as
 learning another tenant's message volumes. That entry was wrong, and it is corrected in place rather than
@@ -819,14 +952,51 @@ Eight providers derive the kit: SQL Server, Postgres, Oracle, MongoDB, Marten, R
 InMemory. Every deriver that needs a container opens with a hard `DockerAvailable.ShouldBeTrue(...)`, so a
 missing container **fails** rather than passing vacuously. InMemory needs none and runs as a unit suite.
 
+**Every labelled guarantee in this document has a row here, including the ones no arm enforces.** A
+guarantee absent from this table used to read as an oversight; the rows marked UNVERIFIED are the honest
+state, and they are listed rather than omitted so a reader can tell "nothing enforces this" apart from
+"nobody wrote it down."
+
 | Guarantee | Conformance arm |
 |---|---|
+| **D1** lease before dispatch | **UNVERIFIED — no arm.** Nothing fails when a drain path dispatches without claiming first; S1's arm proves concurrent claims are disjoint, not that a dispatch was preceded by a claim. See *The central invariant* for the falsification condition |
+| **D2** single-clock decisions | `MongoDbOutboxClaimClockSkewShould`, `MartenOutboxClaimClockSkewShould`, `ElasticsearchOutboxClaimClockSkewShould`, `ElasticsearchOutboxRetryFloorClockSkewShould`, `RedisOutboxClaimClockSkewShould` — each pairs a skewed-dispatcher safety arm with a liveness arm asserting an elapsed lease *is* reclaimed. **UNVERIFIED on the change-feed family**, which exposes no server-clock primitive to assert against — see *Fault model* |
 | S1 disjoint claim | `GetUnsentMessagesAsync_ConcurrentClaimers_ShouldReceiveDisjointSets` — safety: sets never overlap; liveness: work *is* handed out |
 | R1 floor / re-claimability | `MarkFailed_WithinTheFloor_ShouldNotBeReclaimable_ReservedPath` and `_UnclaimedPath` — safety; `MarkFailed_AfterTheFloorElapses_ShouldBecomeReclaimable` — liveness; `MarkFailed_ByTheClaimOwner_ShouldRecordAndRelease` — the owner's own report still lands |
 | R2 release ownership | `MarkFailed_ByANonOwner_ShouldNotReleaseTheClaim` |
+| **R2′** mark-sent takes no ownership term | **Structural, not behavioural.** `IOutboxStore.MarkSentAsync(string messageId, CancellationToken)` accepts no owner token, so there is no value a store could compare — the property is read off the signature rather than asserted by an arm. A future overload taking a token would change the contract, not break a test |
 | R3 monotonic attempts | `MarkFailedAsync_ShouldSetRetryCount` and `MarkFailed_StaleLateReport_ShouldNotLowerTheAttemptCount` |
+| **L1** never DELIVERED and ACTIONABLE in the dead-letter queue | **Unit arms only; UNVERIFIED against a real store.** `OutboxProcessorShould.WithdrawTheDeadLetterEntry_WhenTheFencedMarkIsRefused` and `WithdrawTheDeadLetterEntry_WhenTheTenureHasNoTokenAtAll` (safety) and `NotWithdrawTheDeadLetterEntry_WhenTheMarkIsApplied` (liveness) drive the processor against substituted stores and observe the withdrawal; no arm yet observes it on a real dead-letter queue. Claimed only for the synchronous-refusal path, and only under four conditions a consumer can cause — see *The central invariant* |
+| Bounded store refuses rather than discards | `OutboxCapacityEvictionShould` — safety: `RefuseToStage_RatherThanDiscardAnUnsentLeasedMessage`; liveness: `EvictTheDeliveredMessage_WhenOneIsAvailable`, `EvictTheDeadLetteredMessage_RatherThanRefusing`. Runs unconditionally, no backing service |
+| Ordering within a claim | `OutboxOrderingPersistenceIntegrationShould` (SQL Server), `PostgresOutboxKeystoneRoundTripShould`, `OracleOutboxKeystoneRoundTripShould` — each stages out of order and requires an ascending claim, each paired with a round-trip arm so the assertion cannot pass against unread columns |
 | Full-field durability | `StageMessageAsync_ShouldRoundTripEveryCallerSuppliedField` |
 | F1 fencing | `Fencing_StaleToken_ShouldBeRefusedWithoutApplyingTheMutation`, `Fencing_Refusal_ShouldReportTheHighWaterMark`, `Fencing_CurrentLeaderToken_ShouldClaimAndComplete`, `Fencing_HighWaterMark_ShouldSurviveCleanup`, `Fencing_SupersededLeader_ShouldNeitherMutateNorLoseTheMessage`, `Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent` |
+
+**The table above is the registry of the LABELLED guarantees only.** This document also states guarantees
+at section level, without a letter-and-number label, and those are as binding on us as the labelled ones.
+They are listed here too, so that "every guarantee sentence in this document names its evidence" is a
+property you can check against one place rather than by reading the whole file:
+
+| Section-level guarantee | Stated under | Conformance arm |
+|---|---|---|
+| The two delivery families are mutually exclusive by construction | *Scope* | `OutboxCapabilityMatrixShould.Store_BelongsToExactlyOneFamily` — a frozen per-store matrix asserting `IOutboxStore` XOR `ICloudNativeOutboxStore` |
+| A bounded store refuses rather than discards | *Delivery guarantee* | `OutboxCapacityEvictionShould` — three arms, no backing service, runs unconditionally |
+| Ordering within a claim is partition key, then sequence number, then creation time | *Ordering* | `OutboxOrderingPersistenceIntegrationShould` (SQL Server), `PostgresOutboxKeystoneRoundTripShould`, `OracleOutboxKeystoneRoundTripShould`, each paired with a round-trip arm |
+| A superseded leader's claim and mark-sent are refused by the durable high-water | *How it is achieved*, step 5 | `SqlServerOutboxFenceClaimsUnderSnapshotShould`, `Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent`, and `FenceCheckAndGuardedMutationShareOneLockTests` for the in-process store — see the F1 row for what each does and does not establish |
+| The fencing diagnostics surface reads the recorded high-water, and a lowering reset requires `force` | *How it is achieved*, step 5 | `FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue`, `FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce`. Both self-skip where the capability is absent |
+| A host is refused at startup when a leader election is registered without a fencing-capable store and a gate | *How it is achieved*, step 5 | `OutboxRefusesUnfencedLeaderElectionShould` — the refusal plus a liveness arm proving an election-free host still starts and drains |
+| The SQL Server mark-sent guard's refusal-versus-not-found classification is lossy | *How it is achieved*, step 5 | **UNVERIFIED — no arm.** Nothing RED-detects the misclassification; the mutation still refuses correctly |
+| A refusal routed into an unfenced failure member is admitted | *How it is achieved*, step 5 | **UNVERIFIED — no arm.** An arm that RED-detects a refusal reaching a failure member is what would move this off UNVERIFIED |
+| The caller's computed backoff is composed with the floor as a maximum, over durations, on the server clock | *Per-message backoff* | `OracleOutboxBackoffFloorClampShould` — two skew arms driving a dispatcher an hour ahead of the database |
+| A row that cannot be decoded is dead-lettered on first encounter and never charged to the breaker | *Fault model* | `OutboxStagedPayloadDrainShould` — three arms, including the liveness arm that a healthy message behind a corrupt one is still delivered |
+| The change-feed claim returns a set disjoint from every concurrent call, under a lease | *The claim capability* | `CosmosDbOutboxStoreClaimAtomicityShould`, `DynamoDbOutboxStoreClaimAtomicityShould`, `FirestoreOutboxStoreClaimAtomicityShould` — each opening with a hard `DockerAvailable` assertion. Only the concurrency arm is non-vacuous against the atomic step |
+| Messages a change-feed read returns come back in creation order | *The change-feed family* | **UNVERIFIED — no arm.** The mechanism is named per provider in that section; nothing locks the ordering |
+| Registering both a change-feed subscription and the claim drain is refused at host start | *The claim capability* | `OutboxRefusesTwoDeliveryMechanismsShould` — the refusal plus a liveness arm per mechanism alone |
+| Change-feed checkpoint persistence fails open and raises a degraded signal at the bound | *Checkpoint durability* | `CosmosDbChangeFeedCheckpointFailOpenShould` — both arms, safety and liveness |
+| A message staged with no tenant is drained carrying the reserved key on every provider | *Tenant scoping* | `UntenantedPartition_MustRoundTripItsOwnMessage` in the published conformance kit; `PostgresOutboxTenantTotalityShould` and `OracleOutboxTenantTotalityShould` drive the shipped provisioning scripts |
+| The SQL Server outbox table's tenant column is total | *Tenant scoping* | **UNVERIFIED — no lock.** The schema declares the constraint; no never-skipped arm proves the shipped script still carries it |
+| Sent and dead-lettered are terminal and no completion may reverse either | *Evidence*, below | `SqlServerOutboxMarkBatchFailedGuardsShould`, `SqlServerOutboxSingleMarkFailedTerminalGuardShould`, `SqlServerOutboxMarkFailedLeaseClearShould`, `ElasticsearchOutboxStoreClaimAtomicityShould`. The status-recompute path and the remaining status-column providers are **UNVERIFIED** — guarded, unproven |
+| A sent message is deleted once it has aged past the configured retention bound | *Retention* | `OutboxRetentionContributorShould` — safety and liveness, against the real in-memory store |
 
 Two regions carry their own non-vacuity guard, because every arm in them returns without asserting when
 its staging seam yields nothing — correct for a store that lacks the capability, and useless as evidence
@@ -904,8 +1074,8 @@ this table — see *The change-feed family*.
 | SqlServer | `UPDATE…OUTPUT` READPAST/UPDLOCK/ROWLOCK | ✅ durable — dedicated `OutboxFence` control table cleanup never touches, advanced by a serializable `MERGE … WITH (UPDLOCK, HOLDLOCK)`; monotonic and fail-closed. Advance-then-re-guard, not one statement. Verified against a live container by `Fencing_HighWaterMark_ShouldSurviveCleanup` | ✅ full |
 | Postgres | `FOR UPDATE SKIP LOCKED` | ✅ co-atomic with the claim | ✅ full |
 | Oracle | `FOR UPDATE SKIP LOCKED` | ✅ co-atomic with the claim | ✅ full except full-field durability, which is **UNVERIFIED** (skipped arm; see Evidence) |
-| MongoDB | `FindOneAndUpdate` | ✅ stored high-water | 🚧 completing (retry-floor / ownership) — treat as **UNVERIFIED** until green. Claim eligibility is decided on the MongoDB server's clock, via an `$expr` over `$$NOW` (see *Fault model*) |
-| Redis | Lua script | ✅ per-claim high-water — a scope-wide key (GET-then-SET in one Lua script) gates the claim and mark-sent, and the claiming tenure's token is stamped onto the message's own hash in the same atomic claim script, so mark-sent's mutation carries its own fence term rather than trusting a round trip earlier | ✅ full. Claim eligibility is decided on the Redis server's clock, via `redis.call('TIME')` inside the script |
+| MongoDB | `FindOneAndUpdate` | ❌ does not fence — cannot keep a high-water durable; refused at startup under a leader election unless `AsSingleWriter()` | 🚧 completing (retry-floor / ownership) — treat as **UNVERIFIED** until green. Claim eligibility is decided on the MongoDB server's clock, via an `$expr` over `$$NOW` (see *Fault model*) |
+| Redis | Lua script | ❌ does not fence — cannot keep a high-water durable; refused at startup under a leader election unless `AsSingleWriter()` | ✅ full. Claim eligibility is decided on the Redis server's clock, via `redis.call('TIME')` inside the script |
 | Marten | claims table via `INSERT … ON CONFLICT … RETURNING` | ❌ unfenced (single-writer) | 🚧 completing — **UNVERIFIED** until green. Claim eligibility is decided on the PostgreSQL server's clock, via `clock_timestamp()` |
 | ElasticSearch | `if_seq_no`/`if_primary_term` CAS stamping a per-message lease | ❌ unfenced (single-writer) | 🚧 the **claim is verified** by a dedicated never-skipped lock against a live container: concurrent pollers receive disjoint batches, an expired lease is reclaimable, a late failure report cannot reopen a delivered message, and concurrent mark-sent admits exactly one winner. The **full at-least-once suite is UNVERIFIED** until green. Near-real-time index: a claim must force a refresh after stage or it can see stale rows. Claim eligibility — lease, retry floor and schedule alike — is decided on the Elasticsearch node's clock; an earlier revision of this row said the dispatcher's, which contradicted this document's own fault model |
 

@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Data;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Threading.Channels;
 
 using Excalibur.Data.SqlServer.Diagnostics;
@@ -58,7 +59,13 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	private readonly ISqlServerCdcStateStore _stateStore;
 	private readonly OrderedEventProcessor _orderedEventProcessor = new();
 
-	private readonly Channel<DataChangeEvent> _cdcQueue;
+	// Replaced at the start of every invocation rather than shared across all of them. A channel's writer
+	// can be completed only once and never re-opened, and the producer completes it on the way out -- so a
+	// single channel built in the constructor serves exactly ONE invocation, and the second finds a closed
+	// writer. This field is safe to reassign because the execution lock admits one invocation at a time AND
+	// the join below guarantees no half of the previous one is still running when the next begins; without
+	// that guarantee, swapping it would hand a live consumer a channel nobody is writing to.
+	private Channel<DataChangeEvent> _cdcQueue;
 	private readonly int _queueSize;
 
 	private readonly CdcFatalErrorHandler<DataChangeEvent>? _onFatalError;
@@ -187,13 +194,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		_leaderElection = leaderElection;
 		_failureClassifier = failureClassifier;
 		_queueSize = _dbConfig.QueueSize;
-		_cdcQueue = Channel.CreateBounded<DataChangeEvent>(new BoundedChannelOptions(_dbConfig.QueueSize)
-		{
-			FullMode = BoundedChannelFullMode.Wait,
-			SingleReader = true, // Only ConsumerLoopAsync reads from the channel
-			SingleWriter = true, // Only ProducerLoopAsync writes to the channel
-			AllowSynchronousContinuations = false,
-		});
+		_cdcQueue = CreateQueue(_dbConfig.QueueSize);
 		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
 
 		// Compose subsystems. The checkpoint manager writes each checkpoint under the fencing token PINNED for
@@ -299,9 +300,25 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 
 			LogStartingNewRun(CdcChangeDetector.ByteArrayToHex(lowestStartLsn));
 
+			// The producer and the consumer are two halves of ONE invocation and must live and die together.
+			// This source links the caller's token so either half can stop the other: when one settles as
+			// faulted the survivor is cancelled rather than left running, which is what makes the join below
+			// bounded. Without it a consumer fault strands the producer forever, because a bounded channel in
+			// Wait mode blocks a writer until a reader takes an item and a faulted consumer never will.
+			using var batchFaultSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			var batchToken = batchFaultSource.Token;
+
+			// A fresh queue and a cleared stop flag for THIS invocation. Both are consumed by the producer's
+			// exit -- it completes the writer and raises the flag -- and neither can be un-consumed, so an
+			// invocation that inherited them from its predecessor would find a writer it cannot write to and
+			// a flag already telling the consumer to stop. That is why polling the same processor a second
+			// time delivered nothing: the first poll left both in their terminal state.
+			_cdcQueue = CreateQueue(_queueSize);
+			_producerStopped = false;
+
 			_producerTask = Task.Factory.StartNew(
-					() => ProducerLoopAsync(lowestStartLsn, cancellationToken),
-					cancellationToken,
+					() => ProducerLoopAsync(lowestStartLsn, batchToken),
+					batchToken,
 					TaskCreationOptions.LongRunning,
 					TaskScheduler.Default)
 				.Unwrap();
@@ -312,13 +329,14 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 						() => _disposedFlag == 1,
 						() => ShouldWaitForProducer,
 						() => _producerStopped,
-						cancellationToken),
-					cancellationToken,
+						batchToken),
+					batchToken,
 					TaskCreationOptions.LongRunning,
 					TaskScheduler.Default)
 				.Unwrap();
 
-			await _producerTask.ConfigureAwait(false);
+			await JoinBothHalvesAsync(_producerTask, _consumerTask, batchFaultSource).ConfigureAwait(false);
+
 			var totalProcessed = await _consumerTask.ConfigureAwait(false);
 
 			activity?.SetTag("cdc.events.total", totalProcessed);
@@ -473,6 +491,87 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 
 		_orderedEventProcessor.Dispose();
 		_executionLock.Dispose();
+	}
+
+	/// <summary>
+	/// Creates the bounded queue one invocation hands between its producer and its consumer.
+	/// </summary>
+	/// <param name="queueSize">The bound, from the configured queue size.</param>
+	/// <returns>A fresh queue owned by a single invocation.</returns>
+	private static Channel<DataChangeEvent> CreateQueue(int queueSize) =>
+		Channel.CreateBounded<DataChangeEvent>(new BoundedChannelOptions(queueSize)
+		{
+			FullMode = BoundedChannelFullMode.Wait,
+			SingleReader = true, // Only ConsumerLoopAsync reads from the channel
+			SingleWriter = true, // Only ProducerLoopAsync writes to the channel
+			AllowSynchronousContinuations = false,
+		});
+
+	/// <summary>
+	/// Waits for BOTH halves of an invocation to terminate, cancelling the survivor when one of them faults,
+	/// and surfaces the causal failure rather than a derived one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Awaiting the two halves in sequence is not a join. It waits for a specific one FIRST, so whichever
+	/// half is waited on second is never observed when the first does not return — and each half has a
+	/// failure mode that makes the other unable to return on its own:
+	/// </para>
+	/// <para>
+	/// A consumer fault leaves the producer blocked writing into a full bounded channel with no remaining
+	/// reader, so awaiting the producer first never completes and the invocation hangs with no deadline.
+	/// A producer fault propagates out of the first await, which skips the second entirely and releases the
+	/// invocation's lock with the consumer still running — so the next invocation starts while a handler
+	/// from the previous one is still applying changes, and the batch identity that consumer completes
+	/// under is no longer the one it began with.
+	/// </para>
+	/// <para>
+	/// Cancelling on fault is what bounds this: a pending channel write observes the token and unblocks, so
+	/// the surviving half terminates instead of being abandoned. The cancellation the survivor then reports
+	/// is a CONSEQUENCE of the fault, never its cause, which is why the first-settled fault is rethrown in
+	/// preference to whatever the joined wait surfaces.
+	/// </para>
+	/// <para>
+	/// <b>Two costs, stated rather than discovered.</b> First, waiting for both halves means a handler that
+	/// never returns holds this processor's execution lock until shutdown. That is the honest outcome — the
+	/// feed genuinely cannot proceed past a change it has neither applied nor abandoned — and it is
+	/// preferable to the alternative it replaces, which released the lock and let a second invocation run
+	/// alongside the first.
+	/// </para>
+	/// <para>
+	/// Second, termination is <em>eventual</em> rather than prompt. Cancellation unblocks a channel write
+	/// immediately, but a retry wait already in flight inside the data-access policy does not observe it:
+	/// the producer's fetch is executed through the retry policy's token-less overload, so the join waits
+	/// out the remaining backoff before the task completes. The join is therefore bounded by the policy's
+	/// own retry budget, not by the cancellation. Threading the token through those call sites is what would
+	/// make it prompt.
+	/// </para>
+	/// </remarks>
+	/// <param name="producer">The producer half.</param>
+	/// <param name="consumer">The consumer half.</param>
+	/// <param name="faultSource">The invocation-scoped source cancelled when either half faults.</param>
+	/// <returns>A task that completes when both halves have terminated.</returns>
+	private static async Task JoinBothHalvesAsync(Task producer, Task consumer, CancellationTokenSource faultSource)
+	{
+		var firstSettled = await Task.WhenAny(producer, consumer).ConfigureAwait(false);
+
+		if (firstSettled.IsFaulted)
+		{
+			await faultSource.CancelAsync().ConfigureAwait(false);
+		}
+
+		try
+		{
+			await Task.WhenAll(producer, consumer).ConfigureAwait(false);
+		}
+		catch when (firstSettled.IsFaulted)
+		{
+			// Rethrow the ORIGINAL failure with its stack intact. Task.WhenAll surfaces whichever exception
+			// it happens to pick, which after a cancellation may be the survivor's OperationCanceledException
+			// -- an effect of the fault reported in place of the fault.
+			ExceptionDispatchInfo.Capture(firstSettled.Exception!.InnerExceptions[0]).Throw();
+			throw;
+		}
 	}
 
 	/// <summary>

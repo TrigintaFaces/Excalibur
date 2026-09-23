@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance.Vault;
 using Excalibur.Compliance;
@@ -823,6 +823,80 @@ public sealed class VaultKeyProviderShould
 		A.CallTo(() => setup.Transit.UpdateEncryptionKeyConfigAsync(
 				A<string>._, A<UpdateKeyRequestOptions>._, A<string>._))
 			.MustNotHaveHappened();
+	}
+
+	// Transit has no recovery window: a key it no longer holds cannot be brought back. That is what lets this
+	// provider answer IKeyDestructionStatusProvider at all, and these arms hold it to the same bar as a
+	// soft-deleting store -- it must answer from the live backend, and it must never answer "destroyed" for a
+	// key it merely failed to read.
+	[Fact]
+	public async Task IsKeyDestroyedAsync_ReportsNotDestroyed_WhileTransitStillHoldsTheKey()
+	{
+		var setup = CreateProviderWithTransit();
+		A.CallTo(() => setup.Transit.ReadEncryptionKeyAsync("dispatch-orders", "transit", A<string?>._))
+			.Returns(Task.FromResult(new Secret<EncryptionKeyInfo> { Data = CreateKeyInfo(2, includeVersionKeys: true) }));
+
+		(await setup.Provider.IsKeyDestroyedAsync("orders", CancellationToken.None)).ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task IsKeyDestroyedAsync_ReportsDestroyed_WhenTransitHasNoSuchKey()
+	{
+		var setup = CreateProviderWithTransit();
+		A.CallTo(() => setup.Transit.ReadEncryptionKeyAsync("dispatch-orders", "transit", A<string?>._))
+			.Throws(new VaultApiException("no existing key named dispatch-orders"));
+
+		(await setup.Provider.IsKeyDestroyedAsync("orders", CancellationToken.None)).ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task IsKeyDestroyedAsync_ReportsDestroyed_WhenTransitAnswersWithoutKeyData()
+	{
+		var setup = CreateProviderWithTransit();
+		A.CallTo(() => setup.Transit.ReadEncryptionKeyAsync("dispatch-orders", "transit", A<string?>._))
+			.Returns(Task.FromResult(new Secret<EncryptionKeyInfo> { Data = default! }));
+
+		(await setup.Provider.IsKeyDestroyedAsync("orders", CancellationToken.None)).ShouldBeTrue();
+	}
+
+	// "Could not ask" is not "destroyed". A vault that refuses the read -- sealed, permission denied, a bad
+	// request -- must surface as a failure, because confirming an erasure on it would certify destruction the
+	// provider never established.
+	[Fact]
+	public async Task IsKeyDestroyedAsync_Throws_WhenTheVaultCannotBeAsked()
+	{
+		var setup = CreateProviderWithTransit();
+		A.CallTo(() => setup.Transit.ReadEncryptionKeyAsync("dispatch-orders", "transit", A<string?>._))
+			.Throws(new VaultApiException(System.Net.HttpStatusCode.BadRequest, "invalid request"));
+
+		_ = await Should.ThrowAsync<VaultApiException>(
+			() => setup.Provider.IsKeyDestroyedAsync("orders", CancellationToken.None));
+	}
+
+	// The metadata cache describes a key as it was read, which is exactly the key that has since been deleted.
+	// Answering destruction from it would report a destroyed key as live forever, so the read goes to Transit.
+	[Fact]
+	public async Task IsKeyDestroyedAsync_AsksTransit_AndNotTheMetadataCache()
+	{
+		var setup = CreateProviderWithTransit();
+		A.CallTo(() => setup.Transit.ReadEncryptionKeyAsync("dispatch-orders", "transit", A<string?>._))
+			.Returns(Task.FromResult(new Secret<EncryptionKeyInfo> { Data = CreateKeyInfo(2, includeVersionKeys: true) }));
+		_ = await setup.Provider.GetKeyAsync("orders", CancellationToken.None);
+
+		// The key is deleted after the cache was populated.
+		A.CallTo(() => setup.Transit.ReadEncryptionKeyAsync("dispatch-orders", "transit", A<string?>._))
+			.Throws(new VaultApiException("no existing key named dispatch-orders"));
+
+		(await setup.Provider.IsKeyDestroyedAsync("orders", CancellationToken.None)).ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task IsKeyDestroyedAsync_RejectsAnEmptyKeyId()
+	{
+		var setup = CreateProviderWithTransit();
+
+		_ = await Should.ThrowAsync<ArgumentException>(
+			() => setup.Provider.IsKeyDestroyedAsync(string.Empty, CancellationToken.None));
 	}
 
 	private static VaultOptions CreateValidOptions() =>

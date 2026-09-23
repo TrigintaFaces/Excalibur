@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Runtime.CompilerServices;
 
@@ -54,7 +54,7 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 
 		// PERF-T3: Pre-compute whether any non-routing middleware exists. If all middleware
 		// is routing-only, CanBypassFor() can skip the chain lookup entirely.
-		_hasAnyNonRoutingMiddleware = middlewareArray.Any(m => m is not RoutingMiddleware);
+		_hasAnyNonRoutingMiddleware = middlewareArray.Any(static m => !MiddlewareIdentity.IsRouting(m));
 	}
 
 	/// <summary>

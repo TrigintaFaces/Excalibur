@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Net;
 
@@ -9,6 +9,8 @@ using Excalibur.Data.CosmosDb.Diagnostics;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.CosmosDb.Authorization;
 
@@ -177,51 +179,30 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
-		string? userId,
+	public Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
 		string tenantId,
-		string grantType,
-		string qualifier,
+		string? userId,
+		string? grantType,
+		string? qualifier,
 		CancellationToken cancellationToken)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
 
-		var partitionKeyValue = tenantId;
-		var queryParts = new List<string>
-		{
-			"SELECT * FROM c WHERE c.tenant_id = @tenantId",
-			"AND c.grant_type = @grantType",
-			"AND c.qualifier = @qualifier",
-			"AND c.is_revoked = false"
-		};
+		return QueryMatchingAsync(tenantId, userId, grantType, qualifier, cancellationToken);
+	}
 
-		var queryDefinition = new QueryDefinition(string.Join(" ", queryParts))
-			.WithParameter("@tenantId", partitionKeyValue)
-			.WithParameter("@grantType", grantType)
-			.WithParameter("@qualifier", qualifier);
+	/// <inheritdoc/>
+	/// <remarks>A cross-partition query: the container is partitioned by tenant.</remarks>
+	public Task<IReadOnlyList<Grant>> GetMatchingGrantsAcrossTenantsAsync(
+		string? userId,
+		string? grantType,
+		string? qualifier,
+		CancellationToken cancellationToken)
+	{
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
 
-		if (userId is not null)
-		{
-			queryDefinition = new QueryDefinition(string.Join(" ", queryParts) + " AND c.user_id = @userId")
-				.WithParameter("@tenantId", partitionKeyValue)
-				.WithParameter("@grantType", grantType)
-				.WithParameter("@qualifier", qualifier)
-				.WithParameter("@userId", userId);
-		}
-
-		var queryOptions = new QueryRequestOptions { PartitionKey = new PartitionKey(partitionKeyValue) };
-
-		var results = new List<Grant>();
-		using var iterator = _container!.GetItemQueryIterator<GrantDocument>(queryDefinition, requestOptions: queryOptions);
-
-		while (iterator.HasMoreResults)
-		{
-			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-			results.AddRange(response.Select(d => d.ToGrant()));
-		}
-
-		return results;
+		return QueryMatchingAsync(tenantId: null, userId, grantType, qualifier, cancellationToken);
 	}
 
 	/// <inheritdoc/>
@@ -328,7 +309,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 			foreach (var doc in response)
 			{
 				var grant = doc.ToGrant();
-				var key = GrantKeyFormat.ComposeScope(grant.TenantId, grant.GrantType, grant.Qualifier);
+				var key = SegmentedKey.Compose(grant.TenantId, grant.GrantType, grant.Qualifier);
 				result[key] = grant;
 			}
 		}
@@ -503,4 +484,73 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 	[LoggerMessage(DataCosmosDbEventId.GrantRevoked, LogLevel.Debug,
 		"Grant revoked: userId={UserId}, tenantId={TenantId}, grantType={GrantType}, qualifier={Qualifier}")]
 	private partial void LogGrantRevoked(string userId, string tenantId, string grantType, string qualifier);
+
+	private async Task<IReadOnlyList<Grant>> QueryMatchingAsync(
+		string? tenantId,
+		string? userId,
+		string? grantType,
+		string? qualifier,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Cosmos SQL '=' on strings is ordinal, so an equality term is exact; a null filter adds no term.
+		var terms = new List<string> { "c.is_revoked = false" };
+		var parameters = new List<(string Name, string Value)>();
+
+		void AddTerm(string field, string name, string? value)
+		{
+			if (value is not null)
+			{
+				terms.Add($"c.{field} = {name}");
+				parameters.Add((name, value));
+			}
+		}
+
+		AddTerm("tenant_id", "@tenantId", tenantId);
+		AddTerm("user_id", "@userId", userId);
+		AddTerm("grant_type", "@grantType", grantType);
+		AddTerm("qualifier", "@qualifier", qualifier);
+
+		var queryDefinition = new QueryDefinition("SELECT * FROM c WHERE " + string.Join(" AND ", terms));
+		foreach (var (name, value) in parameters)
+		{
+			queryDefinition = queryDefinition.WithParameter(name, value);
+		}
+
+		// Confined to the tenant's partition when there is one; the estate-wide read has none to name.
+		var queryOptions = tenantId is null
+			? new QueryRequestOptions()
+			: new QueryRequestOptions { PartitionKey = new PartitionKey(tenantId) };
+
+		var results = new List<Grant>();
+		using var iterator = _container!.GetItemQueryIterator<GrantDocument>(queryDefinition, requestOptions: queryOptions);
+
+		while (iterator.HasMoreResults)
+		{
+			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			results.AddRange(response.Select(d => d.ToGrant()));
+		}
+
+		return results;
+	}
+
+	private static void ThrowIfEmptyFilter(string? userId, string? grantType, string? qualifier)
+	{
+		if (userId is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		}
+
+		if (grantType is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(grantType);
+		}
+
+		if (qualifier is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(qualifier);
+		}
+	}
 }

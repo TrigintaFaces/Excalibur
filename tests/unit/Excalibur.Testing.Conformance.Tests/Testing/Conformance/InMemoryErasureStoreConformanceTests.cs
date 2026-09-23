@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Compliance;
@@ -93,6 +93,18 @@ public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConforman
 	public Task UpdateStatusAsync_NonExistent_ShouldReturnFalse_Test() =>
 		UpdateStatusAsync_NonExistent_ShouldReturnFalse();
 
+	[Fact]
+	public Task UpdateStatusAsync_SecondClaimOfTheSameRequest_ShouldBeRefused_Test() =>
+		UpdateStatusAsync_SecondClaimOfTheSameRequest_ShouldBeRefused();
+
+	[Fact]
+	public Task UpdateStatusAsync_TerminalTransitionAfterClaim_ShouldSucceed_Test() =>
+		UpdateStatusAsync_TerminalTransitionAfterClaim_ShouldSucceed();
+
+	[Fact]
+	public Task AwaitingKeyDestruction_ShouldBeListable_NotRescheduled_AndNotCancellable_Test() =>
+		AwaitingKeyDestruction_ShouldBeListable_NotRescheduled_AndNotCancellable();
+
 	#endregion Status Update Tests
 
 	#region Completion Tests
@@ -160,6 +172,14 @@ public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConforman
 	[Fact]
 	public Task SaveCertificateAsync_ShouldPersistCertificate_Test() =>
 		SaveCertificateAsync_ShouldPersistCertificate();
+
+	[Fact]
+	public Task SaveCertificateAsync_ShouldRoundTripACertificateThatStillVerifies_Test() =>
+		SaveCertificateAsync_ShouldRoundTripACertificateThatStillVerifies();
+
+	[Fact]
+	public Task SaveCertificateAsync_ShouldNotVerifyACertificateWhoseClaimsWereAltered_Test() =>
+		SaveCertificateAsync_ShouldNotVerifyACertificateWhoseClaimsWereAltered();
 
 	[Fact]
 	public Task SaveCertificateAsync_DuplicateId_ShouldThrowDuplicateErasureCertificateException_Test() =>

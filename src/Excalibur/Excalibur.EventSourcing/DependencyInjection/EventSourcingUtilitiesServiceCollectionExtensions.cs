@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
@@ -91,6 +91,10 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// The decorator binds the ambient tenant into the authenticated data it verifies on load, so a tenant
+		// context is required; a single-tenant host receives the framework default.
+		_ = services.AddDefaultTenantContext();
+
 		// Decorate FIRST, then record the marker — and only if the decoration actually happened. Registering
 		// the marker unconditionally would make it attest that this method was CALLED rather than that the
 		// event store is ENCRYPTED: when no IEventStore is registered yet, decoration is skipped and the
@@ -102,7 +106,8 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 				sp.GetRequiredService<IEncryptionProviderRegistry>(),
 				sp.GetRequiredService<SubjectFieldCryptor>(),
 				sp.GetRequiredService<IEventSerializer>(),
-				sp.GetRequiredService<IOptions<EncryptionOptions>>()));
+				sp.GetRequiredService<IOptions<EncryptionOptions>>(),
+				sp.GetRequiredService<ITenantContext>()));
 
 		// Composition time cannot decide this. A consumer may legitimately enable encryption before selecting
 		// a store provider, so "nothing was decorated yet" is not an error here — it only means the marker
@@ -191,11 +196,16 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// The decorator binds the ambient tenant into each projection's authenticated data, so a tenant
+		// context is required; a single-tenant host receives the framework default.
+		_ = services.AddDefaultTenantContext();
+
 		DecorateProjectionStore<TProjection>(services, static (inner, sp) =>
 			new EncryptingProjectionStoreDecorator<TProjection>(
 				inner,
 				sp.GetRequiredService<IEncryptionProviderRegistry>(),
-				sp.GetRequiredService<IOptions<EncryptionOptions>>()));
+				sp.GetRequiredService<IOptions<EncryptionOptions>>(),
+				sp.GetRequiredService<ITenantContext>()));
 
 		return services;
 	}

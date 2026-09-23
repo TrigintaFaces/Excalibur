@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Security.Claims;
 
@@ -50,8 +50,11 @@ internal sealed class HttpContextTenantContext(
 			{
 				foreach (var claimType in _options.TenantIdClaimTypes)
 				{
+					// Whitespace is not a tenant. A claim carrying only blanks is an absent tenant wearing
+					// a non-empty string, and accepting it here would resolve a tenant the conversion
+					// then refuses -- on a value that arrives from outside.
 					var value = principal.FindFirstValue(claimType);
-					if (!string.IsNullOrEmpty(value))
+					if (!string.IsNullOrWhiteSpace(value))
 					{
 						return value;
 					}
@@ -60,10 +63,15 @@ internal sealed class HttpContextTenantContext(
 
 			var ambient = TenantContextHolder.Current;
 
-			return string.IsNullOrEmpty(ambient) ? _options.DefaultTenantId : ambient;
+			return string.IsNullOrWhiteSpace(ambient) ? _options.DefaultTenantId : ambient;
 		}
 	}
 
 	/// <inheritdoc />
-	public bool HasTenant => !string.IsNullOrEmpty(TenantId);
+	/// <remarks>
+	/// The predicate is the conversion's predicate. Spelled as a non-empty test it reports a tenant for a
+	/// blank claim value and then throws when that value is converted — in the branch this property
+	/// vouched for, on input that arrives from outside the process.
+	/// </remarks>
+	public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
 }

@@ -1,4 +1,12 @@
-﻿# HIPAA Certification Readiness Checklist
+# HIPAA Certification Readiness Checklist
+
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../../legal/compliance-disclaimer.md).
+:::
 
 **Framework:** Excalibur
 **Standard:** HIPAA (Health Insurance Portability and Accountability Act)
@@ -7,6 +15,21 @@
 **Last Updated:** 2026-09-12
 
 ---
+
+:::caution Verify every SSP statement against your own deployment before you adopt it
+
+The **SSP Statement** blocks on this page are written to be copied into your own System Security Plan,
+so treat each one as a draft about *your* system rather than as a finding about it. **A review of these
+statements is in progress and is not complete.**
+
+A statement that has not yet been reviewed may describe a capability that is **opt-in and not active
+unless you register it**, that is configured differently in your deployment, or that the framework does
+not provide. Several controls documented here are inactive until explicitly enabled.
+
+Before pasting any statement into a document an assessor will read, confirm it against the
+configuration you actually run.
+
+:::
 
 ## Overview
 
@@ -44,10 +67,10 @@ This checklist provides step-by-step guidance for HIPAA compliance preparation u
 | **§164.312(a)(2)(iv)** | Encryption & Decryption | A | ✅ AES-256-GCM (`IEncryptionProvider`) | Enable encryption | [AES-256-GCM encryption](../../security/encryption-architecture.md#aes-256-gcm-encryption) |
 | **§164.312(b)** | Audit Controls | R | ✅ `IAuditLogger` (tamper-evident) | Configure audit logging | [Audit logging](../../security/audit-logging.md#hipaa-164312b) |
 | **§164.312(c)(1)** | Integrity | R | ✅ Hash chain, versioning | Verify integrity controls | [Hash chain integrity](../../security/audit-logging.md#hash-chain-integrity) |
-| **§164.312(c)(2)** | Mechanism to Authenticate | A | ✅ Digital signatures, HMAC | Configure authentication | Business policy |
+| **§164.312(c)(2)** | Mechanism to Authenticate | A | ✅ Digital signatures, HMAC | Configure authentication | [Message signing algorithms](../../security/message-signing.md#supported-algorithms) |
 | **§164.312(d)** | Person/Entity Authentication | R | ✅ OAuth2, JWT, password hashing | Configure authentication | [Password hashing](../../advanced/security.md#password-hashing) |
 | **§164.312(e)(1)** | Transmission Security | R | ✅ TLS 1.2+ | Configure TLS | [Transport encryption](../../advanced/security.md#transport-encryption) |
-| **§164.312(e)(2)(i)** | Integrity Controls | A | ✅ Message signing, checksums | Verify transmission integrity | Business policy |
+| **§164.312(e)(2)(i)** | Integrity Controls | A | ✅ Message signing (HMAC, opt-in) — an unkeyed checksum does not satisfy this | Enable signing, then verify transmission integrity | [Message signing in the pipeline](../../security/message-signing.md#pipeline-integration) |
 | **§164.312(e)(2)(ii)** | Encryption | A | ✅ TLS 1.2+ | Enable TLS | [Transport encryption](../../advanced/security.md#transport-encryption) |
 
 **Legend:**
@@ -242,7 +265,9 @@ dotnet add package Excalibur.Compliance  # For GDPR erasure (right to access)
 
 **Evidence:**
 - Media disposal procedures
-- Erasure certificates (cryptographic erasure)
+- Your key-management service's record of each key deletion (the evidence that cryptographic erasure
+  took place)
+- Erasure certificates, as an internal record of the request only — not as evidence of disposal
 - Asset tracking logs
 
 ---
@@ -422,7 +447,8 @@ public class PatientRecord
     public string SSN { get; set; }
 
     [PersonalData]
-    [Sensitive]
+    [Sensitive]  // in every released version: classification + log masking only, no encryption.
+                 // On the main branch it also selects the property for encryption at rest.
     public string Diagnosis { get; set; }
 
     [PersonalData]
@@ -641,7 +667,16 @@ public class MessageAuthenticationService
 - Authentication policy
 
 **SSP Statement:**
-> "§164.312(c)(2) Mechanism to Authenticate ePHI is satisfied through HMAC-SHA256 for message authentication. All ePHI transmitted between systems is signed and verified to prevent tampering."
+> "§164.312(c)(2) Mechanism to Authenticate ePHI is satisfied through HMAC-SHA256 for message authentication. Message signing is enabled in this deployment, so ePHI transmitted between systems is signed and verified to prevent tampering."
+
+:::caution Signing is opt-in and off by default — confirm before adopting this statement
+
+The framework does not sign messages unless you turn signing on: it is composed only when
+`Security:Signing:Enabled` is true (or `EnableSigning` is set on the options overload). A deployment that
+has not enabled it transmits ePHI unsigned, and the statement above would be false for that deployment.
+Verify your own configuration before adopting the wording.
+
+:::
 
 #### 4.4 Person or Entity Authentication (§164.312(d)) [REQUIRED]
 
@@ -783,14 +818,32 @@ public class TransmissionIntegrityService
 }
 ```
 
-- [ ] Test integrity verification (detect tampering)
+- [ ] Test that the unkeyed checksum detects **corruption** (it cannot detect tampering — see below)
+- [ ] Enable message signing and test that a modified message is **rejected** — this is the arm that evidences the control
 
 **Evidence:**
 - Checksum implementation
 - Integrity verification tests
 
 **SSP Statement:**
-> "§164.312(e)(2)(i) Integrity Controls is satisfied through SHA-256 checksums for transmitted ePHI. All messages include a checksum that is verified on receipt to detect tampering."
+> "§164.312(e)(2)(i) Integrity Controls is satisfied through HMAC-SHA256 message signing, which is enabled in this deployment. Signed messages are verified on receipt, so a modification in transit is detected and rejected."
+
+:::danger An unkeyed checksum does not satisfy this control
+
+**Do not adopt the statement above unless message signing is actually enabled in your deployment**, and
+do not substitute a plain SHA-256 checksum for it. The two are different security properties:
+
+| mechanism | detects corruption | detects tampering |
+|---|---|---|
+| unkeyed SHA-256 checksum | yes | **no** — an attacker who alters the message recomputes the hash |
+| keyed HMAC-SHA256 (message signing) | yes | yes, while the key stays secret |
+
+§164.312(e)(2)(i) is about **tampering**, so only the keyed form satisfies it. Signing is **opt-in and
+off by default** — the framework composes it only when `Security:Signing:Enabled` is true *and* you have
+supplied an `IKeyProvider`. A deployment that has not done both transmits ePHI unsigned, and neither the
+statement above nor the checksum sample below evidences this control for it.
+
+:::
 
 ##### 4.5.2 Encryption (§164.312(e)(2)(ii)) [ADDRESSABLE]
 

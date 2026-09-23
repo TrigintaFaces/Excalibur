@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -25,9 +25,9 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// </remarks>
 public static partial class ResultFactoryRegistry
 {
-	private static readonly ConcurrentDictionary<Type, Func<object?, RoutingDecision?, object?, IAuthorizationResult?, bool, IMessageResult>> _factories = new();
+	private static readonly ConcurrentDictionary<Type, Func<object?, RoutingDecision?, object?, IAuthorizationResult?, MessageDisposition, IMessageResult>> _factories = new();
 
-	private static readonly ConcurrentDictionary<Type, Func<object?, bool, IMessageResult>> _leanFactories = new();
+	private static readonly ConcurrentDictionary<Type, Func<object?, MessageDisposition, IMessageResult>> _leanFactories = new();
 
 	/// <summary>
 	/// Registers a factory for creating <c>MessageResult.Success&lt;T&gt;</c> instances.
@@ -42,27 +42,27 @@ public static partial class ResultFactoryRegistry
 	{
 		_factories.TryAdd(
 			typeof(T),
-			static (returnValue, routing, validation, auth, cacheHit) =>
+			static (returnValue, routing, validation, auth, disposition) =>
 				MessageResult.Success<T>(
 					(T)returnValue!,
 					routing,
 					validation,
 					auth,
-					cacheHit));
+					disposition));
 
 		// Mirrors the reflective lean factory, including its null-becomes-default(T) behaviour.
 		_leanFactories.TryAdd(
 			typeof(T),
-			static (returnValue, cacheHit) =>
+			static (returnValue, disposition) =>
 				new SimpleSuccessMessageResultOfT<T>(
 					returnValue is null ? default : (T)returnValue,
-					cacheHit));
+					disposition));
 	}
 
 	/// <summary>
 	/// Gets a factory for creating MessageResult instances of the specified type.
 	/// </summary>
-	internal static Func<object?, RoutingDecision?, object?, IAuthorizationResult?, bool, IMessageResult>? GetFactory(Type resultType)
+	internal static Func<object?, RoutingDecision?, object?, IAuthorizationResult?, MessageDisposition, IMessageResult>? GetFactory(Type resultType)
 	{
 		return _factories.TryGetValue(resultType, out var factory) ? factory : null;
 	}
@@ -71,7 +71,7 @@ public static partial class ResultFactoryRegistry
 	/// Gets a factory for creating lean success results of the specified type, used by the plain
 	/// dispatch path where no routing, validation, or authorization result is present.
 	/// </summary>
-	internal static Func<object?, bool, IMessageResult>? GetLeanFactory(Type resultType)
+	internal static Func<object?, MessageDisposition, IMessageResult>? GetLeanFactory(Type resultType)
 	{
 		return _leanFactories.TryGetValue(resultType, out var factory) ? factory : null;
 	}

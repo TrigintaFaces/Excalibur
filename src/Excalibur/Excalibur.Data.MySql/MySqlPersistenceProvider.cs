@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
@@ -56,6 +56,27 @@ public sealed partial class MySqlPersistenceProvider : ISqlPersistenceProvider, 
 			MinimumPoolSize = (uint)_options.Pooling.MinPoolSize,
 			Pooling = _options.Pooling.EnablePooling,
 			ApplicationName = _options.ApplicationName ?? "Excalibur.Data",
+
+			// REQUIRED for this framework's data-access shape, not a relaxation chosen for convenience.
+			//
+			// MySqlConnector validates, by design, that MySqlCommand.Transaction equals the connection's
+			// active transaction, and rejects a command whose Transaction is null while one is pending. Its
+			// own documentation names the case we are in: a library that "creates the MySqlCommand objects
+			// itself". Every IDataRequest here does exactly that -- ResolveAsync is a Func over the
+			// CONNECTION, with no transaction parameter -- so there is no seam through which a provider
+			// could set the property the check demands. The check can therefore only ever fire as a false
+			// alarm in this codebase: it guards against passing the WRONG transaction, and our contract
+			// makes passing ANY transaction impossible.
+			//
+			// Without this, every request that runs SQL inside a transaction-scope batch fails. It is also
+			// what makes MySQL behave like the sibling providers rather than differently from them --
+			// Npgsql and SqlClient associate a command with the connection's pending transaction on their
+			// own, which is why the identical code shape passes on Postgres and SQL Server.
+			//
+			// The narrower alternative -- giving IDataRequest a transaction seam -- is the real fix and is
+			// a contract change across every provider. Until that is ruled, this is the honest local answer
+			// and the one the vendor documents for it.
+			IgnoreCommandTransaction = true,
 		};
 
 		if (_options.UseSsl)
@@ -88,9 +109,24 @@ public sealed partial class MySqlPersistenceProvider : ISqlPersistenceProvider, 
 
 	/// <inheritdoc/>
 	/// <remarks>
-	/// The whole batch commits or none of it does: the requests run inside one explicit transaction, which
-	/// is rolled back on the first failure. A caller receiving results therefore knows every request in the
-	/// batch was applied, and a caller receiving an exception knows none of them was.
+	/// <para>
+	/// The whole batch commits or none of it does: the requests run inside one transaction, which is rolled
+	/// back on the first failure. A caller receiving results therefore knows every request in the batch was
+	/// applied, and a caller receiving an exception knows none of them was.
+	/// </para>
+	/// <para>
+	/// <b>The transaction is AMBIENT, not an explicit one begun on the connection, and that is load-bearing
+	/// rather than stylistic.</b> Each <c>IDataRequest</c> builds its own command from the connection alone
+	/// -- <c>ResolveAsync</c> is a <c>Func</c> over the connection and there is no seam through which an
+	/// explicit transaction could be handed to it. MySqlConnector refuses a command whose transaction is not
+	/// the connection's active one, so a transaction begun here and invisible to the request made EVERY
+	/// request that runs SQL fail. Opening the connection inside an ambient scope instead makes it enlist
+	/// automatically, and commands on an enlisted connection need no explicit transaction assignment.
+	/// </para>
+	/// <para>
+	/// This is the shape the SQL Server provider already uses for the same reason; it is adopted here rather
+	/// than reinvented.
+	/// </para>
 	/// </remarks>
 	public async Task<IEnumerable<object>> ExecuteBatchAsync(
 		IEnumerable<IDataRequest<IDbConnection, object>> requests,
@@ -100,30 +136,41 @@ public sealed partial class MySqlPersistenceProvider : ISqlPersistenceProvider, 
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var requestList = requests.ToList();
-
-		await using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false) as MySqlConnection
-									 ?? throw new InvalidOperationException("Connection must be MySqlConnection.");
-
-		await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-
-		try
+		if (requestList.Count == 0)
 		{
-			var results = new List<object>(requestList.Count);
+			return [];
+		}
 
-			foreach (var request in requestList)
+		using var ambientTransaction = new System.Transactions.TransactionScope(
+			System.Transactions.TransactionScopeOption.Required,
+			new System.Transactions.TransactionOptions
 			{
-				results.Add(await request.ResolveAsync(connection).ConfigureAwait(false));
-			}
+				IsolationLevel = System.Transactions.IsolationLevel.ReadCommitted,
+				Timeout = TimeSpan.FromSeconds(_options.CommandTimeout),
+			},
+			System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
 
-			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+		// Opened INSIDE the scope so the connection enlists in it. Moving this line above the scope silently
+		// restores the defect: the connection would not be enlisted and every request would run unguarded.
+		//
+		// Synchronous using, matching the SQL Server provider: the factory's declared return type is
+		// IDbConnection, which carries no async disposal, and casting to the concrete type purely to get
+		// DisposeAsync would buy nothing here - the scope, not the connection, owns the transaction lifetime.
+		using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-			return results;
-		}
-		catch
+		var results = new List<object>(requestList.Count);
+
+		foreach (var request in requestList)
 		{
-			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-			throw;
+			results.Add(await request.ResolveAsync(connection).ConfigureAwait(false));
 		}
+
+		// Completing is what commits. An exception leaves the scope uncompleted, and disposing an
+		// uncompleted scope rolls the ambient transaction back -- so the rollback needs no catch block of
+		// its own, and there is no path that returns results without having completed.
+		ambientTransaction.Complete();
+
+		return results;
 	}
 
 	/// <inheritdoc/>

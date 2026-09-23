@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Inbox.MongoDB;
@@ -154,6 +154,42 @@ public sealed class MongoDbInboxStoreKitConformanceShould : InboxStoreConformanc
 	[Fact]
 	public Task GetAllTenantsFailedEntriesAsync_MustReturnEveryTenantsFailedEntries_Test() =>
 		GetAllTenantsFailedEntriesAsync_MustReturnEveryTenantsFailedEntries();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount_Test() =>
+		AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAnExistingEntry_MustReportApplied_Test() =>
+		CoreMarkFailed_ForAnExistingEntry_MustReportApplied();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow_Test() =>
+		CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged_Test() =>
+		CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged();
+
+	[Fact]
+	public Task BackoffMarkFailed_ForAnExistingEntry_MustReportApplied_Test() =>
+		BackoffMarkFailed_ForAnExistingEntry_MustReportApplied();
+
+	[Fact]
+	public Task AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne_Test() =>
+		AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched_Test() =>
+		AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow_Test() =>
+		AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged_Test() =>
+		AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged();
 
 
 	#endregion Fail arms

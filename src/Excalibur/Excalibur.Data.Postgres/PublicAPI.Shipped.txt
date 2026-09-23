@@ -1,10 +1,15 @@
 #nullable enable
 Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore
-Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.ActivityGroupExistsAsync(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.DeleteAllActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.FindActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
-Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.GetService(System.Type! serviceType) -> object?
-Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.PostgresActivityGroupStore(Excalibur.Data.IDomainDb! domainDb) -> void
+Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.ActivityGroupExistsAsync(string! tenantId, string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.CreateActivityGroupAsync(string! tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.DeleteActivityGroupsForTenantAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.FindActivityGroupsAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, System.Collections.Generic.IReadOnlyCollection<string!>!>!>!
+Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.PostgresActivityGroupStore(Excalibur.Data.IDomainDb! domainDb, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.Authorization.PostgresAuthorizationOptions!>! options) -> void
+Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.ReplaceAllActivityGroupsAsync(Excalibur.A3.Authorization.ActivityGroupCatalogue! catalogue, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
+Excalibur.Data.Postgres.Authorization.PostgresAuthorizationOptions
+Excalibur.Data.Postgres.Authorization.PostgresAuthorizationOptions.PostgresAuthorizationOptions() -> void
+Excalibur.Data.Postgres.Authorization.PostgresAuthorizationOptions.SchemaName.get -> string!
+Excalibur.Data.Postgres.Authorization.PostgresAuthorizationOptions.SchemaName.set -> void
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.DeleteActivityGroupGrantsByUserIdAsync(string! userId, string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.DeleteAllActivityGroupGrantsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
@@ -14,10 +19,14 @@ Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetAllGrantsAsync(strin
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
-Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetMatchingGrantsAcrossTenantsAsync(string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetMatchingGrantsAsync(string! tenantId, string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.PostgresGrantStore(Excalibur.Data.IDomainDb! domainDb) -> void
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.ReplaceActivityGroupGrantsAsync(string! grantType, Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.ReplaceActivityGroupGrantsForUserAsync(string! userId, string! grantType, Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.SaveGrantAsync(Excalibur.A3.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions.ConnectionString.get -> string!
@@ -150,6 +159,8 @@ Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ValidateRequest<
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetryAttempts.get -> int
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetryDelayMilliseconds.get -> int
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetryDelayMilliseconds.set -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.PostgresPersistenceResilienceOptions() -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.RetryDelayMilliseconds.get -> int
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.RetryDelayMilliseconds.set -> void
@@ -198,6 +209,7 @@ static Excalibur.Data.Postgres.Persistence.PostgresPersistenceBuilderExtensions.
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.MeasureOperation<T>(System.Func<T>! operation, System.Action<double>! recordAction) -> T
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.MeasureOperationAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Action<double>! recordAction) -> System.Threading.Tasks.Task<T>!
 static Microsoft.Extensions.DependencyInjection.A3BuilderPostgresExtensions.UsePostgres(this Excalibur.A3.IA3Builder! builder) -> Excalibur.A3.IA3Builder!
+static Microsoft.Extensions.DependencyInjection.A3BuilderPostgresExtensions.UsePostgres(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.Data.Postgres.Authorization.PostgresAuthorizationOptions!>! configure) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.PostgresDataExecutorServiceCollectionExtensions.AddPostgresDataExecutors(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.Data.IDbConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder!>! builderAction) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -210,7 +222,3 @@ virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Dispose(
 virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.CreateActivityGroupAsync(string! tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.Postgres.Authorization.PostgresGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetryDelayMilliseconds.get -> int
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetryDelayMilliseconds.set -> void

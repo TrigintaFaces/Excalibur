@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 
@@ -83,10 +83,10 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 		{
 			var serviceBusMessage = CreateServiceBusMessage(message, _logger);
 
-			// Check for scheduled delivery
-			if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.ScheduledTime, out var scheduledObj) &&
-				scheduledObj is string scheduledStr &&
-				DateTimeOffset.TryParse(scheduledStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var scheduledTime))
+			// Schedule explicitly on the single-send path so the caller gets back the broker sequence
+			// number, which is the handle required to cancel a scheduled message. The batch path cannot
+			// return one; it relies on ScheduledEnqueueTime already being set by CreateServiceBusMessage.
+			if (TryGetScheduledTime(message, out var scheduledTime))
 			{
 				var sequenceNumber = await _sender.ScheduleMessageAsync(serviceBusMessage, scheduledTime, cancellationToken)
 					.ConfigureAwait(false);
@@ -114,6 +114,20 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// <see cref="BatchSendResult.Results"/> is positional: entry <c>i</c> is the outcome of
+	/// <paramref name="messages"/><c>[i]</c>, whether that message travelled in the batch or on the
+	/// individual overflow fallback, and whether it succeeded or failed. Every entry carries
+	/// <see cref="SendResult.MessageId"/>, so a caller can select exactly the failed inputs to retry.
+	/// </para>
+	/// <para>
+	/// Scheduled delivery is honoured identically on both paths, because the scheduled time is applied
+	/// when the native message is built. <see cref="SendResult.SequenceNumber"/> is populated only for
+	/// messages that took the individual fallback: the batch send API returns no per-message sequence
+	/// number, so a scheduled message sent inside a batch cannot be cancelled by sequence number.
+	/// </para>
+	/// </remarks>
 	public async Task<BatchSendResult> SendBatchAsync(IReadOnlyList<TransportMessage> messages, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(messages);
@@ -136,12 +150,15 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 			var overflowIndices = await _sender.SendBatchAsync(sbMessages, cancellationToken).ConfigureAwait(false);
 			var overflowSet = new HashSet<int>(overflowIndices);
 
-			var results = new List<SendResult>(messages.Count);
+			// Index the results by input position. Appending batch successes first and overflow outcomes
+			// afterwards loses the association between an input and its result, and an overflow failure
+			// carries no identity of its own, so a caller cannot tell which messages to retry.
+			var results = new SendResult[messages.Count];
 			for (var i = 0; i < messages.Count; i++)
 			{
 				if (!overflowSet.Contains(i))
 				{
-					results.Add(SendResult.Success(messages[i].Id));
+					results[i] = SendResult.Success(messages[i].Id);
 				}
 			}
 
@@ -149,7 +166,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 			foreach (var idx in overflowIndices)
 			{
 				var result = await SendAsync(messages[idx], cancellationToken).ConfigureAwait(false);
-				results.Add(result);
+				results[idx] = WithInputIdentity(result, messages[idx].Id);
 			}
 			var successCount = results.Count(static r => r.IsSuccess);
 
@@ -168,8 +185,10 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 		{
 			LogBatchSendFailed(Destination, messages.Count, ex);
 
-			var failedResults = messages.Select(m =>
-				SendResult.Failure(SendError.FromException(ex, IsTransient(ex)))).ToList();
+			var error = SendError.FromException(ex, IsTransient(ex));
+			var failedResults = messages
+				.Select(m => new SendResult { IsSuccess = false, MessageId = m.Id, Error = error })
+				.ToList();
 
 			return new BatchSendResult
 			{
@@ -259,6 +278,16 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 			sbMessage.ApplicationProperties["message-type"] = message.MessageType;
 		}
 
+		// Scheduled delivery is applied here, in the one mapping both send paths share. Setting it only
+		// on the single-send path made a batched message available immediately while the same message,
+		// sent alone or as batch overflow, was held until its due time -- the delivery a caller got
+		// depended on how many other messages happened to be in flight. The property is stripped by the
+		// dispatch.-prefix filter below, so a batch send had no other way to carry it.
+		if (TryGetScheduledTime(message, out var scheduledTime))
+		{
+			sbMessage.ScheduledEnqueueTime = scheduledTime;
+		}
+
 		// Say so when a priority cannot be honoured, once per process. Service Bus has no native
 		// priority, and the loop below drops every dispatch.-prefixed key, so a caller who sets one was
 		// previously ignored in silence -- honoured on RabbitMQ, dropped here, with nothing to
@@ -282,6 +311,41 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 
 		return sbMessage;
 	}
+
+	/// <summary>
+	/// Reads the dispatch scheduled-delivery property. The single authority for the scheduled time, so
+	/// the single send, the batch send and the overflow fallback cannot disagree about it.
+	/// </summary>
+	private static bool TryGetScheduledTime(TransportMessage message, out DateTimeOffset scheduledTime)
+	{
+		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.ScheduledTime, out var scheduledObj) &&
+			scheduledObj is string scheduledStr &&
+			DateTimeOffset.TryParse(scheduledStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out scheduledTime))
+		{
+			return true;
+		}
+
+		scheduledTime = default;
+		return false;
+	}
+
+	/// <summary>
+	/// Stamps the originating input identity onto a batch entry's result.
+	/// <see cref="SendResult.Failure(SendError)"/> leaves <see cref="SendResult.MessageId"/> null, which
+	/// would leave a caller unable to say which input a failed batch entry belongs to.
+	/// </summary>
+	private static SendResult WithInputIdentity(SendResult result, string inputMessageId) =>
+		result.MessageId is not null
+			? result
+			: new SendResult
+			{
+				IsSuccess = result.IsSuccess,
+				MessageId = inputMessageId,
+				SequenceNumber = result.SequenceNumber,
+				Partition = result.Partition,
+				AcceptedAt = result.AcceptedAt,
+				Error = result.Error,
+			};
 
 	private static IServiceBusSenderSeam CreateAdapter(ServiceBusSender sender)
 	{

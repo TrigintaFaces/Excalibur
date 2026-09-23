@@ -257,11 +257,6 @@ Excalibur.Compliance.AuditQuery.Skip.get -> int
 Excalibur.Compliance.AuditQuery.Skip.init -> void
 Excalibur.Compliance.AuditQuery.StartDate.get -> System.DateTimeOffset?
 Excalibur.Compliance.AuditQuery.StartDate.init -> void
-Excalibur.Compliance.AuditorOpinion
-Excalibur.Compliance.AuditorOpinion.Adverse = 2 -> Excalibur.Compliance.AuditorOpinion
-Excalibur.Compliance.AuditorOpinion.Disclaimer = 3 -> Excalibur.Compliance.AuditorOpinion
-Excalibur.Compliance.AuditorOpinion.Qualified = 1 -> Excalibur.Compliance.AuditorOpinion
-Excalibur.Compliance.AuditorOpinion.Unqualified = 0 -> Excalibur.Compliance.AuditorOpinion
 Excalibur.Compliance.BackupShare
 Excalibur.Compliance.BackupShare.CreatedAt.get -> System.DateTimeOffset
 Excalibur.Compliance.BackupShare.CreatedAt.init -> void
@@ -542,6 +537,11 @@ Excalibur.Compliance.ControlDescription.Name.get -> string!
 Excalibur.Compliance.ControlDescription.Name.init -> void
 Excalibur.Compliance.ControlDescription.Type.get -> Excalibur.Compliance.ControlType
 Excalibur.Compliance.ControlDescription.Type.init -> void
+Excalibur.Compliance.ControlEffectiveness
+Excalibur.Compliance.ControlEffectiveness.Effective = 100 -> Excalibur.Compliance.ControlEffectiveness
+Excalibur.Compliance.ControlEffectiveness.MechanismAbsent = 0 -> Excalibur.Compliance.ControlEffectiveness
+Excalibur.Compliance.ControlEffectiveness.Unverified = 40 -> Excalibur.Compliance.ControlEffectiveness
+Excalibur.Compliance.ControlEffectiveness.ViolationDetected = 20 -> Excalibur.Compliance.ControlEffectiveness
 Excalibur.Compliance.ControlFrequency
 Excalibur.Compliance.ControlFrequency.Annually = 6 -> Excalibur.Compliance.ControlFrequency
 Excalibur.Compliance.ControlFrequency.Continuous = 0 -> Excalibur.Compliance.ControlFrequency
@@ -551,6 +551,10 @@ Excalibur.Compliance.ControlFrequency.OnDemand = 7 -> Excalibur.Compliance.Contr
 Excalibur.Compliance.ControlFrequency.PerTransaction = 1 -> Excalibur.Compliance.ControlFrequency
 Excalibur.Compliance.ControlFrequency.Quarterly = 5 -> Excalibur.Compliance.ControlFrequency
 Excalibur.Compliance.ControlFrequency.Weekly = 3 -> Excalibur.Compliance.ControlFrequency
+Excalibur.Compliance.ControlOutcome
+Excalibur.Compliance.ControlOutcome.Deficient = 0 -> Excalibur.Compliance.ControlOutcome
+Excalibur.Compliance.ControlOutcome.Effective = 2 -> Excalibur.Compliance.ControlOutcome
+Excalibur.Compliance.ControlOutcome.NotVerified = 1 -> Excalibur.Compliance.ControlOutcome
 Excalibur.Compliance.ControlSection
 Excalibur.Compliance.ControlSection.Controls.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ControlDescription!>!
 Excalibur.Compliance.ControlSection.Controls.init -> void
@@ -615,14 +619,13 @@ Excalibur.Compliance.ControlValidationResult.ConfigurationIssues.get -> System.C
 Excalibur.Compliance.ControlValidationResult.ConfigurationIssues.init -> void
 Excalibur.Compliance.ControlValidationResult.ControlId.get -> string!
 Excalibur.Compliance.ControlValidationResult.ControlId.init -> void
-Excalibur.Compliance.ControlValidationResult.EffectivenessScore.get -> int
+Excalibur.Compliance.ControlValidationResult.EffectivenessScore.get -> Excalibur.Compliance.ControlEffectiveness
 Excalibur.Compliance.ControlValidationResult.EffectivenessScore.init -> void
 Excalibur.Compliance.ControlValidationResult.Evidence.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.EvidenceItem!>!
 Excalibur.Compliance.ControlValidationResult.Evidence.init -> void
 Excalibur.Compliance.ControlValidationResult.IsConfigured.get -> bool
 Excalibur.Compliance.ControlValidationResult.IsConfigured.init -> void
-Excalibur.Compliance.ControlValidationResult.IsEffective.get -> bool
-Excalibur.Compliance.ControlValidationResult.IsEffective.init -> void
+Excalibur.Compliance.ControlValidationResult.Outcome.get -> Excalibur.Compliance.ControlOutcome
 Excalibur.Compliance.ControlValidationResult.ValidatedAt.get -> System.DateTimeOffset
 Excalibur.Compliance.ControlValidationResult.ValidatedAt.init -> void
 Excalibur.Compliance.CriterionOutcome
@@ -660,6 +663,12 @@ Excalibur.Compliance.DataInventory.AssociatedKeys.get -> System.Collections.Gene
 Excalibur.Compliance.DataInventory.AssociatedKeys.init -> void
 Excalibur.Compliance.DataInventory.DataSubjectId.get -> string!
 Excalibur.Compliance.DataInventory.DataSubjectId.init -> void
+Excalibur.Compliance.DataInventory.DeclaredCategories.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Compliance.DataInventory.DeclaredCategories.init -> void
+Excalibur.Compliance.DataInventory.DeclaredLocationKinds.get -> System.Collections.Generic.IReadOnlyDictionary<Excalibur.Compliance.DataLocationKey, Excalibur.Compliance.DataStoreKind>!
+Excalibur.Compliance.DataInventory.DeclaredLocationKinds.init -> void
+Excalibur.Compliance.DataInventory.DeclaredLocations.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.DataLocationKey>!
+Excalibur.Compliance.DataInventory.DeclaredLocations.init -> void
 Excalibur.Compliance.DataInventory.DiscoveredAt.get -> System.DateTimeOffset
 Excalibur.Compliance.DataInventory.DiscoveredAt.init -> void
 Excalibur.Compliance.DataInventory.HasData.get -> bool
@@ -691,6 +700,13 @@ Excalibur.Compliance.DataLocation.StoreKind.get -> Excalibur.Compliance.DataStor
 Excalibur.Compliance.DataLocation.StoreKind.init -> void
 Excalibur.Compliance.DataLocation.TableName.get -> string!
 Excalibur.Compliance.DataLocation.TableName.init -> void
+Excalibur.Compliance.DataLocationKey
+Excalibur.Compliance.DataLocationKey.DataLocationKey() -> void
+Excalibur.Compliance.DataLocationKey.DataLocationKey(string! TableName, string! FieldName) -> void
+Excalibur.Compliance.DataLocationKey.FieldName.get -> string!
+Excalibur.Compliance.DataLocationKey.FieldName.init -> void
+Excalibur.Compliance.DataLocationKey.TableName.get -> string!
+Excalibur.Compliance.DataLocationKey.TableName.init -> void
 Excalibur.Compliance.DataLocationRegistration
 Excalibur.Compliance.DataLocationRegistration.DataCategory.get -> string!
 Excalibur.Compliance.DataLocationRegistration.DataCategory.init -> void
@@ -704,6 +720,8 @@ Excalibur.Compliance.DataLocationRegistration.IdType.get -> Excalibur.Compliance
 Excalibur.Compliance.DataLocationRegistration.IdType.init -> void
 Excalibur.Compliance.DataLocationRegistration.KeyIdColumn.get -> string!
 Excalibur.Compliance.DataLocationRegistration.KeyIdColumn.init -> void
+Excalibur.Compliance.DataLocationRegistration.StoreKind.get -> Excalibur.Compliance.DataStoreKind
+Excalibur.Compliance.DataLocationRegistration.StoreKind.init -> void
 Excalibur.Compliance.DataLocationRegistration.TableName.get -> string!
 Excalibur.Compliance.DataLocationRegistration.TableName.init -> void
 Excalibur.Compliance.DataLocationRegistration.TenantId.get -> string?
@@ -826,6 +844,7 @@ Excalibur.Compliance.EncryptedFieldAttribute.Purpose.get -> string?
 Excalibur.Compliance.EncryptedFieldAttribute.Purpose.set -> void
 Excalibur.Compliance.EncryptedFieldAttribute.RequireFipsCompliance.get -> bool
 Excalibur.Compliance.EncryptedFieldAttribute.RequireFipsCompliance.set -> void
+Excalibur.Compliance.EncryptedFieldBinding
 Excalibur.Compliance.EncryptionAlgorithm
 Excalibur.Compliance.EncryptionAlgorithm.Aes256CbcHmac = 1 -> Excalibur.Compliance.EncryptionAlgorithm
 Excalibur.Compliance.EncryptionAlgorithm.Aes256Gcm = 0 -> Excalibur.Compliance.EncryptionAlgorithm
@@ -965,37 +984,42 @@ Excalibur.Compliance.EncryptionVersion.Major.init -> void
 Excalibur.Compliance.EncryptionVersion.Minor.get -> int
 Excalibur.Compliance.EncryptionVersion.Minor.init -> void
 Excalibur.Compliance.ErasureCertificate
-Excalibur.Compliance.ErasureCertificate.CertificateId.get -> System.Guid
-Excalibur.Compliance.ErasureCertificate.CertificateId.init -> void
-Excalibur.Compliance.ErasureCertificate.CompletedAt.get -> System.DateTimeOffset
-Excalibur.Compliance.ErasureCertificate.CompletedAt.init -> void
-Excalibur.Compliance.ErasureCertificate.DataSubjectReference.get -> string!
-Excalibur.Compliance.ErasureCertificate.DataSubjectReference.init -> void
-Excalibur.Compliance.ErasureCertificate.Exceptions.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ErasureException!>!
-Excalibur.Compliance.ErasureCertificate.Exceptions.init -> void
-Excalibur.Compliance.ErasureCertificate.GeneratedAt.get -> System.DateTimeOffset
-Excalibur.Compliance.ErasureCertificate.GeneratedAt.init -> void
-Excalibur.Compliance.ErasureCertificate.LegalBasis.get -> Excalibur.Compliance.ErasureLegalBasis
-Excalibur.Compliance.ErasureCertificate.LegalBasis.init -> void
-Excalibur.Compliance.ErasureCertificate.Method.get -> Excalibur.Compliance.ErasureMethod
-Excalibur.Compliance.ErasureCertificate.Method.init -> void
-Excalibur.Compliance.ErasureCertificate.RequestId.get -> System.Guid
-Excalibur.Compliance.ErasureCertificate.RequestId.init -> void
-Excalibur.Compliance.ErasureCertificate.RequestReceivedAt.get -> System.DateTimeOffset
-Excalibur.Compliance.ErasureCertificate.RequestReceivedAt.init -> void
-Excalibur.Compliance.ErasureCertificate.RetainUntil.get -> System.DateTimeOffset
-Excalibur.Compliance.ErasureCertificate.RetainUntil.init -> void
+Excalibur.Compliance.ErasureCertificate.Payload.get -> Excalibur.Compliance.ErasureCertificatePayload!
+Excalibur.Compliance.ErasureCertificate.Payload.init -> void
 Excalibur.Compliance.ErasureCertificate.Signature.get -> string!
 Excalibur.Compliance.ErasureCertificate.Signature.init -> void
-Excalibur.Compliance.ErasureCertificate.Summary.get -> Excalibur.Compliance.ErasureSummary!
-Excalibur.Compliance.ErasureCertificate.Summary.init -> void
-Excalibur.Compliance.ErasureCertificate.Verification.get -> Excalibur.Compliance.VerificationSummary!
-Excalibur.Compliance.ErasureCertificate.Verification.init -> void
-Excalibur.Compliance.ErasureCertificate.Version.get -> string!
-Excalibur.Compliance.ErasureCertificate.Version.init -> void
+Excalibur.Compliance.ErasureCertificatePayload
+Excalibur.Compliance.ErasureCertificatePayload.CertificateId.get -> System.Guid
+Excalibur.Compliance.ErasureCertificatePayload.CertificateId.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.CompletedAt.get -> System.DateTimeOffset
+Excalibur.Compliance.ErasureCertificatePayload.CompletedAt.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.DataSubjectReference.get -> string!
+Excalibur.Compliance.ErasureCertificatePayload.DataSubjectReference.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.Exceptions.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ErasureException!>!
+Excalibur.Compliance.ErasureCertificatePayload.Exceptions.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.GeneratedAt.get -> System.DateTimeOffset
+Excalibur.Compliance.ErasureCertificatePayload.GeneratedAt.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.LegalBasis.get -> Excalibur.Compliance.ErasureLegalBasis
+Excalibur.Compliance.ErasureCertificatePayload.LegalBasis.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.Method.get -> Excalibur.Compliance.ErasureMethod
+Excalibur.Compliance.ErasureCertificatePayload.Method.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.RequestId.get -> System.Guid
+Excalibur.Compliance.ErasureCertificatePayload.RequestId.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.RequestReceivedAt.get -> System.DateTimeOffset
+Excalibur.Compliance.ErasureCertificatePayload.RequestReceivedAt.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.RetainUntil.get -> System.DateTimeOffset
+Excalibur.Compliance.ErasureCertificatePayload.RetainUntil.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.Summary.get -> Excalibur.Compliance.ErasureSummary!
+Excalibur.Compliance.ErasureCertificatePayload.Summary.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.Verification.get -> Excalibur.Compliance.VerificationSummary!
+Excalibur.Compliance.ErasureCertificatePayload.Verification.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.Version.get -> string!
+Excalibur.Compliance.ErasureCertificatePayload.Version.init -> void
 Excalibur.Compliance.ErasureContributorContext
 Excalibur.Compliance.ErasureContributorContext.DataSubjectIdHash.get -> string!
 Excalibur.Compliance.ErasureContributorContext.DataSubjectIdHash.init -> void
+Excalibur.Compliance.ErasureContributorContext.DeclaredLocations.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.DataLocationKey>!
+Excalibur.Compliance.ErasureContributorContext.DeclaredLocations.init -> void
 Excalibur.Compliance.ErasureContributorContext.IdType.get -> Excalibur.Compliance.DataSubjectIdType
 Excalibur.Compliance.ErasureContributorContext.IdType.init -> void
 Excalibur.Compliance.ErasureContributorContext.RequestId.get -> System.Guid
@@ -1005,6 +1029,8 @@ Excalibur.Compliance.ErasureContributorContext.Scope.init -> void
 Excalibur.Compliance.ErasureContributorContext.TenantId.get -> string?
 Excalibur.Compliance.ErasureContributorContext.TenantId.init -> void
 Excalibur.Compliance.ErasureContributorResult
+Excalibur.Compliance.ErasureContributorResult.DischargedLocations.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.DataLocationKey>!
+Excalibur.Compliance.ErasureContributorResult.DischargedLocations.init -> void
 Excalibur.Compliance.ErasureContributorResult.ErrorMessage.get -> string?
 Excalibur.Compliance.ErasureContributorResult.ErrorMessage.init -> void
 Excalibur.Compliance.ErasureContributorResult.RecordsAffected.get -> int
@@ -1123,6 +1149,7 @@ Excalibur.Compliance.ErasureRequest.Scope.init -> void
 Excalibur.Compliance.ErasureRequest.TenantId.get -> string?
 Excalibur.Compliance.ErasureRequest.TenantId.init -> void
 Excalibur.Compliance.ErasureRequestStatus
+Excalibur.Compliance.ErasureRequestStatus.AwaitingKeyDestruction = 8 -> Excalibur.Compliance.ErasureRequestStatus
 Excalibur.Compliance.ErasureRequestStatus.BlockedByLegalHold = 4 -> Excalibur.Compliance.ErasureRequestStatus
 Excalibur.Compliance.ErasureRequestStatus.Cancelled = 5 -> Excalibur.Compliance.ErasureRequestStatus
 Excalibur.Compliance.ErasureRequestStatus.Completed = 3 -> Excalibur.Compliance.ErasureRequestStatus
@@ -1521,6 +1548,8 @@ Excalibur.Compliance.IErasureCertificateStore.CleanupExpiredCertificatesAsync(Sy
 Excalibur.Compliance.IErasureCertificateStore.GetCertificateAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureCertificate?>!
 Excalibur.Compliance.IErasureCertificateStore.GetCertificateByIdAsync(System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureCertificate?>!
 Excalibur.Compliance.IErasureCertificateStore.SaveCertificateAsync(Excalibur.Compliance.ErasureCertificate! certificate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.IErasureCompletionProcessor
+Excalibur.Compliance.IErasureCompletionProcessor.CompletePendingErasuresAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Compliance.IErasureContributor
 Excalibur.Compliance.IErasureContributor.CoveredStoreKinds.get -> System.Collections.Generic.IReadOnlySet<Excalibur.Compliance.DataStoreKind>!
 Excalibur.Compliance.IErasureContributor.EraseAsync(Excalibur.Compliance.ErasureContributorContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureContributorResult!>!
@@ -1563,6 +1592,8 @@ Excalibur.Compliance.IKeyCacheAdmin.Clear() -> void
 Excalibur.Compliance.IKeyCacheAdmin.GetOrAddAsync(string! keyId, System.TimeSpan ttl, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!>! factory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.IKeyCacheAdmin.Invalidate(string! keyId) -> void
 Excalibur.Compliance.IKeyCacheAdmin.Set(Excalibur.Compliance.KeyMetadata! keyMetadata, System.TimeSpan ttl) -> void
+Excalibur.Compliance.IKeyDestructionStatusProvider
+Excalibur.Compliance.IKeyDestructionStatusProvider.IsKeyDestroyedAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.IKeyEscrowService
 Excalibur.Compliance.IKeyEscrowService.BackupKeyAsync(string! keyId, System.ReadOnlyMemory<byte> keyMaterial, Excalibur.Compliance.EscrowOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.EscrowReceipt!>!
 Excalibur.Compliance.IKeyEscrowService.GenerateRecoveryTokensAsync(string! keyId, int custodianCount, int threshold, System.TimeSpan? expiresIn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RecoveryToken![]!>!
@@ -1640,6 +1671,7 @@ Excalibur.Compliance.IReEncryptionService.EstimateAsync(Excalibur.Compliance.ReE
 Excalibur.Compliance.IReEncryptionService.ReEncryptAsync<T>(T! entity, Excalibur.Compliance.ReEncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ReEncryptionResult!>!
 Excalibur.Compliance.IReEncryptionService.ReEncryptBatchAsync<T>(System.Collections.Generic.IAsyncEnumerable<T!>! entities, Excalibur.Compliance.ReEncryptionOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Compliance.ReEncryptionResult<T!>!>!
 Excalibur.Compliance.IRetentionContributor
+Excalibur.Compliance.IRetentionContributor.ConsumesDeclaredPolicies.get -> bool
 Excalibur.Compliance.IRetentionContributor.EnforceAsync(Excalibur.Compliance.RetentionContributorContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RetentionContributorResult!>!
 Excalibur.Compliance.IRetentionContributor.Name.get -> string!
 Excalibur.Compliance.IRetentionEnforcementService
@@ -2206,8 +2238,6 @@ Excalibur.Compliance.PdfExportOptions.Orientation.init -> void
 Excalibur.Compliance.PersonalDataAttribute
 Excalibur.Compliance.PersonalDataAttribute.Category.get -> Excalibur.Compliance.PersonalDataCategory
 Excalibur.Compliance.PersonalDataAttribute.Category.set -> void
-Excalibur.Compliance.PersonalDataAttribute.ExcludeFromErrors.get -> bool
-Excalibur.Compliance.PersonalDataAttribute.ExcludeFromErrors.set -> void
 Excalibur.Compliance.PersonalDataAttribute.IsSensitive.get -> bool
 Excalibur.Compliance.PersonalDataAttribute.IsSensitive.set -> void
 Excalibur.Compliance.PersonalDataAttribute.LegalBasis.get -> Excalibur.Compliance.LegalBasis
@@ -2398,8 +2428,8 @@ Excalibur.Compliance.ReportFilter.GeneratedBefore.get -> System.DateTimeOffset?
 Excalibur.Compliance.ReportFilter.GeneratedBefore.init -> void
 Excalibur.Compliance.ReportFilter.MaxResults.get -> int?
 Excalibur.Compliance.ReportFilter.MaxResults.init -> void
-Excalibur.Compliance.ReportFilter.Opinion.get -> Excalibur.Compliance.AuditorOpinion?
-Excalibur.Compliance.ReportFilter.Opinion.init -> void
+Excalibur.Compliance.ReportFilter.OverallLevel.get -> Excalibur.Compliance.ComplianceLevel?
+Excalibur.Compliance.ReportFilter.OverallLevel.init -> void
 Excalibur.Compliance.ReportFilter.PeriodEndBefore.get -> System.DateTimeOffset?
 Excalibur.Compliance.ReportFilter.PeriodEndBefore.init -> void
 Excalibur.Compliance.ReportFilter.PeriodStartAfter.get -> System.DateTimeOffset?
@@ -2446,8 +2476,8 @@ Excalibur.Compliance.ReportSummary.ExceptionCount.get -> int
 Excalibur.Compliance.ReportSummary.ExceptionCount.init -> void
 Excalibur.Compliance.ReportSummary.GeneratedAt.get -> System.DateTimeOffset
 Excalibur.Compliance.ReportSummary.GeneratedAt.init -> void
-Excalibur.Compliance.ReportSummary.Opinion.get -> Excalibur.Compliance.AuditorOpinion
-Excalibur.Compliance.ReportSummary.Opinion.init -> void
+Excalibur.Compliance.ReportSummary.OverallLevel.get -> Excalibur.Compliance.ComplianceLevel
+Excalibur.Compliance.ReportSummary.OverallLevel.init -> void
 Excalibur.Compliance.ReportSummary.PeriodEnd.get -> System.DateTimeOffset
 Excalibur.Compliance.ReportSummary.PeriodEnd.init -> void
 Excalibur.Compliance.ReportSummary.PeriodStart.get -> System.DateTimeOffset
@@ -2507,10 +2537,6 @@ Excalibur.Compliance.SensitiveAttribute.Category.get -> Excalibur.Compliance.Sen
 Excalibur.Compliance.SensitiveAttribute.Category.set -> void
 Excalibur.Compliance.SensitiveAttribute.Classification.get -> Excalibur.Compliance.DataClassification
 Excalibur.Compliance.SensitiveAttribute.Classification.set -> void
-Excalibur.Compliance.SensitiveAttribute.EncryptionKeyPurpose.get -> string?
-Excalibur.Compliance.SensitiveAttribute.EncryptionKeyPurpose.set -> void
-Excalibur.Compliance.SensitiveAttribute.ExcludeFromErrors.get -> bool
-Excalibur.Compliance.SensitiveAttribute.ExcludeFromErrors.set -> void
 Excalibur.Compliance.SensitiveAttribute.MaskInLogs.get -> bool
 Excalibur.Compliance.SensitiveAttribute.MaskInLogs.set -> void
 Excalibur.Compliance.SensitiveAttribute.SensitiveAttribute() -> void
@@ -2558,8 +2584,8 @@ Excalibur.Compliance.Soc2Report.Exceptions.get -> System.Collections.Generic.IRe
 Excalibur.Compliance.Soc2Report.Exceptions.init -> void
 Excalibur.Compliance.Soc2Report.GeneratedAt.get -> System.DateTimeOffset
 Excalibur.Compliance.Soc2Report.GeneratedAt.init -> void
-Excalibur.Compliance.Soc2Report.Opinion.get -> Excalibur.Compliance.AuditorOpinion
-Excalibur.Compliance.Soc2Report.Opinion.init -> void
+Excalibur.Compliance.Soc2Report.OverallLevel.get -> Excalibur.Compliance.ComplianceLevel
+Excalibur.Compliance.Soc2Report.OverallLevel.init -> void
 Excalibur.Compliance.Soc2Report.PeriodEnd.get -> System.DateTimeOffset
 Excalibur.Compliance.Soc2Report.PeriodEnd.init -> void
 Excalibur.Compliance.Soc2Report.PeriodStart.get -> System.DateTimeOffset
@@ -2827,6 +2853,10 @@ Excalibur.Compliance.WrappedDataKey.WrappingKeyId.init -> void
 const Excalibur.Compliance.CanonicalAuditProjection.ApplicationNameFieldName = "application_name" -> string!
 const Excalibur.Compliance.CanonicalAuditProjection.MetadataFieldName = "metadata" -> string!
 const Excalibur.Compliance.CanonicalAuditProjection.TimestampFieldName = "timestamp" -> string!
+const Excalibur.Compliance.EncryptedFieldBinding.MaxEncodedEnvelopeLength = 1048576 -> int
+const Excalibur.Compliance.EncryptedFieldBinding.StringEnvelopePrefix = "EXCR1:" -> string!
+const Excalibur.Compliance.EncryptedFieldBinding.SupportedTypeNames = "string, byte[]" -> string!
+override Excalibur.Compliance.DataLocationKey.ToString() -> string!
 override Excalibur.Compliance.DataStoreKind.Equals(object? obj) -> bool
 override Excalibur.Compliance.DataStoreKind.GetHashCode() -> int
 override Excalibur.Compliance.DataStoreKind.ToString() -> string!
@@ -2847,6 +2877,7 @@ static Excalibur.Compliance.ComplianceMetricsExtensions.UpdateKeysNearingExpirat
 static Excalibur.Compliance.CriterionStatus.Assessed(Excalibur.Compliance.TrustServicesCriterion criterion, bool met, int effectivenessScore, System.DateTimeOffset lastValidated, int controlsAssessed, int evidenceCount, System.Collections.Generic.IReadOnlyList<string!>? gaps = null) -> Excalibur.Compliance.CriterionStatus!
 static Excalibur.Compliance.CriterionStatus.NotAssessed(Excalibur.Compliance.TrustServicesCriterion criterion, string! reason) -> Excalibur.Compliance.CriterionStatus!
 static Excalibur.Compliance.DataInventory.Empty(string! dataSubjectId) -> Excalibur.Compliance.DataInventory!
+static Excalibur.Compliance.DataLocationKey.Comparer.get -> System.Collections.Generic.IEqualityComparer<Excalibur.Compliance.DataLocationKey>!
 static Excalibur.Compliance.DataStoreKind.Audit.get -> Excalibur.Compliance.DataStoreKind
 static Excalibur.Compliance.DataStoreKind.Cache.get -> Excalibur.Compliance.DataStoreKind
 static Excalibur.Compliance.DataStoreKind.Create(string! value) -> Excalibur.Compliance.DataStoreKind
@@ -2865,6 +2896,15 @@ static Excalibur.Compliance.DuplicateLegalHoldException.ForHoldId(System.Guid ho
 static Excalibur.Compliance.EncryptedData.IsFieldEncrypted(System.ReadOnlySpan<byte> data) -> bool
 static Excalibur.Compliance.EncryptedData.IsFieldEncrypted(byte[]? data) -> bool
 static Excalibur.Compliance.EncryptedData.MagicBytes.get -> System.ReadOnlySpan<byte>
+static Excalibur.Compliance.EncryptedFieldBinding.Inspect(System.Type! type, out System.Collections.Generic.IReadOnlyList<string!>! unhonourable) -> System.Reflection.PropertyInfo![]!
+static Excalibur.Compliance.EncryptedFieldBinding.IsMarkedEncrypted(System.Reflection.PropertyInfo! property, object! instance) -> bool
+static Excalibur.Compliance.EncryptedFieldBinding.IsSupported(System.Type! propertyType) -> bool
+static Excalibur.Compliance.EncryptedFieldBinding.ReadPlaintext(System.Reflection.PropertyInfo! property, object! instance) -> byte[]?
+static Excalibur.Compliance.EncryptedFieldBinding.Select(System.Type! type) -> System.Reflection.PropertyInfo![]!
+static Excalibur.Compliance.EncryptedFieldBinding.Select<T>() -> System.Reflection.PropertyInfo![]!
+static Excalibur.Compliance.EncryptedFieldBinding.TryReadEnvelope(System.Reflection.PropertyInfo! property, object! instance, out byte[]? envelope) -> bool
+static Excalibur.Compliance.EncryptedFieldBinding.WriteEnvelope(System.Reflection.PropertyInfo! property, object! instance, byte[]! framed) -> void
+static Excalibur.Compliance.EncryptedFieldBinding.WritePlaintext(System.Reflection.PropertyInfo! property, object! instance, byte[]? plaintext) -> void
 static Excalibur.Compliance.EncryptionContext.Default.get -> Excalibur.Compliance.EncryptionContext!
 static Excalibur.Compliance.EncryptionContext.ForTenant(string! tenantId) -> Excalibur.Compliance.EncryptionContext!
 static Excalibur.Compliance.EncryptionMigrationResult.Failed(string! errorMessage, System.Exception? exception = null, System.TimeSpan duration = default(System.TimeSpan)) -> Excalibur.Compliance.EncryptionMigrationResult!
@@ -2876,6 +2916,7 @@ static Excalibur.Compliance.EncryptionVersion.operator >(Excalibur.Compliance.En
 static Excalibur.Compliance.EncryptionVersion.operator >=(Excalibur.Compliance.EncryptionVersion left, Excalibur.Compliance.EncryptionVersion right) -> bool
 static Excalibur.Compliance.ErasureContributorResult.Failed(string! errorMessage) -> Excalibur.Compliance.ErasureContributorResult!
 static Excalibur.Compliance.ErasureContributorResult.Succeeded(int recordsAffected) -> Excalibur.Compliance.ErasureContributorResult!
+static Excalibur.Compliance.ErasureContributorResult.Succeeded(int recordsAffected, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.DataLocationKey>! dischargedLocations) -> Excalibur.Compliance.ErasureContributorResult!
 static Excalibur.Compliance.ErasureExecutionResult.Failed(string! errorMessage) -> Excalibur.Compliance.ErasureExecutionResult!
 static Excalibur.Compliance.ErasureExecutionResult.PartiallySucceeded(int keysDeleted, int recordsAffected, string! errorMessage) -> Excalibur.Compliance.ErasureExecutionResult!
 static Excalibur.Compliance.ErasureExecutionResult.Succeeded(int keysDeleted, int recordsAffected) -> Excalibur.Compliance.ErasureExecutionResult!

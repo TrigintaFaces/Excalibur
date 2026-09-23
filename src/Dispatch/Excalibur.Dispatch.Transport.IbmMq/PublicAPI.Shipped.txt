@@ -1,6 +1,4 @@
 #nullable enable
-Excalibur.Dispatch.Transport.IbmMq.IIbmMqConnectionProvider
-Excalibur.Dispatch.Transport.IbmMq.IIbmMqConnectionProvider.CreateQueueManager() -> IBM.WMQ.MQQueueManager!
 Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions
 Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Channel.get -> string!
 Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Channel.set -> void
@@ -19,9 +17,17 @@ Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Receive.get -> Excalibur.Dispatc
 Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Receive.set -> void
 Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.ReplyToQueue.get -> string?
 Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.ReplyToQueue.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.RequireTls.get -> bool
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.RequireTls.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslCipherSpec.get -> string?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslCipherSpec.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslPeerName.get -> string?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslPeerName.set -> void
 Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.UserId.get -> string?
 Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.UserId.set -> void
 Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.BackoutQueueName.get -> string?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.BackoutQueueName.set -> void
 Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.IbmMqReceiveTuningOptions() -> void
 Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxBatchSize.get -> int
 Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxBatchSize.set -> void
@@ -34,9 +40,3 @@ Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.WaitIntervalMillise
 Microsoft.Extensions.DependencyInjection.IbmMqTransportServiceCollectionExtensions
 const Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxBatchSizeCeiling = 256 -> int
 static Microsoft.Extensions.DependencyInjection.IbmMqTransportServiceCollectionExtensions.AddIbmMqTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.RequireTls.get -> bool
-Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.RequireTls.set -> void
-Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslCipherSpec.get -> string?
-Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslCipherSpec.set -> void
-Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslPeerName.get -> string?
-Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslPeerName.set -> void

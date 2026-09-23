@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -28,7 +28,7 @@ public sealed class ErasureVerificationServiceAuditShould
 	{
 		_fakeStore = A.Fake<IErasureStore>();
 		_fakeCertStore = A.Fake<IErasureCertificateStore>();
-		_fakeKeyProvider = A.Fake<IKeyManagementProvider>();
+		_fakeKeyProvider = KeyDestructionFakes.ProviderThatReportsDestruction();
 		_fakeInventoryService = A.Fake<IDataInventoryService>();
 		_fakeAuditStore = A.Fake<IAuditStore>();
 		_fakeOptions = A.Fake<IOptions<ErasureOptions>>();
@@ -396,8 +396,7 @@ public sealed class ErasureVerificationServiceAuditShould
 			.Returns(status);
 		_ = A.CallTo(() => _fakeCertStore.GetCertificateByIdAsync(status.CertificateId!.Value, A<CancellationToken>._))
 			.Returns(certificate);
-		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
-			.Returns((KeyMetadata?)null);
+		SetupKeyProviderDeleted();
 		SetupEmptyInventory(status);
 
 		// Act
@@ -528,23 +527,26 @@ public sealed class ErasureVerificationServiceAuditShould
 	{
 		return new ErasureCertificate
 		{
-			CertificateId = Guid.NewGuid(),
-			RequestId = requestId,
-			DataSubjectReference = "hash-abc123",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary { KeysDeleted = deletedKeyIds.Count, RecordsAffected = 10 },
-			Verification = new VerificationSummary
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = requestId,
+				DataSubjectReference = "hash-abc123",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary { KeysDeleted = deletedKeyIds.Count, RecordsAffected = 10 },
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.KeyManagementSystem,
 				DeletedKeyIds = deletedKeyIds.ToList(),
 				VerifiedAt = DateTimeOffset.UtcNow
 			},
-			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
-			Signature = "signature-123",
-			RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "signature-123"
 		};
 	}
 
@@ -571,11 +573,7 @@ public sealed class ErasureVerificationServiceAuditShould
 			.Returns(certificate);
 	}
 
-	private void SetupKeyProviderDeleted()
-	{
-		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
-			.Returns((KeyMetadata?)null);
-	}
+	private void SetupKeyProviderDeleted() => _fakeKeyProvider.ReportsEveryKeyDestroyed();
 
 	private void SetupEmptyInventory(ErasureStatus status)
 	{

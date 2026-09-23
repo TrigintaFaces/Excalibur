@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 
@@ -149,18 +149,9 @@ public sealed class DynamoDbSagaDocumentShould
 		value.ShouldBe("updatedUtc");
 	}
 
-	[Fact]
-	public void Ttl_Constant_Equals_ttl()
-	{
-		// Arrange
-		var field = _documentType.GetField("Ttl", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var value = (string)field!.GetValue(null)!;
-
-		// Assert
-		value.ShouldBe("ttl");
-	}
+	// There is deliberately no fixed TTL attribute-name constant: the expiry is written under the
+	// store's configured TtlAttributeName (see DynamoDbTtlAttributeNameShould), because a fixed name left
+	// every item unexpired once that option was renamed.
 
 	#endregion
 

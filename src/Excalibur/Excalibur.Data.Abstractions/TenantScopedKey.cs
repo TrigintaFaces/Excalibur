@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data;
 
@@ -38,8 +40,12 @@ namespace Excalibur.Data;
 /// accepted by the inbox and refused by the event store.
 /// </para>
 /// <para>
-/// This type exists so the encoding has ONE implementation. It was hand-copied into several stores,
-/// and an encoding duplicated per store is one edit away from being several encodings.
+/// <b>The encoding itself is not implemented here.</b> It lives on <see cref="SegmentedKey" />, in the one
+/// package every affected subsystem can reach, because it had grown three separate times — once per
+/// subsystem that could not reference the others. This type adds the tenant-scope contract on top of it:
+/// the <see cref="Prefix" /> that marks a key as tenant-scoped and keeps range probes over the
+/// tenant-scoped key space working. It delegates rather than duplicates, so there is no second encoding
+/// to drift.
 /// </para>
 /// </remarks>
 public static class TenantScopedKey
@@ -49,10 +55,6 @@ public static class TenantScopedKey
 	/// tenant-scoped key space continue to work.
 	/// </summary>
 	public const string Prefix = "t:";
-
-	private const char Separator = ':';
-
-	private const char Escape = '%';
 
 	/// <summary>
 	/// Encodes one term so that no character in it can be mistaken for a segment boundary.
@@ -67,56 +69,7 @@ public static class TenantScopedKey
 	/// with an aggregate type as well. Each shape stays injective as long as every term goes through
 	/// here, and the separator between them is a raw ':'.
 	/// </remarks>
-	public static string EscapeSegment(string value)
-	{
-		ArgumentNullException.ThrowIfNull(value);
-
-		// ONE PASS, DELIBERATELY. The obvious form is
-		//     value.Replace("%", "%25").Replace(":", "%3A")
-		// which is correct ONLY in that order, and nothing but a comment enforces it: an edit that
-		// swaps the two lines re-introduces the collision this type exists to remove -- "a:b" and
-		// "a%3Ab" would both render "a%3Ab" -- and still reads fine. Encoding each character once,
-		// here, leaves no ordering for a later edit to get wrong.
-		var needed = 0;
-
-		foreach (var c in value)
-		{
-			if (c is Escape or Separator)
-			{
-				needed++;
-			}
-		}
-
-		if (needed == 0)
-		{
-			// The identity case, and the common one: no allocation, and the bytes a consumer already
-			// has stored are reproduced exactly.
-			return value;
-		}
-
-		return string.Create(value.Length + (needed * 2), value, static (destination, source) =>
-		{
-			var at = 0;
-
-			foreach (var c in source)
-			{
-				switch (c)
-				{
-					case Escape:
-						"%25".CopyTo(destination[at..]);
-						at += 3;
-						break;
-					case Separator:
-						"%3A".CopyTo(destination[at..]);
-						at += 3;
-						break;
-					default:
-						destination[at++] = c;
-						break;
-				}
-			}
-		});
-	}
+	public static string EscapeSegment(string value) => SegmentedKey.Escape(value);
 
 	/// <summary>
 	/// Reverses <see cref="EscapeSegment"/>.
@@ -127,13 +80,7 @@ public static class TenantScopedKey
 	/// ':' is unescaped BEFORE '%', mirroring the encode order. Doing it the other way round would turn
 	/// an encoded <c>%253A</c> — a literal "%3A" in the original term — into a separator.
 	/// </remarks>
-	public static string UnescapeSegment(string value)
-	{
-		ArgumentNullException.ThrowIfNull(value);
-
-		return value.Replace("%3A", ":", StringComparison.Ordinal)
-			.Replace("%25", "%", StringComparison.Ordinal);
-	}
+	public static string UnescapeSegment(string value) => SegmentedKey.Unescape(value);
 
 	/// <summary>
 	/// Composes the tenant-scoped storage key for <paramref name="id"/> within
@@ -147,8 +94,7 @@ public static class TenantScopedKey
 		ArgumentException.ThrowIfNullOrEmpty(tenantId);
 		ArgumentNullException.ThrowIfNull(id);
 
-		return string.Concat(
-			Prefix, EscapeSegment(tenantId), stackalloc char[] { Separator }, EscapeSegment(id));
+		return Prefix + SegmentedKey.Compose(tenantId, id);
 	}
 
 	/// <summary>
@@ -162,8 +108,6 @@ public static class TenantScopedKey
 		ArgumentException.ThrowIfNullOrEmpty(tenantId);
 		ArgumentNullException.ThrowIfNull(segments);
 
-		return Prefix + string.Join(
-			Separator,
-			segments.Prepend(tenantId).Select(EscapeSegment));
+		return Prefix + SegmentedKey.Compose(segments.Prepend(tenantId).ToArray());
 	}
 }

@@ -3,29 +3,28 @@
 IBM MQ transport for Excalibur. Queue-based enterprise messaging with native request/reply over the IBM MQ
 managed .NET client (`IBMMQDotnetClient`).
 
-## What this package provides (W2 scaffold)
+## What this package provides
 
 - `IbmMqOptions` — queue manager, host/port, server-connection channel, queue and reply-to-queue names,
   and receive tuning, validated at startup (`ValidateOnStart`).
-- `IIbmMqConnectionProvider` — connects managed-client queue managers from the configured options.
-- `AddIbmMqTransport(...)` — registers the connection provider and validated options.
+- `AddIbmMqTransport(...)` — registers the keyed sender and receiver, the queue-manager connection, and
+  validated options.
 
-The dispatch sender/receiver that carry messages over IBM MQ build on `IIbmMqConnectionProvider`.
+Everything about the connection is configured through `IbmMqOptions`; the queue-manager seam the sender
+and receiver build on is an implementation detail of this package.
 
 ## CloudEvents
 
 **Inbound CloudEvents are decoded automatically, in binary mode.** Every receiver on this transport is
 wrapped by the framework's decoding decorator, so a message carrying the `ce-` prefixed attributes as MQ
-message properties arrives with the decoded event attached to it. **Structured mode is not recognised
-here**: a structured event is identified by its content type, and this transport reports the MQMD format
-field in its place — an MQ wire-format tag such as `MQSTR`, which cannot be a media type. A structured
-CloudEvent therefore arrives as an ordinary message — the body and properties are untouched, and a message that is not a CloudEvent passes
-through unchanged. Every message in the batch is delivered, including a malformed one: it arrives carrying a
-decode error instead of a decoded event, never dropped. There is nothing to register and no option to set.
+message properties arrives with the decoded event attached to it. **Structured mode is recognised too**: a
+structured event is identified by its content type, which this transport carries in the `content_type`
+message property, so the decoder sees it. A message that is not a CloudEvent passes through unchanged.
+Every message in the batch is delivered, including a malformed one: it arrives carrying a decode error
+instead of a decoded event, never dropped. There is nothing to register and no option to set.
 
-**Outbound CloudEvents formatting is not implemented on this transport.** Sending a message emits the
-framework's native transport message, not a CloudEvent. If you need to publish CloudEvents today, transports
-that implement the send path say so in their own README — Kafka and RabbitMQ among them.
+**Outbound, a message carrying a CloudEvent is published in structured mode** — the whole event as JSON in
+the body under `application/cloudevents+json`. Binary-mode emission is not implemented here.
 
 ## Usage
 
@@ -73,3 +72,12 @@ deployment is covered before you ship.
 If those terms do not suit you, the other Excalibur transports carry OSI-approved driver licenses --
 see `THIRD-PARTY-NOTICES.md` in the repository for every dependency's license.
 
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

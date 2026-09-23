@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -10,12 +10,12 @@ namespace Tests.Shared.TestFakes;
 /// </summary>
 public sealed class MessageResult : IMessageResult
 {
-	private MessageResult(bool isSuccess, string? errorMessage = null, Exception? exception = null, bool cacheHit = false, object? validationResult = null, object? authorizationResult = null, IMessageProblemDetails? problemDetails = null)
+	private MessageResult(bool isSuccess, string? errorMessage = null, Exception? exception = null, MessageDisposition disposition = MessageDisposition.Handled, object? validationResult = null, object? authorizationResult = null, IMessageProblemDetails? problemDetails = null)
 	{
 		Succeeded = isSuccess;
 		ErrorMessage = errorMessage;
 		Exception = exception;
-		CacheHit = cacheHit;
+		Disposition = disposition;
 		ValidationResult = validationResult;
 		AuthorizationResult = authorizationResult;
 		ProblemDetails = problemDetails;
@@ -27,7 +27,7 @@ public sealed class MessageResult : IMessageResult
 
 	public string? ErrorMessage { get; private set; }
 
-	public bool CacheHit { get; private set; }
+	public MessageDisposition Disposition { get; private set; }
 
 	public object? ValidationResult { get; private set; }
 
@@ -65,7 +65,7 @@ public sealed class MessageResult : IMessageResult
 	/// Creates a successful cached message result.
 	/// </summary>
 	/// <returns> A successful cached IMessageResult. </returns>
-	public static IMessageResult CachedSuccess() => new MessageResult(true, cacheHit: true);
+	public static IMessageResult CachedSuccess() => new MessageResult(true, disposition: MessageDisposition.ServedFromCache);
 
 	/// <summary>
 	/// Creates a failed message result with validation error.

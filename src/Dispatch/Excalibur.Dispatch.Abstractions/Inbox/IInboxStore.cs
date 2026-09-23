@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch;
@@ -161,14 +161,57 @@ public interface IInboxStore
 	ValueTask<InboxEntry?> GetEntryAsync(string messageId, string handlerType, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Marks a message as failed during processing for a specific handler.
+	/// Marks a message as failed during processing for a specific handler, and reports whether the entry
+	/// was actually mutated.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The transition can be refused, so it is reported rather than thrown.</b> Processed is absorbing:
+	/// an entry that already completed must not be demoted to failed, because that would re-admit it to the
+	/// drain and run its handler again over side effects already committed. A refusal is therefore an
+	/// ordinary and expected answer on this path, not a fault.
+	/// </para>
+	/// <para>
+	/// <b>An absent entry returns <see cref="InboxMarkFailedOutcome.EntryNotFound"/> and MUST NOT throw.</b>
+	/// A store that throws here cannot be substituted for one that does not: a caller written to catch is
+	/// broken against the silent stores and a caller written not to is broken against the throwing ones, so
+	/// no caller can be correct against the interface.
+	/// </para>
+	/// <para>
+	/// <b>THROW ONLY WHEN THE STORE COULD NOT BE ASKED.</b> That is the rule, and it is stated as a rule
+	/// rather than as a list of examples because a list invites the next case to be fitted into the nearest
+	/// entry. If the store answered — including answering that it could not decide — the answer is a return
+	/// value. If the store could not be reached, or the statement could not be issued, that is an exception.
+	/// </para>
+	/// <para>
+	/// The case that makes the distinction concrete is <b>contention</b>. A store whose transition needs an
+	/// optimistic-concurrency loop can lose every attempt to a competing writer. It was asked, it answered,
+	/// and nothing was written, so it returns <see cref="InboxMarkFailedOutcome.Undecided"/> and does not
+	/// throw — the entry is exactly as it was found and the call is safe to re-drive. Throwing there is
+	/// actively harmful: this member is normally called while the caller is already handling a failure, so
+	/// an exception raised here replaces the consumer's original error with one about the store.
+	/// </para>
+	/// <para>
+	/// <b>The outcome is decided by the statement that performs the write, never by a read taken afterwards.</b>
+	/// Classifying from a follow-up read reintroduces the very race the outcome exists to remove: between the
+	/// write and the read another worker can complete the entry, and the caller is then told a refusal that
+	/// did not happen, or an application that did not.
+	/// </para>
+	/// </remarks>
 	/// <param name="messageId">The unique identifier of the message that failed.</param>
 	/// <param name="handlerType">The deduplication scope the entry is keyed under, together with <paramref name="messageId"/>. See <see cref="InboxEntry.HandlerType"/>.</param>
 	/// <param name="errorMessage">The error description or exception message.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task that represents the asynchronous mark-failed operation.</returns>
+	/// <returns>
+	/// <see cref="InboxMarkFailedOutcome.Applied"/> when the entry was mutated;
+	/// <see cref="InboxMarkFailedOutcome.EntryNotFound"/> when no such entry exists in the caller's tenant
+	/// scope; <see cref="InboxMarkFailedOutcome.AlreadyProcessed"/> when the entry is present but terminal
+	/// and the transition was refused; <see cref="InboxMarkFailedOutcome.Undecided"/> when the store was
+	/// asked, wrote nothing, and could not reach a decision — characteristically an exhausted
+	/// optimistic-concurrency loop. Treat anything other than
+	/// <see cref="InboxMarkFailedOutcome.Applied"/> as not applied.
+	/// </returns>
 	/// <exception cref="ArgumentException">Thrown when messageId or handlerType is null or empty.</exception>
 	/// <exception cref="ArgumentNullException">Thrown when errorMessage is null.</exception>
-	ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken);
+	ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken);
 }

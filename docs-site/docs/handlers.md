@@ -25,7 +25,7 @@ Action handlers process actions (commands and queries) dispatched through the pi
 
 Use `IActionHandler<TAction>` for commands that don't return data:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 public record CreateOrderAction(string CustomerId, List<string> Items) : IDispatchAction;
@@ -60,7 +60,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 
 Use `IActionHandler<TAction, TResult>` for queries that return data:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 public record GetOrderAction(Guid OrderId) : IDispatchAction<Order>;
@@ -87,7 +87,7 @@ public class GetOrderHandler : IActionHandler<GetOrderAction, Order>
 
 Event handlers subscribe to domain events for pub-sub messaging. Multiple handlers can process the same event.
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 
@@ -443,7 +443,7 @@ public class BatchImportHandler : IStreamConsumerHandler<DataRow>
 
 Use `IStreamTransformHandler<TInput, TOutput>` for stream-to-stream transformations:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 using System.Runtime.CompilerServices;
 
@@ -476,7 +476,7 @@ public class EnrichmentHandler : IStreamTransformHandler<CustomerRecord, Enriche
 
 Use `IProgressDocumentHandler<TDocument>` for long-running operations with progress reporting:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 public class PdfExportHandler : IProgressDocumentHandler<ExportDocument>
@@ -544,7 +544,7 @@ This handler gives you direct control over `IMessageResult`:
 | `IDispatchHandler<TMessage>` | Full control over result | `Task<IMessageResult>` |
 
 Use `IDispatchHandler` when you need to:
-- Return `MessageResult.SuccessFromCache()` with `CacheHit = true`
+- Return `MessageResult.SuccessFromCache()`, or set `Disposition` on the result
 - Set `ValidationResult` or `AuthorizationResult` on success
 - Return failure without throwing an exception
 

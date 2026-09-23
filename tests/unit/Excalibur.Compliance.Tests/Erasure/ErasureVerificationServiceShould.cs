@@ -10,7 +10,7 @@ namespace Excalibur.Compliance.Tests.Erasure;
 public sealed class ErasureVerificationServiceShould
 {
 	private readonly IErasureStore _erasureStore = A.Fake<IErasureStore>();
-	private readonly IKeyManagementProvider _keyProvider = A.Fake<IKeyManagementProvider>();
+	private readonly IKeyManagementProvider _keyProvider = KeyDestructionFakes.ProviderThatReportsDestruction();
 	private readonly IDataInventoryService _inventoryService = A.Fake<IDataInventoryService>();
 	private readonly IAuditStore _auditStore = A.Fake<IAuditStore>();
 	private readonly ErasureOptions _erasureOptions = new()
@@ -123,8 +123,7 @@ public sealed class ErasureVerificationServiceShould
 		A.CallTo(() => _erasureStore.GetService(typeof(IErasureCertificateStore)))
 			.Returns(certificateStore);
 
-		A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
-			.Throws(new KeyNotFoundException("deleted"));
+		_keyProvider.ReportsDestroyed("key-1", true);
 
 		var now = DateTimeOffset.UtcNow;
 		A.CallTo(() => _auditStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
@@ -214,9 +213,8 @@ public sealed class ErasureVerificationServiceShould
 		A.CallTo(() => _erasureStore.GetService(typeof(IErasureCertificateStore)))
 			.Returns(certificateStore);
 
-		// KMS passes by confirming key is gone.
-		A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
-			.Returns((KeyMetadata?)null);
+		// KMS passes because the provider confirms the key destroyed.
+		_keyProvider.ReportsDestroyed("key-1", true);
 
 		var now = DateTimeOffset.UtcNow;
 		A.CallTo(() => _auditStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
@@ -370,13 +368,15 @@ public sealed class ErasureVerificationServiceShould
 	private static ErasureCertificate CreateCertificate(Guid requestId, Guid certificateId, string keyId) =>
 		new()
 		{
-			CertificateId = certificateId,
-			RequestId = requestId,
-			DataSubjectReference = "hash-abc123",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-2),
-			CompletedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary
+			Payload = new()
+			{
+				CertificateId = certificateId,
+				RequestId = requestId,
+				DataSubjectReference = "hash-abc123",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-2),
+				CompletedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary
 			{
 				KeysDeleted = 1,
 				RecordsAffected = 1,
@@ -384,15 +384,16 @@ public sealed class ErasureVerificationServiceShould
 				TablesAffected = ["Orders"],
 				DataSizeBytes = 128
 			},
-			Verification = new VerificationSummary
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.KeyManagementSystem | VerificationMethod.AuditLog,
 				VerifiedAt = DateTimeOffset.UtcNow,
 				DeletedKeyIds = [keyId]
 			},
-			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
-			Signature = "test-signature",
-			RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+				LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "test-signature"
 		};
 }

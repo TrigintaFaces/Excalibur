@@ -142,15 +142,26 @@ Dispatch provides multiple authorization approaches. Choose the one that fits yo
 
 **Package:** `Excalibur.Dispatch.Hosting.AspNetCore`
 
-For ASP.NET Core applications, the authorization bridge reads standard `[Authorize]` attributes from message and handler types and evaluates them via ASP.NET Core's `IAuthorizationService`. The `ClaimsPrincipal` is sourced from `HttpContext.User`.
+For ASP.NET Core applications, the authorization bridge reads standard `[Authorize]` attributes from message **and handler** types, composes them into a policy with ASP.NET Core's own `IAuthorizationPolicyProvider`, and evaluates that policy through its `IAuthorizationService`. The `ClaimsPrincipal` is sourced from `HttpContext.User`.
+
+Because the host's provider does the composing, everything you configure through `AddAuthorization` applies here unchanged — named policies, requirements, handlers, and **the default policy a bare `[Authorize]` resolves to**. There is no separate default-policy setting on this middleware, deliberately: a second place to configure one thing is a second place for the two to disagree, and the host's is the one that governs the rest of your application.
 
 ```csharp
+// Configure authorization ONCE, as you would for controllers or endpoints.
+services.AddAuthorization(options =>
+{
+    // A bare [Authorize] on a message or handler resolves THIS.
+    options.DefaultPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .RequireClaim("scope", "orders.write")
+        .Build();
+});
+
 services.AddDispatch(dispatch =>
 {
     dispatch.UseAspNetCoreAuthorization(options =>
     {
         options.RequireAuthenticatedUser = true;
-        options.DefaultPolicy = "MyPolicy"; // optional
     });
 });
 
@@ -227,7 +238,22 @@ public class OrderOwnerHandler : AuthorizationHandler<OrderOwnerRequirement, IDi
 |--------|---------|-------------|
 | `Enabled` | `true` | Enable/disable the middleware |
 | `RequireAuthenticatedUser` | `true` | Reject when `HttpContext` is unavailable or user is unauthenticated. Set to `false` for background job scenarios. |
-| `DefaultPolicy` | `null` | Fallback policy when `[Authorize]` specifies no explicit policy |
+
+There is no default-policy option here. A bare `[Authorize]` resolves `AuthorizationOptions.DefaultPolicy` — the one you configure with `AddAuthorization`.
+
+#### What happens when the handler cannot be determined
+
+The bridge resolves which handlers will process a message from the dispatch handler registry, so a requirement declared on a **handler** is enforced even when the message itself declares nothing.
+
+When it cannot determine them, it does **not** assume none applies:
+
+| situation | outcome |
+|---|---|
+| handlers known, none declares a requirement | the message proceeds |
+| an action whose handlers cannot be determined | **refused**, with a log entry naming the message type |
+| an event with no registered subscriber | proceeds — no handler will run, so there is nothing to enforce |
+
+An action reaches a handler by definition, so if the bridge cannot see what that handler requires it declines rather than guesses. Register the handler through the dispatch handler registry — `AddDispatchHandlers()` discovers everything registered in DI — or declare the requirement on the message type, and the decision becomes determinable.
 
 ### A3 Activity-Based Authorization
 
@@ -268,16 +294,16 @@ public class CustomExceptionMapper : IExceptionMapper
                 Type = "validation-error",
                 Title = "Validation Failed",
                 Status = 400,
-                Detail = string.Join(", ", ex.Errors)
+                Detail = string.Join(", ", ex.ValidationErrors.SelectMany(e => e.Value))
             },
-            NotFoundException ex => new MessageProblemDetails
+            ResourceNotFoundException ex => new MessageProblemDetails
             {
                 Type = "not-found",
                 Title = "Resource Not Found",
                 Status = 404,
                 Detail = ex.Message
             },
-            UnauthorizedException => new MessageProblemDetails
+            UnauthorizedAccessException => new MessageProblemDetails
             {
                 Type = "unauthorized",
                 Title = "Unauthorized",
@@ -576,6 +602,8 @@ services.AddDispatch(dispatch =>
 });
 ```
 
+Calling `UseOutbox()` states that this host stages, so it **requires an `IOutboxStore`**: register one for your provider alongside this call, or the host refuses to start and names the registration it is missing. You do not need `UseOutbox()` to get staging on the default pipeline — registering a store is enough there, and a host with no store simply has no outbox. Reach for `UseOutbox()` when you want the missing store reported at startup, or when you need the cascade step it also adds.
+
 Messages are persisted to the outbox store within the current transaction and delivered asynchronously by a background processor.
 
 :::tip Pipeline Order
@@ -723,6 +751,31 @@ services.AddDispatch(dispatch =>
 });
 ```
 
+A message opts in by implementing the `IExecuteInBackground` marker interface. The dispatch returns at once with a successful result whose `Disposition` is `MessageDisposition.AcceptedForBackgroundExecution` — the work is accepted and **pending**, and the handler has not run yet. Do not record it as completed on the strength of that result.
+
+**Cancellation.** If the dispatch's cancellation token is already cancelled, the message is **not accepted**: the handler never runs, and the result is the cancelled result (`Succeeded` is `false`). Once a message is accepted, the handler no longer receives your token — a request-scoped token fires when the response that carries "accepted" completes, which would cancel the work you were just told was accepted. The handler receives a token that is cancelled only when the host's shutdown timeout elapses with the work still running.
+
+**Failures.** A background handler that throws is always logged as an error. What happens next is a host-level setting:
+
+```csharp
+services.Configure<BackgroundExecutionOptions>(options =>
+{
+    // LogOnly (default): log the failure and keep running.
+    // StopHost: log the failure, then stop the host through IHostApplicationLifetime.
+    options.ExceptionBehavior = BackgroundExecutionExceptionBehavior.StopHost;
+});
+```
+
+`StopHost` needs an `IHostApplicationLifetime`, which every generic host provides. If it is configured where none is registered, the application fails at startup with an options validation error, rather than quietly falling back to logging at the first failure.
+
+:::warning Background execution is decoupled, not durable
+- **Graceful shutdown waits for it.** When the host stops, in-flight background work is awaited, bounded by the host's own `HostOptions.ShutdownTimeout` (30 seconds by default). Work started by that work while the host is stopping is awaited too.
+- **Work that outlives the budget is lost, and logged.** When the shutdown timeout elapses, the token passed to any handler still running is cancelled so it can stop cleanly, and an error is logged with the number of tasks lost. Raise `ShutdownTimeout` if your background work is expected to finish in time.
+- **An abrupt stop loses it without a drain.** A process kill, an out-of-memory termination or a node eviction does not run the shutdown drain, so in-flight background work is lost. That is inherent to running in-process.
+
+If the work must survive a crash or a restart, do not background it — route it through the [outbox](#outbox-middleware), which persists it before the caller is answered.
+:::
+
 ## Batching Middleware
 
 Batches multiple messages for unified processing, improving throughput:
@@ -733,6 +786,32 @@ services.AddDispatch(dispatch =>
     dispatch.UseBatching(); // Registers UnifiedBatchingMiddleware
 });
 ```
+
+Tune it through `UnifiedBatchingOptions`:
+
+```csharp
+services.Configure<UnifiedBatchingOptions>(options =>
+{
+    options.MaxBatchSize = 64;                            // default: 32
+    options.MaxBatchDelay = TimeSpan.FromMilliseconds(50); // default: 250ms
+    options.MaxParallelism = 8;                            // default: Environment.ProcessorCount
+});
+```
+
+A batch is dispatched when it reaches `MaxBatchSize`, or when `MaxBatchDelay` elapses with a
+partial batch waiting — whichever comes first. `MaxParallelism` caps how many batches are
+processed concurrently.
+
+:::note Invalid values fail at startup, not at the first message
+`UseBatching()` validates these three settings when the host starts. A non-positive value throws
+during startup with a message naming the setting and the value it was given.
+
+This is deliberate, because two of the three would otherwise fail silently. A `MaxBatchSize` of
+zero means a batch is never full, so batches only ever flush on the delay timer — throughput
+collapses with nothing logged. A non-positive `MaxBatchDelay` turns the flush timer into a busy
+loop. Neither reports an error on its own; you would see the symptom in production and have no
+signal pointing at the cause.
+:::
 
 ## Contract Versioning Middleware
 
@@ -762,7 +841,7 @@ Enforces strictly-increasing per-key ordering for messages that arrived through 
 ordering is enforced -- fail-closed on an out-of-order or unstamped message on that path:
 
 ```csharp
-services.AddDispatch(typeof(Program).Assembly); // assembly-scanning overload -- see warning below
+services.AddDispatch(typeof(Program).Assembly); // or services.AddDispatch(dispatch => { ... })
 services.AddOrderingValidation(); // Registers OrderingValidationMiddleware
 ```
 
@@ -772,13 +851,8 @@ thing before it does anything: your receive-to-dispatch bridge must call
 `TransportOrderingMetadata.TryStampOrdering(received, context)`, because the framework has no seam that
 holds both a received transport message and a dispatch context.
 
-:::warning Not yet wired through the `AddDispatch(configure)` builder-lambda form
-`AddOrderingValidation()` only activates when paired with the assembly-scanning `AddDispatch(...)`
-overload shown above. Paired with `AddDispatch(dispatch => { ... })` instead, it registers without
-error but never runs -- no exception, no log, out-of-order messages pass silently. See
-[Ordering Validation](./ordering-validation.md) for the full stamping walkthrough, the per-transport
-native-sequence table, and this limitation in detail.
-:::
+It works with either `AddDispatch` overload. See [Ordering Validation](./ordering-validation.md) for
+the full stamping walkthrough and the per-transport native-sequence table.
 
 ## CloudEvents Sub-Extensions
 

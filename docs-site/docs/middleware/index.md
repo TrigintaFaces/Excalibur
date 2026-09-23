@@ -135,6 +135,7 @@ Middleware executes in defined stages for consistent ordering:
 | `Deduplication` | 599 | Deduplication and idempotency checks |
 | `Processing` | 600 | Handler execution |
 | `PostProcessing` | 700 | Result processing |
+| `Cascade` | 750 | Stage follow-up messages a handler returns via `ICascade` to the outbox |
 | `ErrorHandling` | 800 | Error handling and compensation |
 | `End` | 1000 | Pipeline final stage |
 

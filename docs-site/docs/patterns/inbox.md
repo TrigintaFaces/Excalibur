@@ -569,6 +569,10 @@ The inbox supports three processing modes:
 `AddDispatch` makes `InboxMiddleware` *resolvable*; it does **not** put it in the pipeline. No shipped
 profile contains it, so a host that registers an inbox store and nothing else deduplicates **nothing**.
 Call `UseInbox()` (or its alias `UseIdempotency()`) explicitly.
+
+This applies to the granular `AddDispatch` composition shown here. The full-stack metapackages
+(`AddExcaliburSqlServer`, `AddExcaliburPostgres`) place the middleware for you while their `UseInbox`
+option is left at its default, so on that path no extra call is required.
 :::
 
 Deduplicate after authentication and before validation:

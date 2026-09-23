@@ -59,6 +59,20 @@ RITG_DOCKER_PROBE="true" \
 RITG_TEST_CMD='printf "No test matches the given testcase filter in Excalibur.Inbox.Oracle.Tests.dll\nNo test matches the given testcase filter in Excalibur.Dispatch.Integration.Tests.dll\nPassed!  - Failed: 0, Passed: 2, Skipped: 0, Total: 2 - Excalibur.Integration.Tests.dll\n"; exit 0' \
     run_arm "PASS on multi-project partial no-match (NOT REFUSE)" 0
 
+# ── SAFETY (SIZE): the missing-assembly phrase on LINE 1 of a MULTI-MEGABYTE capture must still
+#    REFUSE. SIZE is the discriminator here, not the pattern: every SAFETY arm above uses a short
+#    output and passes whether the deciding line pipes or not, so none of them can see this defect.
+#    With `printf ... | grep -q` under pipefail, grep exits at the line-1 match, printf dies on
+#    SIGPIPE, the pipeline reports 141, the `if` does not fire, and an INCOMPLETE run is scored as
+#    evaluable -- fail-open, exactly when the evidence appears earliest.
+#    THE PAYLOAD ENDS IN A VALID PASSING SUMMARY ON PURPOSE. A first version of this arm omitted it;
+#    with no 'Total: N' line the gate REFUSEd via the zero-match path instead, so the arm passed
+#    against the PRE-FIX gate too and proved nothing. Satisfying every OTHER refuse path is what
+#    leaves the missing-assembly check as the only thing that can decide the exit. ──
+RITG_DOCKER_PROBE="true" RITG_TEST_CMD='printf "Testhost process exited: test source file Excalibur.Missing.Tests.dll could not be found.
+"; yes "pad this capture out well past any pipe buffer so the producer is still writing when grep exits" | head -n 80000; printf "Passed!  - Failed: 0, Passed: 3, Skipped: 0, Total: 3
+"; exit 0'     run_arm "REFUSE on missing assembly named on line 1 of a ~5MB capture (SIZE)" 2
+
 # ── LIVENESS: >=1 test ran and all passed ⇒ PASS (0). Proves the gate is not always-red. ──
 RITG_DOCKER_PROBE="true" \
 RITG_TEST_CMD='echo "Passed!  - Failed: 0, Passed: 3, Skipped: 0, Total: 3"; exit 0' \

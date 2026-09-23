@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Security.Claims;
 
@@ -37,8 +37,10 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould : UnitTestBase
 			new AspNetCoreAuthorizationMiddleware(
 				null!,
 				_authorizationService,
-				_logger,
-				Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions())));
+				TestAuthorizationHost.PolicyProvider,
+				TestHandlerRegistry.KnowingEveryMessageType,
+				Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions()),
+				_logger));
 	}
 
 	[Fact]
@@ -49,8 +51,10 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould : UnitTestBase
 			new AspNetCoreAuthorizationMiddleware(
 				_httpContextAccessor,
 				null!,
-				_logger,
-				Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions())));
+				TestAuthorizationHost.PolicyProvider,
+				TestHandlerRegistry.KnowingEveryMessageType,
+				Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions()),
+				_logger));
 	}
 
 	[Fact]
@@ -61,8 +65,10 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould : UnitTestBase
 			new AspNetCoreAuthorizationMiddleware(
 				_httpContextAccessor,
 				_authorizationService,
-				null!,
-				Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions())));
+				TestAuthorizationHost.PolicyProvider,
+				TestHandlerRegistry.KnowingEveryMessageType,
+				Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions()),
+				null!));
 	}
 
 	[Fact]
@@ -73,8 +79,10 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould : UnitTestBase
 			new AspNetCoreAuthorizationMiddleware(
 				_httpContextAccessor,
 				_authorizationService,
-				_logger,
-				null!));
+				TestAuthorizationHost.PolicyProvider,
+				TestHandlerRegistry.KnowingEveryMessageType,
+				null!,
+				_logger));
 	}
 
 	[Fact]
@@ -304,8 +312,10 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould : UnitTestBase
 		return new AspNetCoreAuthorizationMiddleware(
 			_httpContextAccessor,
 			_authorizationService,
-			_logger,
-			Microsoft.Extensions.Options.Options.Create(options ?? new AspNetCoreAuthorizationOptions()));
+			TestAuthorizationHost.PolicyProvider,
+			TestHandlerRegistry.KnowingEveryMessageType,
+			Microsoft.Extensions.Options.Options.Create(options ?? new AspNetCoreAuthorizationOptions()),
+			_logger);
 	}
 
 	// Test message types

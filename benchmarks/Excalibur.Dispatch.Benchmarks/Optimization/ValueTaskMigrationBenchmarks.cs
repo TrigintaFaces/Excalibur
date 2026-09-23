@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
@@ -202,7 +202,6 @@ public class ValueTaskMigrationBenchmarks
 	{
 		public bool Succeeded => true;
 		public string? ErrorMessage => null;
-		public bool CacheHit => false;
 		public object? ValidationResult => null;
 		public object? AuthorizationResult => null;
 		public IMessageProblemDetails? ProblemDetails => null;

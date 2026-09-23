@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Options;
 
@@ -132,7 +132,7 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 			CategoriesIncluded = categories.ToList(),
 			System = _options.SystemDescription ?? CreateDefaultSystemDescription(),
 			ControlSections = controlSections,
-			Opinion = DetermineOpinion(status),
+			OverallLevel = status.OverallLevel,
 			Exceptions = MapGapsToExceptions(status.ActiveGaps),
 			GeneratedAt = DateTimeOffset.UtcNow,
 			TenantId = options.TenantId
@@ -186,7 +186,7 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 			CategoriesIncluded = categories.ToList(),
 			System = _options.SystemDescription ?? CreateDefaultSystemDescription(),
 			ControlSections = controlSections,
-			Opinion = DetermineOpinion(status),
+			OverallLevel = status.OverallLevel,
 			Exceptions = MapGapsToExceptions(status.ActiveGaps),
 			GeneratedAt = DateTimeOffset.UtcNow,
 			TenantId = options.TenantId
@@ -272,16 +272,24 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 		// produced the friendlier number and the softer gap severity beside it.
 		//
 		// A criterion is no stronger than its weakest control, so Min says what the mean could not.
-		var worstScore = results.Min(r => r.EffectivenessScore);
-		var allEffective = results.All(r => r.IsEffective);
+		// Min over the BAND, which is an ordered enum, so this is the worst fact established and not the
+		// smallest number. The criterion percentage keeps its integer form because that is what the
+		// report and the monitoring threshold consume; the band is what the controls actually reported.
+		var worstBand = results.Min(r => r.EffectivenessScore);
+		var allEffective = results.All(r => r.Outcome == ControlOutcome.Effective);
 		var gaps = results
 			.SelectMany(r => r.ConfigurationIssues)
 			.ToList();
 
 		return CriterionStatus.Assessed(
 			criterion,
-			met: allEffective && worstScore >= 80,
-			effectivenessScore: worstScore,
+			// The threshold comparison that used to sit beside this is gone, and its removal is the
+			// point rather than a tidy-up: the outcome is now DERIVED from the band, so every control
+			// being Effective already means the worst band IS Effective. A clause that cannot
+			// independently fail is not a second check, and keeping it would suggest the two could
+			// disagree -- which is exactly the state this change made unconstructible.
+			met: allEffective,
+			effectivenessScore: (int)worstBand,
 			lastValidated: results.Max(r => r.ValidatedAt),
 			controlsAssessed: results.Count,
 			evidenceCount: results.Sum(r => r.Evidence.Count),
@@ -297,9 +305,31 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 		// assessed travels in the result rather than being implied by the denominator.
 		var assessed = criterionStatuses.Where(c => c.Outcome != CriterionOutcome.NotAssessed).ToList();
 		var metCount = assessed.Count(c => c.Outcome == CriterionOutcome.Met);
-		var percentage = assessed.Count > 0
-			? metCount * 100 / assessed.Count
-			: 0;
+
+		// NOTHING ASSESSED IS NOT ZERO PER CENT, and the difference reaches an external auditor.
+		// The percentage above is undefined when the denominator is empty, and substituting 0 fed the
+		// ladder below its lowest rung: a consumer who had registered no validators - the DEFAULT, since
+		// validators are opt-in - was reported NonCompliant, which is the level a consumer sees
+		// .Adverse. That is the worst verdict available, asserted on evidence that does not exist.
+		//
+		// Unknown is the honest level and it already exists; DetermineOpinion maps it to Disclaimer,
+		// which is exactly what an auditor says when the evidence was never gathered. CriteriaAssessed
+		// and CriteriaEnabled carry the coverage, so a reader can tell "nothing was looked at" from
+		// "everything was looked at and failed" - two facts the single percentage could not separate.
+		if (assessed.Count == 0)
+		{
+			return new CategoryStatus
+			{
+				Category = category,
+				Level = ComplianceLevel.Unknown,
+				CompliancePercentage = 0,
+				CriteriaAssessed = 0,
+				CriteriaEnabled = criterionStatuses.Count,
+				CriteriaWithIssues = 0
+			};
+		}
+
+		var percentage = metCount * 100 / assessed.Count;
 
 		return new CategoryStatus
 		{
@@ -322,6 +352,25 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 		var statuses = categoryStatuses.ToList();
 		if (statuses.Count == 0)
 		{
+			return ComplianceLevel.Unknown;
+		}
+
+		// A CATEGORY NOBODY ASSESSED MUST NOT VOTE, and leaving it in the ladder was wrong in BOTH
+		// directions. ComplianceLevel.Unknown is the LAST enum member, so `All(s => s.Level <=
+		// SubstantiallyCompliant)` is false when any category is Unknown and the method fell through to
+		// PartiallyCompliant -- a QUALIFIED audit opinion on a report where nothing was examined. The
+		// other direction is the one this bead names: before Unknown existed here, an unassessed
+		// category arrived as NonCompliant and forced Adverse.
+		//
+		// Excluding them is the same rule BuildCategoryStatus already applies one level down, where
+		// unassessed criteria leave the percentage. Coverage is not discarded: it travels in each
+		// category's CriteriaAssessed and CriteriaEnabled.
+		statuses = statuses.Where(s => s.Level != ComplianceLevel.Unknown).ToList();
+
+		if (statuses.Count == 0)
+		{
+			// Every category was enabled and none was assessed. Unknown -> Disclaimer, which is an
+			// auditor declining to give an opinion rather than giving a bad one.
 			return ComplianceLevel.Unknown;
 		}
 
@@ -350,16 +399,6 @@ internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2Audit
 			< 50 => GapSeverity.High,
 			< 75 => GapSeverity.Medium,
 			_ => GapSeverity.Low
-		};
-
-	private static AuditorOpinion DetermineOpinion(ComplianceStatus status) =>
-		status.OverallLevel switch
-		{
-			ComplianceLevel.FullyCompliant => AuditorOpinion.Unqualified,
-			ComplianceLevel.SubstantiallyCompliant => AuditorOpinion.Qualified,
-			ComplianceLevel.PartiallyCompliant => AuditorOpinion.Qualified,
-			ComplianceLevel.NonCompliant => AuditorOpinion.Adverse,
-			_ => AuditorOpinion.Disclaimer
 		};
 
 	private static List<ReportException> MapGapsToExceptions(IReadOnlyList<ComplianceGap> gaps) =>

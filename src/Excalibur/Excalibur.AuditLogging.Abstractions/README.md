@@ -25,3 +25,12 @@ same guarantee instead of each rolling its own scheme.
   inserting / deleting / reordering records is detectable without the key.
 - **Verify live fields.** Verification re-canonicalizes the reloaded record's live fields — never a persisted
   canonical blob — so it checks the queryable record an attacker could tamper with.
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

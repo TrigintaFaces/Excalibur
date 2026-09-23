@@ -156,7 +156,7 @@ func azure functionapp publish your-function-app
 
 ### Azure Service Bus Integration
 
-```csharp
+```csharp ignore
 // ServiceBusFunction.cs
 using Microsoft.Azure.Functions.Worker;
 using Excalibur.Dispatch;

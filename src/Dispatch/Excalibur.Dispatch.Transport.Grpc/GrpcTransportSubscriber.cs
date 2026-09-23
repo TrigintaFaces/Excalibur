@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -110,19 +110,34 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 				{
 					var action = await handler(received, cancellationToken).ConfigureAwait(false);
 
+					// Each branch logs its terminal disposition only if the server ACCEPTED the settlement.
+					// A refused settlement is reported by SettleAsync and leaves the message where it
+					// actually is — unsettled and still owned by the server, to be redelivered on the
+					// server's own timeout. The handler is deliberately NOT re-run here and the stream is
+					// deliberately NOT torn down: the business work already happened, so a retry would
+					// re-execute it blindly, and one refused settlement must not kill the subscription.
 					switch (action)
 					{
 						case MessageAction.Acknowledge:
-							await SettleAsync(received.Id, "acknowledge", reason: null, cancellationToken).ConfigureAwait(false);
-							LogMessageAcknowledged(received.Id, Source);
+							if (await SettleAsync(received.Id, "acknowledge", reason: null, cancellationToken).ConfigureAwait(false))
+							{
+								LogMessageAcknowledged(received.Id, Source);
+							}
+
 							break;
 						case MessageAction.Reject:
-							await SettleAsync(received.Id, "reject", reason: null, cancellationToken).ConfigureAwait(false);
-							LogMessageRejected(received.Id, Source);
+							if (await SettleAsync(received.Id, "reject", reason: null, cancellationToken).ConfigureAwait(false))
+							{
+								LogMessageRejected(received.Id, Source);
+							}
+
 							break;
 						case MessageAction.Requeue:
-							await SettleAsync(received.Id, "requeue", reason: null, cancellationToken).ConfigureAwait(false);
-							LogMessageRequeued(received.Id, Source);
+							if (await SettleAsync(received.Id, "requeue", reason: null, cancellationToken).ConfigureAwait(false))
+							{
+								LogMessageRequeued(received.Id, Source);
+							}
+
 							break;
 					}
 				}
@@ -180,7 +195,20 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 	/// Acknowledge RPC, so a Reject/Requeue is actually honored (redelivered or dead-lettered) rather
 	/// than silently dropped -- an un-settled message would otherwise be lost.
 	/// </summary>
-	private async Task SettleAsync(string messageId, string action, string? reason, CancellationToken cancellationToken)
+	/// <returns>
+	/// <see langword="true"/> when the server accepted the settlement; otherwise <see langword="false"/>,
+	/// having logged the refusal.
+	/// </returns>
+	/// <remarks>
+	/// A SUCCESSFUL RPC IS NOT A SUCCESSFUL SETTLEMENT. This discarded the response, so a server that
+	/// completed the call while refusing the settlement was indistinguishable from one that performed it,
+	/// and the loop logged the message acknowledged/rejected/requeued regardless. Unlike the pull receiver,
+	/// this push loop has no caller to throw to: <c>SubscribeAsync</c> returns only when the subscription
+	/// ends, so an exception here would tear down the whole subscription over one refused message. The
+	/// refusal is therefore surfaced as an error-level event and the loop continues, matching how the
+	/// oversized-payload branch above reports and carries on.
+	/// </remarks>
+	private async Task<bool> SettleAsync(string messageId, string action, string? reason, CancellationToken cancellationToken)
 	{
 		var request = new GrpcAcknowledgeRequest
 		{
@@ -197,7 +225,15 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 		using var settleCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 		var callOptions = new CallOptions(cancellationToken: settleCts.Token);
 
-		_ = await _invoker.AsyncUnaryCall(method, null, callOptions, request).ConfigureAwait(false);
+		var response = await _invoker.AsyncUnaryCall(method, null, callOptions, request).ConfigureAwait(false);
+
+		if (GrpcSettlement.IsAccepted(response))
+		{
+			return true;
+		}
+
+		LogSettlementRejected(messageId, Source, action);
+		return false;
 	}
 
 	private TransportReceivedMessage MapToReceivedMessage(GrpcReceivedMessage grpcMessage)
@@ -277,4 +313,9 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 	[LoggerMessage(GrpcTransportEventId.SubscriberPayloadTooLarge, LogLevel.Warning,
 		"gRPC transport subscriber: dropped an oversized inbound payload ({PayloadBytes} bytes) from {Source} before materialization")]
 	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
+
+	[LoggerMessage(GrpcTransportEventId.SubscriberSettlementRejected, LogLevel.Error,
+		"gRPC transport subscriber: the server refused the {Action} of message {MessageId} on {Source}; "
+		+ "the message is NOT settled and remains owned by the server")]
+	private partial void LogSettlementRejected(string messageId, string source, string action);
 }

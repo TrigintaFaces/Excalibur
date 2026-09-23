@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -1000,15 +1000,16 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 	/// claim first would report a fence refusal as a lost claim, and the caller would skip one message and
 	/// keep draining when it should have stopped entirely. The two refusals differ in how much work they
 	/// cost, so collapsing them is not a diagnostic nicety.
+	/// <para>
+	/// <b>This store's terminal transitions remove the row</b> -- a sent message is deleted and a
+	/// dead-lettered one is moved to the dead-letter table -- so a row that is present is never terminal,
+	/// and a terminal message is reported as <see cref="OutboxCompletionOutcome.MessageNotFound"/>, which is
+	/// the accurate answer for this idiom.
+	/// </para>
 	/// </remarks>
 	private static OutboxCompletionOutcome ClassifyFenced(FencedClaimMutationResult result, long presentedToken) =>
-		result.HighWaterToken != presentedToken
-			? OutboxCompletionOutcome.FenceRefused
-			: result.UpdatedCount > 0
-				? OutboxCompletionOutcome.Applied
-				: result.RowExists
-					? OutboxCompletionOutcome.ClaimLost
-					: OutboxCompletionOutcome.MessageNotFound;
+		Excalibur.Outbox.FencedCompletionClassifier.Classify(
+			result.HighWaterToken, presentedToken, result.UpdatedCount, result.RowExists, isTerminal: false);
 
 	/// <summary>
 	/// Reads the outcome out of the single row the guarded statement returned.

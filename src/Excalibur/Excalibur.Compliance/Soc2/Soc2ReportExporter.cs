@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Globalization;
@@ -419,7 +419,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		_ = xml.AppendLine($"  <title>{EscapeXml(report.Title)}</title>");
 		_ = xml.AppendLine($"  <periodStart>{report.PeriodStart:O}</periodStart>");
 		_ = xml.AppendLine($"  <periodEnd>{report.PeriodEnd:O}</periodEnd>");
-		_ = xml.AppendLine($"  <opinion>{report.Opinion}</opinion>");
+		_ = xml.AppendLine($"  <selfAssessedComplianceLevel>{report.OverallLevel}</selfAssessedComplianceLevel>");
 		_ = xml.AppendLine($"  <generatedAt>{report.GeneratedAt:O}</generatedAt>");
 
 		if (report.TenantId is not null)
@@ -630,7 +630,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		_ = text.AppendLine($"Report ID: {report.ReportId}");
 		_ = text.AppendLine($"Report Type: {report.ReportType}");
 		_ = text.AppendLine($"Period: {report.PeriodStart:yyyy-MM-dd} to {report.PeriodEnd:yyyy-MM-dd}");
-		_ = text.AppendLine($"Opinion: {report.Opinion}");
+		_ = text.AppendLine($"Self-assessed compliance level: {report.OverallLevel}");
 		_ = text.AppendLine($"Generated: {report.GeneratedAt:yyyy-MM-dd HH:mm:ss}");
 
 		if (report.TenantId is not null)
@@ -696,7 +696,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			Title = report.Title,
 			PeriodStart = report.PeriodStart,
 			PeriodEnd = report.PeriodEnd,
-			Opinion = report.Opinion,
+			OverallLevel = report.OverallLevel,
 			GeneratedAt = report.GeneratedAt,
 			TenantId = report.TenantId,
 			CategoriesIncluded = report.CategoriesIncluded,
@@ -855,7 +855,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		public string Title { get; init; } = string.Empty;
 		public DateTimeOffset PeriodStart { get; init; }
 		public DateTimeOffset PeriodEnd { get; init; }
-		public AuditorOpinion Opinion { get; init; }
+		public ComplianceLevel OverallLevel { get; init; }
 		public DateTimeOffset GeneratedAt { get; init; }
 		public string? TenantId { get; init; }
 		public IReadOnlyList<TrustServicesCategory> CategoriesIncluded { get; init; } =

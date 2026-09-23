@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Outbox.CosmosDb;
@@ -89,8 +89,16 @@ public sealed class CosmosDbCloudNativeOutboxStoreKitConformanceShould
 	public Task AddAsync_PreservesCanonicalFields_OnRoundTrip_Test() => AddAsync_PreservesCanonicalFields_OnRoundTrip();
 
 	[Fact]
+	public Task AddAsync_RoundTripsEveryContractMember_OnThePendingRead_Test() =>
+		AddAsync_RoundTripsEveryContractMember_OnThePendingRead();
+
+	[Fact]
 	public Task GetPendingAsync_MustReturnMessagesFromEveryTenant_Test() =>
 		GetPendingAsync_MustReturnMessagesFromEveryTenant();
+
+	[Fact]
+	public Task UntenantedPartition_MustRoundTripItsOwnMessage_Test() =>
+		UntenantedPartition_MustRoundTripItsOwnMessage();
 
 	[Fact]
 	public Task GetPendingAsync_EmptyPartition_ReturnsEmpty_Test() => GetPendingAsync_EmptyPartition_ReturnsEmpty();

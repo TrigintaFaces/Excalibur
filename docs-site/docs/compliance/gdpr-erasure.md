@@ -6,6 +6,14 @@ description: Cryptographic erasure for Right to be Forgotten compliance
 
 # GDPR Erasure
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../legal/compliance-disclaimer.md).
+:::
+
 GDPR Article 17 ("Right to be Forgotten") requires organizations to delete personal data upon request. Dispatch implements this through cryptographic erasure (crypto-shredding), which renders data irrecoverable by deleting encryption keys.
 
 ## Before You Start
@@ -293,7 +301,7 @@ The framework reports the deadline. It does not enforce it — a request blocked
 
 ### Certificate retention
 
-Erasure certificates are your evidence that a request was honoured, and **the framework deletes them on a schedule.** Each certificate is stamped with a `RetainUntil` of completion plus `Retention.CertificateRetentionPeriod` — **7 years by default** — and `CleanupExpiredCertificatesAsync` permanently deletes every certificate past that date.
+Erasure certificates are your internal record of each request — not proof that it was carried out — and **the framework deletes them on a schedule.** Each certificate is stamped with a `RetainUntil` of completion plus `Retention.CertificateRetentionPeriod` — **7 years by default** — and `CleanupExpiredCertificatesAsync` permanently deletes every certificate past that date.
 
 ```csharp
 services.Configure<ErasureOptions>(o =>
@@ -301,6 +309,22 @@ services.Configure<ErasureOptions>(o =>
 ```
 
 If your retention obligation is longer than the configured period, raise it before certificates begin ageing out, or export them to your own archive. Deletion is permanent and is not announced.
+
+### Retention enforcement (`RetentionDays`)
+
+`[PersonalData(RetentionDays = N)]` deletes nothing by itself. Retention is enforced only for the types you **declare**, by the `IRetentionContributor` implementations you register:
+
+```csharp
+services.AddRetentionPolicies<Customer>();   // Customer's [PersonalData] properties with RetentionDays > 0
+services.AddRetentionEnforcement();          // periodic pass, every ScanInterval (24 hours by default)
+services.AddSingleton<IRetentionContributor, CustomerRetentionContributor>();
+```
+
+Each pass hands your contributors `RetentionContributorContext.Policies` — the retention policies of the declared types and of nothing else — plus `AsOf`, the evaluation time. A contributor deletes records of those types older than the policy's `RetentionDays` as of `AsOf`, and must skip everything on a dry run. An annotated type you did not declare is never in `Policies`, even when its assembly is loaded. `AddRetentionPoliciesFromAssembly(assembly)` declares every annotated type in one assembly; it is not trim-safe, so trimmed and ahead-of-time applications should use `AddRetentionPolicies<T>()`.
+
+- **Startup fails if enforcement is enabled and nothing is declared**, unless the only contributors registered are the built-in outbox and inbox ones (`AddOutboxRetention`, `AddInboxRetention`), which delete by their own age bound. To turn enforcement off, set `RetentionEnforcementOptions.Enabled = false`.
+- **Declaring a type or assembly with no positive `RetentionDays` throws** at registration.
+- **The enforcement pass does not check legal holds.** A contributor that deletes a data subject's records must call `ILegalHoldService.CheckHoldsAsync` itself before deleting.
 
 :::warning Partial Completion Is Structural, Not Just On Failure
 
@@ -319,7 +343,7 @@ See [Erasure Coverage Model](#erasure-coverage-model) below. Monitor the `Erasur
 
 ### 5. Compliance Certificate
 
-Generate cryptographic proof of erasure. **A certificate can only be produced for a request whose status is
+Generate the erasure certificate — a signed **record** of the erasure, not proof of disposal (see the caution below). **A certificate can only be produced for a request whose status is
 exactly `Completed`:** `GenerateCertificateAsync` throws `InvalidOperationException` for any other status —
 including the `PartiallyCompleted` and `Failed` outcomes described directly above — and `KeyNotFoundException`
 for a request id it does not know. So the cases most in need of documentation are the ones that cannot be
@@ -328,19 +352,47 @@ certified; evidence them from the status and its error summary instead.
 ```csharp
 var certificate = await _erasureService.GenerateCertificateAsync(requestId, ct);
 
-// Certificate contains:
-// - Request details (RequestId, anonymized DataSubjectReference)
-// - Execution timestamp (CompletedAt) and Method (e.g. CryptographicErasure)
-// - Summary.KeysDeleted / RecordsAffected
-// - Summary.DataCategories is present on the type but is NOT populated: both paths that build a
-//   certificate summary set it to an empty list, so do not rely on it
-// - Verification.Verified + Verification.DeletedKeyIds (the specific key IDs proven gone)
-// - Exceptions: stores deliberately retained under Article 17(3) (e.g. the audit store), with legal Basis
-// - Signature: an HMAC-SHA256 over the certificate data, keyed with your configured signing key
-//   (a keyed MAC, not a bare digest — an unkeyed SHA-256 would attest nothing about origin)
+// The certificate is an envelope: certificate.Payload carries every claim, certificate.Signature
+// covers that payload. Read claims through Payload.
+// - Payload.RequestId, Payload.DataSubjectReference (anonymized), Payload.CertificateId
+// - Payload.CompletedAt and Payload.Method (e.g. CryptographicErasure)
+// - Payload.Summary.KeysDeleted / RecordsAffected
+// - Payload.Summary.DataCategories is present on the type but is NOT populated: both paths that build
+//   a certificate summary set it to an empty list, so do not rely on it
+// - Payload.Verification.Verified + Payload.Verification.DeletedKeyIds (the key IDs proven gone)
+// - Payload.Exceptions: stores deliberately retained under Article 17(3) (e.g. the audit store),
+//   each with its legal Basis
+// - Payload.Version: the certificate format version, INSIDE the signed payload. Read the scheme from
+//   here, never from an untrusted envelope
+// - Signature: an HMAC-SHA256 keyed with your configured signing key, computed over a canonical
+//   serialization of Payload IN FULL. Every claim above is covered; the signature itself sits on the
+//   envelope, outside the signed input, so there is no exclusion list to get wrong.
 ```
 
-The verification summary records the **specific** deleted key IDs (`Verification.DeletedKeyIds`) and is non-vacuous: if the summary claims `KeysDeleted > 0` but no deleted key can be confirmed gone — or a discovered location was left uncovered — `Verification.Verified` is `false` rather than a blanket `true`.
+:::danger A certificate is a record, not proof of disposal — and two things about it still need care
+
+**`Verification.Verified` does not mean the deletions were confirmed.** On the execution path it is
+`DeletedKeyIds.Count == KeysDeleted`, so it reads `true` when both are zero — the value produced by a
+hard deletion in which no key was ever shredded, and by an erasure that substantiated nothing. Read
+`Payload.Verification.DeletedKeyIds` for what was actually proven gone, treat an empty list as
+*unsubstantiated* rather than as *nothing needed deleting*, and read
+`Payload.Verification.Methods`: it reports `None` when no check substantiated the erasure.
+
+**The framework ships no way to verify a certificate's signature.** It signs; it does not verify.
+`ErasureVerificationService` is not that check — it verifies that erasure occurred and does not touch
+the signature. Write the verification side yourself: recompute HMAC-SHA256 over a canonical
+serialization of `Payload` with your signing key, and compare in constant time.
+
+**Certificates written by earlier versions carry a weaker signature.** Format `1.0` signed three
+identity fields only — the request id, the subject hash and the completion instant — so a `1.0`
+certificate's claims could be altered while its signature still verified, and its version marker sat
+outside the signed input. Format `2.0` signs the payload whole and carries the version inside it.
+Check `Payload.Version` before relying on any `1.0` certificate you have retained, and see the
+[Known issues](../known-issues.md) page.
+
+**The evidence of disposal is your key-management service's record of the key deletion**, not this
+document. The certificate records that a request was processed and what the framework observed.
+:::
 
 ## Erasure Coverage Model
 
@@ -903,7 +955,7 @@ Event store erasure uses **tombstoning** (replacing payloads) rather than **dele
 | Legal holds | Always check before execution |
 | Audit logging | Enable for compliance evidence |
 | Key rotation | Use separate keys per data subject |
-| Verification | Generate certificates for all completions |
+| Verification | Keep your key-management service's record of each key deletion: that, not the certificate, is the evidence of disposal. The framework does not write erasure events to the audit log |
 | Data inventory | Maintain accurate data location registry |
 
 ## Compliance Mapping

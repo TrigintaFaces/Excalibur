@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
@@ -203,7 +203,7 @@ public sealed class ShapeBInboxEncryptionAtRestShould
 		public ValueTask<InboxEntry?> GetEntryAsync(string messageId, string handlerType, CancellationToken cancellationToken) =>
 			ValueTask.FromResult<InboxEntry?>(null);
 
-		public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken) =>
-			ValueTask.CompletedTask;
+		public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken) =>
+			ValueTask.FromResult(InboxMarkFailedOutcome.Applied);
 	}
 }

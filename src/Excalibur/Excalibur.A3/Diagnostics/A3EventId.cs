@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.A3.Diagnostics;
 
@@ -54,6 +54,9 @@ internal static class A3EventId
 	/// <summary>Permission evaluated.</summary>
 	public const int PermissionEvaluated = 180503;
 
+	/// <summary> Authorization was denied by the A3 authorization middleware. </summary>
+	public const int AuthorizationMiddlewareDenied = 180504;
+
 	// ========================================
 	// 181500-181599: Activity Groups
 	// ========================================
@@ -69,6 +72,9 @@ internal static class A3EventId
 
 	/// <summary>Activity grants retrieved.</summary>
 	public const int ActivityGrantsRetrieved = 181503;
+
+	/// <summary>The configured grant store cannot replace grants atomically and the host accepted that.</summary>
+	public const int ActivityGroupGrantSyncNotAtomic = 181504;
 
 	// ========================================
 	// 180600-180699: Grant Repository

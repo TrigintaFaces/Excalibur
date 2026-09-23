@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Caching;
@@ -106,7 +106,7 @@ public sealed class CacheResultAttributeWithICacheableIntegrationShould
 		// Assert
 		result1.Succeeded.ShouldBeTrue();
 		result2.Succeeded.ShouldBeTrue();
-		result2.CacheHit.ShouldBeTrue();
+		result2.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		// HybridCache returns different instances due to serialization - compare values instead of references
 		result1.ReturnValue.Value.ShouldBe(result2.ReturnValue.Value);
 		CacheTestQueryHandler.CallCount.ShouldBe(1);

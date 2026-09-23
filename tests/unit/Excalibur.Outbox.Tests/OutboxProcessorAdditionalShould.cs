@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
@@ -54,7 +54,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 
 			envelopeDeserializer: null,
 			deadLetterQueue: deadLetterQueue,
-			circuitBreakerRegistry: circuitBreakerRegistry,
+			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: backoffCalculator);
 
 		// Assert
@@ -86,7 +86,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -121,7 +122,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -174,7 +176,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -205,7 +208,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -248,7 +252,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -288,7 +293,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -324,7 +330,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -356,7 +363,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -423,7 +431,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 
 			envelopeDeserializer: null,
 			deadLetterQueue: deadLetterQueue,
-			circuitBreakerRegistry: circuitBreakerRegistry,
+			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: backoffCalculator);
 	}
 

@@ -1,33 +1,33 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
-using Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample.Infrastructure;
+using Excalibur.Dispatch.Examples.ECommerceSample.Infrastructure;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 
-namespace Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample;
+namespace Excalibur.Dispatch.Examples.ECommerceSample;
 
 /// <summary>
-/// Health check for enhanced stores functionality. Validates that all enhanced stores are operational and performing within acceptable limits.
+/// Health check for the inbox, outbox and schedule stores. Each probe performs a real round trip through the store it names.
 /// </summary>
-public sealed partial class EnhancedStoreHealthCheck(
+public sealed partial class StoreHealthCheck(
 	IInboxStore inboxStore,
 	IOutboxStore outboxStore,
 	IScheduleStore scheduleStore,
-	ILogger<EnhancedStoreHealthCheck> logger) : IHealthCheck
+	ILogger<StoreHealthCheck> logger) : IHealthCheck
 {
 	private static readonly string HandlerType =
-		typeof(EnhancedStoreHealthCheck).FullName ?? nameof(EnhancedStoreHealthCheck);
+		typeof(StoreHealthCheck).FullName ?? nameof(StoreHealthCheck);
 
 	private readonly IInboxStore _inboxStore = inboxStore ?? throw new ArgumentNullException(nameof(inboxStore));
 	private readonly IOutboxStore _outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
 	private readonly IScheduleStore _scheduleStore = scheduleStore ?? throw new ArgumentNullException(nameof(scheduleStore));
-	private readonly ILogger<EnhancedStoreHealthCheck> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly ILogger<StoreHealthCheck> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	public async Task<HealthCheckResult> CheckHealthAsync(
 		HealthCheckContext context,
@@ -64,7 +64,7 @@ public sealed partial class EnhancedStoreHealthCheck(
 		catch (Exception ex)
 		{
 			LogHealthCheckFailed(ex);
-			return HealthCheckResult.Unhealthy("Enhanced stores health check failed", ex);
+			return HealthCheckResult.Unhealthy("Store health check failed", ex);
 		}
 	}
 
@@ -127,10 +127,10 @@ public sealed partial class EnhancedStoreHealthCheck(
 		return string.Join("; ", descriptions);
 	}
 
-	[LoggerMessage(1001, LogLevel.Debug, "🏥 Enhanced stores health check completed in {ElapsedMs}ms with status {Status}")]
+	[LoggerMessage(1001, LogLevel.Debug, "Store health check completed in {ElapsedMs}ms with status {Status}")]
 	private partial void LogHealthCheckCompleted(double elapsedMs, HealthStatus status);
 
-	[LoggerMessage(1002, LogLevel.Error, "❌ Enhanced stores health check failed")]
+	[LoggerMessage(1002, LogLevel.Error, "Store health check failed")]
 	private partial void LogHealthCheckFailed(Exception ex);
 
 	private async Task<StoreHealthInfo> CheckInboxStoreHealthAsync(CancellationToken cancellationToken)
@@ -199,27 +199,17 @@ public sealed partial class EnhancedStoreHealthCheck(
 			{ Id = testMessageId };
 			await _outboxStore.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 
-			// Get unsent messages to verify staging worked
-			// This probe drains in-process, so no leadership tenure applies. The token is stated, never defaulted:
-			// a caller that omits it is not choosing an unfenced write, and a fenced deployment must pass its own token.
-			var unsentMessages = await _outboxStore.GetUnsentMessagesAsync(10, cancellationToken)
-				.ConfigureAwait(false);
-			if (!unsentMessages.Any(m => m.Id == testMessageId))
-			{
-				return new StoreHealthInfo
-				{
-					Status = HealthStatus.Unhealthy,
-					ResponseTime = stopwatch.Elapsed,
-					ErrorMessage = "Test message could not be retrieved from unsent messages"
-				};
-			}
-
-			// Mark as sent
+			// Completing the probe message is what proves the round trip: MarkSentAsync has to find the
+			// staged message and fails loudly if it does not.
+			//
+			// Deliberately NOT a GetUnsentMessagesAsync read. That call CLAIMS the batch it returns, so a
+			// probe using it to "verify staging" would lease a batch of real, undelivered messages away
+			// from the drain for the length of the store's lease window and release only its own.
 			await _outboxStore.MarkSentAsync(testMessageId, cancellationToken).ConfigureAwait(false);
 
 			stopwatch.Stop();
 
-			return new StoreHealthInfo { Status = HealthStatus.Healthy, ResponseTime = stopwatch.Elapsed, OperationsPerformed = 3 };
+			return new StoreHealthInfo { Status = HealthStatus.Healthy, ResponseTime = stopwatch.Elapsed, OperationsPerformed = 2 };
 		}
 		catch (Exception ex)
 		{
@@ -310,9 +300,7 @@ public sealed partial class BusinessLogicHealthCheck(
 
 			// Check email service
 			var sentEmailCount = _emailService.GetSentEmailCount();
-			var pendingEmailCount = _emailService.GetPendingEmailCount();
 			healthData["sent_emails"] = sentEmailCount;
-			healthData["pending_emails"] = pendingEmailCount;
 
 			// Check inventory repository
 			var allInventory = await _inventoryRepository.GetAllInventoryAsync().ConfigureAwait(false);
@@ -355,10 +343,10 @@ public sealed partial class BusinessLogicHealthCheck(
 		}
 	}
 
-	[LoggerMessage(1001, LogLevel.Debug, "🏥 Business logic health check completed in {ElapsedMs}ms")]
+	[LoggerMessage(1001, LogLevel.Debug, "Business logic health check completed in {ElapsedMs}ms")]
 	private partial void LogBusinessLogicHealthCheckCompleted(double elapsedMs);
 
-	[LoggerMessage(1002, LogLevel.Error, "❌ Business logic health check failed")]
+	[LoggerMessage(1002, LogLevel.Error, "Business logic health check failed")]
 	private partial void LogBusinessLogicHealthCheckFailed(Exception ex);
 }
 

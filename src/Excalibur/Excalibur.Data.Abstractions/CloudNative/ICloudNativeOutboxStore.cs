@@ -1,5 +1,5 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -256,6 +256,15 @@ public sealed record CloudOutboxMessage
 	/// A stale value is expected and harmless: once the lease expires the message is claimable regardless of
 	/// who is named here, and the next claim overwrites it. Read this as "who took it last", not as a live
 	/// ownership assertion.
+	/// <para>
+	/// <b>Change-feed and listener projections do not carry this field, or <see cref="LeasedAt" />, and
+	/// that asymmetry is intentional.</b> A feed handler is not a claimant, so the only decision a lease
+	/// value could support for it is whether to publish — and the paragraph above says the value does not
+	/// support that decision. Carrying it would make an unsound choice available without making it sound.
+	/// A handler reading an unclaimed message before a poller claims it publishes either way, so the field
+	/// cannot prevent the duplicate it appears to prevent. Every other member of this record is carried by
+	/// every read path.
+	/// </para>
 	/// </remarks>
 	public string? LeasedBy { get; init; }
 

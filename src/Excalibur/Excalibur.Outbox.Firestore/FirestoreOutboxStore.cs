@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Grpc.Core;
 using System.Globalization;
@@ -25,12 +25,6 @@ namespace Excalibur.Outbox.Firestore;
 /// </summary>
 public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, ICloudNativeOutboxStoreClaim, IAsyncDisposable, ITenantPartitionedStore
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false
-	};
-
 	private readonly FirestoreOutboxOptions _options;
 	private readonly ILogger<FirestoreOutboxStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -757,9 +751,9 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 
 		if (message.Headers != null)
 		{
-#pragma warning disable IL2026, IL3050
-			doc["headers"] = JsonSerializer.Serialize(message.Headers, JsonOptions);
-#pragma warning restore IL2026, IL3050
+			doc["headers"] = JsonSerializer.Serialize(
+				message.Headers,
+				FirestoreOutboxSerializerContext.Default.DictionaryStringString);
 		}
 
 		if (!string.IsNullOrEmpty(message.AggregateId))
@@ -812,11 +806,11 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 			MessageId = doc.GetValue<string>("messageId"),
 			MessageType = doc.GetValue<string>("messageType"),
 			Payload = Convert.FromBase64String(doc.GetValue<string>("payload")),
-#pragma warning disable IL2026, IL3050
 			Headers = doc.ContainsField("headers") && doc.GetValue<string?>("headers") != null
-				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.GetValue<string>("headers"), JsonOptions)
+				? JsonSerializer.Deserialize(
+					doc.GetValue<string>("headers"),
+					FirestoreOutboxSerializerContext.Default.DictionaryStringString)
 				: null,
-#pragma warning restore IL2026, IL3050
 			AggregateId = doc.ContainsField("aggregateId") ? doc.GetValue<string?>("aggregateId") : null,
 			AggregateType = doc.ContainsField("aggregateType") ? doc.GetValue<string?>("aggregateType") : null,
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -27,7 +27,7 @@ public sealed class ErasureVerificationServiceShould
 	{
 		_fakeStore = A.Fake<IErasureStore>();
 		_fakeCertStore = A.Fake<IErasureCertificateStore>();
-		_fakeKeyProvider = A.Fake<IKeyManagementProvider>();
+		_fakeKeyProvider = KeyDestructionFakes.ProviderThatReportsDestruction();
 		_fakeInventoryService = A.Fake<IDataInventoryService>();
 		_fakeAuditStore = A.Fake<IAuditStore>();
 		_fakeOptions = A.Fake<IOptions<ErasureOptions>>();
@@ -192,8 +192,7 @@ public sealed class ErasureVerificationServiceShould
 			.Returns(status);
 		_ = A.CallTo(() => _fakeCertStore.GetCertificateByIdAsync(status.CertificateId!.Value, A<CancellationToken>._))
 			.Returns(certificate);
-		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
-			.Returns((KeyMetadata?)null); // Keys not found = deleted
+		_fakeKeyProvider.ReportsEveryKeyDestroyed(); // the provider confirms both keys destroyed
 
 		SetupEmptyInventory(status);
 
@@ -208,19 +207,23 @@ public sealed class ErasureVerificationServiceShould
 	}
 
 	[Fact]
-	public async Task VerifyErasureAsync_ReturnSuccess_WhenKeysMarkedDestroyed()
+	public async Task VerifyErasureAsync_ReturnFailure_WhenLookupReportsKeyDestroyedButProviderCannotConfirmDestruction()
 	{
-		// Arrange
+		// Arrange: the provider cannot answer authoritatively, so its lookup -- even one reporting Destroyed -- is
+		// not confirmation, and the erasure is not verified.
 		var requestId = Guid.NewGuid();
 		var keyIds = new List<string> { "key-1" };
 		var status = CreateStatus(requestId, ErasureRequestStatus.Completed, certificateId: Guid.NewGuid());
 		var certificate = CreateCertificate(requestId, keyIds);
+		var cannotConfirm = A.Fake<IKeyManagementProvider>();
+		var sut = new ErasureVerificationService(
+			_fakeStore, cannotConfirm, _fakeInventoryService, _fakeAuditStore, _fakeOptions, _fakeLogger);
 
 		_ = A.CallTo(() => _fakeStore.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(status);
 		_ = A.CallTo(() => _fakeCertStore.GetCertificateByIdAsync(status.CertificateId!.Value, A<CancellationToken>._))
 			.Returns(certificate);
-		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
+		_ = A.CallTo(() => cannotConfirm.GetKeyAsync("key-1", A<CancellationToken>._))
 			.Returns(new KeyMetadata
 			{
 				KeyId = "key-1",
@@ -234,15 +237,16 @@ public sealed class ErasureVerificationServiceShould
 		SetupEmptyInventory(status);
 
 		// Act
-		var result = await _sut.VerifyErasureAsync(requestId, CancellationToken.None);
+		var result = await sut.VerifyErasureAsync(requestId, CancellationToken.None);
 
 		// Assert
-		result.Verified.ShouldBeTrue();
-		result.DeletedKeyIds.ShouldContain("key-1");
+		result.Verified.ShouldBeFalse();
+		result.DeletedKeyIds.ShouldNotContain("key-1");
+		result.Failures.ShouldContain(f => f.FailedMethod == VerificationMethod.KeyManagementSystem);
 	}
 
 	[Fact]
-	public async Task VerifyErasureAsync_ReturnSuccess_WhenKeysMarkedPendingDestruction()
+	public async Task VerifyErasureAsync_ReturnFailure_WhenKeysOnlyMarkedPendingDestruction()
 	{
 		// Arrange
 		var requestId = Guid.NewGuid();
@@ -270,8 +274,9 @@ public sealed class ErasureVerificationServiceShould
 		// Act
 		var result = await _sut.VerifyErasureAsync(requestId, CancellationToken.None);
 
-		// Assert
-		result.Verified.ShouldBeTrue();
+		// Assert: a key pending destruction is still recoverable, so the erasure is NOT verified.
+		result.Verified.ShouldBeFalse();
+		result.DeletedKeyIds.ShouldNotContain("key-1");
 	}
 
 	[Fact]
@@ -409,8 +414,7 @@ public sealed class ErasureVerificationServiceShould
 			.Returns(status);
 		_ = A.CallTo(() => _fakeCertStore.GetCertificateByIdAsync(status.CertificateId!.Value, A<CancellationToken>._))
 			.Returns(certificate);
-		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
-			.Returns((KeyMetadata?)null);
+		_fakeKeyProvider.ReportsDestroyed("key-1", true);
 
 		var sut = new ErasureVerificationService(
 			_fakeStore,
@@ -676,61 +680,60 @@ public sealed class ErasureVerificationServiceShould
 			() => _sut.VerifyKeyDeletionAsync("   ", CancellationToken.None));
 	}
 
-	[Fact]
-	public async Task VerifyKeyDeletionAsync_ReturnTrue_WhenKeyNotFound()
+	[Theory]
+	[InlineData(LookupAnswer.NotFound)]
+	[InlineData(LookupAnswer.KeyNotFoundException)]
+	[InlineData(LookupAnswer.StatusDestroyed)]
+	public async Task VerifyKeyDeletionAsync_ReturnFalse_WhenProviderCannotConfirmDestruction_WhateverItsLookupSays(LookupAnswer lookup)
 	{
-		// Arrange
+		// Arrange: a provider without IKeyDestructionStatusProvider. "Not found" is also what a backend with a
+		// recovery window says about a key it can still restore, so no lookup answer confirms destruction.
 		var keyId = "deleted-key-1";
-		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync(keyId, A<CancellationToken>._))
-			.Returns((KeyMetadata?)null);
+		var cannotConfirm = A.Fake<IKeyManagementProvider>();
+		var lookupCall = A.CallTo(() => cannotConfirm.GetKeyAsync(keyId, A<CancellationToken>._));
+		if (lookup == LookupAnswer.KeyNotFoundException)
+		{
+			_ = lookupCall.ThrowsAsync(new KeyNotFoundException($"Key {keyId} not found"));
+		}
+		else
+		{
+			_ = lookupCall.Returns(lookup == LookupAnswer.NotFound
+				? null
+				: new KeyMetadata
+				{
+					KeyId = keyId,
+					Version = 1,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+					Status = KeyStatus.Destroyed,
+					CreatedAt = DateTimeOffset.UtcNow.AddDays(-30),
+				});
+		}
+		var sut = new ErasureVerificationService(
+			_fakeStore, cannotConfirm, _fakeInventoryService, _fakeAuditStore, _fakeOptions, _fakeLogger);
 
 		// Act
-		var result = await _sut.VerifyKeyDeletionAsync(keyId, CancellationToken.None);
+		var result = await sut.VerifyKeyDeletionAsync(keyId, CancellationToken.None);
 
 		// Assert
-		result.ShouldBeTrue();
+		result.ShouldBeFalse();
 	}
 
-	[Fact]
-	public async Task VerifyKeyDeletionAsync_ReturnTrue_WhenKeyNotFoundExceptionThrown()
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task VerifyKeyDeletionAsync_ReturnWhatTheProviderReports_WhenItCanConfirmDestruction(bool destroyed)
 	{
-		// Arrange
-		var keyId = "deleted-key-1";
-		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync(keyId, A<CancellationToken>._))
-			.ThrowsAsync(new KeyNotFoundException($"Key {keyId} not found"));
+		// Liveness partner: a provider that CAN answer is believed, in both directions.
+		var keyId = "reported-key-1";
+		_fakeKeyProvider.ReportsDestroyed(keyId, destroyed);
 
-		// Act
 		var result = await _sut.VerifyKeyDeletionAsync(keyId, CancellationToken.None);
 
-		// Assert
-		result.ShouldBeTrue();
+		result.ShouldBe(destroyed);
 	}
 
 	[Fact]
-	public async Task VerifyKeyDeletionAsync_ReturnTrue_WhenKeyIsDestroyed()
-	{
-		// Arrange
-		var keyId = "destroyed-key-1";
-		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync(keyId, A<CancellationToken>._))
-			.Returns(new KeyMetadata
-			{
-				KeyId = keyId,
-				Version = 1,
-				Algorithm = EncryptionAlgorithm.Aes256Gcm,
-				Status = KeyStatus.Destroyed,
-				CreatedAt = DateTimeOffset.UtcNow.AddDays(-30),
-				ExpiresAt = DateTimeOffset.UtcNow.AddDays(-1)
-			});
-
-		// Act
-		var result = await _sut.VerifyKeyDeletionAsync(keyId, CancellationToken.None);
-
-		// Assert
-		result.ShouldBeTrue();
-	}
-
-	[Fact]
-	public async Task VerifyKeyDeletionAsync_ReturnTrue_WhenKeyIsPendingDestruction()
+	public async Task VerifyKeyDeletionAsync_ReturnFalse_WhenKeyIsPendingDestruction()
 	{
 		// Arrange
 		var keyId = "pending-destruction-key-1";
@@ -748,8 +751,8 @@ public sealed class ErasureVerificationServiceShould
 		// Act
 		var result = await _sut.VerifyKeyDeletionAsync(keyId, CancellationToken.None);
 
-		// Assert
-		result.ShouldBeTrue();
+		// Assert: recoverable until the window ends, so not confirmed deleted.
+		result.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -817,6 +820,13 @@ public sealed class ErasureVerificationServiceShould
 
 	#region Helper Methods
 
+	public enum LookupAnswer
+	{
+		NotFound,
+		KeyNotFoundException,
+		StatusDestroyed,
+	}
+
 	private static ErasureStatus CreateStatus(
 		Guid requestId,
 		ErasureRequestStatus status,
@@ -847,23 +857,26 @@ public sealed class ErasureVerificationServiceShould
 	{
 		return new ErasureCertificate
 		{
-			CertificateId = Guid.NewGuid(),
-			RequestId = requestId,
-			DataSubjectReference = "hash-abc123",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary { KeysDeleted = deletedKeyIds.Count, RecordsAffected = 10 },
-			Verification = new VerificationSummary
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = requestId,
+				DataSubjectReference = "hash-abc123",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary { KeysDeleted = deletedKeyIds.Count, RecordsAffected = 10 },
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.KeyManagementSystem,
 				DeletedKeyIds = deletedKeyIds.ToList(),
 				VerifiedAt = DateTimeOffset.UtcNow
 			},
-			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
-			Signature = "signature-123",
-			RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "signature-123"
 		};
 	}
 

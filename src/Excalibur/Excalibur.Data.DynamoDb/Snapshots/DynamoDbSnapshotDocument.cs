@@ -1,14 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 using Amazon.DynamoDBv2.Model;
 
 using Excalibur.Domain.Model;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.DynamoDb.Snapshots;
 
@@ -40,7 +42,6 @@ internal static class DynamoDbSnapshotDocument
 	public const string Data = "data";
 	public const string Metadata = "metadata";
 	public const string CreatedAt = "createdAt";
-	public const string Ttl = "ttl";
 
 	// Partition key prefix
 	public const string SnapshotPrefix = "SNAPSHOT#";
@@ -82,15 +83,35 @@ internal static class DynamoDbSnapshotDocument
 	/// </summary>
 	/// <param name="snapshot">The snapshot to convert.</param>
 	/// <param name="ttlSeconds">Optional TTL in seconds (0 = no TTL).</param>
+	/// <param name="ttlAttributeName">
+	/// The table's configured TTL attribute name. The expiry is written under THIS name: DynamoDB only expires
+	/// an item by the attribute named in the table's TTL specification, which is set from the same option, so
+	/// writing a fixed name instead would leave every item unexpired once the option is renamed.
+	/// </param>
 	/// <param name="tenantId">
 	/// The store's ambient tenant partition. Required, and NOT defaulted: an item written under an omitted
 	/// partition would carry a key no read path composes, so every subsequent load would miss and silently
 	/// rebuild from the event stream.
 	/// </param>
+	/// <param name="jsonOptions">
+	/// The store's canonical serializer options, carrying the consumer's resolver when one was supplied.
+	/// Both serialization paths write through these, so the stored bytes do not vary with the resolver.
+	/// </param>
+	/// <param name="hasTypeInfoResolver">
+	/// Whether a source-generated resolver is attached. When it is, metadata values are dispatched through
+	/// their runtime type rather than through the reflection-based serializer, which is what lets this run
+	/// with no reflection available.
+	/// </param>
 	/// <returns>The DynamoDB item attributes.</returns>
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	public static Dictionary<string, AttributeValue> FromSnapshot(ISnapshot snapshot, string tenantId, int ttlSeconds = 0)
+	public static Dictionary<string, AttributeValue> FromSnapshot(
+		ISnapshot snapshot,
+		string tenantId,
+		JsonSerializerOptions jsonOptions,
+		bool hasTypeInfoResolver,
+		int ttlSeconds,
+		string ttlAttributeName)
 	{
 		var item = new Dictionary<string, AttributeValue>
 		{
@@ -106,14 +127,21 @@ internal static class DynamoDbSnapshotDocument
 
 		if (snapshot.Metadata is { Count: > 0 })
 		{
-			var metadataJson = JsonSerializer.Serialize(snapshot.Metadata);
+			// Both paths write through the SAME canonical options, so a snapshot written with a resolver
+			// is byte-identical to one written without. The resolver path dispatches each value through
+			// its own runtime type, which is what makes it work with no reflection available.
+			var metadataJson = hasTypeInfoResolver
+				? Encoding.UTF8.GetString(
+					EventSerializationDefaults.SerializeMetadataWithResolver(snapshot.Metadata, jsonOptions))
+				: JsonSerializer.Serialize(snapshot.Metadata, jsonOptions);
+
 			item[Metadata] = new() { S = metadataJson };
 		}
 
 		if (ttlSeconds > 0)
 		{
 			var ttlValue = DateTimeOffset.UtcNow.AddSeconds(ttlSeconds).ToUnixTimeSeconds();
-			item[Ttl] = new() { N = ttlValue.ToString(CultureInfo.InvariantCulture) };
+			item[ttlAttributeName] = new() { N = ttlValue.ToString(CultureInfo.InvariantCulture) };
 		}
 
 		return item;
@@ -123,16 +151,19 @@ internal static class DynamoDbSnapshotDocument
 	/// Converts a DynamoDB item to a <see cref="Snapshot"/>.
 	/// </summary>
 	/// <param name="item">The DynamoDB item attributes.</param>
+	/// <param name="jsonOptions">
+	/// The store's canonical serializer options, carrying the consumer's resolver when one was supplied.
+	/// </param>
 	/// <returns>The snapshot representation.</returns>
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
-	public static Snapshot ToSnapshot(Dictionary<string, AttributeValue> item)
+	public static Snapshot ToSnapshot(Dictionary<string, AttributeValue> item, JsonSerializerOptions jsonOptions)
 	{
 		IDictionary<string, object>? metadata = null;
 
 		if (item.TryGetValue(Metadata, out var metadataAttr) && !string.IsNullOrEmpty(metadataAttr.S))
 		{
-			metadata = JsonSerializer.Deserialize<Dictionary<string, object>>(metadataAttr.S);
+			metadata = JsonSerializer.Deserialize<Dictionary<string, object>>(metadataAttr.S, jsonOptions);
 		}
 
 		return new Snapshot

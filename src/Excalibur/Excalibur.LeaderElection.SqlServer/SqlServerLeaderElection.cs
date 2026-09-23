@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.Dispatch;
@@ -302,8 +302,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 			// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock:
 			// the snapshot taken under the lock keeps the event args consistent (no torn read).
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource));
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource, timestamp: _timeProvider.GetUtcNow()));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource, timestamp: _timeProvider.GetUtcNow()));
 		}
 	}
 
@@ -638,8 +638,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 		LogBecameLeader(CandidateId, _lockResource);
 
-		BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, CandidateId, _lockResource));
+		BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource, timestamp: _timeProvider.GetUtcNow()));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, CandidateId, _lockResource, timestamp: _timeProvider.GetUtcNow()));
 	}
 
 	private async Task LoseLeadershipAsync()
@@ -662,8 +662,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 		// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
 		// snapshot taken under the lock keeps the event args consistent (no torn read).
-		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource));
+		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource, timestamp: _timeProvider.GetUtcNow()));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource, timestamp: _timeProvider.GetUtcNow()));
 
 		// Clean up connection asynchronously
 		if (_connection != null)

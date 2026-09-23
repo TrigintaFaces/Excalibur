@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -48,7 +48,7 @@ namespace Excalibur.Compliance.Aws;
 		+ "this class along the four interfaces it implements, which is a refactor rather than a one-line "
 		+ "change and is tracked separately; the tag vocabulary has already been extracted to AwsKmsKeyTags "
 		+ "as the first step.")]
-public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IDisposable
+public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IKeyDestructionStatusProvider, IDisposable
 {
 	private readonly IAmazonKeyManagementService _kmsClient;
 	private readonly IMemoryCache _metadataCache;
@@ -315,63 +315,49 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 			else
 			{
 				var key = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
-				if (key is null)
+				if (key is not null)
 				{
-					return KeyDestructionOutcome.NotFound;
+					kmsKeyId = _aliasToKeyIdMap.GetValueOrDefault(keyId);
 				}
-
-				kmsKeyId = _aliasToKeyIdMap.GetValueOrDefault(keyId);
 			}
 
-			if (string.IsNullOrEmpty(kmsKeyId))
+			// A rotated key is several CMKs: rotation creates a new CMK, moves the unversioned alias to it, and
+			// leaves each superseded CMK ENABLED (so it can still decrypt) behind its own per-version alias.
+			// Destroying only the CMK the unversioned alias names left every earlier version able to decrypt
+			// everything written before the rotation -- so every version is destroyed here, not just the current one.
+			var targets = new List<string>();
+			if (!string.IsNullOrEmpty(kmsKeyId))
+			{
+				targets.Add(kmsKeyId);
+			}
+
+			foreach (var target in await FindVersionAliasTargetsAsync(keyId, cancellationToken).ConfigureAwait(false))
+			{
+				if (!targets.Contains(target, StringComparer.Ordinal))
+				{
+					targets.Add(target);
+				}
+			}
+
+			if (targets.Count == 0)
 			{
 				LogKeyIdResolutionFailed(keyId);
 				return KeyDestructionOutcome.NotFound;
 			}
 
-			// Determine the key's material origin: imported key material can be destroyed immediately
-			// (irrecoverable on return, Vault parity); a KMS-generated symmetric CMK can only be SCHEDULED
-			// behind AWS's mandatory 7-30 day window, so it stays recoverable until the window elapses.
-			var describe = await _kmsClient.DescribeKeyAsync(
-				new DescribeKeyRequest { KeyId = kmsKeyId },
-				cancellationToken).ConfigureAwait(false);
-			var origin = describe.KeyMetadata?.Origin;
-
-			if (origin == OriginType.EXTERNAL)
-			{
-				// Imported key material — delete it immediately; the CMK becomes unusable at once and any data
-				// encrypted under it is unrecoverable now (no pending window).
-				_ = await _kmsClient.DeleteImportedKeyMaterialAsync(
-					new DeleteImportedKeyMaterialRequest { KeyId = kmsKeyId },
-					cancellationToken).ConfigureAwait(false);
-
-				await DeleteAliasAndClearCacheAsync(alias, keyId, cancellationToken).ConfigureAwait(false);
-				LogKeyDestroyed(keyId);
-				return KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow);
-			}
-
-			// KMS-generated CMK (or external key store): AWS enforces a mandatory pending-deletion window and the
-			// key remains CancelKeyDeletion-recoverable until it elapses. Do NOT silently clamp: honor the request
-			// where legal and DISCLOSE the effective irreversibility instant through the returned outcome.
 			var effectiveWindow = retentionDays <= 0
 				? MinPendingWindowDays
 				: Math.Clamp(retentionDays, MinPendingWindowDays, MaxPendingWindowDays);
 
-			_ = await _kmsClient.ScheduleKeyDeletionAsync(
-				new ScheduleKeyDeletionRequest { KeyId = kmsKeyId, PendingWindowInDays = effectiveWindow },
-				cancellationToken).ConfigureAwait(false);
+			var outcomes = new List<KeyDestructionOutcome>(targets.Count);
+			foreach (var target in targets)
+			{
+				outcomes.Add(await DestroyCmkAsync(
+					keyId, target, isCurrent: string.Equals(target, kmsKeyId, StringComparison.Ordinal), effectiveWindow, cancellationToken)
+					.ConfigureAwait(false));
+			}
 
-			// Keep the alias. A scheduled key remains recoverable until its window elapses, and the contract
-			// is explicit that it MUST NOT be attested as erased before then -- which requires that it stay
-			// observable. Deleting the alias here made the key vanish from this provider's view the instant
-			// deletion was scheduled, so a compliance caller could not distinguish "scheduled, still
-			// recoverable" from "gone", which is the distinction the outcome exists to report. The alias is
-			// removed only when destruction has actually completed.
-			_metadataCache.Remove($"key:{keyId}");
-
-			LogKeyScheduledForDeletion(keyId, effectiveWindow);
-
-			return KeyDestructionOutcome.ScheduledAt(DateTimeOffset.UtcNow.AddDays(effectiveWindow));
+			return CombineOutcomes(outcomes);
 		}
 		catch (NotFoundException)
 		{
@@ -382,6 +368,189 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 			LogFailedToScheduleDeletion(keyId, ex);
 			throw;
 		}
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Destroyed only when no alias of this key -- the unversioned alias or any per-version alias -- still names a
+	/// CMK that KMS can describe. A CMK pending deletion is recoverable with <c>CancelKeyDeletion</c>, and a
+	/// superseded version left enabled by rotation can still decrypt, so either one means NOT destroyed. An
+	/// imported-material CMK whose material has been deleted is irrecoverable and counts as destroyed. AWS removes
+	/// a CMK's aliases when it deletes the CMK. The metadata cache is bypassed. A failure to ask is thrown.
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		foreach (var target in await FindAliasTargetsAsync(keyId, includeUnversioned: true, cancellationToken).ConfigureAwait(false))
+		{
+			AwsKeyMetadata? metadata;
+			try
+			{
+				metadata = (await _kmsClient.DescribeKeyAsync(new DescribeKeyRequest { KeyId = target }, cancellationToken)
+					.ConfigureAwait(false)).KeyMetadata;
+			}
+			catch (NotFoundException)
+			{
+				continue;
+			}
+
+			var materialDeleted = metadata?.Origin == OriginType.EXTERNAL && metadata.KeyState == KeyState.PendingImport;
+			if (!materialDeleted)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private async Task<KeyDestructionOutcome> DestroyCmkAsync(
+		string keyId,
+		string kmsKeyId,
+		bool isCurrent,
+		int effectiveWindow,
+		CancellationToken cancellationToken)
+	{
+		DescribeKeyResponse describe;
+		try
+		{
+			// Determine the key's material origin: imported key material can be destroyed immediately
+			// (irrecoverable on return, Vault parity); a KMS-generated symmetric CMK can only be SCHEDULED
+			// behind AWS's mandatory 7-30 day window, so it stays recoverable until the window elapses.
+			describe = await _kmsClient.DescribeKeyAsync(
+				new DescribeKeyRequest { KeyId = kmsKeyId },
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (NotFoundException)
+		{
+			return KeyDestructionOutcome.NotFound;
+		}
+
+		var origin = describe.KeyMetadata?.Origin;
+
+		// Already scheduled -- by an earlier attempt at this same erasure, for example. KMS rejects scheduling
+		// a key that is pending deletion, and the key is still CancelKeyDeletion-recoverable, so the truthful
+		// answer is the existing schedule: not NotFound (the key exists), not a failure (nothing went wrong),
+		// and not a second request to delete it.
+		if (describe.KeyMetadata?.KeyState == KeyState.PendingDeletion)
+		{
+			var scheduledFor = describe.KeyMetadata.DeletionDate is { } deletionDate
+				? new DateTimeOffset(DateTime.SpecifyKind(deletionDate, DateTimeKind.Utc))
+				: DateTimeOffset.UtcNow.AddDays(MaxPendingWindowDays);
+			LogKeyScheduledForDeletion(keyId, Math.Max(0, (int)Math.Ceiling((scheduledFor - DateTimeOffset.UtcNow).TotalDays)));
+			return KeyDestructionOutcome.ScheduledAt(scheduledFor);
+		}
+
+		if (origin == OriginType.EXTERNAL)
+		{
+			// Imported key material already deleted: irrecoverable, nothing further to do.
+			if (describe.KeyMetadata?.KeyState != KeyState.PendingImport)
+			{
+				// Imported key material — delete it immediately; the CMK becomes unusable at once and any data
+				// encrypted under it is unrecoverable now (no pending window).
+				_ = await _kmsClient.DeleteImportedKeyMaterialAsync(
+					new DeleteImportedKeyMaterialRequest { KeyId = kmsKeyId },
+					cancellationToken).ConfigureAwait(false);
+			}
+
+			if (isCurrent)
+			{
+				await DeleteAliasAndClearCacheAsync(_options.BuildKeyAlias(keyId), keyId, cancellationToken).ConfigureAwait(false);
+			}
+
+			LogKeyDestroyed(keyId);
+			return KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow);
+		}
+
+		// KMS-generated CMK (or external key store): AWS enforces a mandatory pending-deletion window and the
+		// key remains CancelKeyDeletion-recoverable until it elapses. Do NOT silently clamp: honor the request
+		// where legal and DISCLOSE the effective irreversibility instant through the returned outcome.
+		_ = await _kmsClient.ScheduleKeyDeletionAsync(
+			new ScheduleKeyDeletionRequest { KeyId = kmsKeyId, PendingWindowInDays = effectiveWindow },
+			cancellationToken).ConfigureAwait(false);
+
+		// Keep the alias. A scheduled key remains recoverable until its window elapses, and the contract
+		// is explicit that it MUST NOT be attested as erased before then -- which requires that it stay
+		// observable. Deleting the alias here made the key vanish from this provider's view the instant
+		// deletion was scheduled, so a compliance caller could not distinguish "scheduled, still
+		// recoverable" from "gone", which is the distinction the outcome exists to report. The alias is
+		// removed only when destruction has actually completed.
+		_metadataCache.Remove($"key:{keyId}");
+
+		LogKeyScheduledForDeletion(keyId, effectiveWindow);
+
+		return KeyDestructionOutcome.ScheduledAt(DateTimeOffset.UtcNow.AddDays(effectiveWindow));
+	}
+
+	/// <summary>
+	/// The weakest outcome across every CMK of one logical key: recoverable until the LAST scheduled one is
+	/// deleted, so one scheduled CMK downgrades the whole key, and it is NotFound only when no CMK existed.
+	/// </summary>
+	private static KeyDestructionOutcome CombineOutcomes(List<KeyDestructionOutcome> outcomes)
+	{
+		if (outcomes.TrueForAll(static o => o.State == KeyDestructionState.NotFound))
+		{
+			return KeyDestructionOutcome.NotFound;
+		}
+
+		var scheduled = outcomes.Where(static o => o.State == KeyDestructionState.ScheduledIrreversible).ToList();
+		if (scheduled.Count > 0)
+		{
+			return KeyDestructionOutcome.ScheduledAt(scheduled.Max(static o => o.IrreversibleAt ?? DateTimeOffset.MaxValue));
+		}
+
+		return KeyDestructionOutcome.CompletedAt(
+			outcomes.Where(static o => o.State == KeyDestructionState.Completed).Max(static o => o.IrreversibleAt ?? DateTimeOffset.UtcNow));
+	}
+
+	private Task<IReadOnlyList<string>> FindVersionAliasTargetsAsync(string keyId, CancellationToken cancellationToken) =>
+		FindAliasTargetsAsync(keyId, includeUnversioned: false, cancellationToken);
+
+	/// <summary>
+	/// The CMKs this logical key's aliases name: the per-version aliases, and optionally the unversioned one.
+	/// Aliases are listed rather than guessed, so a gap in the version sequence cannot hide a CMK.
+	/// </summary>
+	private async Task<IReadOnlyList<string>> FindAliasTargetsAsync(
+		string keyId,
+		bool includeUnversioned,
+		CancellationToken cancellationToken)
+	{
+		var baseAlias = _options.BuildKeyAlias(keyId);
+		var versionPrefix = baseAlias + "-v";
+		var targets = new List<string>();
+		string? marker = null;
+
+		do
+		{
+			var response = await _kmsClient.ListAliasesAsync(
+				new ListAliasesRequest { Limit = 100, Marker = marker },
+				cancellationToken).ConfigureAwait(false);
+
+			foreach (var entry in response?.Aliases ?? [])
+			{
+				if (string.IsNullOrEmpty(entry.TargetKeyId) || string.IsNullOrEmpty(entry.AliasName))
+				{
+					continue;
+				}
+
+				var isVersion = entry.AliasName.StartsWith(versionPrefix, StringComparison.Ordinal)
+					&& entry.AliasName.Length > versionPrefix.Length
+					&& entry.AliasName.AsSpan(versionPrefix.Length).IndexOfAnyExceptInRange('0', '9') < 0;
+				var isBase = includeUnversioned && string.Equals(entry.AliasName, baseAlias, StringComparison.Ordinal);
+
+				if ((isVersion || isBase) && !targets.Contains(entry.TargetKeyId, StringComparer.Ordinal))
+				{
+					targets.Add(entry.TargetKeyId);
+				}
+			}
+
+			marker = response?.Truncated == true ? response.NextMarker : null;
+		}
+		while (!string.IsNullOrEmpty(marker));
+
+		return targets;
 	}
 
 	/// <summary>AWS KMS mandatory minimum pending-deletion window for a symmetric CMK (days).</summary>

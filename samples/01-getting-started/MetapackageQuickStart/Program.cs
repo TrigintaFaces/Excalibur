@@ -43,7 +43,7 @@ if (string.Equals(mode, "metapackage", StringComparison.OrdinalIgnoreCase))
 	builder.Services.AddExcaliburSqlServer(sql =>
 	{
 		sql.ConnectionString = connection;
-		sql.UseInboxStore = true;
+		sql.UseInbox = true;
 		sql.UseSaga = true;
 		sql.UseLeaderElection = true;
 		sql.UseAuditLogging = true;
@@ -82,7 +82,14 @@ else
 // register event types for secure-by-default resolution
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
+// Unhandled exceptions become RFC 9457 Problem Details responses, with the status code taken from
+// the exception (404 for ResourceNotFoundException, 409 for ConcurrencyException). Details of a
+// 5xx response are hidden outside Development.
+builder.Services.AddGlobalExceptionHandler();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 app.MapGet("/", () => Results.Text(
 	$"""

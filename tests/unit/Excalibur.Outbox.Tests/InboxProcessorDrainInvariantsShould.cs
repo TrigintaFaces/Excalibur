@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
 using System.Text.Json;
@@ -321,7 +321,7 @@ public sealed class InboxProcessorDrainInvariantsShould
 		public ValueTask<InboxEntry?> GetEntryAsync(string messageId, string handlerType, CancellationToken cancellationToken) =>
 			inner.GetEntryAsync(messageId, handlerType, cancellationToken);
 
-		public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+		public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 		{
 			Observe();
 			return inner.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken);
@@ -331,11 +331,16 @@ public sealed class InboxProcessorDrainInvariantsShould
 			int maxRetries, DateTimeOffset? olderThan, int batchSize, CancellationToken cancellationToken) =>
 			((IInboxStoreAdmin)inner).GetAllTenantsFailedEntriesAsync(maxRetries, olderThan, batchSize, cancellationToken);
 
-		public ValueTask MarkFailedAsync(
-			string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+		public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+			KeyedTenantPartition tenant,
+			string messageId,
+			string handlerType,
+			string errorMessage,
+			int retryCount,
+			CancellationToken cancellationToken)
 		{
 			Observe();
-			return ((IInboxStoreAdmin)inner).MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, cancellationToken);
+			return ((IInboxStoreAdmin)inner).MarkFailedAsync(tenant, messageId, handlerType, errorMessage, retryCount, cancellationToken);
 		}
 
 		public ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken) =>
@@ -439,7 +444,9 @@ public sealed class InboxProcessorDrainInvariantsShould
 				provider,
 				new DispatchJsonSerializer(),
 				NullLogger<InboxProcessor>.Instance,
-				circuitBreakerRegistry: circuitBreaker is null ? null : new SingleBreakerRegistry(circuitBreaker));
+				circuitBreakerRegistry: circuitBreaker is null
+					? PassThroughCircuitBreakerRegistry.Instance
+					: new SingleBreakerRegistry(circuitBreaker));
 
 			processor.Init("dispatcher-drain-invariants");
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Saga.Abstractions;
@@ -94,7 +94,11 @@ public interface ISagaTimeoutStore
 	/// consumers of delivered timeouts must remain idempotent.
 	/// </para>
 	/// </remarks>
-	Task<IReadOnlyList<SagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken);
+	/// <returns>
+	/// The claimed timeouts, each paired with the token identifying this claim. The token must be
+	/// presented to <see cref="MarkDeliveredAsync"/> to retire the timeout.
+	/// </returns>
+	Task<IReadOnlyList<ClaimedSagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Returns the timeouts that are due for delivery as of the specified time, without leasing
@@ -115,14 +119,34 @@ public interface ISagaTimeoutStore
 	Task<IReadOnlyList<SagaTimeout>> GetDueTimeoutsAsync(DateTimeOffset asOf, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Marks a timeout as delivered, removing it from the pending timeout list.
+	/// Retires a delivered timeout, removing it from the pending timeout list, provided the caller still
+	/// holds the claim it is completing.
 	/// </summary>
-	/// <param name="timeoutId">The unique timeout identifier that was delivered.</param>
+	/// <param name="claim">
+	/// The claim obtained from <see cref="ClaimDueTimeoutsAsync"/> for the timeout that was delivered.
+	/// </param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task representing the asynchronous operation.</returns>
+	/// <returns>
+	/// <see cref="SagaTimeoutRetirementOutcome.Retired"/> when the caller held the current claim and the
+	/// row was removed; <see cref="SagaTimeoutRetirementOutcome.Superseded"/> when it did not, in which
+	/// case nothing was removed and the caller must not report the timeout as delivered.
+	/// </returns>
 	/// <remarks>
-	/// This method is called after a timeout message has been successfully dispatched
-	/// to the saga handler. Marking delivery is idempotent.
+	/// <para>
+	/// <strong>Retirement is claim-conditional, and that is the whole point of taking a claim.</strong>
+	/// A processor that stalls past its lease loses the timeout to another processor, which re-claims and
+	/// re-delivers it. When the stalled processor resumes it must not remove a row it no longer owns:
+	/// doing so destroys the live claimant's ability to retry, and the saga then waits forever for a
+	/// timeout that no longer exists. Implementations MUST make the ownership test and the removal one
+	/// atomic step, not a read followed by a delete.
+	/// </para>
+	/// <para>
+	/// <strong>This call is NOT unconditional and must not be treated as a formality.</strong> It retires
+	/// the row on the strength of a claim, so a caller that has not actually delivered the timeout must
+	/// not call it. An earlier contract described marking delivery as idempotent, which was true — a
+	/// repeat removed nothing — but it answered the wrong question and was read as licence to call it on
+	/// paths where nothing had been delivered.
+	/// </para>
 	/// </remarks>
-	Task MarkDeliveredAsync(string timeoutId, CancellationToken cancellationToken);
+	Task<SagaTimeoutRetirementOutcome> MarkDeliveredAsync(ClaimedSagaTimeout claim, CancellationToken cancellationToken);
 }

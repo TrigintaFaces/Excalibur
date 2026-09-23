@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -31,15 +31,9 @@ namespace Excalibur.Outbox.DynamoDb;
 	Justification = "Change feed implementations inherently couple with many SDK and abstraction types.")]
 public sealed partial class DynamoDbOutboxStreamsSubscription : IChangeFeedSubscription<CloudOutboxMessage>
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false
-	};
-
 	private readonly IAmazonDynamoDB _client;
 	private readonly IAmazonDynamoDBStreams _streamsClient;
-	private readonly string _tableName;
+	private readonly DynamoDbOutboxOptions _storeOptions;
 	private readonly IChangeFeedOptions _options;
 	private readonly ILogger _logger;
 	private readonly CancellationTokenSource _cts = new();
@@ -53,23 +47,26 @@ public sealed partial class DynamoDbOutboxStreamsSubscription : IChangeFeedSubsc
 	/// </summary>
 	/// <param name="client">The DynamoDB client.</param>
 	/// <param name="streamsClient">The DynamoDB Streams client.</param>
-	/// <param name="tableName">The table name.</param>
+	/// <param name="storeOptions">
+	/// The outbox store options. The table name and the key attribute names are read from here, so a
+	/// table whose key attributes are named anything other than the defaults is read back correctly.
+	/// </param>
 	/// <param name="options">The change feed options.</param>
 	/// <param name="logger">The logger.</param>
 	public DynamoDbOutboxStreamsSubscription(
 		IAmazonDynamoDB client,
 		IAmazonDynamoDBStreams streamsClient,
-		string tableName,
+		DynamoDbOutboxOptions storeOptions,
 		IChangeFeedOptions options,
 		ILogger logger)
 	{
 		_client = client ?? throw new ArgumentNullException(nameof(client));
 		_streamsClient = streamsClient ?? throw new ArgumentNullException(nameof(streamsClient));
-		_tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
+		_storeOptions = storeOptions ?? throw new ArgumentNullException(nameof(storeOptions));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		SubscriptionId = $"outbox-streams-{tableName}-{Guid.NewGuid():N}";
+		SubscriptionId = $"outbox-streams-{storeOptions.TableName}-{Guid.NewGuid():N}";
 	}
 
 	/// <inheritdoc/>
@@ -89,12 +86,14 @@ public sealed partial class DynamoDbOutboxStreamsSubscription : IChangeFeedSubsc
 		LogStarting(SubscriptionId);
 
 		// Get stream ARN from table
-		var describeResponse = await _client.DescribeTableAsync(_tableName, cancellationToken).ConfigureAwait(false);
+		var describeResponse = await _client.DescribeTableAsync(_storeOptions.TableName, cancellationToken)
+			.ConfigureAwait(false);
 		_streamArn = describeResponse.Table.LatestStreamArn;
 
 		if (string.IsNullOrEmpty(_streamArn))
 		{
-			throw new InvalidOperationException($"Table '{_tableName}' does not have streams enabled.");
+			throw new InvalidOperationException(
+				$"Table '{_storeOptions.TableName}' does not have streams enabled.");
 		}
 
 		_isActive = true;
@@ -295,36 +294,74 @@ public sealed partial class DynamoDbOutboxStreamsSubscription : IChangeFeedSubsc
 		return true;
 	}
 
-	private static IPartitionKey GetPartitionKeyFromRecord(Record record)
+	private IPartitionKey GetPartitionKeyFromRecord(Record record)
 	{
 		var keys = record.Dynamodb?.Keys;
-		if (keys == null || keys.Count == 0)
+		var attribute = _storeOptions.PartitionKeyAttribute;
+
+		// No guess, and no empty fallback. The partition key value is what MarkAsPublishedAsync later
+		// addresses the item by, so an empty or wrongly-guessed one targets a different item: the message
+		// is never marked published and is redelivered forever, with nothing in the caller's code to see.
+		// Taking the first key attribute in map order was worse still -- on a hash+range table that can
+		// hand back the SORT key as the partition key.
+		if (keys is not null && keys.TryGetValue(attribute, out var pkValue))
 		{
-			return new PartitionKey(string.Empty);
+			var value = pkValue.S ?? pkValue.N;
+			if (!string.IsNullOrEmpty(value))
+			{
+				return new PartitionKey(value);
+			}
 		}
 
-		if (keys.TryGetValue("pk", out var pkValue))
-		{
-			return new PartitionKey(pkValue.S ?? pkValue.N ?? string.Empty);
-		}
-
-		return new PartitionKey(keys.Values.FirstOrDefault()?.S ?? string.Empty);
+		throw new InvalidOperationException(
+			$"A stream record from table '{_storeOptions.TableName}' carries no usable value for the "
+			+ $"configured partition key attribute '{attribute}'. Present key attributes: "
+			+ $"{DescribeAttributes(keys?.Keys)}. Set PartitionKeyAttribute to the table's actual "
+			+ "partition key name.");
 	}
 
-	private static CloudOutboxMessage FromAttributeMap(Dictionary<string, AttributeValue> item)
+	private CloudOutboxMessage FromAttributeMap(Dictionary<string, AttributeValue> item)
 	{
+		// The sort key IS the message id (DynamoDbOutboxStore writes MessageId there). Synthesising one
+		// when the attribute is missing produced a fresh, unique, meaningless id on every read, which
+		// defeats every downstream deduplication and inbox-idempotency check by construction: the same
+		// message redelivered arrives under a different id and is processed again, with no exception, no
+		// log, and a payload that deserializes perfectly. A record without the configured sort key is a
+		// misconfiguration or a foreign table, and has to say so.
+		if (!item.TryGetValue(_storeOptions.SortKeyAttribute, out var sk) || string.IsNullOrEmpty(sk.S))
+		{
+			throw new InvalidOperationException(
+				$"A stream record from table '{_storeOptions.TableName}' carries no value for the "
+				+ $"configured sort key attribute '{_storeOptions.SortKeyAttribute}', which holds the "
+				+ $"message id. Present attributes: {DescribeAttributes(item.Keys)}. Set "
+				+ "SortKeyAttribute to the table's actual sort key name.");
+		}
+
+		// THE LEASE FIELDS ARE DELIBERATELY NOT PROJECTED HERE, and this comment exists because their
+		// absence is otherwise indistinguishable from a dropped field. A previous audit of this mapper
+		// found LeasedAt/LeasedBy read by the store path and not by this one, which is exactly what a
+		// silent drop looks like -- so the next auditor would find it again, file it, and "fix" it.
+		//
+		// A change-feed handler is not a claimant. The only decision a lease field could support here is
+		// "should I publish this?", and the contract states that it does not support that decision: a
+		// stale value is expected and harmless, and the field means "who took it last", never a live
+		// ownership assertion. Projecting it would make an unsound decision AVAILABLE without making it
+		// sound -- a handler that read an unleased message before a poller claimed it would still
+		// publish, and so would the poller.
+		//
+		// Every other member of the record IS carried, including every routing field. That is audited.
 		return new CloudOutboxMessage
 		{
-			MessageId = item.TryGetValue("sk", out var sk) ? sk.S : Guid.NewGuid().ToString(),
+			MessageId = sk.S,
 			MessageType = item.TryGetValue("messageType", out var msgType) ? msgType.S : string.Empty,
 			Payload = item.TryGetValue("payload", out var payload) && !string.IsNullOrEmpty(payload.S)
 				? Convert.FromBase64String(payload.S)
 				: [],
-#pragma warning disable IL2026, IL3050
 			Headers = item.TryGetValue("headers", out var headers) && !string.IsNullOrEmpty(headers.S)
-				? JsonSerializer.Deserialize<Dictionary<string, string>>(headers.S, JsonOptions)
+				? JsonSerializer.Deserialize(
+					headers.S,
+					DynamoDbOutboxSerializerContext.Default.DictionaryStringString)
 				: null,
-#pragma warning restore IL2026, IL3050
 			AggregateId = item.TryGetValue("aggregateId", out var aggId) ? aggId.S : null,
 			AggregateType = item.TryGetValue("aggregateType", out var aggType) ? aggType.S : null,
 			CorrelationId = item.TryGetValue("correlationId", out var corrId) ? corrId.S : null,
@@ -344,8 +381,25 @@ public sealed partial class DynamoDbOutboxStreamsSubscription : IChangeFeedSubsc
 				? int.Parse(retry.N)
 				: 0,
 			LastError = item.TryGetValue("lastError", out var err) ? err.S : null,
-			PartitionKeyValue = item.TryGetValue("pk", out var pk) ? pk.S : string.Empty
+			PartitionKeyValue = item.TryGetValue(_storeOptions.PartitionKeyAttribute, out var pk)
+				? pk.S
+				: string.Empty
 		};
+	}
+
+	/// <summary>
+	/// Renders the attribute names present on a record, so a key-name mismatch names both what was
+	/// expected and what the table actually has.
+	/// </summary>
+	private static string DescribeAttributes(IEnumerable<string>? names)
+	{
+		if (names is null)
+		{
+			return "(none)";
+		}
+
+		var rendered = string.Join(", ", names.Order(StringComparer.Ordinal));
+		return string.IsNullOrEmpty(rendered) ? "(none)" : rendered;
 	}
 
 	private ShardIteratorType GetShardIteratorType()

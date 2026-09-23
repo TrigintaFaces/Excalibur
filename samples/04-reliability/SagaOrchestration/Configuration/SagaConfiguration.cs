@@ -20,10 +20,16 @@ public static class SagaConfiguration
     public static IServiceCollection AddOrderSaga(this IServiceCollection services)
     {
         // Register saga coordination infrastructure:
-        //   - InMemorySagaStore (keyed "inmemory" + "default")
         //   - SagaCoordinator (routes ISagaEvent messages to saga instances)
         //   - SagaHandlingMiddleware (plugs into the Dispatch pipeline)
         services.AddExcaliburOrchestration();
+
+        // Choose the saga store EXPLICITLY. Orchestration deliberately registers none: the in-memory
+        // store loses every in-flight saga on restart or scale-out, so it is never a silent default,
+        // and a host that configures sagas without a store fails at startup rather than losing state
+        // later. This sample is a single-process demo, so in-memory is the right choice here; a real
+        // deployment registers a persistent provider (for example a SQL Server saga store) instead.
+        services.AddInMemorySagaStore();
 
         // Register timeout delivery (in-memory timeout store + delivery service)
         services.AddSagaTimeoutDelivery();

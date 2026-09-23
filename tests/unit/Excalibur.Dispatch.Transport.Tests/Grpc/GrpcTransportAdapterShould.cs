@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Transport;
@@ -268,6 +268,70 @@ public sealed class GrpcTransportAdapterShould : IAsyncDisposable
 			_sut.SendAsync(message, "dest", null!, CancellationToken.None));
 	}
 
+	/// <summary>
+	/// SAFETY. A send the transport REJECTED must not complete normally.
+	/// </summary>
+	/// <remarks>
+	/// This adapter returns <see cref="Task"/>, so it has no result channel, and its caller reads normal
+	/// completion as delivery: <c>MessageBusOutboxPublisher</c> awaits it and then calls
+	/// <c>MarkTransportSentAsync</c> unconditionally, inspecting nothing, with <c>catch (Exception)</c> as
+	/// its only failure path. <see cref="GrpcTransportSender"/> never throws for a rejection - it returns
+	/// <c>SendResult.Failure</c> both for a negative remote response and for an <c>RpcException</c>. So an
+	/// adapter that discards the result records an undelivered message as Sent and drops it from retry
+	/// selection. Asserting "it threw" is asserting the only signal this contract has.
+	/// </remarks>
+	[Fact]
+	public async Task SendAsync_ThrowWhenTheSenderRejectsTheMessage()
+	{
+		// Arrange
+		var context = A.Fake<IMessageContext>();
+
+		_ = A.CallTo(() => _fakeSender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(SendResult.Failure(new SendError
+			{
+				Code = "UNAVAILABLE",
+				Message = "the remote endpoint rejected the delivery",
+				IsRetryable = true,
+			})));
+
+		// Act & Assert
+		var thrown = await Should.ThrowAsync<InvalidOperationException>(() =>
+			_sut.SendAsync(new AdapterProbeMessage(), "dest", context, CancellationToken.None));
+
+		// The outbox records ex.Message, so the remote's own code and detail have to survive into it -
+		// an exception that says only "send failed" leaves an operator with nothing to act on.
+		thrown.Message.ShouldContain("UNAVAILABLE");
+		thrown.Message.ShouldContain("the remote endpoint rejected the delivery");
+	}
+
+	/// <summary>
+	/// PRECISION, and the partner the safety arm needs. An ACCEPTED send must still complete normally.
+	/// </summary>
+	/// <remarks>
+	/// Without this, the arm above is satisfied by an adapter that throws on every send, which would fail
+	/// every delivery rather than fix the misreported one. The pair discriminates rejected from accepted;
+	/// neither arm alone does.
+	/// </remarks>
+	[Fact]
+	public async Task SendAsync_CompleteNormallyWhenTheSenderAcceptsTheMessage()
+	{
+		// Arrange
+		var context = A.Fake<IMessageContext>();
+
+		_ = A.CallTo(() => _fakeSender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(SendResult.Success("accepted-1")));
+
+		// Act & Assert
+		await Should.NotThrowAsync(() =>
+			_sut.SendAsync(new AdapterProbeMessage(), "dest", context, CancellationToken.None));
+	}
+
+	/// <summary>
+	/// A concrete message rather than a fake: the adapter serializes what it is handed with
+	/// <c>JsonSerializer.SerializeToUtf8Bytes</c>, and a dynamic proxy is not a faithful subject for that.
+	/// </summary>
+	private sealed record AdapterProbeMessage : IDispatchMessage;
+
 	#endregion
 
 	#region DisposeAsync
@@ -324,4 +388,115 @@ public sealed class GrpcTransportAdapterShould : IAsyncDisposable
 	}
 
 	#endregion
+
+	/// <summary>
+	/// SAFETY. The body carries the concrete payload, not an empty object.
+	/// </summary>
+	/// <remarks>
+	/// The adapter receives its argument as <see cref="IDispatchMessage"/>, which declares no members.
+	/// Serializing by the DECLARED type therefore wrote <c>{}</c> for every message while the
+	/// <c>MessageType</c> header still named the concrete type, so a receiver deserialized a
+	/// default-valued instance or rejected it for missing members -- with nothing on either side
+	/// reporting a fault. This asserts the emitted BYTES, because those bytes are what the far side parses.
+	/// </remarks>
+	[Fact]
+	public async Task SendAsync_SerializeTheConcretePayloadRatherThanTheMarkerInterface()
+	{
+		TransportMessage? sent = null;
+		_ = A.CallTo(() => _fakeSender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
+			.Invokes((TransportMessage m, CancellationToken _) => sent = m)
+			.Returns(Task.FromResult(SendResult.Success("accepted-1")));
+
+		var context = A.Fake<IMessageContext>();
+
+		await _sut.SendAsync(
+			new PayloadBearingMessage { Amount = 42, Label = "hunt-order" },
+			"destination",
+			context,
+			CancellationToken.None);
+
+		sent.ShouldNotBeNull("nothing was sent, so this arm would assert nothing about the body.");
+
+		var body = System.Text.Json.JsonDocument.Parse(sent!.Body);
+
+		body.RootElement.TryGetProperty(nameof(PayloadBearingMessage.Amount), out var amount)
+			.ShouldBeTrue(
+				$"the body carried no Amount. Serializing the declared interface emits an empty object, so "
+				+ $"the payload never reaches the far side. Body was: {System.Text.Encoding.UTF8.GetString(sent.Body.Span)}");
+
+		amount.GetInt32().ShouldBe(42);
+
+		body.RootElement.GetProperty(nameof(PayloadBearingMessage.Label)).GetString().ShouldBe("hunt-order");
+	}
+
+	/// <summary>
+	/// PRECISION. The type header still names the concrete message.
+	/// </summary>
+	/// <remarks>
+	/// The header was already correct before the body was; this pins the pair together, since a body and a
+	/// header that disagree about the message are what made the original defect silent.
+	/// </remarks>
+	[Fact]
+	public async Task SendAsync_NameTheConcreteTypeAlongsideTheConcreteBody()
+	{
+		TransportMessage? sent = null;
+		_ = A.CallTo(() => _fakeSender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
+			.Invokes((TransportMessage m, CancellationToken _) => sent = m)
+			.Returns(Task.FromResult(SendResult.Success("accepted-1")));
+
+		await _sut.SendAsync(
+			new PayloadBearingMessage { Amount = 7, Label = "x" },
+			"destination",
+			A.Fake<IMessageContext>(),
+			CancellationToken.None);
+
+		sent.ShouldNotBeNull();
+		sent!.MessageType.ShouldNotBeNullOrWhiteSpace(
+			"a body without a type header is as unusable to the receiver as a type header without a body.");
+	}
+
+	/// <summary>
+	/// SAFETY. The caller's explicit destination survives the conversion to a transport message.
+	/// </summary>
+	/// <remarks>
+	/// The sender builds the outbound request's destination from this property and from nowhere else --
+	/// the configured sender destination is not a fallback there. Placing the argument only in Subject
+	/// dropped the caller's routing value silently: both halves compiled, both were self-consistent, and
+	/// the wire simply carried no destination.
+	/// </remarks>
+	[Fact]
+	public async Task SendAsync_CarryTheDestinationWhereTheSenderReadsIt()
+	{
+		TransportMessage? sent = null;
+		_ = A.CallTo(() => _fakeSender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
+			.Invokes((TransportMessage m, CancellationToken _) => sent = m)
+			.Returns(Task.FromResult(SendResult.Success("accepted-1")));
+
+		await _sut.SendAsync(
+			new PayloadBearingMessage { Amount = 1, Label = "x" },
+			"orders",
+			A.Fake<IMessageContext>(),
+			CancellationToken.None);
+
+		sent.ShouldNotBeNull();
+
+		sent!.Properties.TryGetValue("dispatch.destination", out var routed)
+			.ShouldBeTrue(
+				"the sender maps the outbound destination from this property alone; without it the caller's "
+				+ "explicit routing value never reaches the wire.");
+
+		routed.ShouldBe("orders");
+
+		sent.Subject.ShouldBe(
+			"orders",
+			"Subject is what the far-side subscriber matches on and must keep carrying the destination too.");
+	}
+
+	/// <summary>A message with real properties, so an empty body is detectable.</summary>
+	private sealed class PayloadBearingMessage : IDispatchMessage
+	{
+		public int Amount { get; init; }
+
+		public string Label { get; init; } = string.Empty;
+	}
 }

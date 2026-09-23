@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -19,8 +19,61 @@ internal sealed class DispatchPipeline(
 	/// <summary>
 	/// Pre-sort and cache middleware to avoid repeated sorting.
 	/// </summary>
-	private readonly IDispatchMiddleware[] _ordered =
-		[.. middlewares.OrderBy(static m => (int?)m.Stage ?? (int)DispatchMiddlewareStage.End)];
+	private readonly IDispatchMiddleware[] _ordered = OrderAndVerify(middlewares);
+
+	/// <summary>
+	/// Sorts middleware into execution order and refuses a pipeline in which tenant context is read
+	/// before it is established.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The assertion is between CAPABILITY MARKERS, never between named types, and that is deliberate.
+	/// The durable constraint is "anything that reads tenant context runs after the thing that
+	/// establishes it"; which concrete middleware does either is an accident of the current middleware
+	/// set, and a rule naming types could not cover a middleware that does not exist yet -- including a
+	/// CONSUMER's, which is the population this actually protects.
+	/// </para>
+	/// <para>
+	/// It is breakable by registration order alone, which is why it needs a check at all: the sort below
+	/// is STABLE and keyed on <see cref="DispatchMiddlewareStage"/>, so two components sharing a stage are
+	/// ordered by the order they were registered in. A tenant reader placed first then runs OUTSIDE the
+	/// ambient scope and simply observes no tenant -- no exception, no log. Refusing at construction turns
+	/// that silent misconfiguration into a startup failure.
+	/// </para>
+	/// <para>
+	/// SCOPE, held deliberately narrow: this is the one constraint the stage enum cannot already enforce.
+	/// Constraints that ARE structural (dedup before side effects, Processing before PostProcessing) are
+	/// left to the enum rather than re-asserted here, so there is one source of truth per property.
+	/// </para>
+	/// </remarks>
+	private static IDispatchMiddleware[] OrderAndVerify(IEnumerable<IDispatchMiddleware> middlewares)
+	{
+		var ordered = middlewares
+			.OrderBy(static m => (int?)m.Stage ?? (int)DispatchMiddlewareStage.End)
+			.ToArray();
+
+		var lastEstablisher = Array.FindLastIndex(ordered, static m => m is IEstablishesTenantContext);
+		if (lastEstablisher < 0)
+		{
+			// Nothing establishes tenant context, so there is no ordering relation to violate. Whether a
+			// reader registered with NO establisher should itself be refused is a separate question and
+			// is deliberately not decided here.
+			return ordered;
+		}
+
+		var firstReader = Array.FindIndex(ordered, static m => m is IRequiresTenantContext);
+		if (firstReader >= 0 && firstReader < lastEstablisher)
+		{
+			throw new InvalidOperationException(
+				$"Middleware '{ordered[firstReader].GetType().Name}' declares IRequiresTenantContext but is "
+				+ $"ordered before '{ordered[lastEstablisher].GetType().Name}', which declares "
+				+ "IEstablishesTenantContext. It would run outside the ambient tenant scope and observe no "
+				+ "tenant. Register the establishing middleware first, or give the reader an earlier "
+				+ "DispatchMiddlewareStage.");
+		}
+
+		return ordered;
+	}
 
 	/// <summary>
 	/// Strategy for determining middleware applicability.

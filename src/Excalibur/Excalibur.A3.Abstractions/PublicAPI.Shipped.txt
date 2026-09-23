@@ -50,6 +50,40 @@ Excalibur.A3.Authentication.IAuthenticationToken.Jwt.set -> void
 Excalibur.A3.Authentication.IAuthenticationToken.LastName.get -> string?
 Excalibur.A3.Authentication.IAuthenticationToken.Login.get -> string?
 Excalibur.A3.Authentication.IAuthenticationToken.UserId.get -> string?
+Excalibur.A3.Authorization.ActivityGroupCatalogue
+Excalibur.A3.Authorization.ActivityGroupCatalogue.ActivityGroupCatalogue(System.Collections.Generic.IEnumerable<Excalibur.A3.Authorization.ActivityGroupEntry>! entries) -> void
+Excalibur.A3.Authorization.ActivityGroupCatalogue.Entries.get -> System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.ActivityGroupEntry>!
+Excalibur.A3.Authorization.ActivityGroupCatalogue.TenantIds.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Excalibur.A3.Authorization.ActivityGroupEntry
+Excalibur.A3.Authorization.ActivityGroupEntry.ActivityGroupEntry() -> void
+Excalibur.A3.Authorization.ActivityGroupEntry.ActivityGroupEntry(string! TenantId, string! Name, string! ActivityName) -> void
+Excalibur.A3.Authorization.ActivityGroupEntry.ActivityName.get -> string!
+Excalibur.A3.Authorization.ActivityGroupEntry.ActivityName.init -> void
+Excalibur.A3.Authorization.ActivityGroupEntry.Name.get -> string!
+Excalibur.A3.Authorization.ActivityGroupEntry.Name.init -> void
+Excalibur.A3.Authorization.ActivityGroupEntry.TenantId.get -> string!
+Excalibur.A3.Authorization.ActivityGroupEntry.TenantId.init -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.ActivityGroupGrantEntry() -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.ActivityGroupGrantEntry(string! UserId, string! FullName, string! TenantId, string! GrantType, string! Qualifier, System.DateTimeOffset? ExpiresOn, string! GrantedBy) -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.ExpiresOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.ExpiresOn.init -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.FullName.get -> string!
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.FullName.init -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.GrantType.get -> string!
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.GrantType.init -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.GrantedBy.get -> string!
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.GrantedBy.init -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.Qualifier.get -> string!
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.Qualifier.init -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.TenantId.get -> string!
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.TenantId.init -> void
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.UserId.get -> string!
+Excalibur.A3.Authorization.ActivityGroupGrantEntry.UserId.init -> void
+Excalibur.A3.Authorization.ActivityGroupGrantSnapshot
+Excalibur.A3.Authorization.ActivityGroupGrantSnapshot.ActivityGroupGrantSnapshot(System.Collections.Generic.IEnumerable<Excalibur.A3.Authorization.ActivityGroupGrantEntry>! entries) -> void
+Excalibur.A3.Authorization.ActivityGroupGrantSnapshot.Entries.get -> System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.ActivityGroupGrantEntry>!
+Excalibur.A3.Authorization.ActivityGroupGrantSnapshot.UserIds.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
 Excalibur.A3.Authorization.AuthorizationAction
 Excalibur.A3.Authorization.AuthorizationAction.Attributes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
 Excalibur.A3.Authorization.AuthorizationAction.Attributes.init -> void
@@ -102,18 +136,20 @@ Excalibur.A3.Authorization.Grant.TenantId.get -> string!
 Excalibur.A3.Authorization.Grant.TenantId.init -> void
 Excalibur.A3.Authorization.Grant.UserId.get -> string!
 Excalibur.A3.Authorization.Grant.UserId.init -> void
-Excalibur.A3.Authorization.GrantKeyFormat
+Excalibur.A3.Authorization.IActivityGroupGrantReplacement
+Excalibur.A3.Authorization.IActivityGroupGrantReplacement.ReplaceActivityGroupGrantsAsync(string! grantType, Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
+Excalibur.A3.Authorization.IActivityGroupGrantReplacement.ReplaceActivityGroupGrantsForUserAsync(string! userId, string! grantType, Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
 Excalibur.A3.Authorization.IActivityGroupGrantStore
 Excalibur.A3.Authorization.IActivityGroupGrantStore.DeleteActivityGroupGrantsByUserIdAsync(string! userId, string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IActivityGroupGrantStore.DeleteAllActivityGroupGrantsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IActivityGroupGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 Excalibur.A3.Authorization.IActivityGroupGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IActivityGroupStore
-Excalibur.A3.Authorization.IActivityGroupStore.ActivityGroupExistsAsync(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.A3.Authorization.IActivityGroupStore.ActivityGroupExistsAsync(string! tenantId, string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.A3.Authorization.IActivityGroupStore.CreateActivityGroupAsync(string! tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.A3.Authorization.IActivityGroupStore.DeleteAllActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.A3.Authorization.IActivityGroupStore.FindActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
-Excalibur.A3.Authorization.IActivityGroupStore.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Authorization.IActivityGroupStore.DeleteActivityGroupsForTenantAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.A3.Authorization.IActivityGroupStore.FindActivityGroupsAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, System.Collections.Generic.IReadOnlyCollection<string!>!>!>!
+Excalibur.A3.Authorization.IActivityGroupStore.ReplaceAllActivityGroupsAsync(Excalibur.A3.Authorization.ActivityGroupCatalogue! catalogue, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
 Excalibur.A3.Authorization.IAuthorizationEvaluator
 Excalibur.A3.Authorization.IAuthorizationEvaluator.EvaluateAsync(Excalibur.A3.Authorization.AuthorizationSubject! subject, Excalibur.A3.Authorization.AuthorizationAction! action, Excalibur.A3.Authorization.AuthorizationResource! resource, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.AuthorizationDecision!>!
 Excalibur.A3.Authorization.IAuthorizationPolicy
@@ -132,7 +168,8 @@ Excalibur.A3.Authorization.IGrantCommand.Qualifier.get -> string!
 Excalibur.A3.Authorization.IGrantCommand.UserId.get -> string!
 Excalibur.A3.Authorization.IGrantQueryStore
 Excalibur.A3.Authorization.IGrantQueryStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
-Excalibur.A3.Authorization.IGrantQueryStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.A3.Authorization.IGrantQueryStore.GetMatchingGrantsAcrossTenantsAsync(string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.A3.Authorization.IGrantQueryStore.GetMatchingGrantsAsync(string! tenantId, string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.A3.Authorization.IGrantStore
 Excalibur.A3.Authorization.IGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
@@ -182,10 +219,12 @@ Excalibur.A3.Authorization.RoleSummary.State.init -> void
 Excalibur.A3.Authorization.RoleSummary.TenantId.get -> string?
 Excalibur.A3.Authorization.RoleSummary.TenantId.init -> void
 Excalibur.A3.IA3Builder
+Excalibur.A3.IA3Builder.RequireDurableGrants() -> Excalibur.A3.IA3Builder!
 Excalibur.A3.IA3Builder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.A3.IA3Builder.UseActivityGroupStore<TStore>() -> Excalibur.A3.IA3Builder!
 Excalibur.A3.IA3Builder.UseGrantStore<TStore>() -> Excalibur.A3.IA3Builder!
+const Excalibur.A3.Authorization.ActivityGroupCatalogue.MaxActivityNameLength = 256 -> int
+const Excalibur.A3.Authorization.ActivityGroupCatalogue.MaxNameLength = 128 -> int
+static Excalibur.A3.Authorization.ActivityGroupGrantSnapshot.ValidateAsEstateReplacement(Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, string! grantType) -> void
+static Excalibur.A3.Authorization.ActivityGroupGrantSnapshot.ValidateAsUserReplacement(Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, string! userId, string! grantType) -> void
 static Excalibur.A3.Authorization.AuthorizationPolicyExtensions.IsAuthorized(this Excalibur.A3.Authorization.IAuthorizationPolicy! policy, string! activityName) -> bool
-static Excalibur.A3.Authorization.GrantKeyFormat.ComposeScope(string! tenantId, string! grantType, string! qualifier) -> string!
-static Excalibur.A3.Authorization.GrantKeyFormat.Escape(string! value) -> string!
-static Excalibur.A3.Authorization.GrantKeyFormat.Unescape(string! value) -> string!

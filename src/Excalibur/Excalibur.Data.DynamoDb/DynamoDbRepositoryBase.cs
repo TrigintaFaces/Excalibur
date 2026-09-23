@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -8,6 +8,8 @@ using System.Text.Json;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
+
+using Excalibur.Data.CloudNative;
 
 namespace Excalibur.Data.DynamoDb;
 
@@ -143,7 +145,7 @@ public abstract class DynamoDbRepositoryBase<TDocument> : IDynamoDbRepositoryBas
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression above: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this repository off both paths.")]
-	public virtual async Task<IReadOnlyList<TDocument>> ScanAsync(
+	public virtual async Task<CloudQueryResult<TDocument>> ScanAsync(
 		ScanRequest request,
 		CancellationToken cancellationToken)
 	{
@@ -165,7 +167,19 @@ public abstract class DynamoDbRepositoryBase<TDocument> : IDynamoDbRepositoryBas
 			}
 		}
 
-		return results;
+		// A Scan reads a bounded amount of the table and reports where it stopped via LastEvaluatedKey. Surface
+		// that to the caller rather than discarding it: the caller supplied the ScanRequest and therefore owns
+		// Limit and ExclusiveStartKey, so swallowing the paging output while accepting the paging inputs would
+		// let a correct-looking caller process a subset with no way to discover that it had. An absent or empty
+		// LastEvaluatedKey means the scan reached the end of the table.
+		var continuationToken = response.LastEvaluatedKey?.Count > 0
+			? JsonSerializer.Serialize(response.LastEvaluatedKey)
+			: null;
+
+		return new CloudQueryResult<TDocument>(
+			results,
+			response.ConsumedCapacity?.CapacityUnits ?? 0,
+			continuationToken);
 	}
 
 	/// <summary>

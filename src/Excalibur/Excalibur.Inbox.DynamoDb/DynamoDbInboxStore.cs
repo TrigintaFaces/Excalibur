@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -576,7 +576,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -596,9 +596,15 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			UpdateExpression =
 				"SET #status = :status, last_error = :error, last_attempt_at = :attempt, retry_count = retry_count + :inc",
 			// Processed is absorbing: the condition refuses rather than demoting a finalized entry to
-			// Failed, which would make it re-admittable and run the handler again. A refusal raises
-			// ConditionalCheckFailedException, which the catch below already treats as a no-op.
+			// Failed, which would make it re-admittable and run the handler again.
 			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute}) AND #status <> :processed",
+			// THE CONDITION'S OWN EVALUATION REPORTS WHICH CLAUSE REFUSED. Both clauses raise the same
+			// ConditionalCheckFailedException, so without this the two refusals are indistinguishable and the
+			// catch below reported both as "entry doesn't exist". DynamoDB has no conditional update expression
+			// to push the guard into, so this is what replaces one: the refused item is returned BY the failed
+			// conditional check itself, from the same atomic evaluation, never by a read issued afterwards.
+			// No item in the failure means nothing was there to check; an item means it was terminal.
+			ReturnValuesOnConditionCheckFailure = ReturnValuesOnConditionCheckFailure.ALL_OLD,
 			ExpressionAttributeNames = new Dictionary<string, string> { ["#status"] = "status" },
 			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
 			{
@@ -613,17 +619,29 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		try
 		{
 			_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
-			LogMarkedFailed(messageId, handlerType, errorMessage);
 		}
-		catch (ConditionalCheckFailedException)
+		catch (ConditionalCheckFailedException ex)
 		{
-			// Entry doesn't exist - nothing to mark as failed
+			return ex.Item is { Count: > 0 }
+				? InboxMarkFailedOutcome.AlreadyProcessed
+				: InboxMarkFailedOutcome.EntryNotFound;
 		}
+
+		LogMarkedFailed(messageId, handlerType, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
@@ -632,7 +650,10 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var key = CreateKey(messageId, handlerType);
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. A caller reading the estate-wide drain sees items
+		// from every partition, so a sort key composed from ambient context would address a different
+		// partition than the read that produced the entry, with nothing in either signature to say so.
+		var key = CreateKey(tenant.TenantId, messageId, handlerType);
 		var now = DateTimeOffset.UtcNow;
 
 		// Set retry_count EXACTLY (no increment) so a transient short-circuit leaves the entry
@@ -644,9 +665,16 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			UpdateExpression =
 				"SET #status = :status, last_error = :error, last_attempt_at = :attempt, retry_count = :retryCount",
 			// Processed is absorbing: the condition refuses rather than demoting a finalized entry to
-			// Failed, which would make it re-admittable and run the handler again. A refusal raises
-			// ConditionalCheckFailedException, which the catch below already treats as a no-op.
+			// Failed, which would make it re-admittable and run the handler again.
 			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute}) AND #status <> :processed",
+			// THE CONDITION'S OWN EVALUATION REPORTS WHICH CLAUSE REFUSED. Both clauses raise the same
+			// ConditionalCheckFailedException, and the comment here used to read "entry doesn't exist" for
+			// both -- so a caller marking an already-processed entry was told the same thing as one
+			// addressing a tenant it had no entry in. DynamoDB has no conditional update expression to push
+			// the guard into, so this is what replaces one: the refused item is returned BY the failed
+			// conditional check itself, from the same atomic evaluation, never by a read issued afterwards.
+			// No item in the failure means nothing was there to check; an item means it was terminal.
+			ReturnValuesOnConditionCheckFailure = ReturnValuesOnConditionCheckFailure.ALL_OLD,
 			ExpressionAttributeNames = new Dictionary<string, string> { ["#status"] = "status" },
 			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
 			{
@@ -661,12 +689,17 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		try
 		{
 			_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
-			LogMarkedFailed(messageId, handlerType, errorMessage);
 		}
-		catch (ConditionalCheckFailedException)
+		catch (ConditionalCheckFailedException ex)
 		{
-			// Entry doesn't exist - nothing to mark as failed
+			return ex.Item is { Count: > 0 }
+				? InboxMarkFailedOutcome.AlreadyProcessed
+				: InboxMarkFailedOutcome.EntryNotFound;
 		}
+
+		LogMarkedFailed(messageId, handlerType, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>
@@ -947,7 +980,13 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// </para>
 	/// </remarks>
 	private string ComposeDedupTerm(string messageId) =>
-		$"{EscapeSegment(TenantTerm)}:{EscapeSegment(messageId)}";
+		ComposeDedupTerm(TenantTerm, messageId);
+
+	// The tenant-EXPLICIT composition. Required wherever a key is built for an item that may belong to a
+	// tenant other than the caller's -- the administrative mark-failed is handed the partition rather than
+	// resolving one, because the entry it addresses came off an estate-wide read.
+	private static string ComposeDedupTerm(string tenantTerm, string messageId) =>
+		$"{EscapeSegment(tenantTerm)}:{EscapeSegment(messageId)}";
 
 	// The ':' joining the two terms is not injective on its own. Neither the tenant term nor the message id
 	// is validated against any charset -- both are caller data -- so tenant "a:b" with message "c" and
@@ -963,14 +1002,17 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	// so an encoding that moved every existing item would orphan every in-flight dedup record on upgrade
 	// and re-deliver already-processed messages. Only the previously-ambiguous keys change.
 	private static string EscapeSegment(string value) =>
-		value.Replace("%", "%25", StringComparison.Ordinal)
-			.Replace(":", "%3A", StringComparison.Ordinal);
+		SegmentedKey.Escape(value);
 
 	private Dictionary<string, AttributeValue> CreateKey(string messageId, string handlerType) =>
+		CreateKey(TenantTerm, messageId, handlerType);
+
+	// The tenant-EXPLICIT key. See ComposeDedupTerm(string, string).
+	private Dictionary<string, AttributeValue> CreateKey(string tenantTerm, string messageId, string handlerType) =>
 		new()
 		{
 			[_options.PartitionKeyAttribute] = new AttributeValue { S = handlerType },
-			[_options.SortKeyAttribute] = new AttributeValue { S = ComposeDedupTerm(messageId) }
+			[_options.SortKeyAttribute] = new AttributeValue { S = ComposeDedupTerm(tenantTerm, messageId) }
 		};
 
 	private Dictionary<string, AttributeValue> CreateItemFromEntry(InboxEntry entry)

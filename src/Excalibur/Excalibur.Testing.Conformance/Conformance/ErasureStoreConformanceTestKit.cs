@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
+using System.Text;
+
 using Excalibur.Compliance;
+using Excalibur.Compliance.Erasure;
 
 namespace Excalibur.Testing.Conformance;
 
@@ -32,7 +35,7 @@ namespace Excalibur.Testing.Conformance;
 /// <item><description>STATE MACHINE: <c>RecordCancellationAsync</c> only allows Pending/Scheduled to cancel</description></item>
 /// <item><description><c>RecordCompletionAsync</c> THROWS KeyNotFoundException if request not found</description></item>
 /// <item><description>Automatic DataSubjectId hashing (SHA256) for privacy</description></item>
-/// <item><description>Erasure certificates for compliance proof with retention periods</description></item>
+/// <item><description>Erasure certificates, as compliance records, with retention periods</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -147,13 +150,15 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		DateTimeOffset? retainUntil = null) =>
 		new()
 		{
-			CertificateId = certificateId ?? Guid.NewGuid(),
-			RequestId = requestId ?? Guid.NewGuid(),
-			DataSubjectReference = $"hash-{Guid.NewGuid():N}",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-1),
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary =
+			Payload = new()
+			{
+				CertificateId = certificateId ?? Guid.NewGuid(),
+				RequestId = requestId ?? Guid.NewGuid(),
+				DataSubjectReference = $"hash-{Guid.NewGuid():N}",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary =
 				new ErasureSummary
 				{
 					KeysDeleted = 5,
@@ -162,17 +167,45 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 					TablesAffected = ["Users", "Contacts"],
 					DataSizeBytes = 10240
 				},
-			Verification = new VerificationSummary
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.KeyManagementSystem | VerificationMethod.AuditLog,
 				VerifiedAt = DateTimeOffset.UtcNow,
 				DeletedKeyIds = ["key-1", "key-2"]
 			},
-			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
-			Signature = $"sig-{Guid.NewGuid():N}",
-			RetainUntil = retainUntil ?? DateTimeOffset.UtcNow.AddYears(7)
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RetainUntil = retainUntil ?? DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = $"sig-{Guid.NewGuid():N}"
 		};
+
+	/// <summary>
+	/// The key the round-trip arms sign and verify with.
+	/// </summary>
+	/// <remarks>
+	/// A fixed, obviously-synthetic value: it never leaves the test process, and the arms need both halves
+	/// of the round trip to use the same key, which a generated one would make needlessly awkward to share.
+	/// A fresh array on every read, so no arm can mutate the key another arm is about to use.
+	/// </remarks>
+	protected static byte[] ConformanceSigningKey =>
+		Encoding.UTF8.GetBytes("erasure-store-conformance-signing-key-not-a-secret");
+
+	/// <summary>
+	/// Builds a certificate whose signature genuinely covers its payload, for the round-trip arms.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="CreateErasureCertificate"/> carries a placeholder signature, which is right for the arms
+	/// that only care that a row was stored and read back. It cannot serve the arms that ask whether the
+	/// payload survived the round trip, because a placeholder tells you nothing about the payload.
+	/// </remarks>
+	/// <returns>A certificate signed with <see cref="ConformanceSigningKey"/>.</returns>
+	protected ErasureCertificate CreateSignedErasureCertificate()
+	{
+		var unsigned = CreateErasureCertificate();
+
+		return unsigned with { Signature = ErasureCertificateSigner.Sign(unsigned.Payload, ConformanceSigningKey) };
+	}
 
 	/// <summary>
 	/// Generates a unique request ID for test isolation.
@@ -430,6 +463,155 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		{
 			throw new TestFixtureAssertionException(
 				"UpdateStatusAsync should return false for non-existent RequestId");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that the transition to InProgress is a CLAIM: of two callers that both try to claim the
+	/// same scheduled request, exactly one is told it succeeded.
+	/// </summary>
+	/// <remarks>
+	/// This is the SAFETY half. A store that updates the row unconditionally passes every other arm in
+	/// this region and fails here, because both callers are told they own the request — and each then
+	/// erases the same subject and writes its own completion certificate, one of which attests to
+	/// destroying keys that the other had already destroyed.
+	/// </remarks>
+	public virtual async Task UpdateStatusAsync_SecondClaimOfTheSameRequest_ShouldBeRefused()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var first = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Asserted here rather than left to a sibling arm: without it, a store that refuses EVERY claim
+		// passes the refusal below while being entirely inert.
+		if (!first)
+		{
+			throw new TestFixtureAssertionException(
+				"The first claim of a Scheduled request must succeed; the store refused it.");
+		}
+
+		var second = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (second)
+		{
+			throw new TestFixtureAssertionException(
+				"The second claim of an already-claimed request must be refused. This store granted it, "
+				+ "so two concurrent callers would both execute the erasure and both write a certificate.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that the claim guard refuses ONLY the claim: recording a terminal outcome on a request
+	/// that is already InProgress still succeeds.
+	/// </summary>
+	/// <remarks>
+	/// This is the LIVENESS half of the arm above. A store that refused every update would satisfy the
+	/// refusal assertion while being unable to record any outcome at all, leaving every request stuck in
+	/// InProgress with no way to report what happened to it.
+	/// </remarks>
+	public virtual async Task UpdateStatusAsync_TerminalTransitionAfterClaim_ShouldSucceed()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		_ = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var recorded = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.Failed, "erasure failed", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (!recorded)
+		{
+			throw new TestFixtureAssertionException(
+				"A terminal transition from InProgress must succeed; the claim guard is over-refusing "
+				+ "and no outcome can be recorded.");
+		}
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (status?.Status != ErasureRequestStatus.Failed)
+		{
+			throw new TestFixtureAssertionException(
+				$"Status should be Failed after the terminal transition. Actual: {status?.Status}");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a request recorded as awaiting key destruction round-trips, is found by a status-filtered
+	/// listing (which is how the completion pass finds it), is NOT offered for execution again, and cannot be
+	/// cancelled.
+	/// </summary>
+	/// <remarks>
+	/// A store that dropped the status, mapped it to another value, returned it from the scheduled-execution query,
+	/// or let it be cancelled would each break the erasure lifecycle differently: the request would be lost, be
+	/// executed a second time against keys already scheduled for destruction, or be marked cancelled beside a key
+	/// that is being destroyed anyway.
+	/// </remarks>
+	public virtual async Task AwaitingKeyDestruction_ShouldBeListable_NotRescheduled_AndNotCancellable()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		// Due now, so the scheduled-execution query WOULD return it if it only looked at the time.
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddMinutes(-5), CancellationToken.None)
+			.ConfigureAwait(false);
+		_ = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None).ConfigureAwait(false);
+
+		var recorded = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, "awaiting provider", CancellationToken.None)
+			.ConfigureAwait(false);
+		if (!recorded)
+		{
+			throw new TestFixtureAssertionException("The transition to AwaitingKeyDestruction must succeed.");
+		}
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
+		if (status?.Status != ErasureRequestStatus.AwaitingKeyDestruction)
+		{
+			throw new TestFixtureAssertionException(
+				$"Status should round-trip as AwaitingKeyDestruction. Actual: {status?.Status}");
+		}
+
+		var queryStore = (IErasureQueryStore?)store.GetService(typeof(IErasureQueryStore))
+			?? throw new TestFixtureAssertionException("The store must expose IErasureQueryStore.");
+
+		var listed = await queryStore.ListRequestsAsync(
+			ErasureRequestStatus.AwaitingKeyDestruction, null, null, null, 1, 100, CancellationToken.None)
+			.ConfigureAwait(false);
+		if (!listed.Any(r => r.RequestId == request.RequestId))
+		{
+			throw new TestFixtureAssertionException(
+				"A status-filtered listing for AwaitingKeyDestruction must return the request; this is how it is revisited.");
+		}
+
+		var scheduled = await queryStore.GetScheduledRequestsAsync(100, CancellationToken.None).ConfigureAwait(false);
+		if (scheduled.Any(r => r.RequestId == request.RequestId))
+		{
+			throw new TestFixtureAssertionException(
+				"A request awaiting key destruction must not be returned for execution.");
+		}
+
+		var cancelled = await store.RecordCancellationAsync(
+			request.RequestId, "operator", "operator", CancellationToken.None).ConfigureAwait(false);
+		if (cancelled)
+		{
+			throw new TestFixtureAssertionException(
+				"A request awaiting key destruction must not be cancellable: its keys are already being destroyed.");
 		}
 	}
 
@@ -906,24 +1088,24 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		await GetCertificateStore(store).SaveCertificateAsync(certificate, CancellationToken.None).ConfigureAwait(false);
 
-		var retrieved = await GetCertificateStore(store).GetCertificateByIdAsync(certificate.CertificateId, CancellationToken.None).ConfigureAwait(false);
+		var retrieved = await GetCertificateStore(store).GetCertificateByIdAsync(certificate.Payload.CertificateId, CancellationToken.None).ConfigureAwait(false);
 
 		if (retrieved is null)
 		{
 			throw new TestFixtureAssertionException(
-				$"Certificate with CertificateId {certificate.CertificateId} was not found after SaveCertificateAsync");
+				$"Certificate with CertificateId {certificate.Payload.CertificateId} was not found after SaveCertificateAsync");
 		}
 
-		if (retrieved.CertificateId != certificate.CertificateId)
+		if (retrieved.Payload.CertificateId != certificate.Payload.CertificateId)
 		{
 			throw new TestFixtureAssertionException(
-				$"CertificateId mismatch. Expected: {certificate.CertificateId}, Actual: {retrieved.CertificateId}");
+				$"CertificateId mismatch. Expected: {certificate.Payload.CertificateId}, Actual: {retrieved.Payload.CertificateId}");
 		}
 
-		if (retrieved.RequestId != certificate.RequestId)
+		if (retrieved.Payload.RequestId != certificate.Payload.RequestId)
 		{
 			throw new TestFixtureAssertionException(
-				$"RequestId mismatch. Expected: {certificate.RequestId}, Actual: {retrieved.RequestId}");
+				$"RequestId mismatch. Expected: {certificate.Payload.RequestId}, Actual: {retrieved.Payload.RequestId}");
 		}
 	}
 
@@ -986,10 +1168,10 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 				$"Certificate should be found by RequestId {requestId}");
 		}
 
-		if (retrieved.RequestId != requestId)
+		if (retrieved.Payload.RequestId != requestId)
 		{
 			throw new TestFixtureAssertionException(
-				$"RequestId mismatch. Expected: {requestId}, Actual: {retrieved.RequestId}");
+				$"RequestId mismatch. Expected: {requestId}, Actual: {retrieved.Payload.RequestId}");
 		}
 	}
 
@@ -1003,18 +1185,118 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		await GetCertificateStore(store).SaveCertificateAsync(certificate, CancellationToken.None).ConfigureAwait(false);
 
-		var retrieved = await GetCertificateStore(store).GetCertificateByIdAsync(certificate.CertificateId, CancellationToken.None).ConfigureAwait(false);
+		var retrieved = await GetCertificateStore(store).GetCertificateByIdAsync(certificate.Payload.CertificateId, CancellationToken.None).ConfigureAwait(false);
 
 		if (retrieved is null)
 		{
 			throw new TestFixtureAssertionException(
-				$"Certificate should be found by CertificateId {certificate.CertificateId}");
+				$"Certificate should be found by CertificateId {certificate.Payload.CertificateId}");
 		}
 
-		if (retrieved.CertificateId != certificate.CertificateId)
+		if (retrieved.Payload.CertificateId != certificate.Payload.CertificateId)
 		{
 			throw new TestFixtureAssertionException(
-				$"CertificateId mismatch. Expected: {certificate.CertificateId}, Actual: {retrieved.CertificateId}");
+				$"CertificateId mismatch. Expected: {certificate.Payload.CertificateId}, Actual: {retrieved.Payload.CertificateId}");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a certificate signed before it is stored still verifies after it is read back.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the arm the other certificate arms cannot replace.</b> They compare identifiers, so a store
+	/// that dropped every claim on the document — the exemptions, the counts, what was actually erased —
+	/// would satisfy all of them. The signature covers the payload whole, so the only check that can tell
+	/// you a store returned the certificate it was given is to ask whether the returned certificate still
+	/// authenticates.
+	/// </para>
+	/// <para>
+	/// <b>A failure here is not cosmetic.</b> The consumer-visible symptom of a store that loses, truncates
+	/// or reshapes any claim is not a missing field — it is
+	/// <see cref="ErasureCertificateVerificationResult.SignatureMismatch"/> on a compliance record, which
+	/// reads to whoever runs it as though their evidence was interfered with. A store that cannot round-trip
+	/// a payload byte-for-byte cannot hold signed certificates at all.
+	/// </para>
+	/// <para>
+	/// The timestamps in the fixture carry sub-microsecond precision on purpose: a column type that cannot
+	/// represent a .NET <see cref="DateTimeOffset"/> exactly is exactly the kind of quiet loss this arm is
+	/// here to find, and rounding the fixture would hide it.
+	/// </para>
+	/// </remarks>
+	public virtual async Task SaveCertificateAsync_ShouldRoundTripACertificateThatStillVerifies()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var certificate = CreateSignedErasureCertificate();
+
+		await GetCertificateStore(store).SaveCertificateAsync(certificate, CancellationToken.None).ConfigureAwait(false);
+
+		var retrieved = await GetCertificateStore(store)
+			.GetCertificateByIdAsync(certificate.Payload.CertificateId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (retrieved is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"Certificate with CertificateId {certificate.Payload.CertificateId} was not found after SaveCertificateAsync");
+		}
+
+		var outcome = ErasureCertificateVerifier.Verify(retrieved, ConformanceSigningKey);
+
+		if (outcome != ErasureCertificateVerificationResult.Verified)
+		{
+			throw new TestFixtureAssertionException(
+				$"A certificate read back from this store no longer verifies: {outcome}. The store did not return "
+				+ "the payload it was given, so the signature cannot be recomputed over it. Whichever claim the "
+				+ "store drops, truncates or reshapes, the consumer sees a compliance record reporting as altered. "
+				+ "Compare the stored columns with every property on ErasureCertificatePayload -- including the "
+				+ "precision of the timestamp columns, which must hold a .NET DateTimeOffset exactly.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that the arm above can fail: an altered payload must NOT verify.
+	/// </summary>
+	/// <remarks>
+	/// Without this, a verifier that returned <see cref="ErasureCertificateVerificationResult.Verified"/>
+	/// unconditionally would satisfy the round-trip arm while establishing nothing. This arm runs entirely
+	/// against the store's own output, so it also confirms the key and scheme the round-trip arm relies on
+	/// are the ones actually in play.
+	/// </remarks>
+	public virtual async Task SaveCertificateAsync_ShouldNotVerifyACertificateWhoseClaimsWereAltered()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var certificate = CreateSignedErasureCertificate();
+
+		await GetCertificateStore(store).SaveCertificateAsync(certificate, CancellationToken.None).ConfigureAwait(false);
+
+		var retrieved = await GetCertificateStore(store)
+			.GetCertificateByIdAsync(certificate.Payload.CertificateId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (retrieved is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"Certificate with CertificateId {certificate.Payload.CertificateId} was not found after SaveCertificateAsync");
+		}
+
+		// One claim, changed the way an alteration after issue would change it.
+		var altered = retrieved with
+		{
+			Payload = retrieved.Payload with
+			{
+				Summary = retrieved.Payload.Summary with { RecordsAffected = retrieved.Payload.Summary.RecordsAffected + 1 },
+			},
+		};
+
+		var outcome = ErasureCertificateVerifier.Verify(altered, ConformanceSigningKey);
+
+		if (outcome != ErasureCertificateVerificationResult.SignatureMismatch)
+		{
+			throw new TestFixtureAssertionException(
+				$"An altered certificate reported {outcome} rather than SignatureMismatch. The round-trip arm "
+				+ "beside this one is therefore vacuous: it cannot distinguish a store that returns what it was "
+				+ "given from one that returns anything at all.");
 		}
 	}
 
@@ -1034,7 +1316,7 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		await GetCertificateStore(store).SaveCertificateAsync(expiredCertificate, CancellationToken.None).ConfigureAwait(false);
 
 		// Verify certificate exists
-		var beforeCleanup = await GetCertificateStore(store).GetCertificateByIdAsync(expiredCertificate.CertificateId, CancellationToken.None)
+		var beforeCleanup = await GetCertificateStore(store).GetCertificateByIdAsync(expiredCertificate.Payload.CertificateId, CancellationToken.None)
 			.ConfigureAwait(false);
 		if (beforeCleanup is null)
 		{
@@ -1051,7 +1333,7 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		// Verify certificate was removed
-		var afterCleanup = await GetCertificateStore(store).GetCertificateByIdAsync(expiredCertificate.CertificateId, CancellationToken.None)
+		var afterCleanup = await GetCertificateStore(store).GetCertificateByIdAsync(expiredCertificate.Payload.CertificateId, CancellationToken.None)
 			.ConfigureAwait(false);
 		if (afterCleanup is not null)
 		{
@@ -1074,7 +1356,7 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		_ = await GetCertificateStore(store).CleanupExpiredCertificatesAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Verify certificate still exists
-		var afterCleanup = await GetCertificateStore(store).GetCertificateByIdAsync(validCertificate.CertificateId, CancellationToken.None)
+		var afterCleanup = await GetCertificateStore(store).GetCertificateByIdAsync(validCertificate.Payload.CertificateId, CancellationToken.None)
 			.ConfigureAwait(false);
 		if (afterCleanup is null)
 		{

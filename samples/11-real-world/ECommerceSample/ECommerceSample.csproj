@@ -5,8 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample</RootNamespace>
-    <AssemblyName>Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample</AssemblyName>
+    <RootNamespace>Excalibur.Dispatch.Examples.ECommerceSample</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Examples.ECommerceSample</AssemblyName>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsAsErrors />
     <WarningsNotAsErrors />
@@ -35,6 +35,9 @@
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
+    <!-- The shipping in-memory inbox and outbox stores this sample runs against. -->
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="appsettings.json">

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics;
@@ -15,7 +15,10 @@ namespace Excalibur.A3.Authorization;
 /// <remarks>
 /// <para>
 /// This policy evaluates grant data in pure C# to determine access rights.
-/// Grants are keyed by scope string in the format <c>{TenantId}:{GrantType}:{Qualifier}</c>.
+/// Grants are keyed by scope string in the format <c>{TenantId}:{GrantType}:{Qualifier}</c>, composed
+/// through <see cref="SegmentedKey"/> so that no two distinct triples can address one grant. Every
+/// producer and every probe of this key MUST go through that composer: a raw interpolation here would
+/// not match the escaped key the store wrote.
 /// </para>
 /// <para>
 /// Uses a dual-index approach: exact grants are stored in a dictionary for O(1) lookup,
@@ -26,7 +29,12 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 {
 	private readonly IDictionary<string, object> _exactGrants;
 	private readonly List<GrantScope> _wildcardGrants;
-	private readonly IDictionary<string, object> _activityGroups;
+	/// <summary>
+	/// This tenant's view of the estate-wide activity-group catalogue. The policy holds the VIEW rather
+	/// than the raw catalogue so that another tenant's group has no expression on any path below: the view
+	/// exposes no member taking a composed key, so a foreign group cannot be named, let alone read.
+	/// </summary>
+	private readonly TenantScopedActivityGroupView _groups;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AuthorizationPolicy"/> class.
@@ -41,13 +49,17 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 	/// <param name="userId">The user identifier for the current context.</param>
 	public AuthorizationPolicy(
 		IDictionary<string, object> grants,
-		IDictionary<string, object> activityGroups,
+		IReadOnlyDictionary<string, IReadOnlyCollection<string>> activityGroups,
 		ITenantContext tenantContext,
 		string userId)
 	{
-		_activityGroups = activityGroups;
 		TenantId = tenantContext.TenantId ?? throw new InvalidOperationException(
 			"No ambient tenant is resolved; authorization requires an established tenant (TenantContextHolder.BeginScope / tenant middleware).");
+
+		// Confined to the ambient tenant at construction, so no later path has to remember to do it. The
+		// order matters: the view is built FROM TenantId, so it cannot be created before the line above
+		// has established which tenant this policy speaks for.
+		_groups = new TenantScopedActivityGroupView(activityGroups, TenantId);
 		UserId = userId;
 
 		// Partition grants into exact-match dictionary and wildcard list
@@ -138,7 +150,15 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 		if (activity != null)
 		{
 			// 1. Exact match (O(1) -- existing behavior, preserved)
-			var activityKey = $"{TenantId}:{GrantType.Activity}:{activity}";
+			// Composed through the canonical composer, NOT interpolated. The stored key was written
+			// escaped, so a raw probe cannot match it: a tenant, activity or resource term containing
+			// ':' or '%' would compose a string that is absent from the dictionary, and a grant the
+			// user genuinely holds would read as no grant at all.
+			// Composed through the canonical composer, NOT interpolated. The stored key was written
+			// escaped, so a raw probe cannot match it: a tenant, activity or resource term containing
+			// ':' or '%' would compose a string that is absent from the dictionary, and a grant the
+			// user genuinely holds would read as no grant at all.
+			var activityKey = SegmentedKey.Compose(TenantId, GrantType.Activity, activity);
 			hasActivityGrant = _exactGrants.ContainsKey(activityKey);
 
 			// 2. Wildcard match (O(W) -- only if exact fails)
@@ -157,7 +177,7 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 		if (resourceType != null && resource != null)
 		{
 			// 1. Exact match
-			var resourceKey = $"{TenantId}:{resourceType}:{resource}";
+			var resourceKey = SegmentedKey.Compose(TenantId, resourceType, resource);
 			hasResourceGrant = _exactGrants.ContainsKey(resourceKey);
 
 			// 2. Wildcard match
@@ -217,7 +237,7 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 				continue;
 			}
 
-			if (IsActivityInGroup(scope.Qualifier, activity))
+			if (_groups.Contains(scope.Qualifier, activity))
 			{
 				return true;
 			}
@@ -239,8 +259,17 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 				continue;
 			}
 
-			// For wildcard activity group grants, check all activity groups
-			foreach (var (groupName, _) in _activityGroups)
+			// For wildcard activity group grants, check this tenant's activity groups.
+			//
+			// A wildcard qualifier is written against a BARE group name, so the match needs names rather
+			// than composed keys -- and the estate holds both, for every tenant. Enumerating the view
+			// yields only the names this tenant owns, and the membership test composes the tenant itself,
+			// so neither half of this condition can reach a group belonging to anyone else.
+			//
+			// Iterating the raw catalogue here instead would re-open a cross-tenant escalation: a grant
+			// for "*" in the user's own tenant matches any name in the estate, and membership would then
+			// be read from that other tenant's entry.
+			foreach (var groupName in _groups.GroupNames)
 			{
 				if (WildcardGrantMatcher.Matches(
 					scope.TenantId,
@@ -248,7 +277,7 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 					scope.Qualifier,
 					TenantId,
 					GrantType.ActivityGroup,
-					groupName) && IsActivityInGroup(groupName, activity))
+					groupName) && _groups.Contains(groupName, activity))
 				{
 					return true;
 				}
@@ -258,24 +287,55 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 		return false;
 	}
 
-	/// <summary>
-	/// Checks whether the specified activity is contained in the named activity group.
-	/// </summary>
-	private bool IsActivityInGroup(string groupName, string activity)
-	{
-		return _activityGroups.TryGetValue(groupName, out var groupData)
-			&& groupData is IEnumerable<object> groupActivities
-			&& groupActivities.Any(a => string.Equals(a?.ToString(), activity, StringComparison.Ordinal));
-	}
+	// Membership and name-recovery used to live here, as a helper taking an already-composed group key
+	// and another recovering a bare name from one. Both are gone: the first made a foreign group
+	// addressable by anyone holding its key, and the second discarded the tenant it had just decoded.
+	// TenantScopedActivityGroupView owns both operations now and composes the tenant itself, so this class
+	// no longer has a member that can be handed a key belonging to somebody else.
 
 	/// <summary>
-	/// Attempts to parse a scope key string in the format <c>{TenantId}:{GrantType}:{Qualifier}</c>.
+	/// Attempts to parse a scope key, deferring to the type that owns the format.
 	/// </summary>
 	/// <param name="key"> The scope key string. </param>
 	/// <returns> A <see cref="GrantScope"/> if parsing succeeds; otherwise, <see langword="null"/>. </returns>
+	/// <remarks>
+	/// <para>
+	/// This re-derived the parse instead of calling the owner, and drifted from it in three ways. Every one
+	/// of them fails the same direction — the scope does not parse, both callers treat that as "skip", and
+	/// the grant is SILENTLY NOT APPLIED. A denial produced by a parse defect is indistinguishable from a
+	/// denial the policy meant, which is why this could not be noticed from the outside.
+	/// </para>
+	/// <para>
+	/// <b>It passed <c>RemoveEmptyEntries</c>.</b> That option does not blank an empty segment, it REMOVES
+	/// it and shifts the rest left — so an untenanted scope lost its leading empty term, the grant type slid
+	/// into the tenant position, and the length check then failed on a scope that was perfectly well formed.
+	/// </para>
+	/// <para>
+	/// <b>It split on a literal <c>':'</c></b> rather than the separator the writer uses, so the two could
+	/// diverge silently if it ever changed.
+	/// </para>
+	/// <para>
+	/// <b>It never unescaped.</b> The writer escapes every term, so any scope whose tenant, grant type or
+	/// qualifier contained a separator came back still escaped and compared unequal to itself. That one is
+	/// not a parse failure at all — it produces a scope that looks valid and matches nothing.
+	/// </para>
+	/// <para>
+	/// Delegating removes the second parser rather than correcting it. The format has one owner, and the
+	/// reasoning for the complete split and the absent <c>RemoveEmptyEntries</c> is written where that
+	/// owner lives; a copy here could only drift from it again.
+	/// </para>
+	/// </remarks>
 	private static GrantScope? TryParseScope(string key)
 	{
-		var parts = key.Split(':', 3, StringSplitOptions.RemoveEmptyEntries);
-		return parts.Length == 3 ? new GrantScope(parts[0], parts[1], parts[2]) : null;
+		try
+		{
+			return GrantScope.FromString(key);
+		}
+		catch (ArgumentException)
+		{
+			// The owner throws on a malformed scope; both callers here want to skip one. Converting at this
+			// boundary keeps their contract unchanged while leaving the format's definition in one place.
+			return null;
+		}
 	}
 }

@@ -103,7 +103,8 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 			.Returns(Task.CompletedTask);
 
 		var sut = CreateSut(storageClient);
-		var reference = new ClaimCheckReference { Id = "cc-retrieve" };
+		var idRetrieve = MintedId();
+		var reference = new ClaimCheckReference { Id = idRetrieve };
 
 		var data = await sut.RetrieveAsync(reference, CancellationToken.None);
 
@@ -122,10 +123,11 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 			.Throws(CreateGoogleApiException(HttpStatusCode.NotFound));
 
 		var sut = CreateSut(storageClient);
-		var reference = new ClaimCheckReference { Id = "cc-missing" };
+		var idMissing = MintedId();
+		var reference = new ClaimCheckReference { Id = idMissing };
 
 		var ex = await Should.ThrowAsync<KeyNotFoundException>(() => sut.RetrieveAsync(reference, CancellationToken.None));
-		ex.Message.ShouldContain("cc-missing");
+		ex.Message.ShouldContain(idMissing);
 	}
 
 	[Fact]
@@ -141,7 +143,7 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 			.Returns(Task.CompletedTask);
 
 		var sut = CreateSut(storageClient);
-		var deleted = await sut.DeleteAsync(new ClaimCheckReference { Id = "cc-delete" }, CancellationToken.None);
+		var deleted = await sut.DeleteAsync(new ClaimCheckReference { Id = MintedId() }, CancellationToken.None);
 
 		deleted.ShouldBeTrue();
 	}
@@ -163,7 +165,7 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 			.Returns(Task.CompletedTask);
 
 		var sut = CreateSut(storageClient);
-		var deleted = await sut.DeleteAsync(new ClaimCheckReference { Id = "cc-absent" }, CancellationToken.None);
+		var deleted = await sut.DeleteAsync(new ClaimCheckReference { Id = MintedId() }, CancellationToken.None);
 
 		deleted.ShouldBeFalse();
 
@@ -184,7 +186,7 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 			.Throws(new Google.GoogleApiException("storage", "boom"));
 
 		var sut = CreateSut(storageClient);
-		var deleted = await sut.DeleteAsync(new ClaimCheckReference { Id = "cc-delete-fail" }, CancellationToken.None);
+		var deleted = await sut.DeleteAsync(new ClaimCheckReference { Id = MintedId() }, CancellationToken.None);
 
 		deleted.ShouldBeFalse();
 	}
@@ -298,9 +300,10 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 		// never-stored one does.
 		var storageClient = A.Fake<IStorageClientSeam>();
 		var sut = CreateSut(storageClient);
+		var idExpired = MintedId();
 		var reference = new ClaimCheckReference
 		{
-			Id = "cc-expired",
+			Id = idExpired,
 			BlobName = "claim-check/cc-expired",
 			ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1)
 		};
@@ -308,7 +311,7 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 		var ex = await Should.ThrowAsync<KeyNotFoundException>(
 			() => sut.RetrieveAsync(reference, CancellationToken.None));
 
-		ex.Message.ShouldContain("cc-expired");
+		ex.Message.ShouldContain(idExpired);
 
 		// The object is never downloaded: expiry is decided before the request goes out.
 		A.CallTo(() => storageClient.DownloadObjectAsync(
@@ -352,4 +355,18 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 		A.CallTo(() => logger.IsEnabled(A<LogLevel>._)).Returns(true);
 		return logger;
 	}
+	/// <summary>
+	/// A well-formed identifier of the shape the store mints: the configured prefix, the date partition
+	/// the identifier carries, and a 128-bit body.
+	/// </summary>
+	/// <remarks>
+	/// These arms used descriptive literals such as <c>cc-retrieve</c>. The store now refuses any
+	/// identifier it did not mint, because a claim-check reference arrives on the wire and resolving a
+	/// storage key from one let a publisher name any object in the container. A descriptive literal is
+	/// exactly the shape that is now refused, so the arms mint a real identifier and keep the label in
+	/// the variable name instead.
+	/// </remarks>
+	private static string MintedId() =>
+		$"cc-{DateTimeOffset.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}";
+
 }

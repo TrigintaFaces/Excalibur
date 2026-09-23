@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -132,13 +132,52 @@ internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITranspo
 
 		var transportMessage = new TransportMessage
 		{
-			Body = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(message),
+			// SERIALIZE THE RUNTIME TYPE, NOT THE STATIC ONE. `message` is declared as IDispatchMessage,
+			// which is an empty marker interface, and the inferred-generic overload serializes the
+			// DECLARED type -- so every body went out as {} while MessageType above still named the
+			// concrete type. A receiver therefore deserialized a default-valued instance, or rejected it
+			// for missing required members, with nothing on either side reporting a fault.
+			//
+			// messageClrType is the same type already resolved for MessageType: this line knew the
+			// concrete type and used it for the LABEL while the PAYLOAD was written from the interface.
+			Body = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(message, messageClrType),
 			ContentType = "application/json",
 			MessageType = MessageNameHelper.GetDeclaredName(messageClrType) ?? messageClrType.FullName,
 			Subject = destination,
+
+			// The SENDER reads the outbound request's destination from this property and from nowhere
+			// else -- the configured sender destination is not a fallback in that mapping. Setting only
+			// Subject therefore dropped the caller's explicit routing value: both halves compiled, both
+			// were self-consistent, and the destination simply did not reach the wire. Subject is kept
+			// as well because it is what the far-side subscriber matches on.
+			Properties = new Dictionary<string, object>(StringComparer.Ordinal)
+			{
+				[GrpcTransportPropertyKeys.Destination] = destination,
+			},
 		};
 
-		await _sender.SendAsync(transportMessage, cancellationToken).ConfigureAwait(false);
+		var result = await _sender.SendAsync(transportMessage, cancellationToken).ConfigureAwait(false);
+
+		// A REJECTED SEND MUST NOT COMPLETE NORMALLY, and throwing is the only way to say so here.
+		// GrpcTransportSender never throws for a rejection: it returns SendResult.Failure both for a
+		// negative remote response and for an RpcException. This adapter's contract is Task-returning
+		// (ITransportAdapter.SendAsync), so it has no result channel to pass that through -- and the
+		// caller reads normal completion as delivery. MessageBusOutboxPublisher awaits this method and
+		// then calls MarkTransportSentAsync unconditionally, inspecting nothing; its only failure path
+		// is catch (Exception). So discarding the SendResult recorded an undelivered message as Sent
+		// and removed it from retry selection, which is the one outcome an outbox may never produce.
+		if (!result.IsSuccess)
+		{
+			var error = result.Error;
+
+			// The original RpcException travels as the inner exception rather than being rethrown:
+			// rethrowing here would attribute the fault to this line, and the outbox records ex.Message,
+			// so the remote's own code and text have to be in the message an operator reads.
+			throw new InvalidOperationException(
+				$"The gRPC transport rejected the message and did not accept it for delivery. "
+				+ $"Code: {error?.Code ?? "Unknown"}. Detail: {error?.Message ?? "none reported"}.",
+				error?.Exception);
+		}
 	}
 
 	/// <inheritdoc />

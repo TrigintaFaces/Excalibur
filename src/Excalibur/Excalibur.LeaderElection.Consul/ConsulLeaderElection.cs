@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -256,7 +256,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			CandidateId = CandidateId,
 			IsHealthy = isHealthy,
 			HealthScore = isHealthy ? 1.0 : 0.0,
-			LastUpdated = DateTimeOffset.UtcNow,
+			LastUpdated = _timeProvider.GetUtcNow(),
 			IsLeader = IsLeader,
 			Metadata = metadata ?? new Dictionary<string, string>(StringComparer.Ordinal),
 		};
@@ -573,7 +573,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		{
 			CandidateId = CandidateId,
 			SessionId = _sessionId,
-			AcquiredAt = DateTimeOffset.UtcNow,
+			AcquiredAt = _timeProvider.GetUtcNow(),
 			Metadata = _options.CandidateMetadata,
 		};
 
@@ -610,12 +610,12 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 				LogAcquiredLeadership(_resourceName);
 
 				// Raise events
-				BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+				BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 
 				if (!string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal))
 				{
 					var fencingToken = Interlocked.Read(ref _currentFencingToken);
-					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, CandidateId, _resourceName, fencingToken == NoFencingToken ? null : fencingToken));
+					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, CandidateId, _resourceName, fencingToken == NoFencingToken ? null : fencingToken, timestamp: _timeProvider.GetUtcNow()));
 					_lastKnownLeaderId = CandidateId;
 				}
 			}
@@ -701,8 +701,8 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 				LogReleasedLeadership(_resourceName);
 
 				// Raise events
-				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
+				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 				_lastKnownLeaderId = null;
 			}
 		}
@@ -834,17 +834,17 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			// Check if leadership changed
 			if (!string.Equals(_lastKnownLeaderId, currentLeader, StringComparison.Ordinal))
 			{
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, currentLeader, _resourceName));
+				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, currentLeader, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 
 				if (string.Equals(currentLeader, CandidateId, StringComparison.Ordinal) &&
 					!string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal))
 				{
-					BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+					BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 				}
 				else if (string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal) &&
 						 !string.Equals(currentLeader, CandidateId, StringComparison.Ordinal))
 				{
-					LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+					LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 				}
 
 				_lastKnownLeaderId = currentLeader;
@@ -909,8 +909,8 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		_cachedCurrentLeaderId = null;
 		_ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
 
-		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
+		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 		_lastKnownLeaderId = null;
 	}
 

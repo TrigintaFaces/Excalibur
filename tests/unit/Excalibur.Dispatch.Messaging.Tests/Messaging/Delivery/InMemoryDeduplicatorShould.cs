@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Options.Delivery;
@@ -211,14 +211,33 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	}
 
 	[Fact]
-	public async Task DenyClaimWhenAtCapacityRatherThanGrantUntracked()
+	public async Task FailClosedOnClaimWhenAtCapacityRatherThanReportADuplicate()
 	{
+		// The intent of this arm is unchanged — an untrackable claim must NOT be granted. What changed is
+		// the mechanism it pins. Returning null denied the claim but said it through the one value the
+		// contract reserves for "already present", so the inbox middleware acknowledged a never-seen
+		// message as a duplicate. Throwing denies the claim without asserting something false, and it
+		// matches the sibling paths on this type, which already throw at capacity.
 		using var sut = CreateCappedDeduplicator(maxEntries: 1);
 		(await sut.TryClaimAsync("claim-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
 			.ShouldNotBeNull();
 
-		(await sut.TryClaimAsync("claim-2", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeNull();
+		_ = await Should.ThrowAsync<DeduplicationCapacityExceededException>(() =>
+			sut.TryClaimAsync("claim-2", TimeSpan.FromMinutes(5), CancellationToken.None)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task StillGrantAClaimAtCapacityForAnAlreadyTrackedId()
+	{
+		// LIVENESS pair for the arm above: failing closed must not mean failing always. An id already in
+		// the map costs no new entry, so capacity is irrelevant to it and the deduplicator must still
+		// answer — here, by refusing it as the genuine duplicate it is rather than by throwing.
+		using var sut = CreateCappedDeduplicator(maxEntries: 1);
+		(await sut.TryClaimAsync("claim-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
+			.ShouldNotBeNull();
+
+		(await sut.TryClaimAsync("claim-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
+			.ShouldBeNull("an id already tracked is a real duplicate, not a capacity failure");
 	}
 
 	[Fact]

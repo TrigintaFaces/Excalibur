@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Data.ElasticSearch.Persistence;
 using Excalibur.Outbox.ElasticSearch;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Outbox;
@@ -15,7 +16,7 @@ public sealed class ElasticsearchOutboxOptionsShould
 		var sut = new ElasticsearchOutboxOptions();
 		sut.IndexName.ShouldBe("excalibur-outbox");
 		sut.DefaultBatchSize.ShouldBe(100);
-		sut.RefreshPolicy.ShouldBe("wait_for");
+		sut.RefreshPolicy.ShouldBe(ElasticsearchRefreshPolicy.WaitFor);
 
 		// The claim lease must default to a usable value: zero or negative would make every claimed
 		// message instantly reclaimable by another poller, re-creating duplicate delivery by default.
@@ -30,14 +31,14 @@ public sealed class ElasticsearchOutboxOptionsShould
 		{
 			IndexName = "custom-outbox",
 			DefaultBatchSize = 500,
-			RefreshPolicy = "false",
+			RefreshPolicy = ElasticsearchRefreshPolicy.None,
 			LeaseTimeoutSeconds = 45,
 			ProcessorId = "poller-1",
 		};
 
 		sut.IndexName.ShouldBe("custom-outbox");
 		sut.DefaultBatchSize.ShouldBe(500);
-		sut.RefreshPolicy.ShouldBe("false");
+		sut.RefreshPolicy.ShouldBe(ElasticsearchRefreshPolicy.None);
 		sut.LeaseTimeoutSeconds.ShouldBe(45);
 		sut.ProcessorId.ShouldBe("poller-1");
 	}

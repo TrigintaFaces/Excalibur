@@ -162,11 +162,28 @@ public sealed class GrantScopeDepthShould
         scope.Qualifier.ShouldBe("Admin");
     }
 
+    /// <summary>
+    /// A qualifier containing separators is carried ESCAPED, not raw. A key whose segment count exceeds
+    /// the format is refused rather than having the surplus absorbed into the last term.
+    /// </summary>
+    /// <remarks>
+    /// This arm previously asserted the opposite — that a raw-separator tail was absorbed into the
+    /// qualifier — and that behaviour is what made the key format non-injective: the raw spelling and the
+    /// escaped spelling of the same terms decoded to one scope, so two distinct keys addressed one grant.
+    /// The parse now defers to the type that owns the format, which splits completely and compares the
+    /// length.
+    /// </remarks>
     [Fact]
-    public void ParseFromString_WithColonsInQualifier()
+    public void ParseFromString_RefusesARawSeparatorTail_AndRoundTripsTheEscapedForm()
     {
-        // The split uses 3 as max count, so extra colons remain in qualifier
-        var scope = GrantScope.FromString("tenant:Activity:qualifier:with:colons");
+        _ = Should.Throw<ArgumentException>(
+            () => GrantScope.FromString("tenant:Activity:qualifier:with:colons"),
+            "a five-segment key is not a spelling of a three-term scope; absorbing the surplus would make "
+            + "it decode identically to the escaped form and let two keys address one grant");
+
+        // The supported way to carry separators in a term: the composer escapes them, the parse restores.
+        var composed = new GrantScope("tenant", "Activity", "qualifier:with:colons").ToString();
+        var scope = GrantScope.FromString(composed);
 
         scope.TenantId.ShouldBe("tenant");
         scope.GrantType.ShouldBe("Activity");

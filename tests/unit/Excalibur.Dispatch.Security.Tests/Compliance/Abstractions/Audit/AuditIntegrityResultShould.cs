@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 
@@ -122,12 +122,33 @@ public sealed class AuditIntegrityResultShould : UnitTestBase
 	}
 
 	[Fact]
-	public void RefuseToReportViolationsOverNoEvents()
+	public void ReportViolationsFoundWhileExaminingNothing()
 	{
-		// A violation cannot be detected in an event that was never examined.
+		// This arm previously asserted the opposite, on the reasoning that "a violation cannot be detected in
+		// an event that was never examined". The right-edge pin refutes it: verification checks the record
+		// immediately FOLLOWING the range, and that check fails precisely when records have been deleted from
+		// the end. A range truncated to nothing still has a successor to check, so the finding is real and the
+		// examined count is zero. Refusing it here made the honest result unconstructible, which left a fully
+		// truncated range with no way to be reported as anything but intact.
+		var result = AuditIntegrityResult.ViolationsDetected(
+			eventsVerified: 0,
+			startDate: DateTimeOffset.UtcNow.AddDays(-1),
+			endDate: DateTimeOffset.UtcNow,
+			firstViolationEventId: "event-1",
+			violationDescription: "Broken hash chain", compromisedChainCount: 1, isHashChained: true);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.EventsVerified.ShouldBe(0);
+	}
+
+	[Fact]
+	public void RefuseToReportViolationsOverANegativeEventCount()
+	{
+		// The guard is relaxed to admit zero, not removed: a negative count is not a smaller measurement, it
+		// is an impossible one, and admitting it would let a caller report a quantity that cannot be true.
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			AuditIntegrityResult.ViolationsDetected(
-				eventsVerified: 0,
+				eventsVerified: -1,
 				startDate: DateTimeOffset.UtcNow.AddDays(-1),
 				endDate: DateTimeOffset.UtcNow,
 				firstViolationEventId: "event-1",

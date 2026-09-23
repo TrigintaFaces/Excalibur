@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch;
 
@@ -69,6 +69,20 @@ public interface IFencedClaimScopedOutboxStore
 	/// MUST decide the returned outcome from that same action. A store that re-reads the row afterwards to
 	/// classify what happened compares a value captured outside the window it must describe, which is wrong
 	/// exactly when the refusal is real.
+	/// </para>
+	/// <para>
+	/// <b>Implementations MUST persist the high-water mark such that it never decreases across process
+	/// restart, failover or replica promotion.</b> A store whose high-water is only as durable as an
+	/// asynchronously-replicated value does not satisfy this and MUST NOT implement this interface.
+	/// </para>
+	/// <para>
+	/// <b>Atomicity is necessary and not sufficient, and the second half is why this clause exists.</b> A
+	/// fence is two properties: the comparison and the mutation are one indivisible action, AND the mark is
+	/// monotone non-decreasing under every fault in the deployment's model. A store can satisfy the first
+	/// perfectly and still be unsafe — if a failover, an eviction or a restore can roll the mark backwards,
+	/// a superseded tenure presents a token that is no longer below it and is admitted. <b>A monotonic
+	/// counter that can decrease is not a fence</b>, and a store providing only the atomicity half satisfies
+	/// the letter of this interface while breaking the guarantee it exists to give.
 	/// </para>
 	/// <para>
 	/// <b>The refusals are REPORTED, never thrown.</b> The drains report a delivery failure from inside their

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -137,6 +137,29 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options = options ?? new MicroBatchOptions();
 		_onBatchError = onBatchError;
+
+		// THE OPTIONS PIPELINE CANNOT SEE THIS PATH. Callers hand us a constructed MicroBatchOptions
+		// rather than resolving IOptions<T>, so a ValidateOnStart validator never runs for them and the
+		// bad value arrives here unexamined. Each of these fails differently and unhelpfully if it is
+		// allowed through: a non-positive ChannelCapacity throws from the bounded-channel constructor
+		// below, naming the channel rather than the option; a MaxBatchSize of zero means a batch is
+		// never full, so the batcher silently degrades to timer-only flushing with no error anywhere;
+		// and a non-positive MaxBatchDelay turns the flush timer into a busy loop.
+		//
+		// Checked here rather than only in the validator because this is the constructor that will be
+		// handed the value -- the same rules, enforced on the path that actually receives them.
+		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_options.MaxBatchSize, 0,
+			$"{nameof(options)}.{nameof(MicroBatchOptions.MaxBatchSize)}");
+		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_options.ChannelCapacity, 0,
+			$"{nameof(options)}.{nameof(MicroBatchOptions.ChannelCapacity)}");
+
+		if (_options.MaxBatchDelay <= TimeSpan.Zero)
+		{
+			throw new ArgumentOutOfRangeException(
+				$"{nameof(options)}.{nameof(MicroBatchOptions.MaxBatchDelay)}",
+				_options.MaxBatchDelay,
+				"The maximum batch delay must be greater than zero; a non-positive delay turns the flush timer into a busy loop.");
+		}
 
 		// Initialize OpenTelemetry instrumentation (instance-scoped for test listener compatibility)
 		_activitySource = new ActivitySource(DispatchTelemetryConstants.ActivitySources.BatchProcessor, "1.0.0");

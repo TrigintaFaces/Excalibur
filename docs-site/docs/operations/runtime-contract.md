@@ -57,9 +57,9 @@ Lean local paths can defer full context creation, but correlation/causation sema
 - **Outbox publish** enforces a maximum serialized payload size (`OutboxDeliveryOptions.MaxPayloadBytes`,
   default 4 MiB); an over-limit message is rejected before staging rather than written and retried forever.
 - **Every transport receive/subscribe path** enforces its own maximum inbound payload size before
-  deserialization. An over-limit delivery is rejected using the transport's native negative-acknowledgement
-  (nacked / dead-lettered / abandoned) and logged (a `…PayloadTooLarge` event), and the rest of the batch
-  keeps processing — no poison-loop, no stranded batch:
+  deserialization. An over-limit delivery is never handed to your handler and never deserialized, it is
+  logged (a `…PayloadTooLarge` event), and the rest of the batch keeps processing — no poison-loop, no
+  stranded batch:
 
   | Surface | Configure via | Default limit |
   |---|---|---|
@@ -70,6 +70,17 @@ Lean local paths can defer full context creation, but correlation/causation sema
   | gRPC | `GrpcTransportOptions.MaxPayloadBytes` | 4 MiB |
   | Kafka | `KafkaConsumerTuningOptions.MaxPayloadBytes` | 4 MiB |
   | RabbitMQ | `RabbitMqConsumptionOptions.MaxPayloadBytes` | 4 MiB (nacked `requeue: false`) |
+
+- **How the over-limit message is settled depends on whether you have given it somewhere to go**, and this
+  is the part worth configuring deliberately:
+
+  | Your configuration | What happens to the over-limit message |
+  |---|---|
+  | A dead-letter destination is configured (for example an SQS redrive policy to a dead-letter queue, or a Pub/Sub dead-letter topic) | It is **preserved** and routed there by the broker's own mechanism, so you keep a copy to investigate. On SQS this means the message is left to become visible again so its receive count advances — deleting it would destroy the copy the dead-letter queue exists to capture. |
+  | No dead-letter destination is configured | It is **dropped**. Retaining a message that can never be processed and has nowhere to go would redeliver it forever and stall the queue, so liveness is preferred. If you need these messages kept, configure a dead-letter destination — that is the switch. |
+
+  A message that is merely *large* is not the same as one that is *corrupt*: raising `MaxPayloadBytes`, or
+  setting it to `null`, makes an otherwise-valid large payload processable rather than dead-lettered.
 
 - The default is deliberately **bounded** (never unbounded) so the guard is never inert for a consumer who
   never configures one. Set `MaxPayloadBytes` to `null` to opt out (unbounded) for larger legitimate

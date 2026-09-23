@@ -1,5 +1,5 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -26,8 +26,26 @@ namespace Excalibur.Integration.Tests.Redis.Outbox;
 [Trait("Component", "Core")]
 public sealed class RedisOutboxStoreConformanceShould : OutboxStoreConformanceTestKit, IAsyncLifetime
 {
-	/// <summary>This store fences, so an arm that finds no IFencedOutboxStore must FAIL, not skip.</summary>
-	protected override bool ParticipatesInFencing => true;
+	/// <summary>
+	/// This store NO LONGER fences, so the kit's fencing arms record a skip with their reason instead of
+	/// failing. Flipped deliberately, as the reviewable half of removing the capability.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// While this read <c>true</c> the declaration did exactly its job: the moment the store stopped
+	/// presenting <c>IFencedOutboxStore</c> the kit turned this suite RED rather than quietly skipping the
+	/// arms, which is the failure it exists to catch. It is not being flipped to silence a red — it is
+	/// being flipped because the underlying fact it asserts has changed, and the two halves land together.
+	/// </para>
+	/// <para>
+	/// The guarantee this store used to carry has not moved somewhere quieter, it has been WITHDRAWN: a
+	/// superseded tenure can no longer present a token at all, so the confusion the fenced arms bound is
+	/// now inexpressible rather than refused. The withdrawal itself is asserted by
+	/// <c>RedisOutboxSupersededMarkSentShould</c>, and the capability footprint is frozen in
+	/// <c>OutboxCapabilityMatrixShould</c>, which fails if code and declaration ever disagree again.
+	/// </para>
+	/// </remarks>
+	protected override bool ParticipatesInFencing => false;
 
 	private readonly RedisContainerFixture _fixture;
 	private ConnectionMultiplexer? _connection;
@@ -374,6 +392,10 @@ public sealed class RedisOutboxStoreConformanceShould : OutboxStoreConformanceTe
 	[Fact]
 	public Task MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim_Test() =>
 		MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim();
+
+	[Fact]
+	public Task MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied_Test() =>
+		MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied();
 
 	[Fact]
 	public Task MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage_Test() =>

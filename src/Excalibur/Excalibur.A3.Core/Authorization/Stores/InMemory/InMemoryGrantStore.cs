@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Collections.Concurrent;
+using System.Collections.Immutable;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.A3.Authorization.Stores.InMemory;
 
 /// <summary>
 /// In-memory implementation of <see cref="IGrantStore"/>, <see cref="IGrantQueryStore"/>,
-/// and <see cref="IActivityGroupGrantStore"/> backed by <see cref="ConcurrentDictionary{TKey, TValue}"/>.
+/// <see cref="IActivityGroupGrantStore"/> and <see cref="IActivityGroupGrantReplacement"/> backed by one
+/// immutable map.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -16,14 +19,21 @@ namespace Excalibur.A3.Authorization.Stores.InMemory;
 /// <c>TryAddSingleton</c> in <c>AddExcaliburA3()</c>.
 /// </para>
 /// <para>
-/// Thread-safe by design: all mutations use <see cref="ConcurrentDictionary{TKey, TValue}"/>
-/// atomic operations with no additional locking.
+/// <b>Every read observes one whole state.</b> The grants are an immutable map behind a single reference. A
+/// reader takes the reference once and answers from that snapshot; a writer builds the next map and swaps the
+/// reference atomically, retrying if another writer got there first. So
+/// <see cref="ReplaceActivityGroupGrantsAsync"/> removes a set of grants and writes another in one step, which
+/// a dictionary emptied and refilled in place cannot offer: a reader between the two saw a partial set, and
+/// the authorization decision denies on a missing grant.
 /// </para>
 /// </remarks>
-internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActivityGroupGrantStore
+internal sealed class InMemoryGrantStore
+	: IGrantStore, IGrantQueryStore, IActivityGroupGrantStore, IActivityGroupGrantReplacement
 {
-	private readonly ConcurrentDictionary<string, Grant> _grants = new(StringComparer.Ordinal);
 	private readonly TimeProvider _timeProvider;
+
+	private ImmutableDictionary<string, Grant> _grants =
+		ImmutableDictionary.Create<string, Grant>(StringComparer.Ordinal);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryGrantStore"/> class.
@@ -35,6 +45,9 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 	public InMemoryGrantStore(TimeProvider? timeProvider = null) =>
 		_timeProvider = timeProvider ?? TimeProvider.System;
 
+	// Read once per operation, so every answer comes from a single state.
+	private ImmutableDictionary<string, Grant> Snapshot => Volatile.Read(ref _grants);
+
 	/// <inheritdoc />
 	public Task<Grant?> GetGrantAsync(
 		string userId,
@@ -44,7 +57,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		CancellationToken cancellationToken)
 	{
 		var key = BuildKey(userId, tenantId, grantType, qualifier);
-		_grants.TryGetValue(key, out var grant);
+		_ = Snapshot.TryGetValue(key, out var grant);
 		return Task.FromResult(grant);
 	}
 
@@ -62,7 +75,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 	{
 		var now = _timeProvider.GetUtcNow();
 
-		var results = _grants.Values
+		var results = Snapshot.Values
 			.Where(g => string.Equals(g.UserId, userId, StringComparison.Ordinal))
 			.Where(g => includeExpired || g.IsActive(now))
 			.ToList();
@@ -76,7 +89,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		ArgumentNullException.ThrowIfNull(grant);
 
 		var key = BuildKey(grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier);
-		_grants[key] = grant;
+		_ = ImmutableInterlocked.AddOrUpdate(ref _grants, key, grant, (_, _) => grant);
 		return Task.FromResult(1);
 	}
 
@@ -91,7 +104,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		CancellationToken cancellationToken)
 	{
 		var key = BuildKey(userId, tenantId, grantType, qualifier);
-		return Task.FromResult(_grants.TryRemove(key, out _) ? 1 : 0);
+		return Task.FromResult(ImmutableInterlocked.TryRemove(ref _grants, key, out _) ? 1 : 0);
 	}
 
 	/// <inheritdoc />
@@ -103,7 +116,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		CancellationToken cancellationToken)
 	{
 		var key = BuildKey(userId, tenantId, grantType, qualifier);
-		return Task.FromResult(_grants.ContainsKey(key));
+		return Task.FromResult(Snapshot.ContainsKey(key));
 	}
 
 	/// <inheritdoc />
@@ -121,6 +134,11 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 			return this;
 		}
 
+		if (serviceType == typeof(IActivityGroupGrantReplacement))
+		{
+			return this;
+		}
+
 		return null;
 	}
 
@@ -128,21 +146,28 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 
 	/// <inheritdoc />
 	public Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
-		string? userId,
 		string tenantId,
-		string grantType,
-		string qualifier,
+		string? userId,
+		string? grantType,
+		string? qualifier,
 		CancellationToken cancellationToken)
 	{
-		var results = _grants.Values
-			.Where(g =>
-				(userId is null || string.Equals(g.UserId, userId, StringComparison.Ordinal)) &&
-				string.Equals(g.TenantId, tenantId, StringComparison.Ordinal) &&
-				string.Equals(g.GrantType, grantType, StringComparison.Ordinal) &&
-				string.Equals(g.Qualifier, qualifier, StringComparison.Ordinal))
-			.ToList();
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
 
-		return Task.FromResult<IReadOnlyList<Grant>>(results);
+		return Task.FromResult<IReadOnlyList<Grant>>(Match(tenantId, userId, grantType, qualifier));
+	}
+
+	/// <inheritdoc />
+	public Task<IReadOnlyList<Grant>> GetMatchingGrantsAcrossTenantsAsync(
+		string? userId,
+		string? grantType,
+		string? qualifier,
+		CancellationToken cancellationToken)
+	{
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
+
+		return Task.FromResult<IReadOnlyList<Grant>>(Match(tenantId: null, userId, grantType, qualifier));
 	}
 
 	/// <inheritdoc />
@@ -150,7 +175,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		string userId,
 		CancellationToken cancellationToken)
 	{
-		var results = _grants.Values
+		var results = Snapshot.Values
 			.Where(g => string.Equals(g.UserId, userId, StringComparison.Ordinal))
 			.ToDictionary(
 				g => BuildScopeKey(g.TenantId, g.GrantType, g.Qualifier),
@@ -166,45 +191,17 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 	public Task<int> DeleteActivityGroupGrantsByUserIdAsync(
 		string userId,
 		string grantType,
-		CancellationToken cancellationToken)
-	{
-		var removed = 0;
-
-		foreach (var kvp in _grants)
-		{
-			if (string.Equals(kvp.Value.UserId, userId, StringComparison.Ordinal) &&
-				string.Equals(kvp.Value.GrantType, grantType, StringComparison.Ordinal))
-			{
-				if (_grants.TryRemove(kvp.Key, out _))
-				{
-					removed++;
-				}
-			}
-		}
-
-		return Task.FromResult(removed);
-	}
+		CancellationToken cancellationToken) =>
+		Task.FromResult(RemoveWhere(g =>
+			string.Equals(g.UserId, userId, StringComparison.Ordinal)
+			&& string.Equals(g.GrantType, grantType, StringComparison.Ordinal)).Count);
 
 	/// <inheritdoc />
 	public Task<int> DeleteAllActivityGroupGrantsAsync(
 		string grantType,
-		CancellationToken cancellationToken)
-	{
-		var removed = 0;
-
-		foreach (var kvp in _grants)
-		{
-			if (string.Equals(kvp.Value.GrantType, grantType, StringComparison.Ordinal))
-			{
-				if (_grants.TryRemove(kvp.Key, out _))
-				{
-					removed++;
-				}
-			}
-		}
-
-		return Task.FromResult(removed);
-	}
+		CancellationToken cancellationToken) =>
+		Task.FromResult(RemoveWhere(g =>
+			string.Equals(g.GrantType, grantType, StringComparison.Ordinal)).Count);
 
 	/// <inheritdoc />
 	public Task<int> InsertActivityGroupGrantAsync(
@@ -228,7 +225,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 			DateTimeOffset.UtcNow);
 
 		var key = BuildKey(userId, tenantId, grantType, qualifier);
-		_grants[key] = grant;
+		_ = ImmutableInterlocked.AddOrUpdate(ref _grants, key, grant, (_, _) => grant);
 		return Task.FromResult(1);
 	}
 
@@ -237,7 +234,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		string grantType,
 		CancellationToken cancellationToken)
 	{
-		var userIds = _grants.Values
+		var userIds = Snapshot.Values
 			.Where(g => string.Equals(g.GrantType, grantType, StringComparison.Ordinal))
 			.Select(g => g.UserId)
 			.Distinct(StringComparer.Ordinal)
@@ -246,12 +243,140 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		return Task.FromResult<IReadOnlyList<string>>(userIds);
 	}
 
+	// -- IActivityGroupGrantReplacement --
+
+	/// <inheritdoc />
+	public Task<IReadOnlyCollection<string>> ReplaceActivityGroupGrantsAsync(
+		string grantType,
+		ActivityGroupGrantSnapshot snapshot,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(snapshot);
+
+		// Refused before anything is removed: an empty estate-wide snapshot, or one mixing grant types, cannot
+		// be applied whole, so it is not applied at all.
+		ActivityGroupGrantSnapshot.ValidateAsEstateReplacement(snapshot, grantType);
+
+		return Task.FromResult(Replace(
+			g => string.Equals(g.GrantType, grantType, StringComparison.Ordinal),
+			snapshot));
+	}
+
+	/// <inheritdoc />
+	public Task<IReadOnlyCollection<string>> ReplaceActivityGroupGrantsForUserAsync(
+		string userId,
+		string grantType,
+		ActivityGroupGrantSnapshot snapshot,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(snapshot);
+
+		// An EMPTY snapshot is accepted here and is the whole point of the per-user member: that user now holds
+		// no grants of this type, and every one of theirs is revoked.
+		ActivityGroupGrantSnapshot.ValidateAsUserReplacement(snapshot, userId, grantType);
+
+		return Task.FromResult(Replace(
+			g => string.Equals(g.UserId, userId, StringComparison.Ordinal)
+				&& string.Equals(g.GrantType, grantType, StringComparison.Ordinal),
+			snapshot));
+	}
+
+	/// <summary>
+	/// Removes every grant matching <paramref name="scope"/> and writes <paramref name="snapshot"/> in their
+	/// place, in one exchange, reporting the users whose grants were removed.
+	/// </summary>
+	/// <remarks>
+	/// The removal and the insertion are one transformation of one map, so a reader holding the reference sees
+	/// the whole previous set or the whole new one. The previous users are assigned on every attempt, so the
+	/// ones reported come from the state actually swapped in rather than from an attempt that lost the race.
+	/// </remarks>
+	private IReadOnlyCollection<string> Replace(Func<Grant, bool> scope, ActivityGroupGrantSnapshot snapshot)
+	{
+		IReadOnlyCollection<string> previousUsers = [];
+		var grantedOn = _timeProvider.GetUtcNow();
+
+		_ = ImmutableInterlocked.Update(
+			ref _grants,
+			current =>
+			{
+				var doomed = current.Where(e => scope(e.Value)).ToArray();
+
+				previousUsers =
+					[.. doomed.Select(static e => e.Value.UserId).Distinct(StringComparer.Ordinal)];
+
+				return current
+					.RemoveRange(doomed.Select(static e => e.Key))
+					.SetItems(snapshot.Entries.Select(e => KeyValuePair.Create(
+						BuildKey(e.UserId, e.TenantId, e.GrantType, e.Qualifier),
+						new Grant(
+							e.UserId,
+							e.FullName,
+							e.TenantId,
+							e.GrantType,
+							e.Qualifier,
+							e.ExpiresOn,
+							e.GrantedBy,
+							grantedOn))));
+			});
+
+		return previousUsers;
+	}
+
+	/// <summary>
+	/// Removes every grant matching <paramref name="scope"/> in one exchange, reporting what was removed.
+	/// </summary>
+	private IReadOnlyCollection<string> RemoveWhere(Func<Grant, bool> scope)
+	{
+		IReadOnlyCollection<string> removed = [];
+
+		_ = ImmutableInterlocked.Update(
+			ref _grants,
+			current =>
+			{
+				var doomed = current.Where(e => scope(e.Value)).Select(static e => e.Key).ToArray();
+				removed = doomed;
+
+				return current.RemoveRange(doomed);
+			});
+
+		return removed;
+	}
+
 	// Escaped before joining, so a term containing the separator cannot shift the meaning of the key:
 	// without it ("a:b", "c", "d") and ("a", "b:c", "d") compose the same string and one tenant reads
 	// another tenant's grant. This store is in-memory, so the composition is never persisted.
 	private static string BuildKey(string userId, string tenantId, string grantType, string qualifier) =>
-		$"{GrantKeyFormat.Escape(userId)}:{GrantKeyFormat.ComposeScope(tenantId, grantType, qualifier)}";
+		SegmentedKey.Compose(userId, tenantId, grantType, qualifier);
 
 	private static string BuildScopeKey(string tenantId, string grantType, string qualifier) =>
-		GrantKeyFormat.ComposeScope(tenantId, grantType, qualifier);
+		SegmentedKey.Compose(tenantId, grantType, qualifier);
+
+	// A revoked grant is removed, so every held grant is non-revoked; the filters are ordinal equality, and a
+	// null filter -- never an empty one -- leaves its field unconstrained.
+	private List<Grant> Match(string? tenantId, string? userId, string? grantType, string? qualifier) =>
+		Snapshot.Values
+			.Where(g =>
+				(tenantId is null || string.Equals(g.TenantId, tenantId, StringComparison.Ordinal)) &&
+				(userId is null || string.Equals(g.UserId, userId, StringComparison.Ordinal)) &&
+				(grantType is null || string.Equals(g.GrantType, grantType, StringComparison.Ordinal)) &&
+				(qualifier is null || string.Equals(g.Qualifier, qualifier, StringComparison.Ordinal)))
+			.ToList();
+
+	private static void ThrowIfEmptyFilter(string? userId, string? grantType, string? qualifier)
+	{
+		if (userId is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		}
+
+		if (grantType is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(grantType);
+		}
+
+		if (qualifier is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(qualifier);
+		}
+	}
 }

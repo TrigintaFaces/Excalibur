@@ -46,7 +46,7 @@ data-access executors; the granular mode only registers what you ask for.
 services.AddExcaliburSqlServer(sql =>
 {
     sql.ConnectionString  = connection;
-    sql.UseInboxStore     = true;          // the STORE; compose UseInbox() to deduplicate
+    sql.UseInbox          = true;          // store + deduplication middleware
     sql.UseSaga           = true;
     sql.UseLeaderElection = true;
     sql.UseAuditLogging   = true;

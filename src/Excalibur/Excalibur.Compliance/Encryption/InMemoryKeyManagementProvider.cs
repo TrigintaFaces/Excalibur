@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
@@ -28,7 +28,7 @@ namespace Excalibur.Compliance.Encryption;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvider, IKeyManagementAdmin, IKeyMaterialProvider, IDisposable
+public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvider, IKeyManagementAdmin, IKeyMaterialProvider, IKeyDestructionStatusProvider, IDisposable
 {
 	private const int KeySizeBytes = 32; // AES-256
 
@@ -217,6 +217,22 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		LogKeyDeletionScheduled(keyId, retentionDays);
 
 		return Task.FromResult(KeyDestructionOutcome.ScheduledAt(irreversibleAt));
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// This provider holds key material only in process memory and never purges a scheduled key on its own. A key
+	/// is destroyed when it is gone from memory, or when every version's material has been zeroed; a key scheduled
+	/// for deletion with a recovery window is still held, and is reported as not destroyed.
+	/// </remarks>
+	public Task<bool> IsKeyDestroyedAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		return Task.FromResult(
+			!_keys.TryGetValue(keyId, out var keyEntry)
+			|| keyEntry.Versions.Values.All(static v => v.Status == KeyStatus.Destroyed && v.KeyMaterial is null));
 	}
 
 	/// <inheritdoc/>

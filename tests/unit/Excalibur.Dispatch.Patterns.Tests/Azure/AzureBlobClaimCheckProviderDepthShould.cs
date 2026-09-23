@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 using System.Text;
@@ -169,7 +169,7 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 		// A missing claim is KeyNotFoundException, the same as the in-memory, S3 and GCS providers and the
 		// exception our published example tells a consumer to catch. InvalidOperationException here left a
 		// consumer with an unhandled exception on the one path they had written a handler for.
-		var reference = new ClaimCheckReference { Id = "missing-id" };
+		var reference = new ClaimCheckReference { Id = MintedId("claim-") };
 		var ex = await Should.ThrowAsync<KeyNotFoundException>(() => setup.Provider.RetrieveAsync(reference, CancellationToken.None));
 		ex.Message.ShouldContain("not found");
 	}
@@ -213,7 +213,7 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 			.Returns(Task.FromResult(Response.FromValue(result, A.Fake<Response>())));
 
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
-			setup.Provider.RetrieveAsync(new ClaimCheckReference { Id = "mismatch" }, CancellationToken.None));
+			setup.Provider.RetrieveAsync(new ClaimCheckReference { Id = MintedId() }, CancellationToken.None));
 
 		ex.Message.ShouldContain("Checksum validation failed");
 	}
@@ -225,7 +225,7 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 		A.CallTo(() => setup.BlobClient.DeleteIfExistsAsync(A<DeleteSnapshotsOption>._, A<BlobRequestConditions>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(Response.FromValue(true, A.Fake<Response>())));
 
-		var deleted = await setup.Provider.DeleteAsync(new ClaimCheckReference { Id = "id-1" }, CancellationToken.None);
+		var deleted = await setup.Provider.DeleteAsync(new ClaimCheckReference { Id = MintedId("claim-") }, CancellationToken.None);
 		deleted.ShouldBeTrue();
 	}
 
@@ -236,7 +236,7 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 		A.CallTo(() => setup.BlobClient.DeleteIfExistsAsync(A<DeleteSnapshotsOption>._, A<BlobRequestConditions>._, A<CancellationToken>._))
 			.Throws(new RequestFailedException(500, "error"));
 
-		var deleted = await setup.Provider.DeleteAsync(new ClaimCheckReference { Id = "id-2" }, CancellationToken.None);
+		var deleted = await setup.Provider.DeleteAsync(new ClaimCheckReference { Id = MintedId("claim-") }, CancellationToken.None);
 		deleted.ShouldBeFalse();
 	}
 
@@ -324,4 +324,17 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 		field.ShouldNotBeNull();
 		field!.SetValue(instance, value);
 	}
+	/// <summary>
+	/// A well-formed identifier of the shape the provider mints: the configured prefix, the date partition
+	/// the identifier carries, and a 128-bit body.
+	/// </summary>
+	/// <remarks>
+	/// These arms used descriptive literals. The provider now refuses any identifier it did not mint,
+	/// because a claim-check reference arrives on the wire and resolving a blob name from one let a
+	/// publisher name any blob in the container. A descriptive literal is exactly the shape that is now
+	/// refused, so the arms mint a real identifier.
+	/// </remarks>
+	private static string MintedId(string prefix = "cc-") =>
+		$"{prefix}{DateTimeOffset.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}";
+
 }

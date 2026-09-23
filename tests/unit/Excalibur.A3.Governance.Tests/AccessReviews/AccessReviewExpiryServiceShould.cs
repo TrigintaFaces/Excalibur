@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.AccessReviews;
@@ -30,7 +30,7 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 		DateTimeOffset? expiresAt = null,
 		int totalItems = 5,
 		int decidedItems = 0) =>
-		new(id, "Q1 Review", DefaultScope, "admin",
+		new(id, "tenant-1", "Q1 Review", DefaultScope, "admin",
 			Now.AddDays(-30), expiresAt ?? Now.AddDays(-1), // default: already expired
 			expiryPolicy, state, totalItems, decidedItems);
 
@@ -48,7 +48,7 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 
 		// Act: Create campaign
 		var campaign = new AccessReviewCampaign(
-			"campaign-lc", "Lifecycle Test", DefaultScope, "admin",
+			"campaign-lc", "tenant-1", "Lifecycle Test", DefaultScope, "admin",
 			Now.AddDays(-30), Now.AddDays(30),
 			AccessReviewExpiryPolicy.DoNothing, items);
 
@@ -90,7 +90,7 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 		};
 
 		var campaign = new AccessReviewCampaign(
-			"campaign-exp", "Expiry Test", DefaultScope, "admin",
+			"campaign-exp", "tenant-1", "Expiry Test", DefaultScope, "admin",
 			Now.AddDays(-30), Now.AddDays(-1),
 			AccessReviewExpiryPolicy.RevokeUnreviewed, items);
 
@@ -113,7 +113,7 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 		};
 
 		var campaign = new AccessReviewCampaign(
-			"campaign-part", "Partial Test", DefaultScope, "admin",
+			"campaign-part", "tenant-1", "Partial Test", DefaultScope, "admin",
 			Now.AddDays(-30), Now.AddDays(-1),
 			AccessReviewExpiryPolicy.DoNothing, items);
 
@@ -237,7 +237,7 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 		};
 
 		var campaign = new AccessReviewCampaign(
-			"rt-1", "Round-Trip", DefaultScope, "admin",
+			"rt-1", "tenant-1", "Round-Trip", DefaultScope, "admin",
 			Now, Now.AddDays(30), AccessReviewExpiryPolicy.DoNothing, items);
 		campaign.Start();
 		campaign.RecordDecision(new AccessReviewDecision(
@@ -286,7 +286,7 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 		};
 
 		var campaign = new AccessReviewCampaign(
-			"role-scope", "Admin Role Review", scope, "admin",
+			"role-scope", "tenant-1", "Admin Role Review", scope, "admin",
 			Now, Now.AddDays(30), AccessReviewExpiryPolicy.RevokeUnreviewed, items);
 
 		campaign.Scope.Type.ShouldBe(AccessReviewScopeType.ByRole);
@@ -306,7 +306,7 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 		};
 
 		var campaign = new AccessReviewCampaign(
-			"user-scope", "User Review", scope, "admin",
+			"user-scope", "tenant-1", "User Review", scope, "admin",
 			Now, Now.AddDays(14), AccessReviewExpiryPolicy.DoNothing, items);
 
 		campaign.Scope.Type.ShouldBe(AccessReviewScopeType.ByUser);

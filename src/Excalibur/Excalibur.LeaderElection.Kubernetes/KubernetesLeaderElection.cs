@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -244,7 +244,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 					CandidateId = CandidateId,
 					IsHealthy = isHealthy,
 					HealthScore = isHealthy ? 1.0 : 0.0,
-					LastUpdated = DateTimeOffset.UtcNow,
+					LastUpdated = _timeProvider.GetUtcNow(),
 					Metadata = metadata,
 				};
 
@@ -657,12 +657,12 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 					{
 						Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
 						LogAcquiredLeadership(_resourceName);
-						BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+						BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 					}
 
 					if (!string.Equals(previousLeaderId, CandidateId, StringComparison.Ordinal))
 					{
-						LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CandidateId, _resourceName));
+						LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 					}
 				}
 				catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.Conflict)
@@ -695,7 +695,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 						{
 							_isLeader = false;
 							LogLostLeadership(_resourceName);
-							LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+							LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 						}
 
 						_currentLeaderId = null;
@@ -734,13 +734,13 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 		if (wasLeader && !IsLeader)
 		{
 			LogLostLeadership(_resourceName);
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 		}
 
 		if (!string.Equals(previousLeaderId, CurrentLeaderId, StringComparison.Ordinal))
 		{
 			LogLeaderChanged(previousLeaderId, CurrentLeaderId, _resourceName);
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CurrentLeaderId, _resourceName));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CurrentLeaderId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 		}
 
 		return Task.CompletedTask;
@@ -808,8 +808,8 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 					_isLeader = false;
 					_currentLeaderId = null;
 
-					LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, newLeaderId: null, _resourceName));
+					LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 				}
 				catch (Exception ex)
 				{

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
@@ -68,6 +68,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private readonly DynamicBatchSizeCalculator? _batchSizeCalculator;
 
 	// Resilience components
+
+	/// <summary>
+	/// How long the dead-letter compensation may spend withdrawing an entry whose fenced mark was refused.
+	/// </summary>
+	/// <remarks>
+	/// Deliberately generous relative to a single queue round trip and deliberately finite. The compensation
+	/// runs detached from the drain's cancellation, so without a deadline of its own a queue that never
+	/// answers would hold shutdown open indefinitely.
+	/// </remarks>
+	private static readonly TimeSpan DeadLetterCompensationTimeout = TimeSpan.FromSeconds(15);
+
 	private readonly IDeadLetterQueue _deadLetterQueue;
 
 	private readonly ITransportCircuitBreakerRegistry _circuitBreakerRegistry;
@@ -109,6 +120,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			return fenced.GetUnsentMessagesAsync(batchSize, token, cancellationToken);
 		}
 
+		// THROWS here, and that is safe BECAUSE this runs in the drain's try block: the enclosing
+		// catch (OutboxFenceRefusedException) receives it, logs, and moves to the next message. Contrast the
+		// failure and dead-letter members, which run INSIDE that catch and must report rather than throw.
 		GuardActiveGateHasFencingToken();
 		return _outboxStore.GetUnsentMessagesAsync(batchSize, cancellationToken);
 	}
@@ -124,6 +138,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			return fenced.MarkSentAsync(messageId, token, cancellationToken);
 		}
 
+		// THROWS here, and that is safe BECAUSE this runs in the drain's try block: the enclosing
+		// catch (OutboxFenceRefusedException) receives it and leaves the row exactly as claimed. The
+		// discriminator is try-vs-catch, NOT per-message-vs-batch -- this member is per-message and throws.
 		GuardActiveGateHasFencingToken();
 		return _outboxStore.MarkSentAsync(messageId, cancellationToken);
 	}
@@ -136,6 +153,15 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// state under an active gate is a defect; refuse to drain rather than drain unfenced. When no gate is
 	/// configured (<c>_leaderGate is null</c>) a null token is the legitimate unfenced path and drains normally.
 	/// </summary>
+	/// <remarks>
+	/// <b>CALL THIS ONLY FROM A <c>try</c> WHOSE <c>catch</c> HANDLES
+	/// <see cref="OutboxFenceRefusedException"/>.</b> It refuses by THROWING, and a throw raised from
+	/// inside a <c>catch</c> clause is not eligible for any sibling <c>catch</c> on the same <c>try</c> --
+	/// it propagates out of the whole construct and abandons every remaining message in the batch. The
+	/// completion paths that run inside the drain's exception handling therefore REPORT the same refusal
+	/// instead of calling this; see the refusal blocks in the failure and dead-letter members. That
+	/// asymmetry is deliberate and this is the reason for it.
+	/// </remarks>
 	private void GuardActiveGateHasFencingToken()
 	{
 		if (_fencingActive && CurrentFencingToken is null)
@@ -180,7 +206,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <param name="envelopeDeserializer"> Optional binary envelope deserializer for high-performance binary envelope support. </param>
 	/// <param name="deadLetterQueue"> Optional dead letter queue for failed messages. Uses NullDeadLetterQueue if not provided. </param>
 	/// <param name="circuitBreakerRegistry">
-	/// Optional circuit breaker registry for transport resilience. Uses NullTransportCircuitBreakerRegistry if not provided.
+	/// Required circuit breaker registry for transport resilience. It is required rather than optional
+	/// because a drain that silently ran without a circuit breaker was indistinguishable from one that had
+	/// a working breaker, and the difference only became visible under a failing transport.
 	/// </param>
 	/// <param name="backoffCalculator">
 	/// Optional backoff calculator for retry delays. Uses ExponentialBackoffCalculator.Default if not provided.
@@ -201,9 +229,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		DispatchJsonSerializer serializer,
 		IServiceProvider serviceProvider,
 		ILogger<OutboxProcessor> logger,
+		ITransportCircuitBreakerRegistry circuitBreakerRegistry,
 		IBinaryEnvelopeDeserializer? envelopeDeserializer = null,
 		IDeadLetterQueue? deadLetterQueue = null,
-		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
 		IOptions<DeliveryGuaranteeOptions>? deliveryGuaranteeOptions = null,
 		Excalibur.Dispatch.ILeaderProcessingGate? leaderGate = null)
@@ -211,6 +239,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(outboxStore);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(circuitBreakerRegistry);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
@@ -245,16 +274,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 		// Initialize resilience components -- warn when using silent no-op fallbacks
 		_deadLetterQueue = deadLetterQueue ?? NullDeadLetterQueue.Instance;
-		_circuitBreakerRegistry = circuitBreakerRegistry ?? NullTransportCircuitBreakerRegistry.Instance;
+		_circuitBreakerRegistry = circuitBreakerRegistry;
 
 		if (deadLetterQueue is null)
 		{
 			LogDeadLetterQueueNotConfigured();
-		}
-
-		if (circuitBreakerRegistry is null)
-		{
-			LogCircuitBreakerNotConfigured();
 		}
 		_backoffCalculator = backoffCalculator ?? ExponentialBackoffCalculator.CreateForMessageQueue();
 		_deliveryGuaranteeOptions = deliveryGuaranteeOptions?.Value ?? new DeliveryGuaranteeOptions();
@@ -755,7 +779,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
 			BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
 
-			await RouteToDeadLetterQueueAsync(message, DeadLetterReason.DeserializationFailed, ex, cancellationToken)
+			await TryRouteToDeadLetterQueueAsync(message, DeadLetterReason.DeserializationFailed, ex, cancellationToken)
 				.ConfigureAwait(false);
 
 			return;
@@ -833,7 +857,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			if (attempt >= _options.MaxAttempts)
 			{
 				// Route to dead letter queue
-				await RouteToDeadLetterQueueAsync(message, DeadLetterReason.MaxRetriesExceeded, ex, cancellationToken)
+				await TryRouteToDeadLetterQueueAsync(message, DeadLetterReason.MaxRetriesExceeded, ex, cancellationToken)
 					.ConfigureAwait(false);
 			}
 			else if (_deliveryGuaranteeOptions.EnableAutomaticRetry)
@@ -848,6 +872,50 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				// Automatic retry disabled, mark as failed
 				await MarkFailedForClaimAsync(message.MessageId, message.DispatcherId, ex.Message, attempt, applyBackoff: false, cancellationToken).ConfigureAwait(false);
 			}
+		}
+	}
+
+	/// <summary>
+	/// Routes a message to the dead-letter queue without letting a routing fault escape to the caller.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This exists for the SEQUENTIAL drain path, which has no batching harness to contain a throw.</b>
+	/// The parallel path defers its routing to a guarded loop, and the per-message delegate it runs under is
+	/// wrapped by the batching harness, which records a throw against that one message and carries on. The
+	/// sequential path has neither: it is a bare <c>foreach</c> over the claimed batch, so an exception
+	/// escaping here unwinds the loop, STRANDS every record after this one, and skips the batch completion
+	/// that follows -- messages this cycle already delivered are never marked sent and are delivered again.
+	/// </para>
+	/// <para>
+	/// A fault while disposing of a failed message must not cause the redelivery of a successful one. Those
+	/// messages are unrelated; only the control flow joined them.
+	/// </para>
+	/// <para>
+	/// Cancellation is deliberately NOT swallowed. A routing fault means "this one message could not be
+	/// dead-lettered, carry on with the rest"; cancellation means "stop draining", and continuing to the next
+	/// record during shutdown would be wrong. Either way the message stays claimed and un-dead-lettered, so
+	/// the next cycle retries it -- at worst a delayed dead letter, where propagating would have been a
+	/// duplicate delivery of a different message.
+	/// </para>
+	/// </remarks>
+	private async Task TryRouteToDeadLetterQueueAsync(
+		IOutboxMessage message,
+		DeadLetterReason reason,
+		Exception? exception,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			await RouteToDeadLetterQueueAsync(message, reason, exception, cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			LogDeadLetterRoutingFailed(message.MessageId, ex);
 		}
 	}
 
@@ -982,9 +1050,42 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			{
 				LogFencedDeadLetterRefused(messageId, outcome.ToString());
 
-				await CompensateDeadLetterEntryAsync(messageId, enqueuedEntryId, outcome.ToString(), cancellationToken)
+				// NOT the drain's token. See the remarks on the method: on shutdown that token is already
+				// cancelled, so passing it makes the withdrawal unable to even attempt exactly when we have
+				// just learned it is required.
+				await CompensateDeadLetterEntryAsync(messageId, enqueuedEntryId, outcome.ToString())
 					.ConfigureAwait(false);
 			}
+
+			return;
+		}
+
+		// A MISSING TOKEN IS A REFUSAL, NEVER A DOWNGRADE -- and this is the branch where that distinction
+		// costs a message.
+		//
+		// The guard above conjoins the token, so it is FALSE in exactly two states: fencing is off (the
+		// legitimate unfenced drain), or fencing is ON and the token has gone. The second state is not an
+		// edge case and it is not "no tenure" -- the gate yields a token only while this instance IS the
+		// leader, so a null token under an active gate means THIS TENURE HAS BEEN SUPERSEDED. Falling
+		// through would then reach the unfenced transition below, which matches on the message id alone,
+		// and DELETE an outbox row that a live successor has already claimed and not yet delivered. The
+		// fence would be unreachable at precisely the moment it is the thing that matters.
+		//
+		// The row is left intact for the tenure that now owns it. The dead-letter entry this drain enqueued
+		// moments ago is withdrawn for the same reason the refusal branch above withdraws it: we learned
+		// synchronously that our mark will not be made, so nothing is relying on the entry, and leaving it
+		// would let an operator redrive re-execute a message the live tenure goes on to deliver.
+		// REPORTED, NOT THROWN, and the counterpart is GuardActiveGateHasFencingToken: that guard throws
+		// because its callers sit in the try. This member is reached from inside a catch of that same try,
+		// where a throw cannot be caught by a sibling catch and would abandon the rest of the batch.
+		if (_fencingActive && CurrentFencingToken is null)
+		{
+			LogFencedDeadLetterRefused(messageId, "FencingTokenUnavailable");
+
+			// NOT the drain's token, for the reason given on CompensateDeadLetterEntryAsync: on shutdown it
+			// is already cancelled, which would disable the withdrawal exactly when it is required.
+			await CompensateDeadLetterEntryAsync(messageId, enqueuedEntryId, "FencingTokenUnavailable")
+				.ConfigureAwait(false);
 
 			return;
 		}
@@ -1026,8 +1127,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private async ValueTask CompensateDeadLetterEntryAsync(
 		string messageId,
 		Guid? enqueuedEntryId,
-		string outcome,
-		CancellationToken cancellationToken)
+		string outcome)
 	{
 		if (enqueuedEntryId is not { } entryId)
 		{
@@ -1047,9 +1147,21 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			return;
 		}
 
+		// THE COMPENSATION CARRIES ITS OWN DEADLINE AND IS NOT CANCELLABLE BY THE DRAIN. It used to take the
+		// drain's cancellation token, which made this path deterministically inert on shutdown rather than
+		// merely racy: the token is ALREADY cancelled by the time a shutdown reaches here, so the withdrawal
+		// could not attempt at all. A compensation exists to restore an invariant after a decision has been
+		// taken; making it cancellable by the signal that ended the work abandons the invariant at precisely
+		// the moment it is known to be broken.
+		//
+		// A deadline rather than no limit: this runs on the way out, and an unbounded call to a remote queue
+		// would hold shutdown open indefinitely. Bounded and detached is the shape that both completes in the
+		// ordinary case and cannot wedge the host.
+		using var compensationDeadline = new CancellationTokenSource(DeadLetterCompensationTimeout);
+
 		try
 		{
-			var purged = await admin.PurgeAsync(entryId, cancellationToken).ConfigureAwait(false);
+			var purged = await admin.PurgeAsync(entryId, compensationDeadline.Token).ConfigureAwait(false);
 
 			if (purged)
 			{
@@ -1063,9 +1175,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				LogDeadLetterCompensationFailed(messageId, entryId, outcome, exception: null);
 			}
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException)
 		{
-			// Shutdown. The entry stays; see the remarks.
+			// The compensation's OWN deadline elapsed - the queue did not answer in time. The entry stays and
+			// is reported, which is the same outcome as any other failed withdrawal. This is no longer the
+			// shutdown case: shutdown cannot reach here, because the drain's token is not passed in.
 			LogDeadLetterCompensationFailed(messageId, entryId, outcome, exception: null);
 		}
 		catch (Exception ex)
@@ -1112,6 +1226,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 			case OutboxCompletionOutcome.MessageNotFound:
 				LogFailureReportFoundNoMessage(messageId);
+				break;
+
+			case OutboxCompletionOutcome.AlreadyTerminal:
+				LogFailureReportFoundTerminalMessage(messageId);
 				break;
 
 			default:
@@ -1162,6 +1280,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 			case OutboxCompletionOutcome.MessageNotFound:
 				LogFailureReportFoundNoMessage(messageId);
+				break;
+
+			case OutboxCompletionOutcome.AlreadyTerminal:
+				LogFailureReportFoundTerminalMessage(messageId);
 				break;
 
 			default:
@@ -1219,6 +1341,23 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				fencedScoped.MarkFailedAsync(
 					messageId, errorMessage, attempt, fencedSchedule, authority, cancellationToken),
 				messageId).ConfigureAwait(false);
+			return;
+		}
+
+		// A MISSING TOKEN IS A REFUSAL, NEVER A DOWNGRADE. Same reachable state as on the dead-letter path:
+		// under an active gate the token is present only while this instance holds the tenure, so a null one
+		// means this tenure has been superseded. Every route below writes without a token, and the claim term
+		// some of them carry does not cover this -- the dispatcher identity is fixed for the process and
+		// survives losing and regaining leadership, so it refuses a DIFFERENT dispatcher and never a STALE
+		// TENURE OF THE SAME ONE. Such a write consumes an attempt and pushes the visibility floor out by a
+		// full backoff interval against a row this drain no longer owns, delaying the successor that does.
+		//
+		// Returned, not thrown: this runs inside the drain's own exception handling, where a sibling catch
+		// on the same try cannot run, so a refusal raised as an exception would abandon every remaining
+		// message in the batch. Declining to write concerns one row, and the live tenure resolves it.
+		if (_fencingActive && CurrentFencingToken is null)
+		{
+			LogFencedFailureReportRefused(messageId);
 			return;
 		}
 
@@ -1868,6 +2007,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		"Failure report for message {MessageId} wrote nothing: no such message remained when the store ran the statement. Continuing with the rest of the batch.")]
 	private partial void LogFailureReportFoundNoMessage(string messageId);
 
+	[LoggerMessage(OutboxEventId.OutboxFailureReportFoundTerminalMessage, LogLevel.Information,
+		"Failure report for message {MessageId} wrote nothing: the message had already been sent or dead-lettered, so there is nothing to retry. Continuing with the rest of the batch.")]
+	private partial void LogFailureReportFoundTerminalMessage(string messageId);
+
 	[LoggerMessage(OutboxEventId.OutboxFencedDeadLetterRefused, LogLevel.Warning,
 		"Dead-letter transition for message {MessageId} did not apply ({Outcome}); the outbox row was NOT destroyed. A fence refusal means a newer leadership tenure owns this message and will resolve it.")]
 	private partial void LogFencedDeadLetterRefused(string messageId, string outcome);
@@ -1892,9 +2035,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		"No IDeadLetterQueue registered. Failed outbox messages will be discarded silently. Register a dead letter queue implementation to preserve failed messages for investigation.")]
 	private partial void LogDeadLetterQueueNotConfigured();
 
-	[LoggerMessage(OutboxEventId.OutboxCircuitBreakerNotConfigured, LogLevel.Warning,
-		"No ITransportCircuitBreakerRegistry registered. Transport failures will not trigger circuit breakers. Register AddDispatchResilience() to enable transport protection.")]
-	private partial void LogCircuitBreakerNotConfigured();
 
 	[LoggerMessage(OutboxEventId.OutboxMessageDiscardedNoDlq, LogLevel.Error,
 		"OUTBOX MESSAGE LOST: Message {MessageId} failed ({Reason}) but no dead letter queue is configured. Message has been discarded permanently. Register an IDeadLetterQueue to prevent message loss.")]

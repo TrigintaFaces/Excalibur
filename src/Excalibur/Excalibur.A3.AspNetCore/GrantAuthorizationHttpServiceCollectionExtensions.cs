@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.AspNetCore;
 using Excalibur.A3.Authentication;
@@ -81,10 +81,10 @@ public static class GrantAuthorizationHttpServiceCollectionExtensions
 		// TryAdd, not Replace: an application that already supplies its own identity bridge keeps it.
 		services.TryAddScoped<IAuthenticationToken, HttpContextAuthenticationToken>();
 
-		// Replace, not TryAdd: AddTenantContext registers the ambient context with Replace, so a TryAdd
-		// here would lose to it and the tenant claim would never be read. The replacement still honours
-		// an ambient tenant when the principal carries no tenant claim.
-		services.Replace(ServiceDescriptor.Scoped<ITenantContext, HttpContextTenantContext>());
+		// Contributed, not replaced: the HTTP mode outranks the ambient one, whatever order the two are
+		// registered in, and it still reads the ambient tenant when there is no request principal -- so a
+		// host that also runs background work is served by it too.
+		_ = services.AddTenantContextMode<HttpContextTenantContextMode>();
 
 		// Replace: the grant-aware provider must be the one ASP.NET Core asks, and it delegates every
 		// name it does not recognize to the default provider it derives from.

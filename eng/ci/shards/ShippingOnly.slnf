@@ -83,6 +83,7 @@
       "src\\Excalibur\\Excalibur.Data.DataProcessing\\Excalibur.Data.DataProcessing.csproj",
       "src\\Excalibur\\Excalibur.Data.DynamoDb\\Excalibur.Data.DynamoDb.csproj",
       "src\\Excalibur\\Excalibur.Data.ElasticSearch\\Excalibur.Data.ElasticSearch.csproj",
+      "src\\Excalibur\\Excalibur.Data.ElasticSearch.Azure\\Excalibur.Data.ElasticSearch.Azure.csproj",
       "src\\Excalibur\\Excalibur.Data.Firestore\\Excalibur.Data.Firestore.csproj",
       "src\\Excalibur\\Excalibur.Data.IdentityMap.SqlServer\\Excalibur.Data.IdentityMap.SqlServer.csproj",
       "src\\Excalibur\\Excalibur.Data.IdentityMap\\Excalibur.Data.IdentityMap.csproj",

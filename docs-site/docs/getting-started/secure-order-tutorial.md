@@ -28,15 +28,27 @@ cd OrderSystem
 dotnet add package Excalibur.Application
 dotnet add package Excalibur.A3
 dotnet add package Excalibur.A3.Abstractions
+dotnet add package Excalibur.A3.AspNetCore
 dotnet add package Excalibur.AuditLogging
 dotnet add package Excalibur.Compliance.Abstractions
+dotnet add package Excalibur.Dispatch.Caching
 ```
+
+Two of these are easy to miss, because `Excalibur.A3` does not depend on either and the calls they
+supply are the ones A3 requires you to make yourself:
+
+- **`Excalibur.A3.AspNetCore`** supplies `AddHttpGrantAuthorization()`, which bridges the
+  authenticated request principal onto the `IAuthenticationToken` that grant authorization reads.
+- **`Excalibur.Dispatch.Caching`** supplies `AddApplicationScopedDistributedCache()`, which
+  partitions the authorization cache per application.
+
+Without them the registrations in Step 6 do not compile.
 
 ## Step 2: Upgrade to Structured Commands
 
 Replace the simple `IDispatchAction` records with `CommandBase` and `QueryBase`. These add correlation tracking, tenant isolation, and transaction configuration.
 
-```csharp title="Messages/OrderCommands.cs"
+```csharp title="Messages/OrderCommands.cs" ignore
 using Excalibur.A3.Authorization;           // RequirePermissionAttribute
 using Excalibur.A3.Authorization.Requests;  // AuthorizeCommandBase<T>
 using Excalibur.Application.Requests;       // IAmAuditable
@@ -85,7 +97,7 @@ public sealed class CancelOrderCommand : AuthorizeCommandBase<bool>, IAmAuditabl
 }
 ```
 
-```csharp title="Messages/OrderQueries.cs"
+```csharp title="Messages/OrderQueries.cs" ignore
 using Excalibur.Application.Requests.Queries; // QueryBase<T>
 using OrderSystem.ReadModels;                 // OrderSummary (defined in event-sourcing tutorial Step 4)
 
@@ -164,7 +176,7 @@ public static class OrderGrants
 
 Handlers now receive structured commands. The authorization check happens in middleware *before* the handler — if the caller lacks the required grant, the handler never runs.
 
-```csharp title="Handlers/CreateOrderHandler.cs"
+```csharp title="Handlers/CreateOrderHandler.cs" ignore
 using Excalibur.Dispatch.Delivery;
 using Excalibur.EventSourcing;
 using OrderSystem.Domain;
@@ -189,7 +201,7 @@ public class CreateOrderHandler(
 }
 ```
 
-```csharp title="Handlers/CancelOrderHandler.cs"
+```csharp title="Handlers/CancelOrderHandler.cs" ignore
 using Excalibur.Dispatch.Delivery;
 using Excalibur.EventSourcing;
 using OrderSystem.Domain;
@@ -223,7 +235,7 @@ Inject `IAuditLogger` to log security-sensitive operations explicitly. Commands 
 The grant management endpoints below are **admin-only plumbing**. If you just want to see the security flow end-to-end, skip ahead to [Step 6: Wire It Up](#step-6-wire-it-up) and come back here when you need to manage grants programmatically.
 :::
 
-```csharp title="Handlers/GrantManagementEndpoints.cs"
+```csharp title="Handlers/GrantManagementEndpoints.cs" ignore
 using Excalibur.A3.Authorization.Grants;  // AddGrantCommand, RevokeGrantCommand (from Excalibur.A3 package)
 using Excalibur.Dispatch;    // IDispatcher
 using Excalibur.Compliance;      // IAuditLogger, AuditEvent, AuditEventType, AuditOutcome

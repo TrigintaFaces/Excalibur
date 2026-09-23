@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Compliance.Diagnostics;
 
@@ -90,6 +90,13 @@ internal static class ComplianceEventId
 
 	/// <summary>Export completed.</summary>
 	public const int ExportCompleted = 92207;
+
+	/// <summary>
+	/// An [EncryptedField] annotation could not be honoured on a decrypt path, so the property was left
+	/// as stored. Logged rather than thrown because refusing would deny the caller the fields that CAN be
+	/// decrypted; logged rather than skipped silently because the property may hold real ciphertext.
+	/// </summary>
+	public const int EncryptedFieldNotHonouredOnRead = 92974;
 
 	/// <summary>Re-encryption succeeded.</summary>
 	public const int ReEncryptionSucceeded = 92208;
@@ -404,6 +411,39 @@ internal static class ComplianceEventId
 
 	/// <summary>Erasure partially completed with contributor or key deletion failures.</summary>
 	public const int ErasurePartiallyCompleted = 92729;
+
+	/// <summary>A key-management provider reported whether a key's material is destroyed.</summary>
+	public const int ErasureKeyDestructionStatusReported = 92730;
+
+	/// <summary>Erasure executed; its remaining keys await the provider's irreversible destruction.</summary>
+	public const int ErasureAwaitingKeyDestruction = 92731;
+
+	/// <summary>Erasure awaiting key destruction confirmed and completed.</summary>
+	public const int ErasureKeyDestructionConfirmed = 92732;
+
+	/// <summary>Erasure awaiting key destruction still has a recoverable key.</summary>
+	public const int ErasureKeyDestructionNotYetConfirmed = 92733;
+
+	/// <summary>Erasure awaiting key destruction cannot be confirmed because no verification service is registered.</summary>
+	public const int ErasureCompletionVerifierMissing = 92734;
+
+	/// <summary>Confirming an erasure awaiting key destruction failed.</summary>
+	public const int ErasureCompletionConfirmFailed = 92735;
+
+	/// <summary>Erasure completion pass finished.</summary>
+	public const int ErasureCompletionPassCompleted = 92736;
+
+	/// <summary>An erasure awaiting key destruction was not re-executed.</summary>
+	public const int ErasureExecutionRefusedAwaitingDestruction = 92737;
+
+	/// <summary>Erasure scheduler completion pass error.</summary>
+	public const int ErasureSchedulerCompletionPassError = 92738;
+
+	/// <summary>The key-management provider cannot confirm key destruction, so erasures depending on it cannot complete.</summary>
+	public const int ErasureKeyProviderCannotConfirmDestruction = 92797;
+
+	/// <summary>Erasure scheduler did not reschedule a request awaiting key destruction.</summary>
+	public const int ErasureSchedulerNotRescheduledAwaitingDestruction = 92739;
 
 	/// <summary>Erasure scheduler disabled.</summary>
 	public const int ErasureSchedulerDisabled = 92750;

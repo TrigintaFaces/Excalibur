@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.Dispatch.Middleware;
@@ -53,8 +53,7 @@ internal sealed class AuthorizationWiringPrerequisiteValidator(IServiceProvider 
 			return;
 		}
 
-		var middlewares = serviceProvider.GetServices<IDispatchMiddleware>();
-		if (!middlewares.Any(static m => m.Unwrap() is AuthorizationMiddleware))
+		if (!IsAuthorizationWired())
 		{
 			throw new InvalidOperationException(
 				"The selected pipeline profile declares the authorization stage (AuthorizationMiddleware), but no " +
@@ -63,6 +62,47 @@ internal sealed class AuthorizationWiringPrerequisiteValidator(IServiceProvider 
 				"(e.g. AddDispatch(builder => builder.UseAuthorization())) or remove the authorization stage from " +
 				"the profile.");
 		}
+	}
+
+	/// <summary>
+	/// Answers whether authorization is reachable in the pipeline the host will actually compose.
+	/// </summary>
+	/// <returns>
+	/// <see langword="true" /> when an <see cref="AuthorizationMiddleware" /> will be in the composed
+	/// pipeline by either supported wiring route.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>The composed pipeline is a UNION of two collections, and this must inspect both.</b>
+	/// <c>UseAuthorization()</c> resolves to <c>UseMiddleware&lt;AuthorizationMiddleware&gt;()</c>, which
+	/// registers the middleware by its CONCRETE TYPE and adds it to the builder's own global list. It
+	/// never enters the <see cref="IDispatchMiddleware" /> enumerable. Reading only that enumerable asked
+	/// about the half that the documented wiring route does not populate, so a host that called
+	/// <c>UseAuthorization()</c> correctly was refused startup and told to do the thing it had just done.
+	/// </para>
+	/// <para>
+	/// The concrete-type question is asked through <see cref="IServiceProviderIsService" /> rather than by
+	/// resolving the middleware. That answers whether it is REGISTERED without constructing it or its
+	/// dependencies, which matters because this validator is a singleton holding the root provider:
+	/// resolving a scoped middleware from the root is the captive-dependency fault this guard exists
+	/// alongside, and a startup check must not introduce it.
+	/// </para>
+	/// <para>
+	/// The enumerable is still consulted, second, because registering the middleware under
+	/// <see cref="IDispatchMiddleware" /> is also supported and is not visible to the concrete-type
+	/// question. It is only reached when the cheaper question has already said no.
+	/// </para>
+	/// </remarks>
+	private bool IsAuthorizationWired()
+	{
+		var isService = serviceProvider.GetService<IServiceProviderIsService>();
+		if (isService?.IsService(typeof(AuthorizationMiddleware)) == true)
+		{
+			return true;
+		}
+
+		return serviceProvider.GetServices<IDispatchMiddleware>()
+			.Any(static m => m.Unwrap() is AuthorizationMiddleware);
 	}
 
 	/// <inheritdoc />

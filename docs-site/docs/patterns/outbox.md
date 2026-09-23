@@ -168,7 +168,7 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
 
 Inject `IOutboxWriter` into your handler and call `WriteAsync` to stage outbound messages. The consistency guarantee (eventually-consistent vs. transactional) is determined by configuration -- your handler code stays the same regardless of mode:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Outbox;
 
 public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
@@ -228,10 +228,11 @@ services.AddDispatch(dispatch =>
 {
     dispatch.UseOutbox(outbox =>
     {
-        // Default: no startup requirement beyond the outbox itself.
+        // Default: startup requires an IOutboxStore, because UseOutbox() states that this host
+        // stages. It adds no requirement on the transaction middleware.
         outbox.ConsistencyMode = OutboxConsistencyMode.EventuallyConsistent;
 
-        // OR: refuse to start unless an IOutboxStore and the transaction middleware are registered.
+        // OR: additionally refuse to start unless the transaction middleware is registered too.
         outbox.ConsistencyMode = OutboxConsistencyMode.Transactional;
     });
 });
@@ -239,9 +240,11 @@ services.AddDispatch(dispatch =>
 
 :::caution ConsistencyMode is a startup requirement, not a write-path selector
 
-Setting `ConsistencyMode` to `Transactional` makes startup **fail** unless an `IOutboxStore` and the
-transaction middleware are registered. It does **not** choose how writes are staged, and a configuration
-that starts successfully is not thereby transactional.
+Calling `UseOutbox()` at all makes startup **fail** unless an `IOutboxStore` is registered — the call is
+how you state that this host stages, so a missing store is a misconfiguration rather than a host without
+an outbox. Setting `ConsistencyMode` to `Transactional` adds the transaction middleware to that
+requirement. Neither setting chooses how writes are staged, and a configuration that starts successfully
+is not thereby transactional.
 
 For event-sourced aggregates the write path is selected by the **staging strategy on the event-sourcing
 builder**, which prefers the transactional path only when a transactional outbox writer *and* an event

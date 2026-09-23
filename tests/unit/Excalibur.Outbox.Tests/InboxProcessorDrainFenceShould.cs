@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
 using System.Text.Json;
@@ -175,7 +175,8 @@ public sealed class InboxProcessorDrainFenceShould
 				store,
 				provider,
 				new DispatchJsonSerializer(),
-				NullLogger<InboxProcessor>.Instance);
+				NullLogger<InboxProcessor>.Instance,
+				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 			first.Init("dispatcher-drain-fence-a");
 
 			// A SECOND processor over the SAME store. The registration is transient precisely so each
@@ -186,7 +187,8 @@ public sealed class InboxProcessorDrainFenceShould
 				store,
 				provider,
 				new DispatchJsonSerializer(),
-				NullLogger<InboxProcessor>.Instance);
+				NullLogger<InboxProcessor>.Instance,
+				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 			second.Init("dispatcher-drain-fence-b");
 
 			return new DrainFenceHarness(provider, first, second, counter);

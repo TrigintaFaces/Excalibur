@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
@@ -63,11 +63,27 @@ public sealed class SubjectFieldCryptor
     /// </remarks>
     /// <param name="record">The record whose personal-data fields are encrypted in place.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
-    public async ValueTask EncryptFieldsAsync(object record, CancellationToken cancellationToken)
+    public ValueTask EncryptFieldsAsync(object record, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        var plan = GetPlanForInstance(record);
+        return EncryptFieldsAsync(record, GetPlanForInstance(record), cancellationToken);
+    }
+
+    /// <summary>
+    /// Encrypts the fields a supplied plan names, instead of a plan derived by reflecting over the record's
+    /// annotations.
+    /// </summary>
+    /// <remarks>
+    /// Exists so the encrypt path can be exercised without compiling a <see cref="PersonalDataAttribute"/>
+    /// type into an assembly the erasure coverage scan reaches: such a type is, correctly, reported as
+    /// annotated personal data that no discovered location covers. A plan must still come from
+    /// <see cref="TypeFieldPlan.Describe"/>, which applies the same encryptability rule as reflection.
+    /// </remarks>
+    internal async ValueTask EncryptFieldsAsync(object record, TypeFieldPlan plan, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        ArgumentNullException.ThrowIfNull(plan);
 
         // Not a data-subject entity (no [DataSubjectId]) — nothing to protect, legitimate no-op.
         if (plan.SubjectIdProperty is null)
@@ -105,6 +121,28 @@ public sealed class SubjectFieldCryptor
 
         foreach (var property in plan.PersonalDataProperties)
         {
+            // NO DOUBLE-WRAP, and it is enforced here because here is the only place it can be.
+            //
+            // This method MUTATES THE CALLER'S OBJECT IN PLACE, and the operation that follows it -- the
+            // append, the save, the send -- can fail. When it does, the caller still holds the record with
+            // its fields already replaced by envelopes, and the natural response to a transient fault is to
+            // retry the same instance. Without this test the retry reads an envelope, cannot tell it from
+            // plaintext (the read below is a raw GetValue with no marker test), and encrypts it AGAIN. What
+            // is then stored decrypts in one pass to an envelope string rather than to the subject's data --
+            // corruption that presents as a successful decryption, which is the worst shape it could take.
+            //
+            // The marker is what makes the two cases distinguishable, and consulting it makes re-encryption
+            // IMPOSSIBLE rather than merely unlikely: WriteEnvelope marks every value this type writes, so a
+            // marked value is necessarily one we produced and necessarily must not be wrapped again.
+            //
+            // It must remain a SKIP and never a throw. An unmarked value is the legacy form -- written before
+            // the marker existed -- and several read paths depend on unmarked meaning plaintext, so refusing
+            // the unmarked case would reject exactly the records this framework wrote first.
+            if (EncryptedFieldBinding.IsMarkedEncrypted(property, record))
+            {
+                continue;
+            }
+
             var plaintext = ReadFieldBytes(property, record);
             if (plaintext is null)
             {
@@ -129,7 +167,7 @@ public sealed class SubjectFieldCryptor
     /// <param name="recordType">The record type to inspect.</param>
     /// <returns>
     /// <see langword="true"/> when the type declares at least one encryptable personal-data field; otherwise
-    /// <see langword="false"/>, meaning <see cref="EncryptFieldsAsync"/> and <see cref="DecryptFieldsAsync"/>
+    /// <see langword="false"/>, meaning <see cref="EncryptFieldsAsync(object, CancellationToken)"/> and <see cref="DecryptFieldsAsync(object, CancellationToken)"/>
     /// would both leave a record of this type untouched.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordType"/> is null.</exception>
@@ -153,11 +191,18 @@ public sealed class SubjectFieldCryptor
     /// </summary>
     /// <param name="record">The record whose personal-data fields are decrypted in place.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
-    public async ValueTask DecryptFieldsAsync(object record, CancellationToken cancellationToken)
+    public ValueTask DecryptFieldsAsync(object record, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        var plan = GetPlanForInstance(record);
+        return DecryptFieldsAsync(record, GetPlanForInstance(record), cancellationToken);
+    }
+
+    /// <summary>Decrypts the fields a supplied plan names. See the plan-taking encrypt overload.</summary>
+    internal async ValueTask DecryptFieldsAsync(object record, TypeFieldPlan plan, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        ArgumentNullException.ThrowIfNull(plan);
         if (plan.PersonalDataProperties.Length == 0)
         {
             return;
@@ -203,21 +248,53 @@ public sealed class SubjectFieldCryptor
 
     private static void WriteEnvelope(PropertyInfo property, object record, EncryptedData envelope)
     {
-        var framed = SerializeEnvelope(envelope);
-        if (property.PropertyType == typeof(string))
-        {
-            property.SetValue(record, Convert.ToBase64String(framed));
-        }
-        else
-        {
-            property.SetValue(record, framed);
-        }
+        // Delegates to the single owner of the marker rather than re-deriving the encoding here. A string
+        // property receives EncryptedFieldBinding.StringEnvelopePrefix followed by Base64; a byte[] property
+        // receives the frame verbatim. Marking the write is what lets a reader tell a stored ciphertext from
+        // a value that was never encrypted, which bare Base64 cannot express - see ReadEnvelopeBytes.
+        EncryptedFieldBinding.WriteEnvelope(property, record, SerializeEnvelope(envelope));
     }
 
+    /// <summary>
+    /// Reads a field's stored value as envelope bytes, accepting both the marked form written today and the
+    /// unmarked form written before the marker existed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two branches are not interchangeable and the order matters. A value carrying
+    /// <see cref="EncryptedFieldBinding.StringEnvelopePrefix"/> is unambiguously ours, because the prefix ends
+    /// in a character outside the Base64 alphabet and so cannot be produced by encoding. A value without it
+    /// may still be a ciphertext this framework wrote before the marker was introduced, so it is decoded and
+    /// admitted when the decoded bytes carry <see cref="EncryptedData.MagicBytes"/>.
+    /// </para>
+    /// <para>
+    /// That second branch is the decode-first test the marker exists to avoid, and it keeps that test's known
+    /// weakness: a plaintext whose Base64 decodes to magic-prefixed bytes is admitted as an envelope. It is
+    /// retained deliberately and only for legacy values, because the alternative is worse in exactly the
+    /// direction that matters here — refusing them would treat every personal-data field encrypted before this
+    /// change as plaintext and hand its ciphertext back to a caller as though it had been decrypted. A false
+    /// positive fails loudly at decryption; a false negative fails silently, on erasure-critical data.
+    /// </para>
+    /// <para>
+    /// The ambiguity is confined to unmarked values, and it does NOT decay on its own everywhere. A store
+    /// that rewrites a record re-marks it; an append-only store never rewrites what it already holds, so its
+    /// existing entries keep the unmarked form for as long as they are retained. The legacy branch is
+    /// therefore permanent, not transitional, and removing it would strand that data.
+    /// </para>
+    /// </remarks>
     private static byte[]? ReadEnvelopeBytes(PropertyInfo property, object record)
     {
-        var value = property.GetValue(record);
-        return value switch
+        // TryReadEnvelope answers the marked question itself: it returns false for an unmarked value and
+        // THROWS for one that is marked but unreadable, so there is no third outcome to fold into a null.
+        // The earlier form guarded with IsMarkedEncrypted and then mapped a false result to null, which
+        // read as a silent skip of a value already known to be marked — a branch that cannot be reached
+        // but that states the opposite of the contract to anyone reading it.
+        if (EncryptedFieldBinding.TryReadEnvelope(property, record, out var marked))
+        {
+            return marked;
+        }
+
+        return property.GetValue(record) switch
         {
             null => null,
             byte[] b => b,
@@ -282,10 +359,8 @@ public sealed class SubjectFieldCryptor
                 subjectIdProperty ??= property;
             }
 
-            if (property.CanRead
-                && property.CanWrite
-                && property.GetCustomAttribute<PersonalDataAttribute>() is not null
-                && (property.PropertyType == typeof(string) || property.PropertyType == typeof(byte[])))
+            if (TypeFieldPlan.IsEncryptable(property)
+                && property.GetCustomAttribute<PersonalDataAttribute>() is not null)
             {
                 personalData.Add(property);
             }
@@ -329,5 +404,36 @@ public sealed class SubjectFieldCryptor
         };
     }
 
-    private sealed record TypeFieldPlan(PropertyInfo? SubjectIdProperty, PropertyInfo[] PersonalDataProperties);
+    /// <summary>The data-subject identifier and the personal-data fields of one record type.</summary>
+    internal sealed record TypeFieldPlan(PropertyInfo? SubjectIdProperty, PropertyInfo[] PersonalDataProperties)
+    {
+        /// <summary>
+        /// The single rule for which properties can carry an encrypted envelope. Reflection and a supplied plan
+        /// both pass through it, so a supplied plan cannot name a field the encrypt path would mishandle.
+        /// </summary>
+        internal static bool IsEncryptable(PropertyInfo property) =>
+            property.CanRead
+            && property.CanWrite
+            && (property.PropertyType == typeof(string) || property.PropertyType == typeof(byte[]));
+
+        /// <summary>Describes a plan explicitly, validated by the same rule reflection applies.</summary>
+        internal static TypeFieldPlan Describe(PropertyInfo? subjectIdProperty, params PropertyInfo[] personalDataProperties)
+        {
+            ArgumentNullException.ThrowIfNull(personalDataProperties);
+
+            foreach (var property in personalDataProperties)
+            {
+                ArgumentNullException.ThrowIfNull(property);
+                if (!IsEncryptable(property))
+                {
+                    throw new ArgumentException(
+                        $"Property '{property.DeclaringType?.Name}.{property.Name}' cannot carry an encrypted field: "
+                        + "it must be a readable and writable string or byte[].",
+                        nameof(personalDataProperties));
+                }
+            }
+
+            return new TypeFieldPlan(subjectIdProperty, personalDataProperties);
+        }
+    }
 }

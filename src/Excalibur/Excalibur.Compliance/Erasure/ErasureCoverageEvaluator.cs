@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Compliance.Erasure;
 
@@ -33,21 +33,40 @@ internal static class ErasureCoverageEvaluator
 	/// <param name="locations">The discovered personal-data locations.</param>
 	/// <param name="deletedKeyIds">The per-subject key IDs that were actually deleted (crypto-shred).</param>
 	/// <param name="contributors">The registered erasure contributors.</param>
-	/// <param name="annotatedCategories">
+	/// <param name="annotatedScan">
 	/// The <see cref="PersonalDataCategory"/> values present on <see cref="PersonalDataAttribute"/>-annotated
-	/// members in the domain. A category here that is NOT represented by any discovered/registered
-	/// location is an <b>annotated-but-undiscovered</b> coverage gap — annotated personal data the inventory
-	/// never located, so erasure cannot be reported Completed. Correspondence is by category name
+	/// members in the domain, <b>and whether the scan that found them was established</b>. A category here
+	/// that is NOT represented by any discovered/registered location is an
+	/// <b>annotated-but-undiscovered</b> coverage gap — annotated personal data the inventory never
+	/// located, so erasure cannot be reported Completed. Correspondence is by category name
 	/// (case-insensitive): the only dimension <see cref="PersonalDataAttribute"/> and <see cref="DataLocation"/>
 	/// share. Conservative by design — an annotated category with no matching location is treated as a gap.
+	/// <para>
+	/// The scan is passed whole rather than as a bare set so the establishment flag cannot be dropped at a
+	/// call site. Losing it is precisely the defect this parameter shape exists to prevent: without it, an
+	/// annotated category the scan never saw and one that is properly covered are the same observation.
+	/// </para>
+	/// </param>
+	/// <param name="inventory">
+	/// The discovered inventory, whose declared table-and-field pairs are the obligation coverage is
+	/// judged against. Null when no discovery source is registered.
+	/// </param>
+	/// <param name="contributorResults">
+	/// The successful contributor results, each naming what it erased. A declared pair that no result
+	/// names is an outstanding obligation, whether or not any row was discovered for it.
 	/// </param>
 	/// <returns>The uncovered store-kind names, uncovered annotated categories, and the exemptions in play.</returns>
 	public static CoverageOutcome Evaluate(
 		IReadOnlyList<DataLocation> locations,
 		IReadOnlyCollection<string> deletedKeyIds,
 		IEnumerable<IErasureContributor> contributors,
-		IReadOnlySet<PersonalDataCategory> annotatedCategories)
+		PersonalDataAnnotationScan annotatedScan,
+		DataInventory? inventory,
+		IEnumerable<ErasureContributorResult> contributorResults)
 	{
+		ArgumentNullException.ThrowIfNull(contributorResults);
+
+		var declaredLocations = inventory?.DeclaredLocations ?? [];
 		var deletedKeySet = new HashSet<string>(deletedKeyIds, StringComparer.Ordinal);
 
 		var contributorCoveredKinds = new HashSet<DataStoreKind>();
@@ -101,10 +120,20 @@ internal static class ErasureCoverageEvaluator
 		// registered location represents means annotated personal data the inventory never located. Feed it
 		// into the SAME coverage gate so a "Completed" certificate over silently-skipped annotated data is
 		// structurally inexpressible (enforce-invariants-structurally). Conservative category-name match.
+		// DISCOVERED and REGISTERED both count, which is what the paragraph above has always said and what
+		// the code did not do: this set was built from `locations` alone, so a category the consumer HAD
+		// registered -- but whose rows no contributor happened to discover -- was reported as an uncovered
+		// annotation. The gate then told them to register something already registered, and the remedy it
+		// named could not discharge the arm that printed it.
 		var coveredCategories = new HashSet<string>(
 			locations.Select(static l => l.DataCategory), StringComparer.OrdinalIgnoreCase);
+
+		foreach (var declaredCategory in inventory?.DeclaredCategories ?? [])
+		{
+			_ = coveredCategories.Add(declaredCategory);
+		}
 		var uncoveredAnnotated = new HashSet<string>(StringComparer.Ordinal);
-		foreach (var category in annotatedCategories)
+		foreach (var category in annotatedScan.Categories)
 		{
 			if (!coveredCategories.Contains(category.ToString()))
 			{
@@ -112,7 +141,35 @@ internal static class ErasureCoverageEvaluator
 			}
 		}
 
-		return new CoverageOutcome(uncovered, exemptions, uncoveredAnnotated);
+		// The DECLARED-vs-DISCHARGED gate. Both sides are table-and-field pairs, which is the granularity
+		// a registration and a contributor can each state honestly; anything finer would require querying
+		// the consumer's own schema. A declared pair nobody reported erasing is an outstanding obligation,
+		// and it is reported whether or not any row was ever discovered for it — that is the whole point:
+		// "we found no rows" and "we never looked" are indistinguishable from the discovered set alone.
+		var discharged = new HashSet<DataLocationKey>(DataLocationKey.Comparer);
+		foreach (var result in contributorResults)
+		{
+			foreach (var pair in result.DischargedLocations)
+			{
+				_ = discharged.Add(pair);
+			}
+		}
+		var outstanding = new HashSet<string>(StringComparer.Ordinal);
+		foreach (var declared in declaredLocations)
+		{
+			if (!discharged.Contains(declared))
+			{
+				_ = outstanding.Add(declared.ToString());
+			}
+		}
+
+		return new CoverageOutcome(
+			uncovered,
+			exemptions,
+			uncoveredAnnotated,
+			outstanding,
+			declaredLocations.Count > 0,
+			annotatedScan.ScanEstablished);
 	}
 
 	/// <summary>The legal basis and reason for a default store-kind erasure exemption.</summary>
@@ -126,7 +183,22 @@ internal static class ErasureCoverageEvaluator
 /// [PersonalData]-annotated categories with no discovered/registered location — annotated personal
 /// data the inventory never located. A non-empty set forces a non-Completed outcome.
 /// </param>
+/// <param name="OutstandingDeclaredLocations">Registered pairs no contributor reported erasing.</param>
+/// <param name="AnyLocationDeclared">
+/// Whether anything was registered at all. False means there was no obligation to check against, so
+/// coverage is unestablished rather than satisfied.
+/// </param>
+/// <param name="AnnotationScanEstablished">
+/// Whether the annotation scan examined everything it set out to. False means
+/// <paramref name="UncoveredAnnotatedCategories"/> is a lower bound: an annotated category the scan
+/// never saw is absent from the set for the same reason a covered one is, so an empty set proves
+/// nothing. The annotation-side twin of <paramref name="AnyLocationDeclared"/>, and it exists because
+/// the location side had this discriminator and the annotation side did not.
+/// </param>
 internal sealed record CoverageOutcome(
 	IReadOnlyCollection<string> UncoveredStoreKinds,
 	IReadOnlyList<ErasureException> Exemptions,
-	IReadOnlyCollection<string> UncoveredAnnotatedCategories);
+	IReadOnlyCollection<string> UncoveredAnnotatedCategories,
+	IReadOnlyCollection<string> OutstandingDeclaredLocations,
+	bool AnyLocationDeclared,
+	bool AnnotationScanEstablished);

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Confluent.Kafka;
 
@@ -108,6 +108,8 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 
 		try
 		{
+			// Reading does not advance the committed position: these messages are the last copy, so they
+			// stay claimable until a caller reports it has taken them (reprocessing does so per message).
 			var messages = _consumer.Consume(dlqTopic, maxMessages, cancellationToken);
 			return Task.FromResult(messages);
 		}
@@ -132,74 +134,88 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 		var messageList = messages as IList<DeadLetterMessage> ?? [.. messages];
 		var maxMessages = options.MaxMessages ?? messageList.Count;
 
-		foreach (var dlqMessage in messageList.Take(maxMessages))
+		// Committed only after each message has been produced back to its target topic. A message whose
+		// reprocessing failed, was skipped, or never ran stays uncommitted and is read again.
+		var reprocessed = new List<DeadLetterMessage>();
+
+		try
 		{
-			cancellationToken.ThrowIfCancellationRequested();
-
-			// Apply filter
-			if (options.MessageFilter is not null && !options.MessageFilter(dlqMessage))
+			foreach (var dlqMessage in messageList.Take(maxMessages))
 			{
-				result.SkippedCount++;
-				LogMessageSkipped(_logger, dlqMessage.OriginalMessage.Id, "Filter excluded");
-				continue;
-			}
+				cancellationToken.ThrowIfCancellationRequested();
 
-			try
-			{
-				var messageToReprocess = dlqMessage.OriginalMessage;
-
-				// Apply transformation
-				if (options.MessageTransform is not null)
+				// Apply filter
+				if (options.MessageFilter is not null && !options.MessageFilter(dlqMessage))
 				{
-					messageToReprocess = options.MessageTransform(messageToReprocess);
+					result.SkippedCount++;
+					LogMessageSkipped(_logger, dlqMessage.OriginalMessage.Id, "Filter excluded");
+					continue;
 				}
 
-				// Determine target topic
-				var targetTopic = options.TargetQueue
-								  ?? dlqMessage.OriginalSource
-								  ?? _defaultSourceTopic;
-
-				// Produce back to the original/target topic (bypasses DLQ suffix)
-				await _producer.ProduceToOriginalTopicAsync(
-					messageToReprocess,
-					targetTopic,
-					cancellationToken).ConfigureAwait(false);
-
-				result.SuccessCount++;
-				LogMessageReprocessed(_logger, dlqMessage.OriginalMessage.Id, targetTopic);
-
-				// Pace reprocessing. When the caller opts into a delay (ReprocessOptions.RetryDelay > 0)
-				// and exponential backoff is enabled, escalate the delay using the message's recorded
-				// delivery-attempt count so a struggling downstream is not overwhelmed. Otherwise fall
-				// back to the flat caller-supplied delay (preserves prior behavior).
-				var reprocessDelay = options.RetryDelay;
-				if (reprocessDelay > TimeSpan.Zero && _retryOptions.UseExponentialBackoff)
+				try
 				{
-					var backoffAttempt = Math.Max(1, dlqMessage.DeliveryAttempts);
-					reprocessDelay = ExponentialBackoff.Calculate(backoffAttempt, new BackoffParameters
+					var messageToReprocess = dlqMessage.OriginalMessage;
+
+					// Apply transformation
+					if (options.MessageTransform is not null)
 					{
-						BaseDelay = _retryOptions.RetryDelay,
-						MaxDelay = _retryOptions.MaxRetryDelay,
-						Multiplier = _retryOptions.BackoffMultiplier,
-						UseJitter = _retryOptions.UseJitter,
+						messageToReprocess = options.MessageTransform(messageToReprocess);
+					}
 
-						// KafkaRetryOptions exposes no jitter-factor field; use a sensible default.
-						JitterFactor = 0.2,
-					});
+					// Determine target topic
+					var targetTopic = options.TargetQueue
+									  ?? dlqMessage.OriginalSource
+									  ?? _defaultSourceTopic;
+
+					// Produce back to the original/target topic (bypasses DLQ suffix)
+					await _producer.ProduceToOriginalTopicAsync(
+						messageToReprocess,
+						targetTopic,
+						cancellationToken).ConfigureAwait(false);
+
+					result.SuccessCount++;
+					reprocessed.Add(dlqMessage);
+					LogMessageReprocessed(_logger, dlqMessage.OriginalMessage.Id, targetTopic);
+
+					// Pace reprocessing. When the caller opts into a delay (ReprocessOptions.RetryDelay > 0)
+					// and exponential backoff is enabled, escalate the delay using the message's recorded
+					// delivery-attempt count so a struggling downstream is not overwhelmed. Otherwise fall
+					// back to the flat caller-supplied delay (preserves prior behavior).
+					var reprocessDelay = options.RetryDelay;
+					if (reprocessDelay > TimeSpan.Zero && _retryOptions.UseExponentialBackoff)
+					{
+						var backoffAttempt = Math.Max(1, dlqMessage.DeliveryAttempts);
+						reprocessDelay = ExponentialBackoff.Calculate(backoffAttempt, new BackoffParameters
+						{
+							BaseDelay = _retryOptions.RetryDelay,
+							MaxDelay = _retryOptions.MaxRetryDelay,
+							Multiplier = _retryOptions.BackoffMultiplier,
+							UseJitter = _retryOptions.UseJitter,
+
+							// KafkaRetryOptions exposes no jitter-factor field; use a sensible default.
+							JitterFactor = 0.2,
+						});
+					}
+
+					if (reprocessDelay > TimeSpan.Zero)
+					{
+						await Task.Delay(reprocessDelay, cancellationToken).ConfigureAwait(false);
+					}
 				}
-
-				if (reprocessDelay > TimeSpan.Zero)
+				catch (Exception ex) when (ex is not OperationCanceledException)
 				{
-					await Task.Delay(reprocessDelay, cancellationToken).ConfigureAwait(false);
+					result.FailureCount++;
+					result.Failures.Add(new ReprocessFailure { Message = dlqMessage, Reason = ex.Message, Exception = ex, });
+
+					LogReprocessFailed(_logger, ex, dlqMessage.OriginalMessage.Id);
 				}
 			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
-			{
-				result.FailureCount++;
-				result.Failures.Add(new ReprocessFailure { Message = dlqMessage, Reason = ex.Message, Exception = ex, });
-
-				LogReprocessFailed(_logger, ex, dlqMessage.OriginalMessage.Id);
-			}
+		}
+		finally
+		{
+			// Reported as reprocessed, so their position is committed even when the run is cancelled part-way:
+			// leaving them uncommitted would produce them to the target topic a second time on the next run.
+			_consumer.CommitProcessed(reprocessed);
 		}
 
 		result.ProcessingTime = sw.Elapsed;
@@ -274,6 +290,9 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 					break;
 				}
 
+				// Purging IS taking ownership: the batch is discarded on purpose, so its position is
+				// committed and these messages are not read again.
+				_consumer.CommitProcessed(batch);
 				purgedCount += batch.Count;
 			}
 

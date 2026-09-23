@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 using System.Reflection;
@@ -181,6 +181,57 @@ public sealed class TenantContextInvariantShould
 		exercised.Count.ShouldBeGreaterThanOrEqualTo(
 			3,
 			$"expected at least the three shipped conformance-kit tenant contexts to be exercised, found: {string.Join(", ", exercised)}");
+
+		violations.ShouldBeEmpty();
+	}
+
+	/// <summary>
+	/// The BEFORE-ANY-SWITCH arm. A switchable context sets its tenant after construction, so there is a
+	/// window in which nothing has been switched — and in that window it must read as UNTENANTED, never as
+	/// unresolved.
+	/// </summary>
+	/// <remarks>
+	/// A null tenant on a PRESENT context does not mean "no tenancy here". It means "multi-tenancy is active
+	/// and the tenant could not be resolved", which the partition seam fails closed on. So an arm that forgot
+	/// to switch threw <c>TenantRequiredException</c> from three types away from its own mistake, and a
+	/// consumer deriving the kit saw a failure whose cause named none of the code they wrote. Binding the
+	/// reserved untenanted term instead makes the unswitched window state a fact rather than an absence.
+	/// </remarks>
+	[Fact]
+	public void EverySwitchableImplementation_ReportsTheUntenantedTerm_BeforeAnySwitch()
+	{
+		var violations = new List<string>();
+		var exercised = new List<string>();
+
+		foreach (var type in Implementations())
+		{
+			// The switchable family only: a SwitchTo method IS the post-construction window this arm is about.
+			if (type.GetMethod("SwitchTo", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, [typeof(string)]) is null)
+			{
+				continue;
+			}
+
+			var context = TryCreate(type);
+			if (context is null)
+			{
+				continue;
+			}
+
+			exercised.Add(type.FullName ?? type.Name);
+
+			if (context.TenantId is null)
+			{
+				violations.Add(
+					$"{type.FullName}: TenantId is null before any SwitchTo, so an unswitched instance reads as "
+					+ "UNRESOLVED multi-tenancy rather than as untenanted, and the partition seam fails closed on it");
+			}
+		}
+
+		// Liveness, same reason as the empty-string arm: if the census stops finding the switchable contexts
+		// this would pass by exercising nothing.
+		exercised.Count.ShouldBeGreaterThanOrEqualTo(
+			3,
+			$"expected at least the three shipped conformance-kit tenant contexts, found: {string.Join(", ", exercised)}");
 
 		violations.ShouldBeEmpty();
 	}

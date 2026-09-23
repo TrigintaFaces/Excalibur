@@ -78,6 +78,14 @@ dotnet add package Excalibur.Dispatch.Hosting.AwsLambda
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
+// Register Dispatch itself. The serverless package does NOT register IDispatcher --
+// it registers the host provider, cold-start optimizer and serializer only. Omit this
+// and injecting IDispatcher into your function fails to resolve on the first invocation.
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(OrderFunction).Assembly);
+});
+
 // In your Lambda startup
 services.AddAwsLambdaServerless();
 
@@ -139,6 +147,14 @@ dotnet add package Excalibur.Dispatch.Hosting.AzureFunctions
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
+// Register Dispatch itself. The serverless package does NOT register IDispatcher --
+// it registers the host provider, cold-start optimizer and serializer only. Omit this
+// and injecting IDispatcher into your function fails to resolve on the first invocation.
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(OrderFunction).Assembly);
+});
+
 // In your Functions startup
 services.AddAzureFunctionsServerless();
 
@@ -198,6 +214,14 @@ dotnet add package Excalibur.Dispatch.Hosting.GoogleCloudFunctions
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
+
+// Register Dispatch itself. The serverless package does NOT register IDispatcher --
+// it registers the host provider, cold-start optimizer and serializer only. Omit this
+// and injecting IDispatcher into your function fails to resolve on the first invocation.
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(OrderFunction).Assembly);
+});
 
 // In your Cloud Functions startup
 services.AddGoogleCloudFunctionsServerless();

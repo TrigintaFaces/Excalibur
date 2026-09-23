@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Buffers;
@@ -75,8 +75,37 @@ public sealed class ClaimCheckMessageSerializer(
 	/// <inheritdoc />
 	public string Version => "1.0.0";
 
-	/// <inheritdoc />
-	public string ContentType => _baseSerializer.ContentType;
+	/// <summary>
+	/// The media type of the bytes this serializer produces.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is NOT the base serializer's media type. Every payload this serializer writes is prefixed
+	/// with a one-byte frame tag, so the bytes are no longer valid in the base format: a JSON base
+	/// produces <c>0x00</c> followed by the JSON document, which fails to parse at byte zero. Reporting
+	/// the base type here labelled framed bytes as <c>application/json</c>, so a host that registered
+	/// this serializer for content negotiation advertised JSON and returned something no JSON reader
+	/// accepts -- and ordinary JSON arriving on the way in was read as an unrecognised frame.
+	/// </para>
+	/// <para>
+	/// The value names this framing rather than the payload inside it. The frame is only meaningful to
+	/// a reader that knows to strip the tag, and such a reader is this serializer, which already knows
+	/// its own base -- so carrying the base type here would add information that no reachable consumer
+	/// can act on.
+	/// </para>
+	/// <para>
+	/// It uses the IANA vendor tree. The <c>x-</c> prefix used by some older media types is obsolete --
+	/// names beginning with it are no longer considered members of any tree, and the parallel <c>x.</c>
+	/// tree is strongly discouraged -- so the vendor tree is where a format belonging to a specific
+	/// product is expected to live.
+	/// </para>
+	/// </remarks>
+	public string ContentType => ClaimCheckContentType;
+
+	/// <summary>
+	/// The media type for claim-check framed payloads.
+	/// </summary>
+	internal const string ClaimCheckContentType = "application/vnd.excalibur.claimcheck";
 
 	/// <inheritdoc />
 	public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)

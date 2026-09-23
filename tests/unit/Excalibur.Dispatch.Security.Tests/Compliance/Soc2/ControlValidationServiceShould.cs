@@ -1,6 +1,8 @@
 using Excalibur.Compliance.Soc2;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+
+using Excalibur.Compliance.Soc2.Validators;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 
@@ -84,8 +86,11 @@ public sealed class ControlValidationServiceShould
 
 		// Assert
 		result.IsConfigured.ShouldBeFalse();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBe(0);
+		// STRENGTHENED: was "not effective", which a deficiency also satisfies. An unregistered control
+		// was never examined, so the honest verdict is NotVerified -- reporting a deficiency states a
+		// finding nobody made and sends an auditor after a defect that may not exist.
+		result.Outcome.ShouldBe(ControlOutcome.NotVerified);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Unverified);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("No validator registered"));
 	}
 
@@ -97,8 +102,7 @@ public sealed class ControlValidationServiceShould
 		{
 			ControlId = "SEC-001",
 			IsConfigured = true,
-			IsEffective = true,
-			EffectivenessScore = 100
+			EffectivenessScore = ControlEffectiveness.Effective
 		};
 		_ = A.CallTo(() => _fakeValidator.ValidateAsync("SEC-001", A<CancellationToken>._))
 			.Returns(expectedResult);
@@ -120,8 +124,7 @@ public sealed class ControlValidationServiceShould
 		{
 			ControlId = "SEC-001",
 			IsConfigured = true,
-			IsEffective = true,
-			EffectivenessScore = 100
+			EffectivenessScore = ControlEffectiveness.Effective
 		};
 		_ = A.CallTo(() => _fakeValidator.ValidateAsync("SEC-001", A<CancellationToken>._))
 			.Returns(expectedResult);
@@ -141,7 +144,7 @@ public sealed class ControlValidationServiceShould
 		// Arrange
 		using var cts = new CancellationTokenSource();
 		_ = A.CallTo(() => _fakeValidator.ValidateAsync("SEC-001", cts.Token))
-			.Returns(new ControlValidationResult { ControlId = "SEC-001", IsConfigured = true, IsEffective = true, EffectivenessScore = 100 });
+			.Returns(new ControlValidationResult { ControlId = "SEC-001", IsConfigured = true, EffectivenessScore = ControlEffectiveness.Effective });
 
 		// Act
 		_ = await _sut.ValidateControlAsync("SEC-001", cts.Token);
@@ -160,7 +163,7 @@ public sealed class ControlValidationServiceShould
 	{
 		// Arrange
 		_ = A.CallTo(() => _fakeValidator.ValidateAsync(A<string>._, A<CancellationToken>._))
-			.Returns(new ControlValidationResult { ControlId = "SEC-001", IsConfigured = true, IsEffective = true, EffectivenessScore = 100 });
+			.Returns(new ControlValidationResult { ControlId = "SEC-001", IsConfigured = true, EffectivenessScore = ControlEffectiveness.Effective });
 
 		// Act
 		var results = await _sut.ValidateCriterionAsync(TrustServicesCriterion.CC6_LogicalAccess, CancellationToken.None);
@@ -187,16 +190,16 @@ public sealed class ControlValidationServiceShould
 	{
 		// Arrange
 		_ = A.CallTo(() => _fakeValidator.ValidateAsync("SEC-001", A<CancellationToken>._))
-			.Returns(new ControlValidationResult { ControlId = "SEC-001", IsConfigured = true, IsEffective = true, EffectivenessScore = 100 });
+			.Returns(new ControlValidationResult { ControlId = "SEC-001", IsConfigured = true, EffectivenessScore = ControlEffectiveness.Effective });
 		_ = A.CallTo(() => _fakeValidator.ValidateAsync("SEC-002", A<CancellationToken>._))
-			.Returns(new ControlValidationResult { ControlId = "SEC-002", IsConfigured = true, IsEffective = false, EffectivenessScore = 50 });
+			.Returns(new ControlValidationResult { ControlId = "SEC-002", IsConfigured = true, EffectivenessScore = ControlEffectiveness.ViolationDetected });
 
 		// Act
 		var results = await _sut.ValidateCriterionAsync(TrustServicesCriterion.CC6_LogicalAccess, CancellationToken.None);
 
 		// Assert
-		results.ShouldContain(r => r.ControlId == "SEC-001" && r.IsEffective);
-		results.ShouldContain(r => r.ControlId == "SEC-002" && !r.IsEffective);
+		results.ShouldContain(r => r.ControlId == "SEC-001" && r.Outcome == ControlOutcome.Effective);
+		results.ShouldContain(r => r.ControlId == "SEC-002" && r.Outcome != ControlOutcome.Effective);
 	}
 
 	#endregion ValidateCriterionAsync Tests

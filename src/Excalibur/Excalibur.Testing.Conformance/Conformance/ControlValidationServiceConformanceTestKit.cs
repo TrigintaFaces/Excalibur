@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 #pragma warning disable IDE0270 // Null check can be simplified
@@ -23,6 +23,8 @@ namespace Excalibur.Testing.Conformance;
 /// <item><description>ValidateControlAsync handles unregistered controls gracefully</description></item>
 /// <item><description>ValidateCriterionAsync returns results for all controls in a criterion</description></item>
 /// <item><description>ValidateCriterionAsync returns empty for unregistered criteria</description></item>
+/// <item><description>ValidateCriterionAsync reports a verdict for EACH control in a multi-control
+/// criterion, rather than one control's verdict standing in for the whole criterion</description></item>
 /// <item><description>RunControlTestAsync returns result for registered controls</description></item>
 /// <item><description>RunControlTestAsync handles unregistered controls gracefully</description></item>
 /// <item><description>GetAvailableControls returns non-null list</description></item>
@@ -163,10 +165,34 @@ public abstract class ControlValidationServiceConformanceTestKit : ConformanceTe
 				"Expected ControlId property to be non-null and non-empty.");
 		}
 
-		if (result.EffectivenessScore is < 0 or > 100)
+		// This used to test "is the score between 0 and 100", which no validator could fail: the
+		// interesting wrong answers -- 75, 50, 30 -- are all inside that range, and the shipped report
+		// reads every one of them as a deficiency the consumer never earned. A range check over a
+		// continuous-looking scale cannot detect a wrong point on that scale. These two can.
+		if (!Enum.IsDefined(result.EffectivenessScore))
 		{
 			throw new TestFixtureAssertionException(
-				$"Expected EffectivenessScore to be between 0 and 100, but got {result.EffectivenessScore}.");
+				$"Expected the reported effectiveness to be a declared ControlEffectiveness band, but got "
+				+ $"the undeclared value {(int)result.EffectivenessScore}. The bands are a closed, ordered "
+				+ "set -- a value outside it has no place in that order, so nothing downstream can say what "
+				+ "it means, and a plausible-looking number reaches an external assessor as a finding "
+				+ "against you.");
+		}
+
+		var impliedByBand = result.EffectivenessScore switch
+		{
+			ControlEffectiveness.Effective => ControlOutcome.Effective,
+			ControlEffectiveness.Unverified => ControlOutcome.NotVerified,
+			_ => ControlOutcome.Deficient,
+		};
+
+		if (result.Outcome != impliedByBand)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected Outcome to be {impliedByBand}, which is what a band of "
+				+ $"{result.EffectivenessScore} asserts, but the result reports {result.Outcome}. A verdict "
+				+ "that contradicts its own band is a self-contradictory result, and it travels into the "
+				+ "document handed to an external assessor.");
 		}
 	}
 
@@ -257,6 +283,91 @@ public abstract class ControlValidationServiceConformanceTestKit : ConformanceTe
 		{
 			throw new TestFixtureAssertionException(
 				$"Expected {controlsForCriterion.Count} results but got {results.Count}.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that <see cref="IControlValidationService.ValidateCriterionAsync" /> reports a verdict for
+	/// EACH control in the criterion, rather than one control's verdict standing in for the criterion.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A criterion spans many controls, and those controls can be in mixed state. An implementation that
+	/// examines one of them and returns that verdict is not folding the criterion — it is sampling it, and
+	/// an external assessor reading the output cannot tell the difference. The result is a compliance
+	/// statement that is true of one control and asserted of all of them.
+	/// </para>
+	/// <para>
+	/// Counting results does not detect this. An implementation that repeats a single control's verdict
+	/// once per control returns exactly the expected NUMBER of results, so a cardinality check passes while
+	/// every verdict after the first is fabricated. This arm asserts the mapping instead: the control
+	/// identifiers carried by the results must be the criterion's own controls, each appearing once. A
+	/// repeated verdict collapses those identifiers and fails here.
+	/// </para>
+	/// <para>
+	/// The arm selects the first criterion that maps two or more controls, because a criterion with one
+	/// control cannot distinguish sampling from folding. If no criterion maps two, the fixture cannot
+	/// exercise the property and this reports a fixture inadequacy rather than passing — a silent pass here
+	/// would be indistinguishable from a provider that samples.
+	/// </para>
+	/// </remarks>
+	public virtual async Task ValidateCriterionAsync_MultiControlCriterion_ShouldReportAVerdictPerControl()
+	{
+		// Arrange
+		var service = CreateService();
+
+		TrustServicesCriterion? subject = null;
+		IReadOnlyList<string> expectedControls = [];
+
+		foreach (var candidate in Enum.GetValues<TrustServicesCriterion>())
+		{
+			var controls = service.GetControlsForCriterion(candidate);
+			if (controls is { Count: >= 2 })
+			{
+				subject = candidate;
+				expectedControls = controls;
+				break;
+			}
+		}
+
+		if (subject is null)
+		{
+			throw new TestFixtureAssertionException(
+				"No criterion maps two or more controls, so this arm cannot tell a per-control verdict from "
+				+ "a single control's verdict repeated. Register validators so that at least one criterion "
+				+ "covers two controls.");
+		}
+
+		// Act
+		var results = await service.ValidateCriterionAsync(subject.Value, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Assert
+		if (results == null)
+		{
+			throw new TestFixtureAssertionException(
+				"Expected ValidateCriterionAsync to return non-null list.");
+		}
+
+		var reported = results.Select(static r => r.ControlId).ToList();
+		var distinct = reported.Distinct(StringComparer.Ordinal).ToList();
+
+		if (distinct.Count != reported.Count)
+		{
+			throw new TestFixtureAssertionException(
+				$"Criterion {subject.Value} covers {expectedControls.Count} controls and "
+				+ $"ValidateCriterionAsync reported {reported.Count} results carrying only "
+				+ $"{distinct.Count} distinct control identifiers. A verdict was repeated, so at least one "
+				+ "control was reported without being examined.");
+		}
+
+		var missing = expectedControls.Where(id => !reported.Contains(id, StringComparer.Ordinal)).ToList();
+		if (missing.Count != 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"Criterion {subject.Value} covers control(s) {string.Join(", ", missing)}, but "
+				+ "ValidateCriterionAsync reported no verdict for them. Every control the criterion covers "
+				+ "must be accounted for in its result.");
 		}
 	}
 

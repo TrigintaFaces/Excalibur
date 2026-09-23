@@ -1,0 +1,122 @@
+# rigor-ladder.yaml — which class of guarantee each declared seam owes.
+#
+# Rule: .claude/rules/quality/rigor-ladder.md          Gate: eng/ci/rigor-ladder-gate.sh
+#
+# THE COVERAGE ORACLE IS BIDIRECTIONAL, and that is what makes this non-vacuous:
+#   * every src/**/ARCHITECTURE.md must have an entry here  (declaring a guarantee obliges a rung)
+#   * every entry here must name a real ARCHITECTURE.md     (an entry cannot outlive its seam)
+# A new guarantee-critical package therefore cannot be added without landing in this file, and the
+# gate FAILS rather than silently covering less than it did yesterday.
+#
+# RUNGS ARE CUMULATIVE. A catastrophic seam owes R1, R2, R3 and R4.
+#
+# THERE IS NO `floor:` FIELD, DELIBERATELY. It was one, and it was a defect: the gate derives the
+# floor from blast_radius through a total, deterministic map, so a written floor carried ZERO
+# independent information -- whoever typed it was transcribing, not deciding. A cross-check between
+# a value and a deterministic function of that value is a checksum on a transcription, and it stays
+# one however many people sign it. Deleting the field makes the inconsistency INEXPRESSIBLE rather
+# than detected, which is the stronger form (see enforce-invariants-structurally). What is left is
+# the one field that holds a judgement -- blast_radius -- sitting alone where the architect must
+# look at it.
+#
+# blast_radius -> floor:  catastrophic=R4  high=R3  moderate=R2  low=R1
+#   catastrophic := a defect silently loses, duplicates or cross-tenant-leaks consumer data AND the
+#                   consumer cannot detect it from outside. The discriminator is SILENCE, not severity.
+
+version: "1.0"
+declared_at: "2026-09-20"
+
+conventions:
+  r2_artifact: "the seam's ARCHITECTURE.md — guarantee in falsifiable terms + the RED-detecting arm"
+  r3_artifact: "tests/property/**/*Properties.cs — generated inputs, shrunk counterexample"
+  r4_artifact: "spec/tla/<seam>.tla (temporal/distributed) or spec/alloy/<seam>.als (relational)"
+
+# THE `unmet:` LIST IS THE DEBT. There is no separate baseline file -- there was one, and it held
+# exactly these rows and nothing else, so the only thing it could catch was a transcription error
+# between two files we write ourselves. Deleted.
+#
+# Each unmet rung is a claim that the seam is UNVERIFIED at that rung. It is NEVER a claim that the
+# seam is fine. Nothing mechanical establishes that this list only shrinks -- that is a DIFF property
+# and it cannot be known from inside one commit, so the gate does not pretend to. `git diff` on this
+# file is the signed, reviewable act. A reviewer asking "is this seam new, or is someone admitting
+# debt on an old one?" answers it in one command:
+#
+#     git log --diff-filter=A -- <the seam's architecture_md>
+#
+seams:
+  - name: outbox
+    architecture_md: src/Excalibur/Excalibur.Outbox/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "An atomic claim that is inert publishes one message twice, or marks sent a message never sent. Silent at the consumer."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: outbox-redis
+    architecture_md: src/Excalibur/Excalibur.Outbox.Redis/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "A superseded tenure can mark a message sent: the scope fence and the per-row token are separate round trips."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: inbox
+    architecture_md: src/Excalibur/Excalibur.Inbox/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "Dedup that does not hold turns exactly-once into at-least-once with no signal to the handler."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: leader-election
+    architecture_md: src/Excalibur/Excalibur.LeaderElection/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "Split brain. Two holders each believe they are sole leader; fencing tokens are the only thing between that and double-processing."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: event-sourcing
+    architecture_md: src/Excalibur/Excalibur.EventSourcing/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "A lost or misordered append is unrecoverable: the stream IS the record, there is no second copy to reconcile against."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: saga
+    architecture_md: src/Excalibur/Excalibur.Saga/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "Tenant isolation and event dedup. A dedup key colliding on simple type name silently discards distinct events."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: cdc-postgres
+    architecture_md: src/Excalibur/Excalibur.Cdc.Postgres/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "A checkpoint advancing past undelivered changes loses them permanently, and the position looks healthy afterwards."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: cdc-sqlserver
+    architecture_md: src/Excalibur/Excalibur.Cdc.SqlServer/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "A per-table checkpoint that advances past a change the handler never completed drops it silently, and a demoted leader's write would do the same."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: compliance-erasure
+    architecture_md: src/Excalibur/Excalibur.Compliance/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "A Completed erasure certificate that a region failover undoes is a false compliance statement held by a regulated consumer."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: transport-settlement
+    architecture_md: src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "Settling twice has two contradictory answers across transports; a reject(requeue) reported successful that did not redeliver loses the message."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
+  - name: audit-logging
+    architecture_md: src/Excalibur/Excalibur.AuditLogging/ARCHITECTURE.md
+    blast_radius: high
+    why: "A broken hash chain is detectable by the consumer on verification, but only after the fact."
+    met: [R1, R2]
+    unmet: [R3]

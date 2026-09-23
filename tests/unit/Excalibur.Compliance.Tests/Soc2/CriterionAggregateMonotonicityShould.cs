@@ -1,13 +1,15 @@
 using Excalibur.Compliance;
 using Excalibur.Compliance.Soc2;
+using Excalibur.Compliance.Soc2.Validators;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Compliance.Tests.Soc2;
 
 /// <summary>
-/// Two properties an aggregate over a set of controls must keep: it must never improve because we
-/// verified <b>less</b>, and it must be sensitive to <b>every</b> control it claims to cover.
+/// Three properties an aggregate over a set of controls must keep: it must never improve because we
+/// verified <b>less</b>, it must be sensitive to <b>every</b> control it claims to cover, and it must
+/// never sink to a <b>proven absence</b> on the strength of controls nobody examined.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -52,11 +54,22 @@ public sealed class CriterionAggregateMonotonicityShould
 			Violating("CC6.1"),
 			Unverified("CC6.2"));
 
-		oneUnverified.ShouldBeLessThanOrEqualTo(
+		// EQUALITY, not a bound, and the stronger assertion of the two. The aggregation rule is that a
+		// control nobody examined is excluded from the aggregate — so swapping one in must change the
+		// number NOT AT ALL. A ceiling ("must not rise") is satisfied by a score that DROPS, and dropping
+		// is exactly what a read site does when it cannot carry "not examined" forward and substitutes a
+		// number for it. Equality refuses both the drop and the rise.
+		//
+		// Note the asymmetry, so nobody inherits a stronger claim than this arm makes: the aggregate is a
+		// Min, which clamps from above, so substituting a HIGH number here is absorbed (min(20, 100) is
+		// still 20) and this arm stays green. It is one-sided, and the side it guards is the one that
+		// turns an unexamined control into a finding.
+		oneUnverified.ShouldBe(
 			bothExamined,
-			"knowing LESS about a criterion must never make it score higher. The second case examined "
-			+ "one control instead of two and found nothing good; if its number is larger, the report "
-			+ "rewards not looking.");
+			"a control nobody examined is excluded from the aggregate, so adding one in place of an "
+			+ "examined control must leave the criterion's number unchanged. If it dropped, some read "
+			+ "site substituted a number for 'not examined' and the report now states a finding nobody "
+			+ "made. If it rose, the report rewards not looking.");
 	}
 
 	[Fact]
@@ -151,6 +164,94 @@ public sealed class CriterionAggregateMonotonicityShould
 			+ "can see WHICH control failed rather than only that something did.");
 	}
 
+	/// <summary>
+	/// The FLOOR. A criterion whose every control went unexamined must not be graded as a proven absence.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Every other arm in this class asserts a CEILING — that the number does not RISE when we know less.
+	/// All of them are satisfied by an aggregate that reports zero, because zero never rises. So the whole
+	/// class is blind in the one direction where an unexamined control is turned into an accusation, and
+	/// that is the direction a careless read produces: the control-level score is the only value that says
+	/// "not examined", and every site that fails to carry that state forward reaches for a number, which
+	/// in this scale is the bottom of it.
+	/// </para>
+	/// <para>
+	/// Zero is not a neutral default here. It is the mechanism-absent band — the claim that the control was
+	/// examined and nothing was there — and it grades as a Critical gap. Between a criterion nobody assessed
+	/// and a criterion assessed and found empty there is an auditor, and only one of those is a finding
+	/// against the consumer.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task Not_grade_a_criterion_of_wholly_unexamined_controls_as_a_proven_absence()
+	{
+		// Nobody examined either control. The aggregate has no evidence of absence -- only absence of
+		// evidence -- so it must not report the band that asserts the first one.
+		var unexamined = await ScoreFor(Unverified("CC6.1"), Unverified("CC6.2"));
+
+		((int)unexamined).ShouldBeGreaterThanOrEqualTo(
+			(int)ControlEffectiveness.ViolationDetected,
+			"no control in this criterion was examined, so the aggregate cannot rank it at or below the "
+			+ "band reserved for violations we actually detected. Scoring it lower states that we looked "
+			+ "and found the mechanism missing, which is a finding nobody made and the one an assessor "
+			+ "acts on. The likeliest way to break this is a read site that cannot carry 'not examined' "
+			+ "forward and substitutes a number for it.");
+
+		// LIVENESS. Without this, the assertion above is satisfied by a service that returns a constant
+		// high score and never grades anything down -- the cheapest way to be safe and the most expensive
+		// way to be wrong. This also binds, at the AGGREGATE, the ordering that is otherwise bound only at
+		// the control level: a deficiency we proved must rank below a question we never opened.
+		var proven = await ScoreFor(Violating("CC6.1"), Violating("CC6.2"));
+
+		proven.ShouldBeLessThan(
+			unexamined,
+			"a criterion whose controls were examined and found violating must score BELOW one whose "
+			+ "controls were never examined. If these are equal the aggregate is not grading at all, and "
+			+ "the arm above proves nothing; if they are inverted, the report rewards not looking.");
+	}
+
+	/// <summary>
+	/// COMPLETENESS. A criterion cannot be reported met while one of its controls was never examined —
+	/// even when every control that WAS examined came back perfect.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The report arm above starts from a criterion that is already failing, so it can only ever assert
+	/// that a failure stays a failure. This one starts from a criterion that is <b>passing</b>, which is
+	/// the only baseline where "met" is reachable and therefore the only baseline where losing it can be
+	/// detected. A rule that says "do not improve" is silent about a case that was already at the top.
+	/// </para>
+	/// <para>
+	/// The property is completeness, not severity: met asserts that EVERY control is at or above the
+	/// threshold, and that claim is unavailable while one of them was never looked at. It is not that the
+	/// unexamined control scored badly — it is that nobody can say whether it scored at all.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task Not_report_a_criterion_as_met_when_one_of_its_controls_was_never_examined()
+	{
+		// LIVENESS first, because it establishes that "met" is reachable here at all. Without it, the
+		// assertion below is satisfied by a generator that can never report met for any input.
+		var allExamined = await SectionFor(Effective("CC6.1"), Effective("CC6.2"));
+
+		allExamined.ShouldBe(
+			CriterionOutcome.Met,
+			"a criterion whose controls were all examined and all found operating must be reportable as "
+			+ "met, or the arm below proves only that this generator never says met.");
+
+		// SAFETY. Same two perfect controls, plus one nobody examined. The examined evidence is unchanged
+		// and unimpeachable; what changed is that the criterion is no longer fully covered.
+		var oneNeverExamined = await SectionFor(
+			Effective("CC6.1"), Effective("CC6.2"), Unverified("CC6.3"));
+
+		oneNeverExamined.ShouldNotBe(
+			CriterionOutcome.Met,
+			"two controls were examined and found operating, and a third was never examined. 'Met' claims "
+			+ "every control in this criterion is at or above the threshold, and that claim cannot be made "
+			+ "about a control nobody looked at. The auditor reads met as complete coverage.");
+	}
+
 	private async Task<CriterionOutcome> SectionFor(params ControlValidationResult[] results)
 	{
 		// The generator reaches the validation service through ValidateCriterionAsync, NOT through
@@ -185,14 +286,33 @@ public sealed class CriterionAggregateMonotonicityShould
 			? status.ActiveGaps.Max(g => g.Severity)
 			: GapSeverity.Low;
 
-		return new Assessment(criterion.EffectivenessScore ?? 0, worst, criterion.Outcome);
+		return new Assessment(RequireScore(criterion), worst, criterion.Outcome);
 	}
 
 	private async Task<int> ScoreFor(params ControlValidationResult[] results)
 	{
 		var status = await StatusFor(results).ConfigureAwait(false);
-		return status.CriterionStatuses[TrustServicesCriterion.CC6_LogicalAccess].EffectivenessScore ?? 0;
+		return RequireScore(status.CriterionStatuses[TrustServicesCriterion.CC6_LogicalAccess]);
 	}
+
+	/// <summary>
+	/// Reads the criterion's score, REFUSING a missing one rather than coalescing it.
+	/// </summary>
+	/// <remarks>
+	/// This was <c>?? 0</c>, and the zero is not a neutral placeholder: it is the mechanism-absent band,
+	/// the strongest negative the report can state, and it means "we examined this and there is nothing
+	/// there". Coalescing to it would silently grade a criterion nobody assessed as a proven absence —
+	/// and every arm in this class would stay GREEN while it happened, because they all assert that the
+	/// score does not RISE, and a fabricated 0 only ever makes it fall. That is the defect these arms
+	/// exist to prevent, reproduced inside the instrument that measures it.
+	/// </remarks>
+	private static int RequireScore(CriterionStatus criterion) =>
+		criterion.EffectivenessScore
+		?? throw new InvalidOperationException(
+			"The criterion reported no effectiveness score, and these arms compare scores numerically. "
+			+ "A missing score must not be coalesced — 0 is the mechanism-absent band and would assert "
+			+ "a finding nobody made. If the aggregate can now legitimately report 'not assessed', bind "
+			+ "that state with its own arm instead of giving it a number here.");
 
 	private async Task<ComplianceStatus> StatusFor(params ControlValidationResult[] results)
 	{
@@ -220,8 +340,7 @@ public sealed class CriterionAggregateMonotonicityShould
 		{
 			ControlId = id,
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 20,
+			EffectivenessScore = ControlEffectiveness.ViolationDetected,
 			ConfigurationIssues = ["A violation was detected in this control."],
 			ValidatedAt = DateTimeOffset.UtcNow
 		};
@@ -232,8 +351,7 @@ public sealed class CriterionAggregateMonotonicityShould
 		{
 			ControlId = id,
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 40,
+			EffectivenessScore = ControlEffectiveness.Unverified,
 			ConfigurationIssues = ["This control was not verified in this period."],
 			ValidatedAt = DateTimeOffset.UtcNow
 		};
@@ -244,8 +362,7 @@ public sealed class CriterionAggregateMonotonicityShould
 		{
 			ControlId = id,
 			IsConfigured = true,
-			IsEffective = true,
-			EffectivenessScore = 100,
+			EffectivenessScore = ControlEffectiveness.Effective,
 			ConfigurationIssues = [],
 			ValidatedAt = DateTimeOffset.UtcNow
 		};
@@ -257,8 +374,7 @@ public sealed class CriterionAggregateMonotonicityShould
 		{
 			ControlId = id,
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 20,
+			EffectivenessScore = ControlEffectiveness.ViolationDetected,
 			ConfigurationIssues = [$"A violation was detected in {id}."],
 			ValidatedAt = DateTimeOffset.UtcNow
 		};

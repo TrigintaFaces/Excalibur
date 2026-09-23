@@ -44,11 +44,11 @@ ORDER BY tran_begin_time DESC;
    ```
 3. If position is invalid after restart:
    ```csharp
-   // Configure recovery options
-   options.Recovery = new CdcRecoveryOptions
-   {
-       RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToEarliest
-   };
+   // Configure the recovery strategy on the CDC builder.
+   // FallbackToEarliest is already the default; set it explicitly to make the choice visible.
+   services.AddCdcProcessor(cdc => cdc
+       .UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .WithRecovery(recovery => recovery.Strategy(StalePositionRecoveryStrategy.FallbackToEarliest)));
    ```
 
 **Prevention:**
@@ -67,31 +67,39 @@ ORDER BY tran_begin_time DESC;
 
 **Diagnosis:**
 ```sql
--- Check current CDC min LSN
-SELECT name, min_lsn, max_lsn
+-- The oldest change still available for each capture instance
+SELECT capture_instance, sys.fn_cdc_get_min_lsn(capture_instance) AS min_lsn
 FROM cdc.change_tables;
 
--- Compare with saved position
-SELECT * FROM [dbo].[CdcState]
-WHERE ProcessorName = 'YourProcessor';
+-- The position the processor saved for each capture instance.
+-- [Cdc].[CdcProcessingState] is the default; use your configured schema and table name if you changed them.
+SELECT DatabaseName, TableName AS CaptureInstance, LastProcessedLsn, ProcessedAt
+FROM [Cdc].[CdcProcessingState];
 ```
 
+The saved position is stale when a capture instance's `LastProcessedLsn` is lower than its `min_lsn`: the
+changes in between have already been removed by SQL Server's CDC cleanup.
+
 **Recovery Steps:**
-1. **Automatic (Recommended):** Configure recovery options:
+1. **Automatic (Recommended):** use the `FallbackToEarliest` strategy, which is the default:
    ```csharp
-   options.Recovery = new CdcRecoveryOptions
-   {
-       RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToEarliest
-   };
+   services.AddCdcProcessor(cdc => cdc
+       .UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .WithRecovery(recovery => recovery.Strategy(StalePositionRecoveryStrategy.FallbackToEarliest)));
    ```
 
-2. **Manual Reset:** If automatic recovery fails:
+2. **Manual Reset:** If automatic recovery fails. **Stop every processor instance first**: a running
+   processor can overwrite the row, and this update bypasses the leader-election fence the processor's own
+   writes respect.
    ```sql
-   -- Reset CDC state to earliest available position
-   UPDATE [dbo].[CdcState]
-   SET Position = (SELECT MIN(min_lsn) FROM cdc.change_tables)
-   WHERE ProcessorName = 'YourProcessor';
+   -- Move one capture instance's saved position to the oldest change still available.
+   UPDATE [Cdc].[CdcProcessingState]
+   SET LastProcessedLsn = sys.fn_cdc_get_min_lsn(TableName),
+       LastProcessedSequenceValue = NULL
+   WHERE TableName = 'dbo_YourTable';  -- the capture instance name
    ```
+   Changes that CDC cleanup had already removed are not recovered by this; it moves the processor past the
+   gap. Treat whatever those changes carried as lost, and reconcile it from the source tables if it matters.
 
 3. Restart the processor and verify events are processing
 
@@ -304,12 +312,17 @@ JOIN pg_catalog.pg_locks blocking_locks ON blocking_locks.locktype = blocked_loc
    GROUP BY Status;
    ```
 
-2. **Reprocess stuck messages:**
+2. **Reprocess stuck messages:** `Status` is a number (`0` Staged, `1` Sending, `2` Sent, `3` Failed,
+   `4` PartiallyFailed, `5` DeadLettered). The processor picks up `Failed` messages again by itself until
+   their `RetryCount` reaches the configured maximum; a message is only *stuck* once it has used up its
+   retries. To give those another round once the cause is fixed:
    ```sql
    UPDATE [dbo].[OutboxMessages]
-   SET Status = 'Pending', RetryCount = 0
-   WHERE Status = 'Failed' AND CreatedAt > DATEADD(hour, -24, GETUTCDATE());
+   SET Status = 0, RetryCount = 0, NextAttemptAt = NULL
+   WHERE Status = 3 AND CreatedAt > DATEADD(hour, -24, SYSDATETIMEOFFSET());
    ```
+   Messages already moved to the dead-letter queue (`5`) are recovered by replaying them from the
+   dead-letter queue, not by editing this table.
 
 3. **Monitor for successful delivery**
 
@@ -354,6 +367,8 @@ groups:
 
 ## See Also
 
+- [Disaster Recovery](disaster-recovery.md) — Restoring state, and what a restore does to fences, checkpoints, and deduplication windows
+- [Fault and Degraded-Mode Catalog](fault-catalog.md) — The log event id and metric for each fault, and what the framework does on its own
 - [CDC Troubleshooting](cdc-troubleshooting.md) — Diagnose and recover from Change Data Capture issues
 - [Performance Tuning](performance-tuning.md) — Optimize event store, outbox, and projection throughput
 - [Health Checks](../observability/health-checks.md) — Application health monitoring and diagnostics

@@ -1,10 +1,15 @@
 #nullable enable
 Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore
-Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.ActivityGroupExistsAsync(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.DeleteAllActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.FindActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
-Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.GetService(System.Type! serviceType) -> object?
-Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.SqlServerActivityGroupStore(Excalibur.Data.IDomainDb! domainDb) -> void
+Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.ActivityGroupExistsAsync(string! tenantId, string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.CreateActivityGroupAsync(string! tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.DeleteActivityGroupsForTenantAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.FindActivityGroupsAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, System.Collections.Generic.IReadOnlyCollection<string!>!>!>!
+Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.ReplaceAllActivityGroupsAsync(Excalibur.A3.Authorization.ActivityGroupCatalogue! catalogue, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
+Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.SqlServerActivityGroupStore(Excalibur.Data.IDomainDb! domainDb, Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.Authorization.SqlServerAuthorizationOptions!>! options) -> void
+Excalibur.Data.SqlServer.Authorization.SqlServerAuthorizationOptions
+Excalibur.Data.SqlServer.Authorization.SqlServerAuthorizationOptions.SchemaName.get -> string!
+Excalibur.Data.SqlServer.Authorization.SqlServerAuthorizationOptions.SchemaName.set -> void
+Excalibur.Data.SqlServer.Authorization.SqlServerAuthorizationOptions.SqlServerAuthorizationOptions() -> void
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.DeleteActivityGroupGrantsByUserIdAsync(string! userId, string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.DeleteAllActivityGroupGrantsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
@@ -14,9 +19,13 @@ Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetAllGrantsAsync(str
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
-Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetMatchingGrantsAcrossTenantsAsync(string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetMatchingGrantsAsync(string! tenantId, string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.ReplaceActivityGroupGrantsAsync(string! grantType, Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.ReplaceActivityGroupGrantsForUserAsync(string! userId, string! grantType, Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyCollection<string!>!>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.SaveGrantAsync(Excalibur.A3.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.SqlServerGrantStore(Excalibur.Data.IDomainDb! domainDb) -> void
 Excalibur.Data.SqlServer.ConfigurationExtensions
@@ -154,6 +163,7 @@ Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.IsAvailable.ge
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.Name.get -> string!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ProviderType.get -> string!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.SqlServerPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider!>! logger, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics! metrics, Excalibur.Data.Resilience.IDataRequestRetryPolicy! retryPolicy) -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.SupportsBulkOperations.get -> bool
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.SupportsStoredProcedures.get -> bool
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -273,6 +283,7 @@ override Excalibur.Data.SqlServer.TypeHandlers.TimeOnlyTypeHandler.SetValue(Syst
 static Excalibur.Data.SqlServer.ConfigurationExtensions.GetSqlConnection(this Microsoft.Extensions.Configuration.IConfiguration! configuration, string! connectionName) -> Microsoft.Data.SqlClient.SqlConnection!
 static Excalibur.Data.SqlServer.ConfigurationExtensions.GetSqlDb(this Microsoft.Extensions.Configuration.IConfiguration! configuration, string! connectionName) -> System.Func<Excalibur.Data.SqlServer.SqlDb!>!
 static Microsoft.Extensions.DependencyInjection.A3BuilderSqlServerExtensions.UseSqlServer(this Excalibur.A3.IA3Builder! builder) -> Excalibur.A3.IA3Builder!
+static Microsoft.Extensions.DependencyInjection.A3BuilderSqlServerExtensions.UseSqlServer(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.Data.SqlServer.Authorization.SqlServerAuthorizationOptions!>! configure) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.ExcaliburDataSqlServerServiceCollectionExtensions.AddExcaliburSqlServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params Dapper.SqlMapper.ITypeHandler![]? additionalTypeHandlers) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -298,6 +309,3 @@ virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.Dispos
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.SqlServer.Authorization.SqlServerActivityGroupStore.CreateActivityGroupAsync(string! tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.SqlServerPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider!>! logger, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics! metrics, Excalibur.Data.Resilience.IDataRequestRetryPolicy! retryPolicy) -> void

@@ -6,6 +6,14 @@ description: Per-subject field-level crypto-shredding — encrypt each data subj
 
 # Crypto-Shredding
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../legal/compliance-disclaimer.md).
+:::
+
 Crypto-shredding erases personal data by destroying the key it was encrypted with rather than by overwriting every stored record. `Excalibur.Compliance` implements this at the **field level, per data subject**: each subject's `[PersonalData]` fields are encrypted under a dedicated per-subject key, and destroying that one key renders **every field encrypted under that key** permanently unrecoverable — while every other subject's data stays intact.
 
 This is the encryption/key layer that makes the right-to-erasure cheap: you do not have to visit and mutate every store that holds a subject's annotated fields. You erase the subject's key once, and every ciphertext produced under that key becomes undecryptable.
@@ -53,7 +61,7 @@ Because the key-management provider, key-management admin, and data-subject hash
 Crypto-shredding is annotation-driven. Two attributes (both in `Excalibur.Compliance`) declare what to protect and whose key protects it:
 
 - **`[DataSubjectId]`** marks the property whose value identifies the data subject the record belongs to. Exactly one property per record should carry it; if more than one does, the first property discovered is used and the others are ignored.
-- **`[PersonalData]`** marks each property that holds personal data to be encrypted under that subject's key. `[PersonalData]` also carries policy metadata (`Category`, `IsSensitive`, `Purpose`, `LegalBasis`, `RetentionDays`, `MaskInLogs`, `ExcludeFromErrors`).
+- **`[PersonalData]`** marks each property that holds personal data to be encrypted under that subject's key. `[PersonalData]` also carries policy metadata: `Category`, `Purpose` and `LegalBasis` drive erasure, `RetentionDays` drives retention for the types you declare with `AddRetentionPolicies<T>()` (see [GDPR Erasure](./gdpr-erasure.md#retention-enforcement-retentiondays)), and `MaskInLogs` drives masking. **`IsSensitive` is inert — nothing reads it.** It records your own classification; it does not cause the framework to treat the property differently, so do not rely on it as a control.
 
 ```csharp
 using Excalibur.Compliance;
@@ -98,6 +106,7 @@ public sealed class CustomerWriter(SubjectFieldCryptor cryptor)
 
 - **`EncryptFieldsAsync`** resolves the subject id from the `[DataSubjectId]` property, obtains (or mints) that subject's key via `ISubjectKeyManager`, and replaces each `[PersonalData]` field value with a subject-bound ciphertext envelope. `string` and `byte[]` personal-data properties are supported.
 - **`DecryptFieldsAsync`** reverses the process. A field whose subject key has been **destroyed** decrypts to `null` (a tombstone), leaving the rest of the record intact so an aggregate still loads with its non-personal fields.
+- **`EncryptFieldsAsync` is idempotent, so retrying a failed write is safe.** It mutates the record in place, so a write that fails *after* it returns leaves you holding a record whose fields are already envelopes. Calling it again on that same instance re-encrypts nothing: a field already carrying an envelope is left as it is, and the stored value still decrypts in a single pass to the original data. You do not have to reload the record or track whether encryption already ran before retrying a transient persistence fault. A field that carries **no** envelope is always encrypted, so a record written before you adopted this capability is protected on its next write rather than skipped.
 - A record whose type carries **no `[DataSubjectId]` property** is left untouched — per-subject protection is additive over any existing at-rest encryption. A record that **declares** a data subject whose identifier is null or blank is **rejected with an `EncryptionException`**: it has `[PersonalData]` fields and no key under which to protect them, so proceeding would persist plaintext personal data.
 
 Under the hood, `ISubjectKeyManager` mints per-subject keys as **AES-256-GCM** keys. Key material is always produced by the key-management provider's cryptographically-secure RNG — never from `Guid` or `Random`. Raw subject identifiers are pseudonymized through `IDataSubjectHasher` before they are used as key handles, so they never reach the key store.
@@ -170,5 +179,5 @@ Because erasure is a single key destruction, every field and record encrypted un
 
 ## What's Next
 
-- [GDPR Erasure](./gdpr-erasure.md) — Right-to-be-forgotten orchestration: grace period, coverage model, contributors, and compliance certificates
+- [GDPR Erasure](./gdpr-erasure.md) — Right-to-be-forgotten orchestration: grace period, coverage model, contributors, and erasure certificates
 - [Compliance Overview](./index.md) — Compliance framework capabilities

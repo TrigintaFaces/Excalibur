@@ -687,14 +687,6 @@ gates:
     published: true
     has_test: false
     has_lock: false
-  - path: "eng/ci/pre-commit-dispatch-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: true
-    has_lock: false
   - path: "eng/ci/premise-triage.sh"
     kind: UNREVIEWED
     kind_proxy: gate

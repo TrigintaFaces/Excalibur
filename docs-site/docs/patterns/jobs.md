@@ -510,7 +510,7 @@ await _distributor.ReportJobCompletionAsync(
 
 Workflows chain multiple steps with typed input and output:
 
-```csharp
+```csharp ignore
 using Excalibur.Jobs.Workflows;
 
 public class OrderProcessingWorkflow : IWorkflow<OrderInput, OrderOutput>

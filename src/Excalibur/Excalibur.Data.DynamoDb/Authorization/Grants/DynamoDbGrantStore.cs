@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
@@ -10,6 +10,8 @@ using Excalibur.Data.DynamoDb.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.DynamoDb.Authorization;
 
@@ -188,33 +190,19 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 
 	/// <inheritdoc/>
 	public async Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
-		string? userId,
 		string tenantId,
-		string grantType,
-		string qualifier,
+		string? userId,
+		string? grantType,
+		string? qualifier,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = tenantId;
-
-		var expressionValues = new Dictionary<string, AttributeValue>
-		{
-			[":pk"] = new() { S = pk },
-			[":grantType"] = new() { S = grantType },
-			[":qualifier"] = new() { S = qualifier },
-			[":revoked"] = new() { BOOL = false }
-		};
-
-		var filterExpression =
-			$"{GrantItem.GrantTypeAttribute} = :grantType AND {GrantItem.QualifierAttribute} = :qualifier AND {GrantItem.IsRevokedAttribute} = :revoked";
-
-		if (userId is not null)
-		{
-			expressionValues[":userId"] = new() { S = userId };
-			filterExpression += $" AND {GrantItem.UserIdAttribute} = :userId";
-		}
+		var (filterExpression, expressionValues) = BuildMatchFilter(userId, grantType, qualifier);
+		expressionValues[":pk"] = new() { S = tenantId };
 
 		var request = new QueryRequest
 		{
@@ -236,15 +224,46 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 			}
 
 			response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
+			AddGrants(response.Items, results);
+		} while (response.LastEvaluatedKey?.Count > 0);
 
-			foreach (var item in response.Items)
+		return results;
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>A paginated table scan: the table is keyed by tenant, so no single query spans tenants.</remarks>
+	public async Task<IReadOnlyList<Grant>> GetMatchingGrantsAcrossTenantsAsync(
+		string? userId,
+		string? grantType,
+		string? qualifier,
+		CancellationToken cancellationToken)
+	{
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var (filterExpression, expressionValues) = BuildMatchFilter(userId, grantType, qualifier);
+
+		var request = new ScanRequest
+		{
+			TableName = _options.GrantsTableName,
+			FilterExpression = filterExpression,
+			ExpressionAttributeValues = expressionValues,
+			ConsistentRead = _options.UseConsistentReads
+		};
+
+		var results = new List<Grant>();
+		ScanResponse? response = null;
+
+		do
+		{
+			if (response?.LastEvaluatedKey?.Count > 0)
 			{
-				var grant = GrantItem.FromItem(item);
-				if (grant is not null)
-				{
-					results.Add(grant);
-				}
+				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
+
+			response = await _client!.ScanAsync(request, cancellationToken).ConfigureAwait(false);
+			AddGrants(response.Items, results);
 		} while (response.LastEvaluatedKey?.Count > 0);
 
 		return results;
@@ -382,7 +401,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 				var grant = GrantItem.FromItem(item);
 				if (grant is not null)
 				{
-					var key = GrantKeyFormat.ComposeScope(grant.TenantId, grant.GrantType, grant.Qualifier);
+					var key = SegmentedKey.Compose(grant.TenantId, grant.GrantType, grant.Qualifier);
 					result[key] = grant;
 				}
 			}
@@ -531,4 +550,57 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 	[LoggerMessage(DataDynamoDbEventId.GrantRevoked, LogLevel.Debug,
 		"Grant revoked: userId={UserId}, tenantId={TenantId}, grantType={GrantType}, qualifier={Qualifier}")]
 	private partial void LogGrantRevoked(string userId, string tenantId, string grantType, string qualifier);
+
+	// DynamoDB '=' on a string attribute is exact byte equality; a null filter adds no term.
+	private static (string FilterExpression, Dictionary<string, AttributeValue> Values) BuildMatchFilter(
+		string? userId, string? grantType, string? qualifier)
+	{
+		var values = new Dictionary<string, AttributeValue> { [":revoked"] = new() { BOOL = false } };
+		var terms = new List<string> { $"{GrantItem.IsRevokedAttribute} = :revoked" };
+
+		void AddTerm(string attribute, string name, string? value)
+		{
+			if (value is not null)
+			{
+				terms.Add($"{attribute} = {name}");
+				values[name] = new() { S = value };
+			}
+		}
+
+		AddTerm(GrantItem.UserIdAttribute, ":userId", userId);
+		AddTerm(GrantItem.GrantTypeAttribute, ":grantType", grantType);
+		AddTerm(GrantItem.QualifierAttribute, ":qualifier", qualifier);
+
+		return (string.Join(" AND ", terms), values);
+	}
+
+	private static void AddGrants(List<Dictionary<string, AttributeValue>> items, List<Grant> results)
+	{
+		foreach (var item in items)
+		{
+			var grant = GrantItem.FromItem(item);
+			if (grant is not null)
+			{
+				results.Add(grant);
+			}
+		}
+	}
+
+	private static void ThrowIfEmptyFilter(string? userId, string? grantType, string? qualifier)
+	{
+		if (userId is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		}
+
+		if (grantType is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(grantType);
+		}
+
+		if (qualifier is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(qualifier);
+		}
+	}
 }

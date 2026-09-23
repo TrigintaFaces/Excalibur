@@ -399,7 +399,7 @@
       "samples/11-real-world/HealthcareApi/HealthcareApi.csproj",
       "samples/11-real-world/MultiTenantEventSourcing/MultiTenantEventSourcing.csproj",
       "samples/11-real-world/OrderProcessing/OrderProcessing.csproj",
-      "samples/11-real-world/ProofOfLife/ProofOfLife.csproj",
+      "samples/11-real-world/PublicApiTodo/PublicApiTodo.csproj",
       "samples/12-migration/MediatRMigration/Excalibur.MediatRMigration.csproj"
     ],
     "quarantined": [],
@@ -407,12 +407,21 @@
       {
         "project": "samples/01-getting-started/BindConfigurationPatterns/BindConfigurationPatterns.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Key Vault",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/01-getting-started/DataAccessIntro/DataAccessIntro.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj",
@@ -426,413 +435,666 @@
       },
       {
         "project": "samples/01-getting-started/HelloDispatch/HelloDispatch.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/01-getting-started/InteractiveDemo/InteractiveDemo.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/01-getting-started/MetapackageQuickStart/MetapackageQuickStart.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "PostgreSQL",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/01-getting-started/WebApiQuickStart/WebApiQuickStart.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 90,
+        "successMarker": "Sample ready:"
       },
       {
         "project": "samples/02-messaging-transports/AwsSqs/AwsSqsSample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "AWS"
+        ]
       },
       {
         "project": "samples/02-messaging-transports/AzureServiceBus/AzureServiceBusSample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Service Bus"
+        ]
       },
       {
         "project": "samples/02-messaging-transports/Kafka/KafkaSample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Kafka"
+        ]
       },
       {
         "project": "samples/02-messaging-transports/MultiBusSample/MultiBusSample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Kafka",
+          "RabbitMQ"
+        ]
       },
       {
         "project": "samples/02-messaging-transports/MultiProviderQueueProcessor/MultiProviderQueueProcessor.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "AWS",
+          "Azure Service Bus",
+          "Elasticsearch",
+          "Google Cloud",
+          "Kafka",
+          "RabbitMQ",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/02-messaging-transports/RabbitMQ/RabbitMQSample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "RabbitMQ"
+        ]
       },
       {
         "project": "samples/02-messaging-transports/RemoteBusSample/RemoteBusSample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "RabbitMQ"
+        ]
       },
       {
         "project": "samples/02-messaging-transports/TransportBindings/TransportBindings.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Kafka",
+          "RabbitMQ"
+        ]
       },
       {
         "project": "samples/03-cloud-native/CloudEvents/CloudEvents.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Service Bus"
+        ]
       },
       {
         "project": "samples/04-reliability/OrderingValidation/OrderingValidation.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Kafka"
+        ]
       },
       {
         "project": "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "not-yet-assessed"
       },
       {
         "project": "samples/05-serverless/AwsLambda/AwsLambda.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "AWS",
+          "AWS Lambda host"
+        ]
       },
       {
         "project": "samples/05-serverless/AzureFunctions/AzureFunctions.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Functions host"
+        ]
       },
       {
         "project": "samples/05-serverless/GoogleCloudFunctions/GoogleCloudFunctions.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Google Cloud"
+        ]
       },
       {
         "project": "samples/06-security/AccessReviews/AccessReviews.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Redis"
+        ]
       },
       {
         "project": "samples/06-security/AuditLogging/AuditLogging.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/06-security/AwsSecretsManager/AwsSecretsManager.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "AWS"
+        ]
       },
       {
         "project": "samples/06-security/AzureKeyVault/AzureKeyVault.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Key Vault"
+        ]
       },
       {
         "project": "samples/06-security/GdprCompliance/GdprCompliance.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Key Vault"
+        ]
       },
       {
         "project": "samples/06-security/GrantAuthorizedApi/GrantAuthorizedApi.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/06-security/JitAccess/JitAccess.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Redis"
+        ]
       },
       {
         "project": "samples/06-security/MessageEncryption/MessageEncryption.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/06-security/ProvisioningWorkflow/ProvisioningWorkflow.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Redis"
+        ]
       },
       {
         "project": "samples/06-security/SeparationOfDuties/SeparationOfDuties.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Redis"
+        ]
       },
       {
         "project": "samples/06-security/StandaloneA3/StandaloneA3.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/07-observability/HealthChecks/HealthChecks.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 90,
+        "successMarker": "Sample ready:"
       },
       {
         "project": "samples/07-observability/OpenTelemetry/OpenTelemetry.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 90,
+        "successMarker": "Sample ready:"
       },
       {
         "project": "samples/07-observability/OperationalDashboard/OperationalDashboard.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 90,
+        "successMarker": "Sample ready:"
       },
       {
         "project": "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/08-serialization/MessagePackSample/MessagePackSample.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/08-serialization/Protobuf/Protobuf.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/ConsumerConformanceExample/ConsumerConformanceExample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/advanced/Versioning.Examples/EventUpcasting/EventUpcasting.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/cdc/CdcAntiCorruption/CdcAntiCorruption.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/cdc/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/cdc/CdcJobQuartz/CdcJobQuartz.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/deployment/BackgroundServices/AtLeastOnceWithInbox/AtLeastOnceWithInbox.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/deployment/BackgroundServices/MinimizedWindow/MinimizedWindow.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/deployment/BackgroundServices/PerformanceComparison/PerformanceComparison.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/deployment/DataProcessingBackgroundService/DataProcessingBackgroundService.csproj",
         "mode": "build",
-        "timeoutSeconds": 30
+        "timeoutSeconds": 30,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/deployment/JobWorkerSample/JobWorkerSample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "PostgreSQL",
+          "Redis",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/deployment/LeaderElection/LeaderElection.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Redis"
+        ]
       },
       {
         "project": "samples/09-advanced/deployment/ProductionPipeline/ProductionPipeline.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/deployment/Testing/Testing.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/persistence-patterns/CloudStorageSnapshots/CloudStorageSnapshots.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/CosmosDbEventStore/CosmosDbEventStore.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Cosmos DB"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/InboxIdempotency/InboxIdempotency.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "PostgreSQL",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/MultiDatabase/MultiDatabase.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/OutOfBandProjections/OutOfBandProjections.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "MongoDB",
+          "PostgreSQL",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/ProjectionRebuildJob/ProjectionRebuildJob.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Cosmos DB",
+          "Elasticsearch",
+          "MongoDB",
+          "PostgreSQL",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/SnapshotStrategies/SnapshotStrategies.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/persistence-patterns/SqlServerEventStore/SqlServerEventStore.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/persistence-patterns/TransactionalHandlers/TransactionalHandlers.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/CosmosDb/CosmosDb.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Cosmos DB",
+          "Redis"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/DynamoDb/DynamoDb.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "AWS"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/ElasticSearch-GettingStarted/ElasticSearch-GettingStarted.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/ElasticSearch-InboxOutbox/ElasticSearch-InboxOutbox.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/ElasticSearch-IndexManagement/ElasticSearch-IndexManagement.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/ElasticSearch-Paging/ElasticSearch-Paging.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/ElasticSearch-Projections/ElasticSearch-Projections.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/ElasticSearch-Querying/ElasticSearch-Querying.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/ElasticSearch-Resilience/ElasticSearch-Resilience.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Elasticsearch"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/Firestore/Firestore.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "AWS",
+          "Azure Cosmos DB",
+          "Google Cloud"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/FluentValidationSample/FluentValidationSample.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/09-advanced/querying/MongoDB/MongoDB.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "MongoDB"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/MySql/MySql.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "MySQL"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/OpenSearch/OpenSearch.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "OpenSearch"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/Postgres/Postgres.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "PostgreSQL"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/Redis/Redis.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Redis"
+        ]
       },
       {
         "project": "samples/09-advanced/querying/StreamingHandlers/StreamingHandlers.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
@@ -841,38 +1103,63 @@
       },
       {
         "project": "samples/11-real-world/ECommerceSample/ECommerceSample.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 180
       },
       {
         "project": "samples/11-real-world/EnterpriseOrderProcessing/EnterpriseOrderProcessing.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "Azure Key Vault",
+          "Elasticsearch",
+          "RabbitMQ",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/11-real-world/FullStackAddExcalibur/FullStackAddExcalibur.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "AWS",
+          "Elasticsearch",
+          "Kafka",
+          "RabbitMQ",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/11-real-world/HealthcareApi/HealthcareApi.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 90,
+        "successMarker": "Sample ready:"
       },
       {
         "project": "samples/11-real-world/MultiTenantEventSourcing/MultiTenantEventSourcing.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/11-real-world/OrderProcessing/OrderProcessing.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
-        "project": "samples/11-real-world/ProofOfLife/ProofOfLife.csproj",
+        "project": "samples/11-real-world/PublicApiTodo/PublicApiTodo.csproj",
         "mode": "build",
-        "timeoutSeconds": null
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "PostgreSQL",
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/12-migration/MediatRMigration/Excalibur.MediatRMigration.csproj",

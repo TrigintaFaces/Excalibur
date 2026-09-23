@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Text.Json;
@@ -29,7 +29,23 @@ public sealed class CosmosDbDataChangeEvent
 	/// <summary>
 	/// Gets the partition key value, if available.
 	/// </summary>
+	/// <remarks>
+	/// The value is carried in textual form: the string itself for a string key, the invariant JSON text
+	/// for a numeric key, <c>true</c>/<c>false</c> for a boolean key. Read <see cref="PartitionKeyKind"/>
+	/// alongside it to recover which of those it was — the number <c>42</c> and the string <c>"42"</c>
+	/// address different Cosmos partitions and are otherwise indistinguishable here.
+	/// </remarks>
 	public string? PartitionKey { get; init; }
+
+	/// <summary>
+	/// Gets the JSON type of <see cref="PartitionKey"/>.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="CosmosDbPartitionKeyKind.None"/> when no partition-key value was extracted, and
+	/// <see cref="CosmosDbPartitionKeyKind.Null"/> when the configured path resolved to an explicit JSON
+	/// <c>null</c>; Cosmos treats those as different partitions, so they are not merged here.
+	/// </remarks>
+	public CosmosDbPartitionKeyKind PartitionKeyKind { get; init; }
 
 	/// <summary>
 	/// Gets the full document (current state).
@@ -76,7 +92,8 @@ public sealed class CosmosDbDataChangeEvent
 		JsonDocument document,
 		DateTimeOffset timestamp,
 		long lsn,
-		string? etag)
+		string? etag,
+		CosmosDbPartitionKeyKind partitionKeyKind = CosmosDbPartitionKeyKind.None)
 	{
 		return new CosmosDbDataChangeEvent
 		{
@@ -84,6 +101,7 @@ public sealed class CosmosDbDataChangeEvent
 			ChangeType = CosmosDbDataChangeType.Insert,
 			DocumentId = documentId,
 			PartitionKey = partitionKey,
+			PartitionKeyKind = partitionKeyKind,
 			Document = document,
 			Timestamp = timestamp,
 			Lsn = lsn,
@@ -102,7 +120,8 @@ public sealed class CosmosDbDataChangeEvent
 		JsonDocument? previousDocument,
 		DateTimeOffset timestamp,
 		long lsn,
-		string? etag)
+		string? etag,
+		CosmosDbPartitionKeyKind partitionKeyKind = CosmosDbPartitionKeyKind.None)
 	{
 		return new CosmosDbDataChangeEvent
 		{
@@ -110,6 +129,7 @@ public sealed class CosmosDbDataChangeEvent
 			ChangeType = CosmosDbDataChangeType.Update,
 			DocumentId = documentId,
 			PartitionKey = partitionKey,
+			PartitionKeyKind = partitionKeyKind,
 			Document = document,
 			PreviousDocument = previousDocument,
 			Timestamp = timestamp,
@@ -130,7 +150,8 @@ public sealed class CosmosDbDataChangeEvent
 		string? partitionKey,
 		JsonDocument? previousDocument,
 		DateTimeOffset timestamp,
-		long lsn)
+		long lsn,
+		CosmosDbPartitionKeyKind partitionKeyKind = CosmosDbPartitionKeyKind.None)
 	{
 		return new CosmosDbDataChangeEvent
 		{
@@ -138,6 +159,7 @@ public sealed class CosmosDbDataChangeEvent
 			ChangeType = CosmosDbDataChangeType.Delete,
 			DocumentId = documentId,
 			PartitionKey = partitionKey,
+			PartitionKeyKind = partitionKeyKind,
 			PreviousDocument = previousDocument,
 			Timestamp = timestamp,
 			Lsn = lsn,

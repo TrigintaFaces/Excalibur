@@ -1,5 +1,4 @@
 #nullable enable
-Excalibur.Jobs.Core.ConfigurationExtensions
 Excalibur.Jobs.Core.JobHeartbeatTracker
 Excalibur.Jobs.Core.JobHeartbeatTracker.GetLastHeartbeat(string! jobName) -> System.DateTimeOffset?
 Excalibur.Jobs.Core.JobHeartbeatTracker.JobHeartbeatTracker(System.TimeProvider? timeProvider = null) -> void
@@ -72,7 +71,6 @@ Excalibur.Jobs.Quartz.QuartzJobOptions.QuartzJobOptions(string! jobKey, string! 
 Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions
 abstract Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.GetAggregateIdsAsync(System.IServiceProvider! serviceProvider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TKey>!>!
 const Excalibur.Jobs.Outbox.OutboxJob.JobConfigSectionName = "Jobs:OutboxJob" -> string!
-static Excalibur.Jobs.Core.ConfigurationExtensions.GetJobConfiguration<TOptions>(this Microsoft.Extensions.Configuration.IConfiguration! configuration, string! jobConfigSectionName) -> TOptions
 static Excalibur.Jobs.Outbox.OutboxJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
 static Excalibur.Jobs.Outbox.OutboxJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator! configurator, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
 static Excalibur.Jobs.Quartz.ApplicationBuilderExtensions.UseExcaliburJobHost(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!

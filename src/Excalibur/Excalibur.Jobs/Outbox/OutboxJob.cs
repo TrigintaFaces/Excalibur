@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -63,16 +63,13 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 	/// </summary>
 	/// <param name="configurator"> The Quartz configurator for registering the job and trigger. </param>
 	/// <param name="configuration"> The application configuration. </param>
-	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced code for binding. This is acceptable at startup.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "GetJobConfiguration uses IConfiguration.Get<T>() which requires dynamic code for binding. This is acceptable at startup.")]
 	public static void ConfigureJob(IServiceCollectionQuartzConfigurator configurator, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<OutboxJobOptions>(JobConfigSectionName);
+		var jobConfig = configuration.GetSection(JobConfigSectionName).Get<OutboxJobOptions>()
+			?? throw new InvalidOperationException($"Job configuration not found at {JobConfigSectionName}.");
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		if (jobConfig.Disabled)
@@ -94,16 +91,13 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 	/// </summary>
 	/// <param name="healthChecks"> The health checks builder. </param>
 	/// <param name="configuration"> The application configuration. </param>
-	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced code for binding. This is acceptable at startup.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "GetJobConfiguration uses IConfiguration.Get<T>() which requires dynamic code for binding. This is acceptable at startup.")]
 	public static void ConfigureHealthChecks(IHealthChecksBuilder healthChecks, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<OutboxJobOptions>(JobConfigSectionName);
+		var jobConfig = configuration.GetSection(JobConfigSectionName).Get<OutboxJobOptions>()
+			?? throw new InvalidOperationException($"Job configuration not found at {JobConfigSectionName}.");
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using TestResult = global::Excalibur.Compliance.TestResult;
@@ -34,11 +34,11 @@ public sealed class Soc2ReportShould
             CategoriesIncluded = new[] { TrustServicesCategory.Security, TrustServicesCategory.Availability },
             System = system,
             ControlSections = Array.Empty<ControlSection>(),
-            Opinion = AuditorOpinion.Unqualified
+            OverallLevel = ComplianceLevel.FullyCompliant
         };
 
         report.ReportType.ShouldBe(Soc2ReportType.TypeII);
-        report.Opinion.ShouldBe(AuditorOpinion.Unqualified);
+        report.OverallLevel.ShouldBe(ComplianceLevel.FullyCompliant);
         report.Exceptions.ShouldBeEmpty();
         report.TenantId.ShouldBeNull();
     }
@@ -120,11 +120,11 @@ public sealed class Soc2ReportShould
     }
 
     [Theory]
-    [InlineData(AuditorOpinion.Unqualified)]
-    [InlineData(AuditorOpinion.Qualified)]
-    [InlineData(AuditorOpinion.Adverse)]
-    [InlineData(AuditorOpinion.Disclaimer)]
-    public void SupportAllAuditorOpinions(AuditorOpinion opinion)
+    [InlineData(ComplianceLevel.FullyCompliant)]
+    [InlineData(ComplianceLevel.SubstantiallyCompliant)]
+    [InlineData(ComplianceLevel.NonCompliant)]
+    [InlineData(ComplianceLevel.Unknown)]
+    public void SupportAllComplianceLevels(ComplianceLevel overallLevel)
     {
         var report = new Soc2Report
         {
@@ -143,10 +143,10 @@ public sealed class Soc2ReportShould
                 DataTypes = Array.Empty<string>()
             },
             ControlSections = Array.Empty<ControlSection>(),
-            Opinion = opinion
+            OverallLevel = overallLevel
         };
 
-        report.Opinion.ShouldBe(opinion);
+        report.OverallLevel.ShouldBe(overallLevel);
     }
 
     [Theory]

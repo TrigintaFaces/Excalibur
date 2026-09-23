@@ -89,3 +89,12 @@ The magic byte `0x03` prefixes all MessagePack-serialized payloads.
 
 - [Excalibur.Dispatch.Serialization.Protobuf](../Excalibur.Dispatch.Serialization.Protobuf/README.md) - Protocol Buffers opt-in package
 - [MessagePack Specification](https://msgpack.org/)
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

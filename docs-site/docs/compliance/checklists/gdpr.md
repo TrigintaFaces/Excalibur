@@ -1,4 +1,4 @@
-﻿# GDPR Certification Readiness Checklist
+# GDPR Certification Readiness Checklist
 
 **Framework:** Excalibur
 **Standard:** GDPR (General Data Protection Regulation)
@@ -27,9 +27,9 @@ This checklist provides step-by-step guidance for GDPR compliance using the Exca
 | **Article 13-14** | Information to Data Subjects | ⚠️ PARTIAL | Provide privacy notices | N/A (business process) |
 | **Article 17** | Right to Erasure | ✅ SATISFIED | Inherit `IErasureService` | [Erasure workflow](../gdpr-erasure.md#erasure-workflow) |
 | **Article 17(3)** | Erasure Exceptions | ✅ SATISFIED | Inherit `ILegalHoldService` | [Legal holds](../gdpr-erasure.md#legal-holds) |
-| **Article 25** | Data Protection by Design | ✅ SATISFIED | Inherit `[PersonalData]` encryption | [Field-level encryption](../../security/encryption-architecture.md#personaldata-attribute) |
+| **Article 25** | Data Protection by Design | ⚠️ PARTIAL | Inherit `[PersonalData]` encryption — but register encryption, and annotate a `[DataSubjectId]` member on each record: a record that declares no data subject is left in plaintext, and only `string` and `byte[]` properties are covered. Data minimisation and purpose limitation remain yours | [Field-level encryption](../../security/encryption-architecture.md#personaldata-attribute) |
 | **Article 30** | Records of Processing Activities | ✅ SATISFIED | Inherit `IDataInventoryService` | [Data inventory](../gdpr-erasure.md#data-inventory) |
-| **Article 32** | Security of Processing | ✅ SATISFIED | Inherit encryption + audit | [Encryption architecture](../../security/encryption-architecture.md), [audit logging](../../security/audit-logging.md) |
+| **Article 32** | Security of Processing | ⚠️ PARTIAL | Inherit encryption + the `IAuditLogger` API and its event taxonomy. **Nothing is audited automatically** — you choose the events and call `IAuditLogger` at each point. Availability, resilience and the regular testing Article 32(1)(d) requires are yours | [Encryption architecture](../../security/encryption-architecture.md), [audit logging](../../security/audit-logging.md) |
 | **Article 33-34** | Breach Notification | ⚠️ PARTIAL | Implement incident response | N/A (business process) |
 
 **Legend:**
@@ -78,7 +78,7 @@ Data subjects have the right to obtain erasure of personal data without undue de
 - `IErasureService` for erasure request processing
 - Cryptographic erasure (key deletion = data irrecoverable)
 - Grace period (default 72 hours) to prevent accidental deletion
-- Erasure certificates for compliance proof
+- Erasure certificates as a compliance **record**, not proof of disposal. The `2.0` signature covers the payload in full; the framework ships no verifier for it, and certificates written under format `1.0` signed only three identity fields — see [Known issues](../../known-issues.md)
 
 #### 2.1 Configure Erasure Service
 
@@ -163,34 +163,43 @@ builder.Services.AddErasureScheduler();
 - [ ] Set certificate retention period (7 years recommended)
 - [ ] Configure signing key for certificate signatures
 
-:::warning Shipped test evidence for the production compliance stores is uneven — verify against your own database
+:::warning Shipped test evidence differs by provider and by what you count — verify against your own database
 
 `✅ SATISFIED` in the table above means **the framework provides a technical implementation**. It does not
-mean every provider of that implementation carries shipped test evidence, and for the compliance stores
-it does not: counted by the command below, **the SQL Server implementation of each of the four stores
-carries more shipped test evidence than its Postgres counterpart.** The gap is real but not dramatic,
-and it moves; the command is given so you can check rather than take our word for the shape.
+mean every provider of that implementation carries identical shipped test evidence. For the compliance
+stores the answer depends on which evidence you count, and the two counts point different ways — so count
+the one that bears on your control rather than the one that is easiest to grep.
 
-**No file counts are published here**, for the same reason no arm counts are published further down. A
-number typed into this page is ours at a past moment, it goes stale on the next commit, and it is not
-what evidences your control in any case. Neither figure says anything about your database, your schema,
-or your workload. Derive the current numbers yourself from the
-[framework repository](https://github.com/TrigintaFaces/Excalibur) if you want them:
+**Conformance arms — the measure that bears on provider behaviour.** Each store's conformance suite is
+bound against real SQL Server and real Postgres, not the in-memory store alone, and an arm runs on a
+provider only if that provider's suite declares a wrapper for it. Compare the two suites directly:
 
 ```bash
-grep -rlw SqlServerLegalHoldStore tests/ --include=*.cs | wc -l
+d=tests/integration/Excalibur.Dispatch.Integration.Tests/Compliance
+for s in Audit LegalHold Erasure DataInventory; do
+  printf '%-14s sqlserver=%s postgres=%s\n' "$s" \
+    "$(grep -cE '^[[:space:]]*\[(Fact|SkippableFact)' "$d/SqlServer/SqlServer${s}StoreConformanceTests.cs")" \
+    "$(grep -cE '^[[:space:]]*\[(Fact|SkippableFact)' "$d/Postgres/Postgres${s}StoreConformanceTests.cs")"
+done
 ```
 
-Then get the evidence that actually supports your control by wrapping the conformance kits and running
-them against **your own** database.
-
-All four conformance kits are bound against real SQL Server and real Postgres, not the in-memory store
-alone. An arm runs on a provider only if that provider's suite declares a wrapper for it, so **check the
-suite rather than trusting a figure on this page**:
+**Total test files naming the store type — a weaker proxy, and the one that differs.** It sweeps in unit
+tests, DI-registration tests and helpers, so a difference here does **not** by itself mean a provider's
+behaviour is less covered:
 
 ```bash
-grep -cE '^\s*\[(Fact|SkippableFact)' \n  tests/integration/.../PostgresAuditStoreConformanceTests.cs
+for s in AuditStore LegalHoldStore ErasureStore DataInventoryStore; do
+  printf '%-20s sqlserver=%s postgres=%s\n' "$s" \
+    "$(grep -rlw "SqlServer$s" tests/ --include=*.cs | wc -l)" \
+    "$(grep -rlw "Postgres$s"  tests/ --include=*.cs | wc -l)"
+done
 ```
+
+**No counts are published here**, deliberately. A number typed into this page is ours at a past moment, it
+goes stale on the next commit, and it is not what evidences your control in any case — neither figure says
+anything about your database, your schema, or your workload. Run the commands above against the
+[framework repository](https://github.com/TrigintaFaces/Excalibur) if you want the current shape, and read
+the two results against each other rather than either one alone.
 
 **A declared wrapper is not an executed test.** What belongs in an evidence package is the arms *your*
 run executed and passed against *your* database — our bindings evidence our schema and our
@@ -199,7 +208,7 @@ configuration, on a disposable container.
 The legal-hold tenant predicate additionally has a never-skipped suite that migrates the shipped schema and
 asserts a global hold stays visible to a scoped tenant.
 
-Read the improved rows narrowly. Our provider suites run against a disposable container, on our schema and
+Read both results narrowly. Our provider suites run against a disposable container, on our schema and
 our configuration — **that is not your database, so you should not present our artifacts as if it were.**
 Collation, and whether you have actually run the tenant-totality migration, both change the answers above on
 a real deployment. Before relying on Article 17, 17(3) or 30 behaviour in production, exercise it against
@@ -276,9 +285,9 @@ public class ErasureController : ControllerBase
 
             return Ok("Erasure request cancelled");
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return BadRequest(ex.Message);
+            return Conflict("The erasure request has already been executed.");
         }
     }
 
@@ -290,20 +299,17 @@ public class ErasureController : ControllerBase
             var certificate = await _erasureService.GenerateCertificateAsync(
                 requestId, ct);
 
-            return Ok(new
-            {
-                CertificateId = certificate.CertificateId,
-                RequestId = certificate.RequestId,
-                IssuedAt = certificate.IssuedAt,
-                DataSubjectIdHash = certificate.DataSubjectIdHash,
-                KeysDeleted = certificate.KeysDeleted,
-                VerificationMethods = certificate.VerificationMethods,
-                Signature = certificate.Signature
-            });
+            // Return the certificate as issued. Re-shaping the payload would separate the
+            // signature from the content it was computed over.
+            return Ok(certificate);
         }
-        catch (InvalidOperationException ex)
+        catch (KeyNotFoundException)
         {
-            return BadRequest(ex.Message); // Request not completed
+            return NotFound();
+        }
+        catch (InvalidOperationException)
+        {
+            return Conflict("The erasure request has not completed.");
         }
     }
 }
@@ -312,7 +318,7 @@ public class ErasureController : ControllerBase
 - [ ] Implement POST /erasure-requests endpoint
 - [ ] Implement GET /erasure-requests/\{requestId\} for status checking
 - [ ] Implement POST /erasure-requests/\{requestId\}/cancel for grace period cancellation
-- [ ] Implement GET /erasure-requests/\{requestId\}/certificate for compliance proof
+- [ ] Implement GET /erasure-requests/\{requestId\}/certificate to retrieve the compliance **record**
 
 #### 2.3 Test Erasure Workflow
 
@@ -807,6 +813,14 @@ Notify supervisory authority and data subjects of personal data breaches within 
 ```markdown
 # GDPR Breach Notification Template
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../../legal/compliance-disclaimer.md).
+:::
+
 **Breach ID:** [AUTO-GENERATED]
 **Detected:** [TIMESTAMP]
 **Severity:** [LOW/MEDIUM/HIGH/CRITICAL]
@@ -968,7 +982,8 @@ occupying your pipeline until it is killed.
 
 - [ ] Compile evidence package:
   - Conformance test results
-  - Erasure certificates (sample)
+  - Key-management service records of key deletion (the evidence of disposal)
+  - Erasure certificates (sample), as internal records of the requests
   - RoPA export
   - Audit log samples
   - Encryption verification
@@ -1022,7 +1037,7 @@ If a kit inherits arms from an abstract base kit, repeat the same enumeration fo
 **SQL Server Schema:**
 - `compliance.ErasureRequests` - Erasure request tracking
 - `compliance.LegalHolds` - Legal hold management
-- `compliance.ErasureCertificates` - Compliance certificates (7-year retention)
+- `compliance.ErasureCertificates` - Erasure certificates, as records of each request (7-year retention)
 - `compliance.DataInventoryRegistrations` - registered personal-data locations (RoPA); `compliance.DiscoveredDataLocations` - auto-discovered locations
 
 ### Supporting Documentation
@@ -1043,10 +1058,12 @@ If a kit inherits arms from an abstract base kit, repeat the same enumeration fo
 ### Automated Monitoring
 
 **Every Erasure Request:**
-- Audit trail generated (request, execution, certificate)
+- Erasure events are **not** written to the audit log by the framework. If your assessor expects them
+  in the tamper-evident audit trail, record them there yourself
 - Legal hold check (automatic blocking if holds exist)
-- Verification performed (KMS key deletion + audit log + decryption test)
-- Certificate issued (cryptographic proof of erasure)
+- Verification performed (KMS key deletion and, when enabled, a decryption-failure test). The audit-log
+  method finds nothing unless you have recorded erasure events yourself
+- Certificate issued (a signed **record** of the erasure — not proof of disposal. The `2.0` signature covers the payload in full, but the framework ships no verifier for it; see [Known issues](../../known-issues.md))
 
 **Periodic Reviews:**
 - Quarterly: RoPA update (new data locations, external systems)

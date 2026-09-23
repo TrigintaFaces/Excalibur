@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -240,33 +240,56 @@ public sealed partial class DynamoDbCdcStateStore : IDynamoDbCdcStateStore
 		await DeleteAndReportAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// A single <c>Scan</c> reads a bounded amount of the table and reports the rest with
+	/// <c>LastEvaluatedKey</c>, which the next request echoes as <c>ExclusiveStartKey</c>. Returning only
+	/// the first response therefore returns only the consumers that happened to fall in it -- silently,
+	/// with no exception and nothing to distinguish "these are all the consumers" from "these are the
+	/// first few". Every page is followed here, because this method's whole contract is completeness.
+	/// </para>
+	/// <para>
+	/// A page with no usable items still carries a continuation and is followed like any other; only the
+	/// absence of a continuation ends the enumeration.
+	/// </para>
+	/// </remarks>
 	async IAsyncEnumerable<(string ConsumerId, ChangePosition Position)> ICdcStateStore.GetAllPositionsAsync(
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		var request = new ScanRequest { TableName = _tableName };
-		ScanResponse response;
-		try
-		{
-			response = await _dynamoClient.ScanAsync(request, cancellationToken).ConfigureAwait(false);
-		}
-		catch (AmazonDynamoDBException ex)
-		{
-			LogDynamoDbError(nameof(ICdcStateStore.GetAllPositionsAsync), "*", _tableName, ex);
-			throw;
-		}
+		Dictionary<string, AttributeValue>? exclusiveStartKey = null;
 
-		foreach (var item in response.Items)
+		do
 		{
-			if (item.TryGetValue(PkAttribute, out var pk) &&
-				item.TryGetValue(PositionDataAttribute, out var posData) &&
-				DynamoDbCdcPosition.TryFromBase64(posData.S, out var position) &&
-				position is not null)
+			var request = new ScanRequest { TableName = _tableName, ExclusiveStartKey = exclusiveStartKey };
+			ScanResponse response;
+			try
 			{
-				yield return (pk.S, position);
+				response = await _dynamoClient.ScanAsync(request, cancellationToken).ConfigureAwait(false);
 			}
+			catch (AmazonDynamoDBException ex)
+			{
+				LogDynamoDbError(nameof(ICdcStateStore.GetAllPositionsAsync), "*", _tableName, ex);
+				throw;
+			}
+
+			foreach (var item in response.Items)
+			{
+				if (item.TryGetValue(PkAttribute, out var pk) &&
+					item.TryGetValue(PositionDataAttribute, out var posData) &&
+					DynamoDbCdcPosition.TryFromBase64(posData.S, out var position) &&
+					position is not null)
+				{
+					yield return (pk.S, position);
+				}
+			}
+
+			exclusiveStartKey = response.LastEvaluatedKey is { Count: > 0 } lastEvaluatedKey
+				? lastEvaluatedKey
+				: null;
 		}
+		while (exclusiveStartKey is not null);
 	}
 
 	/// <inheritdoc/>

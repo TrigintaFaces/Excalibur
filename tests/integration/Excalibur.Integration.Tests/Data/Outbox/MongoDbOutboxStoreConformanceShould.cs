@@ -1,5 +1,5 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Outbox.MongoDB;
@@ -37,8 +37,26 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 [Trait("Database", "MongoDb")]
 public sealed class MongoDbOutboxStoreConformanceShould : OutboxStoreConformanceTestKit, IAsyncLifetime, IClassFixture<MongoDbOutboxStoreContainerFixture>
 {
-	/// <summary>This store fences, so an arm that finds no IFencedOutboxStore must FAIL, not skip.</summary>
-	protected override bool ParticipatesInFencing => true;
+	/// <summary>
+	/// This store NO LONGER fences, so the kit's fencing arms record a skip with their reason instead of
+	/// failing. Flipped deliberately, as the reviewable half of removing the capability.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// While this read <c>true</c> the declaration did exactly its job: the moment the store stopped
+	/// presenting <c>IFencedOutboxStore</c> the kit turned this suite RED rather than quietly skipping the
+	/// arms, which is the failure it exists to catch. It is not being flipped to silence a red — it is
+	/// being flipped because the underlying fact it asserts has changed, and the two halves land together.
+	/// </para>
+	/// <para>
+	/// The guarantee this store used to carry has not moved somewhere quieter, it has been WITHDRAWN: a
+	/// superseded tenure can no longer present a token at all, so the confusion the fenced arms bound is
+	/// now inexpressible rather than refused. The withdrawal itself is asserted by
+	/// <c>MongoDbOutboxSupersededMarkSentDiagnosisShould</c>, and the capability footprint is frozen in
+	/// <c>OutboxCapabilityMatrixShould</c>, which fails if code and declaration ever disagree again.
+	/// </para>
+	/// </remarks>
+	protected override bool ParticipatesInFencing => false;
 
 	private readonly MongoDbOutboxStoreContainerFixture _fixture;
 
@@ -93,33 +111,6 @@ public sealed class MongoDbOutboxStoreConformanceShould : OutboxStoreConformance
 
 		return Task.FromResult<IOutboxStore?>(
 			new MongoDbOutboxStore(options, NullLogger<MongoDbOutboxStore>.Instance));
-	}
-
-	/// <inheritdoc/>
-	/// <remarks>
-	/// Opts real MongoDB into the concurrent fencing arm
-	/// (<c>Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent</c>). Writes the per-document
-	/// <c>fencingToken</c> field directly through a raw driver collection, bypassing
-	/// <see cref="MongoDbOutboxStore"/> entirely — this simulates what a fresher tenure's own claim would
-	/// have stamped on the document, without going through that claim (which would also advance the
-	/// scope-wide fence this arm deliberately leaves untouched) and without needing the current lease
-	/// holder's lease to expire in real time. <see cref="MongoDbOutboxDocument"/> is internal to the
-	/// provider assembly, so this addresses the field by its documented BSON element name rather than the
-	/// type.
-	/// </remarks>
-	protected override async Task<bool> ForceMessageFencingTokenAsync(IOutboxStore store, string messageId, long token)
-	{
-		_fixture.DockerAvailable.ShouldBeTrue(
-			"MongoDB container must be available - real-infra fencing conformance is never skipped.");
-
-		var client = new MongoClient(_fixture.ConnectionString);
-		var collection = client.GetDatabase(_fixture.DatabaseName).GetCollection<BsonDocument>("outbox_messages");
-
-		var result = await collection.UpdateOneAsync(
-			new BsonDocument("_id", messageId),
-			new BsonDocument("$set", new BsonDocument("fencingToken", token))).ConfigureAwait(false);
-
-		return result.IsAcknowledged && result.MatchedCount == 1;
 	}
 
 	/// <inheritdoc/>
@@ -370,6 +361,10 @@ public sealed class MongoDbOutboxStoreConformanceShould : OutboxStoreConformance
 	[Fact]
 	public Task MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim_Test() =>
 		MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim();
+
+	[Fact]
+	public Task MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied_Test() =>
+		MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied();
 
 	[Fact]
 	public Task MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage_Test() =>

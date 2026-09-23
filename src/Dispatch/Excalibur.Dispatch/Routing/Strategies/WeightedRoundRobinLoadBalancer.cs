@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
@@ -17,13 +17,10 @@ namespace Excalibur.Dispatch.Routing.Strategies;
 /// <param name="logger"> The logger instance. </param>
 public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLoadBalancer> logger) : ILoadBalancingStrategy
 {
-	private static readonly Dictionary<string, int> EmptyRouteWeightSnapshot = new(0, StringComparer.Ordinal);
-
 	private readonly ILogger<WeightedRoundRobinLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly ConcurrentDictionary<string, RouteState> _routeStates = new(StringComparer.Ordinal);
 	private readonly Lock _snapshotLock = new();
-	private volatile RouteDefinition[] _weightedRoutesSnapshot = [];
-	private volatile Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
+	private volatile WeightedSnapshot _snapshot = WeightedSnapshot.Empty;
 	private int _currentIndex;
 
 	/// <inheritdoc />
@@ -42,8 +39,10 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 			return routes[0];
 		}
 
-		EnsureWeightedRoutesSnapshot(routes);
-		var weightedRoutes = _weightedRoutesSnapshot;
+		// Take the snapshot that was validated for *this* call and select from it. Re-reading the field
+		// after validating would let a concurrent caller's replacement be selected from, returning a
+		// route that is not in this caller's input list at all.
+		var weightedRoutes = GetOrBuildSnapshot(routes).WeightedRoutes;
 		if (weightedRoutes.Length == 0)
 		{
 			return routes[0];
@@ -79,76 +78,103 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 		"Selected route {RouteId} using weighted round-robin")]
 	private partial void LogRouteSelectedWeightedRoundRobin(string routeId);
 
-	private void EnsureWeightedRoutesSnapshot(IReadOnlyList<RouteDefinition> routes)
+	/// <summary>
+	/// Returns the weighted snapshot for <paramref name="routes"/>, rebuilding it if the caller's route
+	/// objects are not the ones it was built from. The snapshot is <b>returned</b> rather than left in a
+	/// field for the caller to re-read, which is what binds a selection to the routes it was validated
+	/// against.
+	/// </summary>
+	private WeightedSnapshot GetOrBuildSnapshot(IReadOnlyList<RouteDefinition> routes)
 	{
-		if (RoutesUnchanged(routes, _routeWeightSnapshot))
+		var snapshot = _snapshot;
+		if (snapshot.Matches(routes))
 		{
-			return;
+			return snapshot;
 		}
 
 		lock (_snapshotLock)
 		{
-			if (RoutesUnchanged(routes, _routeWeightSnapshot))
+			snapshot = _snapshot;
+			if (snapshot.Matches(routes))
 			{
-				return;
+				return snapshot;
 			}
 
-			_weightedRoutesSnapshot = BuildWeightedRoutesSnapshot(routes, out var routeWeightSnapshot);
-			_routeWeightSnapshot = routeWeightSnapshot;
+			snapshot = WeightedSnapshot.Build(routes);
+			_snapshot = snapshot;
+			return snapshot;
 		}
 	}
 
-	private static bool RoutesUnchanged(
-		IReadOnlyList<RouteDefinition> routes,
-		Dictionary<string, int> routeWeightSnapshot)
+	/// <summary>
+	/// An expanded weighted route array together with the exact route objects it was expanded from.
+	/// </summary>
+	/// <remarks>
+	/// Validity is decided by the identity of the caller's <see cref="RouteDefinition"/> objects, not by
+	/// their route IDs and weights. A host that replaces its routes with new objects carrying the same
+	/// IDs and weights but different endpoints is making a real change, and a snapshot keyed on ID and
+	/// weight reports it as unchanged and keeps handing out the retired endpoints. In-place mutation of
+	/// a route object that is still referenced is deliberately not a change: the snapshot holds that
+	/// same object, so every field a caller reads off the selected route is the mutated one.
+	/// </remarks>
+	private sealed class WeightedSnapshot
 	{
-		if (routes.Count != routeWeightSnapshot.Count)
+		public static readonly WeightedSnapshot Empty = new([], []);
+
+		private readonly RouteDefinition[] _source;
+
+		private WeightedSnapshot(RouteDefinition[] source, RouteDefinition[] weightedRoutes)
 		{
-			return false;
+			_source = source;
+			WeightedRoutes = weightedRoutes;
 		}
 
-		for (var i = 0; i < routes.Count; i++)
+		public RouteDefinition[] WeightedRoutes { get; }
+
+		public static WeightedSnapshot Build(IReadOnlyList<RouteDefinition> routes)
 		{
-			var route = routes[i];
-			var weight = Math.Max(1, route.Weight);
-			if (!routeWeightSnapshot.TryGetValue(route.RouteId, out var previousWeight) ||
-				previousWeight != weight)
+			var source = new RouteDefinition[routes.Count];
+
+			var totalWeight = 0;
+			for (var i = 0; i < routes.Count; i++)
+			{
+				source[i] = routes[i];
+				totalWeight += Math.Max(1, source[i].Weight);
+			}
+
+			var weightedRoutes = new List<RouteDefinition>(Math.Max(totalWeight, 0));
+
+			for (var i = 0; i < source.Length; i++)
+			{
+				var route = source[i];
+				var weight = Math.Max(1, route.Weight);
+
+				for (var repeat = 0; repeat < weight; repeat++)
+				{
+					weightedRoutes.Add(route);
+				}
+			}
+
+			return new WeightedSnapshot(source, [.. weightedRoutes]);
+		}
+
+		public bool Matches(IReadOnlyList<RouteDefinition> routes)
+		{
+			if (routes.Count != _source.Length)
 			{
 				return false;
 			}
-		}
 
-		return true;
-	}
-
-	private static RouteDefinition[] BuildWeightedRoutesSnapshot(
-		IReadOnlyList<RouteDefinition> routes,
-		out Dictionary<string, int> routeWeightSnapshot)
-	{
-		routeWeightSnapshot = new Dictionary<string, int>(routes.Count, StringComparer.Ordinal);
-
-		var totalWeight = 0;
-		for (var i = 0; i < routes.Count; i++)
-		{
-			var weight = Math.Max(1, routes[i].Weight);
-			totalWeight += weight;
-		}
-
-		var weightedRoutes = new List<RouteDefinition>(Math.Max(totalWeight, 0));
-
-		for (var i = 0; i < routes.Count; i++)
-		{
-			var route = routes[i];
-			var weight = Math.Max(1, route.Weight);
-			routeWeightSnapshot[route.RouteId] = weight;
-
-			for (var repeat = 0; repeat < weight; repeat++)
+			for (var i = 0; i < _source.Length; i++)
 			{
-				weightedRoutes.Add(route);
+				if (!ReferenceEquals(routes[i], _source[i]))
+				{
+					return false;
+				}
 			}
-		}
 
-		return [.. weightedRoutes];
+			return true;
+		}
 	}
 
 	private sealed class RouteState

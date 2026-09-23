@@ -1,7 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
-
-using System.Diagnostics.CodeAnalysis;
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Compliance;
 
@@ -10,34 +8,33 @@ namespace Excalibur.Compliance;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This service scans types annotated with <see cref="PersonalDataAttribute"/> that have
-/// retention periods configured and enforces cleanup of data that has exceeded its
-/// retention period.
+/// This service enforces the retention periods of the <see cref="PersonalDataAttribute"/>-annotated
+/// types the host has explicitly declared in scope, by handing them to the registered
+/// <see cref="IRetentionContributor"/> implementations. Types the host has not declared are never
+/// in scope, whether or not they are annotated or loaded.
 /// </para>
 /// </remarks>
 public interface IRetentionEnforcementService
 {
 	/// <summary>
-	/// Enforces retention policies by scanning for and cleaning up expired personal data.
+	/// Enforces the declared retention policies by invoking the registered contributors.
 	/// </summary>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The result of the enforcement scan.</returns>
-	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
 	Task<RetentionEnforcementResult> EnforceRetentionAsync(
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Gets the currently configured retention policies.
+	/// Gets the retention policies the host has declared in scope.
 	/// </summary>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A collection of active retention policies.</returns>
-	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
 	Task<IReadOnlyList<RetentionPolicy>> GetRetentionPoliciesAsync(
 		CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// Represents a data retention policy derived from <see cref="PersonalDataAttribute"/> annotations.
+/// Represents a data retention policy derived from a <see cref="PersonalDataAttribute"/> annotation on a declared type.
 /// </summary>
 public sealed record RetentionPolicy
 {

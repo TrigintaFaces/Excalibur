@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.Application;
@@ -93,6 +93,10 @@ public static class ExcaliburHostingServiceCollectionExtensions
 		//   * consumer did nothing → TryAdd lands the default;
 		//   * consumer registered a custom impl in configure → their descriptor is
 		//     already present, TryAdd is the no-op, and their impl wins.
+		// That reasoning holds for the TryAdd registrations ONLY. The default tenant is not a TryAdd:
+		// it is an options value, where the LAST Configure wins, so registering it after configure
+		// would let the framework default overwrite the consumer's UseTenant. The call below therefore
+		// seats the default tenant only when none is configured, which is correct in either order.
 		_ = services.AddExcaliburContextServices();
 		services.TryAddScoped<IActivityContext>(static sp => new ActivityContext(
 			sp.GetService<Excalibur.Dispatch.ITenantContext>()?.TenantId ?? Excalibur.Dispatch.TenantDefaults.DefaultTenantId,

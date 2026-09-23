@@ -16,7 +16,68 @@ CDC captures row-level changes from your database and publishes them as events, 
   dotnet add package Excalibur.Cdc.SqlServer  # or Excalibur.Cdc.Postgres
   ```
 - SQL Server CDC must be enabled on the database and target tables
+- **SQL Server:** the CDC schema is shipped as scripts you apply before the first poll — see [Database Schema Setup](#database-schema-setup)
 - Familiarity with [event sourcing concepts](../event-sourcing/index.md) and [outbox pattern](./outbox.md)
+
+## Database Schema Setup
+
+CDC records how far it has read each source table in a **state table**. The two providers obtain
+that table in deliberately different ways, and this is the most common first-run failure.
+
+| Provider | Default state table | How it is created |
+|---|---|---|
+| **SQL Server** | `[Cdc].[CdcProcessingState]` | You apply the DDL scripts shipped in the package. |
+| **Postgres** | `excalibur.cdc_state` | The provider issues `CREATE SCHEMA` / `CREATE TABLE` on first use. |
+
+### SQL Server — apply the shipped scripts
+
+`Excalibur.Cdc.SqlServer` ships its DDL inside the package rather than executing it at runtime.
+Apply the scripts to the target database **before starting the processor**:
+
+| Script | Creates | When it is required |
+|---|---|---|
+| `001_CreateCdcStateSchema.sql` | `[Cdc].[CdcProcessingState]` | Always |
+| `002_CreateCdcIdempotencySchema.sql` | `[Cdc].[CdcProcessedEvents]` | Only with [`UseSqlServerIdempotencyFilter()`](#idempotency-filtering) |
+
+Both ship under `scripts/` in the NuGet package, so after a restore they are on disk at:
+
+```
+~/.nuget/packages/excalibur.cdc.sqlserver/<version>/scripts/
+```
+
+Every statement in both scripts is guarded, so they are safe to re-run.
+
+:::danger Apply the shipped scripts — do not hand-write equivalent DDL
+
+If the state table does not exist, the **first checkpoint save fails**:
+
+```
+Microsoft.Data.SqlClient.SqlException: Invalid object name 'Cdc.CdcProcessingState'.
+```
+
+Authoring your own table instead of applying the script risks a quieter version of the same
+problem. The idempotency table's natural key uses 532 of SQL Server's 900 allowed key bytes;
+widening `TableName` or `ConsumerId` beyond `NVARCHAR(128)` **still creates the table, with only a
+warning**, and the table then rejects oversized rows at run time with `Msg 1946`. A row that cannot
+be inserted is not a duplicate, so the filter's duplicate handling does not absorb it — the insert
+throws and CDC processing stops. The shipped scripts already carry the correct shapes.
+
+`SchemaName()` and `StateTableName()` change the object the provider **looks for**. They do not
+create it. If you override either, rename the objects in the script to match.
+:::
+
+This is the same model as `Microsoft.Extensions.Caching.SqlServer` (`dotnet sql-cache create`) and
+EF Core migrations: creating tables is normally a privileged, audited operation rather than
+something an application performs against a production database.
+
+### Postgres — created for you
+
+`Excalibur.Cdc.Postgres` creates its schema and state table on first use, so no script is required.
+Note the trade-off this implies for a locked-down deployment: the DDL runs on the application's own
+connection, so the runtime principal must hold schema-creation rights. There is currently no option
+to disable it — if your deployment grants the application DML only, pre-create
+`excalibur.cdc_state` and grant no DDL, and the provider's guarded `CREATE ... IF NOT EXISTS` will
+find it already present.
 
 ## Overview
 
@@ -38,6 +99,33 @@ flowchart LR
         H --> S3[Analytics]
     end
 ```
+
+## Delivery Guarantees
+
+**Both providers deliver at least once. Your handler must be idempotent.** What differs is the unit the
+duplicate window is measured in, and what a failure does to the rest of your tables — so do not assume the
+two behave alike.
+
+| | SQL Server | Postgres |
+|---|---|---|
+| **Guarantee** | At-least-once per tracked table | At-least-once |
+| **Duplicate window after a failure** | Every change that table saw since its last durable checkpoint | The entire transaction, including changes that already succeeded |
+| **Checkpoint unit** | One position per table, written after a batch | One position per transaction commit |
+| **Effect on other tables** | Contained: sibling tables still checkpoint | A transaction is confirmed or not, as a whole |
+| **Resume position** | The state store's per-table position | The replication slot's confirmed position; the state store never decides where |
+| **Deduplication** | Optional idempotency filter, keyed on `(TableName, Lsn, SeqVal)` | Optional idempotency filter, keyed on the change position |
+| **Multi-instance safety** | Leader election with fencing tokens; a demoted instance's checkpoint write is rejected | PostgreSQL permits one consumer per replication slot |
+
+The full contract for each provider — the seam that achieves it, the test that would catch a violation,
+your obligations, and the known gaps — is in that package's `ARCHITECTURE.md`.
+
+:::warning A poisoned change blocks its table
+
+Neither provider skips a change your handler can never process, and neither has a dead-letter path for
+one. On SQL Server the affected table stops advancing; on Postgres the stream stops advancing. That is
+deliberate — the alternative is losing the change silently — but it means a permanently failing handler
+needs your intervention, so alert on checkpoint age rather than on errors alone.
+:::
 
 ## Two Processing Patterns
 
@@ -75,6 +163,11 @@ EXEC sys.sp_cdc_enable_table
     @role_name = NULL,
     @supports_net_changes = 1;
 ```
+
+:::note
+On SQL Server, also apply `001_CreateCdcStateSchema.sql` from the package before starting the
+processor — see [Database Schema Setup](#database-schema-setup). Postgres needs no script.
+:::
 
 ### Auto-Mapped Quick Start (Recommended)
 
@@ -248,7 +341,7 @@ services.AddCdcProcessor(cdc =>
 
 When you need full control over change processing — for search indexing, cache invalidation, or custom integrations — implement `IDataChangeHandler` directly. Tables can come from `.CaptureInstances()` on the SQL builder, `BindTrackedTables()` from config, or `TrackTable()` without event mappers:
 
-```csharp
+```csharp ignore
 using Excalibur.Cdc.SqlServer;
 
 public class OrderCdcHandler : IDataChangeHandler
@@ -527,6 +620,12 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `StateConnectionFactory(Func<IServiceProvider, Func<SqlConnection>>)` | DI-integrated state connection factory | Source connection |
 | `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
 
+:::warning `SchemaName()` and `StateTableName()` rename — they do not create
+These change the object the provider looks for. The SQL Server provider never issues DDL, so if
+you override either, rename the objects in `001_CreateCdcStateSchema.sql` to match before
+applying it. See [Database Schema Setup](#database-schema-setup).
+:::
+
 :::tip Auto-Registration of IDatabaseOptions
 
 When you call `DatabaseName()`, the builder automatically registers an `IDatabaseOptions` factory with sensible defaults for connection identifiers. The factory derives `CaptureInstances` at runtime from all registered sources — `TrackTable()`, `BindTrackedTables()`, and `.CaptureInstances()` — so config-driven tables are included automatically. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseOptions` registration takes precedence.
@@ -578,6 +677,12 @@ The `IPostgresCdcBuilder` interface provides fluent configuration for Postgres C
 | `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
 | `WithStateStore(Action<ICdcStateStoreBuilder>)` | Configure separate state store connection and schema | Source connection |
 | `StateConnectionFactory(Func<IServiceProvider, Func<NpgsqlConnection>>)` | DI-integrated state connection factory | Source connection |
+
+:::note No schema script needed
+Unlike SQL Server, the Postgres provider creates its schema and state table on first use. The DDL
+runs on the application's own connection, so the runtime principal needs schema-creation rights —
+see [Database Schema Setup](#database-schema-setup).
+:::
 
 ### Postgres Example
 
@@ -1052,7 +1157,7 @@ public class ResilientOrderCdcHandler : IDataChangeHandler
 
 Handle stale LSN positions when CDC retention expires, a database is restored from backup, or an invalid LSN range triggers SQL Error 313. The framework detects these scenarios automatically and invokes the configured recovery strategy:
 
-```csharp
+```csharp ignore
 using Excalibur.Cdc;
 
 services.AddCdcProcessor(cdc =>
@@ -1129,9 +1234,29 @@ services.AddCdcProcessor(cdc =>
 
 ## Idempotency Filtering
 
-CDC uses at-least-once delivery — events may be replayed after a crash, restart, or stale position reset. If your handlers are not naturally idempotent, enable an **idempotency filter** to deduplicate events before they reach your handler.
+**Delivery semantics are provider-specific — this page does not state one guarantee that holds for every CDC provider.** Several providers are **at-least-once**: an event may be replayed after a crash, restart, or stale position reset. **That is not true of all of them**, so treat "at-least-once" as a property of the provider you have chosen rather than of CDC in this framework, and do not assume exactly-once anywhere. **Make your handlers idempotent: that obligation is correct for every provider**, and it is the one thing to implement unconditionally. Where they are not naturally idempotent, enable an **idempotency filter** to deduplicate events before they reach your handler.
+
+**Replay is not the only failure mode, and an idempotency filter does not defend against the other one.** Reading pending changes is destructive in the in-memory provider, so changes handed to a handler that then throws are not seen again. On the DynamoDB and Firestore providers the batch path does not durably record its position — only their continuous and streaming paths do. **If delivery *completeness* matters to you, verify it against your source tables rather than against your own pipeline's counts**: a deduplicating filter and a dropped batch produce the same shortfall downstream, and the filter gives you a documented reason to expect it.
 
 When registered, the CDC processor checks each event's `(tableName, LSN, seqVal)` composite key before invoking the handler. Events that have already been processed are skipped automatically. This is an opt-in feature — when no filter is registered, all events are processed without deduplication.
+
+:::caution PostgreSQL only — a multi-table `TRUNCATE` replays every table, not just the one that failed
+
+**This hazard is specific to the PostgreSQL provider, and the idempotency filters described in this section do not apply to it** — they are SQL Server CDC registrations, and the PostgreSQL processor does not consult a filter. The remedy below is the one a PostgreSQL consumer can actually use.
+
+PostgreSQL reports `TRUNCATE orders, order_items` as a **single** transaction covering every table named, and the processor delivers one truncate event per table. If your handler succeeds on `orders` and then throws on `order_items`, the position is not advanced and **both** events are delivered again on the next attempt — including the one that already succeeded.
+
+This is easy to miss because a truncate *looks* naturally idempotent: truncating an already-empty table is harmless. The risk is in whatever your handler does **alongside** the truncate — publishing a notification, writing an audit row, incrementing a counter. Those run twice.
+
+**Make that side effect idempotent yourself, and key it on `(TransactionId, SchemaName, TableName)`.** A truncate carries no row, so it is created without key columns: a dedup keyed on a primary key has nothing to grip, and those three values are the only identity the event has.
+:::
+
+:::warning SQL Server filter: apply `002_CreateCdcIdempotencySchema.sql` first
+The SQL Server idempotency filter reads and writes `[Cdc].[CdcProcessedEvents]`, which the
+provider does not create. Apply the second shipped script before enabling the filter, or every
+duplicate check fails with `Invalid object name` and CDC processing stops. The in-memory filter
+needs no schema. See [Database Schema Setup](#database-schema-setup).
+:::
 
 ### In-Memory Filter (Single Instance)
 
@@ -1277,6 +1402,51 @@ builder.Services.AddExcaliburDataSqlServer(options =>
 });
 ```
 
+### Reconnect Backoff and Limits (Streaming Providers)
+
+The streaming providers (Postgres, MongoDB, Cosmos DB and DynamoDB) reconnect after a failure they do not
+recognise as fatal. Unrecognised failures are treated as transient by design, so a problem that clears
+(a failover, a network blip, another instance still holding a replication slot) recovers on its own. To
+keep one that does not clear from retrying silently forever, every reconnect is bounded:
+
+- **Backoff.** The wait starts at the provider's own polling or reconnect interval and doubles with each
+  consecutive failure, up to `MaxReconnectDelay` (one minute by default).
+- **Visibility.** Each consecutive failure without progress is reported to the CDC health check (see
+  [Health Checks](#health-checks)).
+- **An optional limit.** Set `MaxConsecutiveTransientFailures` and the processor stops after that many
+  consecutive failures, through the same path as a fatal error. It invokes `OnFatalError` when you set
+  one; otherwise `StartAsync` throws a `CdcRetryExhaustedException` whose `InnerException` is the last
+  failure. The checkpoint is never advanced on the way out, so a restarted processor resumes where this
+  one stopped.
+
+```csharp
+builder.Services.Configure<CdcFatalErrorOptions<PostgresDataChangeEvent>>(options =>
+{
+    options.MaxReconnectDelay = TimeSpan.FromSeconds(30);
+
+    // Stop after 20 consecutive failures instead of retrying for as long as the process runs.
+    options.MaxConsecutiveTransientFailures = 20;
+});
+```
+
+A failure counts only when its attempt made no progress and stayed up for less than `MaxReconnectDelay`,
+so a quiet source dropped by an idle timeout every few minutes is not counted towards the limit. Both
+values are validated when the host starts.
+
+Set `MaxReconnectDelay` above your client's connect and request timeouts. An attempt that takes longer
+than `MaxReconnectDelay` to fail counts as a stable connection, so a connection that always times out
+slowly never reaches the limit.
+
+:::warning Size the limit against your shutdown grace period
+During a rolling deployment the previous instance can hold a resource, such as a Postgres replication
+slot, until it has shut down. With a one-second interval, five consecutive failures take about
+thirty-one seconds, which is close to a typical termination grace period. A small limit can stop the new
+instance before the old one has let go. When in doubt, leave the limit unset and alert on the health check.
+:::
+
+The SQL Server processor is not a streaming provider and is not affected; its retries are governed by the
+resilience policy above.
+
 ### Database Restore Survivability
 
 The CDC processor is designed to handle database unavailability during restores and data replacement from backup:
@@ -1288,6 +1458,15 @@ The CDC processor is designed to handle database unavailability during restores 
 ## Monitoring
 
 ### Health Checks
+
+`AddCdcHealthCheck()` reports Unhealthy when a streaming processor has failed to reconnect
+`UnhealthyConsecutiveTransientFailures` times in a row without making progress (three by default). The
+count returns to zero as soon as the processor makes progress again.
+
+```csharp
+services.AddHealthChecks()
+    .AddCdcHealthCheck(options => options.UnhealthyConsecutiveTransientFailures = 5);
+```
 
 ```csharp
 // The built-in CdcHealthCheck is internal and registered via AddCdcHealthCheck().
@@ -1721,7 +1900,7 @@ CDC processors, outbox processors, and inbox stores are all registered as single
 | Checkpointing | Configure state store schema via `UseSqlServer(sql => sql.SchemaName(...))` |
 | Anti-corruption | Transform database columns to domain events using mapping functions |
 | Recovery | Configure `WithRecovery()` with `FallbackToEarliest` for idempotent handlers |
-| Idempotency | Use `UseInMemoryIdempotencyFilter()` for single-instance, `UseSqlServerIdempotencyFilter()` for multi-instance |
+| Idempotency | Use `UseInMemoryIdempotencyFilter()` for single-instance, `UseSqlServerIdempotencyFilter()` for multi-instance. **Not applicable to the PostgreSQL provider** — see [Idempotency Filtering](#idempotency-filtering) for what to do there instead |
 | Hosting | Use `EnableBackgroundProcessing()` for most cases, Quartz job for cron schedules |
 
 ## Providers

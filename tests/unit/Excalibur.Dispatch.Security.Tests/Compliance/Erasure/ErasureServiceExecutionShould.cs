@@ -1,6 +1,6 @@
 using Excalibur.Compliance.Erasure;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
@@ -108,7 +108,8 @@ public sealed class ErasureServiceExecutionShould
 			.Returns(Task.CompletedTask);
 
 		// Act
-		var result = await _sut.ExecuteAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+		var result = await CreateKeyShredOnlySut().ExecuteAsync(requestId, CancellationToken.None)
+			.ConfigureAwait(false);
 
 		// Assert
 		result.Success.ShouldBeTrue();
@@ -233,22 +234,25 @@ public sealed class ErasureServiceExecutionShould
 		var status = CreateErasureStatus(requestId, ErasureRequestStatus.Completed, isExecuted: true);
 		var existingCert = new ErasureCertificate
 		{
-			CertificateId = Guid.NewGuid(),
-			RequestId = requestId,
-			DataSubjectReference = "hash-value",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary(),
-			Verification = new VerificationSummary
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = requestId,
+				DataSubjectReference = "hash-value",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary(),
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.KeyManagementSystem,
 				VerifiedAt = DateTimeOffset.UtcNow
 			},
-			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
-			Signature = "existing-sig",
-			RetainUntil = DateTimeOffset.UtcNow.AddDays(365)
+				LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+				RetainUntil = DateTimeOffset.UtcNow.AddDays(365)
+			},
+			Signature = "existing-sig"
 		};
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
@@ -282,8 +286,8 @@ public sealed class ErasureServiceExecutionShould
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.RequestId.ShouldBe(requestId);
-		result.Method.ShouldBe(ErasureMethod.CryptographicErasure);
+		result.Payload.RequestId.ShouldBe(requestId);
+		result.Payload.Method.ShouldBe(ErasureMethod.CryptographicErasure);
 		result.Signature.ShouldNotBeNullOrEmpty();
 		A.CallTo(() => _certStore.SaveCertificateAsync(A<ErasureCertificate>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -640,4 +644,30 @@ public sealed class ErasureServiceExecutionShould
 		};
 
 	#endregion
+
+	/// <summary>
+	/// A service configured for key-destruction-only erasure -- the host model for an arm whose subject is
+	/// the request lifecycle rather than registry coverage: no contributors, no data-location registry,
+	/// coverage established by destroying the subject's keys rather than by a registry of tables.
+	/// </summary>
+	/// <remarks>
+	/// This arm used to run against a service with an EMPTY registry, which now correctly refuses to issue
+	/// a completion certificate -- an empty registry is an absence of evidence, not a proof of erasure.
+	/// That refusal is the fix, so the arm states the legitimate configuration it meant rather than having
+	/// its assertion relaxed to accommodate it.
+	/// </remarks>
+	private ErasureService CreateKeyShredOnlySut() =>
+		new(
+			_store,
+			_keyAdmin,
+			Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+			{
+				KeyShredOnlyErasure = true,
+				Retention = _erasureOptions.Retention,
+			}),
+			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
+			_legalHoldService,
+			_dataInventoryService,
+			null);
 }

@@ -35,6 +35,11 @@ This is an open-source project maintained by volunteers. Response times are best
 
 All packages target .NET 10.0 exclusively as of the .NET 10 release (April 2026). .NET 8.0 and .NET 9.0 are no longer supported targets. See the [.NET 10 migration guide](./migration/net10-only.md) for consumer project update steps.
 
+**The Excalibur package line inherits these dates.** Because the package major matches the .NET major,
+the `10.x` line is supported for as long as .NET 10 is -- the row above is the date, and there is no
+second calendar. How long a line lasts, what gets backported to an older one, and when releases are cut
+are all stated in [Support Lifecycle](./migration/version-upgrades.md#support-lifecycle).
+
 ---
 
 ## Provider Testing Coverage
@@ -109,8 +114,13 @@ The package major version matches the targeted .NET major (`net10.0` → `10.x`)
 
 1. **Mark deprecated** with `[Obsolete]` in a minor release
 2. **Document migration** in [What's New](whats-new.md)
-3. **Wait minimum 6 months** before removal
-4. **Remove** in next major release
+3. **It keeps working for the remainder of that major line** -- minor and patch releases are backward
+   compatible, so a deprecated API does not stop working before the next major
+4. **Remove** in the next major line, with a migration guide
+
+During pre-release there is no deprecation window: an API may be removed in any subsequent build.
+The full policy, including how long each line is supported and what is backported to an older one, is
+[Versioning and release stages](./migration/version-upgrades.md#support-lifecycle).
 
 ---
 

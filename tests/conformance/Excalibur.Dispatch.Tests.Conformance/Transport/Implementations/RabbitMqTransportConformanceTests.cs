@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+
+using CloudNative.CloudEvents;
 
 using RabbitMQ.Client;
 
@@ -17,16 +19,46 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 [Trait("Component", "Transport")]
 [Trait("Transport", "RabbitMq")]
 public sealed class RabbitMqTransportConformanceTests
-	: TransportConformanceTestBase<RabbitMqChannelSender, RabbitMqChannelReceiver>
+	: TransportConformanceTestBase<RabbitMqChannelSender, RabbitMqChannelReceiver>,
+	ITransportConformanceCapabilities
 {
 	private const string QueueName = "conformance-test-queue";
 	private const string DlqName = "conformance-test-queue-dlq";
+	private const string FilterExchangeName = "conformance-filter-exchange";
+	private const string FilterQueueName = "conformance-filter-queue";
 
 	private RabbitMqContainer? _rabbitMqContainer;
 	private IConnection? _connection;
 	private IChannel? _senderChannel;
 	private IChannel? _receiverChannel;
 	private RabbitMqDeadLetterQueueManager? _dlqManager;
+	private IChannel? _filterChannel;
+
+	/// <summary>
+	/// Only <see cref="TransportCapability.PublishTimeFiltering" /> is advertised, and the bead that asked for
+	/// this declaration assumed the opposite — it named RabbitMQ as a receive-time filterer. It is not, and the
+	/// reason is architectural rather than incidental: AMQP routes a message to queues by evaluating BINDINGS
+	/// AT PUBLISH TIME. A binding created after the publish does not retroactively route anything, so once a
+	/// message has been routed (or discarded for matching no binding) no server-side predicate can be applied
+	/// to it on the read. There is no RabbitMQ topology that honours a filter first supplied at receive time;
+	/// a consumer could only fetch everything and discard client-side, which is not server-side filtering and
+	/// would make the assertion measure this test rather than the broker.
+	/// <para>
+	/// MEASURED from this suite's own implementation, the same way the Azure Service Bus suite states its own:
+	/// the headers-exchange binding is installed in <see cref="ITransportConformanceCapabilities.PrepareFilterAsync" />
+	/// before the sends, and <c>ReceiveMatchingAsync</c> never consults its <c>filter</c> argument — it reads
+	/// whatever the broker already admitted into the bound queue. That is what makes this a broker-side
+	/// assertion: the non-matching message was offered to the exchange while the binding was live and was not
+	/// routed. The remaining capability flags are not implemented here; this suite proves filtering, not the
+	/// full set.
+	/// </para>
+	/// Returns null until the filter channel exists, so the capability-gated facts skip rather than NRE if they
+	/// somehow ran before <see cref="CreateSenderAsync" />.
+	/// </summary>
+	protected override ITransportConformanceCapabilities? AdvancedCapabilities => _filterChannel is null ? null : this;
+
+	/// <inheritdoc />
+	TransportCapability ITransportConformanceCapabilities.Capabilities => TransportCapability.PublishTimeFiltering;
 
 	protected override async Task<RabbitMqChannelSender> CreateSenderAsync()
 	{
@@ -53,8 +85,164 @@ public sealed class RabbitMqTransportConformanceTests
 			autoDelete: false,
 			arguments: null);
 
+		// A headers exchange is the RabbitMQ mechanism for routing on message ATTRIBUTES rather than on a
+		// routing-key string, which is what the filtering arm supplies. The exchange and the queue are
+		// declared here; the BINDING between them is deliberately NOT — it is the filter itself, and it is
+		// installed in PrepareFilterAsync so the broker has it live before anything is published.
+		_filterChannel = await _connection.CreateChannelAsync();
+
+		await _filterChannel.ExchangeDeclareAsync(
+			exchange: FilterExchangeName,
+			type: ExchangeType.Headers,
+			durable: false,
+			autoDelete: false,
+			arguments: null);
+
+		_ = await _filterChannel.QueueDeclareAsync(
+			queue: FilterQueueName,
+			durable: false,
+			exclusive: false,
+			autoDelete: false,
+			arguments: null);
+
 		return new RabbitMqChannelSender(_senderChannel, QueueName);
 	}
+
+	/// <inheritdoc />
+	async Task ITransportConformanceCapabilities.PrepareFilterAsync(
+		IReadOnlyDictionary<string, string> filter,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(filter);
+		if (_filterChannel is null)
+		{
+			throw new InvalidOperationException("Filter channel not initialized. CreateSenderAsync must run first.");
+		}
+
+		// x-match=all means every listed header must match for the broker to route the message here. The
+		// binding is created BEFORE the sends because AMQP evaluates bindings at publish time: a binding
+		// added afterwards would not route a message that has already been published, and the non-matching
+		// message would simply have been discarded by the exchange with nowhere to go. Installing it first is
+		// what lets the assertion mean what it says — the broker was offered the non-matching message while
+		// this binding was live and declined to route it.
+		var bindingArguments = new Dictionary<string, object?>(StringComparer.Ordinal)
+		{
+			["x-match"] = "all",
+		};
+
+		foreach (var (key, value) in filter)
+		{
+			bindingArguments[key] = value;
+		}
+
+		await _filterChannel.QueueBindAsync(
+			queue: FilterQueueName,
+			exchange: FilterExchangeName,
+			routingKey: string.Empty,
+			arguments: bindingArguments,
+			cancellationToken: cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	async Task ITransportConformanceCapabilities.SendFilterableAsync<T>(
+		T body,
+		IReadOnlyDictionary<string, string> attributes,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(attributes);
+		if (_filterChannel is null)
+		{
+			throw new InvalidOperationException("Filter channel not initialized. CreateSenderAsync must run first.");
+		}
+
+		var headers = new Dictionary<string, object?>(StringComparer.Ordinal);
+		foreach (var (key, value) in attributes)
+		{
+			headers[key] = value;
+		}
+
+		var properties = new BasicProperties
+		{
+			ContentType = "application/json",
+			Headers = headers,
+		};
+
+		// Published to the EXCHANGE, not to a queue: the exchange is where the broker evaluates the binding.
+		// A message whose headers do not match is not routed anywhere, which is the outcome under test.
+		await _filterChannel.BasicPublishAsync(
+			exchange: FilterExchangeName,
+			routingKey: string.Empty,
+			mandatory: false,
+			basicProperties: properties,
+			body: System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(body)),
+			cancellationToken: cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	async Task<ConformanceReceiveResult<T>?> ITransportConformanceCapabilities.ReceiveMatchingAsync<T>(
+		IReadOnlyDictionary<string, string> filter,
+		CancellationToken cancellationToken)
+		where T : default
+	{
+		ArgumentNullException.ThrowIfNull(filter);
+		if (_filterChannel is null)
+		{
+			throw new InvalidOperationException("Filter channel not initialized. CreateSenderAsync must run first.");
+		}
+
+		// The filter argument is deliberately NOT consulted. The broker already applied it at publish time via
+		// the binding, so reading the bound queue returns only what was routed. Re-applying the predicate here
+		// would turn a server-side filtering assertion into a client-side one that passes regardless of what
+		// the broker did — the precise vacuity this capability exists to avoid.
+		while (!cancellationToken.IsCancellationRequested)
+		{
+			var result = await _filterChannel.BasicGetAsync(FilterQueueName, autoAck: true, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (result is not null)
+			{
+				var json = System.Text.Encoding.UTF8.GetString(result.Body.Span);
+				return new ConformanceReceiveResult<T>(
+					System.Text.Json.JsonSerializer.Deserialize<T>(json),
+					headers: null,
+					acknowledge: null,
+					reject: null);
+			}
+
+			await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+		}
+
+		return null;
+	}
+
+	/// <inheritdoc />
+	Task ITransportConformanceCapabilities.SendWithHeadersAsync<T>(
+		T body,
+		IReadOnlyDictionary<string, string> headers,
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"{nameof(RabbitMqTransportConformanceTests)} advertises only {nameof(TransportCapability.PublishTimeFiltering)}.");
+
+	/// <inheritdoc />
+	Task<ConformanceReceiveResult<T>?> ITransportConformanceCapabilities.ReceiveWithContextAsync<T>(
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"{nameof(RabbitMqTransportConformanceTests)} advertises only {nameof(TransportCapability.PublishTimeFiltering)}.");
+
+	/// <inheritdoc />
+	Task ITransportConformanceCapabilities.SendCloudEventAsync(
+		CloudEvent cloudEvent,
+		CloudEventBinding binding,
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"{nameof(RabbitMqTransportConformanceTests)} advertises only {nameof(TransportCapability.PublishTimeFiltering)}.");
+
+	/// <inheritdoc />
+	Task<CloudEvent?> ITransportConformanceCapabilities.ReceiveCloudEventAsync(
+		CloudEventBinding binding,
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"{nameof(RabbitMqTransportConformanceTests)} advertises only {nameof(TransportCapability.PublishTimeFiltering)}.");
 
 	protected override async Task<RabbitMqChannelReceiver> CreateReceiverAsync()
 	{
@@ -99,6 +287,12 @@ public sealed class RabbitMqTransportConformanceTests
 		{
 			await _receiverChannel.CloseAsync();
 			_receiverChannel.Dispose();
+		}
+
+		if (_filterChannel != null)
+		{
+			await _filterChannel.CloseAsync();
+			_filterChannel.Dispose();
 		}
 
 		if (_connection != null)

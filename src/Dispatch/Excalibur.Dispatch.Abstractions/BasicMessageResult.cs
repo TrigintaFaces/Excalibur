@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch;
@@ -10,14 +10,14 @@ namespace Excalibur.Dispatch;
 /// <remarks> Initializes a new instance of the <see cref="BasicMessageResult" /> class. </remarks>
 /// <param name="succeeded"> Indicates whether the operation succeeded. </param>
 /// <param name="errorMessage"> Optional error message if the operation failed. </param>
-/// <param name="cacheHit"> Indicates whether the result was retrieved from cache. </param>
+/// <param name="disposition"> Describes how the result was produced. </param>
 /// <param name="validationResult"> Optional validation result. </param>
 /// <param name="authorizationResult"> Optional authorization result. </param>
 /// <param name="problemDetails"> Optional problem details if the operation failed. </param>
 internal class BasicMessageResult(
 	bool succeeded,
 	string? errorMessage = null,
-	bool cacheHit = false,
+	MessageDisposition disposition = MessageDisposition.Handled,
 	object? validationResult = null,
 	object? authorizationResult = null,
 	IMessageProblemDetails? problemDetails = null)
@@ -34,12 +34,6 @@ internal class BasicMessageResult(
 	/// </summary>
 	/// <value> The error message or <see langword="null" />. </value>
 	public string? ErrorMessage { get; } = errorMessage;
-
-	/// <summary>
-	/// Gets a value indicating whether this result was retrieved from cache.
-	/// </summary>
-	/// <value> <see langword="true" /> when the result originated from cache; otherwise, <see langword="false" />. </value>
-	public bool CacheHit { get; } = cacheHit;
 
 	/// <summary>
 	/// Gets the validation result, if validation was performed.
@@ -63,17 +57,13 @@ internal class BasicMessageResult(
 	/// Gets a value describing how this result was produced.
 	/// </summary>
 	/// <value>
-	/// <see cref="MessageDisposition.ServedFromCache" /> when <see cref="CacheHit" /> is set; otherwise
-	/// the value supplied by the producer, which defaults to <see cref="MessageDisposition.Handled" />.
+	/// The value supplied by the producer, which defaults to <see cref="MessageDisposition.Handled" />.
 	/// </value>
 	/// <remarks>
-	/// Defaulted FROM <see cref="CacheHit" /> rather than passed independently of it, so the common case
-	/// cannot be got wrong by omission: a cached result that reported <see cref="MessageDisposition.Handled" />
-	/// would tell a caller a handler ran when none did. A producer that satisfies a message without a handler
-	/// for some other reason sets this explicitly.
+	/// Taken from the constructor and get-only, so the producer states it once and no later initializer can
+	/// contradict it. This is the sole record of how the result was produced.
 	/// </remarks>
-	public MessageDisposition Disposition { get; init; } =
-		cacheHit ? MessageDisposition.ServedFromCache : MessageDisposition.Handled;
+	public MessageDisposition Disposition { get; }= disposition;
 }
 
 /// <summary>
@@ -84,7 +74,7 @@ internal class BasicMessageResult(
 /// <param name="succeeded"> Indicates whether the operation succeeded. </param>
 /// <param name="value"> The return value of the operation. </param>
 /// <param name="errorMessage"> Optional error message if the operation failed. </param>
-/// <param name="cacheHit"> Indicates whether the result was retrieved from cache. </param>
+/// <param name="disposition"> Describes how the result was produced. </param>
 /// <param name="validationResult"> Optional validation result. </param>
 /// <param name="authorizationResult"> Optional authorization result. </param>
 /// <param name="problemDetails"> Optional problem details if the operation failed. </param>
@@ -96,11 +86,11 @@ internal sealed class BasicMessageResult<T>(
 	bool succeeded,
 	T? value = default,
 	string? errorMessage = null,
-	bool cacheHit = false,
+	MessageDisposition disposition = MessageDisposition.Handled,
 	object? validationResult = null,
 	object? authorizationResult = null,
 	IMessageProblemDetails? problemDetails = null)
-	: BasicMessageResult(succeeded, errorMessage, cacheHit, validationResult, authorizationResult, problemDetails), IMessageResult<T>
+	: BasicMessageResult(succeeded, errorMessage, disposition, validationResult, authorizationResult, problemDetails), IMessageResult<T>
 {
 	/// <summary>
 	/// Gets the return value of the operation.

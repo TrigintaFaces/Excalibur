@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
 using Excalibur.Data.MongoDB.Diagnostics;
@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using MongoDB.Driver;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.MongoDB.Authorization;
 
@@ -148,33 +150,29 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IDurableGrantStore,
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
-		string? userId,
+	public Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
 		string tenantId,
-		string grantType,
-		string qualifier,
+		string? userId,
+		string? grantType,
+		string? qualifier,
 		CancellationToken cancellationToken)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
 
-		var filters = new List<FilterDefinition<GrantDocument>>
-		{
-			Builders<GrantDocument>.Filter.Eq(x => x.TenantId, tenantId),
-			Builders<GrantDocument>.Filter.Eq(x => x.GrantType, grantType),
-			Builders<GrantDocument>.Filter.Eq(x => x.Qualifier, qualifier),
-			Builders<GrantDocument>.Filter.Eq(x => x.IsRevoked, false)
-		};
+		return QueryMatchingAsync(tenantId, userId, grantType, qualifier, cancellationToken);
+	}
 
-		if (userId is not null)
-		{
-			filters.Add(Builders<GrantDocument>.Filter.Eq(x => x.UserId, userId));
-		}
+	/// <inheritdoc/>
+	public Task<IReadOnlyList<Grant>> GetMatchingGrantsAcrossTenantsAsync(
+		string? userId,
+		string? grantType,
+		string? qualifier,
+		CancellationToken cancellationToken)
+	{
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
 
-		var filter = Builders<GrantDocument>.Filter.And(filters);
-		var documents = await _collection!.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
-
-		return documents.Select(d => d.ToGrant()).ToList();
+		return QueryMatchingAsync(tenantId: null, userId, grantType, qualifier, cancellationToken);
 	}
 
 	/// <inheritdoc/>
@@ -262,7 +260,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IDurableGrantStore,
 		foreach (var doc in documents)
 		{
 			var grant = doc.ToGrant();
-			var key = GrantKeyFormat.ComposeScope(grant.TenantId, grant.GrantType, grant.Qualifier);
+			var key = SegmentedKey.Compose(grant.TenantId, grant.GrantType, grant.Qualifier);
 			result[key] = grant;
 		}
 
@@ -395,4 +393,62 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IDurableGrantStore,
 	[LoggerMessage(DataMongoDbEventId.GrantRevoked, LogLevel.Debug,
 		"Grant revoked: userId={UserId}, tenantId={TenantId}, grantType={GrantType}, qualifier={Qualifier}")]
 	private partial void LogGrantRevoked(string userId, string tenantId, string grantType, string qualifier);
+
+	// MongoDB equality on a string field is exact (no collation is set on this collection); a null filter
+	// adds no clause.
+	private async Task<IReadOnlyList<Grant>> QueryMatchingAsync(
+		string? tenantId,
+		string? userId,
+		string? grantType,
+		string? qualifier,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var filters = new List<FilterDefinition<GrantDocument>> { Builders<GrantDocument>.Filter.Eq(x => x.IsRevoked, false) };
+
+		if (tenantId is not null)
+		{
+			filters.Add(Builders<GrantDocument>.Filter.Eq(x => x.TenantId, tenantId));
+		}
+
+		if (userId is not null)
+		{
+			filters.Add(Builders<GrantDocument>.Filter.Eq(x => x.UserId, userId));
+		}
+
+		if (grantType is not null)
+		{
+			filters.Add(Builders<GrantDocument>.Filter.Eq(x => x.GrantType, grantType));
+		}
+
+		if (qualifier is not null)
+		{
+			filters.Add(Builders<GrantDocument>.Filter.Eq(x => x.Qualifier, qualifier));
+		}
+
+		var documents = await _collection!.Find(Builders<GrantDocument>.Filter.And(filters))
+			.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+		return documents.Select(d => d.ToGrant()).ToList();
+	}
+
+	private static void ThrowIfEmptyFilter(string? userId, string? grantType, string? qualifier)
+	{
+		if (userId is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		}
+
+		if (grantType is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(grantType);
+		}
+
+		if (qualifier is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(qualifier);
+		}
+	}
 }

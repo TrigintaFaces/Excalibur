@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
@@ -63,6 +63,21 @@ namespace Excalibur.Testing.Conformance;
 	"Outbox conformance arms read staged messages back through the store, which deserializes the payload reflectively. An ahead-of-time-compiled test host is not a supported configuration for this kit.")]
 public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 {
+	/// <summary>
+	/// The gap between successive derived fencing tokens, wide enough that an arm offsetting a token by a
+	/// thousand in either direction still lands above the mark the store started with.
+	/// </summary>
+	private const long FencingTokenStride = 10_000L;
+
+	/// <summary>The store's fencing high-water mark as this kit first found it, restored before each arm.</summary>
+	private long? _fencingFloor;
+
+	/// <summary>How many tokens this kit has minted above the floor for the current arm.</summary>
+	private long _fencingMinted;
+
+	/// <summary>The diagnostics seam of the store under test, or null when it exposes none.</summary>
+	private IFencedOutboxStoreDiagnostics? _fencingDiagnostics;
+
 	/// <summary>
 	/// Creates a fresh outbox store instance for testing.
 	/// </summary>
@@ -796,6 +811,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim));
+		await using var fencingScope = BeginFencingScope();
 
 		var current = NextFencingToken();
 		var stale = current - 1000;
@@ -874,6 +890,138 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 				$"{held.Id} was dead-lettered by the current tenure and reported Applied, yet the outbox still "
 				+ $"holds {liveAfterBurial} live row(s) — the same as before the burial ({liveAfterRefusal}). A "
 				+ "message the operator decided to stop delivering is still queued for delivery.");
+		}
+	}
+
+	/// <summary>
+	/// A failure reported against a message that has already reached a terminal status is refused, and the
+	/// refusal is DISTINGUISHABLE from an applied one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A sibling arm already proves the sent message does not reappear in the failed set. That is the
+	/// EFFECT, and it is satisfied by a store that refuses silently — through the unfenced overload it has
+	/// to be, because that overload returns nothing and a caller cannot tell the two apart. This arm binds
+	/// the other half: the claim-scoped member returns an outcome, so a store that absorbs the report must
+	/// SAY it absorbed it.
+	/// </para>
+	/// <para>
+	/// The distinction is not bookkeeping. The drain reports a failure after a delivery attempt it believes
+	/// failed; if the message was in fact already sent, <c>Applied</c> tells the drain its report took
+	/// effect and the message is now awaiting retry. It is not — it is delivered. The drain then has one
+	/// record saying delivered and one saying pending, and whichever it acts on, the other is wrong.
+	/// <c>AlreadyTerminal</c> is the answer that lets it stop.
+	/// </para>
+	/// <para>
+	/// The liveness half runs the SAME call against a message that is NOT terminal, in the same state and
+	/// under the same authority. Without it every assertion here is satisfied by a store that reports
+	/// <c>AlreadyTerminal</c> for every failure it is ever handed, which would suppress genuine failures
+	/// instead of recording them.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		{
+			SkipOrFailUnfencedArm(nameof(MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied));
+			return;
+		}
+
+		if (store.GetService(typeof(IFencedClaimScopedOutboxStore)) is not IFencedClaimScopedOutboxStore claimScoped)
+		{
+			SkipArm(
+				nameof(MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied),
+				typeof(IFencedClaimScopedOutboxStore),
+				"This store does not implement claim-scoped fenced failure reporting.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied));
+		await using var fencingScope = BeginFencingScope();
+
+		var token = NextFencingToken();
+
+		var delivered = CreateTestMessage();
+		var stillLive = CreateTestMessage();
+		await store.StageMessageAsync(delivered, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(stillLive, CancellationToken.None).ConfigureAwait(false);
+
+		// The claim is what supplies the identity the completion runs under. A store that records its lease
+		// privately and hands back a message with no DispatcherId makes the claim-scoped path unreachable,
+		// so read the identity from the message the store returned rather than inventing one.
+		var claimed = (await fenced.GetUnsentMessagesAsync(100, token, CancellationToken.None)
+			.ConfigureAwait(false)).ToList();
+
+		var claimedDelivered = claimed.FirstOrDefault(m => string.Equals(m.Id, delivered.Id, StringComparison.Ordinal));
+
+		if (claimedDelivered?.DispatcherId is not { Length: > 0 } claimIdentity)
+		{
+			throw new TestFixtureAssertionException(
+				$"The claim presenting token {token} did not return {delivered.Id} carrying a claim identity, "
+				+ "so the state this arm depends on was never established. A store that leaves DispatcherId "
+				+ "unset makes its own claim-scoped completion unreachable, whatever capabilities it "
+				+ "advertises, and every assertion below would hold vacuously.");
+		}
+
+        var authority = new OutboxWriteAuthority(token, claimIdentity);
+
+		await fenced.MarkSentAsync(delivered.Id, token, CancellationToken.None).ConfigureAwait(false);
+
+		// SAFETY. The late failure report against a message that is already delivered.
+		var terminal = await claimScoped.MarkFailedAsync(
+			delivered.Id,
+			"a failure reported after the message was already sent",
+			retryCount: 1,
+			nextAttemptAt: null,
+			authority,
+			CancellationToken.None).ConfigureAwait(false);
+
+		if (terminal == OutboxCompletionOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"A failure reported against {delivered.Id} AFTER it was marked sent returned Applied. The "
+				+ "caller is now told its failure report took effect and the message awaits retry, while the "
+				+ "store holds it as delivered. Report AlreadyTerminal so the caller can stop instead of "
+				+ "acting on a state the store does not have.");
+		}
+
+		// A store whose terminal transition REMOVES the row has no row to report a status for, and the
+		// outcome contract names MessageNotFound as the accurate answer for that idiom. Every other refusal is
+		// still wrong for it, and a store that keeps the row must say AlreadyTerminal.
+		var expected = TerminalTransitionRemovesMessage
+			? OutboxCompletionOutcome.MessageNotFound
+			: OutboxCompletionOutcome.AlreadyTerminal;
+
+		if (terminal != expected)
+		{
+			throw new TestFixtureAssertionException(
+				TerminalTransitionRemovesMessage
+					? $"A failure reported against the already-sent {delivered.Id} returned '{terminal}'. This "
+						+ "suite declares that the store removes a message when it is sent, so the row is gone and "
+						+ "MessageNotFound is the only accurate answer; any other refusal describes a decision the "
+						+ "store did not make."
+					: $"A failure reported against the already-sent {delivered.Id} returned '{terminal}'. The row "
+						+ "was found, the caller held the claim and presented the current token, so none of the other "
+						+ "refusals describes what happened — only the terminal status does, and a caller that cannot "
+						+ "tell which refusal it received cannot tell a lost claim from a delivered message.");
+		}
+
+		// LIVENESS, same call, same authority, a message that is NOT terminal.
+		var applied = await claimScoped.MarkFailedAsync(
+			stillLive.Id,
+			"a genuine delivery failure",
+			retryCount: 1,
+			nextAttemptAt: null,
+			authority,
+			CancellationToken.None).ConfigureAwait(false);
+
+		if (applied != OutboxCompletionOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"A genuine failure reported against the live {stillLive.Id} returned '{applied}' rather than "
+				+ "Applied, so this store refuses failure reports it should accept. Every assertion above "
+				+ "would hold for a store that reports AlreadyTerminal to everything and records nothing.");
 		}
 	}
 
@@ -1497,7 +1645,86 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	{
 		var store = await CreateStoreAsync().ConfigureAwait(false);
 		await ResetDataAsync().ConfigureAwait(false);
+		await PrepareFencingAsync(store).ConfigureAwait(false);
 		return store;
+	}
+
+	/// <summary>
+	/// Records the store's own fencing high-water mark the first time this kit touches it, and returns
+	/// the mark to that value before each arm runs.
+	/// </summary>
+	/// <param name="store"> The store this arm will run against. </param>
+	/// <remarks>
+	/// <para>
+	/// A fencing high-water mark is monotonic by design and is learned from no source but the tokens
+	/// presented to it, so every token this kit presents raises it permanently. Against an ephemeral
+	/// fixture that is invisible. Against a shared or persistent database it is not: a scope whose real
+	/// elections mint a counter from one is refused until that counter passes whatever this kit left
+	/// behind, and a refusal that is swallowed presents as "no messages" while staged rows accumulate.
+	/// </para>
+	/// <para>
+	/// So the mark is captured once and restored before each arm, which keeps the residue to a single
+	/// arm's advance instead of letting it accumulate across a run. Where the store exposes no
+	/// diagnostics seam there is nothing to capture and nothing to restore, and
+	/// <see cref="NextFencingToken" /> refuses to mint rather than advancing a mark it cannot return.
+	/// </para>
+	/// </remarks>
+	private async Task PrepareFencingAsync(IOutboxStore store)
+	{
+		_fencingDiagnostics = store.GetService(typeof(IFencedOutboxStoreDiagnostics)) as IFencedOutboxStoreDiagnostics;
+
+		if (_fencingDiagnostics is null)
+		{
+			return;
+		}
+
+		// A store that has never been fenced reports null. Treat that as zero: it is the value a real
+		// counter-based election can still exceed, which is the property the restore exists to preserve.
+		_fencingFloor ??= await _fencingDiagnostics.GetFencingHighWaterAsync(CancellationToken.None)
+			.ConfigureAwait(false) ?? 0L;
+
+		await _fencingDiagnostics
+			.ResetFencingHighWaterAsync(_fencingFloor.Value, force: true, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		_fencingMinted = 0;
+	}
+
+	/// <summary>
+	/// Returns the store's fencing high-water mark to the value this kit found, when the scope is
+	/// disposed -- including when the arm inside it fails.
+	/// </summary>
+	/// <returns> A scope that restores the mark on disposal. </returns>
+	/// <remarks>
+	/// <para>
+	/// Restoring before each arm is not enough on its own: the LAST arm of a run has nothing after it,
+	/// so its advance is what a consumer is left holding. A conformance run must not leave a mark that
+	/// the consumer's own election, minting a counter from one, can no longer exceed.
+	/// </para>
+	/// <para>
+	/// This is a scope rather than a teardown override deliberately. Derivers are typically sealed and
+	/// supply their own test-framework lifetime hook, so a virtual teardown here would be silently
+	/// skipped by any deriver that did not chain to it -- a restore that looks present and never runs.
+	/// An <c>await using</c> inside the arm cannot be bypassed, and it survives the arm throwing.
+	/// </para>
+	/// </remarks>
+	protected IAsyncDisposable BeginFencingScope() =>
+		new FencingRestoreScope(_fencingDiagnostics, _fencingFloor ?? 0L);
+
+	/// <summary>Restores a fencing high-water mark when disposed. A no-op where there is no seam.</summary>
+	private sealed class FencingRestoreScope(IFencedOutboxStoreDiagnostics? diagnostics, long floor)
+		: IAsyncDisposable
+	{
+		public async ValueTask DisposeAsync()
+		{
+			if (diagnostics is null)
+			{
+				return;
+			}
+
+			await diagnostics.ResetFencingHighWaterAsync(floor, force: true, CancellationToken.None)
+				.ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>
@@ -1575,6 +1802,30 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	/// </para>
 	/// </remarks>
 	protected virtual bool ParticipatesInFencing => false;
+
+	/// <summary>
+	/// Gets a value indicating whether the store under test removes a message from the outbox when it
+	/// reaches a terminal status, rather than keeping it with that status.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> for a store that deletes a sent message and moves a dead-lettered one out of the
+	/// outbox table; <see langword="false"/>, the default, for a store that keeps terminal rows.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// A completion reported against a terminal message must say so. A store that keeps the row can see its
+	/// status and must report <see cref="OutboxCompletionOutcome.AlreadyTerminal"/>. A store that removed the
+	/// row cannot tell a terminal message from one that never existed, and the outcome contract names
+	/// <see cref="OutboxCompletionOutcome.MessageNotFound"/> as its accurate answer, so these arms expect that
+	/// instead.
+	/// </para>
+	/// <para>
+	/// The default is the stricter expectation, so a derivation that says nothing is held to
+	/// <see cref="OutboxCompletionOutcome.AlreadyTerminal"/>. Declare <see langword="true"/> only for a store
+	/// whose terminal transitions genuinely remove the row.
+	/// </para>
+	/// </remarks>
+	protected virtual bool TerminalTransitionRemovesMessage => false;
 
 	/// <summary>
 	/// Skips an arm on a store that does not fence, or FAILS it on a store that declared it does.
@@ -1671,13 +1922,41 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	/// failure of the store rather than of the fixture.
 	/// </para>
 	/// <para>
-	/// Anchoring on the wall clock removes the ordering dependency without needing the store to expose its
-	/// current high-water: the value rises across arms within a run and across runs, so each arm can
-	/// establish its own baseline and reason relative to it. The arms below never compare against an
-	/// absolute token.
+	/// <b>It is derived from the store, not from the clock.</b> A clock-anchored token removes the
+	/// ordering dependency and creates a worse one: epoch milliseconds are around 1.79e12, while every
+	/// shipped token provider mints a counter from one, so a single run leaves a high-water no real
+	/// election can reach and the scope stalls permanently. Minting from the mark the store already
+	/// carries keeps every token this kit presents within reach of the consumer's own provider.
+	/// </para>
+	/// <para>
+	/// The stride leaves room for the arms that reason relative to a token, which offset by a thousand
+	/// in both directions; a derived token must stay above the recorded mark even after such an offset.
+	/// </para>
+	/// <para>
+	/// <b>It REFUSES to mint when the store exposes no diagnostics seam</b>, because presenting a token
+	/// raises a durable mark and without that seam the kit cannot return it. Refusing is not a pass: a
+	/// store that declares it participates in fencing and offers no way to restore what a certification
+	/// run advanced would be certified destructively, and on a consumer's own database.
 	/// </para>
 	/// </remarks>
-	protected static long NextFencingToken() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+	protected long NextFencingToken()
+	{
+		if (_fencingDiagnostics is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"{GetType().Name} reached a fencing arm, but its store does not present "
+				+ "IFencedOutboxStoreDiagnostics, so this kit cannot read the fencing high-water mark it is "
+				+ "about to raise, and cannot return it afterwards. Presenting a token here would leave the "
+				+ "mark permanently advanced -- on a shared or persistent database, that refuses every later "
+				+ "election whose tokens are a counter, and the refusal can be silent. Expose the diagnostics "
+				+ "seam, or declare that this store does not participate in fencing. This arm is REFUSED "
+				+ "rather than run, and a refusal is not a pass.");
+		}
+
+		var minted = Interlocked.Increment(ref _fencingMinted);
+
+		return (_fencingFloor ?? 0L) + (minted * FencingTokenStride);
+	}
 
 	#endregion
 
@@ -2865,6 +3144,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(Fencing_StaleToken_ShouldBeRefusedWithoutApplyingTheMutation));
+		await using var fencingScope = BeginFencingScope();
 		var current = NextFencingToken();
 		var stale = current - 1000;
 
@@ -2936,6 +3216,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(Fencing_Refusal_ShouldReportTheHighWaterMark));
+		await using var fencingScope = BeginFencingScope();
 		var current = NextFencingToken();
 		var stale = current - 1000;
 
@@ -2990,6 +3271,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(Fencing_CurrentLeaderToken_ShouldClaimAndComplete));
+		await using var fencingScope = BeginFencingScope();
 		var current = NextFencingToken();
 
 		var message = CreateTestMessage();
@@ -3051,6 +3333,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(Fencing_HighWaterMark_ShouldSurviveCleanup));
+		await using var fencingScope = BeginFencingScope();
 		var current = NextFencingToken();
 		var stale = current - 1000;
 
@@ -3121,6 +3404,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(Fencing_SupersededLeader_ShouldNeitherMutateNorLoseTheMessage));
+		await using var fencingScope = BeginFencingScope();
 		var superseded = NextFencingToken();
 		var fresher = superseded + 1000;
 
@@ -3223,6 +3507,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent));
+		await using var fencingScope = BeginFencingScope();
 		var superseded = NextFencingToken();
 		var fresher = superseded + 1000;
 
@@ -3365,6 +3650,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent));
+		await using var fencingScope = BeginFencingScope();
 
 		// The superseded tenure now issues the mutation, presenting the very token its own fence check
 		// already validated — on a message that (per-document) a fresher tenure has since reclaimed.
@@ -3425,6 +3711,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue));
+		await using var fencingScope = BeginFencingScope();
 		var token = NextFencingToken();
 
 		var message = CreateTestMessage();
@@ -3464,6 +3751,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		RecordArmExecuted(nameof(FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce));
+		await using var fencingScope = BeginFencingScope();
 		var current = NextFencingToken();
 		var lower = current - 1000;
 

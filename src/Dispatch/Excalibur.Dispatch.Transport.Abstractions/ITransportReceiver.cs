@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Transport;
 
@@ -32,21 +32,44 @@ public interface ITransportReceiver : IAsyncDisposable
 	Task<IReadOnlyList<TransportReceivedMessage>> ReceiveAsync(int maxMessages, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Acknowledges successful processing of a message.
+	/// Acknowledges successful processing of a message, so the broker stops tracking it.
 	/// </summary>
+	/// <remarks>
+	/// Returning normally means the broker accepted the acknowledgement. An implementation that cannot
+	/// complete the settlement throws rather than returning, because a caller cannot distinguish a
+	/// settled message from an unsettled one by any other means, and the redelivery that follows an
+	/// unreported failure reaches the consumer as an unexplained duplicate.
+	/// </remarks>
 	/// <param name="message">The message to acknowledge.</param>
 	/// <param name="cancellationToken">Cancellation token for the operation.</param>
 	/// <returns>Task representing the acknowledgment operation.</returns>
+	/// <exception cref="TransportSettlementException">
+	/// The broker did not accept the acknowledgement, so the message remains outstanding and is likely
+	/// to be delivered again. Read <see cref="TransportSettlementException.RedeliveryExpectation"/> to
+	/// see whether the transport could tell. Clients of this interface must be idempotent.
+	/// </exception>
 	Task AcknowledgeAsync(TransportReceivedMessage message, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Rejects a message and optionally requeues it for retry.
 	/// </summary>
+	/// <remarks>
+	/// <paramref name="requeue"/> states the outcome the caller requires: <see langword="true"/> asks
+	/// the broker to deliver the message again, <see langword="false"/> asks it not to. Not every broker
+	/// can suppress redelivery for a single message, and an implementation that cannot deliver the
+	/// requested outcome must not report success for it.
+	/// </remarks>
 	/// <param name="message">The message to reject.</param>
 	/// <param name="reason">The reason for rejection.</param>
 	/// <param name="requeue">Whether to requeue the message for retry.</param>
 	/// <param name="cancellationToken">Cancellation token for the operation.</param>
 	/// <returns>Task representing the reject operation.</returns>
+	/// <exception cref="TransportSettlementException">
+	/// The broker did not accept the rejection. Read
+	/// <see cref="TransportSettlementException.RedeliveryExpectation"/> to see whether the message is
+	/// expected to arrive again: a failed <c>requeue: false</c> leaves a poison message queued, which a
+	/// caller must handle rather than reject in a loop.
+	/// </exception>
 	Task RejectAsync(TransportReceivedMessage message, string? reason, bool requeue, CancellationToken cancellationToken);
 
 	/// <summary>

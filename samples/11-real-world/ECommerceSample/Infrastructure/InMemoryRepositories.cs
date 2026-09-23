@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 
 using Microsoft.Extensions.Logging;
 
-namespace Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample.Infrastructure;
+namespace Excalibur.Dispatch.Examples.ECommerceSample.Infrastructure;
 
 /// <summary>
 /// In-memory order repository for sample application.
@@ -52,7 +52,8 @@ public sealed class InMemoryOrderRepository(ILogger<InMemoryOrderRepository> log
 }
 
 /// <summary>
-/// In-memory email service for sample application.
+/// Stands in for the mail provider. There is no queue here on purpose: the outbox owns everything a message
+/// needs before it is delivered, so this type only performs the send and records what went out.
 /// </summary>
 public sealed class InMemoryEmailService(ILogger<InMemoryEmailService> logger)
 {
@@ -60,23 +61,37 @@ public sealed class InMemoryEmailService(ILogger<InMemoryEmailService> logger)
 		LoggerMessage.Define<string, string, string>(
 			LogLevel.Information,
 			new EventId(1, "EmailSent"),
-			"📤 Sent {EmailType} email to {CustomerEmail}: {Subject}");
-
-	private static readonly Action<ILogger, string, string, Exception?> LogEmailQueued =
-		LoggerMessage.Define<string, string>(
-			LogLevel.Debug,
-			new EventId(2, "EmailQueued"),
-			"📬 Queued email for {CustomerEmail}: {Subject}");
+			"Sent {EmailType} email to {CustomerEmail}: {Subject}");
 
 	private readonly ConcurrentQueue<EmailRecord> _sentEmails = new();
-	private readonly ConcurrentQueue<EmailRecord> _pendingEmails = new();
+
+	/// <summary>Recipients whose next delivery attempt must fail, and whether that failure has been served.</summary>
+	private readonly ConcurrentDictionary<string, bool> _failFirstAttempt = new(StringComparer.Ordinal);
+
 	private readonly ILogger<InMemoryEmailService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-	public async Task SendEmailAsync(EmailNotification notification)
+	/// <summary>
+	/// Arranges for the first delivery attempt to <paramref name="recipient"/> to fail, so the outbox retry
+	/// path is exercised by the run instead of merely being described by it.
+	/// </summary>
+	public void FailFirstAttemptFor(string recipient)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(recipient);
+		_failFirstAttempt[recipient] = false;
+	}
+
+	public Task SendEmailAsync(EmailNotification notification, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(notification);
-		// Simulate email sending delay
-		await Task.Delay(RandomNumberGenerator.GetInt32(50, 200)).ConfigureAwait(false);
+		cancellationToken.ThrowIfCancellationRequested();
+
+		// TryUpdate is the compare-and-swap: only the caller that moves the flag from not-yet-served to
+		// served throws, so concurrent drains cannot both consume the one arranged failure.
+		if (_failFirstAttempt.TryUpdate(notification.ToEmail, newValue: true, comparisonValue: false))
+		{
+			return Task.FromException(
+				new InvalidOperationException($"Transient delivery failure for '{notification.ToEmail}'."));
+		}
 
 		var emailRecord = new EmailRecord
 		{
@@ -91,61 +106,13 @@ public sealed class InMemoryEmailService(ILogger<InMemoryEmailService> logger)
 
 		_sentEmails.Enqueue(emailRecord);
 		LogEmailSent(_logger, notification.NotificationType, notification.ToEmail, notification.Subject, null);
-	}
 
-	public Task QueueEmailAsync(EmailNotification notification)
-	{
-		ArgumentNullException.ThrowIfNull(notification);
-		var emailRecord = new EmailRecord
-		{
-			EmailId = Guid.NewGuid().ToString(),
-			ToEmail = notification.ToEmail,
-			Subject = notification.Subject,
-			Body = notification.Body,
-			NotificationType = notification.NotificationType,
-			SentAt = DateTimeOffset.UtcNow,
-			Status = "Queued"
-		};
-
-		_pendingEmails.Enqueue(emailRecord);
-		LogEmailQueued(_logger, notification.ToEmail, notification.Subject, null);
 		return Task.CompletedTask;
 	}
 
 	public Task<IEnumerable<EmailRecord>> GetSentEmailsAsync() => Task.FromResult(_sentEmails.AsEnumerable());
 
-	public Task<IEnumerable<EmailRecord>> GetPendingEmailsAsync() => Task.FromResult(_pendingEmails.AsEnumerable());
-
-	public async Task ProcessPendingEmailsAsync()
-	{
-		var emailsToProcess = new List<EmailRecord>();
-
-		// Dequeue up to 10 pending emails
-		for (var i = 0; i < 10 && _pendingEmails.TryDequeue(out var email); i++)
-		{
-			emailsToProcess.Add(email);
-		}
-
-		// Process emails in batch
-		var processTasks = emailsToProcess.Select(async email =>
-		{
-			var notification = new EmailNotification
-			{
-				ToEmail = email.ToEmail,
-				Subject = email.Subject,
-				Body = email.Body,
-				NotificationType = email.NotificationType
-			};
-
-			await SendEmailAsync(notification).ConfigureAwait(false);
-		});
-
-		await Task.WhenAll(processTasks).ConfigureAwait(false);
-	}
-
 	public int GetSentEmailCount() => _sentEmails.Count;
-
-	public int GetPendingEmailCount() => _pendingEmails.Count;
 }
 
 /// <summary>

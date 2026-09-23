@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
 
@@ -60,9 +60,8 @@ public sealed class EncryptingEventStoreDecoratorExtendedShould
 		{
 			Mode = mode,
 			DefaultPurpose = "test",
-			DefaultTenantId = "tenant-1"
 		});
-		return new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options);
+		return new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 	}
 
 	/// <summary>
@@ -427,12 +426,11 @@ public sealed class EncryptingEventStoreDecoratorExtendedShould
 		{
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "special-purpose",
-			DefaultTenantId = "tenant-42",
 			RequireFipsCompliance = true
 		});
 
 		// Act - should not throw
-		var decorator = new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options);
+		var decorator = new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 		// Assert
 		decorator.ShouldNotBeNull();

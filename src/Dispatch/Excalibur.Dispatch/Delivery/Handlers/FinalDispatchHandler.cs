@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
@@ -130,14 +130,14 @@ public sealed partial class FinalDispatchHandler(
 
 			if (!hasValidation && !hasAuthorization)
 			{
-				return hasCacheHit ? SimpleMessageResult.SuccessCacheHitResult : SimpleMessageResult.SuccessResult;
+				return hasCacheHit ? SimpleMessageResult.SuccessFromCacheResult : SimpleMessageResult.SuccessResult;
 			}
 
 			return MR.Success(
 				routingDecision,
 				hasValidation ? context.ValidationResult() : null,
 				hasAuthorization ? context.AuthorizationResult() : null,
-				hasCacheHit);
+				ToDisposition(hasCacheHit));
 		}
 
 		var cacheHit = IsCacheHit(context);
@@ -146,14 +146,14 @@ public sealed partial class FinalDispatchHandler(
 
 		if (validationResult is null && authorizationResult is null)
 		{
-			return cacheHit ? SimpleMessageResult.SuccessCacheHitResult : SimpleMessageResult.SuccessResult;
+			return cacheHit ? SimpleMessageResult.SuccessFromCacheResult : SimpleMessageResult.SuccessResult;
 		}
 
 		return MR.Success(
 			routingDecision,
 			validationResult,
 			authorizationResult,
-			cacheHit);
+			ToDisposition(cacheHit));
 	}
 
 	private static List<IRouteResult> GetTargetRoutes(RoutingDecision? routingDecision)
@@ -300,7 +300,7 @@ public sealed partial class FinalDispatchHandler(
 		}
 
 		// Read cache hit flag from context
-		var cacheHit = IsCacheHit(context);
+		var disposition = ToDisposition(IsCacheHit(context));
 		var routing = RoutingDecisionAccessor.GetRoutingDecisionFast(context);
 		var validation = GetValidationResultFast(context);
 		var authorization = GetAuthorizationResultFast(context);
@@ -311,13 +311,13 @@ public sealed partial class FinalDispatchHandler(
 		// lean path compiles an expression tree and so is unreachable without runtime code generation.
 		if (!dynamicCodeSupported)
 		{
-			return CreateAotResult(resultType, result, routing, validation, authorization, cacheHit, lean);
+			return CreateAotResult(resultType, result, routing, validation, authorization, disposition, lean);
 		}
 
 		if (lean)
 		{
 			var leanFactory = ResultFactoryCache.GetOrCreateLeanFactory(resultType);
-			return leanFactory(result, cacheHit);
+			return leanFactory(result, disposition);
 		}
 
 		// Use cached factory delegate instead of per-dispatch reflection
@@ -327,7 +327,7 @@ public sealed partial class FinalDispatchHandler(
 			routing,
 			validation,
 			authorization,
-			cacheHit);
+			disposition);
 	}
 
 	/// <summary>
@@ -340,7 +340,7 @@ public sealed partial class FinalDispatchHandler(
 		RoutingDecision? routing,
 		object? validation,
 		object? authorization,
-		bool cacheHit,
+		MessageDisposition disposition,
 		bool lean)
 	{
 		if (lean)
@@ -351,7 +351,7 @@ public sealed partial class FinalDispatchHandler(
 				ThrowForAotWithoutRegisteredResultFactory(resultType);
 			}
 
-			return leanFactory(result, cacheHit);
+			return leanFactory(result, disposition);
 		}
 
 		var factory = ResultFactoryRegistry.GetFactory(resultType);
@@ -360,7 +360,7 @@ public sealed partial class FinalDispatchHandler(
 			ThrowForAotWithoutRegisteredResultFactory(resultType);
 		}
 
-		return factory(result, routing, validation, authorization as IAuthorizationResult, cacheHit);
+		return factory(result, routing, validation, authorization as IAuthorizationResult, disposition);
 	}
 
 	/// <summary>
@@ -403,6 +403,10 @@ public sealed partial class FinalDispatchHandler(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool HasContextResult(IMessageContext context) => TryGetContextResult(context) is not null;
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static MessageDisposition ToDisposition(bool cacheHit) =>
+		cacheHit ? MessageDisposition.ServedFromCache : MessageDisposition.Handled;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool IsCacheHit(IMessageContext context)
@@ -1394,12 +1398,12 @@ public sealed partial class FinalDispatchHandler(
 
 		/// <summary>
 		/// Factory delegate signature using object? to avoid interface type argument issues.
-		/// Parameters: result, routing, validation, authorization, cacheHit
+		/// Parameters: result, routing, validation, authorization, disposition
 		/// </summary>
 		internal delegate IMessageResult SuccessFactory(object? result, object? routing, object? validation, object? authorization,
-			bool cacheHit);
+			MessageDisposition disposition);
 
-		internal delegate IMessageResult LeanSuccessFactory(object? result, bool cacheHit);
+		internal delegate IMessageResult LeanSuccessFactory(object? result, MessageDisposition disposition);
 
 		/// <summary>
 		/// Gets a value indicating whether the cache has been frozen.
@@ -1513,7 +1517,7 @@ public sealed partial class FinalDispatchHandler(
 				var routingParam = Expression.Parameter(typeof(object), "routing");
 				var validationParam = Expression.Parameter(typeof(object), "validation");
 				var authorizationParam = Expression.Parameter(typeof(object), "authorization");
-				var cacheHitParam = Expression.Parameter(typeof(bool), "cacheHit");
+				var dispositionParam = Expression.Parameter(typeof(MessageDisposition), "disposition");
 
 				var call = Expression.Call(
 					typedMethod,
@@ -1521,7 +1525,7 @@ public sealed partial class FinalDispatchHandler(
 					Expression.Convert(routingParam, typeof(RoutingDecision)),
 					validationParam,
 					authorizationParam,
-					cacheHitParam);
+					dispositionParam);
 
 				var castResult = Expression.Convert(call, typeof(IMessageResult));
 				return Expression.Lambda<SuccessFactory>(
@@ -1530,7 +1534,7 @@ public sealed partial class FinalDispatchHandler(
 					routingParam,
 					validationParam,
 					authorizationParam,
-					cacheHitParam).Compile();
+					dispositionParam).Compile();
 			}
 
 			if (GenericSuccessMethod1Param != null)
@@ -1540,7 +1544,7 @@ public sealed partial class FinalDispatchHandler(
 				var routingParam = Expression.Parameter(typeof(object), "routing");
 				var validationParam = Expression.Parameter(typeof(object), "validation");
 				var authorizationParam = Expression.Parameter(typeof(object), "authorization");
-				var cacheHitParam = Expression.Parameter(typeof(bool), "cacheHit");
+				var dispositionParam = Expression.Parameter(typeof(MessageDisposition), "disposition");
 
 				var call = Expression.Call(
 					typedMethod,
@@ -1553,7 +1557,7 @@ public sealed partial class FinalDispatchHandler(
 					routingParam,
 					validationParam,
 					authorizationParam,
-					cacheHitParam).Compile();
+					dispositionParam).Compile();
 			}
 
 			// Ultimate fallback - shouldn't happen
@@ -1579,17 +1583,17 @@ public sealed partial class FinalDispatchHandler(
 		private static LeanSuccessFactory CreateLeanFactory(Type resultType)
 		{
 			var simpleResultType = typeof(SimpleSuccessMessageResultOfT<>).MakeGenericType(resultType);
-			var ctor = simpleResultType.GetConstructor([resultType, typeof(bool)]);
+			var ctor = simpleResultType.GetConstructor([resultType, typeof(MessageDisposition)]);
 			if (ctor is null)
 			{
 				return (result, _) => MR.Success(result);
 			}
 
 			var resultParam = Expression.Parameter(typeof(object), "result");
-			var cacheHitParam = Expression.Parameter(typeof(bool), "cacheHit");
-			var newExpr = Expression.New(ctor, BuildResultValueExpression(resultParam), cacheHitParam);
+			var dispositionParam = Expression.Parameter(typeof(MessageDisposition), "disposition");
+			var newExpr = Expression.New(ctor, BuildResultValueExpression(resultParam), dispositionParam);
 			var castExpr = Expression.Convert(newExpr, typeof(IMessageResult));
-			return Expression.Lambda<LeanSuccessFactory>(castExpr, resultParam, cacheHitParam).Compile();
+			return Expression.Lambda<LeanSuccessFactory>(castExpr, resultParam, dispositionParam).Compile();
 
 			Expression BuildResultValueExpression(ParameterExpression resultParam)
 			{

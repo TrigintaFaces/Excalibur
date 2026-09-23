@@ -424,7 +424,7 @@ projects:
     classification: Sample
     in_solution: true
 
-  - path: samples/11-real-world/ProofOfLife/ProofOfLife.csproj
+  - path: samples/11-real-world/PublicApiTodo/PublicApiTodo.csproj
     classification: Sample
     in_solution: true
 
@@ -871,6 +871,12 @@ projects:
     tier: Extension
     framework_owner: Excalibur
 
+  - path: src/Excalibur/Excalibur.Compliance.Analyzers/Excalibur.Compliance.Analyzers.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
   - path: src/Excalibur/Excalibur.Compliance.Aws/Excalibur.Compliance.Aws.csproj
     classification: Shipping
     in_solution: true
@@ -950,6 +956,12 @@ projects:
     framework_owner: Excalibur
 
   - path: src/Excalibur/Excalibur.Data.ElasticSearch/Excalibur.Data.ElasticSearch.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.ElasticSearch.Azure/Excalibur.Data.ElasticSearch.Azure.csproj
     classification: Shipping
     in_solution: true
     tier: Extension
@@ -1807,6 +1819,12 @@ projects:
     framework_owner: Excalibur
 
   - path: tests/unit/Excalibur.Cdc.Tests/Excalibur.Cdc.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Compliance.Analyzers.Tests/Excalibur.Compliance.Analyzers.Tests.csproj
     classification: Test
     in_solution: true
     category: Unit

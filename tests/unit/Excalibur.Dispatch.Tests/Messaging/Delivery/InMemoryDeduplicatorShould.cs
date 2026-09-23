@@ -335,11 +335,12 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		var expiry = TimeSpan.FromHours(1);
 		await FillToCapacityAsync(dedup, BoundedCapacity, expiry).ConfigureAwait(false);
 
-		// Act -- the claim path denies (fails closed) at capacity rather than admitting an untracked claim.
-		var claimed = await dedup.TryClaimAsync("claim-overflow", expiry, CancellationToken.None).ConfigureAwait(false);
-
-		// Assert
-		claimed.ShouldBeNull();
+		// Act + Assert -- the claim path fails closed at capacity rather than admitting an untracked claim.
+		// It does so by THROWING, not by returning null: null is the contract's value for "already
+		// present", so returning it for a never-seen message told the inbox middleware to acknowledge it
+		// as a duplicate. The sibling paths on this type already threw here; the claim path did not.
+		_ = await Should.ThrowAsync<DeduplicationCapacityExceededException>(() =>
+			dedup.TryClaimAsync("claim-overflow", expiry, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]

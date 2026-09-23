@@ -49,14 +49,31 @@ services.AddTenantContext(o =>
 
 `AddTenantContext` registers:
 
-- [`ITenantContext`](#the-ambient-tenant-model) → `AmbientTenantContext` (singleton, read-only view over the
-  ambient tenant),
+- the ambient tenant mode, which resolves [`ITenantContext`](#the-ambient-tenant-model) to
+  `AmbientTenantContext` (singleton, read-only view over the ambient tenant),
 - a validated `TenantContextOptions` with its `IValidateOptions<TenantContextOptions>` and `ValidateOnStart()`.
 
-`ITenantContext` is registered with `Replace` semantics: the ambient context deliberately wins over the
-fail-closed single-tenant default registered on the core store path, regardless of composition order. To
-supply your own `ITenantContext`, register it **after** `AddTenantContext`. The `configure` callback is
-optional — call `services.AddTenantContext()` to register with defaults.
+The `configure` callback is optional — call `services.AddTenantContext()` to register with defaults.
+
+### Which tenant context you get
+
+Several packages can each supply a tenant context. `ITenantContext` resolves to the one with the highest
+precedence among those registered, and **the order of the registration calls does not matter**:
+
+| Registered | `ITenantContext` resolves to |
+|---|---|
+| nothing tenant-specific | the single-tenant default |
+| `AddTenantContext()` | the ambient tenant |
+| `AddHttpGrantAuthorization()` (from `Excalibur.A3.AspNetCore`), with or without `AddTenantContext()` | the request principal's tenant claim, **falling back to the ambient tenant** when there is no request or no claim |
+
+Because the HTTP context falls back to the ambient tenant, registering HTTP tenancy also serves background
+work that runs outside a request. Every tenant context is a singleton that reads the current tenant on each
+access, so a singleton service can depend on `ITenantContext`.
+
+To supply your own `ITenantContext`, register it with `AddSingleton<ITenantContext, …>()`, before or after
+these calls; it takes the place of every built-in context. A package that provides a new way of resolving the
+tenant contributes it with `AddTenantContextMode<TMode>()` rather than replacing `ITenantContext`. Two
+different modes with the same precedence are refused at startup, naming both.
 
 ### `TenantContextOptions`
 

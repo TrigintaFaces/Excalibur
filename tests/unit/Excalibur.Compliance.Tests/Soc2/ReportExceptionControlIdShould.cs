@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
 
@@ -143,8 +143,7 @@ public sealed class ReportExceptionControlIdShould
 		{
 			ControlId = id,
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 20,
+			EffectivenessScore = ControlEffectiveness.ViolationDetected,
 			ConfigurationIssues = [$"A violation was detected in {id}."],
 			ValidatedAt = DateTimeOffset.UnixEpoch
 		};
@@ -177,7 +176,7 @@ public sealed class ReportExceptionControlIdShould
 			GeneratedAt = DateTimeOffset.UnixEpoch,
 			PeriodStart = DateTimeOffset.UnixEpoch,
 			PeriodEnd = DateTimeOffset.UnixEpoch,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			System = new SystemDescription
 			{
 				Name = "System",

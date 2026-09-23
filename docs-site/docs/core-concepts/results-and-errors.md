@@ -42,7 +42,7 @@ return MessageResult.Success(
     routingDecision: null,
     validationResult: validationContext,
     authorizationResult: authResult,
-    cacheHit: false);
+    disposition: MessageDisposition.Handled);
 ```
 
 ### Creating Failed Results
@@ -99,8 +99,8 @@ public interface IMessageResult
     // Error message when failed
     string? ErrorMessage { get; }
 
-    // Whether result was served from cache
-    bool CacheHit { get; }
+    // How the result was produced: Handled, ServedFromCache, or SuppressedAsDuplicate
+    MessageDisposition Disposition { get; }
 
     // Validation context
     object? ValidationResult { get; }
@@ -142,10 +142,20 @@ if (result.Succeeded)
     // Handle success
 }
 
-// Check for cache hit
-if (result.CacheHit)
+// Check how the result was produced. `Succeeded` says whether the operation failed; it does not say
+// whether a handler ran. A cached result and a suppressed duplicate both succeed with no handler
+// invocation, so code that records a message as processed must read the disposition, not just success.
+switch (result.Disposition)
 {
-    _logger.LogDebug("Result served from cache");
+    case MessageDisposition.ServedFromCache:
+        _logger.LogDebug("Result served from cache");
+        break;
+    case MessageDisposition.SuppressedAsDuplicate:
+        _logger.LogDebug("Message already accepted for processing; no handler ran");
+        break;
+    case MessageDisposition.Handled:
+    default:
+        break;
 }
 
 // Access error information
@@ -465,7 +475,7 @@ All methods share a ProblemDetails-aware failure mapping:
 
 ### Complete Example: Minimal API Endpoints
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Hosting.AspNetCore;
 
 var app = builder.Build();
@@ -611,7 +621,7 @@ public interface IMessageProblemDetails
 
 ### Creating Problem Details
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;
 
 var problemDetails = new MessageProblemDetails
@@ -709,7 +719,7 @@ public async Task<Order> GetOrderAsync(Guid id, CancellationToken ct)
 {
     var order = await _repository.FindByIdAsync(id, ct);
     if (order is null)
-        throw new NotFoundException($"Order {id} not found"); // Don't do this
+        throw new ResourceNotFoundException($"Order {id} not found"); // Don't do this
 
     return order;
 }

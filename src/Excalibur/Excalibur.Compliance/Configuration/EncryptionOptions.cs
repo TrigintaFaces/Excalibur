@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
 
@@ -28,15 +28,6 @@ public sealed class EncryptionOptions
 	/// is not FIPS 140-2 compliant, unless overridden in the encryption context.
 	/// </remarks>
 	public bool RequireFipsCompliance { get; set; }
-
-	/// <summary>
-	/// Gets or sets the default tenant ID for multi-tenant scenarios.
-	/// </summary>
-	/// <remarks>
-	/// Used when <see cref="EncryptionContext.TenantId"/> is not specified.
-	/// Leave <c>null</c> for single-tenant applications.
-	/// </remarks>
-	public string? DefaultTenantId { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to include timing metadata in encrypted data.

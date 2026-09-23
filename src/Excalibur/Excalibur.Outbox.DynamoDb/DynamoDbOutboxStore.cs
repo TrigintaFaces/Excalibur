@@ -1,5 +1,5 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 using System.Net;
@@ -30,12 +30,6 @@ namespace Excalibur.Outbox.DynamoDb;
 	Justification = "Cloud outbox implementations inherently couple with many SDK and abstraction types.")]
 public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, ICloudNativeOutboxStoreClaim, IAsyncDisposable, ITenantPartitionedStore
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false
-	};
-
 	/// <summary>The maximum number of items DynamoDB allows in a single <c>TransactWriteItems</c> call.</summary>
 	private const int DynamoTransactItemLimit = 100;
 
@@ -828,7 +822,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IClou
 			subscription = new DynamoDbOutboxStreamsSubscription(
 				_client!,
 				_streamsClient!,
-				_options.TableName,
+				_options,
 				options ?? ChangeFeedOptions.Default,
 				_logger);
 
@@ -1104,9 +1098,12 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 		if (message.Headers != null)
 		{
-#pragma warning disable IL2026, IL3050
-			item["headers"] = new() { S = JsonSerializer.Serialize(message.Headers, JsonOptions) };
-#pragma warning restore IL2026, IL3050
+			item["headers"] = new()
+			{
+				S = JsonSerializer.Serialize(
+					message.Headers,
+					DynamoDbOutboxSerializerContext.Default.DictionaryStringString)
+			};
 		}
 
 		if (!string.IsNullOrEmpty(message.AggregateId))
@@ -1159,11 +1156,11 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IClou
 			MessageId = item[_options.SortKeyAttribute].S,
 			MessageType = item["messageType"].S,
 			Payload = Convert.FromBase64String(item["payload"].S),
-#pragma warning disable IL2026, IL3050
 			Headers = item.TryGetValue("headers", out var headers) && !string.IsNullOrEmpty(headers.S)
-				? JsonSerializer.Deserialize<Dictionary<string, string>>(headers.S, JsonOptions)
+				? JsonSerializer.Deserialize(
+					headers.S,
+					DynamoDbOutboxSerializerContext.Default.DictionaryStringString)
 				: null,
-#pragma warning restore IL2026, IL3050
 			AggregateId = item.TryGetValue("aggregateId", out var aggId) ? aggId.S : null,
 			AggregateType = item.TryGetValue("aggregateType", out var aggType) ? aggType.S : null,
 			CorrelationId = item.TryGetValue("correlationId", out var corrId) ? corrId.S : null,

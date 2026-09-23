@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.MongoDB.Diagnostics;
 using Excalibur.Dispatch.LeaderElection;
@@ -636,16 +636,16 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 
 		if (isLeader && !wasLeader)
 		{
-			BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+			BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 			var fencingToken = Interlocked.Read(ref _currentFencingToken);
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CandidateId, _resourceName, fencingToken == NoFencingToken ? null : fencingToken));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CandidateId, _resourceName, fencingToken == NoFencingToken ? null : fencingToken, timestamp: _timeProvider.GetUtcNow()));
 			LogBecameLeader(_resourceName, CandidateId);
 		}
 		else if (!isLeader && wasLeader)
 		{
 			_ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, leaderId, _resourceName));
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, leaderId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 			LogLostLeadership(_resourceName, CandidateId);
 		}
 	}
@@ -664,7 +664,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 			_currentLeaderId = leaderId;
 		}
 
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, leaderId, _resourceName));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, leaderId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 	}
 
 	private async Task EnsureTtlIndexAsync(CancellationToken cancellationToken)

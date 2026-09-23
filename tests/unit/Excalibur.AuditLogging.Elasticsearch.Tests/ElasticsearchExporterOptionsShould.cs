@@ -1,4 +1,5 @@
 using Excalibur.AuditLogging;
+using Excalibur.AuditLogging.Elasticsearch;
 
 namespace Excalibur.AuditLogging.Elasticsearch.Tests;
 
@@ -16,7 +17,7 @@ public sealed class ElasticsearchExporterOptionsShould
 
 		options.IndexPrefix.ShouldBe("dispatch-audit");
 		options.BulkBatchSize.ShouldBe(500);
-		options.RefreshPolicy.ShouldBe("false");
+		options.RefreshPolicy.ShouldBe(ElasticsearchAuditRefreshPolicy.None);
 		options.ApiKey.ShouldBeNull();
 		options.MaxRetryAttempts.ShouldBe(3);
 		options.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
@@ -31,7 +32,7 @@ public sealed class ElasticsearchExporterOptionsShould
 			ElasticsearchUrl = "https://es.local:9200",
 			IndexPrefix = "custom-audit",
 			BulkBatchSize = 100,
-			RefreshPolicy = "wait_for",
+			RefreshPolicy = ElasticsearchAuditRefreshPolicy.WaitFor,
 			ApiKey = "my-api-key",
 			MaxRetryAttempts = 5,
 			RetryBaseDelay = TimeSpan.FromSeconds(2),
@@ -41,7 +42,7 @@ public sealed class ElasticsearchExporterOptionsShould
 		options.ElasticsearchUrl.ShouldBe("https://es.local:9200");
 		options.IndexPrefix.ShouldBe("custom-audit");
 		options.BulkBatchSize.ShouldBe(100);
-		options.RefreshPolicy.ShouldBe("wait_for");
+		options.RefreshPolicy.ShouldBe(ElasticsearchAuditRefreshPolicy.WaitFor);
 		options.ApiKey.ShouldBe("my-api-key");
 	}
 }

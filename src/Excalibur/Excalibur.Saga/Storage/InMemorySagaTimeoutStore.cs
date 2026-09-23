@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -39,7 +39,12 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 	private readonly ITenantContext _tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 
 	private readonly ConcurrentDictionary<string, SagaTimeout> _timeouts = new();
-	private readonly Dictionary<string, DateTimeOffset> _claims = new(StringComparer.Ordinal);
+	// The claim records WHO holds it, not merely WHEN it was taken. A map to a bare timestamp can answer
+	// "is this lease stale" and cannot answer "is this caller still the owner", so retirement had no way to
+	// refuse a processor whose lease had already been taken over. The relational stores keep an owner
+	// column for exactly this; this store mirrored their tenant term faithfully and their claim term not at
+	// all, which made it the one implementation where the ownership arm could not be exercised.
+	private readonly Dictionary<string, (string Owner, DateTimeOffset ClaimedAt)> _claims = new(StringComparer.Ordinal);
 	private readonly Lock _dueLock = new();
 
 	/// <summary>
@@ -139,7 +144,7 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 	}
 
 	/// <inheritdoc />
-	public Task<IReadOnlyList<SagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
+	public Task<IReadOnlyList<ClaimedSagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
@@ -152,19 +157,27 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 		// claim map is updated before the lock is released.
 		lock (_dueLock)
 		{
-			var claimed = _timeouts.Values
+			var due = _timeouts.Values
 				.Where(t => t.DueAt <= asOf
-					&& (!_claims.TryGetValue(t.TimeoutId, out var claimedAt) || claimedAt + LeaseTimeout < asOf))
+					&& (!_claims.TryGetValue(t.TimeoutId, out var existing) || existing.ClaimedAt + LeaseTimeout < asOf))
 				.OrderBy(t => t.DueAt)
 				.Take(batchSize)
 				.ToList();
 
-			foreach (var timeout in claimed)
+			var claimed = new List<ClaimedSagaTimeout>(due.Count);
+			foreach (var timeout in due)
 			{
-				_claims[timeout.TimeoutId] = asOf;
+				// A token per CLAIM, not per store or per process. Re-claiming the same timeout after a
+				// lease expiry must produce a different token, because that difference is the only thing
+				// that lets retirement tell a stale holder from the live one. An identifier that were
+				// constant across claims would satisfy the ownership predicate for both and enforce
+				// nothing. This is an ownership identity and not a secret, so a GUID is the right tool.
+				var token = Guid.NewGuid().ToString("N");
+				_claims[timeout.TimeoutId] = (token, asOf);
+				claimed.Add(new ClaimedSagaTimeout(timeout, token));
 			}
 
-			return Task.FromResult<IReadOnlyList<SagaTimeout>>(claimed);
+			return Task.FromResult<IReadOnlyList<ClaimedSagaTimeout>>(claimed);
 		}
 	}
 
@@ -185,26 +198,42 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 	}
 
 	/// <inheritdoc />
-	public Task MarkDeliveredAsync(string timeoutId, CancellationToken cancellationToken)
+	public Task<SagaTimeoutRetirementOutcome> MarkDeliveredAsync(ClaimedSagaTimeout claim, CancellationToken cancellationToken)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(timeoutId);
+		ArgumentNullException.ThrowIfNull(claim);
+
+		var timeoutId = claim.Timeout.TimeoutId;
 
 		// Binds (TenantId, TimeoutId), matching the relational DELETE. The delivery service re-establishes the
 		// row's own tenant around the WHOLE of its delivery method precisely so this terminal mark matches -
 		// a mark that selects nothing leaves the row pending and it redelivers forever.
 		var partition = CurrentPartition();
 
-		// Mark delivered = remove from pending (idempotent)
+		// The ownership test and the removal happen inside ONE lock, which is this store's equivalent of the
+		// relational stores' single conditional DELETE. Reading the owner, releasing, and then removing would
+		// leave a window in which the lease is taken over between the two, and the stale holder's removal
+		// would still land.
 		lock (_dueLock)
 		{
-			if (_timeouts.TryGetValue(timeoutId, out var existing) && OwnedBy(existing, partition))
+			if (!_timeouts.TryGetValue(timeoutId, out var existing) || !OwnedBy(existing, partition))
 			{
-				_ = _timeouts.TryRemove(timeoutId, out _);
-				_ = _claims.Remove(timeoutId);
+				return Task.FromResult(SagaTimeoutRetirementOutcome.Superseded);
 			}
+
+			// The row is only this caller's to retire while the claim it presents is the CURRENT one. A
+			// processor that stalled past its lease finds its token replaced here and is refused, which is
+			// what stops it destroying the live claimant's retry.
+			if (!_claims.TryGetValue(timeoutId, out var held)
+				|| !string.Equals(held.Owner, claim.ClaimToken, StringComparison.Ordinal))
+			{
+				return Task.FromResult(SagaTimeoutRetirementOutcome.Superseded);
+			}
+
+			_ = _timeouts.TryRemove(timeoutId, out _);
+			_ = _claims.Remove(timeoutId);
 		}
 
-		return Task.CompletedTask;
+		return Task.FromResult(SagaTimeoutRetirementOutcome.Retired);
 	}
 
 	/// <summary>
@@ -241,6 +270,11 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 		lock (_dueLock)
 		{
 			_timeouts.Clear();
+
+			// The claims go with the timeouts. Clearing only the rows left this map populated, so a later
+			// timeout reusing a cleared identifier inherited the old claim and could not be retired by the
+			// processor that actually claimed it.
+			_claims.Clear();
 		}
 	}
 }

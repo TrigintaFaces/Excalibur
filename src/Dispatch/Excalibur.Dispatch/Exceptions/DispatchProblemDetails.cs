@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Text.Json.Serialization;
@@ -143,6 +143,32 @@ public sealed class DispatchProblemDetails
 	public Dictionary<string, object?>? Extensions { get; init; }
 
 	/// <summary>
+	/// Gets or sets the server-side diagnostic reason for a denial. This value is deliberately NOT serialized: it
+	/// exists so a caller of <see cref="ForUnauthorized" /> or <see cref="ForForbidden" /> can log the specific
+	/// reason alongside <see cref="CorrelationId" /> without disclosing it across the trust boundary.
+	/// </summary>
+	/// <value>
+	/// The server-side diagnostic reason for a denial, or <see langword="null" /> when none was supplied.
+	/// </value>
+	/// <remarks>
+	/// Authorization vocabulary — policy names, role names, permission identifiers and evaluation failure messages —
+	/// must never reach a 401 or 403 response body. A legitimate caller cannot act on such a name; only an attacker
+	/// enumerating endpoints benefits from it. ASP.NET Core's own 403 carries no reason for the same reason.
+	/// </remarks>
+	[JsonIgnore]
+	public string? DiagnosticReason { get; set; }
+
+	/// <summary>
+	/// The only detail a 401 response body ever carries. Constant by design: see <see cref="DiagnosticReason" />.
+	/// </summary>
+	internal const string UnauthorizedDetail = "Authentication is required to access this resource";
+
+	/// <summary>
+	/// The only detail a 403 response body ever carries. Constant by design: see <see cref="DiagnosticReason" />.
+	/// </summary>
+	internal const string ForbiddenDetail = "You do not have permission to access this resource";
+
+	/// <summary>
 	/// Creates a problem details instance from an exception.
 	/// </summary>
 	/// <param name="exception"> The exception to convert. </param>
@@ -231,7 +257,10 @@ public sealed class DispatchProblemDetails
 	/// <summary>
 	/// Creates an unauthorized problem details instance.
 	/// </summary>
-	/// <param name="reason"> The reason for the unauthorized access. </param>
+	/// <param name="reason">
+	/// The reason for the unauthorized access. Recorded on <see cref="DiagnosticReason" /> for server-side logging
+	/// ONLY — it is never serialized into the response body.
+	/// </param>
 	/// <returns> A problem details instance for unauthorized errors. </returns>
 	public static DispatchProblemDetails ForUnauthorized(string? reason = null) =>
 		new()
@@ -239,7 +268,8 @@ public sealed class DispatchProblemDetails
 			Type = ProblemDetailsTypes.Unauthorized,
 			Title = "Unauthorized",
 			Status = 401,
-			Detail = reason ?? "Authentication is required to access this resource",
+			Detail = UnauthorizedDetail,
+			DiagnosticReason = reason,
 			ErrorCode = ErrorCodes.SecurityAuthenticationFailed,
 			Category = nameof(ErrorCategory.Security),
 			Severity = nameof(ErrorSeverity.Warning),
@@ -250,7 +280,10 @@ public sealed class DispatchProblemDetails
 	/// <summary>
 	/// Creates a forbidden problem details instance.
 	/// </summary>
-	/// <param name="reason"> The reason for the forbidden access. </param>
+	/// <param name="reason">
+	/// The reason for the forbidden access. Recorded on <see cref="DiagnosticReason" /> for server-side logging
+	/// ONLY — it is never serialized into the response body.
+	/// </param>
 	/// <returns> A problem details instance for forbidden errors. </returns>
 	public static DispatchProblemDetails ForForbidden(string? reason = null) =>
 		new()
@@ -258,7 +291,8 @@ public sealed class DispatchProblemDetails
 			Type = ProblemDetailsTypes.Forbidden,
 			Title = "Forbidden",
 			Status = 403,
-			Detail = reason ?? "You do not have permission to access this resource",
+			Detail = ForbiddenDetail,
+			DiagnosticReason = reason,
 			ErrorCode = ErrorCodes.SecurityAuthorizationFailed,
 			Category = nameof(ErrorCategory.Security),
 			Severity = nameof(ErrorSeverity.Warning),

@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Middleware.Outbox;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Outbox;
 
@@ -409,6 +410,120 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
                 + $"chose. Actual message: {thrown.Message}");
     }
 
+    /// <summary>
+    ///     STARTUP-REFUSAL ARM. A host that deliberately calls <c>UseOutbox()</c> and registers no
+    ///     <see cref="IOutboxStore"/> must refuse to <em>start</em>, and the refusal must name both the
+    ///     registration the consumer is missing and the call that asked for staging.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This is the arm the published instruction needs. The pipeline documentation tells a consumer that
+    ///         <c>UseOutbox()</c> is how they seat outbox staging; that call registers no store, so without this
+    ///         refusal a consumer who follows the instruction exactly learns at their first handler write what
+    ///         they could have learned at deploy time.
+    ///     </para>
+    ///     <para>
+    ///         The refusal is exercised through a real <see cref="IHost"/> because a host is the only thing that
+    ///         runs it. <c>ValidateOnStart</c> is executed by the host's startup validator, so a container built
+    ///         with <c>BuildServiceProvider()</c> performs no validation and this arm would pass vacuously
+    ///         against one. A registered validator is not evidence that it refuses.
+    ///     </para>
+    ///     <para>
+    ///         The message is asserted, not merely the exception type, because a host start can fail for reasons
+    ///         that have nothing to do with the outbox and an arm that asserted only the type would pass on the
+    ///         wrong defect.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public async Task RefuseToStartNamingTheStoreWhenUseOutboxIsCalledWithNoStore()
+    {
+        using var host = BuildHost(static services => services.AddDispatch(static builder => builder.UseOutbox()));
+
+        var error = await Should
+            .ThrowAsync<Microsoft.Extensions.Options.OptionsValidationException>(() => host.StartAsync())
+            .ConfigureAwait(false);
+
+        // Asserted with Contains rather than Shouldly's ShouldContain for the same reason as the arm above: the
+        // string overload is ambiguous against the IEnumerable<char> one here.
+        error.Message
+            .Contains(nameof(IOutboxStore), StringComparison.Ordinal)
+            .ShouldBeTrue(
+                "the startup refusal must name the registration the consumer is missing. "
+                + $"Actual message: {error.Message}");
+
+        error.Message
+            .Contains("UseOutbox", StringComparison.Ordinal)
+            .ShouldBeTrue(
+                "the startup refusal must name the call that asked for staging, so the consumer can find the "
+                + $"cause in their own code rather than in ours. Actual message: {error.Message}");
+    }
+
+    /// <summary>
+    ///     LIVENESS PAIR for <see cref="RefuseToStartNamingTheStoreWhenUseOutboxIsCalledWithNoStore"/>: a host
+    ///     that calls <c>UseOutbox()</c> AND registers a store must start.
+    /// </summary>
+    /// <remarks>
+    ///     Without this arm a validator that failed unconditionally would satisfy the refusal arm completely
+    ///     while making the outbox unusable. The refusal arm asserts that the gate CAN fail; this one asserts it
+    ///     can also pass.
+    /// </remarks>
+    [Fact]
+    public async Task StartWhenUseOutboxIsAccompaniedByAStore()
+    {
+        using var host = BuildHost(static services =>
+        {
+            services.AddSingleton<IOutboxStore, ObservableOutboxStore>();
+            _ = services.AddDispatch(static builder => builder.UseOutbox());
+        });
+
+        await host.StartAsync().ConfigureAwait(false);
+        await host.StopAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     SCOPE ARM. A host that took the default pipeline WITHOUT calling <c>UseOutbox()</c> and registered no
+    ///     store must still start: it never asked for the outbox, so it has none, and staging stays inert.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This arm is what keeps the refusal honest. The wiring validator is registered by
+    ///         <c>UseOutbox()</c> alone precisely so that the two populations can be told apart, and the
+    ///         distinction is invisible to the other two arms: registering the validator unconditionally would
+    ///         leave both of them green while failing the start of every zero-configuration host that merely
+    ///         took the defaults.
+    ///     </para>
+    ///     <para>
+    ///         It is asserted through a host rather than a container for the same reason as the refusal arm --
+    ///         only a host runs startup validation, so only a host can observe that none fires here.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public async Task StartWhenTheDefaultPipelineSeatsStagingAndNoStoreIsRegistered()
+    {
+        using var host = BuildHost(static services =>
+        {
+            _ = services.AddDispatchPipeline();
+            _ = services.AddDefaultDispatchPipelines();
+            _ = services.AddDispatchHandlers();
+        });
+
+        await host.StartAsync().ConfigureAwait(false);
+        await host.StopAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Builds a real <see cref="IHost"/> so that <c>ValidateOnStart</c> registrations actually run. The
+    ///     startup-validation arms above cannot use <see cref="BuildProvider"/>: building a container performs
+    ///     no startup validation, so every one of them would pass without the gate existing at all.
+    /// </summary>
+    private static IHost BuildHost(Action<IServiceCollection> configureServices)
+        => new HostBuilder()
+            .ConfigureServices((_, services) =>
+            {
+                services.AddLogging(static b => b.SetMinimumLevel(LogLevel.Warning));
+                configureServices(services);
+            })
+            .Build();
 }
 
 #region Test messages / handlers / observable state (self-contained — no coupling to the S848 T1 harness)

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable IDE0007 // Use implicit type (var)
 #pragma warning disable IDE0270 // Null check can be simplified
@@ -230,10 +230,29 @@ public abstract class PersistenceProviderConformanceTestKit : ConformanceTestKit
 			return;
 		}
 
+		// ENTITLEMENT IS DECIDED HERE, NOT BY THE DERIVER. The cast above already answered the only
+		// question that legitimately excuses this arm: a provider that is not a SQL provider cannot be
+		// asked about SQL batch atomicity. Having passed it, this provider CAN be asked — so an absent
+		// probe is a deriver that did not supply one, and that is a FAILURE, not a pass.
+		//
+		// It used to return. The cost of that is measurable rather than theoretical: of the three SQL
+		// providers, the two that supplied a probe proved batch atomicity and the one that declined was
+		// the one whose ExecuteBatchAsync cannot roll back at all. Declining to prove a capability and
+		// lacking it are the same act seen from two sides, so a suite that reads the first as PASS is
+		// blindest exactly where it most needs to see. This kit SHIPS: a consumer derives it to certify
+		// their own provider, and green arms that executed nothing tell them they honour a guarantee
+		// nobody checked.
 		var probe = await CreateBatchAtomicityProbeAsync(sqlProvider).ConfigureAwait(false);
 		if (probe is null)
 		{
-			return;
+			throw new TestFixtureAssertionException(
+				$"{provider.GetType().Name} implements ISqlPersistenceProvider, so this arm applies to it, "
+				+ "but the suite supplied no batch-atomicity probe. Override CreateBatchAtomicityProbeAsync "
+				+ "to return requests whose first succeeds and whose second fails, plus an observation made "
+				+ "on a SEPARATE connection. This arm is the only thing that notices whether "
+				+ "ExecuteBatchAsync actually rolls back, so without a probe the guarantee has no enforcement "
+				+ "at all — and an arm that passes by not running is worse than an absent one, because it "
+				+ "reports coverage that does not exist.");
 		}
 
 		var threw = false;
@@ -423,10 +442,21 @@ public abstract class PersistenceProviderConformanceTestKit : ConformanceTestKit
 		}
 
 		// LIVENESS. A committed scope must leave the batch's effect behind.
+		//
+		// Same rule as the atomicity arm above: the two gates before this one have already established
+		// that the arm APPLIES — the provider is a SQL provider and it offers a transaction capability.
+		// An absent probe past that point is an omission, not an exemption, and reporting it as PASS is
+		// how a provider comes to be certified for enlistment nobody ever exercised.
 		var committed = await CreateScopedBatchProbeAsync(sqlProvider).ConfigureAwait(false);
 		if (committed is null)
 		{
-			return;
+			throw new TestFixtureAssertionException(
+				$"{provider.GetType().Name} implements ISqlPersistenceProvider and offers a transaction "
+				+ "capability, so this arm applies to it, but the suite supplied no scoped-batch probe. "
+				+ "Override CreateScopedBatchProbeAsync to return all-succeeding requests plus an "
+				+ "observation made on a SEPARATE connection. Without it, nothing checks that "
+				+ "ExecuteBatchInTransactionAsync enlists in the caller's scope rather than committing a "
+				+ "subset of the caller's unit of work.");
 		}
 
 		await using (var scope = transaction.CreateTransactionScope())
@@ -1191,6 +1221,141 @@ public abstract class PersistenceProviderConformanceTestKit : ConformanceTestKit
 				+ "declined capability return without asserting and report Passed having tested nothing, so "
 				+ "the declaration exists to make that loud. Unmet: "
 				+ string.Join(", ", unmet));
+		}
+	}
+
+
+	/// <summary>
+	/// The database family this suite's provider must report, or <see langword="null"/> to decline.
+	/// </summary>
+	/// <remarks>
+	/// Declining leaves <see cref="SqlProvider_ShouldReportItsDatabaseType"/> asserting only that the
+	/// value is present and stable. That is a real check and a weak one: it cannot tell a provider that
+	/// reports its OWN family from one reporting somebody else's. Declaring the value is what turns it
+	/// into a substitution check, so a suite that can name its family should.
+	/// </remarks>
+	protected virtual string? ExpectedDatabaseType => null;
+
+	/// <summary>
+	/// Verifies <see cref="ISqlPersistenceProvider.DatabaseType"/> is present, stable, and — where the
+	/// suite declares one — the family it claims.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This value is not decoration. Consumers branch on it to choose dialect-specific SQL, so a provider
+	/// that reports an empty string, or another engine's name, sends correctly-written code to the wrong
+	/// dialect. Nothing else in this kit reads it.
+	/// </para>
+	/// <para>
+	/// Stability is asserted separately because a computed value — read from an open connection, say —
+	/// would satisfy a single read and then change, and a consumer that cached the first answer would be
+	/// wrong from then on.
+	/// </para>
+	/// </remarks>
+	public virtual void SqlProvider_ShouldReportItsDatabaseType()
+	{
+		using var provider = CreateProvider();
+
+		// A plain cast, matching the batch arms: the SQL providers implement this directly, so no
+		// capability declaration stands between the suite and the arm to be forgotten.
+		if (provider is not ISqlPersistenceProvider sqlProvider)
+		{
+			return;
+		}
+
+		var reported = sqlProvider.DatabaseType;
+
+		if (string.IsNullOrWhiteSpace(reported))
+		{
+			throw new TestFixtureAssertionException(
+				"Expected DatabaseType to name the database family. Consumers branch on this value to "
+				+ "choose dialect-specific SQL, so an empty one silently sends correct code to the wrong "
+				+ "dialect.");
+		}
+
+		if (!string.Equals(reported, sqlProvider.DatabaseType, StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected DatabaseType to be stable, but two reads returned '{reported}' and "
+				+ $"'{sqlProvider.DatabaseType}'. A consumer that caches the first answer is wrong from "
+				+ "then on.");
+		}
+
+		if (ExpectedDatabaseType is not null
+			&& !string.Equals(reported, ExpectedDatabaseType, StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected DatabaseType '{ExpectedDatabaseType}', but the provider reported '{reported}'. "
+				+ "A provider reporting another engine's family is worse than one reporting none: it is "
+				+ "believed.");
+		}
+	}
+
+	/// <summary>
+	/// Supplies one request this provider must ACCEPT and one it must REJECT.
+	/// </summary>
+	/// <param name="provider">The provider under test.</param>
+	/// <returns>A probe, or <see langword="null"/> when this suite cannot express requests.</returns>
+	/// <remarks>
+	/// The requests are necessarily provider-specific SQL, so the kit cannot write them — the same reason
+	/// the batch probe is supplied rather than built here. Declining is correct for a suite whose provider
+	/// is not a SQL provider at all.
+	/// </remarks>
+	protected virtual Task<(IDataRequest<IDbConnection, object> Acceptable, IDataRequest<IDbConnection, object> Rejectable)?>
+		CreateValidateRequestProbeAsync(ISqlPersistenceProvider provider) =>
+		Task.FromResult<(IDataRequest<IDbConnection, object>, IDataRequest<IDbConnection, object>)?>(null);
+
+	/// <summary>
+	/// Verifies <see cref="ISqlPersistenceProvider.ValidateRequest{TResult}"/> discriminates, rather than
+	/// answering the same way to everything.
+	/// </summary>
+	/// <returns>A task that represents the asynchronous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// BOTH directions are asserted in one arm deliberately. A validator that returns <c>true</c> for
+	/// everything passes any acceptance-only check, and one that returns <c>false</c> for everything
+	/// passes any rejection-only check — and each is satisfied while validating nothing at all. The
+	/// property worth binding is that the two inputs get DIFFERENT answers.
+	/// </para>
+	/// <para>
+	/// This arm says nothing about a <see langword="null"/> request. The three shipped implementations
+	/// disagree there — one throws, two return false — and the interface does not state which is correct,
+	/// so binding either would make this kit enforce a decision nobody has taken. It is tracked separately
+	/// and an arm belongs here once it is ruled.
+	/// </para>
+	/// </remarks>
+	public virtual async Task SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne()
+	{
+		using var provider = CreateProvider();
+
+		if (provider is not ISqlPersistenceProvider sqlProvider)
+		{
+			return;
+		}
+
+		var probe = await CreateValidateRequestProbeAsync(sqlProvider).ConfigureAwait(false);
+
+		if (probe is null)
+		{
+			return;
+		}
+
+		var (acceptable, rejectable) = probe.Value;
+
+		if (!sqlProvider.ValidateRequest(acceptable))
+		{
+			throw new TestFixtureAssertionException(
+				"Expected ValidateRequest to ACCEPT a well-formed request for this provider, but it "
+				+ "returned false. A validator that rejects everything blocks every batch while reporting "
+				+ "a perfectly ordinary 'incompatible'.");
+		}
+
+		if (sqlProvider.ValidateRequest(rejectable))
+		{
+			throw new TestFixtureAssertionException(
+				"Expected ValidateRequest to REJECT a malformed request, but it returned true. A validator "
+				+ "that accepts everything is indistinguishable from no validator, and the call site "
+				+ "believes the request was checked.");
 		}
 	}
 

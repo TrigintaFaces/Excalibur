@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.A3.Authorization.Grants;
 
@@ -154,20 +156,14 @@ public record GrantScope(string TenantId, string GrantType, string Qualifier)
 	{
 		ArgumentNullException.ThrowIfNull(scope);
 
-		// RemoveEmptyEntries is deliberately absent: it SHIFTS the remaining segments left, so an empty
-		// tenant would silently promote the grant type into the tenant position and address a different
-		// grant. An empty segment must fail the length check, not be dropped.
-		var parts = scope.Split(':', 3);
+		// The format's owner splits and unescapes. Deferring to it is what keeps one key addressing one
+		// scope: a complete split rejects a surplus separator instead of collapsing it into the final
+		// term, so "t:A:a:b" is not a second spelling of the scope that "t:A:a%3Ab" already names. The
+		// owner states why the complete split is the sound one, and it is sound precisely because Escape
+		// guarantees no encoded segment can contain the separator.
+		var parts = SegmentedKey.Split(scope, 3);
 
-		if (parts.Length != 3)
-		{
-			throw new ArgumentException("The scope is invalid. The expected format is '[TenantId]:[GrantType]:[Qualifier]'");
-		}
-
-		return new GrantScope(
-			GrantKeyFormat.Unescape(parts[0]),
-			GrantKeyFormat.Unescape(parts[1]),
-			GrantKeyFormat.Unescape(parts[2]));
+		return new GrantScope(parts[0], parts[1], parts[2]);
 	}
 
 	/// <summary>
@@ -175,5 +171,5 @@ public record GrantScope(string TenantId, string GrantType, string Qualifier)
 	/// </summary>
 	/// <returns> A string representation of the scope. </returns>
 	public override string ToString() =>
-		$"{GrantKeyFormat.Escape(TenantId)}:{GrantKeyFormat.Escape(GrantType)}:{GrantKeyFormat.Escape(Qualifier)}";
+		SegmentedKey.Compose(TenantId, GrantType, Qualifier);
 }

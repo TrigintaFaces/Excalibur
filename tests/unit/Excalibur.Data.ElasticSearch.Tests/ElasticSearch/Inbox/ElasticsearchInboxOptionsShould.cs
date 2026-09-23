@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Inbox.ElasticSearch;
+using Excalibur.Data.ElasticSearch.Persistence;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Inbox;
 
@@ -14,7 +15,7 @@ public sealed class ElasticsearchInboxOptionsShould
 	{
 		var sut = new ElasticsearchInboxOptions();
 		sut.IndexName.ShouldBe("excalibur-inbox");
-		sut.RefreshPolicy.ShouldBe("wait_for");
+		sut.RefreshPolicy.ShouldBe(ElasticsearchRefreshPolicy.WaitFor);
 		sut.RetentionDays.ShouldBe(7);
 	}
 
@@ -24,12 +25,12 @@ public sealed class ElasticsearchInboxOptionsShould
 		var sut = new ElasticsearchInboxOptions
 		{
 			IndexName = "custom-inbox",
-			RefreshPolicy = "false",
+			RefreshPolicy = ElasticsearchRefreshPolicy.None,
 			RetentionDays = 30,
 		};
 
 		sut.IndexName.ShouldBe("custom-inbox");
-		sut.RefreshPolicy.ShouldBe("false");
+		sut.RefreshPolicy.ShouldBe(ElasticsearchRefreshPolicy.None);
 		sut.RetentionDays.ShouldBe(30);
 	}
 }

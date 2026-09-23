@@ -462,6 +462,7 @@ Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.GetAll() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry!>!
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.Register(System.Type! messageType, System.Type! handlerType, bool expectsResponse, System.Type? responseType = null) -> void
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.TryGetHandler(System.Type! messageType, out Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry! entry) -> bool
+Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.TryGetHandlers(System.Type! messageType, out System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry!>! entries) -> bool
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry.ExpectsResponse.get -> bool
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry.HandlerType.get -> System.Type!
@@ -1061,6 +1062,8 @@ Excalibur.Dispatch.Exceptions.DispatchProblemDetails.CorrelationId.get -> string
 Excalibur.Dispatch.Exceptions.DispatchProblemDetails.CorrelationId.set -> void
 Excalibur.Dispatch.Exceptions.DispatchProblemDetails.Detail.get -> string?
 Excalibur.Dispatch.Exceptions.DispatchProblemDetails.Detail.set -> void
+Excalibur.Dispatch.Exceptions.DispatchProblemDetails.DiagnosticReason.get -> string?
+Excalibur.Dispatch.Exceptions.DispatchProblemDetails.DiagnosticReason.set -> void
 Excalibur.Dispatch.Exceptions.DispatchProblemDetails.DispatchProblemDetails() -> void
 Excalibur.Dispatch.Exceptions.DispatchProblemDetails.ErrorCode.get -> string?
 Excalibur.Dispatch.Exceptions.DispatchProblemDetails.ErrorCode.set -> void
@@ -2058,6 +2061,15 @@ Excalibur.Dispatch.Middleware.Versioning.VersionCompatibilityStatus.Compatible =
 Excalibur.Dispatch.Middleware.Versioning.VersionCompatibilityStatus.Deprecated = 1 -> Excalibur.Dispatch.Middleware.Versioning.VersionCompatibilityStatus
 Excalibur.Dispatch.Middleware.Versioning.VersionCompatibilityStatus.Incompatible = 2 -> Excalibur.Dispatch.Middleware.Versioning.VersionCompatibilityStatus
 Excalibur.Dispatch.Middleware.Versioning.VersionCompatibilityStatus.Unknown = 3 -> Excalibur.Dispatch.Middleware.Versioning.VersionCompatibilityStatus
+Excalibur.Dispatch.Options.BaggagePropagationOptions
+Excalibur.Dispatch.Options.BaggagePropagationOptions.AllowedKeys.get -> System.Collections.Generic.ISet<string!>!
+Excalibur.Dispatch.Options.BaggagePropagationOptions.BaggagePropagationOptions() -> void
+Excalibur.Dispatch.Options.BaggagePropagationOptions.MaxEntries.get -> int
+Excalibur.Dispatch.Options.BaggagePropagationOptions.MaxEntries.set -> void
+Excalibur.Dispatch.Options.BaggagePropagationOptions.MaxTotalLength.get -> int
+Excalibur.Dispatch.Options.BaggagePropagationOptions.MaxTotalLength.set -> void
+Excalibur.Dispatch.Options.BaggagePropagationOptions.MaxValueLength.get -> int
+Excalibur.Dispatch.Options.BaggagePropagationOptions.MaxValueLength.set -> void
 Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions
 Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions.AggressiveSpinning.get -> bool
 Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions.AggressiveSpinning.set -> void
@@ -2726,14 +2738,6 @@ Excalibur.Dispatch.Options.Middleware.VersionCheckHeaders.SchemaIdHeaderName.set
 Excalibur.Dispatch.Options.Middleware.VersionCheckHeaders.VersionCheckHeaders() -> void
 Excalibur.Dispatch.Options.Middleware.VersionCheckHeaders.VersionHeaderName.get -> string?
 Excalibur.Dispatch.Options.Middleware.VersionCheckHeaders.VersionHeaderName.set -> void
-Excalibur.Dispatch.Options.Performance.MicroBatchOptions
-Excalibur.Dispatch.Options.Performance.MicroBatchOptions.ChannelCapacity.get -> int
-Excalibur.Dispatch.Options.Performance.MicroBatchOptions.ChannelCapacity.set -> void
-Excalibur.Dispatch.Options.Performance.MicroBatchOptions.MaxBatchDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Options.Performance.MicroBatchOptions.MaxBatchDelay.set -> void
-Excalibur.Dispatch.Options.Performance.MicroBatchOptions.MaxBatchSize.get -> int
-Excalibur.Dispatch.Options.Performance.MicroBatchOptions.MaxBatchSize.set -> void
-Excalibur.Dispatch.Options.Performance.MicroBatchOptions.MicroBatchOptions() -> void
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.BreakDuration.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.BreakDuration.set -> void
@@ -2879,6 +2883,13 @@ Excalibur.Dispatch.Options.Serialization.DispatchJsonSerializerOptions
 Excalibur.Dispatch.Options.Serialization.MessageSerializerOptions
 Excalibur.Dispatch.Options.Serialization.MessageSerializerOptions.MessageSerializerOptions() -> void
 Excalibur.Dispatch.Options.Serialization.MessageSerializerOptions.SerializerMap.get -> System.Collections.Generic.Dictionary<int, System.Type!>!
+Excalibur.Dispatch.Options.Threading.BackgroundExecutionExceptionBehavior
+Excalibur.Dispatch.Options.Threading.BackgroundExecutionExceptionBehavior.LogOnly = 0 -> Excalibur.Dispatch.Options.Threading.BackgroundExecutionExceptionBehavior
+Excalibur.Dispatch.Options.Threading.BackgroundExecutionExceptionBehavior.StopHost = 1 -> Excalibur.Dispatch.Options.Threading.BackgroundExecutionExceptionBehavior
+Excalibur.Dispatch.Options.Threading.BackgroundExecutionOptions
+Excalibur.Dispatch.Options.Threading.BackgroundExecutionOptions.BackgroundExecutionOptions() -> void
+Excalibur.Dispatch.Options.Threading.BackgroundExecutionOptions.ExceptionBehavior.get -> Excalibur.Dispatch.Options.Threading.BackgroundExecutionExceptionBehavior
+Excalibur.Dispatch.Options.Threading.BackgroundExecutionOptions.ExceptionBehavior.set -> void
 Excalibur.Dispatch.Options.Threading.ThreadingOptions
 Excalibur.Dispatch.Options.Threading.ThreadingOptions.DefaultMaxDegreeOfParallelism.get -> int
 Excalibur.Dispatch.Options.Threading.ThreadingOptions.DefaultMaxDegreeOfParallelism.set -> void
@@ -3502,13 +3513,12 @@ Excalibur.Dispatch.Serialization.SystemTextJsonSerializer.SystemTextJsonSerializ
 Excalibur.Dispatch.Serialization.SystemTextJsonSerializer.Version.get -> string!
 Excalibur.Dispatch.TenantContextHolder
 Excalibur.Dispatch.Threading.BackgroundExecutionMiddleware
-Excalibur.Dispatch.Threading.BackgroundExecutionMiddleware.BackgroundExecutionMiddleware(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Threading.BackgroundExecutionMiddleware!>! logger) -> void
+Excalibur.Dispatch.Threading.BackgroundExecutionMiddleware.BackgroundExecutionMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Threading.BackgroundExecutionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Threading.BackgroundExecutionMiddleware!>! logger, Microsoft.Extensions.Hosting.IHostApplicationLifetime? hostApplicationLifetime = null) -> void
 Excalibur.Dispatch.Threading.BackgroundExecutionMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Dispatch.Threading.BackgroundExecutionMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Dispatch.Threading.BackgroundExecutionPipelineExtensions
 Excalibur.Dispatch.Threading.BackgroundTaskRunner
 Excalibur.Dispatch.Threading.IExecuteInBackground
-Excalibur.Dispatch.Threading.IExecuteInBackground.PropagateExceptions.get -> bool
 Excalibur.Dispatch.Threading.IKeyedLock
 Excalibur.Dispatch.Threading.IKeyedLock.AcquireAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.IDisposable!>!
 Excalibur.Dispatch.Threading.KeyedLock
@@ -4424,6 +4434,7 @@ static Excalibur.Dispatch.Serialization.SerializationDispatchBuilderExtensions.A
 static Excalibur.Dispatch.Serialization.SerializationDispatchBuilderExtensions.AddDispatchSerializer<TSerializer>(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, int version) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Serialization.SerializerPipeExtensions.DeserializeAsync<T>(this Excalibur.Dispatch.Serialization.ISerializer! serializer, System.IO.Pipelines.PipeReader! pipeReader, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<T>
 static Excalibur.Dispatch.Serialization.SerializerPipeExtensions.SerializeAsync<T>(this Excalibur.Dispatch.Serialization.ISerializer! serializer, System.IO.Pipelines.PipeWriter! pipeWriter, T value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+static Excalibur.Dispatch.TenantContextHolder.AmbientContext.get -> Excalibur.Dispatch.ITenantContext!
 static Excalibur.Dispatch.TenantContextHolder.BeginScope(string? tenantId) -> System.IDisposable!
 static Excalibur.Dispatch.TenantContextHolder.Current.get -> string?
 static Excalibur.Dispatch.Threading.BackgroundExecutionPipelineExtensions.UseBackgroundExecution(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!

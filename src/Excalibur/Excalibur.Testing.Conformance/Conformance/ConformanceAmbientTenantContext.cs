@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -18,8 +18,9 @@ namespace Excalibur.Testing.Conformance;
 /// addresses the same partition and the isolation arms pass without exercising isolation.
 /// </para>
 /// <para>
-/// It is shipped because it is a consumer obligation, not an implementation detail. The framework's
-/// equivalent is internal, and every suite that needed one has so far hand-written its own copy.
+/// This delegates to <see cref="TenantContextHolder.AmbientContext"/>, which states the same reading
+/// rule for every caller. It remains here because a kit deriver names a type, not a property, and
+/// because the obligation it carries is a conformance obligation.
 /// </para>
 /// </remarks>
 public sealed class ConformanceAmbientTenantContext : ITenantContext
@@ -32,8 +33,8 @@ public sealed class ConformanceAmbientTenantContext : ITenantContext
 	/// which a store configured to require a tenant refuses outright. Every non-tenant arm in a kit runs
 	/// outside a scope, so a null here fails the whole suite rather than the tenancy arms.
 	/// </remarks>
-	public string? TenantId => TenantContextHolder.Current ?? TenantScope.UntenantedSentinel;
+	public string? TenantId => TenantContextHolder.AmbientContext.TenantId;
 
 	/// <inheritdoc />
-	public bool HasTenant => !string.IsNullOrEmpty(TenantId);
+	public bool HasTenant => TenantContextHolder.AmbientContext.HasTenant;
 }

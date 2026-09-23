@@ -62,7 +62,7 @@
       "samples\\09-advanced\\cdc\\CdcJobQuartz\\CdcJobQuartz.csproj",
       "samples\\11-real-world\\ECommerceSample\\ECommerceSample.csproj",
       "samples\\11-real-world\\OrderProcessing\\OrderProcessing.csproj",
-      "samples\\11-real-world\\ProofOfLife\\ProofOfLife.csproj",
+      "samples\\11-real-world\\PublicApiTodo\\PublicApiTodo.csproj",
       "samples\\10-aot\\Excalibur.Dispatch.Aot.Sample\\Excalibur.Dispatch.Aot.Sample.csproj",
       "samples\\11-real-world\\HealthcareApi\\HealthcareApi.csproj",
       "samples\\09-advanced\\querying\\ElasticSearch-GettingStarted\\ElasticSearch-GettingStarted.csproj",

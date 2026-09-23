@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// Licensed under the Excalibur License 1.0 - see LICENSE files for details.
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -32,7 +32,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	[Fact]
@@ -43,7 +43,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		result.ReturnValue.ShouldBe(42);
 	}
 
@@ -55,11 +55,11 @@ public sealed class MessageResultFactoryExtendedShould
 		var authResult = new object();
 
 		// Act
-		var result = MessageResult.Success(null, validationResult, authResult, cacheHit: true);
+		var result = MessageResult.Success(null, validationResult, authResult, disposition: MessageDisposition.ServedFromCache);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		result.ValidationResult.ShouldBe(validationResult);
 		result.AuthorizationResult.ShouldBe(authResult);
 	}
@@ -83,12 +83,12 @@ public sealed class MessageResultFactoryExtendedShould
 			value: 42,
 			validationResult: "valid",
 			authorizationResult: "authorized",
-			cacheHit: true);
+			disposition: MessageDisposition.ServedFromCache);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
 		result.ReturnValue.ShouldBe(42);
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		result.ValidationResult.ShouldBe("valid");
 		result.AuthorizationResult.ShouldBe("authorized");
 	}

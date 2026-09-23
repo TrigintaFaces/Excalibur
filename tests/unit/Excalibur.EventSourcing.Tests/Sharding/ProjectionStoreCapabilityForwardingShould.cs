@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
@@ -214,7 +214,7 @@ public sealed class ProjectionStoreCapabilityForwardingShould
 		_ = A.CallTo(() => registry.FindDecryptionProvider(A<EncryptedData>._)).Returns(provider);
 
 		return new EncryptingProjectionStoreDecorator<TestProjection>(
-			inner, registry, Options.Create(new EncryptionOptions { Mode = EncryptionMode.EncryptAndDecrypt }));
+			inner, registry, Options.Create(new EncryptionOptions { Mode = EncryptionMode.EncryptAndDecrypt }), global::Excalibur.Dispatch.UntenantedContext.Instance);
 	}
 
 	/// <summary>A provider that round-trips the one plaintext these locks use.</summary>

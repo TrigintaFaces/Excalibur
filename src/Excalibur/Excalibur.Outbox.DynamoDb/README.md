@@ -112,6 +112,7 @@ public class OutboxProcessor
 {
     private readonly IMessageBroker _messageBroker;
     private readonly ICloudNativeOutboxStore _outbox;
+    private readonly DynamoDbOutboxOptions _options; // IOptions<DynamoDbOutboxOptions>.Value
 
     public async Task ProcessStreamRecordsAsync(
         DynamoDBEvent dynamoEvent,
@@ -129,8 +130,9 @@ public class OutboxProcessor
                 && isPublished.BOOL)
                 continue;
 
-            var messageId = newImage["sk"].S;
-            var partitionKey = newImage["pk"].S;
+            // Read the key attributes by their CONFIGURED names, exactly as the store writes them.
+            var messageId = newImage[_options.SortKeyAttribute].S;
+            var partitionKey = newImage[_options.PartitionKeyAttribute].S;
             var payload = Convert.FromBase64String(newImage["payload"].S);
 
             // Publish to message broker
@@ -148,7 +150,9 @@ public class OutboxProcessor
 
 ## Table Schema
 
-The outbox uses the following DynamoDB table schema:
+The outbox uses the following DynamoDB table schema. The key and TTL attribute names shown are the
+defaults; `PartitionKeyAttribute`, `SortKeyAttribute` and `TtlAttribute` rename them, and every read,
+write and stream decode uses the configured names.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
@@ -176,7 +180,7 @@ The table is created with streams enabled:
 
 ### TTL Configuration
 
-- TTL is enabled on the `ttl` attribute
+- TTL is enabled on the attribute named by `TtlAttribute` (default `ttl`)
 - Only applied to published messages
 - Default retention: 7 days (604800 seconds)
 

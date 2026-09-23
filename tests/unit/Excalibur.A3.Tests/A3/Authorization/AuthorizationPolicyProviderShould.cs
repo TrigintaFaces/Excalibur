@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization;
@@ -46,7 +46,8 @@ public sealed class AuthorizationPolicyProviderShould : IDisposable
 			userGrants: null!,
 			currentUser: currentUser,
 			cache: A.Fake<IDistributedCache>(),
-			tenantContext: tenantId);
+			tenantContext: tenantId,
+			cacheOptions: Microsoft.Extensions.Options.Options.Create(new AuthorizationCacheOptions()));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(sut.GetPolicyAsync());
@@ -68,7 +69,8 @@ public sealed class AuthorizationPolicyProviderShould : IDisposable
 			userGrants: null!,
 			currentUser: currentUser,
 			cache: A.Fake<IDistributedCache>(),
-			tenantContext: tenantId);
+			tenantContext: tenantId,
+			cacheOptions: Microsoft.Extensions.Options.Options.Create(new AuthorizationCacheOptions()));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(sut.GetPolicyAsync());
@@ -90,7 +92,8 @@ public sealed class AuthorizationPolicyProviderShould : IDisposable
 			userGrants: null!,
 			currentUser: currentUser,
 			cache: A.Fake<IDistributedCache>(),
-			tenantContext: tenantId);
+			tenantContext: tenantId,
+			cacheOptions: Microsoft.Extensions.Options.Options.Create(new AuthorizationCacheOptions()));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(sut.GetPolicyAsync());
@@ -126,15 +129,16 @@ public sealed class AuthorizationPolicyProviderShould : IDisposable
 		A.CallTo(() => grantStore.GetService(typeof(IGrantQueryStore))).Returns(queryStore);
 
 		var activityGroupStore = A.Fake<IActivityGroupStore>();
-		A.CallTo(() => activityGroupStore.FindActivityGroupsAsync(A<CancellationToken>._))
-			.Returns(new Dictionary<string, object>());
+		A.CallTo(() => activityGroupStore.FindActivityGroupsAsync(A<string>._, A<CancellationToken>._))
+			.Returns(new Dictionary<string, IReadOnlyCollection<string>>());
 
 		var sut = new AuthorizationPolicyProvider(
 			activityGroups: new ActivityGroups(activityGroupStore),
 			userGrants: new UserGrants(grantStore),
 			currentUser: currentUser,
 			cache: cache,
-			tenantContext: tenantContext);
+			tenantContext: tenantContext,
+			cacheOptions: Microsoft.Extensions.Options.Options.Create(new AuthorizationCacheOptions()));
 
 		// Act -- two calls, as two requirements evaluated in one ASP.NET Core authorization check would.
 		var first = await sut.GetPolicyAsync();
@@ -142,7 +146,7 @@ public sealed class AuthorizationPolicyProviderShould : IDisposable
 
 		// Assert -- SAFETY: no second round-trip to either store.
 		A.CallTo(() => queryStore.FindUserGrantsAsync("user-1", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		A.CallTo(() => activityGroupStore.FindActivityGroupsAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => activityGroupStore.FindActivityGroupsAsync(A<string>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 
 		// LIVENESS -- the memoized result is still the SAME, correctly-built policy, not a stale/empty stand-in.
 		second.ShouldBeSameAs(first);

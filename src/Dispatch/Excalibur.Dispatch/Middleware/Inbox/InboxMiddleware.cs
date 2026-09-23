@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -84,7 +84,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	// handled message, so a caller that records completion on Succeeded alone marks a message complete
 	// that nothing processed. Cached because it is allocation-free per skip, as MessageResult.Success() is.
 	private static readonly IMessageResult DuplicateSuppressed =
-		new BasicMessageResult(succeeded: true) { Disposition = MessageDisposition.SuppressedAsDuplicate };
+		new BasicMessageResult(succeeded: true, disposition: MessageDisposition.SuppressedAsDuplicate);
 
 	// Per-layer claim-key namespace: the inbox at-most-once layer claims under "inbox:" so it cannot
 	// spuriously collide with the business-effect idempotency layer ("idem:") on the shared in-memory
@@ -454,6 +454,10 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		"Marked message {MessageId} as failed with error: {ErrorMessage}")]
 	private partial void LogMarkedMessageAsFailed(string messageId, string errorMessage);
 
+	[LoggerMessage(MiddlewareEventId.InboxMessageProcessed + 38, LogLevel.Warning,
+		"Inbox entry {MessageId} could not be marked failed: the store reported {Outcome}. The failure \"{ErrorMessage}\" was NOT recorded against the entry -- it is either already finalized by another worker or absent from the caller's tenant scope.")]
+	private partial void LogMarkFailedNotApplied(string messageId, string outcome, string errorMessage);
+
 	[LoggerMessage(MiddlewareEventId.InboxMessageProcessed + 24, LogLevel.Error,
 		"Marked message {MessageId} as failed due to exception")]
 	private partial void LogMarkedMessageAsFailedDueToException(string messageId, Exception ex);
@@ -774,16 +778,36 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			{
 				// Mark as failed with error details
 				var errorMessage = result.ErrorMessage ?? "Message processing failed";
-				await _inboxStore!.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken).ConfigureAwait(false);
-				LogMarkedMessageAsFailed(messageId, errorMessage);
+				var failedOutcome = await _inboxStore!.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken)
+					.ConfigureAwait(false);
+
+				// Tested BY NAME rather than by excluding the refusals: a member added to the outcome later
+				// would otherwise start life reading as a success here, which is how this check fails open.
+				if (failedOutcome == InboxMarkFailedOutcome.Applied)
+				{
+					LogMarkedMessageAsFailed(messageId, errorMessage);
+				}
+				else
+				{
+					LogMarkFailedNotApplied(messageId, failedOutcome.ToString(), errorMessage);
+				}
 			}
 
 			return result;
 		}
 		catch (Exception ex)
 		{
-			// Mark as failed on exception
-			await _inboxStore!.MarkFailedAsync(messageId, handlerType, ex.Message, cancellationToken).ConfigureAwait(false);
+			// Mark as failed on exception. The outcome is observed but never allowed to change the control
+			// flow: the handler's exception is what the caller must see, and swallowing it to report a
+			// store refusal would lose the original fault.
+			var faultOutcome = await _inboxStore!.MarkFailedAsync(messageId, handlerType, ex.Message, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (faultOutcome != InboxMarkFailedOutcome.Applied)
+			{
+				LogMarkFailedNotApplied(messageId, faultOutcome.ToString(), ex.Message);
+			}
+
 			LogMarkedMessageAsFailedDueToException(messageId, ex);
 			throw;
 		}

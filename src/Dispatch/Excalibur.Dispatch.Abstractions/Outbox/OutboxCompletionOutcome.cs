@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch;
 
@@ -107,4 +107,43 @@ public enum OutboxCompletionOutcome
 	/// tenure keep writing.
 	/// </remarks>
 	FenceRefused = 4,
+
+	/// <summary>
+	/// The row is present and already TERMINAL — delivered or dead-lettered — so the transition the caller
+	/// asked for was refused because the decision it would reverse has already been taken and recorded.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This member exists because without it every store had to answer a common situation with a value
+	/// that was wrong in a different way.</b> A late completion arriving after a message has been delivered
+	/// or buried is ordinary, not exceptional, and none of the four values above described it.
+	/// <see cref="MessageNotFound"/> is a lie on a store whose terminal idiom KEEPS the row — the row is
+	/// right there — though it is honest-by-parity on one whose terminal idiom DELETES it, which is why
+	/// different stores reasonably reached different answers. <see cref="ClaimLost"/> says someone else owns
+	/// the message, which is not what happened: nobody owns a terminal message.
+	/// </para>
+	/// <para>
+	/// <b><see cref="Applied"/> is the dangerous answer, and it is the one a caller reaches for when the
+	/// end state looks close enough.</b> On the dead-letter path the drain writes the external dead-letter
+	/// entry BEFORE this mark and withdraws it on any outcome other than <see cref="Applied"/>. Answering
+	/// <see cref="Applied"/> for a message that was SENT therefore leaves that message simultaneously
+	/// delivered and sitting unreplayed in the dead-letter queue, where an operator draining the queue
+	/// re-executes work that already succeeded. The distinction this member draws is exactly the one that
+	/// prevents that.
+	/// </para>
+	/// <para>
+	/// <b>Adding it is safe for every existing caller BY CONSTRUCTION</b>, and that is a property of the
+	/// contract rather than luck: callers are required to test for <see cref="Applied"/> BY NAME, so any
+	/// value they do not recognise — including this one — already means the write did not apply. A caller
+	/// that decided success by excluding the known refusals would have treated every future member as a
+	/// success, which is the way this contract fails open and the reason that rule exists.
+	/// </para>
+	/// <para>
+	/// <b>A store that genuinely cannot distinguish this case must not guess.</b> Where the terminal idiom
+	/// removes the row, the row really is absent and <see cref="MessageNotFound"/> is the accurate answer;
+	/// reporting this value from a statement that never observed a terminal row would be describing a
+	/// decision the store did not make.
+	/// </para>
+	/// </remarks>
+	AlreadyTerminal = 5,
 }

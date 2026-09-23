@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.MultiTenancy.Tests;
 
@@ -91,9 +91,9 @@ internal static class TestDoubles
         public ValueTask<InboxEntry?> GetEntryAsync(string messageId, string handlerType, CancellationToken cancellationToken) =>
             ValueTask.FromResult<InboxEntry?>(null);
 
-        public ValueTask MarkFailedAsync(
+        public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
             string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken) =>
-            ValueTask.CompletedTask;
+            ValueTask.FromResult(InboxMarkFailedOutcome.Applied);
     }
 
     /// <summary>A minimal projection store that ignores the ambient tenant — used as a registerable inner store.</summary>

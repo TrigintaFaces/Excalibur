@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -29,6 +29,7 @@ public sealed class EncryptionDecryptionServiceShould
 		_sut = new EncryptionDecryptionService(
 			_registry,
 			_options,
+			global::Excalibur.Dispatch.UntenantedContext.Instance,
 			NullLogger<EncryptionDecryptionService>.Instance);
 	}
 
@@ -40,6 +41,7 @@ public sealed class EncryptionDecryptionServiceShould
 		_ = Should.Throw<ArgumentNullException>(() => new EncryptionDecryptionService(
 			null!,
 			_options,
+			global::Excalibur.Dispatch.UntenantedContext.Instance,
 			NullLogger<EncryptionDecryptionService>.Instance));
 	}
 
@@ -49,6 +51,7 @@ public sealed class EncryptionDecryptionServiceShould
 		_ = Should.Throw<ArgumentNullException>(() => new EncryptionDecryptionService(
 			_registry,
 			null!,
+			global::Excalibur.Dispatch.UntenantedContext.Instance,
 			NullLogger<EncryptionDecryptionService>.Instance));
 	}
 
@@ -58,6 +61,7 @@ public sealed class EncryptionDecryptionServiceShould
 		_ = Should.Throw<ArgumentNullException>(() => new EncryptionDecryptionService(
 			_registry,
 			_options,
+			global::Excalibur.Dispatch.UntenantedContext.Instance,
 			null!));
 	}
 
@@ -103,7 +107,7 @@ public sealed class EncryptionDecryptionServiceShould
 		// Arrange
 		var disabledOptions = Microsoft.Extensions.Options.Options.Create(new ComplianceEncryptionOptions { Mode = EncryptionMode.Disabled });
 		var sut = new EncryptionDecryptionService(
-			_registry, disabledOptions, NullLogger<EncryptionDecryptionService>.Instance);
+			_registry, disabledOptions, global::Excalibur.Dispatch.UntenantedContext.Instance, NullLogger<EncryptionDecryptionService>.Instance);
 
 		var entities = new[] { new TestEntity { Name = "test" } };
 		var source = ToAsyncEnumerable(entities);
@@ -150,7 +154,7 @@ public sealed class EncryptionDecryptionServiceShould
 		// Arrange
 		var disabledOptions = Microsoft.Extensions.Options.Options.Create(new ComplianceEncryptionOptions { Mode = EncryptionMode.Disabled });
 		var sut = new EncryptionDecryptionService(
-			_registry, disabledOptions, NullLogger<EncryptionDecryptionService>.Instance);
+			_registry, disabledOptions, global::Excalibur.Dispatch.UntenantedContext.Instance, NullLogger<EncryptionDecryptionService>.Instance);
 
 		var entity = new TestEntity { Name = "test-entity" };
 		var options = new DecryptionOptions();
@@ -242,7 +246,7 @@ public sealed class EncryptionDecryptionServiceShould
 		// Arrange
 		var disabledOptions = Microsoft.Extensions.Options.Options.Create(new ComplianceEncryptionOptions { Mode = EncryptionMode.Disabled });
 		var sut = new EncryptionDecryptionService(
-			_registry, disabledOptions, NullLogger<EncryptionDecryptionService>.Instance);
+			_registry, disabledOptions, global::Excalibur.Dispatch.UntenantedContext.Instance, NullLogger<EncryptionDecryptionService>.Instance);
 
 		var entities = new[] { new TestEntity { Name = "json-test" } };
 		var source = ToAsyncEnumerable(entities);
@@ -270,7 +274,7 @@ public sealed class EncryptionDecryptionServiceShould
 		// Arrange
 		var disabledOptions = Microsoft.Extensions.Options.Options.Create(new ComplianceEncryptionOptions { Mode = EncryptionMode.Disabled });
 		var sut = new EncryptionDecryptionService(
-			_registry, disabledOptions, NullLogger<EncryptionDecryptionService>.Instance);
+			_registry, disabledOptions, global::Excalibur.Dispatch.UntenantedContext.Instance, NullLogger<EncryptionDecryptionService>.Instance);
 
 		var entities = new[] { new TestEntity { Name = "csv-test" } };
 		var source = ToAsyncEnumerable(entities);
@@ -298,7 +302,7 @@ public sealed class EncryptionDecryptionServiceShould
 		// Arrange
 		var disabledOptions = Microsoft.Extensions.Options.Options.Create(new ComplianceEncryptionOptions { Mode = EncryptionMode.Disabled });
 		var sut = new EncryptionDecryptionService(
-			_registry, disabledOptions, NullLogger<EncryptionDecryptionService>.Instance);
+			_registry, disabledOptions, global::Excalibur.Dispatch.UntenantedContext.Instance, NullLogger<EncryptionDecryptionService>.Instance);
 
 		var entities = new[] { new TestEntity { Name = "plain-test" } };
 		var source = ToAsyncEnumerable(entities);

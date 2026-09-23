@@ -306,7 +306,7 @@ public sealed class Soc2ReportGeneratorShould
 		var report = await sut.GenerateTypeIReportAsync(
 			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
 
-		report.Opinion.ShouldBe(AuditorOpinion.Unqualified);
+		report.OverallLevel.ShouldBe(ComplianceLevel.FullyCompliant);
 	}
 
 	[Fact]
@@ -361,7 +361,7 @@ public sealed class Soc2ReportGeneratorShould
 
 		// And it must not move the percentage on evidence that does not exist. With nothing assessed
 		// the denominator is zero, so the level cannot be driven down by absent findings.
-		report.Opinion.ShouldNotBe(AuditorOpinion.Adverse);
+		report.OverallLevel.ShouldNotBe(ComplianceLevel.NonCompliant);
 	}
 
 	[Fact]
@@ -382,12 +382,13 @@ public sealed class Soc2ReportGeneratorShould
 		report.ControlSections.ShouldAllBe(s => s.Outcome != CriterionOutcome.NotAssessed);
 	}
 
-	private static ControlValidationResult CreatePassingResult(string controlId, int score = 95) =>
+	private static ControlValidationResult CreatePassingResult(
+		string controlId,
+		ControlEffectiveness score = ControlEffectiveness.Effective) =>
 		new()
 		{
 			ControlId = controlId,
 			IsConfigured = true,
-			IsEffective = true,
 			EffectivenessScore = score,
 			ValidatedAt = DateTimeOffset.UtcNow,
 			Evidence = [],

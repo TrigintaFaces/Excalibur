@@ -32,6 +32,7 @@ These stores do not create their own tables, so an upgrade that skips these step
 | SQL Server inbox | `NextAttemptAt DATETIMEOFFSET NULL` — see [retry backoff schedule](./patterns/inbox.md#retry-backoff-schedule) |
 | PostgreSQL outbox | `tenant_id` column; without it, staged messages fail with `column "tenant_id" does not exist` |
 | Leader-fenced outbox (SQL Server, PostgreSQL, Oracle) | a fence control table (`OutboxFence` / `outbox_fence`) holding one monotonic high-water mark per scope. **Single-instance outboxes need no fence table.** |
+| GDPR data inventory (SQL Server, PostgreSQL) | a nullable `StoreKind` column on the registrations table, added by the shipped `009_AddRegistrationStoreKind.sql` / `006_AddRegistrationStoreKind.sql`. **The column alone is not enough — you must also classify your existing registrations**, or erasure keeps reporting a non-`Completed` outcome. See [erasure registrations must declare a store kind](./migration/erasure-registration-store-kind.md) |
 
 ### Stored data changes
 
@@ -42,6 +43,58 @@ These stores do not create their own tables, so an upgrade that skips these step
 | Cosmos DB, DynamoDB, Firestore, MongoDB **saga stores** | The same change, on the same four providers, for saga documents. A saga document is keyed on the tenant composed with the saga identifier, because a saga identifier is a business correlation key that two tenants legitimately share — keyed on it alone they are one document, and the check that refuses a cross-tenant overwrite also refuses the second tenant a saga of its own. **Saga documents written by an earlier version are not addressable**, and these stores refuse the same way the event stores do: without the guard, a load reporting *no saga in flight* would make your coordinator start the saga again and **re-fire every compensating action and external call it had already performed**. **Drain in-flight sagas before upgrading, or re-key them** — see [the migration guide](./migration/nosql-tenant-key-rekey.md). The relational saga stores are unaffected; their tenant is already part of the primary key. |
 | MongoDB **outbox** | Every instant is now stored as a BSON date rather than the driver's default sub-document, because the claim query compares against the server's clock and that comparison is only expressible against a date. **Delivery is unaffected** — the store reads both shapes wherever it compares an instant, so a message staged by an earlier version is still claimed, scheduled and swept correctly. **One thing does not carry over: the TTL index does not expire messages your deployment had already marked sent.** MongoDB's expiry monitor acts only on a date and skips the older shape silently. The retention sweep does remove them, so a deployment that runs it is unaffected; one relying on the TTL index alone retains those messages indefinitely. **This is the one item on this page to do AFTER your rollout completes, not before** — while an older instance is still running it keeps writing the older shape. See [MongoDB outbox timestamps change shape](./migration/mongodb-outbox-instant-format.md) for the count query and the in-place rewrite. |
 | Cosmos DB, DynamoDB, Firestore, MongoDB authorization grants | Grants stored with no tenant were filed under a reserved literal that was part of the partition key or document id, so correcting one is a delete-and-reinsert rather than an update. **Rewrite or delete those grants before you upgrade** — see [Authorization grants require a tenant](./migration/authorization-tenant-required.md). Nothing fails at startup if you skip this; the affected grants simply read back carrying the literal `__null__` as their tenant on Cosmos DB, DynamoDB and Firestore, and a null tenant on MongoDB. Each provider stores grants in **two** containers — the guide names both. |
+| MongoDB **compliance store**, Elasticsearch / OpenSearch / MongoDB **materialized views** | These now compose their document key through the shared tenant-scoped composer rather than each formatting its own. The previous form carried a **length prefix** on each term (`{tenant.Length}:{tenant}:…`) that the composer does not emit, so **every document written by an earlier version is addressed by a different key — this is not limited to unusual identifiers.** **Re-key or re-create these documents before you upgrade.** Nothing fails at startup if you skip this, and nothing is reported at run time either: the affected documents are simply never matched by a read. For a materialized view that means a rebuild from its source. **For the compliance store it means an erasure request or consent record reads as though it was never made** — do that store first. |
+
+### The tenant context no longer depends on registration order
+
+A web host that called both `AddTenantContext()` and `AddHttpGrantAuthorization()` got whichever tenant context was registered **last**. In one of the two orders, the request principal's tenant claim was never read, and nothing reported it. `ITenantContext` now resolves to the highest-precedence context registered, in either order: the HTTP context when it is registered, which falls back to the ambient tenant outside a request. See [Which tenant context you get](./multi-tenancy.md#which-tenant-context-you-get).
+
+The HTTP tenant context is now a **singleton**, not scoped. It never held per-request state, and as a scoped service it made the container refuse any singleton that depended on `ITenantContext` under scope validation. **No action is needed.**
+
+### Activity-group grant sync is atomic, and four providers must say they accept the alternative
+
+Synchronizing activity-group grants from a remote authority is a **full refresh**, and it now replaces a
+set of grants in one step rather than deleting them and inserting the new ones. SQL Server, PostgreSQL and
+the in-memory store do that in one transaction. Cosmos DB, DynamoDB, Firestore and MongoDB cannot, so a
+host composed on one of those **fails at start-up** until it accepts the non-atomic sync explicitly:
+
+```csharp
+services.Configure<ActivityGroupSyncOptions>(o =>
+    o.GrantSyncAtomicity = GrantSyncAtomicity.BestEffort);
+```
+
+**This affects you only if you call the `IActivityGroupService` sync methods** — nothing in the framework
+calls them. The window `BestEffort` accepts is stated where the setting is documented: between the delete
+and the last insert a reader observes a partial set and is denied access the snapshot confers, and a sync
+that fails part-way leaves the set partial until the next one succeeds.
+
+The same change makes an **empty per-user payload revoke** that user's activity-group grants rather than
+being refused — an empty set for one user is a legitimate state, where an empty estate-wide payload is
+still refused because it would revoke everyone's at once. It also carries two provider fixes: every SQL
+Server grant operation failed with a syntax error because the table name was not delimited, and the
+PostgreSQL activity-group grant insert addressed a differently-cased table from the one the reads use.
+Both are fixed and neither needs action. See
+[Activity-group grant sync is atomic](./migration/activity-group-grant-sync-atomicity.md).
+
+### W3C baggage no longer flows into the message context unless you name the keys
+
+Previously **every** baggage entry on the ambient activity was copied into `MessageContext.Items` — no allowlist, no limit on how many entries or how large. The runtime parses an inbound `baggage` header into that activity without being asked, so on any publicly reachable endpoint those keys and values are chosen by whoever made the request. They then rode every message that request produced: onto the wire for remote transports, and into the logs, telemetry and stores of every service downstream.
+
+**The copy is now default-deny.** Nothing is propagated unless the application opts the key in:
+
+```csharp
+services.Configure<BaggagePropagationOptions>(o =>
+{
+    o.AllowedKeys.Add("tenant-hint");   // arrives as context.Items["baggage.tenant-hint"]
+    o.MaxEntries = 8;                   // caps apply after the allowlist
+    o.MaxValueLength = 256;             // an oversized value is dropped, never truncated
+    o.MaxTotalLength = 1024;
+});
+```
+
+**What to check before upgrading:** if any code reads `context.Items["baggage.…"]`, add that key to `AllowedKeys` or it will no longer be present. Nothing fails at startup — the item is simply absent, so a reader that tolerates a missing key will silently see one.
+
+The allowlist and the caps address different problems and neither covers the other. The allowlist keeps caller-supplied values out of trusted sinks; the caps bound how much a **permitted** key can amplify, since one cheap request otherwise rides every downstream message. A value that exceeds a cap is dropped rather than trimmed, because a trimmed value is read downstream as though it were complete.
 
 ### A handler that reads the message context must now say so
 
@@ -116,6 +169,8 @@ though nothing ever appends it. Give it a name, or mark it `abstract`, which is 
 | `IOutboxStoreAdmin.GetScheduledMessagesAsync` | `GetAllTenantsScheduledMessagesAsync` |
 | The long-parameter-list constructors on `EventSourcedRepository<TAggregate>` and `EventSourcedRepository<TAggregate, TKey>` — the ones taking `IOptions<UpcastingOptions>`, `IOptions<SnapshotUpgradingOptions>` and `OutboxStagingStrategy` as separate parameters | the constructor taking a single `IOptions<EventSourcedRepositoryOptions>`, which carries all three settings (`EnableAutoUpcast`, `EnableAutoSnapshotUpgrade` / `TargetSnapshotVersion`, `OutboxStagingStrategy`). **Only affects hand-construction** — the registration extensions already used the options constructor, so resolving `IEventSourcedRepository<...>` from dependency injection needs no change |
 | `IVersionedProjectionStore<T>` and `VersionedProjection<T>` | nothing — no projection store ever implemented the interface, so the documented `store is IVersionedProjectionStore<T>` test never matched and the two versioned methods were unreachable. **If you wrote that test, the branch never ran** — delete it, and check whether code behind it was silently skipped. Optimistic concurrency on a projection read path is not offered in its place: projections are engine-owned, and the engine is the sole writer during event processing. If you edit a projection outside event processing and need a concurrency check, keep a version field on the projection itself and write conditionally through your provider's own client |
+| `IDynamoDbRepositoryBaseQuery<TDocument>.ScanAsync` returning `IReadOnlyList<TDocument>` | the same method returning `CloudQueryResult<TDocument>` — `.Documents` holds the page, and `.ContinuationToken` is non-`null` when DynamoDB stopped before the end of the table. **A scan reads a bounded amount of the table, and the old return type had nowhere to say so**, so a caller processed whatever fell in the first response with no way to learn that more matched. To read everything, loop while the token is non-`null`, deserializing it into `ScanRequest.ExclusiveStartKey`; to keep the old single-page behaviour, use `.Documents` and ignore the token. The method still issues exactly one request — it reports the continuation rather than draining, because you supply the `ScanRequest` and therefore own `Limit` and `ExclusiveStartKey`. **If you discard the return value this still compiles**, so check every call site rather than trusting the build |
+| `CosmosDbCdcOptions.PartitionKeyValues` | filter in your handler on `CosmosDbDataChangeEvent.PartitionKey`, which carries the partition-key value of each change (set `PartitionKeyPath` to the path you partition by, and read `PartitionKeyKind` alongside it to tell a numeric key from a string one). There is no framework option in its place: the Cosmos change feed distributes work over **feed ranges** and offers no server-side filter by partition-key value, so any option here would read the whole feed and discard — the same work your handler does, while implying a throughput saving it could not deliver |
 
 **About those six renames.** Estate-wide operations here are reached by *name*, never by passing a wildcard tenant value — a name cannot be arrived at accidentally from a value that flowed in from somewhere else, and a wildcard can. These six did not follow that rule, so code holding one tenant's context could call them and reach every tenant with nothing at the call site to say so. **The scope did not change in this release; only the name did.** Renaming the call is the entire migration — no signature, argument, return type, or behaviour changed, and the compiler finds every site.
 
@@ -145,6 +200,7 @@ Each of these changes behaviour without changing an API, so a build that still c
 - **MessagePack deserializes untrusted input safely** — `MessagePackSecurity.UntrustedData` by default, and System.Text.Json enforces a bounded depth.
 - **The HashiCorp Vault credential store is no longer registered by default.** `AddSecureCredentialManagement` registers `EnvironmentVariableCredentialStore`, and wires Vault only when `Vault:Url` is configured. Cloud stores move to `AddDispatchSecurityAzure(...)` / `AddDispatchSecurityAws(...)`. **Use `https` for any non-loopback Vault URL** — a plaintext endpoint transmits your token in the clear.
 - **Serializers fail loud rather than returning null.** `DispatchJsonSerializer` throws `SerializationException` on an empty payload and on a `null` result for a non-nullable type; write-path failures are wrapped rather than escaping as raw provider exceptions. Claim-check payloads serialize with the framework camelCase policy by default — see [claim check](./patterns/claim-check.md#payload-serialization) and [MessagePack](./middleware/serialization-providers.md#messagepack).
+- **The claim-check serializer reports its own media type, not the base serializer's.** `ClaimCheckMessageSerializer.ContentType` returned whatever the base serializer reported — `application/json` in a default host — while every payload it writes is prefixed with a one-byte frame tag. Those bytes are not JSON: a JSON reader fails at byte zero. **This only matters if you registered this serializer for ASP.NET content negotiation**, where it labelled framed bytes as JSON on the way out and read ordinary JSON as an unrecognised frame on the way in. It now reports `application/vnd.excalibur.claimcheck`. The content type recorded in the claim-check store's own metadata is unchanged and still describes the stored payload, which is genuinely the base format — the frame tag is added only to the bytes handed to the transport. If you match on this value, update the comparison; nothing else about the framing changed.
 - **`AppendResult.FirstEventPosition` is `long?`** — `null` for stores with no global sequence, instead of an ambiguous sentinel.
 - **`DispatchAsync` propagates handler exceptions** instead of silently wrapping them in `MessageResult.Failed()`.
 - **The four self-hosted transports refuse a plaintext broker by default.** gRPC, IBM MQ, MQTT and Pulsar all address brokers that can be reached in the clear, and none of them previously let you say that was unacceptable. Each now carries `RequireTls`, on by default, and raises `TransportSecurityException` when the transport is resolved — while the host is starting, not on the first message. To keep an unencrypted connection, opt out on that transport: `GrpcTransportOptions.RequireTls`, `IbmMqOptions.RequireTls`, `MqttOptions.RequireTls`, or `pulsar.RequireTls(false)`. To satisfy it, use an `https` gRPC address, an IBM MQ `SslCipherSpec`, `MqttOptions.UseTls`, or a `pulsar+ssl://` service URL. See [MQTT](./transports/mqtt.md#transport-security), [IBM MQ](./transports/ibm-mq.md#transport-security) and [Pulsar](./transports/pulsar.md#transport-security).
@@ -170,6 +226,7 @@ Each of these changes behaviour without changing an API, so a build that still c
 - **The at-most-once guard is live.** The `Processing` status was previously set in memory only, so the concurrency guard and the stuck-processing timeout had no durable state to act on. It is now persisted before your handler runs.
 - **Retry honours exponential backoff** instead of a hardcoded five-minute window.
 - **Stores that cannot honour an atomic claim fail loud at startup** rather than silently degrading to check-then-act.
+- **The administrative mark-failed takes the tenant explicitly and reports what it did.** `IInboxStoreAdmin.MarkFailedAsync` previously resolved the tenant from ambient context and returned nothing, so an administrative write could address a partition the caller never named, and a refusal and a successful write were the same observation. It now takes a `KeyedTenantPartition` as its first argument and returns `InboxMarkFailedOutcome` — `Applied`, `EntryNotFound`, `AlreadyProcessed`, or `Unknown`. **Test for `Applied` by name** rather than excluding the refusals, or every member added later starts life as a success. The refusals are reported and never thrown: the call runs inside a drain's own failure handling, where an exception would abandon every entry the caller still holds.
 - **Elasticsearch cleanup respects the cutoff** — it previously deleted every inbox document regardless of age.
 - **The in-memory deduplicator fails closed at capacity.** See [idempotency under load](./patterns/idempotent-consumer.md#idempotency-under-load). At capacity a claim that cannot be tracked is denied and the operation throws `DeduplicationCapacityExceededException`, so the message is redelivered rather than admitted without deduplication. Capacity is `InMemoryDeduplicatorOptions.MaxEntries` (default 100,000; `0` = unbounded).
 
@@ -196,6 +253,15 @@ Each of these changes behaviour without changing an API, so a build that still c
 - **Single-active CDC with leadership fencing.** With an `ILeaderElection` provider registered, only the elected leader advances the change feed and every checkpoint write is guarded by a monotonic fencing token; a superseded instance is rejected with `CdcLeadershipSupersededException`. Without a provider, CDC runs single-instance exactly as before. See [change data capture](./patterns/cdc.md).
 - **The checkpoint never advances past an unprocessed change** — every provider routes its per-iteration decision through one shared guard.
 - **Fatal-error handling is uniform** across all six providers, and **idempotency filtering** is available in-memory or persisted — see [idempotency filtering](./patterns/cdc.md#idempotency-filtering) and [CDC troubleshooting](./operations/cdc-troubleshooting.md).
+- **SQL Server CDC silently dropped up to `QueueSize` captured changes on a second poll**, and the producer
+  could write the durable checkpoint on a zero-row fetch. A failed change also stopped barring its table as
+  soon as the next batch was dequeued, so a later change for that table could move the checkpoint past the
+  one that never succeeded.
+- **PostgreSQL CDC leaked a replication slot in silence** when disposed inside a `using` block, and now
+  refuses overlapping invocations. **DynamoDB** no longer skips a closed shard that has an ending sequence
+  number but unread records.
+- **An opt-in bound on consecutive transient failures** (`MaxConsecutiveTransientFailures`) stops a
+  streaming processor that is making no progress; exhaustion stops **without** writing a position.
 
 ### Caching
 
@@ -205,7 +271,7 @@ Each of these changes behaviour without changing an API, so a build that still c
 
 ### Resilience
 
-- **The transport circuit breaker registry is bounded at 1024 distinct circuits.** Past the cap, a new key shares one overflow circuit rather than allocating another, so a message-derived key cannot grow the registry without bound. Protection is preserved but coarser — one failing key can open the circuit for every other key in the overflow. If you set `CircuitBreakerOptions.CircuitKeySelector`, return a bounded set of keys: bucket by route family or tenant tier rather than returning a raw tenant id. See [Polly resilience](./operations/resilience-polly.md#transport-circuit-breaker-registry).
+- **The transport circuit breaker registry is bounded at 1024 distinct circuits.** Past the cap, the registry evicts the least recently used idle circuit to make room, so a message-derived key cannot grow the registry without bound. Every key keeps its own circuit, but if no circuit is idle an open one can be evicted and its key starts again with a fresh, closed circuit. If you set `CircuitBreakerOptions.CircuitKeySelector`, return a bounded set of keys: bucket by route family or tenant tier rather than returning a raw tenant id. See [Polly resilience](./operations/resilience-polly.md#transport-circuit-breaker-registry).
 - **A rate-limited Elasticsearch cluster is retried instead of failing on the first attempt.** A response the cluster returned unsuccessfully carrying 429, 502, 503 or 504 previously matched no retry rule, so it got no backoff at all — from the client whose job is resilience. It is now judged by the same status-code rule as a thrown transport failure reporting that status.
 - **A timed-out Elasticsearch operation reports the timeout as its direct `InnerException`.** It was previously wrapped twice, so `catch (ElasticsearchSearchException ex) when (ex.InnerException is TimeoutException)` could not distinguish a timeout from a query failure. That pattern works now.
 - **Retry jitter uses `Random.Shared`**, supplied by the backoff calculators rather than a separate source in the retry middleware. Backoff shape and range are unchanged.
@@ -321,6 +387,22 @@ Related correctness work: **persisted Cosmos documents are serializer-agnostic**
   This package provides the low-level sender and receiver only. Full dispatch-pipeline integration is **not** part of it. For pipeline-integrated messaging today use Kafka, RabbitMQ, Azure Service Bus, AWS SQS, or Google Pub/Sub.
   :::
 
+### Message loss closed in this pre-release
+
+- **Kafka: a routine rebalance committed past messages still in handlers, losing them.** A revoke now
+  commits the *tracked* position, and committing past unsettled work is structurally inexpressible rather
+  than merely avoided. A **poison record** — oversized or unconvertible — is dead-lettered or tombstoned
+  instead of stalling the partition indefinitely, and a commit failure is no longer reported as a handler
+  failure.
+- **A transport could report settlement success for a settlement the broker refused.** Confirmed on IBM MQ;
+  the settlement contract is now stated once and bound across transports. Both IBM MQ and gRPC also ignored
+  `requeue`, and gRPC sent an empty body under a correct type label.
+- **The outbox published every message twice, silently**, when a change-feed subscription and the claim
+  drain were both registered.
+- **MQTT sessions are durable**, and the Google Pub/Sub emulator endpoint is honoured on both paths rather
+  than one.
+
+- **A settlement that fails is no longer reported as success.** `ITransportReceiver.AcknowledgeAsync` and `RejectAsync` now document that returning normally means the broker accepted the settlement, and a new `TransportSettlementException` reports the cases where it did not. It carries `RedeliveryExpectation`, which is the part you act on — `Expected` means the broker still owns the message and the work may arrive again, so the handler must be idempotent. **IBM MQ is the implementation corrected in this release**: it caught the queue manager's error, logged it, and returned, so a caller was told a message was settled when it was not and the redelivery that followed looked like an unexplained duplicate. Catching the new type is optional — it derives from `InvalidOperationException`, which is what these methods already threw, so existing handlers keep working; catch it specifically to tell a settlement failure apart from an unrelated invalid operation in the same `try`.
 - **A payload-size guard covers every transport.** A configurable maximum inbound payload is enforced at the receive ingress of all six transports **before the body is deserialized** — an over-limit message is rejected at the boundary and never deserialized, so one oversized message cannot exhaust memory, poison-loop, or strand a batch. Each transport ships a bounded default; `MaxPayloadBytes = null` opts out. See the [payload size contract](./operations/runtime-contract.md#payload-size-contract).
 - **Two named registrations of one transport no longer overwrite each other's options.** Registering, say, two AWS SQS transports under different names wrote both configurations to the same unnamed options instance, so whichever registered last silently supplied the settings for both — different queues, regions, or KMS keys collapsed onto one. Each registration now writes a **named** options instance, and the per-name value is what that transport reads. See [transport names](./transports/multi-transport.md#transport-names) for what is per-name and what is still shared.
 - **Kafka decodes Confluent Schema Registry framing on consume** — the 5-byte header is stripped before the canonical deserializer sees the payload. Previously the framed bytes were passed downstream and failed to deserialize.
@@ -354,6 +436,18 @@ See [leader election](./leader-election/index.md#fencing-tokens).
 - **Security auditing is PII-safe by default**, data-subject identifiers are pseudonymized with a keyed HMAC requiring a secret pepper (validated at startup, fails closed), and telemetry fingerprints can be upgraded to keyed HMAC-SHA-256 with an optional pepper. Fingerprinting never throws on the telemetry path — see [PII-safe telemetry](./observability/pii-safe-telemetry.md#keyed-fingerprints-pepper).
 - **ASP.NET Core authorization faults return 500, not a leaky 403.** An exception during evaluation previously returned 403 carrying the raw exception message — masking a server error as a denial and leaking internal detail across the trust boundary. A genuine denial still returns 403.
 - **Master-key backup and recovery** contracts support export and reconstruction with Shamir threshold shares.
+- **A wildcard activity-group grant no longer authorizes you for every tenant's groups**, and activity-group
+  permissions are no longer silently denied on a cache hit. Group lookup keys, existence checks and their
+  cache key now carry the tenant, so one tenant's group name cannot resolve another tenant's activities.
+  Authorization cache entries also gain an absolute expiry bound, so a revoked grant cannot authorize
+  indefinitely. See [Before you upgrade](#before-you-upgrade) — the store contract changed with it.
+- **A crypto-shredded field is no longer handed back as plaintext.** A field written before shredding was
+  marked was returned unencrypted; our writes are now marked, and a corrupt envelope surfaces an error
+  rather than being returned as plaintext. A retried append no longer re-encrypts an already-encrypted
+  field, and multi-region key deletion destroys every region rather than only the active one.
+- **`Excalibur.Outbox.Marten` declares Marten 9.12.0, which carries a CVSS 9.1 SQL-injection advisory.**
+  Every published version of that package declares it. **Upgrade the Marten reference, or pin it
+  yourself**, if you use that outbox provider.
 
 ---
 

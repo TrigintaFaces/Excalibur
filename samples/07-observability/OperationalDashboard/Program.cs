@@ -59,7 +59,14 @@ builder.Services.AddDashboard(options =>
 	//   options.MutatingActionsPolicy = "DashboardAdmin";
 });
 
+// Unhandled exceptions become RFC 9457 Problem Details responses, with the status code taken from
+// the exception (404 for ResourceNotFoundException, 409 for ConcurrencyException). Details of a
+// 5xx response are hidden outside Development.
+builder.Services.AddGlobalExceptionHandler();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 // Map the complete dashboard (read API + opt-in mutating endpoints + embedded SPA)
 // under the configured route prefix. This is the one-call convenience most consumers use.
@@ -78,5 +85,11 @@ Console.WriteLine();
 Console.WriteLine("No storage provider is configured in this sample, so the dashboard");
 Console.WriteLine("renders with zero subsystems advertised (fail-open). Register a provider");
 Console.WriteLine("(outbox / dead-letter / inbox / saga / leader-election) to light up panels.");
+
+// Printed once the host is actually listening. A startup failure never reaches this line, so it
+// separates "started and serving" from "died or hung during startup" for anyone -- or anything --
+// watching the output.
+app.Lifetime.ApplicationStarted.Register(static () =>
+	Console.WriteLine("Sample ready: dashboard listening. Press Ctrl+C to stop."));
 
 app.Run();

@@ -409,11 +409,15 @@ per-partition version arm both go RED against the real emulator, and both return
   **That runtime reconciliation is only reachable by a host that runs the package against its own database
   with table-creation rights.** A deployment whose schema is owned centrally by a migration tool, or
   provisioned and reviewed before the application touches it, never reaches it — and for that deployment
-  re-running the create script is a no-op that leaves the old shape in place. SQLite therefore also ships
-  `Scripts/002_MakeEventAndSnapshotIdentityTenantScoped.sql`, which performs the same rebuild for both the
-  event table and the snapshot table: each is renamed aside, recreated on the current tenant-scoped shape,
-  and every carried-over row stamped with the reserved sentinel. It **stops at the shape** — see the next
-  gap for why a static script deliberately does not attempt the single-tenant convergence.
+  re-running the create script is a no-op that leaves the old shape in place. The `Excalibur.EventSourcing.Sqlite`
+  package therefore also ships `002_MakeEventAndSnapshotIdentityTenantScoped.sql`, packed under `scripts/`
+  beside `001_CreateEventStoreSchema.sql` — a restore puts both at
+  `~/.nuget/packages/excalibur.eventsourcing.sqlite/<version>/scripts/`. It performs the same rebuild for
+  both the event table and the snapshot table: each is renamed aside, recreated on the current tenant-scoped
+  shape, and every carried-over row stamped with the reserved sentinel. Apply it with a runner that stops on
+  the first error — the script's guards roll back rather than half-apply, and a runner that continues past a
+  refusal defeats them. It **stops at the shape** — see the next gap for why a static script deliberately
+  does not attempt the single-tenant convergence.
 
 - **A single-tenant deployment's own rows can be split across TWO different, both-correct identities —
   `__untenanted__` and `__default__` — and closing that gap for existing rows is a separate step from the

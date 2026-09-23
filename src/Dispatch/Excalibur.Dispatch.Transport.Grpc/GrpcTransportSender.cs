@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Diagnostics;
 
@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// </summary>
 internal sealed partial class GrpcTransportSender : ITransportSender
 {
-	private readonly GrpcChannel _channel;
+	private readonly GrpcChannel? _channel;
 	private readonly CallInvoker _invoker;
 	private readonly GrpcTransportOptions _options;
 	private readonly ILogger _logger;
@@ -38,6 +38,28 @@ internal sealed partial class GrpcTransportSender : ITransportSender
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_invoker = _channel.CreateCallInvoker();
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="GrpcTransportSender"/> class with an explicit
+	/// <see cref="CallInvoker"/> (the gRPC injection seam) instead of a channel, matching the seam the
+	/// receiver and subscriber already expose. Used to substitute a fake invoker under test so the batch
+	/// response — the part this transport must not trust — can be driven without a live server. There is
+	/// no owned channel on this path, so <see cref="GetService(Type)"/> returns <see langword="null"/> for
+	/// <see cref="GrpcChannel"/> and disposal has no channel to release.
+	/// </summary>
+	/// <param name="invoker">The gRPC call invoker that issues send RPCs.</param>
+	/// <param name="options">The transport options.</param>
+	/// <param name="logger">The logger instance.</param>
+	internal GrpcTransportSender(
+		CallInvoker invoker,
+		IOptions<GrpcTransportOptions> options,
+		ILogger<GrpcTransportSender> logger)
+	{
+		_invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_channel = null;
 	}
 
 	/// <inheritdoc />
@@ -102,13 +124,69 @@ internal sealed partial class GrpcTransportSender : ITransportSender
 			var response = await _invoker.AsyncUnaryCall(method, null, callOptions, request)
 				.ConfigureAwait(false);
 
-			var results = response.Results.Select(r => r.IsSuccess
-				? SendResult.Success(r.MessageId ?? string.Empty)
-				: SendResult.Failure(new SendError
+			// THE RESPONSE IS NOT TRUSTED TO DESCRIBE THE REQUEST UNTIL IT IS CHECKED.
+			// response.Results is a remote server's list, of whatever length and order that server chose.
+			// Mapping it straight through while computing the counts from the CALLER's list produced a
+			// BatchSendResult whose Results did not correspond to the inputs, whose FailureCount was
+			// arithmetic across two different bases, and which looked entirely well-formed to the caller.
+			if (response.Results.Count != messages.Count)
+			{
+				LogBatchResultCountMismatch(Destination, messages.Count, response.Results.Count);
+
+				// Every input gets an entry carrying its OWN identity, because the one thing we now know
+				// is that we cannot say which inputs were sent. Reported as retryable and explicitly NOT
+				// as "not sent": the server may have accepted some, so a retry can duplicate. That is
+				// consistent with the at-least-once guarantee this transport offers, and a duplicate is
+				// recoverable where a silent loss is not.
+				var mismatch = new SendError
 				{
-					Code = r.ErrorCode ?? "GrpcError",
-					Message = r.ErrorMessage ?? "Unknown error",
-				})).ToList();
+					Code = "GrpcBatchResultCountMismatch",
+					Message = $"The server returned {response.Results.Count} results for a batch of "
+						+ $"{messages.Count} messages, so no result can be attributed to an input. Some "
+						+ "messages may have been sent.",
+					IsRetryable = true,
+				};
+
+				return new BatchSendResult
+				{
+					TotalMessages = messages.Count,
+					SuccessCount = 0,
+					FailureCount = messages.Count,
+					Results = [.. messages.Select(m => new SendResult
+					{
+						IsSuccess = false,
+						MessageId = m.Id,
+						Error = mismatch,
+					})],
+					Duration = stopwatch.Elapsed,
+				};
+			}
+
+			// Bound by the check above, so entry i describes messages[i]. The input's identity is stamped
+			// rather than the server's: a caller needs to know WHICH OF ITS OWN messages an entry is
+			// about, and the server's id can be absent entirely.
+			var results = new SendResult[messages.Count];
+			for (var i = 0; i < messages.Count; i++)
+			{
+				var r = response.Results[i];
+				results[i] = r.IsSuccess
+					? new SendResult
+					{
+						IsSuccess = true,
+						MessageId = messages[i].Id,
+						SequenceNumber = null,
+					}
+					: new SendResult
+					{
+						IsSuccess = false,
+						MessageId = messages[i].Id,
+						Error = new SendError
+						{
+							Code = r.ErrorCode ?? "GrpcError",
+							Message = r.ErrorMessage ?? "Unknown error",
+						},
+					};
+			}
 
 			var successCount = results.Count(static r => r.IsSuccess);
 			LogBatchSent(Destination, messages.Count, successCount);
@@ -117,7 +195,8 @@ internal sealed partial class GrpcTransportSender : ITransportSender
 			{
 				TotalMessages = messages.Count,
 				SuccessCount = successCount,
-				FailureCount = messages.Count - successCount,
+				// Every count now describes the SAME list.
+				FailureCount = results.Length - successCount,
 				Results = results,
 				Duration = stopwatch.Elapsed,
 			};
@@ -126,8 +205,12 @@ internal sealed partial class GrpcTransportSender : ITransportSender
 		{
 			LogBatchSendFailed(Destination, messages.Count, ex);
 
-			var failedResults = messages.Select(_ =>
-				SendResult.Failure(SendError.FromException(ex, IsTransient(ex)))).ToList();
+			// Each failure carries its own input identity. SendResult.Failure(SendError) leaves MessageId
+			// null, which left a caller unable to say which input a failed entry belonged to.
+			var error = SendError.FromException(ex, IsTransient(ex));
+			var failedResults = messages
+				.Select(m => new SendResult { IsSuccess = false, MessageId = m.Id, Error = error })
+				.ToList();
 
 			return new BatchSendResult
 			{
@@ -168,7 +251,7 @@ internal sealed partial class GrpcTransportSender : ITransportSender
 		}
 
 		_disposed = true;
-		_channel.Dispose();
+		_channel?.Dispose();
 		LogDisposed(Destination);
 		GC.SuppressFinalize(this);
 		return ValueTask.CompletedTask;
@@ -184,7 +267,7 @@ internal sealed partial class GrpcTransportSender : ITransportSender
 			CorrelationId = message.CorrelationId,
 			Subject = message.Subject,
 			Destination = message.HasProperties
-				? message.Properties.GetValueOrDefault("dispatch.destination") as string
+				? message.Properties.GetValueOrDefault(GrpcTransportPropertyKeys.Destination) as string
 				: null,
 			Properties = message.HasProperties
 				? message.Properties.Where(kv => kv.Value is string)
@@ -215,6 +298,11 @@ internal sealed partial class GrpcTransportSender : ITransportSender
 	[LoggerMessage(GrpcTransportEventId.SenderBatchSendFailed, LogLevel.Error,
 		"gRPC transport sender: batch send of {Count} messages to {Destination} failed")]
 	private partial void LogBatchSendFailed(string destination, int count, Exception exception);
+
+	[LoggerMessage(GrpcTransportEventId.SenderBatchResultCountMismatch, LogLevel.Error,
+		"gRPC batch to {Destination}: sent {SentCount} messages and the server returned "
+		+ "{ReturnedCount} results, so no result can be attributed to an input.")]
+	private partial void LogBatchResultCountMismatch(string destination, int sentCount, int returnedCount);
 
 	[LoggerMessage(GrpcTransportEventId.SenderDisposed, LogLevel.Debug,
 		"gRPC transport sender disposed for {Destination}")]

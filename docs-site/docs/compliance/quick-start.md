@@ -1,5 +1,13 @@
 # Compliance Quick Start Guide
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../legal/compliance-disclaimer.md).
+:::
+
 **Framework:** Excalibur
 **Audience:** First-time users implementing compliance features
 **Last Updated:** 2026-09-12
@@ -215,7 +223,8 @@ public class Patient
     public string LastName { get; set; }
 
     [PersonalData]
-    [Sensitive]  // Extra protection flag
+    [Sensitive]  // In every released version: classification + masked in logs, no encryption.
+                 // On the main branch it also selects the property for encryption at rest.
     public string SSN { get; set; }
 
     public DateTime DateOfBirth { get; set; }  // NOT marked
@@ -307,7 +316,7 @@ builder.Services.AddErasureScheduler();
 
 **Usage:**
 
-```csharp
+```csharp ignore
 using Excalibur.Compliance;
 
 public class UserController : ControllerBase
@@ -500,15 +509,15 @@ Now that you have baseline compliance capabilities, follow the detailed checklis
 
 **GDPR (3-6 months):**
 1. Follow [checklists/gdpr.md](checklists/gdpr.md)
-2. Weeks 1-7: Implement Articles 17, 17(3), 25, 30, 32
-3. Week 8-10: Conformance testing, policy development
+2. Weeks 1-7: Implement Articles 17, 17(3), 25, 30, 32 and prepare breach notification
+3. Weeks 8-10: Conformance testing, policy development
 4. Conduct Data Protection Impact Assessment (DPIA)
 5. Schedule external audit (optional but recommended)
 
 **SOC 2 (3-18 months):**
 1. Follow [checklists/soc2.md](checklists/soc2.md)
 2. Weeks 1-6: Implement Security + optional categories
-3. Week 8-9: Run automated validators, collect evidence
+3. Weeks 7-8: Run automated validators, collect evidence
 4. Schedule SOC 2 Type I audit (CPA firm)
 5. Operate for 6-12 months, then SOC 2 Type II
 

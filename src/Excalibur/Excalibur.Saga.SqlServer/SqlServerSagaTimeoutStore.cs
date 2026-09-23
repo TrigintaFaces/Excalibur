@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 
@@ -292,7 +292,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	}
 
 	/// <inheritdoc />
-	public async Task<IReadOnlyList<SagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
+	public async Task<IReadOnlyList<ClaimedSagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
@@ -311,6 +311,14 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		// against SYSUTCDATETIME()'s DATETIME2 forces an implicit conversion that drops the offset — the same
 		// defect in the comparison that the column type was widened to remove. DATETIMEOFFSET comparisons are
 		// evaluated on the underlying instant, so a server in any time zone reaches the same verdict.
+		// ClaimedBy stamps THIS CLAIM, not this process. ProcessorId is {MachineName}:{ProcessId} and is
+		// constant across every claim a process makes -- and it is a settable option, so two pods configured
+		// from one config map share it exactly. Either way a retirement predicate testing it could not tell a
+		// processor's stale claim from its own re-claim, and would silently permit the foreign delete it was
+		// added to prevent. A per-claim suffix makes the two distinguishable, which is the whole point.
+		// This is an ownership identity, not a secret.
+		var claimToken = $"{_options.ProcessorId}:{Guid.NewGuid():N}";
+
 		var sql = $"""
 			WITH Claimable AS (
 				SELECT TOP (@BatchSize) *
@@ -320,7 +328,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 				ORDER BY DueAt ASC
 			)
 			UPDATE Claimable
-			SET ClaimedAt = SYSDATETIMEOFFSET(), ClaimedBy = @ProcessorId
+			SET ClaimedAt = SYSDATETIMEOFFSET(), ClaimedBy = @ClaimToken
 			OUTPUT
 				INSERTED.TimeoutId, INSERTED.SagaId, INSERTED.SagaType, INSERTED.TimeoutType,
 				INSERTED.TimeoutData, INSERTED.DueAt, INSERTED.ScheduledAt, INSERTED.TenantId
@@ -343,12 +351,12 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 				BatchSize = batchSize,
 				AsOf = asOf,
 				_options.LeaseTimeoutSeconds,
-				_options.ProcessorId
+				ClaimToken = claimToken
 			},
 			cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		var timeouts = results
-			.Select(r => new SagaTimeout(
+			.Select(r => new ClaimedSagaTimeout(new SagaTimeout(
 				r.TimeoutId,
 				r.SagaId,
 				r.SagaType,
@@ -361,7 +369,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 				// Read through the store-read factory, which maps a legacy NULL or the sentinel onto the
 				// untenanted partition without rejecting either.
 				TenantId = KeyedTenantPartition.FromStoredValue(r.TenantId).TenantId,
-			})
+			}, claimToken))
 			.ToList();
 
 		_ = (activity?.SetTag("timeout.count", timeouts.Count));
@@ -419,9 +427,11 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	}
 
 	/// <inheritdoc />
-	public async Task MarkDeliveredAsync(string timeoutId, CancellationToken cancellationToken)
+	public async Task<SagaTimeoutRetirementOutcome> MarkDeliveredAsync(ClaimedSagaTimeout claim, CancellationToken cancellationToken)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(timeoutId);
+		ArgumentNullException.ThrowIfNull(claim);
+
+		var timeoutId = claim.Timeout.TimeoutId;
 
 		using var activity = ActivitySource.StartActivity("MarkDelivered");
 		_ = (activity?.SetTag("timeout.id", timeoutId));
@@ -436,20 +446,36 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		// this call for exactly that reason. A caller that retires a timeout outside its tenant scope is the
 		// failure mode to watch for.
 		var partition = CurrentPartition();
-		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = @TenantId AND TimeoutId = @TimeoutId";
+		// AND ClaimedBy = @ClaimToken is what makes this retirement OWNED rather than merely addressed. The
+		// tenant term stops a foreign tenant retiring by identifier; it does nothing about a processor whose
+		// lease has already been taken over by another. Without the claim term a stalled processor that
+		// resumes deletes the row out from under the live claimant, whose own delivery then has nothing left
+		// to retry -- zero deliveries and no row. One conditional DELETE is a single atomic step, so there is
+		// no window between testing ownership and acting on it.
+		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = @TenantId AND TimeoutId = @TimeoutId AND ClaimedBy = @ClaimToken";
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(new CommandDefinition(
+		var rowsAffected = await connection.ExecuteAsync(new CommandDefinition(
 			sql,
-			new { TenantId = partition.TenantId, TimeoutId = timeoutId },
+			new { TenantId = partition.TenantId, TimeoutId = timeoutId, ClaimToken = claim.ClaimToken },
 			cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+		// Zero rows means the claim presented is no longer the current one. It is reported, not swallowed:
+		// the caller must be able to tell "retired" from "someone else owns this now", and a void return
+		// made those the same observation.
+		if (rowsAffected == 0)
+		{
+			return SagaTimeoutRetirementOutcome.Superseded;
+		}
 
 		if (_logger.IsEnabled(LogLevel.Debug))
 		{
 			LogTimeoutDelivered(timeoutId);
 		}
+
+		return SagaTimeoutRetirementOutcome.Retired;
 	}
 
 	private static Func<SqlConnection> CreateConnectionFactory(string connectionString)

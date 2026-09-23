@@ -56,6 +56,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Outbox.Tests" />
     <InternalsVisibleTo Include="Excalibur.Outbox.SqlServer" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.Postgres" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.Oracle" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
     <!-- IVT granted to test assemblies that retain direct aggregator
          access to the aggregator. -->

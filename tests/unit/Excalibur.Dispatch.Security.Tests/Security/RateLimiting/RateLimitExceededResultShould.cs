@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Routing;
@@ -72,16 +72,6 @@ public sealed class RateLimitExceededResultShould
 
 		// Assert
 		result.ErrorMessage!.ShouldBeNull();
-	}
-
-	[Fact]
-	public void HaveFalseCacheHit_ByDefault()
-	{
-		// Arrange & Act
-		var result = new RateLimitExceededResult();
-
-		// Assert
-		result.CacheHit.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -200,7 +190,6 @@ public sealed class RateLimitExceededResultShould
 			ValidationResult = "valid",
 			AuthorizationResult = "authorized",
 			ErrorMessage = "Too many requests",
-			CacheHit = false,
 			RetryAfterMilliseconds = 10000,
 			RateLimitKey = "user:12345",
 		};
@@ -212,7 +201,6 @@ public sealed class RateLimitExceededResultShould
 		result.ValidationResult.ShouldBe("valid");
 		result.AuthorizationResult.ShouldBe("authorized");
 		result.ErrorMessage!.ShouldBe("Too many requests");
-		result.CacheHit.ShouldBeFalse();
 		result.RetryAfterMilliseconds.ShouldBe(10000);
 		result.RateLimitKey.ShouldBe("user:12345");
 	}

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
@@ -21,7 +21,8 @@ namespace Excalibur.Dispatch.Resilience;
 /// <para>
 /// The registry is bounded, because the circuit key may be derived from message content. When the
 /// bound is reached it evicts the least recently used circuit that is closed and carrying no
-/// failures; a circuit that is open or recovering is never evicted. An evicted key's next circuit
+/// failures; a circuit that is open or recovering is evicted only when no idle circuit remains (see
+/// below). An evicted key's next circuit
 /// starts without its predecessor's history.
 /// </para>
 /// <para>

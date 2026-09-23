@@ -5,6 +5,8 @@ Excalibur.Data.CloudNative.CdcHealthCheckOptions.DegradedInactivityTimeout.get -
 Excalibur.Data.CloudNative.CdcHealthCheckOptions.DegradedInactivityTimeout.set -> void
 Excalibur.Data.CloudNative.CdcHealthCheckOptions.DegradedLagThreshold.get -> long
 Excalibur.Data.CloudNative.CdcHealthCheckOptions.DegradedLagThreshold.set -> void
+Excalibur.Data.CloudNative.CdcHealthCheckOptions.UnhealthyConsecutiveTransientFailures.get -> int
+Excalibur.Data.CloudNative.CdcHealthCheckOptions.UnhealthyConsecutiveTransientFailures.set -> void
 Excalibur.Data.CloudNative.CdcHealthCheckOptions.UnhealthyInactivityTimeout.get -> System.TimeSpan
 Excalibur.Data.CloudNative.CdcHealthCheckOptions.UnhealthyInactivityTimeout.set -> void
 Excalibur.Data.CloudNative.CdcHealthCheckOptions.UnhealthyLagThreshold.get -> long
@@ -142,6 +144,20 @@ Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.CloudNative.CloudPersistenceProviderType.CosmosDb = 0 -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.CloudNative.CloudPersistenceProviderType.DynamoDb = 1 -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.CloudNative.CloudPersistenceProviderType.Firestore = 2 -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
+Excalibur.Data.CloudNative.CloudQueryRequest
+Excalibur.Data.CloudNative.CloudQueryRequest.CloudQueryRequest() -> void
+Excalibur.Data.CloudNative.CloudQueryRequest.ConsistencyOptions.get -> Excalibur.Data.CloudNative.IConsistencyOptions?
+Excalibur.Data.CloudNative.CloudQueryRequest.ConsistencyOptions.init -> void
+Excalibur.Data.CloudNative.CloudQueryRequest.ContinuationToken.get -> string?
+Excalibur.Data.CloudNative.CloudQueryRequest.ContinuationToken.init -> void
+Excalibur.Data.CloudNative.CloudQueryRequest.MaxItemCount.get -> int?
+Excalibur.Data.CloudNative.CloudQueryRequest.MaxItemCount.init -> void
+Excalibur.Data.CloudNative.CloudQueryRequest.Parameters.get -> System.Collections.Generic.IDictionary<string!, object!>?
+Excalibur.Data.CloudNative.CloudQueryRequest.Parameters.init -> void
+Excalibur.Data.CloudNative.CloudQueryRequest.PartitionKey.get -> Excalibur.Data.CloudNative.IPartitionKey!
+Excalibur.Data.CloudNative.CloudQueryRequest.PartitionKey.init -> void
+Excalibur.Data.CloudNative.CloudQueryRequest.QueryText.get -> string!
+Excalibur.Data.CloudNative.CloudQueryRequest.QueryText.init -> void
 Excalibur.Data.CloudNative.CloudQueryResult<TDocument>
 Excalibur.Data.CloudNative.CloudQueryResult<TDocument>.CloudQueryResult(System.Collections.Generic.IReadOnlyList<TDocument!>! documents, double requestCharge, string? continuationToken = null, string? sessionToken = null) -> void
 Excalibur.Data.CloudNative.CloudQueryResult<TDocument>.ContinuationToken.get -> string?
@@ -252,7 +268,7 @@ Excalibur.Data.CloudNative.ICloudNativePersistenceProvider.DeleteAsync(string! i
 Excalibur.Data.CloudNative.ICloudNativePersistenceProvider.GetByIdAsync<TDocument>(string! id, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, Excalibur.Data.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 Excalibur.Data.CloudNative.ICloudNativePersistenceProvider.UpdateAsync<TDocument>(TDocument! document, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, string? etag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudOperationResult<TDocument!>!>!
 Excalibur.Data.CloudNative.ICloudNativePersistenceQueryOperations
-Excalibur.Data.CloudNative.ICloudNativePersistenceQueryOperations.QueryAsync<TDocument>(string! queryText, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IDictionary<string!, object!>? parameters, Excalibur.Data.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!
+Excalibur.Data.CloudNative.ICloudNativePersistenceQueryOperations.QueryAsync<TDocument>(Excalibur.Data.CloudNative.CloudQueryRequest! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!
 Excalibur.Data.CloudNative.ICloudNativeProviderInfo
 Excalibur.Data.CloudNative.ICloudNativeProviderInfo.CloudProvider.get -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.CloudNative.IConsistencyOptions

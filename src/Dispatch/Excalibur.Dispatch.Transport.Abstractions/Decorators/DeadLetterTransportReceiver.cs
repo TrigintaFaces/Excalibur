@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Diagnostics;
 using System.Diagnostics;
@@ -47,7 +47,31 @@ internal sealed class DeadLetterTransportReceiver : DelegatingTransportReceiver
 			"Total messages routed to dead letter queue");
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Routes a non-requeued message to the dead-letter handler, then rejects it on the transport.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The dead-letter write happens <b>before</b> the rejection, so that a message is never discarded
+	/// from the broker without a copy having been taken first.
+	/// </para>
+	/// <para>
+	/// The consequence is that a rejection which fails leaves the message in the dead-letter store
+	/// <b>and</b> owned by the broker, so it is delivered again and dead-lettered again on the next
+	/// attempt. <b>The dead-letter handler must therefore be idempotent, keyed on the message id.</b> That
+	/// is required regardless of this ordering — delivery is at-least-once, so the handler can see the
+	/// same message twice for several reasons — but this is the path most likely to produce it.
+	/// </para>
+	/// </remarks>
+	/// <param name="message">The message to reject.</param>
+	/// <param name="reason">The reason for rejection, passed to the dead-letter handler.</param>
+	/// <param name="requeue">Whether to requeue the message; the dead-letter write happens only when this is <see langword="false"/>.</param>
+	/// <param name="cancellationToken">Cancellation token for the operation.</param>
+	/// <returns>Task representing the reject operation.</returns>
+	/// <exception cref="TransportSettlementException">
+	/// The underlying transport could not settle the rejection. The dead-letter write has already
+	/// happened by this point, so the message is both stored and still owned by the broker.
+	/// </exception>
 	public override async Task RejectAsync(TransportReceivedMessage message, string? reason, bool requeue, CancellationToken cancellationToken)
 	{
 		if (!requeue)

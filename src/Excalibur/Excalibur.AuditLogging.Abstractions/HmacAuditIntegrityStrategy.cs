@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Buffers.Binary;
 using System.Security.Cryptography;
@@ -69,6 +69,69 @@ internal sealed class HmacAuditIntegrityStrategy : IAuditIntegrityStrategy
 		return CryptographicOperations.FixedTimeEquals(actualMac, expectedMac);
 	}
 
+	/// <summary>
+	/// Verifies one link, resolving the signing key through a cache scoped to a single chain verification.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Identical to <see cref="VerifyAsync" /> except for where the key comes from. It exists because the
+	/// uncached form issues one <see cref="IAuditSigningKeyProvider.GetSigningKeyAsync" /> per RECORD, and the
+	/// provider this framework tells operators to register is a KMS or secret-manager client
+	/// (see the remarks on the in-box options-backed provider). Verifying a range of R records therefore cost
+	/// R network round trips — a cost proportional to the range and independent of every other optimisation,
+	/// because it is paid per link no matter how lazily the rows are read.
+	/// </para>
+	/// <para>
+	/// The tag format carries the key id (<c>v1:{keyId}:{mac}</c>), and the distinct key ids in any range are
+	/// bounded by the number of key rotations that range spans — one, or a few. So the cache turns R lookups
+	/// into one per distinct key id.
+	/// </para>
+	/// <para>
+	/// Three properties make it safe, and each is load-bearing:
+	/// <list type="number">
+	/// <item>
+	/// The cache lives for ONE verification and is never static, so a key revoked between operations is
+	/// re-resolved on the next one. A process-lifetime cache would serve a revoked key indefinitely.
+	/// </item>
+	/// <item>
+	/// A key id names one key for the duration of an operation, which is the provider contract, so the
+	/// mapping cannot change underneath the fold.
+	/// </item>
+	/// <item>
+	/// An absent key is cached as <see langword="null" /> DELIBERATELY. Without that, a chain signed with an
+	/// unknown key pays a provider round trip per record only to fail each time — the worst case, not the
+	/// best. Fail-closed is unchanged: a cached <see langword="null" /> still returns <see langword="false" />.
+	/// </item>
+	/// </list>
+	/// </para>
+	/// </remarks>
+	private async ValueTask<bool> VerifyWithCachedKeyAsync(
+		ReadOnlyMemory<byte> canonicalContent,
+		string? priorTag,
+		string tag,
+		Dictionary<string, byte[]?> keyCache,
+		CancellationToken cancellationToken)
+	{
+		if (!TryParseTag(tag, out var keyId, out var expectedMac))
+		{
+			return false; // malformed / wrong version => unverifiable, never valid.
+		}
+
+		if (!keyCache.TryGetValue(keyId, out var key))
+		{
+			key = await _keyProvider.GetSigningKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+			keyCache[keyId] = key;
+		}
+
+		if (key is null || key.Length == 0)
+		{
+			return false; // unknown / unavailable key => fail closed.
+		}
+
+		var actualMac = ComputeMac(key, canonicalContent.Span, priorTag);
+		return CryptographicOperations.FixedTimeEquals(actualMac, expectedMac);
+	}
+
 	/// <inheritdoc />
 	public async ValueTask<AuditChainVerificationResult> VerifyChainAsync(
 		IAsyncEnumerable<AuditChainLink> chain,
@@ -87,6 +150,9 @@ internal sealed class HmacAuditIntegrityStrategy : IAuditIntegrityStrategy
 		var priorTag = anchorPriorTag;
 		var index = 0;
 
+		// Scoped to this verification only — see VerifyWithCachedKeyAsync for why it must not outlive it.
+		var keyCache = new Dictionary<string, byte[]?>(StringComparer.Ordinal);
+
 		await foreach (var link in chain.WithCancellation(cancellationToken).ConfigureAwait(false))
 		{
 			// An untagged record cannot be a link. Reported rather than skipped, because skipping it would
@@ -96,7 +162,8 @@ internal sealed class HmacAuditIntegrityStrategy : IAuditIntegrityStrategy
 				return new AuditChainVerificationResult(false, index, AuditChainBreak.UntaggedRecord);
 			}
 
-			var macVerified = await VerifyAsync(link.CanonicalContent, priorTag, link.Tag, cancellationToken).ConfigureAwait(false);
+			var macVerified = await VerifyWithCachedKeyAsync(link.CanonicalContent, priorTag, link.Tag, keyCache, cancellationToken)
+				.ConfigureAwait(false);
 
 			// The record's own claim about its predecessor, against the predecessor actually present. The MAC
 			// does not cover this value — it covers the prior tag supplied at write time, not the copy stored
@@ -136,7 +203,7 @@ internal sealed class HmacAuditIntegrityStrategy : IAuditIntegrityStrategy
 				return new AuditChainVerificationResult(false, index, AuditChainBreak.UntaggedRecord);
 			}
 
-			var tailVerified = await VerifyAsync(tail.CanonicalContent, priorTag, tail.Tag, cancellationToken)
+			var tailVerified = await VerifyWithCachedKeyAsync(tail.CanonicalContent, priorTag, tail.Tag, keyCache, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (!tailVerified)

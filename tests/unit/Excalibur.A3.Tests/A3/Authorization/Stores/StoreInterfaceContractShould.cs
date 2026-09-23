@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 
@@ -19,8 +19,8 @@ public sealed class StoreInterfaceContractShould
 
 	[Theory]
 	[InlineData(typeof(IGrantStore), 5)]          // 5 CRUD (GetAllGrantsAsync filtered/opt-in overloads = 1 logical op); GetService is now INHERITED from IServiceProvider (Microsoft-idiomatic), not a declared member
-	[InlineData(typeof(IGrantQueryStore), 2)]      // 2 query methods
-	[InlineData(typeof(IActivityGroupStore), 5)]   // 4 CRUD + GetService
+	[InlineData(typeof(IGrantQueryStore), 3)]      // tenant-confined + estate-wide match, FindUserGrants
+	[InlineData(typeof(IActivityGroupStore), 5)]   // 5 CRUD (the tenant-scoped delete is a NAMED sibling of the estate-wide one, not a nullable parameter); GetService is INHERITED from IServiceProvider (Microsoft-idiomatic), not a declared member
 	[InlineData(typeof(IActivityGroupGrantStore), 4)] // 4 bridging methods
 	public void HaveExpectedMethodCount(Type interfaceType, int expectedCount)
 	{
@@ -71,11 +71,19 @@ public sealed class StoreInterfaceContractShould
 	[Fact]
 	public void HaveGetServiceEscapeHatch_OnIActivityGroupStore()
 	{
-		// Verify IActivityGroupStore has the GetService pattern
-		var method = typeof(IActivityGroupStore).GetMethod("GetService",
-			BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+		// IActivityGroupStore's capability escape hatch is now the framework contract, matching IGrantStore:
+		// it extends IServiceProvider, so GetService(Type) is inherited (Microsoft-idiomatic) rather than
+		// hand-declared. A default interface method supplies IsInstanceOfType resolution. Assert the
+		// INHERITANCE -- the strengthened contract -- rather than a declared look-alike of it.
+		//
+		// This arm previously required a DeclaredOnly "GetService", which is the shape a hand-rolled
+		// equivalent has and the BCL one does not. Keeping it that way would have made the correct design
+		// fail the test written to protect the design.
+		typeof(IServiceProvider).IsAssignableFrom(typeof(IActivityGroupStore))
+			.ShouldBeTrue("IActivityGroupStore must extend IServiceProvider to expose the GetService(Type) escape hatch");
 
-		method.ShouldNotBeNull("IActivityGroupStore must have a GetService(Type) method");
+		var method = typeof(IServiceProvider).GetMethod("GetService", BindingFlags.Public | BindingFlags.Instance);
+		method.ShouldNotBeNull("IServiceProvider must expose GetService(Type)");
 		method.ReturnType.ShouldBe(typeof(object));
 		method.GetParameters().Length.ShouldBe(1);
 		method.GetParameters()[0].ParameterType.ShouldBe(typeof(Type));

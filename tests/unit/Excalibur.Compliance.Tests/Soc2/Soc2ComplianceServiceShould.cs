@@ -153,14 +153,14 @@ public sealed class Soc2ComplianceServiceShould
 		// reports this criterion as effective while one of its controls is not.
 		A.CallTo(() => _controlValidation.ValidateCriterionAsync(TrustServicesCriterion.CC1_ControlEnvironment, A<CancellationToken>._))
 			.Returns<IReadOnlyList<ControlValidationResult>>(
-				[CreatePassingResult("ctrl-1", 88), CreateFailingResult("ctrl-2")]);
+				[CreatePassingResult("ctrl-1", ControlEffectiveness.Effective), CreateFailingResult("ctrl-2")]);
 
 		var sut = CreateService();
 
 		var results = await sut.ValidateCriterionAsync(TrustServicesCriterion.CC1_ControlEnvironment, CancellationToken.None).ConfigureAwait(false);
 
 		results.Count.ShouldBe(2);
-		results.ShouldContain(r => r.ControlId == "ctrl-2" && !r.IsEffective);
+		results.ShouldContain(r => r.ControlId == "ctrl-2" && r.Outcome != ControlOutcome.Effective);
 	}
 
 	// Both arms below previously asserted the empty result. The name said it plainly -- "returns empty
@@ -240,8 +240,7 @@ public sealed class Soc2ComplianceServiceShould
 		{
 			ControlId = "CC1.1",
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 30,
+			EffectivenessScore = ControlEffectiveness.ViolationDetected,
 			ValidatedAt = DateTimeOffset.UtcNow,
 			Evidence = [],
 			ConfigurationIssues = ["Missing audit trail"]
@@ -256,34 +255,127 @@ public sealed class Soc2ComplianceServiceShould
 	}
 
 	[Fact]
-	public async Task Report_unqualified_opinion_for_fully_compliant()
+	public async Task Report_fully_compliant_when_every_control_passes()
 	{
 		SetupControlValidation("CC1.1", CreatePassingResult("CC1.1"));
 
 		var sut = CreateService();
 		var report = await sut.GenerateTypeIReportAsync(DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
 
-		report.Opinion.ShouldBe(AuditorOpinion.Unqualified);
+		report.OverallLevel.ShouldBe(ComplianceLevel.FullyCompliant);
 	}
 
-	private static ControlValidationResult CreatePassingResult(string controlId, int score = 95) =>
+	/// <summary>
+	/// SAFETY. With no validators registered, the report must not accuse the consumer of anything.
+	/// </summary>
+	/// <remarks>
+	/// Validators are OPT-IN, so a consumer who has registered none is the DEFAULT case, not an error
+	/// path. The service used to substitute a compliance percentage of 0 for "nothing was assessed",
+	/// which fell below every rung of the ladder to <see cref="ComplianceLevel.NonCompliant"/> - the
+	/// worst verdict available, asserted on evidence that does not exist. Unknown is what this library
+	/// reports when the evidence was never gathered.
+	/// </remarks>
+	[Fact]
+	public async Task Never_report_non_compliant_when_nothing_was_assessed()
+	{
+		// No controls for any criterion: the shape a consumer gets when they register no validators.
+		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
+			.Returns(new List<string>());
+
+		var report = await CreateService()
+			.GenerateTypeIReportAsync(DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		report.OverallLevel.ShouldBe(
+			ComplianceLevel.Unknown,
+			"no control was assessed, so the only honest level is Unknown");
+	}
+
+	/// <summary>
+	/// SAFETY, the OTHER direction, and it is the one the enum ordering hid.
+	/// </summary>
+	/// <remarks>
+	/// <c>ComplianceLevel.Unknown</c> is the LAST enum member, so an unassessed category failed the
+	/// <c>All(level &lt;= SubstantiallyCompliant)</c> test and fell through to PartiallyCompliant - a
+	/// PARTIAL level on a report where nothing was examined. Fixing only the NonCompliant direction would
+	/// have moved the dishonesty rather than removed it, so both ends are asserted.
+	/// </remarks>
+	[Fact]
+	public async Task Never_report_compliant_when_nothing_was_assessed()
+	{
+		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
+			.Returns(new List<string>());
+
+		var report = await CreateService()
+			.GenerateTypeIReportAsync(DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		report.OverallLevel.ShouldNotBe(ComplianceLevel.SubstantiallyCompliant);
+		report.OverallLevel.ShouldNotBe(ComplianceLevel.FullyCompliant);
+	}
+
+	/// <summary>
+	/// SAFETY. The status must say nothing was assessed, not that zero per cent passed.
+	/// </summary>
+	[Fact]
+	public async Task Report_an_unassessed_category_as_unknown_with_its_coverage()
+	{
+		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
+			.Returns(new List<string>());
+
+		var status = await CreateService()
+			.GetComplianceStatusAsync(null, CancellationToken.None).ConfigureAwait(false);
+
+		var category = status.CategoryStatuses.Values.ShouldHaveSingleItem();
+		category.Level.ShouldBe(ComplianceLevel.Unknown);
+
+		// The coverage is what lets a reader tell "nothing was looked at" from "everything failed" -
+		// the single percentage cannot separate those two, which is why it is not the assertion here.
+		category.CriteriaAssessed.ShouldBe(0);
+		category.CriteriaEnabled.ShouldBeGreaterThan(0);
+	}
+
+	/// <summary>
+	/// PRECISION. A control that really was assessed and really failed must STILL be Adverse.
+	/// </summary>
+	/// <remarks>
+	/// Without this the safety arms are satisfied by a service that never reports Adverse at all, which
+	/// would hide real deficiencies instead of inventing them - the same defect pointed the other way.
+	/// </remarks>
+	[Fact]
+	public async Task Still_report_non_compliant_when_an_assessed_control_genuinely_fails()
+	{
+		SetupControlValidation("CC1.1", CreateFailingResult("CC1.1"));
+
+		var report = await CreateService()
+			.GenerateTypeIReportAsync(DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		report.OverallLevel.ShouldBe(
+			ComplianceLevel.NonCompliant,
+			"this control WAS assessed and it failed, which is a real deficiency and must be reported");
+	}
+
+	private static ControlValidationResult CreatePassingResult(
+		string controlId,
+		ControlEffectiveness score = ControlEffectiveness.Effective) =>
 		new()
 		{
 			ControlId = controlId,
 			IsConfigured = true,
-			IsEffective = true,
 			EffectivenessScore = score,
 			ValidatedAt = DateTimeOffset.UtcNow,
 			Evidence = [],
 			ConfigurationIssues = []
 		};
 
-	private static ControlValidationResult CreateFailingResult(string controlId, int score = 20) =>
+	private static ControlValidationResult CreateFailingResult(
+		string controlId,
+		ControlEffectiveness score = ControlEffectiveness.ViolationDetected) =>
 		new()
 		{
 			ControlId = controlId,
 			IsConfigured = true,
-			IsEffective = false,
 			EffectivenessScore = score,
 			ValidatedAt = DateTimeOffset.UtcNow,
 			Evidence = [],

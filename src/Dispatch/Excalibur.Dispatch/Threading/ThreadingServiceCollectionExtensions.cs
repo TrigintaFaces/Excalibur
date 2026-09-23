@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Options.Threading;
 using Excalibur.Dispatch.Threading;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -45,6 +46,11 @@ public static class ThreadingServiceCollectionExtensions
 		// the type but never ran it.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, BackgroundExecutionMiddleware>());
 
+		// Background execution's shutdown drain and failure policy. The drain is registered here rather than at
+		// the call site so it covers every route into the runner -- including a consumer calling
+		// BackgroundTaskRunner.RunDetachedInBackground directly, which is public and shipped.
+		_ = services.AddBackgroundExecutionServices();
+
 		return services;
 	}
 
@@ -74,6 +80,32 @@ public static class ThreadingServiceCollectionExtensions
 		// the type but never ran it.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, BackgroundExecutionMiddleware>());
 
+		// Background execution's shutdown drain and failure policy. The drain is registered here rather than at
+		// the call site so it covers every route into the runner -- including a consumer calling
+		// BackgroundTaskRunner.RunDetachedInBackground directly, which is public and shipped.
+		_ = services.AddBackgroundExecutionServices();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers what background execution needs besides its middleware: the hosted service that awaits
+	/// in-flight background work when the host stops gracefully, and the validated
+	/// <see cref="BackgroundExecutionOptions"/> that set the failure policy.
+	/// </summary>
+	/// <remarks>
+	/// Shared by every entry point that enables background execution, so none of them can enable the work
+	/// without also enabling its drain and its startup validation. Idempotent: each piece is registered at most
+	/// once however many entry points a consumer calls.
+	/// </remarks>
+	/// <param name="services"> The service collection to add the services to. </param>
+	/// <returns> The service collection for method chaining. </returns>
+	internal static IServiceCollection AddBackgroundExecutionServices(this IServiceCollection services)
+	{
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, BackgroundTaskDrainService>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<BackgroundExecutionOptions>, BackgroundExecutionOptionsValidator>());
+		_ = services.AddOptions<BackgroundExecutionOptions>().ValidateOnStart();
 		return services;
 	}
 }

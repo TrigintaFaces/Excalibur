@@ -64,6 +64,73 @@ public sealed class EncryptingAuditEventStoreRoundTripShould : IDisposable
             Microsoft.Extensions.Options.Options.Create(options ?? new AuditEncryptionOptions()));
 
     [Fact]
+    public async Task Refuse_to_hand_back_a_stored_value_it_could_not_read_as_an_envelope()
+    {
+        // THE STORED VALUE IS PLANTED IN THE INNER STORE, not written through the decorator, because the
+        // decorator's own write always produces a well-formed envelope. The case under test is a value that
+        // is already in the store and is NOT one: corrupt, truncated, or written before encryption was
+        // enabled. That is reachable by ordinary means and nothing about it is exotic.
+        //
+        // Base64 of the four characters "null" is the precise reachable shape, and this is narrower than
+        // it first appears: a value that is not valid Base64 throws at Convert.FromBase64String, and one
+        // that decodes to text which is not valid JSON throws inside the deserializer. Only the JSON literal
+        // null deserializes SUCCESSFULLY to a null reference, which is the branch that used to return the
+        // stored value to the caller.
+        var notAnEnvelope = Convert.ToBase64String(Encoding.UTF8.GetBytes("null"));
+
+        await _innerStore.StoreAsync(
+            new AuditEvent
+            {
+                EventId = "evt-unreadable",
+                EventType = AuditEventType.DataAccess,
+                Action = "Read",
+                Outcome = AuditOutcome.Success,
+                Timestamp = DateTimeOffset.UtcNow,
+                ActorId = notAnEnvelope,
+            },
+            CancellationToken.None);
+
+        var sut = CreateSut();
+
+        // SAFETY. The old behaviour returned the stored ciphertext as the field value, so a reader could not
+        // tell a genuine audit value from an unreadable one - on the record whose entire purpose is to be
+        // evidence. Failing is the only outcome that keeps those two distinguishable.
+        var thrown = await Should.ThrowAsync<EncryptionException>(
+            () => sut.GetByIdAsync("evt-unreadable", CancellationToken.None));
+
+        thrown.Message.ShouldNotBeNullOrWhiteSpace();
+        thrown.Message.Contains(notAnEnvelope, StringComparison.Ordinal).ShouldBeFalse(
+            "the value that could not be read must not be echoed into the error either - an audit field is "
+            + "sensitive whether or not we managed to decrypt it");
+    }
+
+    [Fact]
+    public async Task Still_decrypt_a_well_formed_envelope_after_the_refusal_was_added()
+    {
+        // LIVENESS, and it is the arm that separates the fix from an over-fix: a decrypt path that threw on
+        // everything would satisfy the arm above and make the store useless. Asserted through the SAME
+        // surface so a refusal leaking into the supported path shows up here rather than hiding.
+        var sut = CreateSut();
+
+        await sut.StoreAsync(
+            new AuditEvent
+            {
+                EventId = "evt-readable",
+                EventType = AuditEventType.DataAccess,
+                Action = "Read",
+                Outcome = AuditOutcome.Success,
+                Timestamp = DateTimeOffset.UtcNow,
+                ActorId = "sensitive-user@example.com",
+            },
+            CancellationToken.None);
+
+        var retrieved = await sut.GetByIdAsync("evt-readable", CancellationToken.None);
+
+        retrieved.ShouldNotBeNull();
+        retrieved.ActorId.ShouldBe("sensitive-user@example.com");
+    }
+
+    [Fact]
     public async Task Round_trip_actor_id_through_encrypt_store_decrypt()
     {
         var sut = CreateSut();

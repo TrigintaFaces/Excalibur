@@ -46,7 +46,7 @@ app.Run();
 
 When an unhandled exception reaches the middleware pipeline:
 
-1. **Status code extraction** — The handler inspects the exception for a `StatusCode` property (via reflection with caching) or falls back to `500 Internal Server Error`.
+1. **Status code extraction** — The handler reads the status code from the exception (see [Custom Exception Status Codes](#custom-exception-status-codes)), or falls back to `500 Internal Server Error`.
 2. **Exception ID** — If the exception is an `ApiException`, its `Id` is used. Otherwise, a new UUID v7 is generated for correlation.
 3. **Trace ID** — Pulled from `Activity.Current?.Id` (OpenTelemetry) or `HttpContext.TraceIdentifier`.
 4. **Problem Details construction** — A `ProblemDetails` object is built with localized MDN type URI, HTTP reason phrase, instance URN, and trace/exception IDs.
@@ -106,29 +106,35 @@ When a `FluentValidation.ValidationException` is thrown, the response includes a
 
 ## Custom Exception Status Codes
 
-The handler uses `ExceptionExtensions.GetStatusCode()` which searches for status codes in this order:
+The handler uses `ExceptionExtensions.GetStatusCode()`, which resolves the status code in this order:
 
-1. A `StatusCode` property on the exception type
-2. A `StatusCode` entry in the exception's `Data` dictionary
-3. Inner exceptions (recursively)
+1. `DispatchException.DispatchStatusCode`, when it is set
+2. `ApiException.StatusCode` — `DispatchException` and the data-access exceptions derive from
+   `ApiException`, so `ResourceNotFoundException` answers 404 and `ConflictException` and
+   `ConcurrencyException` answer 409
+3. An `int` stored under the `"StatusCode"` key of the exception's `Data` dictionary
+4. The inner exception, recursively
+
+It does **not** look for a property named `StatusCode` on other exception types. An exception you
+define yourself answers 500 unless it derives from `ApiException` or carries a `Data` entry:
 
 ```csharp
-// Option 1: Property-based (recommended)
-public class OrderNotFoundException : Exception
-{
-    public int StatusCode => 404;
+using Excalibur.Dispatch;
 
+// Option 1: derive from ApiException (recommended)
+public sealed class OrderNotFoundException : ApiException
+{
     public OrderNotFoundException(string orderId)
-        : base($"Order '{orderId}' was not found.") { }
+        : base(404, $"Order '{orderId}' was not found.", null) { }
 }
 
-// Option 2: Data dictionary
+// Option 2: Data dictionary, for an exception type you cannot change
 var ex = new InvalidOperationException("Not allowed");
 ex.Data["StatusCode"] = 403;
 throw ex;
 ```
 
-Similarly, `GetErrorCode()` returns the error code as text. A `DispatchException` answers with its own `ErrorCode`; any other exception is searched with the same lookup strategy (`ErrorCode` property or `Data` dictionary entry), and a numeric code is rendered as text.
+Similarly, `GetErrorCode()` returns the error code as text. A `DispatchException` answers with its own `ErrorCode`; any other exception answers with an `"ErrorCode"` entry in its `Data` dictionary, then its inner exceptions (every inner exception of an `AggregateException`). A numeric code is rendered as text.
 
 ## Configuration
 

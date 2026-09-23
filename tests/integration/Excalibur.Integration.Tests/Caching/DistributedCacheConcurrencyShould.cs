@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -164,7 +164,7 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 
 		// Ensure cache is warm before testing invalidation behavior.
 		var warmedResult = await DispatchUntilCacheHitAsync(dispatcher, query, provider, TimeSpan.FromSeconds(5));
-		warmedResult.CacheHit.ShouldBeTrue();
+		warmedResult.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		var callCountBeforeInvalidation = ConcurrencyTestQueryHandler.CallCount;
 
 		// Invalidate concurrently
@@ -186,7 +186,7 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 
 		var rewarmedResult = await DispatchUntilCacheHitAsync(dispatcher, query, provider, TimeSpan.FromSeconds(5));
 		rewarmedResult.Succeeded.ShouldBeTrue();
-		rewarmedResult.CacheHit.ShouldBeTrue();
+		rewarmedResult.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		ConcurrencyTestQueryHandler.CallCount.ShouldBeGreaterThan(callCountBeforeInvalidation);
 	}
 
@@ -206,7 +206,7 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 				new MessageContext(new TestDispatchAction(), provider),
 				cancellationToken: default);
 
-			if (lastResult.CacheHit)
+			if (lastResult.Disposition == MessageDisposition.ServedFromCache)
 			{
 				return lastResult;
 			}

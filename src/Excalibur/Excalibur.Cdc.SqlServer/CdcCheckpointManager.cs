@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -17,7 +17,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// Extracted from <see cref="CdcProcessor"/> to separate checkpoint management
 /// from change detection and change application concerns.
 /// </remarks>
-internal sealed partial class CdcCheckpointManager
+internal sealed partial class CdcCheckpointManager : ICdcFetchProgress
 {
 	private readonly IDatabaseOptions _dbConfig;
 	private readonly ICdcRepository _cdcRepository;
@@ -104,6 +104,38 @@ internal sealed partial class CdcCheckpointManager
 	/// </summary>
 	internal async Task InitializeTrackingAsync(CancellationToken cancellationToken)
 	{
+		// Discard the retained in-memory position BEFORE installing the durable one, and do it here rather
+		// than at the caller's invocation boundary.
+		//
+		// The two structures are process-scoped while this method — whose entire job is to install the
+		// durable truth — is batch-scoped. UpdateLsnTracking advances only on a STRICTLY GREATER position,
+		// so a retained position at-or-ahead of the durable checkpoint silently discards the durable value
+		// and the batch resumes from memory. The exposure is the gap between ENQUEUE and DELIVER: the
+		// producer hands a table's position to UpdateLsnAfterProcessing as soon as it has enqueued that
+		// table's changes, while the durable checkpoint advances only once the consumer has delivered
+		// them. That call is made for every table on every poll, but what it does is NOT uniform -- for
+		// a table whose next transaction is still inside the captured window it ADVANCES the retained
+		// position, and for one that has moved past the window it DROPS the table from tracking
+		// instead. A dropped table retains nothing and is not at risk; the risk is carried by the
+		// tables that remain tracked. For those, it does not depend on the bounded queue filling or on
+		// the producer ever blocking -- a full queue widens the enqueue-to-deliver gap, it does not
+		// create it. The changes still sitting in the discarded queue are then never delivered to
+		// anyone, and the next poll burns the loss in permanently.
+		//
+		// Resetting HERE rather than at the boundary is what makes the carryover inexpressible: the durable
+		// read and the discard of what would defeat it become one operation that cannot be half-performed.
+		// A reset placed at the caller adds a new obligation to remember, and this defect exists precisely
+		// because that obligation was implicit.
+		//
+		// BOTH structures, under the lock. Clear() alone is not sufficient and is not used: it empties
+		// _tracking only and takes no lock, which would leave a surviving _minHeap entry whose Min happens
+		// to give a correct answer — correct by coincidence is not a fix for silent data loss.
+		lock (_minHeapLock)
+		{
+			_tracking.Clear();
+			_minHeap.Clear();
+		}
+
 		var processingStates = await _stateStore.GetLastProcessedPositionAsync(
 			_dbConfig.DatabaseConnectionIdentifier,
 			_dbConfig.DatabaseName,
@@ -169,11 +201,28 @@ internal sealed partial class CdcCheckpointManager
 	}
 
 	/// <summary>
-	/// Updates LSN tracking after processing a table.
+	/// Updates LSN tracking after processing a table, retaining the table for this run when its next
+	/// transaction still falls inside the captured window.
 	/// </summary>
+	/// <remarks>
+	/// The window is INCLUSIVE of <paramref name="maxLsn"/>: the producer loop admits every position
+	/// satisfying <c>current &lt;= max</c>, so a table whose next transaction sits exactly AT the captured
+	/// maximum still has work to do and must stay tracked. Comparing with <c>&lt; 0</c> here dropped that
+	/// table instead, and because the durable checkpoint only advances for positions actually processed,
+	/// the run ended with the final transaction neither delivered nor checkpointed — and every later run
+	/// resumed from the same durable position, re-derived the same next LSN, and dropped it again. The
+	/// last transaction on a quiet table was therefore starved indefinitely, until unrelated database
+	/// activity raised the captured maximum above it.
+	/// <para>
+	/// Retaining on equality terminates: <paramref name="nextLsn"/> is the next ACTUAL transaction for the
+	/// table and is strictly increasing, so the following iteration yields a position above the captured
+	/// maximum and drops the table then. The table is picked up again on the next poll, which captures a
+	/// fresh maximum.
+	/// </para>
+	/// </remarks>
 	internal void UpdateLsnAfterProcessing(string tableName, byte[]? nextLsn, byte[] maxLsn)
 	{
-		if (nextLsn != null && nextLsn.CompareLsn(maxLsn) < 0)
+		if (nextLsn != null && nextLsn.CompareLsn(maxLsn) <= 0)
 		{
 			UpdateLsnTracking(tableName, nextLsn, seqVal: null);
 		}
@@ -182,6 +231,20 @@ internal sealed partial class CdcCheckpointManager
 			UpdateLsnTracking(tableName, lsn: null, seqVal: null);
 		}
 	}
+
+	int ICdcFetchProgress.TrackingCount => TrackingCount;
+
+	IEnumerable<string> ICdcFetchProgress.TrackedTables => TrackedTables;
+
+	CdcPosition? ICdcFetchProgress.GetTracking(string tableName) => GetTracking(tableName);
+
+	byte[]? ICdcFetchProgress.GetNextLsn() => GetNextLsn();
+
+	void ICdcFetchProgress.UpdateLsnTracking(string tableName, byte[]? lsn, byte[]? seqVal) =>
+		UpdateLsnTracking(tableName, lsn, seqVal);
+
+	void ICdcFetchProgress.UpdateLsnAfterProcessing(string tableName, byte[]? nextLsn, byte[] maxLsn) =>
+		UpdateLsnAfterProcessing(tableName, nextLsn, maxLsn);
 
 	/// <summary>
 	/// Clears all tracking data.

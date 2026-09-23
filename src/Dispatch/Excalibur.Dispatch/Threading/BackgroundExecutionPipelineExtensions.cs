@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Configuration;
+
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Threading;
 
@@ -22,8 +24,15 @@ public static class BackgroundExecutionPipelineExtensions
 	/// asynchronously.
 	/// </para>
 	/// <para>
-	/// Background execution services must be registered separately in the DI container.
-	/// This method only adds the middleware to the pipeline.
+	/// This method also registers the hosted service that awaits in-flight background work when the host
+	/// stops gracefully, bounded by <c>HostOptions.ShutdownTimeout</c>. Work still running when that budget
+	/// elapses is signalled to cancel, and is lost and logged as an error: background execution is
+	/// in-process and best-effort, not durable. Work that must survive a crash or restart belongs in the outbox.
+	/// </para>
+	/// <para>
+	/// What happens when a background message fails is set by
+	/// <see cref="Options.Threading.BackgroundExecutionOptions.ExceptionBehavior"/>, configured with
+	/// <c>services.Configure&lt;BackgroundExecutionOptions&gt;(...)</c>.
 	/// </para>
 	/// <para>
 	/// Recommended pipeline order:
@@ -39,6 +48,11 @@ public static class BackgroundExecutionPipelineExtensions
 	public static IDispatchBuilder UseBackgroundExecution(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
+
+		// Enabling background execution enables its shutdown drain and its validated failure policy. The
+		// middleware is the documented way in, and a consumer who follows the documentation must not have
+		// in-flight messages abandoned at shutdown because the drain lived only behind a second registration.
+		_ = builder.Services.AddBackgroundExecutionServices();
 
 		return builder.UseMiddleware<BackgroundExecutionMiddleware>();
 	}

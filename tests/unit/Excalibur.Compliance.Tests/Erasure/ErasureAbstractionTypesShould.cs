@@ -130,13 +130,15 @@ public sealed class ErasureAbstractionTypesShould
 	{
 		var cert = new ErasureCertificate
 		{
-			CertificateId = Guid.NewGuid(),
-			RequestId = Guid.NewGuid(),
-			DataSubjectReference = "hash-abc",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = Guid.NewGuid(),
+				DataSubjectReference = "hash-abc",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary
 			{
 				KeysDeleted = 5,
 				RecordsAffected = 100,
@@ -144,7 +146,7 @@ public sealed class ErasureAbstractionTypesShould
 				TablesAffected = ["users"],
 				DataSizeBytes = 2048
 			},
-			Verification = new VerificationSummary
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.AuditLog | VerificationMethod.KeyManagementSystem,
@@ -152,8 +154,8 @@ public sealed class ErasureAbstractionTypesShould
 				ReportHash = "sha256-hash",
 				DeletedKeyIds = ["key-1", "key-2"]
 			},
-			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
-			Exceptions =
+				LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+				Exceptions =
 			[
 				new ErasureException
 				{
@@ -164,19 +166,22 @@ public sealed class ErasureAbstractionTypesShould
 					HoldId = Guid.NewGuid()
 				}
 			],
-			Signature = "sig-abc",
-			RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "sig-abc"
 		};
 
-		cert.CertificateId.ShouldNotBe(Guid.Empty);
-		cert.Method.ShouldBe(ErasureMethod.CryptographicErasure);
-		cert.Summary.KeysDeleted.ShouldBe(5);
-		cert.Verification.Verified.ShouldBeTrue();
-		cert.Verification.Methods.HasFlag(VerificationMethod.AuditLog).ShouldBeTrue();
-		cert.Verification.Methods.HasFlag(VerificationMethod.KeyManagementSystem).ShouldBeTrue();
-		cert.Exceptions.ShouldHaveSingleItem();
-		cert.Version.ShouldBe("1.0");
-		cert.GeneratedAt.ShouldNotBe(default);
+		cert.Payload.CertificateId.ShouldNotBe(Guid.Empty);
+		cert.Payload.Method.ShouldBe(ErasureMethod.CryptographicErasure);
+		cert.Payload.Summary.KeysDeleted.ShouldBe(5);
+		cert.Payload.Verification.Verified.ShouldBeTrue();
+		cert.Payload.Verification.Methods.HasFlag(VerificationMethod.AuditLog).ShouldBeTrue();
+		cert.Payload.Verification.Methods.HasFlag(VerificationMethod.KeyManagementSystem).ShouldBeTrue();
+		cert.Payload.Exceptions.ShouldHaveSingleItem();
+		// 2.0 is the first version whose signature covers the certificate's CLAIMS rather than three
+		// identity fields. The default is asserted here so a silent revert to the weaker scheme fails.
+		cert.Payload.Version.ShouldBe("2.0");
+		cert.Payload.GeneratedAt.ShouldNotBe(default);
 	}
 
 	[Fact]
@@ -184,32 +189,37 @@ public sealed class ErasureAbstractionTypesShould
 	{
 		var cert = new ErasureCertificate
 		{
-			CertificateId = Guid.NewGuid(),
-			RequestId = Guid.NewGuid(),
-			DataSubjectReference = "hash",
-			RequestReceivedAt = DateTimeOffset.UtcNow,
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.PhysicalDeletion,
-			Summary = new ErasureSummary(),
-			Verification = new VerificationSummary
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = Guid.NewGuid(),
+				DataSubjectReference = "hash",
+				RequestReceivedAt = DateTimeOffset.UtcNow,
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.PhysicalDeletion,
+				Summary = new ErasureSummary(),
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.None,
 				VerifiedAt = DateTimeOffset.UtcNow
 			},
-			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
-			Signature = "sig",
-			RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "sig"
 		};
 
-		cert.Exceptions.ShouldBeEmpty();
-		cert.Version.ShouldBe("1.0");
-		cert.Summary.KeysDeleted.ShouldBe(0);
-		cert.Summary.DataCategories.ShouldBeEmpty();
-		cert.Summary.TablesAffected.ShouldBeEmpty();
-		cert.Verification.ReportHash.ShouldBeNull();
-		cert.Verification.DeletedKeyIds.ShouldBeEmpty();
-		cert.Verification.Warnings.ShouldBeEmpty();
+		cert.Payload.Exceptions.ShouldBeEmpty();
+		// 2.0 is the first version whose signature covers the certificate's CLAIMS rather than three
+		// identity fields. The default is asserted here so a silent revert to the weaker scheme fails.
+		cert.Payload.Version.ShouldBe("2.0");
+		cert.Payload.Summary.KeysDeleted.ShouldBe(0);
+		cert.Payload.Summary.DataCategories.ShouldBeEmpty();
+		cert.Payload.Summary.TablesAffected.ShouldBeEmpty();
+		cert.Payload.Verification.ReportHash.ShouldBeNull();
+		cert.Payload.Verification.DeletedKeyIds.ShouldBeEmpty();
+		cert.Payload.Verification.Warnings.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -249,7 +259,7 @@ public sealed class ErasureAbstractionTypesShould
 	public void Enumerate_all_erasure_request_statuses()
 	{
 		var statuses = Enum.GetValues<ErasureRequestStatus>();
-		statuses.Length.ShouldBe(8);
+		statuses.Length.ShouldBe(9);
 	}
 
 	[Fact]

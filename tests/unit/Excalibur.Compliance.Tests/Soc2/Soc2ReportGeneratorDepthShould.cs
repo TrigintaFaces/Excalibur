@@ -133,8 +133,7 @@ public sealed class Soc2ReportGeneratorDepthShould
 		{
 			ControlId = "SEC-001",
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 20,
+			EffectivenessScore = ControlEffectiveness.ViolationDetected,
 			ConfigurationIssues = ["Critical failure"]
 		};
 		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
@@ -147,7 +146,7 @@ public sealed class Soc2ReportGeneratorDepthShould
 		var report = await sut.GenerateTypeIReportAsync(
 			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
 
-		report.Opinion.ShouldBe(AuditorOpinion.Adverse);
+		report.OverallLevel.ShouldBe(ComplianceLevel.NonCompliant);
 	}
 
 	[Fact]
@@ -157,8 +156,7 @@ public sealed class Soc2ReportGeneratorDepthShould
 		{
 			ControlId = "SEC-001",
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 30,
+			EffectivenessScore = ControlEffectiveness.ViolationDetected,
 			ConfigurationIssues = ["Failed"]
 		};
 		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
@@ -189,14 +187,13 @@ public sealed class Soc2ReportGeneratorDepthShould
 		// TestResult.Outcome, which made every control an exception, and then reported honestly as
 		// not-tested, which filtered every finding back out and left the section silent.
 		//
-		// Scored 30 with IsEffective false and NO ConfigurationIssues, so the finding cannot be
+		// Scored 30 with a non-effective outcome and NO ConfigurationIssues, so the finding cannot be
 		// borrowed from issue text -- the generator has to derive it from the verdict itself.
 		var failingResult = new ControlValidationResult
 		{
 			ControlId = "SEC-007",
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 30,
+			EffectivenessScore = ControlEffectiveness.ViolationDetected,
 			ConfigurationIssues = []
 		};
 		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
@@ -230,8 +227,7 @@ public sealed class Soc2ReportGeneratorDepthShould
 		{
 			ControlId = "SEC-001",
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 30
+			EffectivenessScore = ControlEffectiveness.ViolationDetected
 		};
 		A.CallTo(() => _controlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
 			.Returns(new List<string> { "SEC-001" });
@@ -410,17 +406,17 @@ public sealed class Soc2ReportGeneratorDepthShould
 		var report = await sut.GenerateTypeIReportAsync(
 			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
 
-		// This arm asserted AuditorOpinion.Adverse, and its comment stated the reasoning as the
+		// This arm asserted ComplianceLevel.NonCompliant, and its comment stated the reasoning as the
 		// intent: "sections are not met -> NonCompliant -> Adverse opinion". That is the worst verdict
 		// an auditor can render, handed to a consumer whose only omission was not registering a
 		// validator -- on evidence nobody gathered. Validators are opt-in, so that is the ordinary
 		// case, not an error path.
 		report.ControlSections.ShouldAllBe(x => x.Outcome == CriterionOutcome.NotAssessed);
-		report.Opinion.ShouldNotBe(AuditorOpinion.Adverse);
+		report.OverallLevel.ShouldNotBe(ComplianceLevel.NonCompliant);
 	}
 
 	[Fact]
-	public async Task Return_qualified_opinion_for_substantially_compliant()
+	public async Task Report_a_partial_level_when_only_some_controls_pass()
 	{
 		// Set up multiple categories to test partial compliance
 		_options.EnabledCategories = [TrustServicesCategory.Security, TrustServicesCategory.Availability];
@@ -429,15 +425,13 @@ public sealed class Soc2ReportGeneratorDepthShould
 		{
 			ControlId = "ctrl-pass",
 			IsConfigured = true,
-			IsEffective = true,
-			EffectivenessScore = 95
+			EffectivenessScore = ControlEffectiveness.Effective
 		};
 		var failingResult = new ControlValidationResult
 		{
 			ControlId = "ctrl-fail",
 			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 40
+			EffectivenessScore = ControlEffectiveness.Unverified
 		};
 
 		// Return different results for different criteria
@@ -459,8 +453,12 @@ public sealed class Soc2ReportGeneratorDepthShould
 		var report = await sut.GenerateTypeIReportAsync(
 			DateTimeOffset.UtcNow, new ReportOptions(), CancellationToken.None).ConfigureAwait(false);
 
-		// Opinion should be Qualified for substantially or partially compliant
-		(report.Opinion == AuditorOpinion.Qualified || report.Opinion == AuditorOpinion.Unqualified).ShouldBeTrue();
+		// The retired AuditorOpinion.Qualified collapsed SubstantiallyCompliant and PartiallyCompliant
+		// onto one value, so this arm could not tell them apart. ComplianceLevel keeps them distinct;
+		// the arm asserts the pair that "Qualified" used to mean, and excludes the two ends.
+		(report.OverallLevel == ComplianceLevel.SubstantiallyCompliant
+			|| report.OverallLevel == ComplianceLevel.PartiallyCompliant).ShouldBeTrue(
+			$"some controls passed and some failed, so the level must be one of the middle two; was {report.OverallLevel}");
 	}
 
 	private void SetupPassingValidation()
@@ -474,8 +472,7 @@ public sealed class Soc2ReportGeneratorDepthShould
 				{
 					ControlId = "ctrl-1",
 					IsConfigured = true,
-					IsEffective = true,
-					EffectivenessScore = 95
+					EffectivenessScore = ControlEffectiveness.Effective
 				}
 			});
 	}

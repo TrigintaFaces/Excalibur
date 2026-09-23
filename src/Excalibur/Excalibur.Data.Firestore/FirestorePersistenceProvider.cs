@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -398,45 +398,97 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 	/// <inheritdoc/>
 	public async Task<CloudQueryResult<TDocument>> QueryAsync<TDocument>(
-		string queryText,
-		IPartitionKey partitionKey,
-		IDictionary<string, object>? parameters,
-		IConsistencyOptions? consistencyOptions,
+		CloudQueryRequest query,
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
+		ArgumentNullException.ThrowIfNull(query);
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var collectionPath = GetCollectionPath(partitionKey);
+		var collectionPath = GetCollectionPath(query.PartitionKey);
 		var collectionRef = _db!.Collection(collectionPath);
 		var documents = new List<TDocument>();
 
+		// Ordered by document id so the page boundary is STABLE. Firestore's cursors resume relative to
+		// the query's ordering, so an unordered query has no well-defined "after this one" and a second
+		// page could repeat or skip documents. The document id is the one field every document has.
+		var firestoreQuery = collectionRef.OrderBy(FieldPath.DocumentId);
+
+		if (!string.IsNullOrWhiteSpace(query.ContinuationToken))
+		{
+			// The token is opaque and provider-tagged, so a token issued by a DIFFERENT provider is
+			// refused rather than silently misread as a document id -- which would resume from a
+			// position that does not exist and return an empty page that looks like the end of the data.
+			firestoreQuery = firestoreQuery.StartAfter(DecodeContinuationToken(query.ContinuationToken));
+		}
+
+		// A page size is honoured. Asking for one more than requested is what lets the provider tell
+		// "this is the last page" from "there is exactly one more page" without a second round trip.
+		var pageSize = query.MaxItemCount;
+		if (pageSize is { } limit)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit, nameof(query));
+			firestoreQuery = firestoreQuery.Limit(limit + 1);
+		}
+
+		QuerySnapshot snapshot;
 		try
 		{
-			Query query = collectionRef;
-
-			var snapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-			foreach (var doc in snapshot.Documents)
-			{
-#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
-				var document = DeserializeDocument<TDocument>(doc);
-#pragma warning restore IL2026, IL3050
-				if (document != null)
-				{
-					documents.Add(document);
-				}
-			}
-
-			LogOperationCompleted("Query");
-			return new CloudQueryResult<TDocument>(documents, 0, null);
+			snapshot = await firestoreQuery.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
+			// Deliberately NOT swallowed. Returning an empty result here would be indistinguishable from
+			// a partition that genuinely holds no documents, so a caller would treat a failed read as an
+			// authoritative empty answer and act on it.
 			LogOperationFailed("Query", ex.Message, ex);
-			return new CloudQueryResult<TDocument>(documents, 0, null);
+			throw;
 		}
+
+		// The extra document proves a further page exists; it is NOT returned to the caller.
+		var docs = snapshot.Documents;
+		var hasMore = pageSize is { } size && docs.Count > size;
+		var take = hasMore ? pageSize!.Value : docs.Count;
+
+		string? continuationToken = null;
+		for (var i = 0; i < take; i++)
+		{
+			var doc = docs[i];
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+			var document = DeserializeDocument<TDocument>(doc);
+#pragma warning restore IL2026, IL3050
+			if (document != null)
+			{
+				documents.Add(document);
+			}
+
+			if (hasMore && i == take - 1)
+			{
+				// The cursor is the last document ACTUALLY RETURNED, so the next page starts after it.
+				// Anchoring on a document that was not delivered would skip it.
+				continuationToken = EncodeContinuationToken(doc.Id);
+			}
+		}
+
+		LogOperationCompleted("Query");
+		return new CloudQueryResult<TDocument>(documents, 0, continuationToken);
 	}
+
+	/// <summary>Tags a document id as a continuation token issued by this provider.</summary>
+	private static string EncodeContinuationToken(string documentId) => ContinuationTokenPrefix + documentId;
+
+	/// <summary>Reads back a continuation token this provider issued.</summary>
+	/// <exception cref="ArgumentException">The token was issued by a different provider.</exception>
+	private static string DecodeContinuationToken(string continuationToken) =>
+		continuationToken.StartsWith(ContinuationTokenPrefix, StringComparison.Ordinal)
+			? continuationToken[ContinuationTokenPrefix.Length..]
+			: throw new ArgumentException(
+				"The continuation token was not issued by the Firestore provider. A continuation token is opaque and may only be passed back to the provider that returned it.",
+				nameof(continuationToken));
+
+	/// <summary>Identifies a continuation token as this provider's, so a foreign one is refused.</summary>
+	private const string ContinuationTokenPrefix = "fs:1:";
 
 	/// <inheritdoc/>
 	public async Task<CloudBatchResult> ExecuteBatchAsync(

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CosmosDb;
 using Excalibur.Dispatch;
@@ -20,10 +20,21 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The store has exactly one public constructor and builds its OWN <c>CosmosClient</c> from
-/// <see cref="CosmosDbClientOptions"/> (CosmosDbInboxStore.cs:57-60), so this suite configures that
-/// options object rather than injecting a client. That is the surface a consumer actually uses, and it
-/// means the arms exercise the provider's own client construction rather than one the test built.
+/// The store offers TWO public constructors: an options-only one that builds its OWN
+/// <c>CosmosClient</c>, and one that borrows a caller-supplied client (the one dependency injection
+/// selects when a <c>CosmosClient</c> is registered, and which leaves that client's lifetime with its
+/// owner). This suite configures the options object and takes the FIRST by choice, not by necessity:
+/// a store that builds its own client also chooses its own serializer, and that is the configuration a
+/// consumer who registers no client actually runs. Injecting a client here would exercise one the test
+/// built instead.
+/// </para>
+/// <para>
+/// Said explicitly because the previous wording did not survive the code: it claimed the store had
+/// exactly one public constructor, and cited a line range that holds field declarations. The borrowing
+/// constructor had landed the day before that wording was last touched, so the comment was already
+/// false when it was read. A harness remark that asserts something the code contradicts is the same
+/// defect class the conformance suites exist to catch, so it is stated as a choice with its reason
+/// rather than as a constraint a reader would take on trust.
 /// </para>
 /// <para>
 /// Gateway mode and the fixture's emulator <c>HttpClient</c> are both required: the emulator presents a
@@ -178,6 +189,42 @@ public sealed class CosmosDbInboxStoreKitConformanceShould : InboxStoreConforman
 	[Fact]
 	public Task GetAllTenantsFailedEntriesAsync_MustReturnEveryTenantsFailedEntries_Test() =>
 		GetAllTenantsFailedEntriesAsync_MustReturnEveryTenantsFailedEntries();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount_Test() =>
+		AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAnExistingEntry_MustReportApplied_Test() =>
+		CoreMarkFailed_ForAnExistingEntry_MustReportApplied();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow_Test() =>
+		CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged_Test() =>
+		CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged();
+
+	[Fact]
+	public Task BackoffMarkFailed_ForAnExistingEntry_MustReportApplied_Test() =>
+		BackoffMarkFailed_ForAnExistingEntry_MustReportApplied();
+
+	[Fact]
+	public Task AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne_Test() =>
+		AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched_Test() =>
+		AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow_Test() =>
+		AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged_Test() =>
+		AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged();
 
 
 	#endregion Fail arms

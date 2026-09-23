@@ -46,8 +46,8 @@ public sealed class Soc2EffectivenessScoreShould
 			DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow));
 		var unverified = await Sut.ValidateAsync("SEC-004", CancellationToken.None);
 
-		tampered.EffectivenessScore.ShouldBeLessThan(
-			unverified.EffectivenessScore,
+		((int)tampered.EffectivenessScore).ShouldBeLessThan(
+			(int)unverified.EffectivenessScore,
 			"a violation we found is knowledge; a window we never exercised is not, and the proven "
 			+ "deficiency must never read as the better of the two.");
 	}
@@ -63,7 +63,8 @@ public sealed class Soc2EffectivenessScoreShould
 		IntegrityCheckReports(Tampered());
 		var tampered = await Sut.ValidateAsync("SEC-004", CancellationToken.None);
 
-		nothingConfigured.EffectivenessScore.ShouldBeLessThanOrEqualTo(tampered.EffectivenessScore);
+		((int)nothingConfigured.EffectivenessScore)
+			.ShouldBeLessThanOrEqualTo((int)tampered.EffectivenessScore);
 	}
 
 	[Fact]

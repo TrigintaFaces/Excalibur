@@ -71,6 +71,61 @@ not leaves a dead subscriber. The decision is therefore recorded as undecided ra
 is a discrete long-poll request, and the SDK retries each request internally. The decorator has
 nothing to recover, and adding it would place a second retry loop around one that already exists.
 
+## Settlement semantics
+
+**The settlement contract is stated and it picks one of the two possible shapes.** `ITransportReceiver`
+declares `AcknowledgeAsync` and `RejectAsync` returning plain `Task`, and its remarks say why:
+
+> *Returning normally means the broker accepted the acknowledgement. An implementation that cannot
+> complete the settlement **throws** rather than returning, because a caller cannot distinguish a
+> settled message from an unsettled one by any other means.*
+
+**Stated falsifiably: a settlement call that returns normally means the broker accepted it. A
+settlement call that throws means it did not.** Every provider MUST keep that; a provider that
+swallows a failed settle and returns normally reports a message as settled that the broker will
+redeliver, and the consumer sees an unexplained duplicate.
+
+### The gap this contract does not close
+
+**`Task` has room for two outcomes and settlement has three.** An exception says *"not settled"*. It
+cannot say *"I do not know whether this settled"* — and that third outcome is reachable on every
+broker: a token cancelled between the handler succeeding and the ack being sent, a connection lost
+mid-settle, a receipt that expired while the handler ran.
+
+**Those two cases require different consumer behaviour**, which is why collapsing them matters:
+
+| the receiver observed | the message will be | what the consumer must do |
+|---|---|---|
+| the broker REFUSED the settle | redelivered | may retry the settle; the broker is reachable |
+| the outcome is UNKNOWN | redelivered **or not** | must be idempotent; retrying the settle may double-settle |
+
+Today both arrive as an exception and the consumer cannot tell them apart. **Consumers must therefore
+treat every settlement exception as the UNKNOWN case — the conservative reading — and be idempotent
+regardless.** That is a consumer obligation created by the contract's shape, and it is stated here
+rather than left to be discovered.
+
+### Cancellation during ack is the adversarial case
+
+**A token cancelled between "handler succeeded" and "ack sent" is the single most common way an
+at-least-once system silently becomes at-most-once.** Any conformance arm for settlement MUST include
+it. A provider that treats that cancellation as a successful settle has converted a delivery
+guarantee into its opposite, silently.
+
+### A provider that cannot support an outcome must say so at registration
+
+**Not emulate it.** An emulated settlement is a guarantee this framework advertises and the broker
+does not keep — and it fails in the direction the consumer cannot see.
+
+### UNVERIFIED — the per-provider table is NOT in this document
+
+**Whether each transport actually keeps the contract above is UNMEASURED.** No per-provider
+settlement table exists here and none should be inferred from this section. One provider is known to
+carry a two-valued settle internally (`GrpcTransportSubscriber.SettleAsync` returns `bool`), which
+means a conversion to the throw-or-return contract happens at its boundary and has not been reviewed.
+
+**There is no conformance arm binding any of the above.** Until one exists, this section states the
+intended contract and the measured interface shape — not observed provider behaviour.
+
 ## Evidence
 
 - `UseReconnectShould.UseReconnect_AddsReconnectingDecorator` — the builder extension actually wraps

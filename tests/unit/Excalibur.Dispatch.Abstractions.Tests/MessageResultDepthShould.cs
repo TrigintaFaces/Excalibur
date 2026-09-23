@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Routing;
@@ -25,7 +25,7 @@ public sealed class MessageResultDepthShould
 	{
 		var result = MessageResult.SuccessFromCache();
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	[Fact]
@@ -33,7 +33,7 @@ public sealed class MessageResultDepthShould
 	{
 		var result = MessageResult.SuccessFromCache(42);
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		result.ReturnValue.ShouldBe(42);
 	}
 
@@ -49,9 +49,9 @@ public sealed class MessageResultDepthShould
 	public void Success_WithFullContext_ReturnsResult()
 	{
 		var routingDecision = RoutingDecision.Success("target", []);
-		var result = MessageResult.Success(routingDecision, "valid", "authorized", cacheHit: true);
+		var result = MessageResult.Success(routingDecision, "valid", "authorized", disposition: MessageDisposition.ServedFromCache);
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	[Fact]
@@ -62,10 +62,10 @@ public sealed class MessageResultDepthShould
 			routingDecision: null,
 			validationResult: "valid",
 			authorizationResult: "auth",
-			cacheHit: true);
+			disposition: MessageDisposition.ServedFromCache);
 		result.Succeeded.ShouldBeTrue();
 		result.ReturnValue.ShouldBe(42);
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	[Fact]

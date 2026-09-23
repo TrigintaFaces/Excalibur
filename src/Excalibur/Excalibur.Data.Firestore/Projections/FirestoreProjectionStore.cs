@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections;
 using System.Globalization;
@@ -126,12 +126,7 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 		QueryOptions? options,
 		CancellationToken cancellationToken)
 	{
-		var query = ApplyFilters(GetCollection(), filters);
-
-		if (options?.Take > 0)
-		{
-			query = query.Limit(options.Take.Value);
-		}
+		var query = ApplyOptions(ApplyFilters(GetCollection(), filters), options);
 
 		var snapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 		var results = new List<TProjection>();
@@ -184,6 +179,57 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 
 			var fieldPath = $"{QueryFieldsKey}.{ToCamelCase(parsed.PropertyName)}";
 			query = ApplyCondition(query, fieldPath, parsed.Operator, value);
+		}
+
+		return query;
+	}
+
+	/// <summary>
+	/// Translates <see cref="QueryOptions"/> into Firestore ordering and pagination.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Every option this store accepts is either applied or refused. An option that was accepted and
+	/// dropped cannot be distinguished by the caller from one that was applied and had no effect: a
+	/// caller passing <c>Skip</c> and receiving page one has no signal that anything went wrong, and a
+	/// paging loop built on it returns the same page forever rather than terminating late.
+	/// </para>
+	/// <para>
+	/// Ordering runs over the same write-only flat query index the filters use
+	/// (<see cref="QueryFieldsKey"/>), because that is where the scalar values Firestore can sort on are
+	/// stored. Ordering by the canonical JSON blob would sort documents by their serialized text.
+	/// </para>
+	/// </remarks>
+	private static Query ApplyOptions(Query query, QueryOptions? options)
+	{
+		if (options is null)
+		{
+			return query;
+		}
+
+		if (!string.IsNullOrWhiteSpace(options.OrderBy))
+		{
+			if (options.OrderBy.Contains('.', StringComparison.Ordinal))
+			{
+				throw new NotSupportedException(
+					$"Firestore projection ordering cannot translate the nested key '{options.OrderBy}'. Only top-level scalar projection properties are sortable.");
+			}
+
+			var orderPath = $"{QueryFieldsKey}.{ToCamelCase(options.OrderBy)}";
+			query = options.Descending
+				? query.OrderByDescending(orderPath)
+				: query.OrderBy(orderPath);
+		}
+
+		// Skip AFTER ordering: an offset into an unordered result set is not a stable page.
+		if (options.Skip > 0)
+		{
+			query = query.Offset(options.Skip.Value);
+		}
+
+		if (options.Take > 0)
+		{
+			query = query.Limit(options.Take.Value);
 		}
 
 		return query;

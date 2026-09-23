@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -21,12 +21,6 @@ namespace Excalibur.Outbox.Firestore;
 /// </summary>
 public sealed partial class FirestoreOutboxListenerSubscription : IChangeFeedSubscription<CloudOutboxMessage>
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false
-	};
-
 	private readonly FirestoreDb _db;
 	private readonly FirestoreOutboxOptions _options;
 	private readonly ILogger _logger;
@@ -197,16 +191,29 @@ public sealed partial class FirestoreOutboxListenerSubscription : IChangeFeedSub
 
 	private static CloudOutboxMessage FromFirestoreDocument(DocumentSnapshot doc)
 	{
+		// THE LEASE FIELDS ARE DELIBERATELY NOT PROJECTED HERE, and this comment exists because their
+		// absence is otherwise indistinguishable from a dropped field. A previous audit of this mapper
+		// found LeasedAt/LeasedBy read by the store path and not by this one, which is exactly what a
+		// silent drop looks like -- so the next auditor would find it again, file it, and "fix" it.
+		//
+		// A listener handler is not a claimant. The only decision a lease field could support here is
+		// "should I publish this?", and the contract states that it does not support that decision: a
+		// stale value is expected and harmless, and the field means "who took it last", never a live
+		// ownership assertion. Projecting it would make an unsound decision AVAILABLE without making it
+		// sound -- a handler that read an unleased message before a poller claimed it would still
+		// publish, and so would the poller.
+		//
+		// Every other member of the record IS carried, including every routing field. That is audited.
 		return new CloudOutboxMessage
 		{
 			MessageId = doc.GetValue<string>("messageId"),
 			MessageType = doc.GetValue<string>("messageType"),
 			Payload = Convert.FromBase64String(doc.GetValue<string>("payload")),
-#pragma warning disable IL2026, IL3050
 			Headers = doc.ContainsField("headers") && doc.GetValue<string?>("headers") != null
-				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.GetValue<string>("headers"), JsonOptions)
+				? JsonSerializer.Deserialize(
+					doc.GetValue<string>("headers"),
+					FirestoreOutboxSerializerContext.Default.DictionaryStringString)
 				: null,
-#pragma warning restore IL2026, IL3050
 			AggregateId = doc.ContainsField("aggregateId") ? doc.GetValue<string?>("aggregateId") : null,
 			AggregateType = doc.ContainsField("aggregateType") ? doc.GetValue<string?>("aggregateType") : null,
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,

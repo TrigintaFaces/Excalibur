@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -40,8 +40,14 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	/// <see cref="InMemoryDeduplicatorOptions.MaxEntries"/>. Deduplication is a correctness guarantee,
 	/// so the cap is never honored by silently admitting an un-trackable message:
 	/// <list type="bullet">
-	/// <item> The claim path (<see cref="TryClaimAsync"/>) fails CLOSED — a claim that cannot be tracked is denied (returns <see langword="false"/>). </item>
-	/// <item> The record-producing paths (<see cref="IsDuplicateAsync"/>, <see cref="MarkProcessedAsync"/>) throw a transient <see cref="DeduplicationCapacityExceededException"/> so the message is not acked and is redelivered, never silently skipped. </item>
+	/// <item> ALL THREE paths — <see cref="TryClaimAsync"/>, <see cref="IsDuplicateAsync"/> and
+	/// <see cref="MarkProcessedAsync"/> — throw a transient <see cref="DeduplicationCapacityExceededException"/>
+	/// at capacity, so the message is not acked and is redelivered, never silently skipped. </item>
+	/// <item> The claim path throws rather than returning <see langword="null"/> because its
+	/// <see langword="null"/> means "already claimed" — a DUPLICATE. Reporting capacity exhaustion through
+	/// that value tells the caller the opposite of the truth, and the inbox middleware acts on it by
+	/// acknowledging a message nothing ever processed. Capacity is not a duplicate, so it cannot share
+	/// the duplicate's representation. </item>
 	/// </list>
 	/// A value of <c>0</c> (or negative) means unbounded (no cap).
 	/// </summary>
@@ -246,13 +252,19 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 
 		// Bounded growth guard: a claim is an exclusive ownership grant, so we must NOT evict another
 		// in-flight claim to make room (that could let the evicted message be processed twice). At
-		// capacity we therefore fail CLOSED — deny the claim. The caller treats this as "not claimed"
-		// and the message is redelivered/retried once cleanup or expiry reclaims space. We never
-		// silently grant a claim we cannot track.
+		// capacity we therefore fail CLOSED.
+		//
+		// THROWING IS THE FAIL-CLOSED SHAPE; RETURNING NULL IS NOT. This method's contract defines null
+		// as "the message id is already present" — a duplicate. Returning it for a message that has never
+		// been seen tells the caller the opposite of the truth, and the caller acts on it: the inbox
+		// middleware maps a null claim to a successful duplicate suppression, so a message nothing has
+		// ever processed is acknowledged as already handled and is never redelivered. The sibling paths
+		// on this type (MarkProcessedAsync, IsDuplicateAsync) already throw here; only the claim path
+		// reported capacity exhaustion through a value that means something else.
 		if (_maxTrackedEntries != int.MaxValue && _processedMessages.Count >= _maxTrackedEntries)
 		{
 			LogCapacityReached(_maxTrackedEntries);
-			return Task.FromResult<LeaseToken?>(null);
+			throw new DeduplicationCapacityExceededException(_maxTrackedEntries);
 		}
 
 		var entry = new ProcessedEntry { ClaimId = NewClaimId(), MessageId = messageId, ProcessedAt = now, ExpiresAt = now.Add(expiry) };

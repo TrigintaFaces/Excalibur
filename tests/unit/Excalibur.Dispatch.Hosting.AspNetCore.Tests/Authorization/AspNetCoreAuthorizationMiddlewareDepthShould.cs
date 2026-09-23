@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Security.Claims;
 
@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Hosting.AspNetCore;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 using MsAuthorizationResult = Microsoft.AspNetCore.Authorization.AuthorizationResult;
 
@@ -23,13 +24,31 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 {
 	private readonly IHttpContextAccessor _httpContextAccessor;
 	private readonly IAuthorizationService _authorizationService;
+	private readonly IAuthorizationPolicyProvider _policyProvider;
+	private readonly ServiceProvider _authorizationContainer;
 	private readonly ILogger<AspNetCoreAuthorizationMiddleware> _logger;
 
 	public AspNetCoreAuthorizationMiddlewareDepthShould()
 	{
 		_httpContextAccessor = A.Fake<IHttpContextAccessor>();
-		_authorizationService = A.Fake<IAuthorizationService>();
 		_logger = NullLogger<AspNetCoreAuthorizationMiddleware>.Instance;
+
+		// The REAL authorization stack, configured the way a consuming host configures it. Policies and roles
+		// are now composed by the host's provider and evaluated by the host's service -- the middleware no
+		// longer evaluates either itself -- so a faked service would be the thing under test instead of the
+		// composition, and every arm here would pass on whatever the fake was told to say.
+		(_policyProvider, _authorizationService, _authorizationContainer) = TestAuthorizationHost.Build(
+			static options => options.AddPolicy("AdminPolicy", static policy => policy.RequireRole("Admin")));
+	}
+
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing)
+		{
+			_authorizationContainer.Dispose();
+		}
+
+		base.Dispose(disposing);
 	}
 
 	#region Policy Evaluation
@@ -40,10 +59,6 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		// Arrange
 		var httpContext = CreateAuthenticatedHttpContext("Admin");
 		A.CallTo(() => _httpContextAccessor.HttpContext).Returns(httpContext);
-
-		A.CallTo(() => _authorizationService.AuthorizeAsync(
-				A<ClaimsPrincipal>._, A<object>._, "AdminPolicy"))
-			.Returns(MsAuthorizationResult.Success());
 
 		var middleware = CreateMiddleware();
 		var message = new PolicyProtectedMessage();
@@ -73,10 +88,6 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		// Arrange
 		var httpContext = CreateAuthenticatedHttpContext();
 		A.CallTo(() => _httpContextAccessor.HttpContext).Returns(httpContext);
-
-		A.CallTo(() => _authorizationService.AuthorizeAsync(
-				A<ClaimsPrincipal>._, A<object>._, "AdminPolicy"))
-			.Returns(MsAuthorizationResult.Failed());
 
 		var middleware = CreateMiddleware();
 		var message = new PolicyProtectedMessage();
@@ -215,40 +226,105 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 
 	#region Default Policy
 
+	/// <summary>
+	/// SAFETY, and this is the arm the defect needed. A bare <c>[Authorize]</c> -- no policy, no roles, no
+	/// schemes -- must resolve the HOST's default policy, the one the consumer configured through
+	/// <c>AddAuthorization</c>. It used to resolve a default-policy name on our own options type, which is
+	/// null unless set, so a bare [Authorize] collapsed to "any authenticated user" and a consumer who had
+	/// HARDENED their default policy had that hardening silently ignored.
+	/// </summary>
+	/// <remarks>
+	/// The whole authorization stack here is REAL -- a real provider over a real AuthorizationOptions, and
+	/// the host's real IAuthorizationService. A fake provider has no consumer configuration to honour, so
+	/// faking it would test the fake and pass whatever the middleware did.
+	/// </remarks>
 	[Fact]
-	public async Task InvokeAsync_UseDefaultPolicy_WhenAuthorizeHasNoPolicy()
+	public async Task HonourTheHostsHardenedDefaultPolicyForABareAuthorize()
 	{
-		// Arrange
-		var httpContext = CreateAuthenticatedHttpContext();
-		A.CallTo(() => _httpContextAccessor.HttpContext).Returns(httpContext);
+		var (provider, service, container) = TestAuthorizationHost.Build(static options =>
+			options.DefaultPolicy = new AuthorizationPolicyBuilder()
+				.RequireAuthenticatedUser()
+				.RequireClaim("scope", "orders.write")
+				.Build());
 
-		A.CallTo(() => _authorizationService.AuthorizeAsync(
-				A<ClaimsPrincipal>._, A<object>._, "DefaultPolicy"))
-			.Returns(MsAuthorizationResult.Success());
-
-		var options = new AspNetCoreAuthorizationOptions { DefaultPolicy = "DefaultPolicy" };
-		var middleware = CreateMiddleware(options);
-		var message = new AuthorizedMessagePlain(); // [Authorize] with no specific policy
-		var context = A.Fake<IMessageContext>();
-		var items = new Dictionary<string, object>();
-		A.CallTo(() => context.Items).Returns(items);
-		var nextCalled = false;
-		var expectedResult = A.Fake<IMessageResult>();
-
-		DispatchRequestDelegate next = (_, _, _) =>
+		using (container)
 		{
-			nextCalled = true;
-			return ValueTask.FromResult(expectedResult);
-		};
+			// Authenticated, but WITHOUT the claim the consumer's hardened default policy demands.
+			A.CallTo(() => _httpContextAccessor.HttpContext).Returns(CreateAuthenticatedHttpContext());
 
-		// Act
-		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
+			var middleware = new AspNetCoreAuthorizationMiddleware(
+				_httpContextAccessor,
+				service,
+				provider,
+				TestHandlerRegistry.KnowingEveryMessageType,
+				Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions()),
+				_logger);
 
-		// Assert
-		nextCalled.ShouldBeTrue();
-		A.CallTo(() => _authorizationService.AuthorizeAsync(
-			A<ClaimsPrincipal>._, A<object>._, "DefaultPolicy"))
-			.MustHaveHappenedOnceExactly();
+			var nextCalled = false;
+			var result = await middleware.InvokeAsync(
+				new AuthorizedMessagePlain(),
+				FakeContext(),
+				(_, _, _) =>
+				{
+					nextCalled = true;
+					return ValueTask.FromResult(A.Fake<IMessageResult>());
+				},
+				TestContext.Current.CancellationToken);
+
+			nextCalled.ShouldBeFalse("the consumer hardened their default policy and this caller does not satisfy it");
+			result.Succeeded.ShouldBeFalse();
+		}
+	}
+
+	/// <summary>
+	/// LIVENESS. Without this the arm above is satisfied by a middleware that denies everything -- the
+	/// cheapest way to look correct. Same hardened policy, a caller who DOES carry the required claim.
+	/// </summary>
+	[Fact]
+	public async Task StillAdmitACallerWhoSatisfiesTheHostsHardenedDefaultPolicy()
+	{
+		var (provider, service, container) = TestAuthorizationHost.Build(static options =>
+			options.DefaultPolicy = new AuthorizationPolicyBuilder()
+				.RequireAuthenticatedUser()
+				.RequireClaim("scope", "orders.write")
+				.Build());
+
+		using (container)
+		{
+			var httpContext = CreateAuthenticatedHttpContext();
+			((ClaimsIdentity)httpContext.User.Identity!).AddClaim(new Claim("scope", "orders.write"));
+			A.CallTo(() => _httpContextAccessor.HttpContext).Returns(httpContext);
+
+			var middleware = new AspNetCoreAuthorizationMiddleware(
+				_httpContextAccessor,
+				service,
+				provider,
+				TestHandlerRegistry.KnowingEveryMessageType,
+				Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions()),
+				_logger);
+
+			var nextCalled = false;
+			_ = await middleware.InvokeAsync(
+				new AuthorizedMessagePlain(),
+				FakeContext(),
+				(_, _, _) =>
+				{
+					nextCalled = true;
+					return ValueTask.FromResult(A.Fake<IMessageResult>());
+				},
+				TestContext.Current.CancellationToken);
+
+			nextCalled.ShouldBeTrue("a caller carrying the required claim must still be admitted");
+		}
+	}
+
+	private static IMessageContext FakeContext()
+	{
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.CorrelationId).Returns("corr-1");
+
+		return context;
 	}
 
 	#endregion
@@ -262,11 +338,20 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var httpContext = CreateAuthenticatedHttpContext();
 		A.CallTo(() => _httpContextAccessor.HttpContext).Returns(httpContext);
 
-		A.CallTo(() => _authorizationService.AuthorizeAsync(
-				A<ClaimsPrincipal>._, A<object>._, A<string>._))
+		// This arm is about a FAULT, not a denial, so the service is deliberately a double that throws.
+		var faultingService = A.Fake<IAuthorizationService>();
+		A.CallTo(() => faultingService.AuthorizeAsync(
+				A<ClaimsPrincipal>._, A<object>._, A<IEnumerable<IAuthorizationRequirement>>._))
 			.ThrowsAsync(new InvalidOperationException("Authorization service failure"));
 
-		var middleware = CreateMiddleware();
+		var middleware = new AspNetCoreAuthorizationMiddleware(
+			_httpContextAccessor,
+			faultingService,
+			_policyProvider,
+			TestHandlerRegistry.KnowingEveryMessageType,
+			Microsoft.Extensions.Options.Options.Create(new AspNetCoreAuthorizationOptions()),
+			_logger);
+
 		var message = new PolicyProtectedMessage();
 		var context = A.Fake<IMessageContext>();
 		var items = new Dictionary<string, object>();
@@ -298,8 +383,10 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		return new AspNetCoreAuthorizationMiddleware(
 			_httpContextAccessor,
 			_authorizationService,
-			_logger,
-			Microsoft.Extensions.Options.Options.Create(options ?? new AspNetCoreAuthorizationOptions()));
+			_policyProvider,
+			TestHandlerRegistry.KnowingEveryMessageType,
+			Microsoft.Extensions.Options.Options.Create(options ?? new AspNetCoreAuthorizationOptions()),
+			_logger);
 	}
 
 	private static DefaultHttpContext CreateAuthenticatedHttpContext(params string[] roles)

@@ -385,6 +385,41 @@ public sealed class InMemoryKeyManagementProviderShould : IDisposable
 	}
 
 	[Fact]
+	public async Task Report_a_live_key_as_not_destroyed()
+	{
+		_ = await _sut.RotateKeyAsync("test-key", EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+
+		(await _sut.IsKeyDestroyedAsync("test-key", CancellationToken.None)).ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task Report_a_key_deleted_with_zero_retention_as_destroyed()
+	{
+		_ = await _sut.RotateKeyAsync("test-key", EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+
+		_ = await _sut.DeleteKeyAsync("test-key", retentionDays: 0, CancellationToken.None);
+
+		(await _sut.IsKeyDestroyedAsync("test-key", CancellationToken.None)).ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task Report_a_key_pending_destruction_as_not_destroyed()
+	{
+		// Scheduled with a recovery window: the material is still held, so the key is recoverable.
+		_ = await _sut.RotateKeyAsync("test-key", EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+
+		_ = await _sut.DeleteKeyAsync("test-key", retentionDays: 7, CancellationToken.None);
+
+		(await _sut.IsKeyDestroyedAsync("test-key", CancellationToken.None)).ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task Report_a_key_that_never_existed_as_destroyed()
+	{
+		(await _sut.IsKeyDestroyedAsync("never-existed", CancellationToken.None)).ShouldBeTrue();
+	}
+
+	[Fact]
 	public async Task Destroy_key_immediately()
 	{
 		// Arrange

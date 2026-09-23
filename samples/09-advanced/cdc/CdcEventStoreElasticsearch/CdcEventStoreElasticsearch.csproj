@@ -43,6 +43,7 @@
   <!-- Elasticsearch projections -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
   <!-- ASP.NET Core and Swagger -->
   <ItemGroup>

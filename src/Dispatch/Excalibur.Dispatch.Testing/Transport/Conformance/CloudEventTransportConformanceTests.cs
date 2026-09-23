@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Linq;
 using System.Text;
@@ -193,6 +193,21 @@ public abstract class CloudEventTransportConformanceTests
 			await SeedMessagesAsync(receiver, [wire]).ConfigureAwait(false);
 
 			var received = await receiver.ReceiveAsync(1, CancellationToken.None).ConfigureAwait(false);
+
+			// THE ARRIVAL GUARD, which this arm alone was missing while both its siblings carried one.
+			// The check below is satisfied by an EMPTY result, so a fixture that never delivered the
+			// seeded message read as a pass - and for a SAFETY arm that is the worst possible failure
+			// shape, because the arm reports that a declined mode did not decode when in truth nothing
+			// was ever put in front of the decoder. Asserting arrival first makes the verdict below a
+			// statement about a message that actually reached the receiver.
+			if (received.Count != 1)
+			{
+				throw new InvalidOperationException(
+					$"one {mode}-mode message was seeded and {received.Count} came back. Zero means the "
+					+ "seeding never reached the receiver, so this arm proves nothing about whether a "
+					+ "declined mode decodes; more than one means the verdict below would be reading "
+					+ "traffic this arm did not put there.");
+			}
 
 			// ANY message carrying a decoded event fails this, not just the first: a declined mode that
 			// decodes is the defect whether it lands on one message or several, and keying on index 0

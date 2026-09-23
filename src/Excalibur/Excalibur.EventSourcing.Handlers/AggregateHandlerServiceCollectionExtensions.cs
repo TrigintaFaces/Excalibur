@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
@@ -49,11 +49,16 @@ public static class AggregateHandlerServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(resolveId);
 		ArgumentNullException.ThrowIfNull(decide);
 
-		services.TryAddScoped<IActionHandler<TMessage>>(sp =>
-			new AggregateHandler<TAggregate, TKey, TMessage>(
-				sp.GetRequiredService<IEventSourcedRepository<TAggregate, TKey>>(),
-				resolveId,
-				decide));
+		// Registered by implementation TYPE, not by a factory closure. The handler index is built from
+		// ServiceDescriptor.ImplementationType and ImplementationInstance; a factory registration supplies
+		// neither, so a handler registered that way contributes no index entry and the dispatcher cannot
+		// find it -- the message is dispatched to nothing. The two values that cannot be resolved from the
+		// container, the identity resolver and the decision, travel as a registered definition instead of
+		// as captured arguments, which is what makes the type-based registration possible.
+		services.TryAddSingleton(
+			new AggregateHandlerDefinition<TAggregate, TKey, TMessage>(resolveId, decide));
+
+		services.TryAddScoped<IActionHandler<TMessage>, AggregateHandler<TAggregate, TKey, TMessage>>();
 
 		return services;
 	}

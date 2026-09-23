@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -19,6 +19,31 @@ internal sealed class HandlerRegistry : IHandlerRegistry
 
 	/// <inheritdoc />
 	IReadOnlyList<IHandlerRegistryEntry> IHandlerRegistry.GetAll() => GetAll();
+
+	/// <inheritdoc />
+	bool IHandlerRegistry.TryGetHandlers(Type messageType, out IReadOnlyList<IHandlerRegistryEntry> entries)
+	{
+		ArgumentNullException.ThrowIfNull(messageType);
+
+		// Overrides the interface's GetAll()-filtering default: this registry indexes by message type, so the
+		// answer is a dictionary hit rather than a scan of every registration in the application.
+		//
+		// THE COPY IS DELIBERATE, and it is defensive rather than required. The conversion itself does not
+		// need it -- IReadOnlyList<T> is covariant, so the stored list converts directly. What needs it is
+		// that this is a PUBLIC seam: the stored snapshot is a HandlerRegistryEntry[], array covariance makes
+		// it reachable as an IHandlerRegistryEntry[], and a caller that casts it back can write through it
+		// into the registry's live state. Handing out a copy costs one small array per call and removes that
+		// surface entirely. Do not delete it for the allocation without replacing it with a wrapper that is
+		// equally non-aliasing.
+		if (TryGetHandlers(messageType, out var concrete))
+		{
+			entries = [.. concrete];
+			return true;
+		}
+
+		entries = [];
+		return false;
+	}
 
 	/// <inheritdoc />
 	bool IHandlerRegistry.TryGetHandler(Type messageType, out IHandlerRegistryEntry entry)
@@ -70,6 +95,41 @@ internal sealed class HandlerRegistry : IHandlerRegistry
 
 			return entries.AsReadOnly();
 		}
+	}
+
+	/// <summary>
+	/// Returns the implementation type a descriptor contributes to the index, or throws when it has none.
+	/// </summary>
+	/// <param name="serviceType">The handler interface the descriptor registers.</param>
+	/// <param name="implementationType">The descriptor's implementation type, if it declares one.</param>
+	/// <param name="implementationInstance">The descriptor's implementation instance, if it holds one.</param>
+	/// <returns>The type to index the handler under.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// The descriptor declares neither an implementation type nor an instance, so nothing can be indexed.
+	/// </exception>
+	/// <remarks>
+	/// The guard lives on the index because the index defines what is indexable. Refusing is deliberate:
+	/// the alternative, and what this previously did, is to skip the descriptor and leave the consumer
+	/// with a handler that is registered, resolvable, and silently never reached — surfacing much later
+	/// as a dispatch-time "no handler registered" for an action, and as nothing at all for an event,
+	/// since publishing to zero handlers is legal.
+	/// </remarks>
+	public static Type RequireIndexableHandlerType(
+		Type serviceType,
+		Type? implementationType,
+		object? implementationInstance)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return implementationType
+			?? implementationInstance?.GetType()
+			?? throw new InvalidOperationException(
+				$"The handler registered for '{serviceType}' was created by a factory delegate, so it has "
+				+ "no implementation type and cannot be added to the handler index — it would never be "
+				+ $"invoked. Register the handler by type instead, as services.AddScoped<{serviceType}, "
+				+ "YourHandler>(), or register an instance. If the handler needs values that are not "
+				+ "services, register those values as their own service and let the container construct "
+				+ "the handler.");
 	}
 
 	/// <summary>

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -24,9 +24,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <see cref="ExcaliburHostingServiceCollectionExtensions.AddExcalibur(IServiceCollection, System.Action{IExcaliburBuilder})"/>
 /// registers <see cref="IActivityContext"/> and the context family (tenant, correlation,
 /// ETag, client address) with safe <c>TryAdd</c> defaults AFTER the builder configure
-/// callback runs. Calling <see cref="UseTenant(IExcaliburBuilder, string)"/> or
-/// <see cref="UseLocalClientAddress(IExcaliburBuilder)"/> inside the configure callback
-/// registers an override that wins against the default TryAdd.
+/// callback runs. The two overrides below survive that for different reasons.
+/// <see cref="UseLocalClientAddress(IExcaliburBuilder)"/> registers a client-address resolver, and the
+/// default resolver is added with <c>TryAdd</c>, which does nothing when one is already registered.
+/// <see cref="UseTenant(IExcaliburBuilder, string)"/> configures an options value; the framework seats
+/// its default tenant only when no default tenant has been configured, so the value you configure is
+/// kept whether it is set before or after <c>AddExcalibur</c> runs.
 /// </para>
 /// <para>
 /// These replace the <c>tenantId</c> / <c>useLocalClientAddress</c> / <c>assemblies</c>

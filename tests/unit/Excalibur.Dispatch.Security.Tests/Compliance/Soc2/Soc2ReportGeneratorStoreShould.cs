@@ -1,6 +1,6 @@
 using Excalibur.Compliance.Soc2;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 
@@ -37,8 +37,7 @@ public sealed class Soc2ReportGeneratorStoreShould
 				{
 					ControlId = "SEC-001",
 					IsConfigured = true,
-					IsEffective = true,
-					EffectivenessScore = 95
+					EffectivenessScore = ControlEffectiveness.Effective
 				}
 			});
 		A.CallTo(() => _controlValidation.RunControlTestAsync(A<string>._, A<ControlTestParameters>._, A<CancellationToken>._))
@@ -301,7 +300,7 @@ public sealed class Soc2ReportGeneratorStoreShould
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		report.Opinion.ShouldBe(AuditorOpinion.Unqualified);
+		report.OverallLevel.ShouldBe(ComplianceLevel.FullyCompliant);
 		report.Exceptions.ShouldBeEmpty();
 	}
 
@@ -316,8 +315,7 @@ public sealed class Soc2ReportGeneratorStoreShould
 				{
 					ControlId = "SEC-001",
 					IsConfigured = true,
-					IsEffective = false,
-					EffectivenessScore = 20
+					EffectivenessScore = ControlEffectiveness.ViolationDetected
 				}
 			});
 
@@ -330,7 +328,7 @@ public sealed class Soc2ReportGeneratorStoreShould
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		report.Opinion.ShouldBe(AuditorOpinion.Adverse);
+		report.OverallLevel.ShouldBe(ComplianceLevel.NonCompliant);
 		report.Exceptions.ShouldNotBeEmpty();
 	}
 

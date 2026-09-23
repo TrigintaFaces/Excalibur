@@ -588,6 +588,24 @@ docs(contributing): add code style guidelines
 
 ---
 
+## Contribution Licensing
+
+**Read this before opening a pull request — submitting one is how you agree to it.**
+
+By submitting a contribution to this project you agree that, unless you state otherwise:
+
+- your contribution is licensed to the Excalibur Project under the **Excalibur License 1.1**; and
+- you grant the Excalibur Project a perpetual, irrevocable right to distribute your contribution under
+  **any** of the project’s outbound licences — Excalibur License 1.1, AGPL-3.0-or-later or SSPL-1.0 —
+  and to license it under other terms, including commercial terms.
+
+The second point is the one worth reading twice: it is a re-licensing grant, so a contribution you
+make here may be distributed to others under a licence you did not choose. That is deliberate — the
+project offers consumers a choice of licences, and may offer commercial terms, and cannot do either without it.
+
+The governing text is the **Contribution Licensing** section of [LICENSE](LICENSE); this section
+summarises it and does not replace it. If the two ever disagree, LICENSE controls.
+
 ## Pull Request Process
 
 ### Before Submitting

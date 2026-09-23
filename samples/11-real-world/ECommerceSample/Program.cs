@@ -1,126 +1,88 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Security.Cryptography;
+using System.Diagnostics;
 
-using Excalibur.Dispatch;
-using Excalibur.Dispatch.Delivery;
-using Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample.Infrastructure;
+using Excalibur.Dispatch.Examples.ECommerceSample.Infrastructure;
+using Excalibur.Outbox.InMemory;
+using Excalibur.Outbox.Outbox;
 
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
-namespace Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample;
+namespace Excalibur.Dispatch.Examples.ECommerceSample;
 
 /// <summary>
-/// E-Commerce Order Processing Sample Application demonstrating enhanced stores in a realistic business scenario with message
-/// deduplication, batch processing, scheduling, and comprehensive observability.
+/// E-commerce order processing sample. Every store this sample talks to is a shipping Excalibur store, and
+/// every path it advertises is executed by the run: orders are deduplicated through the inbox, confirmation
+/// e-mails are staged in the outbox and drained by a background worker that retries a transient send failure,
+/// and inventory checks are scheduled and then executed from the schedule store.
 /// </summary>
 /// <remarks>
-/// This sample application demonstrates:
-/// <list type="bullet">
-/// <item> Order processing with enhanced inbox deduplication </item>
-/// <item> Batch email notifications with enhanced outbox </item>
-/// <item> Scheduled inventory checks with enhanced schedule store </item>
-/// <item> Real-time performance monitoring and alerting </item>
-/// <item> Health checks and graceful degradation </item>
-/// </list>
+/// <para>
+/// The run is a self-checking scenario rather than a demo loop. It submits a fixed workload, waits for the
+/// background workers to quiesce, then asserts the observable outcome: which orders were persisted, how many
+/// duplicates the inbox suppressed, how many notifications were sent, how many send retries were needed, and
+/// how many scheduled inventory checks executed against the product recorded in the schedule payload. The
+/// process exits non-zero if any assertion fails, so the sample cannot quietly decay into a program that
+/// starts, prints encouraging messages, and exercises nothing.
+/// </para>
+/// <para>Pass <c>--trace</c> to also emit OpenTelemetry spans and metrics to the console.</para>
 /// </remarks>
 public static class Program
 {
-	public static async Task Main(string[] args)
+	public static async Task<int> Main(string[] args)
 	{
-		Console.WriteLine("🛒 E-Commerce Enhanced Stores Sample");
-		Console.WriteLine("=====================================");
+		ArgumentNullException.ThrowIfNull(args);
+
+		var emitTelemetryToConsole = args.Contains("--trace", StringComparer.Ordinal);
+
+		Console.WriteLine("E-Commerce Order Processing Sample");
+		Console.WriteLine("==================================");
 		Console.WriteLine();
 
-		var host = CreateHostBuilder(args).Build();
-
-		// Start the application services
-		Console.WriteLine("🚀 Starting e-commerce order processing system...");
+		var host = CreateHostBuilder(args, emitTelemetryToConsole).Build();
 		await host.StartAsync().ConfigureAwait(false);
 
-		Console.WriteLine("✅ System started successfully!");
-		Console.WriteLine();
-		Console.WriteLine("📊 Monitoring Dashboard:");
-		Console.WriteLine("   - Order Processing: Enhanced Inbox Store with deduplication");
-		Console.WriteLine("   - Email Notifications: Enhanced Outbox Store with batching");
-		Console.WriteLine("   - Inventory Checks: Enhanced Schedule Store with execution tracking");
-		Console.WriteLine();
-		Console.WriteLine("🔄 Processing sample orders...");
-
-		// Generate sample workload
-		var workloadGenerator = host.Services.GetRequiredService<WorkloadGenerator>();
-		await workloadGenerator.GenerateSampleWorkloadAsync().ConfigureAwait(false);
-
-		Console.WriteLine();
-		Console.WriteLine("📈 Performance metrics and alerts are being collected...");
-		Console.WriteLine("Press 'q' to quit, 'm' for metrics, 'h' for health status");
-
-		// Interactive console monitoring
-		var keyTask = Task.Run(async () =>
+		OrderScenarioReport report;
+		try
 		{
-			while (true)
-			{
-				var key = Console.ReadKey(true);
-				switch (key.KeyChar)
-				{
-					case 'q':
-					case 'Q':
-						return;
-
-					case 'm':
-					case 'M':
-						await ShowMetrics(host.Services).ConfigureAwait(false);
-						break;
-
-					case 'h':
-					case 'H':
-						await ShowHealthStatus(host.Services).ConfigureAwait(false);
-						break;
-				}
-			}
-		});
-
-		await keyTask.ConfigureAwait(false);
+			var scenario = host.Services.GetRequiredService<OrderScenario>();
+			report = await scenario.RunAsync(CancellationToken.None).ConfigureAwait(false);
+		}
+		finally
+		{
+			await host.StopAsync().ConfigureAwait(false);
+		}
 
 		Console.WriteLine();
-		Console.WriteLine("🛑 Shutting down gracefully...");
-		await host.StopAsync().ConfigureAwait(false);
+		report.Write(Console.Out);
 
-		Console.WriteLine("✅ Application shutdown complete.");
+		return report.Passed ? 0 : 1;
 	}
 
-	private static IHostBuilder CreateHostBuilder(string[] args) =>
+	private static IHostBuilder CreateHostBuilder(string[] args, bool emitTelemetryToConsole) =>
 		Host.CreateDefaultBuilder(args)
-			.ConfigureServices(static (context, services) =>
+			.ConfigureServices((context, services) =>
 			{
-				// Configure enhanced stores with production settings
-				ConfigureEnhancedStores(services);
+				ConfigureStores(services);
+				ConfigureObservability(services, emitTelemetryToConsole);
 
-				// Configure observability
-				ConfigureObservability(services);
+				_ = services.AddSingleton<OrderProcessingService>();
+				_ = services.AddSingleton<NotificationService>();
+				_ = services.AddSingleton<InventoryService>();
 
-				// Register business services
-				_ = services.AddScoped<OrderProcessingService>();
-				_ = services.AddScoped<NotificationService>();
-				_ = services.AddScoped<InventoryService>();
-
-				// Register sample infrastructure
 				_ = services.AddSingleton<InMemoryOrderRepository>();
 				_ = services.AddSingleton<InMemoryEmailService>();
 				_ = services.AddSingleton<InMemoryInventoryRepository>();
 
-				// Register hosted services
-				_ = services.AddSingleton<WorkloadGenerator>();
-				_ = services.AddHostedService<OrderProcessorHostedService>();
-				_ = services.AddHostedService<NotificationProcessorHostedService>();
+				_ = services.AddSingleton<OrderScenario>();
+				_ = services.AddHostedService<NotificationDrainService>();
 				_ = services.AddHostedService<InventoryCheckProcessor>();
-				_ = services.AddHostedService<MetricsReportingService>();
 			})
 			.ConfigureLogging(static logging =>
 			{
@@ -129,9 +91,8 @@ public static class Program
 				_ = logging.SetMinimumLevel(LogLevel.Information);
 			});
 
-	private static void ConfigureEnhancedStores(IServiceCollection services)
+	private static void ConfigureStores(IServiceCollection services)
 	{
-		// Configure telemetry provider
 		_ = services.AddDispatchTelemetry(static options =>
 		{
 			options.ServiceName = "ECommerce.OrderProcessing";
@@ -140,236 +101,121 @@ public static class Program
 			options.EnableTracing = true;
 		});
 
-		// Register the stock in-memory store implementations. These are the
-		// shipping contracts for IInboxStore / IOutboxStore / IScheduleStore;
-		// the sample exercises the business services and hosted workers
-		// against them so the end-to-end flow is observable without any
-		// provider dependencies.
-		//
-		// Dedicated "enhanced" variants (e.g. AddEnhancedInboxStore) were
- // considered during and deferred: once the in-memory and
-		// SQL-Server stores cover the observed consumer needs, a new package
-		// split will be scoped with a framework-gap justification rather than
-		// shipping option-bearing extensions that duplicate the existing API
- // surface.
-		_ = services.AddSingleton<IInboxStore, InMemoryInboxStore>();
-		_ = services.AddSingleton<IOutboxStore, InMemoryOutboxStore>();
-		_ = services.AddSingleton<IScheduleStore, InMemoryScheduleStore>();
+		// The shipping stores, composed through the canonical builder entry points. Only the provider line
+		// changes for a persistent deployment -- swap UseInMemory() for UseSqlServer(...) / UsePostgres(...)
+		// and nothing else here or below moves, because this sample only ever talks to IInboxStore,
+		// IOutboxStore and IScheduleStore.
+		_ = services.AddExcaliburInbox(static inbox => inbox.UseInMemory());
+		_ = services.AddExcalibur(static excalibur => excalibur.AddOutbox(static outbox => outbox.UseInMemory()));
+
+		// The drain below polls faster than the framework's default outbox poll interval, and the failure
+		// backoff floor must stay above whichever poll interval is in force or a failed message would be
+		// re-claimed on the very next pass -- the retry hot-loop the floor exists to prevent. Both are stated
+		// here so the retry in this sample settles in seconds rather than the production-shaped default.
+		_ = services.Configure<OutboxProcessingOptions>(static options => options.PollingInterval = TimeSpan.FromSeconds(1));
+		_ = services.Configure<InMemoryOutboxOptions>(static options => options.FailureBackoffFloorSeconds = 2);
+
+		// Registers the in-memory IScheduleStore along with the rest of the scheduling infrastructure.
+		_ = services.AddDispatchScheduling();
 	}
 
-	private static void ConfigureObservability(IServiceCollection services)
+	private static void ConfigureObservability(IServiceCollection services, bool emitTelemetryToConsole)
 	{
 		_ = services.AddOpenTelemetry()
-			.WithTracing(static builder => builder
-				.AddSource("Excalibur.Dispatch.Core")
-				.AddSource("Excalibur.Dispatch.Pipeline")
-				.AddSource("Excalibur.Dispatch.TimePolicy")
-				.AddSource("ECommerce.OrderProcessing")
-				.AddConsoleExporter())
-			.WithMetrics(static builder => builder
-				.AddMeter("Excalibur.Dispatch.Core")
-				.AddMeter("Excalibur.Dispatch.Pipeline")
-				.AddMeter("Excalibur.Dispatch.TimePolicy")
-				.AddMeter("ECommerce.OrderProcessing"));
+			.WithTracing(builder =>
+			{
+				_ = builder
+					.AddSource("Excalibur.Dispatch.Core")
+					.AddSource("Excalibur.Dispatch.Pipeline")
+					.AddSource("ECommerce.OrderProcessing")
+					.AddSource("ECommerce.Inventory");
 
-		// Add health checks
+				if (emitTelemetryToConsole)
+				{
+					_ = builder.AddConsoleExporter();
+				}
+			})
+			.WithMetrics(builder =>
+			{
+				_ = builder
+					.AddMeter("Excalibur.Dispatch.Core")
+					.AddMeter("Excalibur.Dispatch.Pipeline")
+					.AddMeter("ECommerce.OrderProcessing");
+
+				if (emitTelemetryToConsole)
+				{
+					_ = builder.AddConsoleExporter();
+				}
+			});
+
 		_ = services.AddHealthChecks()
-			.AddCheck<EnhancedStoreHealthCheck>("enhanced-stores")
+			.AddCheck<StoreHealthCheck>("dispatch-stores")
 			.AddCheck<BusinessLogicHealthCheck>("business-logic");
 
-		// Add custom monitoring
 		_ = services.AddSingleton<PerformanceMonitor>();
 	}
-
-	private static async Task ShowMetrics(IServiceProvider services)
-	{
-		var monitor = services.GetRequiredService<PerformanceMonitor>();
-		var metrics = await monitor.GetCurrentMetricsAsync().ConfigureAwait(false);
-
-		Console.WriteLine();
-		Console.WriteLine("📊 Current Performance Metrics:");
-		Console.WriteLine($"   Orders Processed: {metrics.OrdersProcessed}");
-		Console.WriteLine($"   Duplicates Detected: {metrics.DuplicatesDetected}");
-		Console.WriteLine($"   Emails Queued: {metrics.EmailsQueued}");
-		Console.WriteLine($"   Inventory Checks Scheduled: {metrics.InventoryChecksScheduled}");
-		Console.WriteLine($"   Average Processing Time: {metrics.AverageProcessingTime:F2}ms");
-		Console.WriteLine($"   Cache Hit Rate: {metrics.CacheHitRate:P}");
-		Console.WriteLine();
-	}
-
-	private static async Task ShowHealthStatus(IServiceProvider services)
-	{
-		var healthCheck = services.GetRequiredService<EnhancedStoreHealthCheck>();
-		var context = new HealthCheckContext();
-		var healthResult = await healthCheck.CheckHealthAsync(context).ConfigureAwait(false);
-
-		Console.WriteLine();
-		Console.WriteLine("🏥 System Health Status:");
-		Console.WriteLine($"   Overall: {healthResult.Status}");
-		Console.WriteLine($"   Description: {healthResult.Description}");
-		if (healthResult.Exception != null)
-		{
-			Console.WriteLine($"   Error: {healthResult.Exception.Message}");
-		}
-
-		Console.WriteLine();
-	}
 }
 
 /// <summary>
-/// Generates realistic e-commerce workload for demonstration purposes.
-/// </summary>
-public sealed partial class WorkloadGenerator(
-	OrderProcessingService orderService,
-	NotificationService notificationService,
-	InventoryService inventoryService,
-	ILogger<WorkloadGenerator> logger)
-{
-	private readonly OrderProcessingService _orderService = orderService ?? throw new ArgumentNullException(nameof(orderService));
-
-	private readonly NotificationService _notificationService =
-		notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-
-	private readonly InventoryService _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
-	private readonly ILogger<WorkloadGenerator> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-	public async Task GenerateSampleWorkloadAsync()
-	{
-		LogGeneratingWorkload();
-
-		// Generate sample orders with some duplicates to test deduplication
-		var orderIds = new[]
-		{
-			"ORD-2025-001", "ORD-2025-002", "ORD-2025-003", "ORD-2025-004", "ORD-2025-005",
-			"ORD-2025-001", // Duplicate to test deduplication
-			"ORD-2025-006", "ORD-2025-007", "ORD-2025-008", "ORD-2025-009", "ORD-2025-010", "ORD-2025-002" // Another duplicate
-		};
-
-		var customers = new[]
-		{
-			"customer-alice@example.com", "customer-bob@example.com", "customer-charlie@example.com", "customer-diana@example.com",
-			"customer-eve@example.com"
-		};
-
-		var products = new[]
-		{
-			("laptop-pro-15", """
-			                  Laptop Pro 15"
-			                  """, 1299.99m),
-			("wireless-mouse", "Wireless Gaming Mouse", 79.99m), ("mechanical-keyboard", "Mechanical Keyboard", 149.99m),
-			("usb-c-hub", "USB-C Hub 8-in-1", 59.99m), ("monitor-4k-27", "27\" 4K Monitor", 449.99m)
-		};
-
-		// Process orders
-		var orderTasks = orderIds.Select(async (orderId, index) =>
-		{
-			var customer = customers[index % customers.Length];
-			var (productId, productName, price) = products[index % products.Length];
-
-			var order = new OrderCreated
-			{
-				OrderId = orderId,
-				CustomerId = customer,
-				ProductId = productId,
-				ProductName = productName,
-				Price = price,
-				Quantity = RandomNumberGenerator.GetInt32(1, 4),
-				OrderDate = DateTimeOffset.UtcNow.AddSeconds(-RandomNumberGenerator.GetInt32(0, 3600))
-			};
-
-			await _orderService.ProcessOrderAsync(order).ConfigureAwait(false);
-		});
-
-		await Task.WhenAll(orderTasks).ConfigureAwait(false);
-
-		// Schedule inventory checks
-		var inventoryTasks = products.Select(async product =>
-		{
-			await _inventoryService.ScheduleInventoryCheckAsync(
-				product.Item1,
-				DateTimeOffset.UtcNow.AddMinutes(RandomNumberGenerator.GetInt32(5, 30))).ConfigureAwait(false);
-		});
-
-		await Task.WhenAll(inventoryTasks).ConfigureAwait(false);
-
-		// Queue notification emails
-		var notificationTasks = customers.Select(async customer =>
-		{
-			await _notificationService.QueueWelcomeEmailAsync(customer).ConfigureAwait(false);
-			await _notificationService.QueuePromotionalEmailAsync(customer, "Spring Sale - 20% Off!").ConfigureAwait(false);
-		});
-
-		await Task.WhenAll(notificationTasks).ConfigureAwait(false);
-
-		LogWorkloadComplete();
-	}
-
-	[LoggerMessage(1001, LogLevel.Information, "🔄 Generating sample e-commerce workload...")]
-	private partial void LogGeneratingWorkload();
-
-	[LoggerMessage(1002, LogLevel.Information, "✅ Sample workload generation complete")]
-	private partial void LogWorkloadComplete();
-}
-
-/// <summary>
-/// Performance monitoring service for tracking metrics across enhanced stores.
+/// Counters recorded by the services and workers, and read back by the scenario assertions.
 /// </summary>
 public sealed class PerformanceMonitor
 {
-	private readonly List<double> _processingTimes = [];
-	private readonly double _cacheHitRate = 0.85;
 	private long _ordersProcessed;
-	private long _duplicatesDetected;
-	private long _emailsQueued;
+	private long _ordersFailed;
+	private long _duplicatesSuppressed;
+	private long _notificationsStaged;
+	private long _notificationsSent;
+	private long _notificationSendRetries;
 	private long _inventoryChecksScheduled;
-	// Simulated cache hit rate
+	private long _inventoryChecksExecuted;
 
-	public Task<PerformanceMetrics> GetCurrentMetricsAsync()
-	{
-		var metrics = new PerformanceMetrics
-		{
-			OrdersProcessed = _ordersProcessed,
-			DuplicatesDetected = _duplicatesDetected,
-			EmailsQueued = _emailsQueued,
-			InventoryChecksScheduled = _inventoryChecksScheduled,
-			AverageProcessingTime = _processingTimes.Count != 0 ? _processingTimes.Average() : 0,
-			CacheHitRate = _cacheHitRate
-		};
+	public long OrdersProcessed => Interlocked.Read(ref _ordersProcessed);
 
-		return Task.FromResult(metrics);
-	}
+	public long OrdersFailed => Interlocked.Read(ref _ordersFailed);
 
-	public void RecordOrderProcessed(double processingTimeMs)
-	{
-		_ = Interlocked.Increment(ref _ordersProcessed);
-		lock (_processingTimes)
-		{
-			_processingTimes.Add(processingTimeMs);
-			if (_processingTimes.Count > 100) // Keep last 100 measurements
-			{
-				_processingTimes.RemoveAt(0);
-			}
-		}
-	}
+	public long DuplicatesSuppressed => Interlocked.Read(ref _duplicatesSuppressed);
 
-	public void RecordDuplicateDetected() => Interlocked.Increment(ref _duplicatesDetected);
+	public long NotificationsStaged => Interlocked.Read(ref _notificationsStaged);
 
-	public void RecordEmailQueued() => Interlocked.Increment(ref _emailsQueued);
+	public long NotificationsSent => Interlocked.Read(ref _notificationsSent);
+
+	public long NotificationSendRetries => Interlocked.Read(ref _notificationSendRetries);
+
+	public long InventoryChecksScheduled => Interlocked.Read(ref _inventoryChecksScheduled);
+
+	public long InventoryChecksExecuted => Interlocked.Read(ref _inventoryChecksExecuted);
+
+	public void RecordOrderProcessed() => Interlocked.Increment(ref _ordersProcessed);
+
+	public void RecordOrderFailed() => Interlocked.Increment(ref _ordersFailed);
+
+	public void RecordDuplicateSuppressed() => Interlocked.Increment(ref _duplicatesSuppressed);
+
+	public void RecordNotificationStaged() => Interlocked.Increment(ref _notificationsStaged);
+
+	public void RecordNotificationSent() => Interlocked.Increment(ref _notificationsSent);
+
+	public void RecordNotificationSendRetry() => Interlocked.Increment(ref _notificationSendRetries);
 
 	public void RecordInventoryCheckScheduled() => Interlocked.Increment(ref _inventoryChecksScheduled);
+
+	public void RecordInventoryCheckExecuted() => Interlocked.Increment(ref _inventoryChecksExecuted);
 }
 
-public sealed record PerformanceMetrics
+/// <summary>
+/// The activity sources this sample emits under. Held statically: an <see cref="ActivitySource"/> lives for
+/// the life of the process, so giving one a per-instance lifetime would make every holder disposable for no
+/// gain.
+/// </summary>
+internal static class SampleTelemetry
 {
-	public long OrdersProcessed { get; init; }
-	public long DuplicatesDetected { get; init; }
-	public long EmailsQueued { get; init; }
-	public long InventoryChecksScheduled { get; init; }
-	public double AverageProcessingTime { get; init; }
-	public double CacheHitRate { get; init; }
+	public static readonly ActivitySource Orders = new("ECommerce.OrderProcessing");
+
+	public static readonly ActivitySource Inventory = new("ECommerce.Inventory");
 }
 
-// Message definitions for the e-commerce sample
+// Message definitions for the e-commerce sample.
 
 public sealed record OrderCreated
 {
@@ -391,17 +237,14 @@ public sealed record EmailNotification
 	public DateTimeOffset QueuedAt { get; init; } = DateTimeOffset.UtcNow;
 }
 
-public sealed record InventoryCheck
-{
-	public required string ProductId { get; init; }
-	public DateTimeOffset ScheduledFor { get; init; }
-	public required string CheckType { get; init; }
-}
-
+/// <summary>
+/// The payload persisted in the schedule store and read back by the worker that executes the check. The
+/// worker deserializes this record from the stored message body; it does not reconstruct the product from
+/// the schedule identifier, which carries no business meaning.
+/// </summary>
 public sealed record ScheduledInventoryCheck
 {
-	public required string ScheduleId { get; init; }
 	public required string ProductId { get; init; }
-	public DateTimeOffset ExecuteAt { get; init; }
 	public required string CheckType { get; init; }
+	public DateTimeOffset ExecuteAt { get; init; }
 }

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -307,28 +307,28 @@ public sealed class Soc2ReportGeneratorShould
 	public async Task GenerateTypeIReportAsync_DetermineUnqualifiedOpinion_WhenFullyCompliant()
 	{
 		// Arrange
-		SetupValidationWithScore(100, isEffective: true);
+		SetupValidationWithScore(ControlEffectiveness.Effective, isEffective: true);
 		var options = new ReportOptions();
 
 		// Act
 		var result = await _sut.GenerateTypeIReportAsync(DateTimeOffset.UtcNow, options, CancellationToken.None);
 
 		// Assert
-		result.Opinion.ShouldBe(AuditorOpinion.Unqualified);
+		result.OverallLevel.ShouldBe(ComplianceLevel.FullyCompliant);
 	}
 
 	[Fact]
 	public async Task GenerateTypeIReportAsync_DetermineAdverseOpinion_WhenNonCompliant()
 	{
 		// Arrange
-		SetupValidationWithScore(20, isEffective: false);
+		SetupValidationWithScore(ControlEffectiveness.ViolationDetected, isEffective: false);
 		var options = new ReportOptions();
 
 		// Act
 		var result = await _sut.GenerateTypeIReportAsync(DateTimeOffset.UtcNow, options, CancellationToken.None);
 
 		// Assert
-		result.Opinion.ShouldBe(AuditorOpinion.Adverse);
+		result.OverallLevel.ShouldBe(ComplianceLevel.NonCompliant);
 	}
 
 	#endregion GenerateTypeIReportAsync Tests
@@ -698,8 +698,7 @@ public sealed class Soc2ReportGeneratorShould
 				{
 					ControlId = "SEC-001",
 					IsConfigured = true,
-					IsEffective = true,
-					EffectivenessScore = 100
+					EffectivenessScore = ControlEffectiveness.Effective
 				}
 			});
 	}
@@ -723,7 +722,7 @@ public sealed class Soc2ReportGeneratorShould
 			});
 	}
 
-	private void SetupValidationWithScore(int score, bool isEffective)
+	private void SetupValidationWithScore(ControlEffectiveness score, bool isEffective)
 	{
 		_ = A.CallTo(() => _fakeControlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))
 			.Returns(["SEC-001"]);
@@ -735,7 +734,6 @@ public sealed class Soc2ReportGeneratorShould
 				{
 					ControlId = "SEC-001",
 					IsConfigured = true,
-					IsEffective = isEffective,
 					EffectivenessScore = score
 				}
 			});

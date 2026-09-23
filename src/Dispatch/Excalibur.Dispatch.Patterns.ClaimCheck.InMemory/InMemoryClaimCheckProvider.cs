@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.IO.Compression;
@@ -86,11 +86,18 @@ public sealed class InMemoryClaimCheckProvider : IClaimCheckProvider, IClaimChec
 			checksum = ComputeChecksum(processedPayload);
 		}
 
-		// Create storage entry
+		// THE ENTRY MUST OWN ITS BYTES. Until this copy existed, an uncompressed store kept the PRODUCER'S
+		// array: the caller could mutate the buffer it had just handed over and silently change what a later
+		// retrieval returned. With checksum validation on (the default) that surfaces as a corruption error
+		// on a payload nothing corrupted; with it off, the altered bytes are returned as if authentic.
+		//
+		// The compressed path already owns its array, because CompressPayload allocates a new one. It is the
+		// UNCOMPRESSED path that aliases -- and the defaults skip compression below the size threshold, so
+		// the aliasing case is the ordinary one rather than an edge case.
 		var entry = new InMemoryClaimCheckEntry
 		{
 			Id = claimId,
-			Payload = processedPayload,
+			Payload = isCompressed ? processedPayload : processedPayload.AsSpan().ToArray(),
 			Metadata = metadata,
 			StoredAt = now,
 			ExpiresAt = expiresAt,
@@ -152,12 +159,15 @@ public sealed class InMemoryClaimCheckProvider : IClaimCheckProvider, IClaimChec
 			}
 		}
 
-		// Decompress if needed
-		var payload = entry.Payload;
-		if (entry.IsCompressed)
-		{
-			payload = DecompressPayload(entry.Payload);
-		}
+		// AND THE CALLER MUST NOT RECEIVE THE STORED ARRAY. Handing back the entry's own buffer lets a
+		// consumer mutating its result corrupt the stored payload for every later retrieval -- the same
+		// ownership break as the store side, pointed the other way, and the one a consumer is likelier to
+		// trip because mutating a buffer you were given feels safe.
+		//
+		// DecompressPayload already allocates, so only the uncompressed path needs the copy.
+		var payload = entry.IsCompressed
+			? DecompressPayload(entry.Payload)
+			: entry.Payload.AsSpan().ToArray();
 
 		return Task.FromResult(payload);
 	}

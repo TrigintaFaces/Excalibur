@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization.Grants;
 
@@ -50,8 +50,10 @@ internal sealed class RoleAwareAuthorizationEvaluator(
 			}
 
 			hasRoleGrants = true;
+			// The grant carries the tenant it belongs to, so a role is expanded in the tenant that granted
+			// it rather than in whichever tenant happened to populate the resolver's cache first.
 			var roleActivities = await resolver.ResolveRolePermissionsAsync(
-				grant.Qualifier, cancellationToken).ConfigureAwait(false);
+				grant.TenantId, grant.Qualifier, cancellationToken).ConfigureAwait(false);
 
 			foreach (var activity in roleActivities)
 			{

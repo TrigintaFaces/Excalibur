@@ -33,8 +33,12 @@ TAGS = ("summary", "remarks", "value")
 open_re = {t: re.compile(rf"<{t}\b") for t in TAGS}
 
 def is_generated(path):
+    # *.Designer.cs is deliberately NOT excluded. It is committed, it is edited by hand in practice,
+    # and its XML docs ship in the package's .xml — so it is exactly the surface this gate exists to
+    # protect, and excluding it made the gate blind to the one place the defect actually appeared.
+    # What stays excluded is output that is regenerated on every build and never committed.
     b = os.path.basename(path).lower()
-    if b.endswith((".designer.cs", ".g.cs", ".generated.cs")):
+    if b.endswith((".g.cs", ".generated.cs")):
         return True
     p = path.replace("\\", "/").lower()
     return "/obj/" in p or "/bin/" in p or "generated" in b

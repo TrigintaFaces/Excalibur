@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
@@ -767,6 +767,483 @@ public abstract class InboxStoreConformanceTestKit : ConformanceTestKit
 				+ $"'{IsolationTenantB}'. This read is the retry sweeper's, and the sweeper has no tenant of "
 				+ "its own — every tenant other than the one that happens to be ambient would accumulate "
 				+ "failed entries that are never retried. Remove the tenant term from this read.");
+		}
+	}
+
+	#endregion
+
+	#region Admin mark-failed: the tenant is a parameter, and the outcome is reported
+
+	/// <summary>
+	/// LIVENESS: the administrative mark-failed must actually mark the entry, and say that it did.
+	/// </summary>
+	/// <remarks>
+	/// The partner of every refusal arm below. A store that answered
+	/// <see cref="InboxMarkFailedOutcome.EntryNotFound"/> to every caller would satisfy each of them
+	/// perfectly -- nothing is ever wrongly marked when nothing is ever marked -- and would silently strand
+	/// every transient short-circuit the drain parks for retry. Without this arm the suite would certify it.
+	/// </remarks>
+	public virtual async Task AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var admin = CreateAdminStore(store);
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		using var scope = TenantContextHolder.BeginScope(IsolationTenantA);
+
+		_ = await store.CreateEntryAsync(
+			messageId, handlerType, "TestMessageType", CreatePayload("Test payload"), CreateDefaultMetadata(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var outcome = await admin.MarkFailedAsync(
+			KeyedTenantPartition.Scoped(IsolationTenantA), messageId, handlerType, "transient cb-open", 7, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (outcome != InboxMarkFailedOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"The administrative mark-failed reported '{outcome}' for entry '{messageId}'/'{handlerType}', "
+				+ $"which exists in the tenant partition '{IsolationTenantA}' it was handed. Only "
+				+ $"'{nameof(InboxMarkFailedOutcome.Applied)}' says the entry was written, and the drain tests "
+				+ "for it by name, so any other value parks the entry nowhere: the transient short-circuit that "
+				+ "issued this call believes the entry is re-admittable and it is not.");
+		}
+
+		var entry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		if (entry is null || entry.Status != InboxStatus.Failed || entry.RetryCount != 7)
+		{
+			throw new TestFixtureAssertionException(
+				$"The administrative mark-failed reported '{nameof(InboxMarkFailedOutcome.Applied)}' for entry "
+				+ $"'{messageId}'/'{handlerType}' and the entry does not show it: expected status "
+				+ $"{InboxStatus.Failed} with retry count 7, found {DescribeEntry(entry)}. A store that reports "
+				+ "Applied without writing is worse than one that reports a refusal, because the caller has no "
+				+ "remaining way to find out.");
+		}
+	}
+
+	/// <summary>
+	/// LIVENESS, and the arm a store resolving its own tenant cannot pass: the partition the caller PASSES is
+	/// the partition addressed, even when a different tenant is ambient.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The entries this operation marks come off
+	/// <see cref="IInboxStoreAdmin.GetAllTenantsFailedEntriesAsync"/>, which spans every partition. So the
+	/// only partition that can be correct is the one carried on the entry, and the caller is the only party
+	/// that knows it. A store that resolves the tenant from ambient context instead addresses whichever
+	/// partition the call site happened to be standing in -- here, a partition the entry is not in -- and
+	/// reports <see cref="InboxMarkFailedOutcome.EntryNotFound"/> for an entry that is plainly there.
+	/// </para>
+	/// <para>
+	/// This is deliberately run with the WRONG tenant ambient. Running it with the right one ambient would
+	/// pass under either implementation and certify nothing.
+	/// </para>
+	/// </remarks>
+	public virtual async Task AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var admin = CreateAdminStore(store);
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		using (TenantContextHolder.BeginScope(IsolationTenantB))
+		{
+			_ = await store.CreateEntryAsync(
+				messageId, handlerType, "TestMessageType", CreatePayload("Test payload"), CreateDefaultMetadata(), CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+
+		InboxMarkFailedOutcome outcome;
+		using (TenantContextHolder.BeginScope(IsolationTenantA))
+		{
+			outcome = await admin.MarkFailedAsync(
+				KeyedTenantPartition.Scoped(IsolationTenantB), messageId, handlerType, "transient cb-open", 4, CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+
+		if (outcome != InboxMarkFailedOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"The administrative mark-failed was handed partition '{IsolationTenantB}', where entry "
+				+ $"'{messageId}'/'{handlerType}' exists, and reported '{outcome}' -- with '{IsolationTenantA}' "
+				+ "ambient. The store is resolving the tenant from ambient context rather than from its "
+				+ "parameter. Every entry this operation marks arrives from an estate-wide read, so the ambient "
+				+ "tenant at the call site is unrelated to the entry's: an operator who lists failed entries "
+				+ "across the estate and then marks one is silently addressing a different population, and "
+				+ "nothing in the signature said so. Bind the passed partition.");
+		}
+
+		InboxEntry? entry;
+		using (TenantContextHolder.BeginScope(IsolationTenantB))
+		{
+			entry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		if (entry is null || entry.Status != InboxStatus.Failed || entry.RetryCount != 4)
+		{
+			throw new TestFixtureAssertionException(
+				$"The administrative mark-failed reported '{nameof(InboxMarkFailedOutcome.Applied)}' against "
+				+ $"partition '{IsolationTenantB}' and that partition's entry '{messageId}'/'{handlerType}' does "
+				+ $"not show it: expected status {InboxStatus.Failed} with retry count 4, found "
+				+ $"{DescribeEntry(entry)}. The write landed somewhere other than the partition the caller "
+				+ "named.");
+		}
+	}
+
+	/// <summary>
+	/// SAFETY: naming a partition the entry is not in must refuse, and must leave the entry alone.
+	/// </summary>
+	/// <remarks>
+	/// The mirror of the arm above, and it fails in the opposite direction: a store that ignores the passed
+	/// partition and resolves the ambient one instead finds the entry here and marks it, so a caller
+	/// addressing a tenant it has no entry in silently mutates a DIFFERENT tenant's entry. Both directions
+	/// are asserted because either one alone is satisfiable by an implementation that has not fixed anything.
+	/// </remarks>
+	public virtual async Task AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var admin = CreateAdminStore(store);
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		using var scope = TenantContextHolder.BeginScope(IsolationTenantA);
+
+		_ = await store.CreateEntryAsync(
+			messageId, handlerType, "TestMessageType", CreatePayload("Test payload"), CreateDefaultMetadata(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var outcome = await admin.MarkFailedAsync(
+			KeyedTenantPartition.Scoped(IsolationTenantB), messageId, handlerType, "transient cb-open", 9, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (outcome != InboxMarkFailedOutcome.EntryNotFound)
+		{
+			throw new TestFixtureAssertionException(
+				$"The administrative mark-failed was handed partition '{IsolationTenantB}', which holds no entry "
+				+ $"'{messageId}'/'{handlerType}', and reported '{outcome}' rather than "
+				+ $"'{nameof(InboxMarkFailedOutcome.EntryNotFound)}' -- with '{IsolationTenantA}', which DOES "
+				+ "hold one, ambient. Either the tenant term is missing from the statement's key, or the store "
+				+ "resolved the ambient tenant in place of its parameter. Both let one tenant's administrative "
+				+ "action mutate another tenant's entry.");
+		}
+
+		var entry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		if (entry is null || entry.Status == InboxStatus.Failed || entry.RetryCount != 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"Entry '{messageId}'/'{handlerType}' in partition '{IsolationTenantA}' was modified by a "
+				+ $"mark-failed addressed to partition '{IsolationTenantB}': expected it untouched at "
+				+ $"{InboxStatus.Received} with retry count 0, found {DescribeEntry(entry)}. Reporting the "
+				+ "refusal is not enough -- the refusal must also be true of the store.");
+		}
+	}
+
+	/// <summary>
+	/// The absent entry is REPORTED, never thrown, and never confused with a refusal.
+	/// </summary>
+	/// <remarks>
+	/// Half the shipped stores used to raise <see cref="InvalidOperationException"/> here while the other
+	/// half affected zero rows in silence, so no caller could be written correct against both. This operation
+	/// is issued from inside a drain's failure handling, where an exception abandons every other entry the
+	/// caller still holds: a refusal on one entry must cost that entry and nothing else.
+	/// </remarks>
+	public virtual async Task AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var admin = CreateAdminStore(store);
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		using var scope = TenantContextHolder.BeginScope(IsolationTenantA);
+
+		InboxMarkFailedOutcome outcome;
+
+		try
+		{
+			outcome = await admin.MarkFailedAsync(
+				KeyedTenantPartition.Scoped(IsolationTenantA), messageId, handlerType, "transient cb-open", 2, CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is not TestFixtureAssertionException)
+		{
+			throw new TestFixtureAssertionException(
+				$"The administrative mark-failed threw {ex.GetType().Name} for an entry that was never staged, "
+				+ $"instead of reporting '{nameof(InboxMarkFailedOutcome.EntryNotFound)}'. The drain issues this "
+				+ "call from inside its own failure handling, one entry at a time: an exception there escapes "
+				+ "the cycle and abandons every other entry the caller legitimately holds. The absence is a "
+				+ "result, not a fault.",
+				ex);
+		}
+
+		if (outcome != InboxMarkFailedOutcome.EntryNotFound)
+		{
+			throw new TestFixtureAssertionException(
+				$"The administrative mark-failed reported '{outcome}' for entry '{messageId}'/'{handlerType}', "
+				+ $"which was never staged. Only '{nameof(InboxMarkFailedOutcome.EntryNotFound)}' distinguishes "
+				+ "an entry that is not there from one the store declined to move, and the two have opposite "
+				+ "diagnoses: the first says look at your identifiers and your tenant, the second says the work "
+				+ "is already done.");
+		}
+	}
+
+	/// <summary>
+	/// The terminal entry is REFUSED, the refusal is reported as its own outcome, and the entry is unchanged.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Processed is absorbing: demoting a finalized entry to failed would re-admit it to the retry drain and
+	/// run its handler a second time over side effects already committed. The safety half is that no write
+	/// occurs; the liveness half is that the caller is TOLD, by a value distinct from
+	/// <see cref="InboxMarkFailedOutcome.EntryNotFound"/> -- a store reporting an absence for a present
+	/// terminal entry sends the operator looking for something that is sitting there, finished.
+	/// </para>
+	/// <para>
+	/// The retry count is asserted unchanged as well as the status. A store guarding only the status column
+	/// leaves the entry describing a state it was never in.
+	/// </para>
+	/// </remarks>
+	public virtual async Task AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var admin = CreateAdminStore(store);
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		using var scope = TenantContextHolder.BeginScope(IsolationTenantA);
+
+		_ = await store.CreateEntryAsync(
+			messageId, handlerType, "TestMessageType", CreatePayload("Test payload"), CreateDefaultMetadata(), CancellationToken.None)
+			.ConfigureAwait(false);
+		await store.MarkProcessedAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		var beforeRetryCount = (await store.GetEntryAsync(messageId, handlerType, CancellationToken.None)
+			.ConfigureAwait(false))?.RetryCount ?? -1;
+
+		var outcome = await admin.MarkFailedAsync(
+			KeyedTenantPartition.Scoped(IsolationTenantA), messageId, handlerType, "transient cb-open", 9, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (outcome != InboxMarkFailedOutcome.AlreadyProcessed)
+		{
+			throw new TestFixtureAssertionException(
+				$"The administrative mark-failed reported '{outcome}' for entry '{messageId}'/'{handlerType}', "
+				+ $"which is in the terminal {InboxStatus.Processed} state. It must report "
+				+ $"'{nameof(InboxMarkFailedOutcome.AlreadyProcessed)}': that is a present entry whose work is "
+				+ "done, and reporting it as an absence sends the operator hunting for something that is "
+				+ "sitting there finished, while reporting it as Applied asserts a write that never happened.");
+		}
+
+		var entry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		if (entry is null || entry.Status != InboxStatus.Processed || entry.RetryCount != beforeRetryCount)
+		{
+			throw new TestFixtureAssertionException(
+				$"Entry '{messageId}'/'{handlerType}' was modified by a mark-failed that the store refused: "
+				+ $"expected it untouched at {InboxStatus.Processed} with retry count {beforeRetryCount}, found "
+				+ $"{DescribeEntry(entry)}. A partial write is worse than a full demotion, because the entry "
+				+ "then describes a state it was never in.");
+		}
+	}
+
+	// The observed-state half of every mark-failed assertion message above, written once so a failure always
+	// names what was actually there. "The entry was modified" without the values it now holds tells whoever
+	// reads the failure nothing about which column moved.
+	private static string DescribeEntry(InboxEntry? entry) =>
+		entry is null
+			? "no entry at all"
+			: $"{entry.Status} with retry count {entry.RetryCount}";
+
+	/// <summary>
+	/// LIVENESS. The core mark-failed reports <see cref="InboxMarkFailedOutcome.Applied"/> for an entry it
+	/// can transition, and the entry really moved.
+	/// </summary>
+	/// <remarks>
+	/// Without this arm the two refusal arms below are both satisfied by a store that refuses everything,
+	/// which is the cheapest way to pass a refusal assertion and the most expensive way to be wrong.
+	/// </remarks>
+	public virtual async Task CoreMarkFailed_ForAnExistingEntry_MustReportApplied()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		_ = await store.CreateEntryAsync(
+			messageId, handlerType, "TestMessageType", CreatePayload("Test payload"), CreateDefaultMetadata(),
+			CancellationToken.None).ConfigureAwait(false);
+
+		var outcome = await store.MarkFailedAsync(messageId, handlerType, "handler threw", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (outcome != InboxMarkFailedOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"Mark-failed reported '{outcome}' for entry '{messageId}'/'{handlerType}', which exists and is "
+				+ $"not terminal. Only '{nameof(InboxMarkFailedOutcome.Applied)}' says the entry was written, and "
+				+ "callers test for it by name, so any other value tells the caller its failure was not recorded "
+				+ "when it was.");
+		}
+
+		var entry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		if (entry is null || entry.Status != InboxStatus.Failed)
+		{
+			throw new TestFixtureAssertionException(
+				$"Mark-failed reported '{nameof(InboxMarkFailedOutcome.Applied)}' but the entry is "
+				+ $"{DescribeEntry(entry)}. An outcome that claims a write the store did not perform is worse "
+				+ "than the void return this outcome replaced, because a caller now believes a specific thing "
+				+ "that is false.");
+		}
+	}
+
+	/// <summary>
+	/// REFUSAL. An entry that does not exist reports <see cref="InboxMarkFailedOutcome.EntryNotFound"/> and
+	/// MUST NOT throw.
+	/// </summary>
+	/// <remarks>
+	/// The absence of the throw is asserted, not merely the returned value: a provider that throws before it
+	/// returns would otherwise satisfy a value-only assertion by never reaching it. This is the arm that
+	/// makes the interface substitutable - while some providers throw here and others are silent, a caller
+	/// that catches is broken against the silent ones and a caller that does not is broken against the
+	/// throwing ones, so no caller can be written correct against the interface at all.
+	/// </remarks>
+	public virtual async Task CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		InboxMarkFailedOutcome outcome;
+
+		try
+		{
+			outcome = await store.MarkFailedAsync(messageId, handlerType, "never created", CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			throw new TestFixtureAssertionException(
+				$"Mark-failed threw {ex.GetType().Name} for absent entry '{messageId}'/'{handlerType}' instead of "
+				+ $"reporting '{nameof(InboxMarkFailedOutcome.EntryNotFound)}'. An entry the store has never seen "
+				+ "is an ordinary answer on a per-failed-message path, not a fault: exceptions are reserved for "
+				+ "the store being unreachable, the statement failing, or the transaction aborting. While "
+				+ "providers disagree about this, no caller can be written correct against the interface.",
+				ex);
+		}
+
+		if (outcome != InboxMarkFailedOutcome.EntryNotFound)
+		{
+			throw new TestFixtureAssertionException(
+				$"Mark-failed reported '{outcome}' for entry '{messageId}'/'{handlerType}', which was never "
+				+ $"created. '{nameof(InboxMarkFailedOutcome.EntryNotFound)}' and "
+				+ $"'{nameof(InboxMarkFailedOutcome.AlreadyProcessed)}' have opposite diagnoses - one says the "
+				+ "record is missing, the other says it is finished - so collapsing them leaves an operator "
+				+ "unable to tell a lost entry from a completed one.");
+		}
+	}
+
+	/// <summary>
+	/// REFUSAL. A terminal entry reports <see cref="InboxMarkFailedOutcome.AlreadyProcessed"/> and is left
+	/// UNCHANGED.
+	/// </summary>
+	/// <remarks>
+	/// Processed is absorbing: demoting a completed entry to failed would re-admit it to the drain and run
+	/// its handler again over side effects already committed. The arm asserts the row did not move as well as
+	/// the value returned, because a store that reports the refusal and mutates anyway has refused nothing.
+	/// </remarks>
+	public virtual async Task CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		_ = await store.CreateEntryAsync(
+			messageId, handlerType, "TestMessageType", CreatePayload("Test payload"), CreateDefaultMetadata(),
+			CancellationToken.None).ConfigureAwait(false);
+
+		await store.MarkProcessedAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		var before = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		var outcome = await store.MarkFailedAsync(messageId, handlerType, "late failure", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (outcome != InboxMarkFailedOutcome.AlreadyProcessed)
+		{
+			throw new TestFixtureAssertionException(
+				$"Mark-failed reported '{outcome}' for entry '{messageId}'/'{handlerType}', which is already "
+				+ $"{nameof(InboxStatus.Processed)}. The store must report "
+				+ $"'{nameof(InboxMarkFailedOutcome.AlreadyProcessed)}' so the caller can tell a refused "
+				+ "transition from an applied one; reporting anything else hands it a verdict the store did not "
+				+ "reach.");
+		}
+
+		var after = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		if (after is null || after.Status != InboxStatus.Processed || after.RetryCount != before?.RetryCount)
+		{
+			throw new TestFixtureAssertionException(
+				$"Mark-failed refused the transition on '{messageId}'/'{handlerType}' but the entry moved: it was "
+				+ $"{DescribeEntry(before)} and is now {DescribeEntry(after)}. A refusal that still writes has "
+				+ "refused nothing - the guard must leave every column holding its own value, or a completed "
+				+ "entry is re-admitted to the drain and its handler runs again over committed side effects.");
+		}
+	}
+
+	/// <summary>
+	/// LIVENESS for the backoff-scheduling overload, on stores that declare it. Reports
+	/// <see cref="InboxMarkFailedOutcome.Applied"/>, because scheduling the backoff is part of applying.
+	/// </summary>
+	/// <remarks>
+	/// Skipped on a store that does not schedule: backoff is an optional capability, and asserting it against
+	/// a store that never claimed it would fail for the wrong reason. The capability is read the same way the
+	/// processor reads it, so a decorator that declares the interface in order to forward it - while wrapping
+	/// an inner store that cannot schedule - is not selected here either.
+	/// </remarks>
+	public virtual async Task BackoffMarkFailed_ForAnExistingEntry_MustReportApplied()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+
+		var schedules = store is IInboxStoreCapabilities capabilities
+			? capabilities.SupportsBackoffScheduling
+			: store is IBackoffSchedulableInboxStore;
+
+		if (!schedules || store is not IBackoffSchedulableInboxStore schedulable)
+		{
+			return;
+		}
+
+		var messageId = GenerateMessageId();
+		var handlerType = GenerateHandlerType();
+
+		_ = await store.CreateEntryAsync(
+			messageId, handlerType, "TestMessageType", CreatePayload("Test payload"), CreateDefaultMetadata(),
+			CancellationToken.None).ConfigureAwait(false);
+
+		var outcome = await schedulable.MarkFailedWithBackoffAsync(
+			messageId, handlerType, "handler threw", 3, DateTimeOffset.UtcNow.AddMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (outcome != InboxMarkFailedOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"Backoff mark-failed reported '{outcome}' for entry '{messageId}'/'{handlerType}', which exists "
+				+ "and is not terminal. Scheduling the backoff is part of applying and has no separate outcome, "
+				+ $"so a schedulable store must report '{nameof(InboxMarkFailedOutcome.Applied)}' here. Any other "
+				+ "value tells the processor the attempt was not counted, and it will not back off as scheduled.");
+		}
+
+		var entry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+
+		if (entry is null || entry.Status != InboxStatus.Failed || entry.RetryCount != 3)
+		{
+			throw new TestFixtureAssertionException(
+				$"Backoff mark-failed reported '{nameof(InboxMarkFailedOutcome.Applied)}' but the entry is "
+				+ $"{DescribeEntry(entry)}; the retry count was set to exactly 3 by the caller, which is the "
+				+ "attempt count used to compute the next attempt time, so one drain consumes exactly one "
+				+ "attempt.");
 		}
 	}
 

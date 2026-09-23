@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
@@ -48,6 +48,17 @@ public static class InMemoryInboxExtensions
 		services.AddKeyedSingleton<IInboxStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemoryInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("inmemory"));
+
+		// Non-keyed convenience alias, so a host that calls only this extension can inject
+		// <see cref="IInboxStore"/> without [FromKeyedServices("default")]. AddTenantAwareStore above
+		// registers the CONCRETE store -- it infers the service type from the factory, not from the
+		// contract -- so without this line the contract this method is named for resolves to nothing and
+		// the consumer meets it at startup, after wiring.
+		//
+		// Forwards to keyed "default" rather than to the concrete type, so the keyed and non-keyed views
+		// never disagree: if another provider already holds "default", both resolve to that provider.
+		// TryAdd, so the composition extension and a consumer's own store both keep winning.
+		services.TryAddSingleton<IInboxStore>(static sp => sp.GetRequiredKeyedService<IInboxStore>("default"));
 
 		return services;
 	}

@@ -343,6 +343,20 @@ jobs:
           echo "✅ Successfully created $PACKAGE_COUNT packages"
           rm -rf ./temp-packages
 
+          # The templates package is validated separately, into its own output directory, so the
+          # count assertion above keeps comparing like with like: its expected value is derived from
+          # the shipping shard, and templates/ is deliberately not a member of it.
+          echo "Validating template package creation for version: $VERSION..."
+          dotnet pack templates/Excalibur.Dispatch.Templates.csproj             --configuration Release             --verbosity minimal             -p:PackageVersion="$VERSION"             --output ./temp-templates
+
+          TEMPLATE_COUNT=$(find ./temp-templates -name "*.nupkg" | wc -l)
+          if [ "$TEMPLATE_COUNT" -ne 1 ]; then
+            echo "❌ Expected exactly 1 template package, found $TEMPLATE_COUNT"
+            exit 1
+          fi
+          echo "✅ Template package created"
+          rm -rf ./temp-templates
+
       - name: Upload flaky quarantine report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

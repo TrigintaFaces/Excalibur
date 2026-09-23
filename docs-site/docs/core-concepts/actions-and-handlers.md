@@ -80,7 +80,7 @@ Handlers contain the business logic that processes actions.
 
 ### Action Handler Without Return
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
@@ -318,7 +318,7 @@ public class GetOrderHandler : IActionHandler<GetOrderAction, Order>
 
         if (order is null)
         {
-            throw new NotFoundException($"Order {action.OrderId} not found");
+            throw new ResourceNotFoundException($"Order {action.OrderId} not found");
         }
 
         return order;
@@ -410,7 +410,7 @@ Use `IDispatchHandler` only when you need capabilities not available with specia
 | Capability | `IActionHandler` | `IDispatchHandler` |
 |------------|------------------|-------------------|
 | Return `MessageResult.SuccessFromCache()` | ❌ | ✅ |
-| Set `CacheHit = true` on result | ❌ | ✅ |
+| Set `Disposition` on result | ❌ | ✅ |
 | Set `ValidationResult` on success | ❌ | ✅ |
 | Set `AuthorizationResult` on success | ❌ | ✅ |
 | Return failure without throwing exception | ❌ | ✅ |

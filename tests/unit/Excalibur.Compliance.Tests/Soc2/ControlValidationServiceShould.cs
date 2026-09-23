@@ -1,6 +1,8 @@
 using Excalibur.Compliance;
 using Excalibur.Compliance.Soc2;
 
+using Excalibur.Compliance.Soc2.Validators;
+
 namespace Excalibur.Compliance.Tests.Soc2;
 
 [Trait("Category", "Unit")]
@@ -18,8 +20,7 @@ public sealed class ControlValidationServiceShould
 			{
 				ControlId = "CC1.1",
 				IsConfigured = true,
-				IsEffective = true,
-				EffectivenessScore = 90
+				EffectivenessScore = ControlEffectiveness.Effective
 			});
 
 		var sut = new ControlValidationService([validator]);
@@ -28,7 +29,7 @@ public sealed class ControlValidationServiceShould
 
 		result.ControlId.ShouldBe("CC1.1");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		result.Outcome.ShouldBe(ControlOutcome.Effective);
 	}
 
 	[Fact]
@@ -40,8 +41,11 @@ public sealed class ControlValidationServiceShould
 
 		result.ControlId.ShouldBe("unknown-ctrl");
 		result.IsConfigured.ShouldBeFalse();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBe(0);
+		// STRENGTHENED: was "not effective", which a deficiency also satisfies. An unregistered control
+		// was never examined, so the honest verdict is NotVerified -- reporting a deficiency states a
+		// finding nobody made and sends an auditor after a defect that may not exist.
+		result.Outcome.ShouldBe(ControlOutcome.NotVerified);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Unverified);
 		result.ConfigurationIssues.ShouldNotBeEmpty();
 	}
 
@@ -56,8 +60,7 @@ public sealed class ControlValidationServiceShould
 			{
 				ControlId = "test",
 				IsConfigured = true,
-				IsEffective = true,
-				EffectivenessScore = 85
+				EffectivenessScore = ControlEffectiveness.Effective
 			});
 
 		var sut = new ControlValidationService([validator]);

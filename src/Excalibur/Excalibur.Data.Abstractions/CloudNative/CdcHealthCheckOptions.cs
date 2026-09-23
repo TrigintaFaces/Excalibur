@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Data.CloudNative;
 
@@ -37,4 +37,15 @@ public class CdcHealthCheckOptions
 	/// </summary>
 	/// <value>The degraded inactivity timeout. Default is 5 minutes.</value>
 	public TimeSpan DegradedInactivityTimeout { get; set; } = TimeSpan.FromMinutes(5);
+
+	/// <summary>
+	/// Gets or sets how many consecutive transient failures without progress make the CDC health check
+	/// report Unhealthy.
+	/// </summary>
+	/// <remarks>
+	/// Streaming processors report each reconnect that fails without making progress. The count returns to
+	/// zero as soon as the processor makes progress again.
+	/// </remarks>
+	/// <value>The threshold; defaults to 3. Must be at least 1.</value>
+	public int UnhealthyConsecutiveTransientFailures { get; set; } = 3;
 }

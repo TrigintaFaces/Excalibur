@@ -148,6 +148,13 @@
          its table at runtime, so the conformance suites must provision from the shipped script. -->
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Scripts\001_CreateDeadLetterSchema.sql" Link="Schema\Postgres\001_CreateDeadLetterSchema.sql" />
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Scripts\001_CreateDeadLetterSchema.sql" Link="Schema\SqlServer\001_CreateDeadLetterSchema.sql" />
+    <!-- Activity-group DDL, same reason: neither activity-group store creates its table at runtime, so
+         its arms provision from the shipped script to run against the schema a consumer applies. -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Scripts\002_CreateActivityGroupSchema.sql" Link="Schema\SqlServer\002_CreateActivityGroupSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Scripts\002_CreateActivityGroupSchema.sql" Link="Schema\Postgres\002_CreateActivityGroupSchema.sql" />
+    <!-- Grant DDL: neither grant store creates its tables at runtime, so their arms provision from the shipped script. -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Scripts\003_CreateGrantSchema.sql" Link="Schema\SqlServer\003_CreateGrantSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Scripts\003_CreateGrantSchema.sql" Link="Schema\Postgres\003_CreateGrantSchema.sql" />
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\002_MakeComplianceTenantTotal.sql" Link="Schema\Postgres\002_MakeComplianceTenantTotal.sql" />
     <!--
       The data-inventory tenant-totality migrations. These carry more weight than the two above,

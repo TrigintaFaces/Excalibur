@@ -13,7 +13,12 @@
     <PackageReference Include="Ben.Demystifier" />
     <PackageReference Include="Dapper" />
     <PackageReference Include="JsonNet.ContractResolvers" />
-    <PackageReference Include="Microsoft.ApplicationInsights" />
+    <!-- Microsoft.ApplicationInsights removed: unused here (no .cs references anywhere outside
+         Excalibur.Dispatch.Observability, which carries its own Microsoft.ApplicationInsights.AspNetCore
+         reference) and its v3+ transitive graph pulls Azure.Monitor.OpenTelemetry.Exporter -> Azure.Core
+         into every consumer of this package. Excalibur.Dispatch.csproj removed the same reference for the
+         same reason; this is that fix applied one package over. Telemetry/OTel integration belongs in
+         Excalibur.Dispatch.Observability. -->
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />

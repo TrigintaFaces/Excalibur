@@ -16,6 +16,8 @@ Excalibur.Dispatch.Transport.Mqtt.MqttOptions.MaxPayloadBytes.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.MqttOptions() -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Password.get -> string?
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Password.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.PersistentSession.get -> bool
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.PersistentSession.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Port.get -> int
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Port.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.QualityOfService.get -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
@@ -24,6 +26,8 @@ Excalibur.Dispatch.Transport.Mqtt.MqttOptions.RequireTls.get -> bool
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.RequireTls.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ResponseTopic.get -> string?
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ResponseTopic.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.SessionExpiryInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.SessionExpiryInterval.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.SharedSubscriptionGroup.get -> string!
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.SharedSubscriptionGroup.set -> void
 Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Topic.get -> string!

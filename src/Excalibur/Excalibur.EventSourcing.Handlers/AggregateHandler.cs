@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data;
 using Excalibur.Dispatch;
@@ -43,20 +43,23 @@ internal sealed class AggregateHandler<TAggregate, TKey, TMessage> : IActionHand
 	/// Initializes a new instance of the <see cref="AggregateHandler{TAggregate, TKey, TMessage}"/> class.
 	/// </summary>
 	/// <param name="repository">The event-sourced repository for the target aggregate.</param>
-	/// <param name="resolveId">Resolves the aggregate identity from the message (supplied at registration).</param>
-	/// <param name="decide">The domain decision applied to the loaded aggregate.</param>
+	/// <param name="definition">The identity resolver and domain decision supplied at registration.</param>
+	/// <remarks>
+	/// The resolver and the decision arrive as a registered service rather than as captured closure
+	/// arguments so that this handler can be registered by implementation TYPE. The handler index is
+	/// built from a descriptor's implementation type and instance; a closure registration supplies
+	/// neither, so such a handler is never indexed and never invoked.
+	/// </remarks>
 	public AggregateHandler(
 		IEventSourcedRepository<TAggregate, TKey> repository,
-		Func<TMessage, TKey> resolveId,
-		Func<TAggregate, TMessage, CancellationToken, Task> decide)
+		AggregateHandlerDefinition<TAggregate, TKey, TMessage> definition)
 	{
 		ArgumentNullException.ThrowIfNull(repository);
-		ArgumentNullException.ThrowIfNull(resolveId);
-		ArgumentNullException.ThrowIfNull(decide);
+		ArgumentNullException.ThrowIfNull(definition);
 
 		_repository = repository;
-		_resolveId = resolveId;
-		_decide = decide;
+		_resolveId = definition.ResolveId;
+		_decide = definition.Decide;
 	}
 
 	/// <inheritdoc/>

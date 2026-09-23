@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 
@@ -236,6 +236,118 @@ public sealed class DynamoDbCdcProcessorShardIteratorShould
 	};
 
 	/// <summary>A shard DynamoDB has closed (it has an ending sequence number) — the parent of a split.</summary>
+	/// <summary>
+	/// SAFETY. A closed shard the consumer stopped part-way through must be reopened, not skipped.
+	/// </summary>
+	/// <remarks>
+	/// An ending sequence number means the shard is closed to NEW records. It is not a statement about
+	/// what this consumer read. Treating a saved position as proof of completion abandoned every record
+	/// between the checkpoint and the end: the stream still retained them, the children carried on past
+	/// them, and nothing surfaced an error.
+	/// </remarks>
+	[Fact]
+	public async Task ReopenAClosedShard_WhenItsCheckpointIsShortOfItsEnd()
+	{
+		// Arrange — closed at 200, and this consumer only ever got to 100.
+		var fixture = new StreamsFixture(
+			shards: [PartlyReadClosedShard(KnownShardId, endingSequenceNumber: "000000000000000000200")],
+			savedPosition: DynamoDbCdcPosition.FromShardPositions(
+				StreamArn,
+				new Dictionary<string, string>(StringComparer.Ordinal) { [KnownShardId] = SavedSequence }),
+			startPosition: null);
+
+		await using var processor = fixture.BuildProcessor();
+
+		// Act
+		_ = await processor.ProcessBatchAsync(NoOpHandler, CancellationToken.None);
+
+		// Assert
+		var request = fixture.SingleIteratorRequestFor(KnownShardId);
+
+		request.ShardIteratorType.ShouldBe(
+			ShardIteratorType.AFTER_SEQUENCE_NUMBER,
+			"the shard holds records between the checkpoint and its end; skipping it loses them silently, "
+			+ "and re-reading from the start would redeliver what was already handled.");
+
+		request.SequenceNumber.ShouldBe(
+			SavedSequence,
+			"it must resume immediately after the last record this consumer actually processed.");
+	}
+
+	/// <summary>
+	/// PRECISION. A closed shard that WAS read to the end stays skipped.
+	/// </summary>
+	/// <remarks>
+	/// Without this arm the one above is satisfied by reopening every closed shard forever, which would
+	/// redeliver whole shards on every discovery pass.
+	/// </remarks>
+	[Fact]
+	public async Task SkipAClosedShard_WhenItHasBeenReadToItsEnd()
+	{
+		var fixture = new StreamsFixture(
+			shards: [ClosedShard(KnownShardId)],
+			savedPosition: DynamoDbCdcPosition.FromShardPositions(
+				StreamArn,
+				new Dictionary<string, string>(StringComparer.Ordinal) { [KnownShardId] = SavedSequence }),
+			startPosition: null);
+
+		await using var processor = fixture.BuildProcessor();
+
+		_ = await processor.ProcessBatchAsync(NoOpHandler, CancellationToken.None);
+
+		fixture.IteratorRequests
+			.Where(r => string.Equals(r.ShardId, KnownShardId, StringComparison.Ordinal))
+			.ShouldBeEmpty(
+				"this shard's end equals the checkpoint, so there is nothing left in it; reopening it would "
+				+ "redeliver the whole shard on every discovery pass.");
+	}
+
+	/// <summary>
+	/// SAFETY. The comparison is numeric, not textual.
+	/// </summary>
+	/// <remarks>
+	/// Sequence numbers are decimal strings. Compared as TEXT, "99" sorts after "100" — so a shard closed
+	/// at 100 with a checkpoint at 99 would read as fully consumed and be skipped, losing the last record.
+	/// AWS normally emits fixed-width zero-padded values, under which text and numeric ordering agree;
+	/// that padding is a formatting habit rather than a documented guarantee, so this arm pins the
+	/// property rather than relying on it.
+	/// </remarks>
+	[Fact]
+	public async Task ReopenAClosedShard_WhenItsEndHasMoreDigitsThanTheCheckpoint()
+	{
+		const string shortCheckpoint = "99";
+		const string longerEnd = "100";
+
+		var fixture = new StreamsFixture(
+			shards: [PartlyReadClosedShard(KnownShardId, endingSequenceNumber: longerEnd)],
+			savedPosition: DynamoDbCdcPosition.FromShardPositions(
+				StreamArn,
+				new Dictionary<string, string>(StringComparer.Ordinal) { [KnownShardId] = shortCheckpoint }),
+			startPosition: null);
+
+		await using var processor = fixture.BuildProcessor();
+
+		_ = await processor.ProcessBatchAsync(NoOpHandler, CancellationToken.None);
+
+		var request = fixture.SingleIteratorRequestFor(KnownShardId);
+
+		request.SequenceNumber.ShouldBe(
+			shortCheckpoint,
+			"99 is BEFORE 100 numerically and AFTER it as text; a textual comparison reads this shard as "
+			+ "finished and drops the records between.");
+	}
+
+	/// <summary>A closed shard this consumer has NOT read to the end of.</summary>
+	private static Shard PartlyReadClosedShard(string shardId, string endingSequenceNumber) => new()
+	{
+		ShardId = shardId,
+		SequenceNumberRange = new SequenceNumberRange
+		{
+			StartingSequenceNumber = SavedSequence,
+			EndingSequenceNumber = endingSequenceNumber,
+		},
+	};
+
 	private static Shard ClosedShard(string shardId) => new()
 	{
 		ShardId = shardId,

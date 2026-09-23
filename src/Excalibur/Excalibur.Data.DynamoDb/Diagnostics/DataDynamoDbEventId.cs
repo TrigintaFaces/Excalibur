@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Data.DynamoDb.Diagnostics;
 
@@ -335,6 +335,12 @@ internal static class DataDynamoDbEventId
 
 	/// <summary>Streams received batch.</summary>
 	public const int StreamsReceivedBatch = 103902;
+
+	/// <summary>Streams subscription has no open shard to read from.</summary>
+	public const int StreamsNoOpenShards = 103903;
+
+	/// <summary>Streams subscription could not refresh its shard set and kept the shards it holds.</summary>
+	public const int StreamsShardRefreshFailed = 103904;
 
 	// ========================================
 	// 103950-103999: Inbox Store

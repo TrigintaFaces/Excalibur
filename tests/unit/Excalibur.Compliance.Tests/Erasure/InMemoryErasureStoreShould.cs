@@ -190,25 +190,28 @@ public sealed class InMemoryErasureStoreShould
     public async Task Save_and_retrieve_certificate()
     {
         var cert = new ErasureCertificate
-        {
-            CertificateId = Guid.NewGuid(),
-            RequestId = Guid.NewGuid(),
-            DataSubjectReference = "hash",
-            RequestReceivedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Method = ErasureMethod.CryptographicErasure,
-            Summary = new ErasureSummary { KeysDeleted = 1, RecordsAffected = 10, DataCategories = [], TablesAffected = [] },
-            Verification = new VerificationSummary { Verified = true, Methods = VerificationMethod.None, VerifiedAt = DateTimeOffset.UtcNow },
-            LegalBasis = ErasureLegalBasis.DataSubjectRequest,
-            Signature = "sig",
-            RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
-        };
+		{
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = Guid.NewGuid(),
+				DataSubjectReference = "hash",
+				RequestReceivedAt = DateTimeOffset.UtcNow,
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary { KeysDeleted = 1, RecordsAffected = 10, DataCategories = [], TablesAffected = [] },
+				Verification = new VerificationSummary { Verified = true, Methods = VerificationMethod.None, VerifiedAt = DateTimeOffset.UtcNow },
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "sig"
+		};
 
         await _sut.SaveCertificateAsync(cert, CancellationToken.None);
-        var retrieved = await _sut.GetCertificateAsync(cert.RequestId, CancellationToken.None);
+        var retrieved = await _sut.GetCertificateAsync(cert.Payload.RequestId, CancellationToken.None);
 
         retrieved.ShouldNotBeNull();
-        retrieved.CertificateId.ShouldBe(cert.CertificateId);
+        retrieved.Payload.CertificateId.ShouldBe(cert.Payload.CertificateId);
     }
 
     [Fact]

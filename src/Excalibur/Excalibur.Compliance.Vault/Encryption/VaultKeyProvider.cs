@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 using System.Text;
@@ -36,7 +36,7 @@ namespace Excalibur.Compliance.Vault;
 /// the client.
 /// </para>
 /// </remarks>
-public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IDisposable
+public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IKeyDestructionStatusProvider, IDisposable
 {
 	private static readonly CompositeFormat KubernetesJwtNotFoundFormat =
 		CompositeFormat.Parse(Resources.VaultKeyProvider_KubernetesJwtNotFound);
@@ -417,6 +417,36 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		{
 			LogRotateUnexpected(keyId, ex);
 			return KeyRotationResult.Failed(ex.Message);
+		}
+		finally
+		{
+			_ = _rateLimitSemaphore.Release();
+		}
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Transit has no soft-delete: deleting a key removes its material permanently, so a key Transit does not hold
+	/// is a destroyed key. The cache is bypassed, because a cached entry would describe a key that may since have
+	/// been deleted. Any other failure to read the key is thrown, never reported as either answer.
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
+				GetKeyName(keyId),
+				_options.Keys.TransitMountPath).ConfigureAwait(false);
+
+			return keyInfo?.Data is null;
+		}
+		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
+		{
+			return true;
 		}
 		finally
 		{

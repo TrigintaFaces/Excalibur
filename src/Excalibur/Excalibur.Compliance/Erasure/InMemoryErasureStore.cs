@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
@@ -227,9 +227,22 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 
 		// Another tenant's row is treated as absent, so completion against it raises the same not-found
 		// failure as a missing request instead of writing a completion into another tenant's partition.
-		if (!_requests.TryGetValue(requestId, out var data) || !MatchesAmbientTenant(tenant, data.TenantId))
+		// A completion may only be recorded over a request that is still IN the run. A legal hold or a
+		// cancellation recorded while the contributors were working moves it out of the run deliberately,
+		// and holds are re-checked exactly once, before a contributor pass the design calls long -- so
+		// without this the winner is whoever writes last, and a signed Completed silently overwrites an
+		// Article 17(3) hold. The permitted set is stated positively: a status this store does not
+		// recognise must refuse rather than inherit "fine".
+		if (!_requests.TryGetValue(requestId, out var data)
+			|| !MatchesAmbientTenant(tenant, data.TenantId)
+			|| data.Status is not (ErasureRequestStatus.Scheduled or ErasureRequestStatus.InProgress
+				or ErasureRequestStatus.AwaitingKeyDestruction))
 		{
-			throw new KeyNotFoundException($"Request {requestId} not found");
+			throw new KeyNotFoundException(
+				$"No erasure request with id '{requestId}' is in a state from which a completion can be "
+				+ "recorded: it does not exist, it belongs to another tenant, or its status changed while "
+				+ "the run was executing. A legal hold or a cancellation recorded mid-run takes the request "
+				+ "out of the run deliberately, and a completion must not overwrite it.");
 		}
 
 		data.Status = ErasureRequestStatus.Completed;
@@ -375,12 +388,12 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	{
 		ArgumentNullException.ThrowIfNull(certificate);
 
-		if (!_certificates.TryAdd(certificate.CertificateId, certificate))
+		if (!_certificates.TryAdd(certificate.Payload.CertificateId, certificate))
 		{
-			throw DuplicateErasureCertificateException.ForCertificateId(certificate.CertificateId);
+			throw DuplicateErasureCertificateException.ForCertificateId(certificate.Payload.CertificateId);
 		}
 
-		_requestToCertificate[certificate.RequestId] = certificate.CertificateId;
+		_requestToCertificate[certificate.Payload.RequestId] = certificate.Payload.CertificateId;
 
 		return Task.CompletedTask;
 	}
@@ -414,7 +427,7 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 		var tenant = AmbientScope;
 
 		if (!_certificates.TryGetValue(certificateId, out var cert)
-			|| !OwningRequestMatchesAmbientTenant(tenant, cert.RequestId))
+			|| !OwningRequestMatchesAmbientTenant(tenant, cert.Payload.RequestId))
 		{
 			return Task.FromResult<ErasureCertificate?>(null);
 		}
@@ -434,8 +447,8 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	{
 		var now = DateTimeOffset.UtcNow;
 		var expired = _certificates.Values
-			.Where(c => c.RetainUntil < now)
-			.Select(c => c.CertificateId)
+			.Where(c => c.Payload.RetainUntil < now)
+			.Select(c => c.Payload.CertificateId)
 			.ToList();
 
 		var count = 0;
@@ -443,7 +456,7 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 		{
 			if (_certificates.TryRemove(id, out var cert))
 			{
-				_ = _requestToCertificate.TryRemove(cert.RequestId, out _);
+				_ = _requestToCertificate.TryRemove(cert.Payload.RequestId, out _);
 				count++;
 			}
 		}

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using MQTTnet;
 
@@ -50,7 +50,20 @@ internal sealed class MqttConnectionProvider : IMqttConnectionProvider
 		var builder = new MqttClientOptionsBuilder()
 			.WithProtocolVersion(MQTTnet.Formatter.MqttProtocolVersion.V500)
 			.WithTcpServer(_options.Host, _options.Port)
-			.WithClientId($"{_options.ClientId}-{clientIdSuffix}");
+			.WithClientId($"{_options.ClientId}-{clientIdSuffix}")
+
+			// THE SESSION IS WHAT MAKES REJECTION WITH REDELIVERY TRUE.
+			// The receiver rejects a message by withholding its acknowledgement, which is a promise that the broker
+			// still holds it and will redeliver it when the session resumes. Under MQTT 5 a clean start discards any
+			// prior session and a zero expiry interval ends the session the instant the connection closes -- so with
+			// the library defaults there was no session to resume and the rejected message was silently LOST. Nothing
+			// reported it: the reject call succeeded, the broker was healthy, and the message simply never came back.
+			// Both settings are written explicitly on both branches, because the defect was a DEFAULT that contradicted
+			// a promise made elsewhere in the package -- leaving either to the library is what allowed that to happen.
+			.WithCleanStart(!_options.PersistentSession)
+			.WithSessionExpiryInterval(_options.PersistentSession
+				? (uint)_options.SessionExpiryInterval.TotalSeconds
+				: 0u);
 
 		if (!string.IsNullOrWhiteSpace(_options.Username))
 		{

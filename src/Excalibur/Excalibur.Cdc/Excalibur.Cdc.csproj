@@ -20,6 +20,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Cdc.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.Cdc.Postgres" />
+    <InternalsVisibleTo Include="Excalibur.Cdc.CosmosDb" />
+    <InternalsVisibleTo Include="Excalibur.Cdc.DynamoDb" />
+    <InternalsVisibleTo Include="Excalibur.Cdc.MongoDB" />
     <InternalsVisibleTo Include="Excalibur.Data.SqlServer.Tests" />
     <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
     <InternalsVisibleTo Include="Excalibur.Cdc.Tests" />

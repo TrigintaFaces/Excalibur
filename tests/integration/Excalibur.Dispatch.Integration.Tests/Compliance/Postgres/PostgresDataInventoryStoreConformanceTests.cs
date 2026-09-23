@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
@@ -77,7 +77,7 @@ public sealed class PostgresDataInventoryStoreConformanceTests : DataInventorySt
 			Microsoft.Extensions.Options.Options.Create(options),
 			ConformanceDataSubjectHasher.Instance,
 			EnabledTestLogger.Create<PostgresDataInventoryStore>(),
-			new AmbientHolderTenantContext(),
+			new ConformanceAmbientTenantContext(),
 			Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 	}
 
@@ -89,29 +89,6 @@ public sealed class PostgresDataInventoryStoreConformanceTests : DataInventorySt
 	/// </remarks>
 	protected override IDisposable EnterTenant(string tenantId) =>
 		TenantContextHolder.BeginScope(tenantId);
-
-	/// <summary>
-	/// Reads the ambient tenant from <see cref="TenantContextHolder"/>, so the scope entered by
-	/// <see cref="EnterTenant"/> is the scope the store under test observes.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// Implements <see cref="ITenantContext"/> DIRECTLY and inherits no first-party base: a fixture that
-	/// inherits the member under test re-verifies the base rather than the contract. Test-local, and
-	/// widens no production visibility to reach it.
-	/// </para>
-	/// <para>
-	/// Outside any scope this resolves the reserved untenanted sentinel rather than <see langword="null"/>.
-	/// The kit's non-tenant arms run with no scope entered, and they are untenanted callers — not
-	/// unresolved ones.
-	/// </para>
-	/// </remarks>
-	private sealed class AmbientHolderTenantContext : ITenantContext
-	{
-		public string? TenantId => TenantContextHolder.Current ?? TenantScope.UntenantedSentinel;
-
-		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
-	}
 
 	#region Registration Save Tests
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 namespace Excalibur.Compliance.Azure;
 
 /// <summary>
@@ -51,4 +51,10 @@ internal static class AzureKeyVaultEventId
 
 	/// <summary>Azure Key Vault key was not found for reactivation.</summary>
 	public const int KeyNotFoundForReactivation = 92624;
+
+	/// <summary>Azure Key Vault key was purged, so its material is irrecoverable.</summary>
+	public const int KeyPurged = 92625;
+
+	/// <summary>Azure Key Vault refused to purge a deleted key; it stays recoverable until the vault purges it.</summary>
+	public const int KeyPurgeRefused = 92626;
 }

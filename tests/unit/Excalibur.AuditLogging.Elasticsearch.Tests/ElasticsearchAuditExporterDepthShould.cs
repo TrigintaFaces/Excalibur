@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
 using System.Net;
@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 
 using Excalibur.AuditLogging;namespace Excalibur.AuditLogging.Elasticsearch.Tests;
+using Excalibur.AuditLogging.Elasticsearch;
 
 /// <summary>
 /// Depth coverage tests for <see cref="ElasticsearchAuditExporter"/> covering
@@ -29,7 +30,7 @@ public sealed class ElasticsearchAuditExporterDepthShould : IDisposable
 		IndexPrefix = "test-audit",
 		MaxRetryAttempts = 0,
 		BulkBatchSize = 500,
-		RefreshPolicy = "false"
+		RefreshPolicy = ElasticsearchAuditRefreshPolicy.None
 	};
 
 	private readonly NullLogger<ElasticsearchAuditExporter> _logger = NullLogger<ElasticsearchAuditExporter>.Instance;
@@ -473,6 +474,32 @@ public sealed class ElasticsearchAuditExporterDepthShould : IDisposable
 		}
 
 		return args;
+	}
+
+	[Theory]
+	[InlineData(ElasticsearchAuditRefreshPolicy.None, "refresh=false")]
+	[InlineData(ElasticsearchAuditRefreshPolicy.WaitFor, "refresh=wait_for")]
+	[InlineData(ElasticsearchAuditRefreshPolicy.Immediate, "refresh=true")]
+	public async Task SendTheWireTokenTheClusterAcceptsForEachRefreshPolicy(
+		ElasticsearchAuditRefreshPolicy policy,
+		string expectedQuery)
+	{
+		// THE ENUM REMOVES ONE FAILURE AND INTRODUCES ANOTHER, and this arm covers the second. Making the
+		// option an enumeration makes an unrecognised policy inexpressible - that half is proven by the
+		// compiler, not by a test. What the compiler cannot check is whether the mapping to the wire is
+		// RIGHT: nothing would stop None mapping to "true", and the request would still be well-formed,
+		// accepted by the cluster, and wrong. The value reaches a URL, so the URL is where it is asserted.
+		_options.RefreshPolicy = policy;
+		_handler.SetResponse(HttpStatusCode.OK, "{\"errors\":false,\"items\":[]}");
+
+		var sut = CreateExporter();
+		await sut.ExportAsync(CreateAuditEvent(), CancellationToken.None);
+
+		var request = _handler.LastRequest.ShouldNotBeNull("the exporter must have issued a bulk request");
+		request.RequestUri.ShouldNotBeNull();
+		request.RequestUri!.Query.Contains(expectedQuery, StringComparison.Ordinal).ShouldBeTrue(
+			$"{policy} must reach the cluster as the token it actually accepts, not as the enum member name; "
+			+ $"the request query was '{request.RequestUri.Query}'");
 	}
 
 	private ElasticsearchAuditExporter CreateExporter()

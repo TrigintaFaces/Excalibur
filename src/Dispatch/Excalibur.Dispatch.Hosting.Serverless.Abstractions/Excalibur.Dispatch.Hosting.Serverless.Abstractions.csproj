@@ -3,7 +3,6 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <RootNamespace>Excalibur.Dispatch.Hosting.Serverless.Abstractions</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Hosting.Serverless.Abstractions</AssemblyName>
     <PackageId>$(AssemblyName)</PackageId>

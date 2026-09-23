@@ -11,6 +11,8 @@ Excalibur.Inbox.Firestore.FirestoreInboxOptions.DefaultTtlSeconds.set -> void
 Excalibur.Inbox.Firestore.FirestoreInboxOptions.EmulatorHost.get -> string?
 Excalibur.Inbox.Firestore.FirestoreInboxOptions.EmulatorHost.set -> void
 Excalibur.Inbox.Firestore.FirestoreInboxOptions.FirestoreInboxOptions() -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.MaxConcurrencyRetries.get -> int
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.MaxConcurrencyRetries.set -> void
 Excalibur.Inbox.Firestore.FirestoreInboxOptions.ProjectId.get -> string?
 Excalibur.Inbox.Firestore.FirestoreInboxOptions.ProjectId.set -> void
 Excalibur.Inbox.Firestore.FirestoreInboxOptions.TimeoutInSeconds.get -> int
@@ -23,11 +25,12 @@ Excalibur.Inbox.Firestore.FirestoreInboxStore.DisposeAsync() -> System.Threading
 Excalibur.Inbox.Firestore.FirestoreInboxStore.FirestoreInboxStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Firestore.FirestoreInboxStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
 Excalibur.Inbox.Firestore.FirestoreInboxStore.FirestoreInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Firestore.FirestoreInboxStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
 Excalibur.Inbox.Firestore.FirestoreInboxStore.GetAllTenantsEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.GetAllTenantsFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
 Excalibur.Inbox.Firestore.FirestoreInboxStore.GetAllTenantsStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxStatistics!>
 Excalibur.Inbox.Firestore.FirestoreInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxEntry?>
 Excalibur.Inbox.Firestore.FirestoreInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
-Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkFailedAsync(Excalibur.Dispatch.KeyedTenantPartition! tenant, string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxMarkFailedOutcome>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxMarkFailedOutcome>
 Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Firestore.FirestoreInboxStore.ReleaseAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -44,4 +47,3 @@ Excalibur.Inbox.Firestore.IFirestoreInboxBuilder.EmulatorHost(string! emulatorHo
 Excalibur.Inbox.Firestore.IFirestoreInboxBuilder.ProjectId(string! projectId) -> Excalibur.Inbox.Firestore.IFirestoreInboxBuilder!
 Microsoft.Extensions.DependencyInjection.InboxBuilderFirestoreExtensions
 static Microsoft.Extensions.DependencyInjection.InboxBuilderFirestoreExtensions.UseFirestore(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.Firestore.IFirestoreInboxBuilder!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
-Excalibur.Inbox.Firestore.FirestoreInboxStore.GetAllTenantsFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>

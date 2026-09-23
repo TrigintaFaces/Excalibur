@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using TestResult = global::Excalibur.Compliance.TestResult;
@@ -179,7 +179,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "Large SOC 2 Type II Report - Stress Test",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-12),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [
 				TrustServicesCategory.Security,
@@ -237,7 +237,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "SOC 2 Report with Multiple Exceptions",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-6),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Qualified,
+			OverallLevel = ComplianceLevel.SubstantiallyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = CreateSystemDescription(),
@@ -287,7 +287,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "SOC 2 Report with Long Text Fields",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-6),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = new SystemDescription
@@ -440,7 +440,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "SOC 2 Report - All Categories",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-12),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [.. allCategories],
 			System = CreateSystemDescription(),
@@ -519,7 +519,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "Comprehensive SOC 2 Type II Examination Report",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-12),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [
 				TrustServicesCategory.Security,
@@ -568,7 +568,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "SOC 2 Type I Examination Report",
 			PeriodStart = DateTimeOffset.UtcNow,
 			PeriodEnd = DateTimeOffset.UtcNow, // Type I is point-in-time
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = CreateSystemDescription(),
@@ -603,7 +603,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "SOC 2 Type II Examination Report",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-6),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security, TrustServicesCategory.Availability],
 			System = CreateSystemDescription(),
@@ -648,7 +648,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "SOC 2 Report with Exceptions",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-6),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Qualified,
+			OverallLevel = ComplianceLevel.SubstantiallyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = CreateSystemDescription(),
@@ -694,7 +694,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = "SOC 2 Report with Test Results",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-6),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = CreateSystemDescription(),
@@ -771,7 +771,7 @@ public sealed class Soc2PdfExportIntegrationShould
 			Title = $"Minimal SOC 2 Report {suffix}",
 			PeriodStart = DateTimeOffset.UtcNow.AddMonths(-6),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = CreateSystemDescription(),

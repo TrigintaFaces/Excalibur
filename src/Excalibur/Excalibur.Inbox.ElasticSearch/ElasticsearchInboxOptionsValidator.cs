@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Options;
 
@@ -28,6 +28,14 @@ internal sealed class ElasticsearchInboxOptionsValidator : IValidateOptions<Elas
 		if (options.RetentionDays < 0)
 		{
 			failures.Add("ElasticsearchInboxOptions.RetentionDays must be zero or greater.");
+		}
+
+		if (options.MaxConcurrencyRetries < 1)
+		{
+			failures.Add(
+				"ElasticsearchInboxOptions.MaxConcurrencyRetries must be at least 1. A bound below 1 skips the "
+				+ "conditional write entirely, so the store would report Undecided without ever having "
+				+ "attempted the transition.");
 		}
 
 		return failures.Count > 0

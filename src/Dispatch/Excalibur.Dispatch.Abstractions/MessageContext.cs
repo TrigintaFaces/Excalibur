@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Runtime.CompilerServices;
 
@@ -58,6 +58,21 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	private volatile IServiceProvider? _defaultServiceProvider;
 	private object? _pipelineFinalHandler;
 	private object? _pipelineTypedFinalHandler;
+
+	/// <summary>
+	/// Backing field for the message type, which every dispatch reads and writes. Held here rather than
+	/// in <see cref="Items"/> so the hot path costs a field access instead of a dictionary read plus a
+	/// dictionary write, the same treatment <see cref="MarkForLazyCorrelation"/> gives correlation.
+	/// The value is surfaced into <see cref="Items"/> whenever that dictionary is materialized, so
+	/// callers that enumerate or read it see exactly what they saw before.
+	/// </summary>
+	internal string? MessageTypeName;
+
+	/// <summary>
+	/// Backing field for the routing-default marker that accompanies <see cref="MessageTypeName"/>.
+	/// Hoisted out of <see cref="Items"/> for the same reason.
+	/// </summary>
+	internal bool MessageTypeIsRoutingDefault;
 
 	/// <summary>
 	/// Cached routing decision for hot-path optimization. Avoids dictionary lookups
@@ -280,8 +295,55 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 
 		lock (_lockObject)
 		{
-			_items ??= new Dictionary<string, object>(StringComparer.Ordinal);
+			if (_items is null)
+			{
+				_items = new Dictionary<string, object>(StringComparer.Ordinal);
+
+				// Values kept in dedicated fields for the hot path still belong to Items from a caller's
+				// point of view -- transports and telemetry enumerate this dictionary. Seed them on the
+				// first materialization so the dictionary's contents are unchanged by the hoisting.
+				if (MessageTypeName is not null)
+				{
+					_items[MessageContextExtensions.MessageTypeKey] = MessageTypeName;
+				}
+
+				if (MessageTypeIsRoutingDefault)
+				{
+					_items[MessageContextExtensions.MessageTypeIsRoutingDefaultKey] = true;
+				}
+			}
+
 			return _items;
+		}
+	}
+
+	/// <summary>
+	/// Stores the message type without touching <see cref="Items"/> unless that dictionary already
+	/// exists, in which case it is kept in step so readers of either see the same value.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void SetMessageTypeFast(string? value)
+	{
+		MessageTypeName = value;
+
+		if (_items is not null)
+		{
+			_items[MessageContextExtensions.MessageTypeKey] = value!;
+		}
+	}
+
+	/// <summary>
+	/// Records the routing-default marker without touching <see cref="Items"/> unless that dictionary
+	/// already exists.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void MarkMessageTypeAsRoutingDefaultFast()
+	{
+		MessageTypeIsRoutingDefault = true;
+
+		if (_items is not null)
+		{
+			_items[MessageContextExtensions.MessageTypeIsRoutingDefaultKey] = true;
 		}
 	}
 
@@ -404,7 +466,9 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 			_correlationId = null;
 		}
 
-		// These bools were set during InitializeDirectLocalContext, always reset them.
+		// These were set during InitializeDirectLocalContext, always reset them.
+		MessageTypeName = null;
+		MessageTypeIsRoutingDefault = false;
 		_correlationIdLazyEnabled = false;
 		_correlationIdWasExplicitlySet = false;
 		_causationId = null;

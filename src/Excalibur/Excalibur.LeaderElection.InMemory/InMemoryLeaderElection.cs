@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -133,23 +133,27 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 		var candidateDict = _candidates.GetOrAdd(_resourceName, _ => new ConcurrentDictionary<string, CandidateHealth>(StringComparer.Ordinal));
 		_ = candidateDict.AddOrUpdate(
 			CandidateId,
-			static (key, metadata) => new CandidateHealth
+			// The timestamp travels through the factory ARGUMENT rather than being read inside the
+			// lambdas: a static lambda cannot reach instance state, and keeping these static is what
+			// avoids a closure allocation on every health update. Reading the clock once here also
+			// means the added and updated rows cannot disagree about when this happened.
+			static (key, state) => new CandidateHealth
 			{
 				CandidateId = key,
 				IsHealthy = true,
 				HealthScore = 1.0,
-				LastUpdated = DateTimeOffset.UtcNow,
-				Metadata = metadata ?? new Dictionary<string, string>(StringComparer.Ordinal),
+				LastUpdated = state.now,
+				Metadata = state.metadata ?? new Dictionary<string, string>(StringComparer.Ordinal),
 			},
-			static (key, existing, metadata) => new CandidateHealth
+			static (key, existing, state) => new CandidateHealth
 			{
 				CandidateId = key,
 				IsHealthy = existing.IsHealthy,
 				HealthScore = existing.HealthScore,
-				LastUpdated = DateTimeOffset.UtcNow,
-				Metadata = metadata ?? new Dictionary<string, string>(StringComparer.Ordinal),
+				LastUpdated = state.now,
+				Metadata = state.metadata ?? new Dictionary<string, string>(StringComparer.Ordinal),
 			},
-			_options.CandidateMetadata);
+			(metadata: _options.CandidateMetadata, now: _timeProvider.GetUtcNow()));
 
 		// Try to acquire leadership
 		await TryAcquireLeadershipAsync().ConfigureAwait(false);
@@ -177,8 +181,8 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 		var wasLeader = ReleaseLeadershipIfHeld();
 		if (wasLeader)
 		{
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 		}
 
 		// Remove from candidates
@@ -218,7 +222,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 					CandidateId = key,
 					IsHealthy = state.isHealthy,
 					HealthScore = state.isHealthy ? 1.0 : 0.0,
-					LastUpdated = DateTimeOffset.UtcNow,
+					LastUpdated = state.now,
 					Metadata = state.metadata,
 				},
 				static (key, _, state) => new CandidateHealth
@@ -226,10 +230,10 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 					CandidateId = key,
 					IsHealthy = state.isHealthy,
 					HealthScore = state.isHealthy ? 1.0 : 0.0,
-					LastUpdated = DateTimeOffset.UtcNow,
+					LastUpdated = state.now,
 					Metadata = state.metadata,
 				},
-				(isHealthy, metadata: combinedMetadata));
+				(isHealthy, metadata: combinedMetadata, now: _timeProvider.GetUtcNow()));
 
 			LogHealthUpdated(CandidateId, isHealthy);
 
@@ -247,8 +251,8 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 			// followed immediately by a reacquisition.
 			if (!isHealthy && _options.StepDownWhenUnhealthy && ReleaseLeadershipIfHeld())
 			{
-				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
+				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 
 				LogSteppedDownUnhealthy();
 			}
@@ -303,8 +307,8 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 		var wasLeader = ReleaseLeadershipIfHeld();
 		if (wasLeader)
 		{
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 		}
 
 		if (_candidates.TryGetValue(_resourceName, out var candidateDict))
@@ -401,8 +405,8 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 
 			Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
 			LogAcquiredLeadership(_resourceName);
-			BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(currentLeader, CandidateId, _resourceName));
+			BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(currentLeader, CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 		}
 		else if (!acquired)
 		{

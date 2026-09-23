@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
+
+using Excalibur.Data.ElasticSearch.Persistence;
 
 namespace Excalibur.Outbox.ElasticSearch;
 
@@ -25,10 +27,28 @@ public sealed class ElasticsearchOutboxOptions
 	public int DefaultBatchSize { get; set; } = 100;
 
 	/// <summary>
-	/// Gets or sets the refresh policy for index operations.
+	/// Gets or sets the refresh policy applied after index WRITE operations.
 	/// </summary>
-	/// <value>The refresh policy. Defaults to "wait_for" for consistency.</value>
-	public string RefreshPolicy { get; set; } = "wait_for";
+	/// <value>
+	/// The refresh policy. Defaults to <see cref="ElasticsearchRefreshPolicy.WaitFor"/>, which makes a write
+	/// visible to the next search without forcing an immediate refresh.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// <b>This is a throughput knob, and it cannot make a read incorrect.</b> It governs when a write becomes
+	/// searchable; it does not govern what a read reports. The statistics surface refreshes at the point of
+	/// READING for exactly that reason, so an operator watching a failure count is told the truth whatever
+	/// this is set to.
+	/// </para>
+	/// <para>
+	/// <b>The type is an enumeration rather than a string deliberately.</b> As a string it was compared with
+	/// ordinal, case-sensitive equality against two literals, so every value that matched neither -- a typo,
+	/// a differently-cased spelling, a value from another vendor's vocabulary -- silently selected the
+	/// fall-through policy instead of being refused. A misconfiguration that reads as a valid choice is the
+	/// failure this type makes inexpressible: the compiler now rejects what the comparison used to guess at.
+	/// </para>
+	/// </remarks>
+	public ElasticsearchRefreshPolicy RefreshPolicy { get; set; } = ElasticsearchRefreshPolicy.WaitFor;
 
 	/// <summary>
 	/// Gets or sets the lease (visibility) timeout in seconds for a claimed message.

@@ -18,14 +18,21 @@ public sealed class ErasureServiceExecutionWorkflowShould
 	private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
 
 	private ErasureService CreateSut(
-		IEnumerable<IErasureContributor>? contributors = null)
+		IEnumerable<IErasureContributor>? contributors = null,
+		bool keyShredOnly = false)
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
 		{
 			EnableAutoDiscovery = true,
+			// Opt-in per arm, defaulting OFF so no other arm's host model changes. An arm whose subject is
+			// crypto-shred states that it is a key-destruction-only host rather than letting the service
+			// infer a misconfiguration from an empty data-location registry.
+			KeyShredOnlyErasure = keyShredOnly,
 			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
 		});
 
+		// Annotated coverage is pinned EMPTY: these arms' subject is contributor/key-deletion coverage,
+		// and the production default would otherwise scan the whole test assembly. See TestAnnotationSource.
 		return new ErasureService(
 			_store,
 			_keyAdmin,
@@ -35,6 +42,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 			_legalHoldService,
 			_dataInventoryService,
 			null,
+			TestAnnotationSource.None,
 			contributors);
 	}
 
@@ -48,15 +56,36 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		var contributor1 = A.Fake<IErasureContributor>();
 		A.CallTo(() => contributor1.Name).Returns("EventStore");
 		A.CallTo(() => contributor1.EraseAsync(A<ErasureContributorContext>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new ErasureContributorResult { Success = true, RecordsAffected = 10 }));
+			.Returns(Task.FromResult(ErasureContributorResult.Succeeded(
+				10,
+				[new DataLocationKey("Events", "Data")])));
 
 		var contributor2 = A.Fake<IErasureContributor>();
 		A.CallTo(() => contributor2.Name).Returns("SnapshotStore");
 		A.CallTo(() => contributor2.EraseAsync(A<ErasureContributorContext>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new ErasureContributorResult { Success = true, RecordsAffected = 3 }));
+			.Returns(Task.FromResult(ErasureContributorResult.Succeeded(
+				3,
+				[new DataLocationKey("Snapshots", "State")])));
 
 		SetupScheduledExecution(requestId, status);
 		SetupNoLegalHolds();
+
+		// A CONFIGURED host: two declared obligations, each NAMED as discharged by the contributor that
+		// owns it. An empty registry would model a misconfigured host, which this arm is not about.
+		var inventory = new DataInventory
+		{
+			DataSubjectId = "hash",
+			Locations = [],
+			DeclaredLocations =
+			[
+				new DataLocationKey("Events", "Data"),
+				new DataLocationKey("Snapshots", "State"),
+			],
+			AssociatedKeys = [],
+		};
+		A.CallTo(() => _dataInventoryService.DiscoverAsync(
+				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(inventory));
 
 		var sut = CreateSut([contributor1, contributor2]);
 
@@ -180,7 +209,8 @@ public sealed class ErasureServiceExecutionWorkflowShould
 			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 		SetupNoLegalHolds();
 
-		var sut = CreateSut();
+		// Key-destruction-only host: no contributors, no registry, erasure effected by shredding keys.
+		var sut = CreateSut(keyShredOnly: true);
 
 		// Act
 		var result = await sut.ExecuteAsync(requestId, CancellationToken.None);
@@ -324,12 +354,12 @@ public sealed class ErasureServiceExecutionWorkflowShould
 
 		// Assert
 		cert.ShouldNotBeNull();
-		cert.RequestId.ShouldBe(requestId);
+		cert.Payload.RequestId.ShouldBe(requestId);
 		// bd-412fo4: Method now reflects the actual mechanism (was hardcoded CryptographicErasure). This
 		// fixture has KeysDeleted=2 AND RecordsAffected=5 (key deletion + contributor row-delete) -> Hybrid.
-		cert.Method.ShouldBe(ErasureMethod.Hybrid);
+		cert.Payload.Method.ShouldBe(ErasureMethod.Hybrid);
 		cert.Signature.ShouldNotBeNullOrWhiteSpace();
-		cert.Summary.ShouldNotBeNull();
+		cert.Payload.Summary.ShouldNotBeNull();
 		A.CallTo(() => certStore.SaveCertificateAsync(A<ErasureCertificate>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -355,22 +385,25 @@ public sealed class ErasureServiceExecutionWorkflowShould
 
 		var existingCert = new ErasureCertificate
 		{
-			CertificateId = Guid.NewGuid(),
-			RequestId = requestId,
-			DataSubjectReference = "hash-abc123",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-1),
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary(),
-			Verification = new VerificationSummary
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = requestId,
+				DataSubjectReference = "hash-abc123",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary(),
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.KeyManagementSystem,
 				VerifiedAt = DateTimeOffset.UtcNow,
 			},
-			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
-			Signature = "existing-sig",
-			RetainUntil = DateTimeOffset.UtcNow.AddYears(7),
+				LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "existing-sig"
 		};
 
 		var certStore = A.Fake<IErasureCertificateStore>();

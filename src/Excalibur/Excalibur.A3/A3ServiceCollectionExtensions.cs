@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Net.Http.Headers;
 using System.Runtime.ExceptionServices;
@@ -14,6 +14,7 @@ using Excalibur.Domain.Exceptions;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using IAuthorizationPolicyProvider = Excalibur.A3.Authorization.IAuthorizationPolicyProvider;
@@ -91,14 +92,57 @@ public static class A3ServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IHostedService, AuthorizationCachePrerequisiteValidator>(
 				_ => new AuthorizationCachePrerequisiteValidator(services)));
 
-		_ = services
-			.AddSingleton<Activities>()
-			.AddTransient<ActivityGroups>()
-			.AddTransient<UserGrants>()
-			.AddScoped<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>()
-			.AddScoped<IAuthorizationPolicy>(static container =>
-				ResolvePolicySynchronously(container.GetRequiredService<IAuthorizationPolicyProvider>()))
-			.AddHttpClient<IActivityGroupService, ActivityGroupService>(static (provider, client) =>
+		// Activities and IAuthorizationPolicy have no AddExcaliburA3Core() counterpart, so TryAdd is the
+		// whole contract: the first call wins and a second is a no-op.
+		services.TryAddSingleton<Activities>();
+
+		// ActivityGroups, UserGrants and IAuthorizationPolicyProvider DO have one. AddExcaliburA3Core()
+		// registers each with TryAdd precisely so this composition can displace it, which is why TryAdd
+		// here would be wrong twice over: it would hand the seam back to the lighter Core registration --
+		// a silent demotion that any arm counting descriptors would still score as idempotent -- while
+		// leaving the duplicate this method is fixing. Replace keeps the override and collapses the seam to
+		// one descriptor, so the second call changes nothing. None of the three is resolved as an
+		// IEnumerable anywhere, so one descriptor is the contract rather than an accident of ordering.
+		_ = services.Replace(ServiceDescriptor.Transient<ActivityGroups, ActivityGroups>());
+		_ = services.Replace(ServiceDescriptor.Transient<UserGrants, UserGrants>());
+		_ = services.Replace(ServiceDescriptor.Scoped<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>());
+
+		// The cache bound is the longest a revoked grant can still authorize, so an unusable value is refused
+		// at startup rather than discovered on the first cached read.
+		_ = services.AddOptions<AuthorizationCacheOptions>().ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuthorizationCacheOptions>, AuthorizationCacheOptionsValidator>());
+
+		// A grant sync is a full refresh. On a store that cannot replace a set of grants in one step it can
+		// only delete and then insert, which leaves a window in which a user is partly revoked. The default
+		// refuses such a store at start-up rather than accepting that window silently; a host that wants it
+		// says so, and is warned once.
+		_ = services.AddOptions<ActivityGroupSyncOptions>().ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ActivityGroupSyncOptions>, ActivityGroupSyncOptionsValidator>());
+
+		// One instance behind both registrations, so the BestEffort warning is written once for one
+		// composition however many ways start-up validation is reached.
+		services.TryAddSingleton(provider => new ActivityGroupGrantSyncPrerequisiteValidator(
+			services,
+			provider.GetRequiredService<IOptions<ActivityGroupSyncOptions>>(),
+			provider.GetRequiredService<ILogger<ActivityGroupGrantSyncPrerequisiteValidator>>()));
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ActivityGroupGrantSyncPrerequisiteValidator>(
+				static provider => provider.GetRequiredService<ActivityGroupGrantSyncPrerequisiteValidator>()));
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, ActivityGroupGrantSyncPrerequisiteValidator>(
+				static provider => provider.GetRequiredService<ActivityGroupGrantSyncPrerequisiteValidator>()));
+
+		services.TryAddScoped<IAuthorizationPolicy>(static container =>
+			ResolvePolicySynchronously(container.GetRequiredService<IAuthorizationPolicyProvider>()));
+
+		// AddHttpClient<TClient, TImplementation>() registers the typed client with AddTransient and the
+		// HttpClientFactory ships no TryAdd counterpart, so the idempotence guard has to be on the contract
+		// rather than on the descriptor.
+		if (!AlreadyRegistered<IActivityGroupService>(services))
+		{
+			_ = services.AddHttpClient<IActivityGroupService, ActivityGroupService>(static (provider, client) =>
 			{
 				// Read the bound options rather than the process-wide static: the endpoint is per-host
 				// configuration, and this lambda already runs against a built provider.
@@ -106,6 +150,7 @@ public static class A3ServiceCollectionExtensions
 					provider.GetRequiredService<IOptions<ApplicationContextOptions>>().Value.AuthorizationServiceEndpoint);
 				client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 			});
+		}
 
 		return services;
 	}
@@ -158,6 +203,13 @@ public static class A3ServiceCollectionExtensions
 	/// </exception>
 	private static IServiceCollection AddAuthentication(this IServiceCollection services)
 	{
+		if (AlreadyRegistered<IAuthenticationTokenProvider>(services))
+		{
+			// Same guard as the activity-group client above: AddHttpClient has no TryAdd counterpart, and a
+			// second AddExcaliburA3() call must not append a duplicate typed client.
+			return services;
+		}
+
 		try
 		{
 			_ = services.AddHttpClient<IAuthenticationTokenProvider, AuthenticationTokenProvider>(static (provider, client) =>
@@ -176,6 +228,14 @@ public static class A3ServiceCollectionExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// Reports whether <typeparamref name="TService"/> already has a descriptor, matching what
+	/// <c>TryAdd</c> tests. Used where the registration helper is one Microsoft ships no
+	/// <c>TryAdd</c> counterpart for.
+	/// </summary>
+	private static bool AlreadyRegistered<TService>(IServiceCollection services) =>
+		services.Any(static descriptor => descriptor.ServiceType == typeof(TService));
 
 	private static IAuthorizationPolicy ResolvePolicySynchronously(IAuthorizationPolicyProvider policyProvider)
 	{

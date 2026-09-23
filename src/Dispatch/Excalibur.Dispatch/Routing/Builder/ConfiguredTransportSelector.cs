@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
@@ -43,6 +43,14 @@ internal sealed class ConfiguredTransportSelector : ITransportSelector
 			return new ValueTask<string>(cached);
 		}
 
+		// Tracks whether the outcome below depended on a predicate. A predicate is a function of the
+		// message instance and the context, while the cache is keyed only by message type -- so an
+		// outcome reached after any applicable predicate was evaluated is not safe to cache. Caching it
+		// made the first message of a type decide the transport for every later message of that type:
+		// with a premium-predicate rule ahead of an unconditional fallback, one ordinary message cached
+		// the fallback and every subsequent premium message was routed as ordinary.
+		var predicateDecided = false;
+
 		// Evaluate rules in order
 		foreach (var rule in _configuration.TransportRules)
 		{
@@ -54,6 +62,7 @@ internal sealed class ConfiguredTransportSelector : ITransportSelector
 			// If there's a predicate, evaluate it
 			if (rule.Predicate is not null)
 			{
+				predicateDecided = true;
 				if (rule.Predicate(message, context))
 				{
 					return new ValueTask<string>(rule.Transport);
@@ -61,8 +70,13 @@ internal sealed class ConfiguredTransportSelector : ITransportSelector
 			}
 			else
 			{
-				// Unconditional rule - cache it for this type
-				_typeToTransportCache.TryAdd(messageType, rule.Transport);
+				// Unconditional rule. Cacheable only when no applicable predicate was evaluated first;
+				// otherwise this type's transport is instance-dependent and must be re-evaluated.
+				if (!predicateDecided)
+				{
+					_typeToTransportCache.TryAdd(messageType, rule.Transport);
+				}
+
 				return new ValueTask<string>(rule.Transport);
 			}
 		}

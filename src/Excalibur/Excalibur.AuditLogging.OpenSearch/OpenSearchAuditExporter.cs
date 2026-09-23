@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Net;
@@ -60,7 +60,7 @@ public sealed partial class OpenSearchAuditExporter : IAuditLogExporter
             ? _options.NodeUrls
             : [_options.OpenSearchUrl];
 
-        _bulkApiUri = new Uri($"{nodeUrls[0].TrimEnd('/')}/_bulk?refresh={_options.RefreshPolicy}");
+        _bulkApiUri = new Uri($"{nodeUrls[0].TrimEnd('/')}/_bulk?refresh={ToWireValue(_options.RefreshPolicy)}");
     }
 
     /// <inheritdoc />
@@ -223,7 +223,7 @@ public sealed partial class OpenSearchAuditExporter : IAuditLogExporter
                 {
                     ["StatusCode"] = ((int)response.StatusCode).ToString(),
                     ["IndexPrefix"] = _options.IndexPrefix,
-                    ["RefreshPolicy"] = _options.RefreshPolicy
+                    ["RefreshPolicy"] = ToWireValue(_options.RefreshPolicy)
                 }
             };
         }
@@ -438,4 +438,19 @@ public sealed partial class OpenSearchAuditExporter : IAuditLogExporter
 
         [JsonPropertyName("_id")] public string? Id { get; init; }
     }
+
+	/// <summary>
+	/// Maps the configured policy onto the exact token the cluster's <c>refresh</c> query parameter accepts.
+	/// </summary>
+	/// <remarks>
+	/// The ONE place a policy becomes text. Total over the enumeration, so an unrecognised value is not a
+	/// reachable state rather than a case that falls through to a default nobody chose.
+	/// </remarks>
+	private static string ToWireValue(OpenSearchAuditRefreshPolicy policy) => policy switch
+	{
+		OpenSearchAuditRefreshPolicy.Immediate => "true",
+		OpenSearchAuditRefreshPolicy.WaitFor => "wait_for",
+		_ => "false",
+	};
+
 }

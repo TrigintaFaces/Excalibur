@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
+
+using Excalibur.Dispatch.Options;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -130,11 +132,25 @@ public sealed class DispatchContextInitializerShould
 		}
 	}
 
+	/// <summary>
+	/// Baggage reaches the context for the keys the application allowed, and for no others.
+	/// </summary>
+	/// <remarks>
+	/// This arm previously asserted that EVERY baggage entry was copied. That was the defect: the runtime
+	/// parses an inbound baggage header into the ambient activity without being asked, so those keys and
+	/// values are caller-chosen on any publicly reachable endpoint, and copying them put caller-supplied
+	/// data onto the wire and into every downstream sink. The assertion is kept rather than deleted, and
+	/// strengthened: it now pins both directions of the policy in one place — the allowed key arrives, the
+	/// unallowed one does not.
+	/// </remarks>
 	[Fact]
-	public void CreateDefaultContext_WithActivityBaggage_CopiesBaggageToItems()
+	public void CreateDefaultContext_WithActivityBaggage_CopiesOnlyAllowedKeysToItems()
 	{
 		// Arrange
-		var provider = new ServiceCollection().BuildServiceProvider();
+		var services = new ServiceCollection();
+		_ = services.Configure<BaggagePropagationOptions>(o => _ = o.AllowedKeys.Add("user-id"));
+		var provider = services.BuildServiceProvider();
+
 		using var activity = new Activity("TestOperation");
 		_ = activity.AddBaggage("user-id", "user-123");
 		_ = activity.AddBaggage("tenant-id", "tenant-456");
@@ -148,8 +164,9 @@ public sealed class DispatchContextInitializerShould
 			// Assert
 			context.Items.ShouldContainKey("baggage.user-id");
 			context.Items["baggage.user-id"].ShouldBe("user-123");
-			context.Items.ShouldContainKey("baggage.tenant-id");
-			context.Items["baggage.tenant-id"].ShouldBe("tenant-456");
+			context.Items.ShouldNotContainKey("baggage.tenant-id",
+				"the application allowed 'user-id' and not 'tenant-id', and an entry nobody allowed must not "
+				+ "cross onto the wire or into a downstream sink");
 		}
 		finally
 		{

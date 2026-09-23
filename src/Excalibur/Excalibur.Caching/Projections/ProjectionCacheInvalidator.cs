@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
@@ -77,9 +77,12 @@ public sealed partial class ProjectionCacheInvalidator(
 	private static readonly ConcurrentDictionary<Type, PropertyInfo?> ConventionPropertyCache = new();
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("Calls ExtractTags which uses MakeGenericType for resolver lookup")]
-	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "IProjectionCacheInvalidator interface is kept clean for AOT consumers. Implementation uses RuntimeFeature.IsDynamicCodeSupported branching in ExtractTags.")]
+	// No AOT annotation, and that is a statement about behaviour rather than a convenience: this member
+	// DEGRADES under AOT, it does not fail. BuildResolverInfo consults the source-generated
+	// ProjectionResolverTypeRegistry first and, on a miss with dynamic code unavailable, returns early at
+	// :227 instead of reaching MakeGenericType. Declaring RequiresDynamicCode here told every AOT consumer
+	// a working feature was unavailable to them, and the IL3051 suppression existed only to hide the
+	// mismatch that claim created against the interface.
 	public async ValueTask InvalidateCacheAsync(object message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -107,7 +110,6 @@ public sealed partial class ProjectionCacheInvalidator(
 	/// </summary>
 	/// <param name="message">The message to extract tags from.</param>
 	/// <returns>A list of cache tags extracted from the message.</returns>
-	[RequiresDynamicCode("Calls System.Type.MakeGenericType(params Type[])")]
 	[SuppressMessage("Design", "MA0038:Make method static", Justification = "Method uses services field from primary constructor")]
 	[UnconditionalSuppressMessage("Trimming", "IL2075:Type.MakeGenericType may break with trimming",
 		Justification = "IProjectionTagResolver<T> is a well-known interface pattern with stable member names")]
@@ -211,7 +213,6 @@ public sealed partial class ProjectionCacheInvalidator(
 	/// Builds resolver type info using AOT-safe registry lookup when available,
 	/// falling back to MakeGenericType in JIT environments.
 	/// </summary>
-	[RequiresDynamicCode("Falls back to MakeGenericType in JIT environments")]
 	[UnconditionalSuppressMessage("Trimming", "IL2075:Type.MakeGenericType may break with trimming",
 		Justification = "Only used in JIT path; AOT path uses pre-registered types")]
 	private static (Type ResolverType, MethodInfo? GetTagsMethod) BuildResolverInfo(Type messageType)

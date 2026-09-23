@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Inbox.ElasticSearch;
@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Shouldly;
+using Excalibur.Data.ElasticSearch.Persistence;
 
 namespace Excalibur.Integration.Tests.Data.Inbox;
 
@@ -17,7 +18,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 /// <see cref="InboxStoreConformanceTestKit"/> against a live Elasticsearch container.
 /// </summary>
 /// <remarks>
-/// <c>RefreshPolicy = "wait_for"</c> makes a written document immediately searchable, which the kit's
+/// <c>RefreshPolicy = ElasticsearchRefreshPolicy.WaitFor</c> makes a written document immediately searchable, which the kit's
 /// read-after-write assertions require. Without it the arms would fail on Elasticsearch's near-real-time
 /// indexing rather than on the contract.
 /// </remarks>
@@ -55,7 +56,7 @@ public sealed class ElasticsearchInboxStoreKitConformanceShould : InboxStoreConf
 		var options = Options.Create(new ElasticsearchInboxOptions
 		{
 			IndexName = _fixture.IndexName,
-			RefreshPolicy = "wait_for",
+			RefreshPolicy = ElasticsearchRefreshPolicy.WaitFor,
 		});
 
 		// The AMBIENT context rather than a fixed single-tenant one, so the kit's isolation arms vary the
@@ -151,6 +152,42 @@ public sealed class ElasticsearchInboxStoreKitConformanceShould : InboxStoreConf
 	[Fact]
 	public Task GetAllTenantsFailedEntriesAsync_MustReturnEveryTenantsFailedEntries_Test() =>
 		GetAllTenantsFailedEntriesAsync_MustReturnEveryTenantsFailedEntries();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount_Test() =>
+		AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAnExistingEntry_MustReportApplied_Test() =>
+		CoreMarkFailed_ForAnExistingEntry_MustReportApplied();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow_Test() =>
+		CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged_Test() =>
+		CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged();
+
+	[Fact]
+	public Task BackoffMarkFailed_ForAnExistingEntry_MustReportApplied_Test() =>
+		BackoffMarkFailed_ForAnExistingEntry_MustReportApplied();
+
+	[Fact]
+	public Task AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne_Test() =>
+		AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched_Test() =>
+		AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow_Test() =>
+		AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged_Test() =>
+		AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged();
 
 
 	#endregion Fail arms

@@ -34,7 +34,7 @@ Excalibur provides multiple security capabilities for building compliant, secure
 
 ### Field-Level Encryption
 
-Encrypt sensitive fields using the `[PersonalData]` and `[Sensitive]` attributes:
+Encrypt personal data with the `[PersonalData]` attribute. `[Sensitive]` is a classification and log-masking marker alongside it — it does not encrypt:
 
 ```csharp
 public class Customer
@@ -47,10 +47,22 @@ public class Customer
     public string Email { get; set; }
 
     [PersonalData]
-    [Sensitive]  // Also marked as confidential
+    [Sensitive]  // Classification + masked in logs. Does NOT encrypt on its own.
     public string SocialSecurityNumber { get; set; }
 }
 ```
+
+:::caution `[Sensitive]` and encryption: check the version you hold
+
+In every published version up to and including `10.0.0-alpha.11`, `[Sensitive]` classifies and masks
+only — it does **not** cause encryption at rest. Confirm this against the package you restored rather
+than against our source, which describes the main branch.
+
+On the main branch `[Sensitive]` also selects a property for encryption at rest, under the configured
+default key purpose. **That change is not in any released version.** When a release carries it, this
+note will name that version; until it names one, do not assert encryption on the strength of
+`[Sensitive]` alone.
+:::
 
 ### Configuration
 
@@ -237,6 +249,43 @@ public class MyCommandHandler : IActionHandler<MyCommand>
     }
 }
 ```
+
+### Diagnosing a Denial
+
+A 401 or 403 response body carries a generic message and **never** names the policy, role or permission that refused the request:
+
+```json
+{
+  "title": "Authorization Failed",
+  "status": 403,
+  "detail": "You do not have permission to access this resource"
+}
+```
+
+This matches ASP.NET Core, whose own 403 carries no reason. A legitimate caller cannot act on a policy name, and disclosing one tells an attacker enumerating your endpoints exactly which authorization vocabulary gates them.
+
+The specific reason is written to **your** logs instead, at `Warning`, with the correlation id:
+
+**There are two denial paths and they log under different categories.** Search the one your
+application actually uses — grepping for the wrong string finds nothing and looks like silence:
+
+```text
+# ASP.NET Core [Authorize] path
+warn: Excalibur.Dispatch.Hosting.AspNetCore.Authorization.AspNetCoreAuthorizationMiddleware
+      ASP.NET Core authorization denied for message type PlaceOrder (correlation 7f3a...): Policy 'AdminOnly' evaluation failed.
+
+# A3 [RequirePermission] path
+warn: Excalibur.A3.Authorization.A3AuthorizationMiddleware
+      A3 authorization denied (correlation 7f3a...): Condition not met: subject.Role == 'admin'
+```
+
+> **The correlation value can be empty.** `MessageContext.CorrelationId` returns `null` unless it
+> has been set — most often from an incoming `X-Correlation-ID` header, but any code that assigns
+> it counts — or unless lazy generation is enabled, in which case one is created on first access.
+> With neither, the line renders `(correlation )`. Set or propagate a correlation id if you want
+> denials to be findable per request in a shared environment.
+
+So when a 403 surprises you, search your logs for the correlation id rather than expecting the reason in the response body.
 
 ---
 

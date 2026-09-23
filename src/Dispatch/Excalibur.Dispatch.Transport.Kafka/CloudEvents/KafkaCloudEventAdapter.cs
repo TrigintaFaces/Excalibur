@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -433,7 +433,13 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 				continue;
 			}
 
-			var value = Encoding.UTF8.GetString(header.GetValueBytes());
+			// A null-valued header (legal in Kafka) carries no attribute value; decoding it would throw.
+			if (header.GetValueBytes() is not { } bytes)
+			{
+				continue;
+			}
+
+			var value = Encoding.UTF8.GetString(bytes);
 			var attributeName = header.Key[CePrefix.Length..];
 			cloudEvent[attributeName] = value;
 		}
@@ -537,13 +543,14 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 				header.Key.Equals(ContentTypeHeader, StringComparison.OrdinalIgnoreCase));
 
 		ContentType contentType;
-		if (contentTypeHeader is null)
+		// A content-type header with a null value (legal in Kafka) is treated as absent.
+		if (contentTypeHeader?.GetValueBytes() is not { } contentTypeBytes)
 		{
 			contentType = new ContentType(StructuredContentType);
 		}
 		else
 		{
-			var mediaType = Encoding.UTF8.GetString(contentTypeHeader.GetValueBytes());
+			var mediaType = Encoding.UTF8.GetString(contentTypeBytes);
 			contentType = new ContentType(mediaType);
 		}
 
@@ -651,7 +658,7 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 			}
 
 			var attributeName = header.Key[DispatchPrefix.Length..];
-			var value = Encoding.UTF8.GetString(header.GetValueBytes());
+			var value = header.GetValueBytes() is { } bytes ? Encoding.UTF8.GetString(bytes) : null;
 			if (string.IsNullOrEmpty(value))
 			{
 				continue;

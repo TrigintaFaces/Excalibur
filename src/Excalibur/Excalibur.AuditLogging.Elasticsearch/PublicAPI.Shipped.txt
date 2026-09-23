@@ -5,6 +5,10 @@ Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.ElasticsearchAud
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.ExportAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportResult!>!
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportBatchResult!>!
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.Name.get -> string!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditRefreshPolicy
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditRefreshPolicy.Immediate = 2 -> Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditRefreshPolicy
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditRefreshPolicy.None = 0 -> Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditRefreshPolicy
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditRefreshPolicy.WaitFor = 1 -> Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditRefreshPolicy
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ApiKey.get -> string?
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ApiKey.set -> void
@@ -21,7 +25,7 @@ Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.MaxRetryAttemp
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.MaxRetryAttempts.set -> void
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.NodeUrls.get -> System.Collections.Generic.List<string!>?
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.NodeUrls.set -> void
-Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RefreshPolicy.get -> string!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RefreshPolicy.get -> Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditRefreshPolicy
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RefreshPolicy.set -> void
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RetryBaseDelay.get -> System.TimeSpan
 Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RetryBaseDelay.set -> void

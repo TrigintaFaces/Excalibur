@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Amazon.DynamoDBv2.Model;
+
+using Excalibur.Data.CloudNative;
 
 namespace Excalibur.Data.DynamoDb;
 
@@ -48,12 +50,30 @@ public interface IDynamoDbRepositoryBaseQuery<TDocument>
 	where TDocument : class
 {
 	/// <summary>
-	/// Executes a scan operation against the DynamoDB table.
+	/// Executes a single scan request against the DynamoDB table and reports whether more results remain.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This issues exactly one <c>Scan</c>. A DynamoDB scan reads a bounded amount of the table, so the
+	/// returned documents are one page and not necessarily the whole matching set. When DynamoDB reports
+	/// that it stopped early, <see cref="CloudQueryResult{TDocument}.ContinuationToken"/> is non-<see langword="null"/>;
+	/// pass it back through <see cref="ScanRequest.ExclusiveStartKey"/> to read the next page. A
+	/// <see langword="null"/> continuation token means the scan reached the end of the table.
+	/// </para>
+	/// <para>
+	/// The method deliberately does not drain to exhaustion: the caller supplies the
+	/// <see cref="ScanRequest"/> and therefore owns <see cref="ScanRequest.Limit"/> and
+	/// <see cref="ScanRequest.ExclusiveStartKey"/>, and an unbounded scan over a table of unknown size is
+	/// not an operation a caller can safely start without a way to stop it.
+	/// </para>
+	/// </remarks>
 	/// <param name="request">The scan request configuration.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	/// <returns>A read-only list of matched documents.</returns>
-	Task<IReadOnlyList<TDocument>> ScanAsync(
+	/// <returns>
+	/// The matched documents for this page, the consumed request charge, and a continuation token that is
+	/// non-<see langword="null"/> when further pages remain.
+	/// </returns>
+	Task<CloudQueryResult<TDocument>> ScanAsync(
 		ScanRequest request,
 		CancellationToken cancellationToken);
 }

@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -33,6 +33,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	ICloudNativeProviderInfo, ICloudNativePersistenceQueryOperations, ICloudNativePersistenceBatchOperations, ICloudNativePersistenceChangeFeed,
 	IPersistenceProviderHealth, IPersistenceProviderConnection, IAsyncDisposable
 {
+	private const string PartitionKeyPlaceholder = "#pk";
+
 	private readonly DynamoDbOptions _options;
 	private readonly ILogger<DynamoDbPersistenceProvider> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -258,7 +260,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		{
 			TableName = _options.DefaultTableName,
 			Item = item,
-			ConditionExpression = "attribute_not_exists(pk)", // Ensure item doesn't exist
+			ConditionExpression = $"attribute_not_exists({PartitionKeyPlaceholder})",
+			ExpressionAttributeNames = PartitionKeyAttributeNames(),
 			ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL,
 			ReturnValues = ReturnValue.NONE
 		};
@@ -314,7 +317,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		{
 			TableName = _options.DefaultTableName,
 			Item = item,
-			ConditionExpression = "attribute_exists(pk)", // Ensure item exists
+			ConditionExpression = $"attribute_exists({PartitionKeyPlaceholder})",
+			ExpressionAttributeNames = PartitionKeyAttributeNames(),
 			ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL,
 			ReturnValues = ReturnValue.NONE
 		};
@@ -323,7 +327,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		if (!string.IsNullOrEmpty(etag))
 		{
 			request.ConditionExpression += " AND #version = :expectedVersion";
-			request.ExpressionAttributeNames = new Dictionary<string, string> { ["#version"] = "_version" };
+			request.ExpressionAttributeNames["#version"] = "_version";
 			request.ExpressionAttributeValues = new Dictionary<string, AttributeValue>
 			{
 				[":expectedVersion"] = new AttributeValue { S = etag }
@@ -426,13 +430,11 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "DynamoDB query requires JSON serialization which is inherently trim-unsafe.")]
 	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach dynamic code, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public async Task<CloudQueryResult<TDocument>> QueryAsync<TDocument>(
-		string queryText,
-		IPartitionKey partitionKey,
-		IDictionary<string, object>? parameters,
-		IConsistencyOptions? consistencyOptions,
+		CloudQueryRequest query,
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
+		ArgumentNullException.ThrowIfNull(query);
 		EnsureInitialized();
 
 		// DynamoDB uses KeyConditionExpression instead of SQL-like queries
@@ -440,22 +442,36 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		{
 			TableName = _options.DefaultTableName,
 			KeyConditionExpression = $"{_options.DefaultPartitionKeyAttribute} = :pk",
-			ExpressionAttributeValues = new Dictionary<string, AttributeValue> { [":pk"] = new AttributeValue { S = partitionKey.Value } },
-			ConsistentRead = consistencyOptions?.ConsistencyLevel == ConsistencyLevel.Strong
+			ExpressionAttributeValues = new Dictionary<string, AttributeValue> { [":pk"] = new AttributeValue { S = query.PartitionKey.Value } },
+			ConsistentRead = query.ConsistencyOptions?.ConsistencyLevel == ConsistencyLevel.Strong
 							 || _options.UseConsistentReads,
 			ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 		};
 
-		// Add filter expression if query text is provided (as a filter, not key condition)
-		if (!string.IsNullOrWhiteSpace(queryText) && queryText != "*")
+		if (query.MaxItemCount is { } maxItems)
 		{
-			request.FilterExpression = queryText;
+			request.Limit = maxItems;
+		}
+
+		// Resume a previous page. The token we handed out is the serialized LastEvaluatedKey, so the
+		// inverse is to deserialize it straight back into ExclusiveStartKey -- which is what the AWS SDK
+		// itself expects. A token we cannot read is a hard error: restarting at page one instead would
+		// hand the caller the FIRST page forever while their loop appeared to advance.
+		if (!string.IsNullOrWhiteSpace(query.ContinuationToken))
+		{
+			request.ExclusiveStartKey = DeserializeContinuationToken(query.ContinuationToken);
+		}
+
+		// Add filter expression if query text is provided (as a filter, not key condition)
+		if (!string.IsNullOrWhiteSpace(query.QueryText) && query.QueryText != "*")
+		{
+			request.FilterExpression = query.QueryText;
 		}
 
 		// Add parameters
-		if (parameters != null)
+		if (query.Parameters != null)
 		{
-			foreach (var param in parameters)
+			foreach (var param in query.Parameters)
 			{
 				var key = param.Key.StartsWith(':') ? param.Key : $":{param.Key}";
 				request.ExpressionAttributeValues[key] = ToAttributeValue(param.Value);
@@ -463,38 +479,74 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		}
 
 		var documents = new List<TDocument>();
-		double totalCapacity = 0;
-		string? continuationToken = null;
 
+		QueryResponse response;
 		try
 		{
-			var response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
-
-			totalCapacity = response.ConsumedCapacity?.CapacityUnits ?? 0;
-			continuationToken = response.LastEvaluatedKey?.Count > 0
-				? JsonSerializer.Serialize(response.LastEvaluatedKey)
-				: null;
-
-			foreach (var item in response.Items)
-			{
-				var doc = DeserializeDocument<TDocument>(item);
-				if (doc != null)
-				{
-					documents.Add(doc);
-				}
-			}
-
-			LogOperationCompleted("Query", totalCapacity);
+			response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
 		}
 		catch (AmazonDynamoDBException ex)
 		{
+			// Deliberately NOT swallowed. A failed page that returned an empty result would carry no
+			// continuation token, so HasMoreResults would be false and a correct paging loop would exit
+			// reporting the data complete -- the silent truncation this contract exists to prevent.
 			LogOperationFailed("Query", ex.Message, ex);
+			throw;
 		}
+
+		var totalCapacity = response.ConsumedCapacity?.CapacityUnits ?? 0;
+		var continuationToken = response.LastEvaluatedKey?.Count > 0
+			? JsonSerializer.Serialize(response.LastEvaluatedKey)
+			: null;
+
+		foreach (var item in response.Items)
+		{
+			var doc = DeserializeDocument<TDocument>(item);
+			if (doc != null)
+			{
+				documents.Add(doc);
+			}
+		}
+
+		LogOperationCompleted("Query", totalCapacity);
 
 		return new CloudQueryResult<TDocument>(
 			documents,
 			totalCapacity,
 			continuationToken);
+	}
+
+	/// <summary>
+	/// Reads a continuation token back into the exclusive start key that produced it.
+	/// </summary>
+	/// <param name="continuationToken">A token from a previous <see cref="CloudQueryResult{TDocument}"/>.</param>
+	/// <returns>The key the next page starts after.</returns>
+	/// <exception cref="ArgumentException">The token is not one this provider issued.</exception>
+	[RequiresUnreferencedCode("The continuation token is read through the reflection-based System.Text.Json serializer.")]
+	[RequiresDynamicCode("The continuation token is read through the reflection-based System.Text.Json serializer.")]
+	private static Dictionary<string, AttributeValue> DeserializeContinuationToken(string continuationToken)
+	{
+		Dictionary<string, AttributeValue>? startKey;
+		try
+		{
+			startKey = JsonSerializer.Deserialize<Dictionary<string, AttributeValue>>(continuationToken);
+		}
+		catch (JsonException ex)
+		{
+			throw new ArgumentException(
+				"The continuation token is not a token this DynamoDB provider issued. A continuation token is opaque and may only be passed back to the provider that returned it.",
+				nameof(continuationToken),
+				ex);
+		}
+
+		if (startKey is null || startKey.Count == 0)
+		{
+			throw new ArgumentException(
+				"The continuation token is empty. Pass null to start from the first page rather than an empty token.",
+				nameof(continuationToken));
+		}
+
+		return startKey;
 	}
 
 	/// <inheritdoc />
@@ -591,6 +643,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 			_client!,
 			EnsureStreamsClient(),
 			containerName,
+			_options.DefaultPartitionKeyAttribute,
+			_options.DefaultSortKeyAttribute,
 			options ?? ChangeFeedOptions.Default,
 			_logger);
 
@@ -932,10 +986,16 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		return JsonSerializer.Deserialize<TDocument>(json);
 	}
 
-	private static string GetDocumentId<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TDocument>(
-		TDocument document)
+	// The id is read from the document's RUNTIME type. The batch path hands documents over as object, and
+	// resolving the property against the static type found nothing there, so every batch write was keyed by
+	// a freshly generated id instead of the document's own: a batch Create never conflicted with the item it
+	// duplicated, a Replace or Upsert wrote a second item beside the one it targeted, and neither could be
+	// read back by its id.
+	[RequiresUnreferencedCode("Reads the document's id property by reflection over its runtime type.")]
+	private static string GetDocumentId(object? document)
 	{
-		var idProperty = typeof(TDocument).GetProperty("id") ?? typeof(TDocument).GetProperty("Id");
+		var type = document?.GetType();
+		var idProperty = type?.GetProperty("id") ?? type?.GetProperty("Id");
 		return idProperty?.GetValue(document)?.ToString() ?? Guid.NewGuid().ToString();
 	}
 
@@ -1006,6 +1066,15 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		return new AmazonDynamoDBStreamsClient(config);
 	}
 
+	/// <summary>
+	/// Binds the existence guards to the CONFIGURED partition key attribute. Naming the attribute literally
+	/// (as <c>pk</c>) made every guard test an attribute the item does not carry once the option is renamed:
+	/// the create guard then always passed, silently overwriting an existing document, and the update guard
+	/// always failed. A placeholder also keeps a name that is a DynamoDB reserved word legal.
+	/// </summary>
+	private Dictionary<string, string> PartitionKeyAttributeNames() =>
+		new(StringComparer.Ordinal) { [PartitionKeyPlaceholder] = _options.DefaultPartitionKeyAttribute };
+
 	private Dictionary<string, AttributeValue> CreateKey(IPartitionKey partitionKey, string sortKey)
 	{
 		var key = new Dictionary<string, AttributeValue>
@@ -1066,7 +1135,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 				{
 					TableName = _options.DefaultTableName,
 					Item = SerializeDocument(RequireDocument(operation), partitionKey),
-					ConditionExpression = "attribute_not_exists(pk)"
+					ConditionExpression = $"attribute_not_exists({PartitionKeyPlaceholder})",
+					ExpressionAttributeNames = PartitionKeyAttributeNames()
 				}
 			},
 			CloudBatchOperationType.Replace or CloudBatchOperationType.Upsert => new TransactWriteItem

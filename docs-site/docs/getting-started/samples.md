@@ -47,7 +47,7 @@ What are you building?
 ├── Observability
 │   ├── OpenTelemetry             → 07-observability/OpenTelemetry
 │   └── Health checks             → 07-observability/HealthChecks
-├── Full-stack reference app      → 11-real-world/ProofOfLife
+├── Full-stack reference app      → 11-real-world/PublicApiTodo
 ├── Projection rebuild (Quartz)   → 09-advanced/persistence-patterns/ProjectionRebuildJob
 └── Global stream projection      → 09-advanced/persistence-patterns/GlobalStreamProjectionHost
 ```
@@ -79,7 +79,15 @@ dotnet run
 ## Sample Certification and Badge Policy
 
 Every sample carries a badge, and a badge is earned rather than asserted: a sample is certified only
-after it builds clean in Release and runs its smoke profile, and that check runs on every change we make.
+after it builds clean in Release and passes its smoke profile, and that check runs on every change we make.
+A smoke profile runs in one of two modes, and the difference matters when you are choosing a sample to
+trust. **build** mode compiles the sample in Release. **run** mode also starts it and requires it to
+reach a success signal that the profile **declares in advance** — either exiting successfully, or, for a
+sample that is meant to stay up, printing a nominated readiness line. A run-mode sample that starts and
+then hangs is reported as a **failure**, because it never reached the signal; success is declared, never
+inferred from the absence of a crash. Most samples are certified in build mode — for those, a certified
+badge means the sample compiles against the current API, not that its scenario was executed on this
+change.
 A sample that stops meeting the bar loses its badge rather than keeping it quietly.
 
 Badge meanings:
@@ -92,16 +100,30 @@ Current governance status:
 
 | Status | Count | Source |
 |--------|-------|--------|
-| Certified samples | 55 | `sampleFitness.certified` |
+| Certified samples | 95 | `sampleFitness.certified` |
+| — of which **executed** (`run` mode) | 32 | `sampleFitness.smokeProfiles` |
+| — of which **compiled only** (`build` mode) | 63 | `sampleFitness.smokeProfiles` |
+| &nbsp;&nbsp;&nbsp;&nbsp;· because they need infrastructure CI cannot provide | 62 | `buildOnlyReason` |
+| &nbsp;&nbsp;&nbsp;&nbsp;· because nobody has yet assessed whether they could run | 1 | `buildOnlyReason` |
 | Quarantined samples | 0 | `sampleFitness.quarantined` |
 
-All samples are certified and build in CI. The quarantine list has been cleared.
+**Read the first two rows as different guarantees, because they are.** Thirty-two samples were started
+and reached a success signal they declared in advance. The other sixty-three compiled. Every build-mode
+sample declares *why* it is not executed — either it needs a broker, a cloud service or a database that
+the pipeline cannot stand up, or nobody has yet established whether it could run unattended. That second
+group is a **declared gap, not a pass**: it is counted separately here precisely so the aggregate cannot
+be quoted as ninety-five working samples.
+
+This distinction is enforced rather than promised: a build-mode sample with no declared reason, or one
+claiming infrastructure without naming it, fails governance validation.
+
+The quarantine list is empty.
 
 ## Architecture Samples
 
 | Sample | Where | Highlights |
 |--------|-------|------------|
-| **Proof-of-Life (Full Stack)** | `samples/11-real-world/ProofOfLife/` | ASP.NET Core Minimal API demonstrating the complete Excalibur consumer DX: Dispatch handlers, AggregateRoot, event sourcing, projections, and REST endpoints. Uses only public APIs — validates the NuGet consumer experience. |
+| **Public-API Todo (Full Stack)** | `samples/11-real-world/PublicApiTodo/` | ASP.NET Core Minimal API demonstrating the complete Excalibur consumer DX: Dispatch handlers, AggregateRoot, event sourcing, projections, and REST endpoints. Uses only public APIs — validates the NuGet consumer experience. |
 | **Healthcare Vertical Slice API** | `samples/11-real-world/HealthcareApi/` | Minimal API with Dispatch hosting bridge, vertical slice + screaming folder structure. 4 feature slices (Patients, Appointments, Prescriptions, Notifications), cross-slice events, `[Authorize]` bridge, per-slice DI. |
 
 See [Minimal API Hosting Bridge](../deployment/minimal-api-bridge.md) and [Vertical Slice Architecture](../architecture/vertical-slice-architecture.md) for related documentation.

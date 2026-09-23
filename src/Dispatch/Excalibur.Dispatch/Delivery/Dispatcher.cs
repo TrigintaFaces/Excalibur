@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
@@ -71,7 +71,7 @@ internal sealed class Dispatcher(
 		Task.FromResult(SimpleMessageResult.SuccessResult);
 
 	private static readonly Task<IMessageResult> DirectLocalSuccessCacheHitResultTask =
-		Task.FromResult(SimpleMessageResult.SuccessCacheHitResult);
+		Task.FromResult(SimpleMessageResult.SuccessFromCacheResult);
 	[ThreadStatic] private static Dispatcher? s_cachedDispatchInfoDispatcher;
 	[ThreadStatic] private static Type? s_cachedDispatchInfoType;
 	[ThreadStatic] private static MessageDispatchInfo s_cachedDispatchInfo;
@@ -1661,7 +1661,7 @@ internal sealed class Dispatcher(
 			return DirectLocalSuccessResultTask;
 		}
 
-		if (ReferenceEquals(result, SimpleMessageResult.SuccessCacheHitResult))
+		if (ReferenceEquals(result, SimpleMessageResult.SuccessFromCacheResult))
 		{
 			return DirectLocalSuccessCacheHitResultTask;
 		}
@@ -1679,13 +1679,13 @@ internal sealed class Dispatcher(
 
 		if (!_emitDirectLocalResultMetadata)
 		{
-			return new SimpleSuccessMessageResultOfT<TResponse>(directResult, cacheHit: false);
+			return new SimpleSuccessMessageResultOfT<TResponse>(directResult, MessageDisposition.Handled);
 		}
 
 		return new SimpleMessageResultOfT<TResponse>(
 			value: directResult,
 			succeeded: true,
-			cacheHit: false,
+			disposition: MessageDisposition.Handled,
 			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			validationResult: context.ValidationResult(),
 			authorizationResult: context.AuthorizationResult());
@@ -1702,13 +1702,13 @@ internal sealed class Dispatcher(
 
 			if (!_emitDirectLocalResultMetadata)
 			{
-				return new SimpleSuccessMessageResultOfT<TResponse>(typed, cacheHit: false);
+				return new SimpleSuccessMessageResultOfT<TResponse>(typed, MessageDisposition.Handled);
 			}
 
 			return new SimpleMessageResultOfT<TResponse>(
 				value: typed,
 				succeeded: true,
-				cacheHit: false,
+				disposition: MessageDisposition.Handled,
 				routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 				validationResult: context.ValidationResult(),
 				authorizationResult: context.AuthorizationResult());
@@ -1739,12 +1739,14 @@ internal sealed class Dispatcher(
 		// Common path: non-generic success singleton from final handler.
 		if (ReferenceEquals(result, SimpleMessageResult.SuccessResult))
 		{
-			return new SimpleSuccessMessageResultOfT<TResponse>(ResolveResponseValue<TResponse>(context), cacheHit: false);
+			return new SimpleSuccessMessageResultOfT<TResponse>(ResolveResponseValue<TResponse>(context), MessageDisposition.Handled);
 		}
 
-		if (ReferenceEquals(result, SimpleMessageResult.SuccessCacheHitResult))
+		if (ReferenceEquals(result, SimpleMessageResult.SuccessFromCacheResult))
 		{
-			return new SimpleSuccessMessageResultOfT<TResponse>(ResolveResponseValue<TResponse>(context), cacheHit: true);
+			return new SimpleSuccessMessageResultOfT<TResponse>(
+				ResolveResponseValue<TResponse>(context),
+				MessageDisposition.ServedFromCache);
 		}
 
 		var value = ResolveResponseValue<TResponse>(context);
@@ -1754,14 +1756,14 @@ internal sealed class Dispatcher(
 			result.ValidationResult is null &&
 			result.AuthorizationResult is null)
 		{
-			return new SimpleSuccessMessageResultOfT<TResponse>(value, cacheHit: result.CacheHit);
+			return new SimpleSuccessMessageResultOfT<TResponse>(value, result.Disposition);
 		}
 
 		return new SimpleMessageResultOfT<TResponse>(
 			value: value,
 			succeeded: result.Succeeded,
 			errorMessage: result.ErrorMessage,
-			cacheHit: result.CacheHit,
+			disposition: result.Disposition,
 			validationResult: result.ValidationResult,
 			authorizationResult: result.AuthorizationResult,
 			problemDetails: result.ProblemDetails);

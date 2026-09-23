@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 
@@ -117,7 +117,7 @@ public sealed class ConsumersDiscoverCapabilitiesThroughGetServiceShould
 			NullLogger<OutboxProcessor>.Instance,
 			envelopeDeserializer: null,
 			deadLetterQueue: null,
-			circuitBreakerRegistry: null);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 	}
 
 	// FIXTURE HONESTY. A bare FakeItEasy fake answers GetService(object-returning) with a non-null dummy, not null,

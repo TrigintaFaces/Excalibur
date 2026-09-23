@@ -77,27 +77,41 @@ builder.Services.AddExcalibur(excalibur =>
 // Register event types so the serializer resolves them without an assembly scan.
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
+// Unhandled exceptions become RFC 9457 Problem Details responses, with the status code taken from
+// the exception (404 for ResourceNotFoundException, 409 for ConcurrencyException). Details of a
+// 5xx response are hidden outside Development.
+builder.Services.AddGlobalExceptionHandler();
+
 var app = builder.Build();
 
-app.MapGet("/", (IConfiguration cfg) => Results.Json(new
-{
-	Environment = app.Environment.EnvironmentName,
-	ConnectionString_Preview = PreviewConnectionString(eventStoreCs),
-	EventSourcing = cfg.GetSection("EventSourcing").AsEnumerable()
-		.Where(kvp => kvp.Value is not null).ToDictionary(k => k.Key, v => v.Value),
-	Outbox = cfg.GetSection("Outbox").AsEnumerable()
-		.Where(kvp => kvp.Value is not null).ToDictionary(k => k.Key, v => v.Value),
-	Message =
-		"Change ASPNETCORE_ENVIRONMENT or set ConnectionStrings__EventStore " +
-		"to see overrides in effect."
-}));
+app.UseExceptionHandler();
+
+app.MapGet("/", (IConfiguration cfg) => ConfigurationReport.Describe(cfg, app.Environment, eventStoreCs));
 
 app.Run();
 
-static string PreviewConnectionString(string cs) =>
-	cs.Contains("Password=", StringComparison.OrdinalIgnoreCase)
-		? PasswordRedactor.PasswordRegex().Replace(cs, "Password=***")
-		: cs;
+// Shows which values each configuration source produced, with the password redacted.
+internal static class ConfigurationReport
+{
+	public static IResult Describe(IConfiguration cfg, IHostEnvironment environment, string connectionString) =>
+		Results.Json(new
+		{
+			Environment = environment.EnvironmentName,
+			ConnectionString_Preview = PreviewConnectionString(connectionString),
+			EventSourcing = cfg.GetSection("EventSourcing").AsEnumerable()
+				.Where(kvp => kvp.Value is not null).ToDictionary(k => k.Key, v => v.Value),
+			Outbox = cfg.GetSection("Outbox").AsEnumerable()
+				.Where(kvp => kvp.Value is not null).ToDictionary(k => k.Key, v => v.Value),
+			Message =
+				"Change ASPNETCORE_ENVIRONMENT or set ConnectionStrings__EventStore " +
+				"to see overrides in effect."
+		});
+
+	private static string PreviewConnectionString(string cs) =>
+		cs.Contains("Password=", StringComparison.OrdinalIgnoreCase)
+			? PasswordRedactor.PasswordRegex().Replace(cs, "Password=***")
+			: cs;
+}
 
 // Compile-time source-generated regex. Pattern checked at compile time; no
 // reflection at startup. Follows the framework pattern from

@@ -1,10 +1,18 @@
-﻿---
+---
 sidebar_position: 31
 title: Compliance
 description: Enterprise compliance features for FedRAMP, GDPR, SOC 2, and HIPAA
 ---
 
 # Compliance Documentation
+
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../legal/compliance-disclaimer.md).
+:::
 
 Excalibur provides comprehensive compliance features for enterprise regulatory requirements including **FedRAMP**, **GDPR**, **SOC 2**, and **HIPAA**.
 
@@ -24,7 +32,7 @@ Step-by-step guides for achieving compliance certification:
 
 | Framework | When to Use | Checklist | Certification Time |
 |-----------|-------------|-----------|-------------------|
-| **[FedRAMP](checklists/fedramp.md)** | Selling to US federal government | NIST 800-53 (12 of 14 controls) | 6-12 months |
+| **[FedRAMP](checklists/fedramp.md)** | Selling to US federal government | NIST 800-53 (14 controls mapped; 4 satisfied, 10 partial) | 6-12 months |
 | **[GDPR](checklists/gdpr.md)** | Processing EU resident data | Articles 17, 17(3), 25, 30, 32 | 3-6 months |
 | **[SOC 2](checklists/soc2.md)** | SaaS, cloud, MSP businesses | Trust Services Criteria | 3-18 months |
 | **[HIPAA](checklists/hipaa.md)** | Healthcare data (PHI) | Security + Privacy Rules | 6-12 months |
@@ -43,13 +51,15 @@ Core compliance capabilities provided by Excalibur.Dispatch:
 | **Data Masking** | [Data Masking](data-masking.md) | N/A | Art 32 | C2 | §164.312 |
 | **GDPR Erasure** | [GDPR Erasure](gdpr-erasure.md) | N/A | Art 17 | C3 | Disposal |
 
-### 📊 FedRAMP Epic Closure
+### FedRAMP control status
 
-**Status:** 12 of 14 NIST 800-53 controls satisfied by the framework; SI-7 partial (packages ship unsigned) and PM-11 is a business process the consumer owns
+Fourteen NIST 800-53 Rev 5 controls are mapped. **Four are satisfied by the framework (AC-3, AC-6,
+AU-3, SC-13); the other ten are partial** — the framework supplies a mechanism and you supply the
+rest. A mechanism is not the control, so your SSP must describe both halves. The
+[FedRAMP checklist](checklists/fedramp.md#control-mapping-table) is the single place this project
+asserts control status, and it states the consumer action each partial control requires.
 
-The FedRAMP compliance epic has been successfully completed:
-
-- [FedRAMP Overview](fedramp/README.md) - Per-control status and the evidence package
+- [FedRAMP Overview](fedramp/README.md) - Supporting detail and the evidence package
 - [CM-8 SBOM](fedramp/CM-8-SBOM.md) - Software Bill of Materials (CycloneDX)
 
 ## Compliance Overview
@@ -152,7 +162,7 @@ builder.Services.AddGdprErasure(options =>
 ```csharp
 using Excalibur.Compliance;
 
-// 1. Annotate sensitive data for automatic encryption
+// 1. Annotate personal data for encryption, and classify sensitive data
 public class Patient
 {
     public Guid Id { get; set; }
@@ -162,7 +172,8 @@ public class Patient
     public string FirstName { get; set; }
 
     [PersonalData]
-    [Sensitive]
+    [Sensitive]  // in every released version: classification + log masking only. Encryption of this
+                 // field comes from [PersonalData] above.
     public string SSN { get; set; }
 }
 
@@ -200,7 +211,7 @@ public class PatientService
 - **Conformance Kits:** four provider kits (Audit, Erasure, LegalHold, DataInventory). Every arm is `virtual` and carries no test attribute, so nothing runs until you declare an attributed wrapper — wrap the arms your controls need, and your own run is the evidence. See [Quick Start](quick-start.md).
 - **Evidence Collection:** Automated scripts for CI/CD artifacts
 - **SBOM Generation:** CycloneDX format with 90-day retention
-- **Security Scanning:** SAST, DAST, container, secrets scanning
+- **Security Scanning:** SAST (CodeQL), secrets (Gitleaks), dependency vulnerability scanning
 
 ### What Consumers Must Implement ⚠️
 

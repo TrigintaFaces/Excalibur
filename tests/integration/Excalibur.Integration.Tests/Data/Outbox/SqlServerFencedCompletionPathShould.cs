@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Linq;
 
@@ -38,6 +38,7 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerFencedCompletionPathShould : IClassFixture<SqlServerOutboxStoreContainerFixture>
 {
+	private const int StatusSent = 2;
 	private const int StatusFailed = 3;
 	private const int StatusDeadLettered = 5;
 
@@ -180,6 +181,133 @@ public sealed class SqlServerFencedCompletionPathShould : IClassFixture<SqlServe
 			await store.MarkFailedAsync(
 				message.Id, "defaulted", 1, null, default, CancellationToken.None).ConfigureAwait(false))
 			.ConfigureAwait(false);
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────────────────────────────
+	// MARK-SENT FENCE CLASSIFICATION (bd-u56iav). Author != implementer: the store change is not mine.
+	//
+	// THE DEFECT. MarkSentAsync used to read the high-water through a SEPARATE, UNTRANSACTED round trip
+	// and then classify a zero-rowcount refusal by comparing that earlier value. A fresher tenure that
+	// advanced the durable high-water between the two round trips left the captured value stale-low, the
+	// comparison came out false, and a genuinely FENCED refusal surfaced as "not found, already sent, or
+	// dead-lettered". Safety was never at risk — the mutation guard was always computed inside the
+	// mutating transaction — but the DIAGNOSTIC lied, and the shipped contract declares those two
+	// outcomes as distinct exceptions. A superseded leader was told to carry on with its batch when it
+	// should have been told to stop draining entirely.
+	//
+	// WHY THESE ARMS DO NOT RACE, which is the whole reason they are worth having. The original
+	// acceptance asked for an arm reproducing the three-tenure interleaving; that is reachable only by
+	// winning a timing race, and a non-deterministic lock's green means nothing. The fix makes the defect
+	// INEXPRESSIBLE instead: the statement now returns the high-water the transaction itself used, so the
+	// falsifiable claim is "the exception reports THAT value" — checkable with two sequential calls and
+	// no concurrency at all. A store that classifies from a separate read cannot report that value, so
+	// these go RED against it without any interleaving being staged.
+	//
+	// WHY REAL SQL SERVER. The fence advance, the guarded UPDATE and the existence check are one T-SQL
+	// statement under one row lock, and the MERGE's MAX(presented, existing) semantics are what make the
+	// comparison an equality. A fake returns what it was told and cannot exhibit a high-water rejection
+	// at all, so a unit test here would pass identically against the broken store.
+
+	/// <summary>
+	/// LIVENESS. A token at or above the durable high-water is ACCEPTED and the row really moves to Sent.
+	/// </summary>
+	/// <remarks>
+	/// Without this arm, every refusal asserted below is satisfied by a store that refuses every
+	/// mark-sent — which is the cheapest way to look correctly fenced while being entirely broken.
+	/// </remarks>
+	[Fact]
+	public async Task AcceptAMarkSent_ForATokenThatIsNotStale()
+	{
+		await EnsureReadyAsync().ConfigureAwait(false);
+		var store = CreateStore("proc-marksent-live");
+
+		var (message, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+
+		await store.MarkSentAsync(message.Id, 10, CancellationToken.None).ConfigureAwait(false);
+
+		(await ReadStatusAsync(message.Id).ConfigureAwait(false)).ShouldBe(
+			StatusSent,
+			"a token at the high-water must be accepted and the row must really be marked sent; if this "
+			+ "arm is red the refusals below prove nothing, because a store that writes nothing satisfies "
+			+ "all of them");
+	}
+
+	/// <summary>
+	/// THE u56iav BAR. A stale token is refused as STALE, and the exception reports the high-water the
+	/// MUTATING TRANSACTION used — not a value captured by an earlier, separate read.
+	/// </summary>
+	/// <remarks>
+	/// This is the arm that is RED against the pre-fix store, and the reason is structural rather than
+	/// statistical: a store that classifies from a prior untransacted read has no access to the
+	/// transaction's own high-water, so it cannot populate this field correctly at all. The assertion is
+	/// cross-checked against <c>GetFencingHighWaterAsync</c> so it binds the DURABLE value rather than
+	/// merely some non-null number the exception happened to carry.
+	/// </remarks>
+	[Fact]
+	public async Task ReportTheTransactionsOwnHighWater_WhenRefusingAStaleToken()
+	{
+		await EnsureReadyAsync().ConfigureAwait(false);
+		var store = CreateStore("proc-marksent-stale");
+
+		// Advance the durable high-water to 10 by completing one message honestly. No interleaving.
+		var (advancer, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+		await store.MarkSentAsync(advancer.Id, 10, CancellationToken.None).ConfigureAwait(false);
+
+		var durableHighWater = await store.GetFencingHighWaterAsync(CancellationToken.None)
+			.ConfigureAwait(false);
+		durableHighWater.ShouldBe(10L, "the accepted token must have advanced the durable fence");
+
+		// A superseded tenure now presents an older token for a DIFFERENT, live message.
+		var (superseded, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+
+		var refusal = await Should.ThrowAsync<StaleOutboxFencingTokenException>(
+			async () => await store.MarkSentAsync(superseded.Id, 5, CancellationToken.None)
+				.ConfigureAwait(false)).ConfigureAwait(false);
+
+		refusal.PresentedToken.ShouldBe(5L, "the refusal must name the token that was presented");
+
+		refusal.HighWaterToken.ShouldBe(
+			durableHighWater,
+			"the refusal must report the high-water the MUTATING TRANSACTION used. A store that "
+			+ "classifies from a prior untransacted read cannot report that value, which is precisely the "
+			+ "defect: its captured high-water can be stale-low, the comparison then comes out false, and "
+			+ "a fenced refusal is mis-reported as a missing row");
+
+		(await ReadStatusAsync(superseded.Id).ConfigureAwait(false)).ShouldNotBe(
+			StatusSent,
+			"a refused tenure must not have marked the message sent — safety, paired with the diagnostic");
+	}
+
+	/// <summary>
+	/// DISCRIMINATION, and this is the defect stated as an assertion: a stale token must NOT surface as a
+	/// plain <see cref="InvalidOperationException"/> meaning "not found, already sent, or dead-lettered".
+	/// </summary>
+	/// <remarks>
+	/// The pre-fix store threw exactly that for a genuinely fenced refusal, and the two instruct the
+	/// caller to do OPPOSITE things — a fence refusal means stop draining entirely, a not-found means
+	/// carry on with the rest of the batch. Asserting only "it threw" would pass against the defect,
+	/// because the defect also throws. The TYPE is the contract.
+	/// </remarks>
+	[Fact]
+	public async Task NotMisreportAFencedRefusalAsAMissingRow()
+	{
+		await EnsureReadyAsync().ConfigureAwait(false);
+		var store = CreateStore("proc-marksent-discriminate");
+
+		var (advancer, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+		await store.MarkSentAsync(advancer.Id, 20, CancellationToken.None).ConfigureAwait(false);
+
+		var (superseded, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+
+		var thrown = await Should.ThrowAsync<Exception>(
+			async () => await store.MarkSentAsync(superseded.Id, 7, CancellationToken.None)
+				.ConfigureAwait(false)).ConfigureAwait(false);
+
+		thrown.ShouldBeOfType<StaleOutboxFencingTokenException>(
+			"a fenced refusal on a row that EXISTS and is NOT terminal must be reported as a stale fence, "
+			+ "never as a missing-or-terminal row. The message was staged and claimed in this test, so "
+			+ "'not found' is provably the wrong answer, and the caller's correct response differs: stop "
+			+ "draining, rather than continue with the batch");
 	}
 
 	private async Task<(OutboundMessage Message, string ClaimIdentity)> StageAndClaimAsync(SqlServerOutboxStore store)

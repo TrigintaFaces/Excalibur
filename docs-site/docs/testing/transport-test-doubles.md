@@ -273,7 +273,7 @@ first.Action.ShouldBe(MessageAction.Acknowledge);
 
 Combine the test harness with transport test doubles to test a full pipeline that sends messages to a transport:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Testing;
 using Excalibur.Dispatch.Testing.Transport;

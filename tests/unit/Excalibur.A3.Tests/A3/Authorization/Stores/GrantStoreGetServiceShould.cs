@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
 
@@ -120,8 +120,12 @@ public sealed class GrantStoreGetServiceShould
 		}
 
 		// IGrantQueryStore
-		public Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(string? userId, string tenantId,
-			string grantType, string qualifier, CancellationToken cancellationToken) =>
+		public Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(string tenantId, string? userId,
+			string? grantType, string? qualifier, CancellationToken cancellationToken) =>
+			Task.FromResult<IReadOnlyList<Grant>>(Array.Empty<Grant>());
+
+		public Task<IReadOnlyList<Grant>> GetMatchingGrantsAcrossTenantsAsync(string? userId,
+			string? grantType, string? qualifier, CancellationToken cancellationToken) =>
 			Task.FromResult<IReadOnlyList<Grant>>(Array.Empty<Grant>());
 
 		public Task<IReadOnlyDictionary<string, object>> FindUserGrantsAsync(string userId,

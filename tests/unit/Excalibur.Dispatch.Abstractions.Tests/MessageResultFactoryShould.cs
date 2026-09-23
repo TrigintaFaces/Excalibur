@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Tests;
 
@@ -28,7 +28,7 @@ public sealed class MessageResultFactoryShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	[Fact]
@@ -39,11 +39,11 @@ public sealed class MessageResultFactoryShould
 			routingDecision: null,
 			validationResult: "valid",
 			authorizationResult: "authorized",
-			cacheHit: true);
+			disposition: MessageDisposition.ServedFromCache);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	[Fact]
@@ -66,7 +66,7 @@ public sealed class MessageResultFactoryShould
 			routingDecision: null,
 			validationResult: null,
 			authorizationResult: null,
-			cacheHit: false);
+			disposition: MessageDisposition.Handled);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();

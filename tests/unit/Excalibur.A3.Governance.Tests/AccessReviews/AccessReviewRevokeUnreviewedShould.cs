@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Governance.AccessReviews;
@@ -26,6 +26,13 @@ namespace Excalibur.A3.Governance.Tests.AccessReviews;
 /// that did not happen; the liveness arm proves a correctly configured campaign still revokes and still
 /// completes. The safety arm alone would be satisfied by a policy branch that did nothing at all.
 /// </para>
+/// <para>
+/// The revocation arms run against the real in-memory grant store (resolved exactly as a consumer gets it,
+/// from <c>AddExcaliburA3Core()</c>) and assert the query the policy
+/// SENT. A fake that ignored its arguments hid the defect this suite now pins: the policy asked for grants
+/// with an empty tenant, type and qualifier, every real store read those as exact values and returned
+/// nothing, and the campaign was recorded as complete having revoked nothing.
+/// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
@@ -35,6 +42,7 @@ public sealed class AccessReviewRevokeUnreviewedShould : UnitTestBase
 	private const int GrantQueryStoreMissingEventId = 3526;
 	private const int CampaignLeftOpenEventId = 3532;
 	private const int CampaignExpiredRevokedEventId = 3522;
+	private const int CampaignScopeUnresolvableEventId = 3533;
 
 	private static readonly AccessReviewScope DefaultScope = new(AccessReviewScopeType.AllGrants, null);
 
@@ -42,52 +50,81 @@ public sealed class AccessReviewRevokeUnreviewedShould : UnitTestBase
 		new("user-1", "User One", "tenant-1", Excalibur.A3.Authorization.Grants.GrantType.Role, "reader",
 			null, "admin", DateTimeOffset.UtcNow.AddDays(-60));
 
-	/// <summary>A grant store that can be queried and records what it was asked to delete.</summary>
-	private sealed class RecordingGrantStore(IEnumerable<Grant> grants, bool deleteThrows = false)
-		: IGrantStore, IGrantQueryStore
+	/// <summary>
+	/// The real in-memory grant store, observed: it records every query it is sent and every grant it is asked
+	/// to delete, and can be told to fail deletion.
+	/// </summary>
+	private sealed class RecordingGrantStore : IGrantStore, IGrantQueryStore
 	{
-		private readonly List<Grant> _grants = [.. grants];
+		private readonly IGrantStore _inner = new ServiceCollection().AddExcaliburA3Core().Services
+			.BuildServiceProvider().GetRequiredService<IGrantStore>();
+		private readonly bool _deleteThrows;
+
+		public RecordingGrantStore(IEnumerable<Grant> grants, bool deleteThrows = false)
+		{
+			_deleteThrows = deleteThrows;
+			foreach (var grant in grants)
+			{
+				// The in-memory store completes synchronously; asserting that keeps seeding free of sync-over-async.
+				_inner.SaveGrantAsync(grant, CancellationToken.None).IsCompletedSuccessfully.ShouldBeTrue();
+			}
+		}
+
+		public List<(string TenantId, string? UserId, string? GrantType, string? Qualifier)> Queries { get; } = [];
 
 		public List<string> Deleted { get; } = [];
 
+		private IGrantQueryStore InnerQuery => (IGrantQueryStore)_inner.GetService(typeof(IGrantQueryStore))!;
+
+		public Task<IReadOnlyList<Grant>> Remaining(string userId) =>
+			_inner.GetAllGrantsAsync(userId, includeExpired: true, CancellationToken.None);
+
 		public Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
-			string? userId, string tenantId, string grantType, string qualifier, CancellationToken cancellationToken)
-			=> Task.FromResult<IReadOnlyList<Grant>>(_grants);
+			string tenantId, string? userId, string? grantType, string? qualifier, CancellationToken cancellationToken)
+		{
+			Queries.Add((tenantId, userId, grantType, qualifier));
+			return InnerQuery.GetMatchingGrantsAsync(tenantId, userId, grantType, qualifier, cancellationToken);
+		}
+
+		public Task<IReadOnlyList<Grant>> GetMatchingGrantsAcrossTenantsAsync(
+			string? userId, string? grantType, string? qualifier, CancellationToken cancellationToken) =>
+			throw new InvalidOperationException("a campaign's revoke must never read across tenants");
 
 		public Task<IReadOnlyDictionary<string, object>> FindUserGrantsAsync(
-			string userId, CancellationToken cancellationToken)
-			=> Task.FromResult<IReadOnlyDictionary<string, object>>(new Dictionary<string, object>());
+			string userId, CancellationToken cancellationToken) =>
+			InnerQuery.FindUserGrantsAsync(userId, cancellationToken);
 
-		public Task<int> DeleteGrantAsync(
+		public async Task<int> DeleteGrantAsync(
 			string userId, string tenantId, string grantType, string qualifier,
 			string? revokedBy, DateTimeOffset? revokedOn, CancellationToken cancellationToken)
 		{
-			if (deleteThrows)
+			if (_deleteThrows)
 			{
 				throw new InvalidOperationException("grant store unavailable");
 			}
 
-			Deleted.Add(userId);
-			return Task.FromResult(1);
+			Deleted.Add($"{userId}|{tenantId}|{grantType}|{qualifier}");
+			return await _inner.DeleteGrantAsync(userId, tenantId, grantType, qualifier, revokedBy, revokedOn, cancellationToken)
+				.ConfigureAwait(false);
 		}
 
 		public Task<Grant?> GetGrantAsync(
-			string userId, string tenantId, string grantType, string qualifier, CancellationToken cancellationToken)
-			=> Task.FromResult<Grant?>(null);
+			string userId, string tenantId, string grantType, string qualifier, CancellationToken cancellationToken) =>
+			_inner.GetGrantAsync(userId, tenantId, grantType, qualifier, cancellationToken);
 
-		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken)
-			=> Task.FromResult<IReadOnlyList<Grant>>([]);
+		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
+			_inner.GetAllGrantsAsync(userId, cancellationToken);
 
 		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(
-			string userId, bool includeExpired, CancellationToken cancellationToken)
-			=> Task.FromResult<IReadOnlyList<Grant>>([]);
+			string userId, bool includeExpired, CancellationToken cancellationToken) =>
+			_inner.GetAllGrantsAsync(userId, includeExpired, cancellationToken);
 
-		public Task<int> SaveGrantAsync(Grant grant, CancellationToken cancellationToken)
-			=> Task.FromResult(1);
+		public Task<int> SaveGrantAsync(Grant grant, CancellationToken cancellationToken) =>
+			_inner.SaveGrantAsync(grant, cancellationToken);
 
 		public Task<bool> GrantExistsAsync(
-			string userId, string tenantId, string grantType, string qualifier, CancellationToken cancellationToken)
-			=> Task.FromResult(false);
+			string userId, string tenantId, string grantType, string qualifier, CancellationToken cancellationToken) =>
+			_inner.GrantExistsAsync(userId, tenantId, grantType, qualifier, cancellationToken);
 	}
 
 	/// <summary>A grant store that does NOT provide the query capability the revoke path needs.</summary>
@@ -117,10 +154,55 @@ public sealed class AccessReviewRevokeUnreviewedShould : UnitTestBase
 			=> Task.FromResult(false);
 	}
 
-	private static AccessReviewCampaignSummary ExpiredRevokeCampaign(DateTimeOffset expiredAt, int decidedItems = 0) =>
-		new("campaign-1", "Q1 Review", DefaultScope, "admin",
+	private static AccessReviewCampaignSummary ExpiredRevokeCampaign(
+		DateTimeOffset expiredAt, int decidedItems = 0, AccessReviewScope? scope = null) =>
+		new("campaign-1", "tenant-1", "Q1 Review", scope ?? DefaultScope, "admin",
 			expiredAt.AddDays(-30), expiredAt,
 			AccessReviewExpiryPolicy.RevokeUnreviewed, AccessReviewState.InProgress, 5, decidedItems);
+
+	private static Grant G(string user, string tenant, string type, string qualifier) =>
+		new(user, user, tenant, type, qualifier, null, "admin", DateTimeOffset.UtcNow.AddDays(-60));
+
+	/// <summary>
+	/// Grants in the campaign's tenant, in a neighbouring tenant, and in the untenanted partition -- with a role
+	/// and a user that also exist elsewhere, so a revoke that is not confined to the campaign's tenant, or not
+	/// confined to its scope, removes something it must not.
+	/// </summary>
+	private static Grant[] Estate() =>
+	[
+		G("user-1", "tenant-1", Excalibur.A3.Authorization.Grants.GrantType.Role, "Admin"),
+		G("user-1", "tenant-1", "Activity", "orders.read"),
+		G("user-2", "tenant-1", Excalibur.A3.Authorization.Grants.GrantType.Role, "Reader"),
+		G("user-1", "tenant-2", Excalibur.A3.Authorization.Grants.GrantType.Role, "Admin"),
+		G("user-1", TenantScope.UntenantedSentinel, Excalibur.A3.Authorization.Grants.GrantType.Role, "Admin"),
+	];
+
+	private static async Task<string[]> RemainingAsync(RecordingGrantStore store)
+	{
+		var all = new List<Grant>();
+		all.AddRange(await store.Remaining("user-1").ConfigureAwait(false));
+		all.AddRange(await store.Remaining("user-2").ConfigureAwait(false));
+		return all.Select(g => $"{g.UserId}|{g.TenantId}|{g.GrantType}|{g.Qualifier}")
+			.OrderBy(k => k, StringComparer.Ordinal).ToArray();
+	}
+
+	private static async Task<(RecordingGrantStore Grants, InMemoryAccessReviewStore Reviews, CapturingLogger<AccessReviewExpiryService> Logger)>
+		SweepAsync(AccessReviewScope scope, int waitForEventId)
+	{
+		var expiresAt = DateTimeOffset.UtcNow.AddDays(-1);
+		var reviews = new InMemoryAccessReviewStore();
+		await reviews.SaveCampaignAsync(ExpiredRevokeCampaign(expiresAt, scope: scope), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var grants = new RecordingGrantStore(Estate());
+		await using var provider = BuildHost(reviews, grants);
+		var logger = new CapturingLogger<AccessReviewExpiryService>();
+
+		await RunSweepAsync(provider, logger, () => logger.Entries.Any(e => e.EventId.Id == waitForEventId))
+			.ConfigureAwait(false);
+
+		return (grants, reviews, logger);
+	}
 
 	private static ServiceProvider BuildHost(IAccessReviewStore store, IGrantStore? grantStore)
 	{
@@ -245,7 +327,7 @@ public sealed class AccessReviewRevokeUnreviewedShould : UnitTestBase
 		await RunSweepAsync(provider, logger,
 			() => logger.Entries.Any(e => e.EventId.Id == CampaignExpiredRevokedEventId)).ConfigureAwait(false);
 
-		grantStore.Deleted.ShouldContain("user-1");
+		grantStore.Deleted.ShouldContain(d => d.StartsWith("user-1|", StringComparison.Ordinal));
 
 		var stored = await store.GetCampaignAsync("campaign-1", CancellationToken.None).ConfigureAwait(false);
 		stored.ShouldNotBeNull();
@@ -273,5 +355,78 @@ public sealed class AccessReviewRevokeUnreviewedShould : UnitTestBase
 		var stored = await store.GetCampaignAsync("campaign-1", CancellationToken.None).ConfigureAwait(false);
 		stored.ShouldNotBeNull();
 		stored.State.ShouldBe(AccessReviewState.Expired);
+	}
+
+	// ---- SAFETY + LIVENESS: every scope revokes exactly its own grants, inside the campaign's tenant ----
+
+	[Fact]
+	public async Task RevokeEveryGrantInTheCampaignsTenant_AndNothingOutsideIt_ForAnAllGrantsScope()
+	{
+		var (grants, reviews, _) = await SweepAsync(DefaultScope, CampaignExpiredRevokedEventId).ConfigureAwait(false);
+
+		grants.Queries.ShouldBe([("tenant-1", (string?)null, (string?)null, (string?)null)],
+			"the policy must ask for the campaign's tenant with no other constraint -- never an empty-string filter");
+		(await RemainingAsync(grants).ConfigureAwait(false)).ShouldBe(
+			[
+				"user-1|__untenanted__|Role|Admin",
+				"user-1|tenant-2|Role|Admin",
+			],
+			customMessage: "every grant in tenant-1 must be revoked, and no grant in any other tenant");
+		(await reviews.GetCampaignAsync("campaign-1", CancellationToken.None).ConfigureAwait(false))!.State
+			.ShouldBe(AccessReviewState.Expired);
+	}
+
+	[Fact]
+	public async Task RevokeOnlyTheRolesGrants_ForAByRoleScope()
+	{
+		var (grants, _, _) = await SweepAsync(
+			new AccessReviewScope(AccessReviewScopeType.ByRole, "Admin"), CampaignExpiredRevokedEventId).ConfigureAwait(false);
+
+		grants.Queries.ShouldBe([("tenant-1", (string?)null, (string?)Excalibur.A3.Authorization.Grants.GrantType.Role, (string?)"Admin")]);
+		(await RemainingAsync(grants).ConfigureAwait(false)).ShouldBe(
+			[
+				"user-1|__untenanted__|Role|Admin",
+				"user-1|tenant-1|Activity|orders.read",
+				"user-1|tenant-2|Role|Admin",
+				"user-2|tenant-1|Role|Reader",
+			],
+			customMessage: "only the Admin role grant in tenant-1 is in scope");
+	}
+
+	[Fact]
+	public async Task RevokeOnlyTheUsersGrants_ForAByUserScope()
+	{
+		var (grants, _, _) = await SweepAsync(
+			new AccessReviewScope(AccessReviewScopeType.ByUser, "user-1"), CampaignExpiredRevokedEventId).ConfigureAwait(false);
+
+		grants.Queries.ShouldBe([("tenant-1", (string?)"user-1", (string?)null, (string?)null)]);
+		(await RemainingAsync(grants).ConfigureAwait(false)).ShouldBe(
+			[
+				"user-1|__untenanted__|Role|Admin",
+				"user-1|tenant-2|Role|Admin",
+				"user-2|tenant-1|Role|Reader",
+			],
+			customMessage: "only user-1's grants in tenant-1 are in scope");
+	}
+
+	/// <summary>
+	/// FAIL CLOSED. A ByUser or ByRole scope with no value names no grants. Read as "unconstrained" it would
+	/// revoke every grant in the tenant on the strength of a malformed record; it must revoke nothing and leave
+	/// the campaign open instead.
+	/// </summary>
+	[Theory]
+	[InlineData(AccessReviewScopeType.ByUser)]
+	[InlineData(AccessReviewScopeType.ByRole)]
+	public async Task RevokeNothingAndLeaveTheCampaignOpen_WhenAScopeHasNoValue(AccessReviewScopeType type)
+	{
+		var (grants, reviews, logger) = await SweepAsync(
+			new AccessReviewScope(type, null), CampaignScopeUnresolvableEventId).ConfigureAwait(false);
+
+		grants.Queries.ShouldBeEmpty("a scope that names no grants must not be sent to the store at all");
+		grants.Deleted.ShouldBeEmpty("nothing may be revoked on the strength of a scope that names no grants");
+		(await RemainingAsync(grants).ConfigureAwait(false)).Length.ShouldBe(Estate().Length);
+		logger.Entries.ShouldContain(e => e.EventId.Id == CampaignScopeUnresolvableEventId && e.Level == LogLevel.Error);
+		(await reviews.GetCampaignAsync("campaign-1", CancellationToken.None).ConfigureAwait(false))!.State
+			.ShouldBe(AccessReviewState.InProgress, "a campaign that revoked nothing must not be recorded as complete");
 	}
 }

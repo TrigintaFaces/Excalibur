@@ -21,6 +21,8 @@ public sealed class ErasureServiceShould
 			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
 		});
 
+		// Annotated coverage is pinned EMPTY: these arms' subject is contributor/key-deletion coverage,
+		// and the production default would otherwise scan the whole test assembly. See TestAnnotationSource.
 		_sut = new ErasureService(
 			_store,
 			_keyAdmin,
@@ -29,7 +31,9 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService,
-			null);
+			null,
+			TestAnnotationSource.None,
+			[]);
 	}
 
 	[Fact]
@@ -304,8 +308,14 @@ public sealed class ErasureServiceShould
 
 		SetupNoLegalHolds();
 
+		// A KEY-DESTRUCTION-ONLY host, which is exactly what this arm exercises: there are no
+		// contributors and no registry, and erasure is effected by shredding the subject's keys. That is a
+		// legitimate configuration and the framework has an explicit opt-in for it, so the fixture states
+		// it rather than leaving the service to infer a misconfiguration from an empty registry.
+		var sut = CreateKeyShredOnlySut();
+
 		// Act
-		var result = await _sut.ExecuteAsync(requestId, CancellationToken.None)
+		var result = await sut.ExecuteAsync(requestId, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -639,7 +649,9 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService, _dataInventoryService,
-			keyEscrowService);
+			keyEscrowService,
+			TestAnnotationSource.None,
+			[]);
 
 		var requestId = Guid.NewGuid();
 		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
@@ -694,7 +706,9 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService, _dataInventoryService,
-			keyEscrowService);
+			keyEscrowService,
+			TestAnnotationSource.None,
+			[]);
 
 		var requestId = Guid.NewGuid();
 		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
@@ -738,7 +752,9 @@ public sealed class ErasureServiceShould
 
 		A.CallTo(() => contributor.Name).Returns("TestContributor");
 		A.CallTo(() => contributor.EraseAsync(A<ErasureContributorContext>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new ErasureContributorResult { Success = true, RecordsAffected = 5 }));
+			.Returns(Task.FromResult(ErasureContributorResult.Succeeded(
+				5,
+				[new DataLocationKey("Users", "Email")])));
 
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
 		{
@@ -749,7 +765,7 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService, _dataInventoryService, null,
-			[contributor]);
+			TestAnnotationSource.None, [contributor]);
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
@@ -757,10 +773,17 @@ public sealed class ErasureServiceShould
 			.Returns(Task.FromResult(true));
 		SetupNoLegalHolds();
 
-		// 88xrgq affirmative-proof coverage gate: a verified (empty) inventory proves coverage so the
-		// Completed/Success path is reachable. The contributor loop runs BEFORE the gate, so this
-		// strengthens the test to the fail-closed contract without weakening the Success assertion.
-		var inventory = new DataInventory { DataSubjectId = "abc123hash", Locations = [], AssociatedKeys = [] };
+		// A CONFIGURED host: the registry declares a location and the contributor NAMES it as discharged.
+		// An empty registry models a MISCONFIGURED host -- coverage unestablished -- which is a different
+		// scenario and is asserted by its own arm. Locations stays empty on purpose: this arm's subject is
+		// that contributors are invoked, and "we found no rows" must not be what discharges the obligation.
+		var inventory = new DataInventory
+		{
+			DataSubjectId = "abc123hash",
+			Locations = [],
+			DeclaredLocations = [new DataLocationKey("Users", "Email")],
+			AssociatedKeys = [],
+		};
 		A.CallTo(() => _dataInventoryService.DiscoverAsync(
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(inventory));
@@ -801,6 +824,27 @@ public sealed class ErasureServiceShould
 			RequestedBy = "admin",
 			UpdatedAt = DateTimeOffset.UtcNow,
 		};
+
+	/// <summary>
+	/// A service configured for key-destruction-only erasure -- the host model for an arm whose subject is
+	/// crypto-shred: no contributors, no data-location registry, coverage established by destroying the
+	/// subject's keys rather than by a registry of tables.
+	/// </summary>
+	private ErasureService CreateKeyShredOnlySut()
+	{
+		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+		{
+			KeyShredOnlyErasure = true,
+			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+		});
+
+		return new ErasureService(
+			_store, _keyAdmin, options,
+			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
+			_legalHoldService, _dataInventoryService, null,
+			TestAnnotationSource.None, []);
+	}
 
 	private void SetupNoLegalHolds()
 	{

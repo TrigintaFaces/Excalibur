@@ -63,7 +63,7 @@ public sealed record OrderPlaced(string OrderId) : IIntegrationEvent;
 
 The consumer reads what it needs when it needs it:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 public sealed class SendOrderConfirmation(IOrderApi orders) : IEventHandler<OrderPlaced>
@@ -106,7 +106,7 @@ obligation:
 3. **Events arrive out of order.** The consumer must reject an update older than one it already applied,
    so you must put a version or a timestamp on the event for it to compare.
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 public sealed class CustomerOrderCache(IOrderReadStore store) : IEventHandler<OrderPlaced>

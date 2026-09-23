@@ -10,5 +10,6 @@
   <!-- Grant authorization on plain ASP.NET Core endpoints: no Dispatch pipeline involved. -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3.AspNetCore\Excalibur.A3.AspNetCore.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
 </Project>

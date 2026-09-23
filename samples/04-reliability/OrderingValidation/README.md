@@ -14,20 +14,19 @@ This sample demonstrates **strictly-increasing per-key message ordering** using
 4. **Scope** -- an in-process command that never entered a marked receive path passes through
    unchanged, even with the middleware registered globally.
 
-## Important: Registration Requirement
+## Registration
 
-`AddOrderingValidation()` must be paired with the **assembly-scanning** `AddDispatch(Assembly)`
-overload, as this sample does:
+This sample registers the middleware alongside the assembly-scanning `AddDispatch(Assembly)` overload:
 
 ```csharp
 services.AddDispatch(typeof(Program).Assembly);
 services.AddOrderingValidation();
 ```
 
-Paired instead with the builder-lambda `AddDispatch(dispatch => { ... })` form, the middleware
-registers without error but never runs -- no exception, no log, out-of-order messages pass silently.
-See the [Ordering Validation](https://excalibur-dispatch.dev/docs/middleware/ordering-validation) docs
-page for this limitation in detail.
+The builder-lambda `AddDispatch(dispatch => { ... })` form works the same way: both overloads compose
+the same pipeline, and both include middleware registered through `AddOrderingValidation()`. See the
+[Ordering Validation](https://excalibur-dispatch.dev/docs/middleware/ordering-validation) docs page for
+the full walkthrough.
 
 ## Running the Sample
 

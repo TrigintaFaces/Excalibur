@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+
+using Excalibur.Compliance.Soc2.Validators;
 
 namespace Excalibur.Compliance.Soc2;
 
@@ -37,8 +39,11 @@ internal sealed class ControlValidationService : IControlValidationService
 			{
 				ControlId = controlId,
 				IsConfigured = false,
-				IsEffective = false,
-				EffectivenessScore = 0,
+				// NOT a deficiency. No validator registered means this framework did not examine the
+				// control -- it says nothing about whether the consumer operates it by some other means.
+				// Reporting it as deficient states a finding nobody made and sends an auditor looking for
+				// a defect that may not exist. Outcome follows from the band and is not set here.
+				EffectivenessScore = ControlEffectiveness.Unverified,
 				ConfigurationIssues = [$"No validator registered for control: {controlId}"]
 			};
 		}

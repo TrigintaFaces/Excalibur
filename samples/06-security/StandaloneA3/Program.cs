@@ -51,11 +51,13 @@ await activityGroupStore.CreateActivityGroupAsync(
 	activityName: "Users.Read",
 	CancellationToken.None);
 
-var groups = await activityGroupStore.FindActivityGroupsAsync(CancellationToken.None);
+// The read names the tenant: a group name is unique only WITHIN a tenant, so "which groups exist"
+// has no single answer. You get this tenant's catalogue and never another's.
+var groups = await activityGroupStore.FindActivityGroupsAsync("tenant-1", CancellationToken.None);
 Console.WriteLine($"Activity groups created: {groups.Count}");
 foreach (var group in groups)
 {
-	Console.WriteLine($"  {group.Key}: {string.Join(", ", (List<string>)group.Value)}");
+	Console.WriteLine($"  {group.Key}: {string.Join(", ", group.Value)}");
 }
 
 Console.WriteLine();
@@ -135,9 +137,10 @@ Console.WriteLine("--- Step 6: Advanced Query (ISP) ---");
 var queryStore = grantStore.GetService(typeof(IGrantQueryStore)) as IGrantQueryStore;
 if (queryStore is not null)
 {
+	// One tenant's grants; null means "any user". An empty string is refused, never read as "all".
 	var matching = await queryStore.GetMatchingGrantsAsync(
-		userId: null, // All users
 		tenantId: "tenant-1",
+		userId: null, // All users
 		grantType: "ActivityGroup",
 		qualifier: "OrderManagement",
 		CancellationToken.None);
@@ -147,6 +150,39 @@ if (queryStore is not null)
 		Console.WriteLine($"  {m.UserId} ({m.FullName})");
 	}
 }
+
+Console.WriteLine();
+
+// 7. Remove YOUR tenant's activity groups -- and not anybody else's
+Console.WriteLine("--- Step 7: Remove One Tenant's Activity Groups ---");
+
+// A second tenant, so the confinement below is observable rather than asserted.
+await activityGroupStore.CreateActivityGroupAsync(
+	tenantId: "tenant-2",
+	name: "OrderManagement",
+	activityName: "Orders.Read",
+	CancellationToken.None);
+
+// TWO NAMED OPERATIONS, and the one you want is the one you name.
+//
+// This is the tenant-scoped delete. Its sibling, DeleteAllActivityGroupsAsync(), removes EVERY
+// tenant's groups and is meant for a full catalogue refresh -- it is not a wider version of this
+// call, it is a different operation with a different blast radius.
+//
+// They are deliberately not one method with an optional tenant. A nullable "all tenants when null"
+// parameter would make the destructive case the value you get by FORGETTING an argument, and the
+// radius would stop being readable at the call site -- which, for an operation that can empty the
+// estate, is the one place it has to be readable.
+var removedForTenant1 = await activityGroupStore.DeleteActivityGroupsForTenantAsync(
+	"tenant-1", CancellationToken.None);
+
+Console.WriteLine($"Rows removed for tenant-1: {removedForTenant1}");
+
+var tenant1After = await activityGroupStore.FindActivityGroupsAsync("tenant-1", CancellationToken.None);
+var tenant2After = await activityGroupStore.FindActivityGroupsAsync("tenant-2", CancellationToken.None);
+
+Console.WriteLine($"tenant-1 groups remaining: {tenant1After.Count}");
+Console.WriteLine($"tenant-2 groups remaining: {tenant2After.Count}  (untouched)");
 
 Console.WriteLine();
 Console.WriteLine("=== Sample Complete ===");

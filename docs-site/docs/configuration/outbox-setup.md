@@ -239,7 +239,7 @@ Key `ElasticsearchOutboxOptions` properties:
 |----------|------|---------|-------------|
 | `IndexName` | `string` | `"excalibur-outbox"` | Elasticsearch index name |
 | `DefaultBatchSize` | `int` | `100` | Default batch size for operations |
-| `RefreshPolicy` | `string` | `"wait_for"` | Index refresh policy |
+| `RefreshPolicy` | `ElasticsearchRefreshPolicy` | `WaitFor` | Refresh policy applied after index **writes**. `None` favours throughput; `Immediate` forces a refresh per write. Statistics refresh on read, so this cannot make a reported count wrong. |
 | `LeaseTimeoutSeconds` | `int` | `300` | How long a claimed message stays hidden from other pollers |
 | `ProcessorId` | `string?` | `null` | Lease-owner identifier for diagnostics; generated per instance when unset |
 

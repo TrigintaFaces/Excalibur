@@ -27,6 +27,20 @@ shim. The `EXMIG####` range does not overlap with `DISP###`.
 | [EXMIG0003](./EXMIG0003.md) | `using MediatR;` directive is swappable | Info | Migration |
 | [EXMIG0004](./EXMIG0004.md) | Handler signature differs from compat shape | Warning | Migration |
 
+## Compliance Diagnostics (EXCMP)
+
+`Excalibur.Compliance.Abstractions` ships diagnostics for field-encryption annotations the framework cannot
+honour. They report, at build time, the same problems the framework would refuse at run time — and one it
+would never notice at all ([EXCMP003](./EXCMP003.md)). They arrive with the package; there is nothing extra
+to install.
+
+| ID | Title | Severity | Category |
+|----|-------|----------|----------|
+| [EXCMP001](./EXCMP001.md) | Annotation on a type that cannot carry ciphertext | Warning | Encryption |
+| [EXCMP002](./EXCMP002.md) | Annotation on a property without a getter and a setter | Warning | Encryption |
+| [EXCMP003](./EXCMP003.md) | Annotation on a property the framework never inspects | Warning | Encryption |
+| [EXCMP004](./EXCMP004.md) | Erasable personal data encrypted under a surviving purpose | Warning | Encryption |
+
 ## Installation
 
 The analyzers are included automatically when you reference `Excalibur.Dispatch`:

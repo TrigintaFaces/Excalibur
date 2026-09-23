@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
@@ -494,31 +494,16 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		try
 		{
-			// Advance the durable high-water and capture it FOR THE DIAGNOSTIC. This call is not what makes
-			// the mark safe, and the comment here used to say it was: it claimed the mark re-guarded against
-			// this value "inside its own statement (guard + mutation are one atomic step)", which was false —
-			// the mark's guard was a lock-free scalar read that a concurrent advance could slip past under
-			// snapshot isolation. The mark now performs its OWN advance under a range lock and conditions the
-			// write on that result, so the atomicity lives there, in one transaction, and not in the sequence
-			// of these two calls. This advance remains because the captured high-water is what the fail-closed
-			// diagnostic reports, and it survives a cleanup that purges the token-bearing rows. It is
-			// monotonic, so re-advancing to the same token below is a no-op and a superseded token still
-			// leaves the recorded value untouched.
-			long? recordedHighWater = null;
-			if (fencingToken.HasValue)
-			{
-				recordedHighWater = await connection.ResolveAsync(
-						new Requests.EnforceOutboxFenceRequest(
-							_options.Tables.QualifiedFenceTableName,
-							_options.Tables.QualifiedOutboxTableName,
-							fencingToken.Value,
-							_options.Processing.CommandTimeoutSeconds,
-							transaction: null,
-							cancellationToken))
-					.ConfigureAwait(false);
-			}
-
-			var affected = await connection.ResolveAsync(
+			// ONE round trip. The fence advance, the guarded mutation and the existence check all run in
+			// the single transaction below, and it returns all three values. There used to be a separate
+			// untransacted advance here whose only remaining purpose was to capture a high-water for the
+			// DIAGNOSTIC -- its MERGE was already duplicated inside that transaction, so it advanced
+			// nothing new, and the value it captured was read before the mutation ran. A fresher tenure
+			// advancing between the two round trips left that value stale-low, so a genuine fencing
+			// refusal was reported as a generic not-found and a superseded leader learned nothing and
+			// kept draining. This is the shape Postgres and Oracle already use, and the shape the fenced
+			// failure and dead-letter paths in this same store already use.
+			var mutation = await connection.ResolveAsync(
 					new Requests.MarkMessageSentRequest(
 						_options.Tables.QualifiedOutboxTableName,
 						messageId,
@@ -529,45 +514,38 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 						cancellationToken))
 				.ConfigureAwait(false);
 
-			if (affected == 0)
+			// Fence FIRST. The order is load-bearing and matches ClassifyFenced, which the fenced failure
+			// and dead-letter paths use: a refused fence is the only outcome meaning "stop draining
+			// entirely", because a newer tenure exists and every remaining claim this caller holds is
+			// void. Reading the rowcount first reports a not-found for a superseded tenure, which tells
+			// the caller to carry on with the rest of its batch -- exactly the wrong instruction.
+			//
+			// The comparison is equality, not ">". The MERGE advanced the stored high-water to
+			// MAX(presented, existing), so the returned value equals the presented token exactly when the
+			// token was accepted, and is strictly greater exactly when a successor had already advanced
+			// past it. There is no third case, and equality says so without inviting a reader to wonder
+			// about a "below" branch that cannot occur.
+			if (fencingToken.HasValue && mutation.HighWaterToken != fencingToken.Value)
 			{
-				// Distinguish "not found" from "fencing rejected" so a superseded leader gets a fail-closed
-				// signal (StaleOutboxFencingTokenException) rather than a generic not-found error.
-				if (fencingToken.HasValue)
+				result = WriteStoreTelemetry.Results.Conflict;
+				throw new StaleOutboxFencingTokenException(
+					$"The presented outbox fencing token ({fencingToken.Value}) for message '{messageId}' was rejected as stale (recorded high-water {mutation.HighWaterToken}).")
 				{
-					var exists = await connection.ExecuteScalarAsync<int>(
-						new CommandDefinition(
-							$"SELECT COUNT(1) FROM {_options.Tables.QualifiedOutboxTableName} WHERE Id = @MessageId",
-							new { MessageId = messageId },
-							commandTimeout: _options.Processing.CommandTimeoutSeconds,
-							cancellationToken: cancellationToken)).ConfigureAwait(false);
+					PresentedToken = fencingToken.Value,
+					HighWaterToken = mutation.HighWaterToken,
+				};
+			}
 
-					// The row existing is not evidence that the token was refused. A message already marked
-					// sent also fails the mutation's status predicate, with a perfectly current token, and
-					// reporting THAT as a fencing refusal tells a healthy leader it has been superseded --
-					// so it aborts its drain cycle and stands down while still holding leadership. The
-					// recorded high-water is what distinguishes the two: it exceeds the presented token only
-					// when a fresher tenure really did advance past it. Postgres and Oracle already gate
-					// their refusal on exactly this comparison; this brings SQL Server into line with them.
-					if (exists > 0 && recordedHighWater > fencingToken.Value)
-					{
-						// Report the recorded high-water the presented token was fenced against (the fencing
-						// contract's diagnostic). It is the durable OutboxFence high-water captured by the
-						// fence-first advance above — the same value the mark-sent guard compares against. Because
-						// that control row is never deleted by cleanup, the high-water survives the purge of the
-						// sent, token-bearing rows and a superseded leader's stale token stays rejected.
-						result = WriteStoreTelemetry.Results.Conflict;
-						throw new StaleOutboxFencingTokenException(
-							$"The presented outbox fencing token ({fencingToken.Value}) for message '{messageId}' was rejected as stale (recorded high-water {recordedHighWater}).")
-						{
-							PresentedToken = fencingToken.Value,
-							HighWaterToken = recordedHighWater,
-						};
-					}
-				}
-
+			if (mutation.UpdatedCount == 0)
+			{
+				// The fence accepted the token, so this is genuinely a not-found or an already-terminal row.
+				// RowExists was evaluated inside the mutating transaction rather than by a follow-up probe on
+				// this connection, so it cannot disagree with the rowcount it is being used to explain.
 				result = WriteStoreTelemetry.Results.NotFound;
-				throw new InvalidOperationException($"Message {messageId} not found, already sent, or dead-lettered.");
+				throw new InvalidOperationException(
+					mutation.RowExists
+						? $"Message {messageId} was already sent or dead-lettered."
+						: $"Message {messageId} not found.");
 			}
 
 			_logger.LogDebug("Marked message {MessageId} as sent", messageId);
@@ -1144,13 +1122,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	private static OutboxCompletionOutcome ClassifyFenced(
 		Requests.FencedClaimMutationResult result,
 		long presentedToken) =>
-		result.HighWaterToken != presentedToken
-			? OutboxCompletionOutcome.FenceRefused
-			: result.UpdatedCount > 0
-				? OutboxCompletionOutcome.Applied
-				: result.RowExists
-					? OutboxCompletionOutcome.ClaimLost
-					: OutboxCompletionOutcome.MessageNotFound;
+		Excalibur.Outbox.FencedCompletionClassifier.Classify(
+			result.HighWaterToken, presentedToken, result.UpdatedCount, result.RowExists, result.IsTerminal);
 
 	/// <inheritdoc />
 	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(

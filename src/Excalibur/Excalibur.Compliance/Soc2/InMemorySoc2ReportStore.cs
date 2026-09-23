@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
@@ -79,9 +79,9 @@ internal sealed class InMemorySoc2ReportStore : ISoc2ReportStore
 			query = query.Where(r => r.PeriodEnd <= filter.PeriodEndBefore.Value);
 		}
 
-		if (filter.Opinion.HasValue)
+		if (filter.OverallLevel.HasValue)
 		{
-			query = query.Where(r => r.Opinion == filter.Opinion.Value);
+			query = query.Where(r => r.OverallLevel == filter.OverallLevel.Value);
 		}
 
 		// Apply sort order
@@ -157,9 +157,9 @@ internal sealed class InMemorySoc2ReportStore : ISoc2ReportStore
 			query = query.Where(r => r.PeriodEnd <= filter.PeriodEndBefore.Value);
 		}
 
-		if (filter.Opinion.HasValue)
+		if (filter.OverallLevel.HasValue)
 		{
-			query = query.Where(r => r.Opinion == filter.Opinion.Value);
+			query = query.Where(r => r.OverallLevel == filter.OverallLevel.Value);
 		}
 
 		return Task.FromResult(query.Count());
@@ -182,7 +182,7 @@ internal sealed class InMemorySoc2ReportStore : ISoc2ReportStore
 			PeriodStart = report.PeriodStart,
 			PeriodEnd = report.PeriodEnd,
 			GeneratedAt = report.GeneratedAt,
-			Opinion = report.Opinion,
+			OverallLevel = report.OverallLevel,
 			ExceptionCount = report.Exceptions.Count,
 			CategoriesIncluded = report.CategoriesIncluded,
 			TenantId = report.TenantId

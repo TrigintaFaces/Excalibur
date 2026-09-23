@@ -116,7 +116,7 @@ MAP_ROWS=(
     # matching the moment a doc gains its schema prefix -- which is how these three entered the
     # REFUSE set as 'NEW gaps' without any schema actually changing. Accept either spelling.
     '(public[.])?outbox|src/Excalibur/Excalibur.Outbox.Postgres/**|outboxTableName|postgres outbox'
-    'dbo[.]OutboxMessages|src/Excalibur/Excalibur.Outbox.SqlServer/Requests/*Outbox*.cs|tableName|sqlserver outbox'
+    'dbo[.]OutboxMessages|src/Excalibur/Excalibur.Outbox.SqlServer/Requests/*Outbox*.cs|tableName|sqlserver outbox|.|src/Excalibur/Excalibur.Outbox.SqlServer/Scripts/001_CreateOutboxSchema.sql'
     # The fence is a SEPARATE control table from OutboxMessages, written through its OWN variable
     # (fenceTableName) by exactly ONE file. Scoped to that file deliberately: a `Requests/*Outbox*.cs`
     # glob would match EnforceOutboxFenceRequest AND the OutboxMessages writers, union both column
@@ -261,6 +261,66 @@ ddl_columns() {
     ' "$file" | sort -u
 }
 
+# ── parse: column DECLARATIONS inside a CREATE TABLE block ─────────────────────────────────────
+# Same block isolation as ddl_columns, but keeps what that one discards: the declared TYPE, its
+# LENGTH, and any COLLATE clause. Emits one `name|type|collation` row per column.
+#
+# WHY ONLY THOSE THREE and not the whole remainder: nullability, defaults and inline keys are
+# legitimately spelled differently in a consumer-facing excerpt, so comparing them would cry wolf --
+# and a gate that cries wolf gets switched off, which is strictly worse than the gap it closes. Type,
+# length and collation are the parts a consumer's table must match for our write path to behave.
+#
+# COLLATION IS THE HALF THAT MATTERS. A width divergence is usually benign; a tenant column declared
+# in a case-insensitive collation matches a DIFFERENT TENANT'S rows, so the tenant predicate fails
+# OPEN and the divergence is a data-isolation defect rather than a cosmetic one.
+#
+# Comparison is only ever made between a script and ITS OWN consumer-facing copies, which are the
+# same dialect, so no cross-dialect type mapping is needed or attempted: normalising case and
+# whitespace within one dialect is sufficient.
+ddl_column_types() {
+    local file="$1" tbl_re="$2"
+    awk -v re="$tbl_re" '
+        BEGIN { re = tolower(re) }
+        { hdr = tolower($0); gsub(/[]["`]/, "", hdr) }
+        hdr ~ /create[ \t]+table/ && hdr ~ re { inblk=1; next }
+        inblk && /^[ \t]*\)/            { inblk=0 }
+        inblk {
+            line=$0
+            sub(/--.*$/, "", line)
+            gsub(/^[ \t]+|[ \t]+$/, "", line)
+            if (line == "") next
+            if (tolower(line) ~ /^(primary|foreign|unique|constraint|check|index|key)\b/) next
+            n=split(line, f, /[ \t]+/)
+            if (n < 2) next
+            col=f[1]
+            gsub(/[",;`\[\]]/, "", col)
+            if (col !~ /^[A-Za-z_][A-Za-z0-9_]*$/) next
+
+            rest = tolower(substr(line, length(f[1]) + 1))
+            gsub(/[,;]+[ \t]*$/, "", rest)
+            gsub(/^[ \t]+/, "", rest)
+
+            # Type token: an identifier plus an optional parenthesised length. A space before the
+            # paren is tolerated so `nvarchar (64)` and `nvarchar(64)` compare equal.
+            type = ""
+            if (match(rest, /^[a-z0-9_]+[ \t]*\([^)]*\)/)) {
+                type = substr(rest, RSTART, RLENGTH)
+            } else if (match(rest, /^[a-z0-9_]+/)) {
+                type = substr(rest, RSTART, RLENGTH)
+            }
+            gsub(/[ \t]/, "", type)
+
+            coll = ""
+            if (match(rest, /collate[ \t]+[a-z0-9_]+/)) {
+                coll = substr(rest, RSTART, RLENGTH)
+                sub(/^collate[ \t]+/, "", coll)
+            }
+
+            if (type != "") print tolower(col) "|" type "|" coll
+        }
+    ' "$file" | sort -u
+}
+
 # ── parse: column names WRITTEN/READ by src SQL, SCOPED to one table ───────────────────────────
 # Enters a statement at UPDATE/INSERT INTO/DELETE FROM/MERGE INTO/FROM {var} where <var> matches
 # tvar, and leaves at the raw-string SQL block terminator. Inside, collects columns from FOUR
@@ -385,14 +445,25 @@ sweep() {
                 tbl_re="${row%%|*}";  rest="${row#*|}"
                 glob="${rest%%|*}";   rest="${rest#*|}"
                 tvar="${rest%%|*}";   rest="${rest#*|}"
-                label="${rest%%|*}";  docre="${rest#*|}"
+                label="${rest%%|*}"
+                # OPTIONAL 6th field: the canonical script in src/ that this shipped DDL copies.
+                # Parsed defensively so every pre-existing 4- and 5-field row keeps its meaning: an
+                # absent field is detected by the remainder being identical to the field before it,
+                # which is the same test the 5th field already used.
+                local script=""
+                if [ "$rest" = "$label" ]; then
+                    docre="."
+                else
+                    rest="${rest#*|}"
+                    docre="${rest%%|*}"
+                    if [ "$rest" != "$docre" ]; then script="${rest#*|}"; fi
+                fi
                 # OPTIONAL 5th field: a doc-path regex scoping the row to the file that ships it.
                 # MAP_ROWS otherwise matches on TABLE NAME alone, and two providers legitimately ship
                 # a table of the same name with different columns -- SQLite's [Events] (PascalCase)
                 # and Postgres's events (snake_case). Unscoped, the Postgres row also claims the
                 # SQLite page and reports five columns of drift that do not exist. An absent 5th
                 # field means "any doc", which is what every pre-existing row wants.
-                [ "$docre" = "$label" ] && docre='.'
                 if printf '%s' "$t" | grep -qiE "^${tbl_re}$" && printf '%s' "$f" | grep -qE "$docre"; then
                     matched=1
                     # ── The fourth state: NOT-APPLICABLE (a DECLARED non-promise) ─────────────
@@ -471,6 +542,66 @@ sweep() {
                         rc=$E_FAIL
                     else
                         echo "  ✓ ok    $t ($label) — $(printf '%s' "$scols" | grep -c .) written/read cols all declared"
+                    fi
+
+                    # ── SECOND AXIS: does the shipped copy declare the same TYPE as the script? ──
+                    # The check above answers "is every column our code writes DECLARED here?" and
+                    # answers it correctly. It cannot see a column declared at a different width or
+                    # collation, because presence is all it compares -- so a consumer-facing copy can
+                    # narrow a column, or drop a binary collation, and still be reported ok.
+                    #
+                    # That gap is not symmetric in cost. A width divergence usually surfaces as a
+                    # truncation the consumer notices. A TENANT column that loses its binary
+                    # collation matches case-insensitively, so the tenant predicate returns another
+                    # tenant's rows and nothing errors at all.
+                    #
+                    # Only ever compared within ONE dialect -- a script against the copies OF THAT
+                    # script -- so no cross-dialect type mapping exists here and none is needed.
+                    if [ -n "$script" ]; then
+                        # The gate cd's to REPO_ROOT at startup, so a MAP script path is relative
+                        # to the repo and resolves without further qualification.
+                        if [ -f "$script" ]; then
+                            local canon doc_types divergent
+                            canon="$(ddl_column_types "$script" "$tbl_re")"
+                            doc_types="$(ddl_column_types "$f" "$tbl_re")"
+                            divergent=""
+                            while IFS= read -r doc_row; do
+                                [ -n "$doc_row" ] || continue
+                                local dcol ddecl cdecl
+                                dcol="${doc_row%%|*}"
+                                ddecl="${doc_row#*|}"
+                                cdecl="$(printf '%s
+' "$canon" | awk -F'|' -v c="$dcol" '$1==c {print $2 "|" $3; exit}')"
+                                # A column the script does not declare is NOT a divergence: the copy
+                                # may legitimately show a consumer-owned column alongside ours.
+                                [ -n "$cdecl" ] || continue
+                                [ "$ddecl" = "$cdecl" ] && continue
+                                divergent="${divergent}${dcol}|${cdecl}|${ddecl}"$'
+'
+                            done <<< "$doc_types"
+
+                            if [ -n "$divergent" ]; then
+                                echo "  ✗ FAIL  $t ($label) — $f"
+                                echo "          the shipped DDL declares columns DIFFERENTLY from the script it copies:"
+                                echo "          canonical: $script"
+                                while IFS= read -r drow; do
+                                    [ -n "$drow" ] || continue
+                                    printf '            TYPE-DRIFT %s.%s — script declares %s, shipped DDL declares %s
+'                                         "$t" "${drow%%|*}" "$(printf '%s' "$drow" | cut -d'|' -f2-3 | tr '|' ' ')"                                         "$(printf '%s' "$drow" | cut -d'|' -f4-5 | tr '|' ' ')"
+                                done <<< "$divergent"
+                                echo "          a consumer running this DDL gets a table our write path does not expect;"
+                                echo "          a collation divergence on a tenant column fails the tenant predicate OPEN."
+                                rc=$E_FAIL
+                            else
+                                echo "          ✓ types match the canonical script ($script)"
+                            fi
+                        else
+                            # A declared script that is not on disk is a CANNOT-EVALUATE, never a pass:
+                            # reporting the type axis as clean here would certify a comparison that
+                            # never ran.
+                            echo "  REFUSE  $t ($label) — declared canonical script not found: $script"
+                            refused=1
+                        fi
                     fi
 
                     # One table in one doc has exactly ONE write path, so the first row that claims

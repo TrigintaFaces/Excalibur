@@ -95,14 +95,14 @@ public sealed class InMemorySoc2ReportStoreShould
 	public async Task Filter_reports_by_opinion()
 	{
 		var store = new InMemorySoc2ReportStore();
-		await store.SaveReportAsync(CreateReport(opinion: AuditorOpinion.Unqualified), CancellationToken.None).ConfigureAwait(false);
-		await store.SaveReportAsync(CreateReport(opinion: AuditorOpinion.Adverse), CancellationToken.None).ConfigureAwait(false);
+		await store.SaveReportAsync(CreateReport(overallLevel: ComplianceLevel.FullyCompliant), CancellationToken.None).ConfigureAwait(false);
+		await store.SaveReportAsync(CreateReport(overallLevel: ComplianceLevel.NonCompliant), CancellationToken.None).ConfigureAwait(false);
 
-		var filter = new ReportFilter { Opinion = AuditorOpinion.Unqualified };
+		var filter = new ReportFilter { OverallLevel = ComplianceLevel.FullyCompliant };
 		var results = await store.ListReportsAsync(filter, CancellationToken.None).ConfigureAwait(false);
 
 		results.ShouldHaveSingleItem();
-		results[0].Opinion.ShouldBe(AuditorOpinion.Unqualified);
+		results[0].OverallLevel.ShouldBe(ComplianceLevel.FullyCompliant);
 	}
 
 	[Fact]
@@ -171,7 +171,7 @@ public sealed class InMemorySoc2ReportStoreShould
 
 	private static Soc2Report CreateReport(
 		Soc2ReportType type = Soc2ReportType.TypeI,
-		AuditorOpinion opinion = AuditorOpinion.Unqualified) =>
+		ComplianceLevel overallLevel = ComplianceLevel.FullyCompliant) =>
 		new()
 		{
 			ReportId = Guid.NewGuid(),
@@ -180,7 +180,7 @@ public sealed class InMemorySoc2ReportStoreShould
 			PeriodStart = DateTimeOffset.UtcNow.AddDays(-30),
 			PeriodEnd = DateTimeOffset.UtcNow,
 			GeneratedAt = DateTimeOffset.UtcNow,
-			Opinion = opinion,
+			OverallLevel = overallLevel,
 			ControlSections = [],
 			Exceptions = [],
 			CategoriesIncluded = [TrustServicesCategory.Security],

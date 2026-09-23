@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch.Messaging;
@@ -103,12 +103,45 @@ public abstract class SagaState
 	/// </summary>
 	/// <value>The set of processed event identifiers, in insertion order.</value>
 	/// <remarks>
-	/// A bounded, best-effort <b>in-memory</b> recent-event idempotency guard (capacity
-	/// <see cref="MaxProcessedEventIds"/>): when full, the <b>oldest</b> id is evicted (FIFO), and the
-	/// insertion order is preserved across serialization. Durable exactly-once dedup is the inbox store's
-	/// responsibility, not this guard.
+	/// <para>
+	/// A bounded, best-effort recent-event idempotency guard (capacity
+	/// <see cref="MaxProcessedEventIds"/>): when full, the <b>oldest</b> id is evicted (FIFO), and both
+	/// the ids and their insertion order survive being persisted and reloaded. A redelivery of an id that
+	/// has already been evicted <b>re-executes the step</b> — the bound is part of the contract, not an
+	/// approximation of exactly-once.
+	/// </para>
+	/// <para>
+	/// <b>This is not durable exactly-once deduplication and must not be used as one.</b> That is the
+	/// inbox store's responsibility. This guard is a bounded window over recent ids belonging to a single
+	/// saga instance; a saga that can process more events than the capacity above, or that needs dedup
+	/// with no bound, needs the transactional inbox in front of it.
+	/// </para>
+	/// <para>
+	/// <b>The setter exists so this survives deserialization, and it is the whole idempotency guard.</b>
+	/// A get-only collection is WRITTEN by System.Text.Json and DISCARDED on read under its default
+	/// Replace handling, so without a setter every durable store reloads an empty set, every
+	/// <see cref="TryMarkEventProcessed"/> returns <see langword="true"/>, and a redelivered event
+	/// re-executes its step. The setter copies into the bounded set rather than replacing it, so the
+	/// FIFO capacity above is preserved across a round trip instead of being swapped for whatever
+	/// collection the serializer happened to construct.
+	/// </para>
 	/// </remarks>
-	public ISet<string> ProcessedEventIds { get; } = new BoundedProcessedEventIdSet(MaxProcessedEventIds);
+	public ISet<string> ProcessedEventIds
+	{
+		get => _processedEventIds;
+		init
+		{
+			ArgumentNullException.ThrowIfNull(value);
+
+			_processedEventIds.Clear();
+			foreach (var eventId in value)
+			{
+				_ = _processedEventIds.Add(eventId);
+			}
+		}
+	}
+
+	private readonly BoundedProcessedEventIdSet _processedEventIds = new(MaxProcessedEventIds);
 
 	/// <summary>
 	/// Attempts to mark an event as processed. Returns <see langword="false"/> if the event was already processed.

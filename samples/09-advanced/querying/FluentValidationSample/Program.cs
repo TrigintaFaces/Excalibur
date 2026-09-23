@@ -19,6 +19,9 @@
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
+// FluentValidation ships its own ValidationException; the one the Dispatch pipeline throws is
+// Excalibur.Dispatch.Exceptions.ValidationException. Alias it so the catch below is unambiguous.
+using DispatchValidationException = Excalibur.Dispatch.Exceptions.ValidationException;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Validation;
 
@@ -77,8 +80,7 @@ var validUser = new CreateUserCommand(
 	Password: "SecureP@ss1",
 	Age: 25);
 
-var result = await dispatcher.DispatchAsync(validUser, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, validUser, context);
 
 // Invalid user command - multiple validation failures
 Console.WriteLine("1b. Invalid CreateUserCommand (multiple errors):");
@@ -88,8 +90,7 @@ var invalidUser = new CreateUserCommand(
 	Password: "weak", // Missing uppercase, digit, special char
 	Age: 10); // Under 13
 
-result = await dispatcher.DispatchAsync(invalidUser, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, invalidUser, context);
 
 // ============================================================================
 // Demo 2: Conditional and Cross-Field Validation (CreateOrderCommand)
@@ -110,8 +111,7 @@ var validOrder = new CreateOrderCommand(
 	ShippingAddress: "123 Main Street, Anytown, ST 12345",
 	PromoCode: "SUMMER2026");
 
-result = await dispatcher.DispatchAsync(validOrder, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, validOrder, context);
 
 // Invalid promo code
 Console.WriteLine("2b. Invalid promo code:");
@@ -123,8 +123,7 @@ var invalidPromo = new CreateOrderCommand(
 	ShippingAddress: "456 Oak Avenue, Somewhere, ST 67890",
 	PromoCode: "INVALID_CODE");
 
-result = await dispatcher.DispatchAsync(invalidPromo, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, invalidPromo, context);
 
 // Order total exceeds limit (cross-field validation)
 Console.WriteLine("2c. Order total exceeds limit (cross-field):");
@@ -136,8 +135,7 @@ var excessiveOrder = new CreateOrderCommand(
 	ShippingAddress: "789 Pine Road, Elsewhere, ST 11111",
 	PromoCode: null);
 
-result = await dispatcher.DispatchAsync(excessiveOrder, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, excessiveOrder, context);
 
 // ============================================================================
 // Demo 3: Optional Field Validation (UpdateProfileCommand)
@@ -157,8 +155,7 @@ var validUpdate = new UpdateProfileCommand(
 	WebsiteUrl: "https://example.com",
 	PhoneNumber: null);
 
-result = await dispatcher.DispatchAsync(validUpdate, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, validUpdate, context);
 
 // Invalid - no fields to update
 Console.WriteLine("3b. Invalid - no fields to update:");
@@ -169,8 +166,7 @@ var emptyUpdate = new UpdateProfileCommand(
 	WebsiteUrl: null,
 	PhoneNumber: null);
 
-result = await dispatcher.DispatchAsync(emptyUpdate, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, emptyUpdate, context);
 
 // Invalid URL format
 Console.WriteLine("3c. Invalid URL format:");
@@ -181,8 +177,7 @@ var invalidUrl = new UpdateProfileCommand(
 	WebsiteUrl: "not-a-valid-url",
 	PhoneNumber: null);
 
-result = await dispatcher.DispatchAsync(invalidUrl, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, invalidUrl, context);
 
 // Invalid phone number
 Console.WriteLine("3d. Invalid phone number format:");
@@ -193,8 +188,7 @@ var invalidPhone = new UpdateProfileCommand(
 	WebsiteUrl: null,
 	PhoneNumber: "123"); // Too short
 
-result = await dispatcher.DispatchAsync(invalidPhone, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, invalidPhone, context);
 
 // ============================================================================
 // Demo 4: Custom Validation (RegisterEmailCommand)
@@ -212,8 +206,7 @@ var validRegistration = new RegisterEmailCommand(
 	AcceptTerms: true,
 	ReferralCode: "REF2026");
 
-result = await dispatcher.DispatchAsync(validRegistration, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, validRegistration, context);
 
 // Duplicate email (custom rule)
 Console.WriteLine("4b. Duplicate email (business rule check):");
@@ -222,8 +215,7 @@ var duplicateEmail = new RegisterEmailCommand(
 	AcceptTerms: true,
 	ReferralCode: null);
 
-result = await dispatcher.DispatchAsync(duplicateEmail, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, duplicateEmail, context);
 
 // Terms not accepted
 Console.WriteLine("4c. Terms not accepted:");
@@ -232,8 +224,7 @@ var noTerms = new RegisterEmailCommand(
 	AcceptTerms: false,
 	ReferralCode: null);
 
-result = await dispatcher.DispatchAsync(noTerms, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, noTerms, context);
 
 // Invalid referral code (custom rule)
 Console.WriteLine("4d. Invalid referral code (business rule check):");
@@ -242,8 +233,7 @@ var invalidReferral = new RegisterEmailCommand(
 	AcceptTerms: true,
 	ReferralCode: "FAKE_CODE");
 
-result = await dispatcher.DispatchAsync(invalidReferral, context, CancellationToken.None);
-PrintResult(result);
+await DispatchAndPrintAsync(dispatcher, invalidReferral, context);
 
 // ============================================================================
 // Summary
@@ -265,6 +255,30 @@ Console.WriteLine();
 // ============================================================================
 // Helper Methods
 // ============================================================================
+
+// Validation failures arrive as a thrown ValidationException from the validation middleware; they do
+// NOT come back as a failed IMessageResult. Every caller that dispatches a message a user could get
+// wrong needs this boundary -- an API would translate the exception into a 400 here.
+static async Task DispatchAndPrintAsync<TMessage>(IDispatcher dispatcher, TMessage message, IMessageContext context)
+	where TMessage : IDispatchMessage
+{
+	try
+	{
+		PrintResult(await dispatcher.DispatchAsync(message, context, CancellationToken.None));
+	}
+	catch (DispatchValidationException ex)
+	{
+		Console.WriteLine("  [FAIL] Validation failed:");
+		foreach (var failure in ex.ValidationErrors)
+		{
+			var property = string.IsNullOrEmpty(failure.Key) ? "(General)" : failure.Key;
+			foreach (var text in failure.Value)
+			{
+				Console.WriteLine($"    - [{property}]: {text}");
+			}
+		}
+	}
+}
 
 static void PrintResult(IMessageResult result)
 {

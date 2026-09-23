@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Confluent.Kafka;
 
@@ -39,6 +39,17 @@ internal static class KafkaConsumerConfigBuilder
 			AutoOffsetReset = MapAutoOffsetReset(tuning.AutoOffsetReset),
 			EnablePartitionEof = tuning.EnablePartitionEof,
 			QueuedMinMessages = tuning.QueuedMinMessages,
+
+			// librdkafka defaults this to TRUE, and that default is a message-loss hazard here. With it
+			// on, the client stores offset+1 for every message at the moment Consume HANDS IT TO US --
+			// before a handler has run. Any commit that reads stored offsets therefore commits a position
+			// that was never true, and a rebalance while work is in flight moves the group past messages
+			// still inside handlers. Those offsets are never fetched again by any member.
+			//
+			// Off, the stored position is written only where a message is settled, so it can never be
+			// ahead of completed work. That makes an argument-less Commit() correct BY CONSTRUCTION
+			// rather than correct only while every call site remembers to pass an explicit offset.
+			EnableAutoOffsetStore = false,
 		};
 
 		if (options.GroupProtocol is { } groupProtocol)
@@ -58,6 +69,21 @@ internal static class KafkaConsumerConfigBuilder
 		foreach (var kvp in options.AdditionalConfig)
 		{
 			config.Set(kvp.Key, kvp.Value);
+		}
+
+		// AdditionalConfig is applied last and can set any librdkafka property by name, so it is the one
+		// path that could put auto-offset-store back. Refuse rather than silently overriding it: a
+		// consumer who asked for this deserves to be told the request is unsupported and why, and a
+		// guarantee that a flag can switch off is not a guarantee.
+		if (config.EnableAutoOffsetStore is true)
+		{
+			throw new InvalidOperationException(
+				"enable.auto.offset.store must not be enabled for this consumer. librdkafka stores "
+				+ "offset+1 for every message when it is handed to the application, before the handler "
+				+ "runs, so a commit of stored offsets can move the group past messages that are still "
+				+ "being processed; a rebalance at that moment loses them with no error. This transport "
+				+ "stores offsets itself at settlement instead. Remove 'enable.auto.offset.store' from "
+				+ "AdditionalConfig.");
 		}
 
 		return KafkaSecurityPosture.Apply(config, options);

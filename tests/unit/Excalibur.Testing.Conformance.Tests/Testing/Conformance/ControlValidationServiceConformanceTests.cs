@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Soc2;
@@ -75,6 +75,10 @@ public sealed class ControlValidationServiceConformanceTests : ControlValidation
 	[Fact]
 	public Task ValidateCriterionAsync_RegisteredCriterion_ShouldValidateAllControls_Test() =>
 		ValidateCriterionAsync_RegisteredCriterion_ShouldValidateAllControls();
+
+	[Fact]
+	public Task ValidateCriterionAsync_MultiControlCriterion_ShouldReportAVerdictPerControl_Test() =>
+		ValidateCriterionAsync_MultiControlCriterion_ShouldReportAVerdictPerControl();
 
 	[Fact]
 	public Task ValidateCriterionAsync_UnregisteredCriterion_ShouldReturnEmpty_Test() =>

@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 
 using Testcontainers.LocalStack;
@@ -23,6 +24,12 @@ public sealed class DynamoDbPersistenceProviderContainerFixture : ContainerFixtu
 {
 	private LocalStackContainer? _container;
 	private AmazonDynamoDBClient? _client;
+
+	/// <summary>
+	/// Gets the table the conformance suite's provider reads and writes, keyed <c>pk</c>/<c>sk</c> (the
+	/// provider's default key attribute names).
+	/// </summary>
+	public string ConformanceTableName { get; } = "persistence_conformance";
 
 	/// <summary>
 	/// Gets the LocalStack edge endpoint (the DynamoDB <c>ServiceUrl</c>).
@@ -52,6 +59,43 @@ public sealed class DynamoDbPersistenceProviderContainerFixture : ContainerFixtu
 		_client = new AmazonDynamoDBClient(
 			credentials,
 			new AmazonDynamoDBConfig { ServiceURL = _container.GetConnectionString() });
+
+		// The suite's provider is built through the client-injecting constructor, which never creates a table.
+		// Without this table every document operation the kit issues fails, and an arm that seeds data and
+		// declines when seeding fails would report PASS having asserted nothing.
+		_ = await _client.CreateTableAsync(
+			new CreateTableRequest
+			{
+				TableName = ConformanceTableName,
+				AttributeDefinitions =
+				[
+					new AttributeDefinition("pk", ScalarAttributeType.S),
+					new AttributeDefinition("sk", ScalarAttributeType.S)
+				],
+				KeySchema =
+				[
+					new KeySchemaElement("pk", KeyType.HASH),
+					new KeySchemaElement("sk", KeyType.RANGE)
+				],
+				BillingMode = BillingMode.PAY_PER_REQUEST
+			},
+			cancellationToken).ConfigureAwait(false);
+
+		for (var attempt = 0; ; attempt++)
+		{
+			var described = await _client.DescribeTableAsync(ConformanceTableName, cancellationToken).ConfigureAwait(false);
+			if (described.Table.TableStatus == TableStatus.ACTIVE)
+			{
+				break;
+			}
+
+			if (attempt >= 120)
+			{
+				throw new InvalidOperationException($"Table '{ConformanceTableName}' did not become ACTIVE.");
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+		}
 	}
 
 	/// <inheritdoc/>

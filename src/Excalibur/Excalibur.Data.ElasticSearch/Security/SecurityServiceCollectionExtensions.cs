@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -27,7 +27,7 @@ public static class SecurityServiceCollectionExtensions
 	/// <summary>
 	/// Adds comprehensive Elasticsearch security services to the specified service collection.
 	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="services"> The service collection to add services to. </param>
 	/// <param name="configuration"> The configuration to bind security settings from. </param>
 	/// <param name="configureOptions"> Optional action to configure security settings. </param>
 	/// <returns> The service collection for method chaining. </returns>
@@ -70,7 +70,7 @@ public static class SecurityServiceCollectionExtensions
 	/// <summary>
 	/// Adds authentication services with configurable providers.
 	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="services"> The service collection to add services to. </param>
 	/// <param name="configuration"> The configuration to bind authentication settings from. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
@@ -108,44 +108,16 @@ public static class SecurityServiceCollectionExtensions
 		return services;
 	}
 
-	/// <summary>
-	/// Configures Azure Key Vault as the connection-credential store: OAuth tokens, service-account secrets,
-	/// passwords, and API keys used to authenticate to Elasticsearch itself.
-	/// </summary>
-	/// <remarks>
-	/// This is not encryption-key custody -- call it BEFORE <see cref="AddAuthentication"/> (or
-	/// <see cref="AddElasticsearchSecurity"/>, which calls it) so the registration below wins over the
-	/// in-memory development default via <c>TryAdd</c>. For cloud-backed field-encryption keys, see
-	/// <see cref="AddKeyManagement"/> instead.
-	/// </remarks>
-	/// <param name="services"> The service collection to add the credential store to. </param>
-	/// <param name="configuration"> The configuration to bind Azure Key Vault settings from. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
-	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
-	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
-	public static IServiceCollection AddAzureKeyVaultCredentialStorage(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		// Nested under the same parent section AddKeyManagement reads its own settings from, so that a
-		// consumer who puts their key-management configuration in one place has all of it bound.
-		_ = services.AddOptions<AzureKeyVaultOptions>()
-			.Bind(configuration.GetSection("Elasticsearch:Security:Encryption:KeyManagement:AzureKeyVault"))
-			.ValidateOnStart();
-
-		services.TryAddSingleton<IElasticsearchKeyStorage, AzureKeyVaultProvider>();
-
-		return services;
-	}
+	// AddAzureKeyVaultCredentialStorage moved to the Excalibur.Data.ElasticSearch.Azure package.
+	// It is the only thing in this package that needed the Azure SDK, and leaving it here put
+	// Azure.Identity and Azure.Security.KeyVault.Secrets on every consumer of Elasticsearch
+	// persistence. Same namespace and same signature there, so adopting it is a PackageReference
+	// and no source edit. The in-memory LocalKeyProvider registered above remains the default.
 
 	/// <summary>
 	/// Adds field-level encryption services.
 	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	public static IServiceCollection AddFieldEncryption(this IServiceCollection services)
 	{
@@ -174,7 +146,7 @@ public static class SecurityServiceCollectionExtensions
 	/// <see cref="AddElasticsearchSecurity"/>, and names that provider in configuration; this method only
 	/// verifies the registration exists (or supplies the in-process development default).
 	/// </remarks>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="services"> The service collection to add services to. </param>
 	/// <param name="configuration"> The configuration to bind key management settings from. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
@@ -259,7 +231,7 @@ public static class SecurityServiceCollectionExtensions
 	/// <summary>
 	/// Adds security auditing services.
 	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	public static IServiceCollection AddSecurityAuditing(this IServiceCollection services)
 	{
@@ -396,7 +368,7 @@ public static class SecurityServiceCollectionExtensions
 	/// <summary>
 	/// Adds core security services and infrastructure.
 	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	private static IServiceCollection AddSecurityCore(this IServiceCollection services)
 	{

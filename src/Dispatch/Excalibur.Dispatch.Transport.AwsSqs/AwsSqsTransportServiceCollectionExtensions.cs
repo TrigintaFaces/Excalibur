@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -366,7 +366,12 @@ public static class AwsSqsTransportServiceCollectionExtensions
 				visibilityTimeoutSeconds: queueOptions is null
 					? 30
 					: (int)queueOptions.VisibilityTimeout.TotalSeconds,
-				maxPayloadBytes: adapterOptions.MaxPayloadBytes).WithCloudEventDecoding(CloudEventBinding.HouseConvention);
+				maxPayloadBytes: adapterOptions.MaxPayloadBytes,
+				// Decides how an oversized poison payload is settled. Without this the receiver cannot
+				// tell "drop it, nothing will catch it" from "leave it, redrive will" - and defaulting to
+				// the first destroyed messages a configured dead-letter queue would have preserved.
+				hasDeadLetterQueue: queueOptions?.HasDeadLetterQueue ?? false)
+				.WithCloudEventDecoding(CloudEventBinding.HouseConvention);
 		});
 	}
 
@@ -392,7 +397,11 @@ public static class AwsSqsTransportServiceCollectionExtensions
 				waitTimeSeconds: queueOptions?.ReceiveWaitTimeSeconds ?? 20,
 				visibilityTimeoutSeconds: queueOptions is null
 					? null
-					: (int)queueOptions.VisibilityTimeout.TotalSeconds);
+					: (int)queueOptions.VisibilityTimeout.TotalSeconds,
+				// Same decision as the pull receiver, and it has to be passed on BOTH surfaces or they
+				// diverge again - one preserving oversized messages for redrive while the other destroys
+				// them, on the same queue.
+				hasDeadLetterQueue: queueOptions?.HasDeadLetterQueue ?? false);
 
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));

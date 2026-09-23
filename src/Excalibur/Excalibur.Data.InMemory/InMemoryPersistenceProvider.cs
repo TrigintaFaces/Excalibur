@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 #nullable disable warnings
@@ -160,8 +160,8 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Interface-mismatch only. The requirement is declared on the composition entry point a consumer actually calls -- AddExcaliburInMemory in InMemoryServiceCollectionExtensions -- so it propagates to the caller there rather than being silently dropped at this interface boundary.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Interface-mismatch only. The requirement is declared on the composition entry point a consumer actually calls -- AddExcaliburInMemory in InMemoryServiceCollectionExtensions -- so it propagates to the caller there rather than being silently dropped at this interface boundary.")]
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)

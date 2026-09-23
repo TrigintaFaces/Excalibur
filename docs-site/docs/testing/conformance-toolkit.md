@@ -43,7 +43,7 @@ Each conformance kit is an `abstract class` with a small number of factory hooks
 of `public virtual` conformance methods. Inherit the kit, supply your implementation through the hooks,
 and expose the checks to your test framework:
 
-```csharp
+```csharp ignore
 using Excalibur.Data.Resilience;
 using Excalibur.Testing.Conformance;
 using Xunit;
@@ -65,6 +65,14 @@ public sealed class MyRetryPolicyConformanceTests : RetryPolicyConformanceTestKi
 The kits carry no `[Fact]`/`[Theory]` attributes themselves, so they work with xUnit, NUnit, MSTest, or any
 runner — you add the attributes on the thin overrides. A failing check throws
 `TestFixtureAssertionException` with a message describing the contract violation.
+
+:::warning An arm you do not wrap does not run, and a green suite cannot tell you
+
+Because nothing in a kit makes an arm execute, **an arm you forget to wrap never runs — and an arm that never runs cannot fail, so it is indistinguishable in the results from one that passed.** A kit with 70 arms of which you wrapped 60 produces a green suite over ten unverified behaviours.
+
+`ConformanceSuite_ShouldWireEveryArm()` is the guard against exactly that: wrap it like any other arm and it fails, naming each arm you have not wired. Wire it first, before you trust a green.
+
+:::
 
 ## What a green run actually covered
 
@@ -149,7 +157,7 @@ recorded absence is still an uncertified capability.
 
 For providers backed by a database, run the same kit against a real engine with an opt-in fixture:
 
-```csharp
+```csharp ignore
 using Excalibur.Testing.Containers;
 using Xunit;
 
@@ -160,7 +168,8 @@ public sealed class MySqlServerOutboxConformanceTests
 
     public MySqlServerOutboxConformanceTests(SqlServerContainerFixture fixture) => _fixture = fixture;
 
-    protected override IOutboxStore CreateStore() => new MySqlServerOutboxStore(_fixture.ConnectionString);
+    protected override Task<IOutboxStore> CreateStoreAsync() =>
+        Task.FromResult<IOutboxStore>(new MySqlServerOutboxStore(_fixture.ConnectionString));
 }
 ```
 

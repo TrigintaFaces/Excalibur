@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Security.Claims;
+
+using Excalibur.Dispatch.Delivery.Handlers;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -46,8 +48,19 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 	/// </summary>
 	internal const string ServerErrorDetail = "An internal error occurred while evaluating authorization.";
 
+	/// <summary>
+	/// The ONLY detail a denial returns to the caller. Constant by design: policy names, role names and
+	/// evaluation failure messages are the consumer's own authorization vocabulary, and disclosing them to an
+	/// unauthenticated or under-privileged caller is reconnaissance value (CWE-200) with no benefit to a
+	/// legitimate one, who cannot act on the name either way. The specific reason is logged server-side with the
+	/// correlation id (see <see cref="LogAuthorizationDenied"/>), matching ASP.NET Core's own bare 403.
+	/// </summary>
+	internal const string DenialDetail = "You do not have permission to access this resource";
+
 	private readonly IHttpContextAccessor _httpContextAccessor;
 	private readonly IAuthorizationService _authorizationService;
+	private readonly IAuthorizationPolicyProvider _policyProvider;
+	private readonly IHandlerRegistry _handlerRegistry;
 	private readonly ILogger<AspNetCoreAuthorizationMiddleware> _logger;
 	private readonly AspNetCoreAuthorizationOptions _options;
 
@@ -59,23 +72,38 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 	/// </summary>
 	/// <param name="httpContextAccessor">Provides access to the current <see cref="HttpContext"/>.</param>
 	/// <param name="authorizationService">The ASP.NET Core authorization service for policy evaluation.</param>
-	/// <param name="logger">The logger instance.</param>
+	/// <param name="policyProvider">
+	/// The host's authorization policy provider. This is the same provider ASP.NET Core's own authorization
+	/// middleware uses, which is what makes a consumer's configured and hardened policies apply here too.
+	/// </param>
+	/// <param name="handlerRegistry">
+	/// The registry that maps a message type to the handler types that will process it. This is how the
+	/// middleware learns what a handler requires; without it, a requirement declared on a handler is invisible
+	/// here and would go unenforced.
+	/// </param>
 	/// <param name="options">Configuration options for this middleware.</param>
+	/// <param name="logger">The logger instance.</param>
 	public AspNetCoreAuthorizationMiddleware(
 		IHttpContextAccessor httpContextAccessor,
 		IAuthorizationService authorizationService,
-		ILogger<AspNetCoreAuthorizationMiddleware> logger,
-		IOptions<AspNetCoreAuthorizationOptions> options)
+		IAuthorizationPolicyProvider policyProvider,
+		IHandlerRegistry handlerRegistry,
+		IOptions<AspNetCoreAuthorizationOptions> options,
+		ILogger<AspNetCoreAuthorizationMiddleware> logger)
 	{
 		ArgumentNullException.ThrowIfNull(httpContextAccessor);
 		ArgumentNullException.ThrowIfNull(authorizationService);
-		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(policyProvider);
+		ArgumentNullException.ThrowIfNull(handlerRegistry);
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(logger);
 
 		_httpContextAccessor = httpContextAccessor;
 		_authorizationService = authorizationService;
-		_logger = logger;
+		_policyProvider = policyProvider;
+		_handlerRegistry = handlerRegistry;
 		_options = options.Value;
+		_logger = logger;
 	}
 
 	/// <inheritdoc />
@@ -111,21 +139,65 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 		var messageType = message.GetType();
 		LogAuthorizationExecuting(messageType.Name);
 
-		// Check [AllowAnonymous] on message type or handler type
-		var handlerType = context.GetItem<Type>("HandlerType");
+		// WHICH HANDLERS WILL RUN. This used to read a context item alone, and nothing in the framework sets
+		// that item on the ordinary dispatch path -- handler selection happens downstream of the middleware
+		// pipeline -- so a handler's own [Authorize] was NEVER consulted and a message carrying no attributes
+		// of its own executed a protected handler for any caller. The registry is asked instead; the context
+		// item is still honoured first, because a host that already knows the handler has better information
+		// than a lookup.
+		var handlerTypes = ResolveHandlerTypes(context, messageType, out var handlersAreDeterminable);
 
-		if (HasAllowAnonymous(messageType) || (handlerType is not null && HasAllowAnonymous(handlerType)))
+		if (HasAllowAnonymous(messageType) || handlerTypes.Any(HasAllowAnonymous))
 		{
 			LogAllowAnonymousApplied(messageType.Name);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
-		// Collect [Authorize] attributes from message type and handler type
 		var messageAttributes = GetAuthorizeAttributes(messageType);
-		var handlerAttributes = handlerType is not null ? GetAuthorizeAttributes(handlerType) : [];
+		var handlerAttributes = handlerTypes.SelectMany(GetAuthorizeAttributes).ToArray();
 
 		if (messageAttributes.Length == 0 && handlerAttributes.Length == 0)
 		{
+			// THREE STATE, and the third one is the whole point: PASS, FAIL, REFUSE -- and REFUSE IS NOT PASS.
+			// Finding no attributes means "nothing is required" ONLY if we know what would have declared them.
+			// When the handlers cannot be determined, we do not know whether authorization applies, and an
+			// absence of metadata must not be read as an absence of a requirement. A capability, or a
+			// requirement, is declared -- never inferred from an absence.
+			if (!handlersAreDeterminable)
+			{
+				// WHY THERE IS NO CARVE-OUT FOR EVENTS. Recorded because the next reader will propose one,
+				// and because the first refutation of it was itself wrong -- a reader who finds only the
+				// thread will inherit the wrong mechanism.
+				//
+				// The proposal: let an EVENT through when the registry does not know it, reasoning that an
+				// unknown event has no subscriber to protect. It was withdrawn on the grounds that a
+				// factory-registered IEventHandler is invisible to the registry yet still fans out, so
+				// letting it through would authorize nothing while a handler ran. THAT GROUND IS FALSE and
+				// is recorded here only so nobody re-derives it: LocalMessageBus.GetEventHandlers resolves
+				// from the registry through all four of its paths and has no container fallback, so a
+				// handler the registry cannot see does not run at all.
+				//
+				// THE ACTUAL REASON, which does not depend on any measurement of the current bus: this
+				// middleware cannot know which IMessageBus is installed. AddMessageBus(..., Func<
+				// IServiceProvider, IMessageBus>) is shipped public API, and a consumer bus that resolves
+				// IEnumerable<IEventHandler<T>> from the container -- the obvious way to write one -- runs
+				// handlers the registry never saw. A carve-out justified by the in-process bus's behaviour
+				// is an authorization decision resting on an undeclared coupling to a swappable component.
+				// Failing closed is correct under every bus, which is the only property available here.
+				//
+				// The cost is that publishing an event nobody subscribes to is also refused. That is a real
+				// defect and it is tracked. Closing it needs a source that can distinguish "no subscriber
+				// exists" from "a subscriber exists that this middleware cannot see" -- which is a question
+				// about the installed bus, not about the registry.
+				LogAuthorizationDenied(
+					messageType.Name,
+					context.CorrelationId,
+					"The handlers for this message could not be determined, so it is unknown whether "
+					+ "authorization applies. Register the handler through the dispatch handler registry, or "
+					+ "declare the requirement on the message type, so the decision can be made rather than assumed.");
+				return CreateForbiddenResult();
+			}
+
 			LogAuthorizationSkipped("no [Authorize] attributes found");
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
@@ -136,8 +208,11 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 		{
 			if (_options.RequireAuthenticatedUser)
 			{
-				LogAuthorizationDenied(messageType.Name, "No HttpContext available");
-				return CreateForbiddenResult("No HttpContext available. Authorization cannot be evaluated outside of an HTTP request.");
+				LogAuthorizationDenied(
+					messageType.Name,
+					context.CorrelationId,
+					"No HttpContext available. Authorization cannot be evaluated outside of an HTTP request.");
+				return CreateForbiddenResult();
 			}
 
 			LogAuthorizationSkipped("no HttpContext and RequireAuthenticatedUser is false");
@@ -147,25 +222,51 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 		var principal = httpContext.User;
 		if (_options.RequireAuthenticatedUser && (principal.Identity is null || !principal.Identity.IsAuthenticated))
 		{
-			LogAuthorizationDenied(messageType.Name, "User is not authenticated");
-			return CreateForbiddenResult("User is not authenticated.");
+			LogAuthorizationDenied(messageType.Name, context.CorrelationId, "User is not authenticated.");
+			return CreateForbiddenResult();
 		}
 
-		// Evaluate all [Authorize] attributes (AND logic)
+		// Build ONE policy from every attribute and evaluate it, exactly as ASP.NET Core's own authorization
+		// middleware does. AuthorizationPolicy.CombineAsync is the host's combiner: it resolves each named
+		// policy through the consumer's IAuthorizationPolicyProvider, folds Roles into RequireRole,
+		// AND-combines multiple attributes, and -- the part that was missing -- applies the host's
+		// GetDefaultPolicyAsync() for a bare [Authorize] that names no policy, no roles and no schemes.
+		//
+		// We do NOT evaluate policy ourselves any more. A hand-rolled evaluator cannot see consumer
+		// configuration it does not own, so every knob it grows duplicates one the host already has and has
+		// already been set. Consumers routinely HARDEN AuthorizationOptions.DefaultPolicy; the previous code
+		// consulted a DefaultPolicy option of our own (null by default) and silently collapsed a bare
+		// [Authorize] to "any authenticated user", which is weaker than what the host was told to require.
 		try
 		{
 			var allAttributes = CombineAttributes(messageAttributes, handlerAttributes);
 
-			foreach (var attr in allAttributes)
-			{
-				var result = await EvaluateAttributeAsync(principal, message, attr, cancellationToken)
-					.ConfigureAwait(false);
+			var policy = await AuthorizationPolicy
+				.CombineAsync(_policyProvider, allAttributes)
+				.ConfigureAwait(false);
 
-				if (result is not null)
-				{
-					LogAuthorizationDenied(messageType.Name, result);
-					return CreateForbiddenResult(result);
-				}
+			if (policy is null)
+			{
+				// CombineAsync returns null only when it was handed no authorize data. We already returned
+				// above in that case, so reaching here means the attribute set changed underneath us.
+				// Undeterminable is not permitted to mean unrestricted.
+				LogAuthorizationDenied(
+					messageType.Name,
+					context.CorrelationId,
+					"No authorization policy could be composed from the declared attributes.");
+				return CreateForbiddenResult();
+			}
+
+			var policyResult = await _authorizationService
+				.AuthorizeAsync(principal, message, policy)
+				.ConfigureAwait(false);
+
+			if (!policyResult.Succeeded)
+			{
+				// SERVER-SIDE ONLY. The caller's response body is the constant DenialDetail and never varies;
+				// this names what was required so a developer can diagnose a 403 without reproducing it.
+				LogAuthorizationDenied(messageType.Name, context.CorrelationId, DescribeRequirements(allAttributes));
+				return CreateForbiddenResult();
 			}
 		}
 		catch (Exception ex)
@@ -182,56 +283,87 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 	}
 
 	/// <summary>
-	/// Evaluates a single <see cref="AuthorizeAttribute"/>. Returns <see langword="null"/> if authorized,
-	/// or an error detail string if denied.
+	/// Describes, for the SERVER-SIDE LOG ONLY, what the declared attributes required.
 	/// </summary>
-	private async Task<string?> EvaluateAttributeAsync(
-		ClaimsPrincipal principal,
-		IDispatchMessage message,
-		AuthorizeAttribute attr,
-		CancellationToken cancellationToken)
+	/// <remarks>
+	/// This string must never reach a response body. Policy and role names are the consumer's own
+	/// authorization vocabulary, and disclosing them to an unauthenticated or under-privileged caller is
+	/// reconnaissance value with no benefit to a legitimate one. The body is <see cref="DenialDetail"/>,
+	/// which is constant; this exists so that a developer reading the log can still tell WHY a 403 happened.
+	/// </remarks>
+	private static string DescribeRequirements(AuthorizeAttribute[] attributes)
 	{
-		_ = cancellationToken; // IAuthorizationService.AuthorizeAsync does not accept CancellationToken
+		var policies = attributes
+			.Select(static a => a.Policy)
+			.Where(static p => !string.IsNullOrEmpty(p))
+			.ToArray();
 
-		// Check policy
-		var policyName = attr.Policy ?? _options.DefaultPolicy;
-		if (!string.IsNullOrEmpty(policyName))
+		var roles = attributes
+			.Select(static a => a.Roles)
+			.Where(static r => !string.IsNullOrEmpty(r))
+			.ToArray();
+
+		if (policies.Length == 0 && roles.Length == 0)
 		{
-			var policyResult = await _authorizationService
-				.AuthorizeAsync(principal, message, policyName)
-				.ConfigureAwait(false);
-
-			if (!policyResult.Succeeded)
-			{
-				return $"Policy '{policyName}' evaluation failed.";
-			}
+			// A bare [Authorize] resolves the host's default policy, which carries no name to report.
+			return "Authorization failed against the host's default policy.";
 		}
 
-		// Check roles (OR logic within a single attribute)
-		if (!string.IsNullOrEmpty(attr.Roles))
+		var required = new List<string>(2);
+		if (policies.Length > 0)
 		{
-			var roles = attr.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-			var hasAnyRole = false;
-
-			foreach (var role in roles)
-			{
-				if (principal.IsInRole(role))
-				{
-					hasAnyRole = true;
-					break;
-				}
-			}
-
-			if (!hasAnyRole)
-			{
-				return $"None of the required roles [{attr.Roles}] are present.";
-			}
+			required.Add("policy " + string.Join(", ", policies));
 		}
 
-		// Check authentication schemes — these are informational only in the Dispatch pipeline
-		// (scheme enforcement is an HTTP-level concern, not a message pipeline concern).
+		if (roles.Length > 0)
+		{
+			required.Add("roles " + string.Join(", ", roles));
+		}
 
-		return null;
+		return "Authorization failed. Required " + string.Join("; ", required) + ".";
+	}
+
+	/// <summary>
+	/// Determines which handler types will process this message, and — separately — whether that question could
+	/// be answered at all.
+	/// </summary>
+	/// <param name="context">The message context, which a host may have seeded with a known handler type.</param>
+	/// <param name="messageType">The message being dispatched.</param>
+	/// <param name="determinable">
+	/// <see langword="true"/> when the handlers are known; <see langword="false"/> when nothing could answer.
+	/// An empty list with <paramref name="determinable"/> <see langword="false"/> is UNKNOWN, not "none" — and
+	/// the two must not be collapsed, because one of them is safe to pass and the other is not.
+	/// </param>
+	/// <returns>The handler types to read authorization metadata from; empty when none are known.</returns>
+	private IReadOnlyList<Type> ResolveHandlerTypes(IMessageContext context, Type messageType, out bool determinable)
+	{
+		if (context.GetItem<Type>("HandlerType") is { } seeded)
+		{
+			determinable = true;
+			return [seeded];
+		}
+
+		// The RETURN VALUE answers "can the registry speak for this message type", and the list answers "what
+		// does it say". They are different questions and the first version of this code collapsed them:
+		// it inferred determinability from a non-empty list, so a message type the registry KNOWS and has
+		// NO handlers for -- an event with no subscribers, which is ordinary in pub/sub -- was reported as
+		// undetermined and refused. Branch on the bool.
+		if (!_handlerRegistry.TryGetHandlers(messageType, out var registered))
+		{
+			// Not "it has no handler": a composition may dispatch through a path the registry never saw.
+			determinable = false;
+			return [];
+		}
+
+		determinable = true;
+
+		var types = new Type[registered.Count];
+		for (var i = 0; i < registered.Count; i++)
+		{
+			types[i] = registered[i].HandlerType;
+		}
+
+		return types;
 	}
 
 	private static AuthorizeAttribute[] GetAuthorizeAttributes(Type type)
@@ -302,7 +434,12 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 		return combined;
 	}
 
-	private static IMessageResult CreateForbiddenResult(string detail)
+	/// <summary>
+	/// Creates the 403 denial result. It takes no detail parameter on purpose: with nothing to pass, a future
+	/// caller cannot reopen the disclosure by handing it a policy or role name. The specific reason travels to
+	/// the log, never to the body.
+	/// </summary>
+	private static IMessageResult CreateForbiddenResult()
 	{
 		var problemDetails = new MessageProblemDetails
 		{
@@ -310,7 +447,7 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 			Title = "Authorization Failed",
 			ErrorCode = 403,
 			Status = 403,
-			Detail = detail,
+			Detail = DenialDetail,
 			Instance = string.Empty,
 		};
 
@@ -348,8 +485,8 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 	private partial void LogAuthorizationGranted(string messageType);
 
 	[LoggerMessage(AspNetCoreAuthorizationEventId.AuthorizationDenied, LogLevel.Warning,
-		"ASP.NET Core authorization denied for message type {MessageType}: {Reason}")]
-	private partial void LogAuthorizationDenied(string messageType, string reason);
+		"ASP.NET Core authorization denied for message type {MessageType} (correlation {CorrelationId}): {Reason}")]
+	private partial void LogAuthorizationDenied(string messageType, string? correlationId, string reason);
 
 	[LoggerMessage(AspNetCoreAuthorizationEventId.AuthorizationSkipped, LogLevel.Debug,
 		"ASP.NET Core authorization skipped: {Reason}")]

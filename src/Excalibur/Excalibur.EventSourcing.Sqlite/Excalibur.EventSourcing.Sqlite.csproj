@@ -27,6 +27,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The migration scripts SHIP. The tenant-scoping rebuild is only reachable at runtime by a host
+         that lets this package create its own tables; a centrally-provisioned schema never reaches it and
+         needs 002 by hand. Without this line the guarantee named a remedy the package did not contain. -->
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
   </ItemGroup>

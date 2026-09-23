@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.ComponentModel.DataAnnotations;
@@ -98,4 +98,31 @@ public sealed class DynamoDbSnapshotStoreOptions
 			throw new InvalidOperationException("TableName is required.");
 		}
 	}
+
+	/// <summary>
+	/// Gets or sets the source-generated type-info resolver used to serialize snapshot state and metadata.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Snapshot state and metadata are consumer types the framework cannot source-generate, so with no
+	/// resolver the store serializes them through the reflection-based
+	/// <see cref="System.Text.Json.JsonSerializer"/>. That works under the JIT, but a native-AOT application
+	/// published with reflection-based serialization disabled has no reflection path to fall back on. Rather
+	/// than fail on the first save, the store refuses at construction and names this option.
+	/// </para>
+	/// <para>
+	/// The stored wire format does not vary with this setting. The resolver supplies type metadata only, so a
+	/// snapshot written with a resolver is byte-identical to one written without and remains readable by a
+	/// host configured either way.
+	/// </para>
+	/// <para>
+	/// Metadata values are typed <see cref="object"/> and are therefore written as their runtime type. Declare
+	/// each closed value type the application actually stores -- <c>string</c>, <c>int</c>, <c>bool</c> and so
+	/// on. Do not declare <c>Dictionary&lt;string, object&gt;</c> as a shortcut: it compiles and then throws on
+	/// the values it was meant to cover.
+	/// </para>
+	/// </remarks>
+	/// <value>The consumer's snapshot type-info resolver, or <see langword="null"/> to serialize through
+	/// reflection.</value>
+	public System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? SnapshotTypeInfoResolver { get; set; }
 }

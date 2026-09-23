@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.Dispatch;
@@ -36,7 +36,9 @@ namespace Excalibur.Compliance;
 /// <b>Two different ways of reporting "not found" appear here, deliberately.</b>
 /// <see cref="UpdateStatusAsync"/> and <see cref="RecordCancellationAsync"/> return <see langword="false"/>
 /// when no matching request exists, because for those operations a missing request is an ordinary outcome
-/// a caller is expected to branch on. <see cref="RecordCompletionAsync"/> throws instead, because
+/// a caller is expected to branch on. <see cref="UpdateStatusAsync"/> returns it for a second reason as
+/// well — a refused claim, described on that member — and a caller that needs to tell the two apart must
+/// read the status rather than infer it from the <see langword="false"/>. <see cref="RecordCompletionAsync"/> throws instead, because
 /// recording a completion asserts that an erasure actually happened: silently succeeding would attest to
 /// erasing data that was never requested, and that attestation is the evidence a data subject or a
 /// regulator is ultimately shown.
@@ -118,9 +120,31 @@ public interface IErasureStore
 	/// </summary>
 	/// <param name="requestId">The request ID.</param>
 	/// <param name="status">The new status.</param>
+	/// <remarks>
+	/// <para>
+	/// <b>The transition to <see cref="ErasureRequestStatus.InProgress"/> is a CLAIM, and it is
+	/// conditional.</b> It succeeds only for a request currently in
+	/// <see cref="ErasureRequestStatus.Scheduled"/>, and the test and the write are ONE indivisible
+	/// operation — a conditional update whose predicate names the expected prior state, never a read
+	/// followed by a write. Two callers racing to execute the same request must not both be told they
+	/// claimed it: exactly one receives <see langword="true"/> and the other <see langword="false"/>.
+	/// An implementation that updates the row unconditionally satisfies every single-threaded test and
+	/// grants the claim to both racers, each of which then erases the same subject and writes its own
+	/// completion certificate — one of them attesting that keys were destroyed when its own attempt
+	/// found nothing left to destroy.
+	/// </para>
+	/// <para>
+	/// Every other transition is unconditional: a request may be moved to a terminal or blocked state
+	/// from whatever state it is in, because those transitions record an outcome rather than acquire
+	/// ownership.
+	/// </para>
+	/// </remarks>
 	/// <param name="errorMessage">Optional error message if failed.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>True if updated, false if not found.</returns>
+	/// <returns>
+/// <see langword="true"/> if the row was updated; <see langword="false"/> if no matching request exists,
+/// or if the transition was refused because the request was not in the state this transition requires.
+/// </returns>
 	/// <exception cref="ErasureStoreNotProvisionedException">
 	/// The store's backing schema is absent or stale, so the update cannot be attempted at all. This is the
 	/// only condition under which this member does not return: a request that is not there is reported as

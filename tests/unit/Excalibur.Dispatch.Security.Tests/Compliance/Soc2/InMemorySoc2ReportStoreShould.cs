@@ -1,6 +1,6 @@
 using Excalibur.Compliance.Soc2;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 
@@ -224,19 +224,19 @@ public sealed class InMemorySoc2ReportStoreShould
 	public async Task ListReportsAsync_FiltersByOpinion()
 	{
 		// Arrange
-		var unqualified = CreateTestReport() with { Opinion = AuditorOpinion.Unqualified };
-		var qualified = CreateTestReport() with { Opinion = AuditorOpinion.Qualified };
+		var unqualified = CreateTestReport() with { OverallLevel = ComplianceLevel.FullyCompliant };
+		var qualified = CreateTestReport() with { OverallLevel = ComplianceLevel.SubstantiallyCompliant };
 		await _sut.SaveReportAsync(unqualified, CancellationToken.None).ConfigureAwait(false);
 		await _sut.SaveReportAsync(qualified, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
 		var result = await _sut.ListReportsAsync(
-			new ReportFilter { Opinion = AuditorOpinion.Unqualified },
+			new ReportFilter { OverallLevel = ComplianceLevel.FullyCompliant },
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.Count.ShouldBe(1);
-		result[0].Opinion.ShouldBe(AuditorOpinion.Unqualified);
+		result[0].OverallLevel.ShouldBe(ComplianceLevel.FullyCompliant);
 	}
 
 	[Fact]
@@ -388,7 +388,7 @@ public sealed class InMemorySoc2ReportStoreShould
 		summary.PeriodStart.ShouldBe(report.PeriodStart);
 		summary.PeriodEnd.ShouldBe(report.PeriodEnd);
 		summary.GeneratedAt.ShouldBe(report.GeneratedAt);
-		summary.Opinion.ShouldBe(report.Opinion);
+		summary.OverallLevel.ShouldBe(report.OverallLevel);
 		summary.ExceptionCount.ShouldBe(report.Exceptions.Count);
 		summary.TenantId.ShouldBe(report.TenantId);
 	}
@@ -552,7 +552,7 @@ public sealed class InMemorySoc2ReportStoreShould
 				DataTypes = ["Data"]
 			},
 			ControlSections = [],
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			Exceptions = [],
 			GeneratedAt = DateTimeOffset.UtcNow,
 			TenantId = "test-tenant"

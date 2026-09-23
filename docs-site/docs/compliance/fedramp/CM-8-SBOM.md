@@ -1,10 +1,18 @@
 # CM-8: Software Bill of Materials (SBOM)
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../../legal/compliance-disclaimer.md).
+:::
+
 **Control:** NIST 800-53 Rev 5 CM-8 - Information System Component Inventory
 **Framework:** Excalibur
-**Last Updated:** 2026-09-12
-**Status:** IMPLEMENTED
-**Implementation Date:** 2026-01-01
+**Last Updated:** 2026-09-22
+**Status:** PARTIAL — the framework inventories its own packages. Your component inventory is larger than
+that, and the rest of it is yours to produce.
 
 ---
 
@@ -23,7 +31,9 @@ The organization:
 
 ## Implementation Summary
 
-Excalibur satisfies CM-8 through **automated Software Bill of Materials (SBOM) generation** using the CycloneDX standard in the continuous integration pipeline.
+Excalibur **contributes to** CM-8 through automated Software Bill of Materials (SBOM) generation using
+the CycloneDX standard in the continuous integration pipeline. The SBOM enumerates the framework's own
+packages and their dependencies — one entry in your inventory, not the inventory.
 
 **Key Implementation Details:**
 - **SBOM Format:** CycloneDX (OWASP standard)
@@ -45,20 +55,19 @@ SBOM generation is automated in the framework's GitHub Actions CI workflow, in t
 sbom-generation:
   name: SBOM Generation (CycloneDX)
   runs-on: ubuntu-latest
-  needs: build
+  timeout-minutes: 20
   steps:
+    # Actions are pinned by commit SHA, not by tag. A tag is mutable; a SHA is not.
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       with:
-        fetch-depth: 0
+        fetch-depth: 1
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+    - name: Setup .NET build environment
+      uses: ./.github/actions/setup-dotnet-build
 
     - name: Restore dependencies
-      run: dotnet restore
+      run: bash ./build.sh --restore
 
     - name: Generate CycloneDX SBOM for all packages
       run: |
@@ -66,7 +75,7 @@ sbom-generation:
         dotnet CycloneDX ./src -o ./src -F Json -t
 
     - name: Upload SBOM artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: cyclonedx-sbom
         path: |
@@ -138,7 +147,7 @@ pipeline — verify those from the artifact before submitting it.
 |------------------|-----------------------------------|
 | **Inventory Development** | Automated SBOM generation via CycloneDX |
 | **Current System Reflection** | SBOM generated on every CI build (reflects latest state) |
-| **Authorization Boundary Components** | Every NuGet package the framework publishes |
+| **Authorization Boundary Components** | Every NuGet package the framework publishes. Your boundary also holds your own code, runtime and OS packages, which this SBOM does not cover |
 | **Appropriate Granularity** | Package-level granularity with dependency graph |
 | **Component Description** | Package name, version, description included |
 | **Component Type** | Library/framework type metadata |
@@ -158,10 +167,9 @@ pipeline — verify those from the artifact before submitting it.
 - Downloadable from GitHub Actions workflow runs
 - Accessible via GitHub API
 
-**Access:**
-- Project maintainers: Full access
-- Security auditors: Read access via GitHub Security tab
-- Consumers: Available on request for compliance audits
+**Access:** SBOM artifacts are produced in the framework's own pipeline and are not published to a
+registry. If your assessor needs one, request it — and generate an SBOM for **your** application from
+your own build, because that is the artifact your authorization boundary is assessed against.
 
 ---
 
@@ -175,9 +183,10 @@ pipeline — verify those from the artifact before submitting it.
 3. This control documentation
 
 **Supporting Evidence:**
-1. CycloneDX specification conformance (OWASP standard)
-2. Automated validation logs in CI pipeline
-3. GitHub Security tab (dependency graph integration)
+1. The generated `bom.json` itself — the CycloneDX document a tool can parse and validate. The
+   pipeline does not assert schema validity (see [Validation](#automated-validation)), so validate it
+   yourself before submitting it.
+2. The validation step's log from the CI run that produced the artifact.
 
 ### Audit Trail
 
@@ -221,17 +230,18 @@ CycloneDX SBOMs integrate with GitHub's dependency graph:
 SBOM data would complement container scanning. **No container-scan job exists in this pipeline**; if your assessment requires one, add it — do not cite it as inherited:
 - Runtime dependency validation
 - OS package vulnerability scanning
-- Combined SBOM + container scan provides comprehensive inventory
+- Combined SBOM + container scan **would** provide comprehensive inventory, once you add the scan
 
 ---
 
 ## FedRAMP Impact
 
-**Status:** 12 of 14 controls satisfied; 2 partial (SI-7, PM-11)
+**Status:** asserted only in the [FedRAMP checklist](../checklists/fedramp.md#control-mapping-table).
 
-**CM-8 Closure:**
-- CM-8 was the last of the twelve controls the framework satisfies outright
-- SI-7 remains partial (packages ship unsigned) and PM-11 is a business process the consumer owns
+**CM-8 is PARTIAL, and this page is the reason why:** the SBOM described here covers the framework's
+own packages. That is one entry in your component inventory, not the inventory. You still enumerate
+your application's own components, your runtime and OS packages, and everything else inside your
+authorization boundary.
 
 **Related Controls:**
 - **SA-4:** Acquisition Process (SBOM provided to consumers)
@@ -270,7 +280,8 @@ SBOM data would complement container scanning. **No container-scan job exists in
 - OWASP Dependency-Track
 - GitHub Security tab
 - an SBOM scanner of your choice (none ships here)
-- Any CycloneDX 1.4+ compatible tool
+- Any tool that reads CycloneDX 1.7. The SBOM is generated at spec version 1.7, so a tool that supports
+  only an earlier version may reject it
 
 ---
 

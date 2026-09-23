@@ -1594,18 +1594,12 @@
       "line": 88,
       "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 88,
       "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 194,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
-      "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL3050"
     },
     {
@@ -1615,8 +1609,8 @@
       "warningId": "IL2026"
     },
     {
-      "line": 47,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
+      "line": 194,
+      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL3050"
     },
@@ -1627,9 +1621,9 @@
       "warningId": "IL2026"
     },
     {
-      "line": 79,
+      "line": 47,
       "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
-      "justification": "Repository uses reflection-based serialization",
+      "justification": "Serialization/reflection inherently not AOT-safe",
       "warningId": "IL3050"
     },
     {
@@ -1637,6 +1631,12 @@
       "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
       "justification": "Repository uses reflection-based serialization",
       "warningId": "IL2026"
+    },
+    {
+      "line": 79,
+      "file": "src/Excalibur/Excalibur.A3/Authorization/Grants/Application/Commands/AddGrant/AddGrantCommandHandler.cs",
+      "justification": "Repository uses reflection-based serialization",
+      "warningId": "IL3050"
     },
     {
       "line": 45,
@@ -1919,12 +1919,6 @@
       "file": "src/Excalibur/Excalibur.Caching/Projections/ExcaliburDispatchBuilderExtensions.cs",
       "justification": "This method performs type discovery for dependency injection registration. The types implementing IProjectionTagResolver<T> are expected to be explicitly referenced by the consuming application.",
       "warningId": "IL2070"
-    },
-    {
-      "line": 81,
-      "file": "src/Excalibur/Excalibur.Caching/Projections/ProjectionCacheInvalidator.cs",
-      "justification": "IProjectionCacheInvalidator interface is kept clean for AOT consumers. Implementation uses RuntimeFeature.IsDynamicCodeSupported branching in ExtractTags.",
-      "warningId": "IL3051"
     },
     {
       "line": 112,
@@ -2243,20 +2237,6 @@
       "warningId": "IL2072"
     },
     {
-      "line": 50,
-      "file": "src/Excalibur/Excalibur.Compliance/Retention/RetentionEnforcementBackgroundService.cs",
-      "justification": "IRetentionEnforcementService.EnforceRetentionAsync scans loaded assemblies for ",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 199,
-      "file": "src/Excalibur/Excalibur.Compliance/Retention/RetentionEnforcementService.cs",
-      "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
       "line": 257,
       "file": "src/Excalibur/Excalibur.Data.CosmosDb/CosmosDbPersistenceProvider.cs",
       "justification": "Implementation has stricter DynamicallyAccessedMembers than interface requires",
@@ -2557,28 +2537,10 @@
       "warningId": "IL3050"
     },
     {
-      "line": 40,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbServiceCollectionExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design.",
+      "line": 251,
+      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamsSubscription.cs",
+      "justification": "",
       "warningId": "IL2026"
-    },
-    {
-      "line": 42,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 62,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbServiceCollectionExtensions.cs",
-      "justification": "Options validation/binding uses reflection by design.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 64,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050"
     },
     {
       "line": 251,
@@ -2587,9 +2549,9 @@
       "warningId": "IL3050"
     },
     {
-      "line": 251,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamsSubscription.cs",
-      "justification": "",
+      "line": 19,
+      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs",
+      "justification": "JSON serialization fallback path uses reflection when consumer does not provide source-gen JsonSerializerOptions",
       "warningId": "IL2026"
     },
     {
@@ -2597,12 +2559,6 @@
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs",
       "justification": "JSON serialization fallback path uses reflection when consumer does not provide source-gen JsonSerializerOptions",
       "warningId": "IL3050"
-    },
-    {
-      "line": 19,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs",
-      "justification": "JSON serialization fallback path uses reflection when consumer does not provide source-gen JsonSerializerOptions",
-      "warningId": "IL2026"
     },
     {
       "line": 9,
@@ -2611,28 +2567,28 @@
       "warningId": "IL2091"
     },
     {
-      "line": 195,
+      "line": 185,
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 195,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotStore.cs",
-      "justification": "",
+      "justification": "The reflection path these members fall back to is unreachable in the configuration this warns about: the constructor calls EventSerializationDefaults.TryApplyTypeInfoResolver, which throws when no resolver was supplied and reflection is unavailable, naming SnapshotTypeInfoResolver. A store reaching this call therefore has either a resolver or a working reflection path.",
       "warningId": "IL2026"
     },
     {
-      "line": 278,
+      "line": 187,
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotStore.cs",
-      "justification": "",
+      "justification": "The reflection path these members fall back to is unreachable in the configuration this warns about: the constructor calls EventSerializationDefaults.TryApplyTypeInfoResolver, which throws when no resolver was supplied and reflection is unavailable, naming SnapshotTypeInfoResolver. A store reaching this call therefore has either a resolver or a working reflection path.",
       "warningId": "IL3050"
     },
     {
-      "line": 278,
+      "line": 259,
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotStore.cs",
-      "justification": "",
+      "justification": "The reflection path these members fall back to is unreachable in the configuration this warns about: the constructor calls EventSerializationDefaults.TryApplyTypeInfoResolver, which throws when no resolver was supplied and reflection is unavailable, naming SnapshotTypeInfoResolver. A store reaching this call therefore has either a resolver or a working reflection path.",
       "warningId": "IL2026"
+    },
+    {
+      "line": 261,
+      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotStore.cs",
+      "justification": "The reflection path these members fall back to is unreachable in the configuration this warns about: the constructor calls EventSerializationDefaults.TryApplyTypeInfoResolver, which throws when no resolver was supplied and reflection is unavailable, naming SnapshotTypeInfoResolver. A store reaching this call therefore has either a resolver or a working reflection path.",
+      "warningId": "IL3050"
     },
     {
       "line": 99,
@@ -2854,13 +2810,13 @@
       "line": 18,
       "file": "src/Excalibur/Excalibur.Data.ElasticSearch/Resilience/MonitoredResilientElasticsearchClient.cs",
       "justification": "This class inherently uses reflection for Elasticsearch request inspection and monitoring",
-      "warningId": "IL3050"
+      "warningId": "IL2075"
     },
     {
       "line": 18,
       "file": "src/Excalibur/Excalibur.Data.ElasticSearch/Resilience/MonitoredResilientElasticsearchClient.cs",
       "justification": "This class inherently uses reflection for Elasticsearch request inspection and monitoring",
-      "warningId": "IL2075"
+      "warningId": "IL3050"
     },
     {
       "line": 68,
@@ -2894,7 +2850,7 @@
       "line": 155,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL3050",
+      "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -2902,7 +2858,7 @@
       "line": 155,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
+      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -2916,7 +2872,7 @@
       "line": 183,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL3050",
+      "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -2924,7 +2880,7 @@
       "line": 183,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
+      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -2938,7 +2894,7 @@
       "line": 233,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL3050",
+      "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -2946,14 +2902,6 @@
       "line": 233,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 422,
-      "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
-      "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
       "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
@@ -2967,7 +2915,7 @@
       "classifiedBy": "inspection"
     },
     {
-      "line": 468,
+      "line": 422,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
       "warningId": "IL3050",
@@ -2983,7 +2931,7 @@
       "classifiedBy": "inspection"
     },
     {
-      "line": 475,
+      "line": 468,
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
       "warningId": "IL3050",
@@ -2995,6 +2943,14 @@
       "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
       "warningId": "IL2026",
+      "verdict": "PROPAGATED",
+      "classifiedBy": "inspection"
+    },
+    {
+      "line": 475,
+      "file": "src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs",
+      "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -3103,26 +3059,14 @@
     {
       "line": 163,
       "file": "src/Excalibur/Excalibur.Data.InMemory/InMemoryPersistenceProvider.cs",
-      "justification": "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.",
+      "justification": "Interface-mismatch only. The requirement is declared on the composition entry point a consumer actually calls -- AddExcaliburInMemory in InMemoryServiceCollectionExtensions -- so it propagates to the caller there rather than being silently dropped at this interface boundary.",
       "warningId": "IL2046"
     },
     {
       "line": 164,
       "file": "src/Excalibur/Excalibur.Data.InMemory/InMemoryPersistenceProvider.cs",
-      "justification": "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.",
+      "justification": "Interface-mismatch only. The requirement is declared on the composition entry point a consumer actually calls -- AddExcaliburInMemory in InMemoryServiceCollectionExtensions -- so it propagates to the caller there rather than being silently dropped at this interface boundary.",
       "warningId": "IL3051"
-    },
-    {
-      "line": 114,
-      "file": "src/Excalibur/Excalibur.Data.InMemory/InMemoryServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 116,
-      "file": "src/Excalibur/Excalibur.Data.InMemory/InMemoryServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
-      "warningId": "IL3050"
     },
     {
       "line": 41,
@@ -3398,13 +3342,13 @@
       "line": 60,
       "file": "src/Excalibur/Excalibur.Data.SqlServer/ExcaliburDataSqlServerServiceCollectionExtensions.cs",
       "justification": "RegisterTypeHandler uses reflection for Dapper type handler registration",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 60,
       "file": "src/Excalibur/Excalibur.Data.SqlServer/ExcaliburDataSqlServerServiceCollectionExtensions.cs",
       "justification": "RegisterTypeHandler uses reflection for Dapper type handler registration",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 34,
@@ -3602,13 +3546,13 @@
       "line": 458,
       "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
       "justification": "",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 458,
       "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
       "justification": "",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 44,
@@ -3650,13 +3594,13 @@
       "line": 310,
       "file": "src/Excalibur/Excalibur.EventSourcing.InMemory/InMemoryEventStore.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 310,
       "file": "src/Excalibur/Excalibur.EventSourcing.InMemory/InMemoryEventStore.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 52,
@@ -3764,18 +3708,12 @@
       "line": 533,
       "file": "src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresEventStore.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 533,
       "file": "src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresEventStore.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 704,
-      "file": "src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
     },
     {
@@ -3785,7 +3723,7 @@
       "warningId": "IL2026"
     },
     {
-      "line": 710,
+      "line": 704,
       "file": "src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
@@ -3795,6 +3733,12 @@
       "file": "src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL2026"
+    },
+    {
+      "line": 710,
+      "file": "src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresEventStore.cs",
+      "justification": "Serialization inherently uses reflection",
+      "warningId": "IL3050"
     },
     {
       "line": 111,
@@ -3926,18 +3870,12 @@
       "line": 147,
       "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/SaveSnapshotRequest.cs",
       "justification": "Metadata serialization inherently uses reflection (matches SqlServerEventStore precedent)",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 147,
       "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/SaveSnapshotRequest.cs",
       "justification": "Metadata serialization inherently uses reflection (matches SqlServerEventStore precedent)",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 726,
-      "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
     },
     {
@@ -3947,7 +3885,7 @@
       "warningId": "IL2026"
     },
     {
-      "line": 907,
+      "line": 726,
       "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
@@ -3959,7 +3897,7 @@
       "warningId": "IL2026"
     },
     {
-      "line": 913,
+      "line": 907,
       "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
@@ -3971,8 +3909,8 @@
       "warningId": "IL2026"
     },
     {
-      "line": 234,
-      "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs",
+      "line": 913,
+      "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
     },
@@ -3981,6 +3919,12 @@
       "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs",
       "justification": "Serialization inherently uses reflection",
       "warningId": "IL2026"
+    },
+    {
+      "line": 234,
+      "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs",
+      "justification": "Serialization inherently uses reflection",
+      "warningId": "IL3050"
     },
     {
       "line": 39,
@@ -4658,18 +4602,12 @@
       "line": 143,
       "file": "src/Excalibur/Excalibur.Jobs.Cdc/Cdc/CdcJob.cs",
       "justification": "GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 143,
       "file": "src/Excalibur/Excalibur.Jobs.Cdc/Cdc/CdcJob.cs",
       "justification": "GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 172,
-      "file": "src/Excalibur/Excalibur.Jobs.Cdc/Cdc/CdcJob.cs",
-      "justification": "GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable",
       "warningId": "IL3050"
     },
     {
@@ -4679,9 +4617,9 @@
       "warningId": "IL2026"
     },
     {
-      "line": 59,
-      "file": "src/Excalibur/Excalibur.Jobs.Cdc/DependencyInjection/CdcJobServiceCollectionExtensions.cs",
-      "justification": "Configuration binding uses reflection by design; mirrors CdcJob.ConfigureJob.",
+      "line": 172,
+      "file": "src/Excalibur/Excalibur.Jobs.Cdc/Cdc/CdcJob.cs",
+      "justification": "GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable",
       "warningId": "IL3050"
     },
     {
@@ -4691,9 +4629,9 @@
       "warningId": "IL2026"
     },
     {
-      "line": 64,
-      "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
+      "line": 59,
+      "file": "src/Excalibur/Excalibur.Jobs.Cdc/DependencyInjection/CdcJobServiceCollectionExtensions.cs",
+      "justification": "Configuration binding uses reflection by design; mirrors CdcJob.ConfigureJob.",
       "warningId": "IL3050"
     },
     {
@@ -4703,7 +4641,7 @@
       "warningId": "IL2026"
     },
     {
-      "line": 98,
+      "line": 64,
       "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
       "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
       "warningId": "IL3050"
@@ -4713,6 +4651,12 @@
       "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
       "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
       "warningId": "IL2026"
+    },
+    {
+      "line": 98,
+      "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
+      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
+      "warningId": "IL3050"
     },
     {
       "line": 26,
@@ -4790,13 +4734,13 @@
       "line": 50,
       "file": "src/Excalibur/Excalibur.Jobs/Quartz/QuartzGenericJobAdapter.cs",
       "justification": "Quartz IJob.Execute cannot carry Requires* attributes; the context type is only known to the caller",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 50,
       "file": "src/Excalibur/Excalibur.Jobs/Quartz/QuartzGenericJobAdapter.cs",
       "justification": "Quartz IJob.Execute cannot carry Requires* attributes; the context type is only known to the caller",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 180,
@@ -4895,30 +4839,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 131,
-      "file": "src/Excalibur/Excalibur.Outbox.CosmosDb/CosmosDbOutboxDocument.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 131,
-      "file": "src/Excalibur/Excalibur.Outbox.CosmosDb/CosmosDbOutboxDocument.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 158,
-      "file": "src/Excalibur/Excalibur.Outbox.CosmosDb/CosmosDbOutboxDocument.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 158,
-      "file": "src/Excalibur/Excalibur.Outbox.CosmosDb/CosmosDbOutboxDocument.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
       "line": 42,
       "file": "src/Excalibur/Excalibur.Outbox.CosmosDb/DependencyInjection/OutboxBuilderCosmosDbExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
@@ -4970,47 +4890,11 @@
       "line": 274,
       "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
       "justification": "",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 274,
       "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 1107,
-      "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 1107,
-      "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 1162,
-      "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 1162,
-      "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 323,
-      "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStreamsSubscription.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 323,
-      "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStreamsSubscription.cs",
       "justification": "",
       "warningId": "IL3050"
     },
@@ -5075,39 +4959,9 @@
       "warningId": "IL3050"
     },
     {
-      "line": 205,
-      "file": "src/Excalibur/Excalibur.Outbox.Firestore/FirestoreOutboxListenerSubscription.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 205,
-      "file": "src/Excalibur/Excalibur.Outbox.Firestore/FirestoreOutboxListenerSubscription.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 760,
-      "file": "src/Excalibur/Excalibur.Outbox.Firestore/FirestoreOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 760,
-      "file": "src/Excalibur/Excalibur.Outbox.Firestore/FirestoreOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 815,
-      "file": "src/Excalibur/Excalibur.Outbox.Firestore/FirestoreOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 815,
-      "file": "src/Excalibur/Excalibur.Outbox.Firestore/FirestoreOutboxStore.cs",
-      "justification": "",
+      "line": 130,
+      "file": "src/Excalibur/Excalibur.Outbox.InMemory/InMemoryOutboxStore.cs",
+      "justification": "In-memory store uses reflection-based serialization",
       "warningId": "IL2026"
     },
     {
@@ -5115,12 +4969,6 @@
       "file": "src/Excalibur/Excalibur.Outbox.InMemory/InMemoryOutboxStore.cs",
       "justification": "In-memory store uses reflection-based serialization",
       "warningId": "IL3050"
-    },
-    {
-      "line": 130,
-      "file": "src/Excalibur/Excalibur.Outbox.InMemory/InMemoryOutboxStore.cs",
-      "justification": "In-memory store uses reflection-based serialization",
-      "warningId": "IL2026"
     },
     {
       "line": 134,
@@ -5162,7 +5010,7 @@
       "line": 152,
       "file": "src/Excalibur/Excalibur.Outbox.MongoDB/MongoDbOutboxStore.cs",
       "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
-      "warningId": "IL3050",
+      "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -5170,7 +5018,7 @@
       "line": 152,
       "file": "src/Excalibur/Excalibur.Outbox.MongoDB/MongoDbOutboxStore.cs",
       "justification": "AOT: MongoDB provider uses reflection-based JSON serialization",
-      "warningId": "IL2026",
+      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     },
@@ -5274,18 +5122,12 @@
       "line": 171,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerDeadLetterQueue.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 171,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerDeadLetterQueue.cs",
       "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 340,
-      "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerDeadLetterQueue.cs",
-      "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
     },
     {
@@ -5295,9 +5137,9 @@
       "warningId": "IL2026"
     },
     {
-      "line": 1362,
-      "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
-      "justification": "JsonSerializer with Type parameter requires unreferenced code",
+      "line": 340,
+      "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerDeadLetterQueue.cs",
+      "justification": "Serialization inherently uses reflection",
       "warningId": "IL3050"
     },
     {
@@ -5307,7 +5149,7 @@
       "warningId": "IL2026"
     },
     {
-      "line": 2048,
+      "line": 1362,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "JsonSerializer with Type parameter requires unreferenced code",
       "warningId": "IL3050"
@@ -5319,9 +5161,9 @@
       "warningId": "IL2026"
     },
     {
-      "line": 2094,
+      "line": 2048,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
-      "justification": "JsonSerializer with generic type requires unreferenced code",
+      "justification": "JsonSerializer with Type parameter requires unreferenced code",
       "warningId": "IL3050"
     },
     {
@@ -5331,9 +5173,9 @@
       "warningId": "IL2026"
     },
     {
-      "line": 2226,
+      "line": 2094,
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
-      "justification": "",
+      "justification": "JsonSerializer with generic type requires unreferenced code",
       "warningId": "IL3050"
     },
     {
@@ -5341,6 +5183,12 @@
       "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
       "justification": "",
       "warningId": "IL2026"
+    },
+    {
+      "line": 2226,
+      "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
+      "justification": "",
+      "warningId": "IL3050"
     },
     {
       "line": 78,
@@ -5430,13 +5278,13 @@
       "line": 109,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxMessage.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL3050"
+      "warningId": "IL2026"
     },
     {
       "line": 109,
       "file": "src/Excalibur/Excalibur.Outbox/Outbox/OutboxMessage.cs",
       "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL2026"
+      "warningId": "IL3050"
     },
     {
       "line": 678,

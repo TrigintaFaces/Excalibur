@@ -1,13 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Security.Claims;
 
+using Excalibur.A3.Diagnostics;
 using Excalibur.Dispatch;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 using MR = Excalibur.Dispatch.MessageResult;
 
@@ -20,6 +22,7 @@ namespace Excalibur.A3.Authorization;
 /// <param name="authorization"> The authorization service to validate permissions. </param>
 /// <param name="attributeCache"> The cache for RequirePermission attribute lookups. </param>
 /// <param name="conditionEvaluator"> The evaluator for When condition expressions. </param>
+/// <param name="logger"> The logger used to record denial reasons server-side. </param>
 /// <remarks>
 /// The caller's <see cref="IAccessToken"/> is resolved from the message's own request scope on every
 /// invocation and never held in a field. A middleware instance is built once, from the root provider,
@@ -27,12 +30,18 @@ namespace Excalibur.A3.Authorization;
 /// grant set, answering every later message in the process as that first caller. Its registered
 /// service lifetime cannot change this, because the instance is materialised once regardless.
 /// </remarks>
-internal sealed class A3AuthorizationMiddleware(
+internal sealed partial class A3AuthorizationMiddleware(
 	IDispatchAuthorizationService authorization,
 	AttributeAuthorizationCache attributeCache,
-	ConditionExpressionEvaluator conditionEvaluator)
+	ConditionExpressionEvaluator conditionEvaluator,
+	ILogger<A3AuthorizationMiddleware> logger)
 	: IDispatchMiddleware
 {
+	/// <summary>
+	/// The ONLY detail a denial returns to the caller. See <see cref="CreateDeniedResult" /> for why it is constant.
+	/// </summary>
+	internal const string DenialDetail = "You do not have permission to access this resource";
+
 	/// <summary>
 	/// Gets the middleware execution stage. Authorization middleware runs during the Authorization stage.
 	/// </summary>
@@ -90,6 +99,8 @@ internal sealed class A3AuthorizationMiddleware(
 		if (accessToken is null)
 		{
 			return CreateDeniedResult(
+				logger,
+				context.CorrelationId,
 				"No access token is available for this message. Authorization requires a request scope "
 				+ "carrying the caller's identity.");
 		}
@@ -153,7 +164,7 @@ internal sealed class A3AuthorizationMiddleware(
 		// Evaluate When conditions on attribute-based permissions (after grants pass)
 		if (result.IsAuthorized && hasAttributes)
 		{
-			var conditionDenied = EvaluateConditions(attributes, message, accessToken);
+			var conditionDenied = EvaluateConditions(attributes, message, accessToken, context.CorrelationId);
 			if (conditionDenied is not null)
 			{
 				return conditionDenied;
@@ -162,19 +173,11 @@ internal sealed class A3AuthorizationMiddleware(
 
 		if (!result.IsAuthorized)
 		{
-			return MR.Failed(
-				new MessageProblemDetails
-				{
-					Type = "about:blank",
-					Title = "Authorization Failed",
-					ErrorCode = 403,
-					Status = 403,
-					Detail = result.FailureMessage ?? "Authorization failed",
-					Instance = string.Empty,
-				},
-				Dispatch.Serialization.SerializableValidationResult.Success(),
-				Dispatch.AuthorizationResult.Failed(
-					result.FailureMessage ?? "Authorization failed"));
+			return CreateDeniedResult(
+				logger,
+				context.CorrelationId,
+				result.FailureMessage ?? "Authorization failed",
+				"Authorization Failed");
 		}
 
 		return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
@@ -185,7 +188,8 @@ internal sealed class A3AuthorizationMiddleware(
 	private IMessageResult? EvaluateConditions(
 		RequirePermissionAttribute[] attributes,
 		IDispatchMessage message,
-		IAccessToken accessToken)
+		IAccessToken accessToken,
+		string? correlationId)
 	{
 		// Build subject attributes once (same for all permissions on this message)
 		Dictionary<string, string>? subjectAttrs = null;
@@ -202,7 +206,11 @@ internal sealed class A3AuthorizationMiddleware(
 			// Malformed expression -> deny (fail-closed)
 			if (parsedCondition is null)
 			{
-				return CreateDeniedResult($"Malformed condition expression: {attr.When}");
+				return CreateDeniedResult(
+					logger,
+					correlationId,
+					$"Malformed condition expression: {attr.When}",
+					"Condition Not Met");
 			}
 
 			// Build subject attributes lazily, once for all When conditions
@@ -212,7 +220,11 @@ internal sealed class A3AuthorizationMiddleware(
 
 			if (!conditionEvaluator.Evaluate(parsedCondition, subjectAttrs, actionAttrs, resourceAttrs))
 			{
-				return CreateDeniedResult($"Condition not met: {attr.When}");
+				return CreateDeniedResult(
+					logger,
+					correlationId,
+					$"Condition not met: {attr.When}",
+					"Condition Not Met");
 			}
 		}
 
@@ -273,21 +285,38 @@ internal sealed class A3AuthorizationMiddleware(
 		return attrs;
 	}
 
-	private static IMessageResult CreateDeniedResult(string reason)
+	/// <summary>
+	/// Builds a 403 denial. The <paramref name="reason" /> — a permission identifier, a condition expression or a
+	/// grant-evaluation failure message — is the consumer's own authorization vocabulary, so it goes to the log with
+	/// the correlation id and NEVER to the response body, which carries only <see cref="DenialDetail" />. Disclosing
+	/// it to an under-privileged caller is reconnaissance value (CWE-200); a legitimate caller cannot act on it.
+	/// ASP.NET Core's own 403 carries no reason for the same reason.
+	/// </summary>
+	private static IMessageResult CreateDeniedResult(
+		ILogger logger,
+		string? correlationId,
+		string reason,
+		string title = "Authorization Failed")
 	{
+		LogAuthorizationDenied(logger, correlationId, reason);
+
 		return MR.Failed(
 			new MessageProblemDetails
 			{
 				Type = "about:blank",
-				Title = "Condition Not Met",
+				Title = title,
 				ErrorCode = 403,
 				Status = 403,
-				Detail = reason,
+				Detail = DenialDetail,
 				Instance = string.Empty,
 			},
 			Dispatch.Serialization.SerializableValidationResult.Success(),
 			Dispatch.AuthorizationResult.Failed(reason));
 	}
+
+	[LoggerMessage(A3EventId.AuthorizationMiddlewareDenied, LogLevel.Warning,
+		"A3 authorization denied (correlation {CorrelationId}): {Reason}")]
+	private static partial void LogAuthorizationDenied(ILogger logger, string? correlationId, string reason);
 
 	private static ClaimsPrincipal BuildPrincipal(IAccessToken accessToken)
 	{

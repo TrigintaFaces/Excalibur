@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 
@@ -209,7 +209,12 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 		Invoke(UpdateLsnAfterProcessingMethod, checkpointMgr, table, next, max);
 		GetNextLsn(checkpointMgr).ShouldBe(next);
 
+		// AT the captured maximum the table is RETAINED -- the producer's window is inclusive, so there is
+		// still a transaction to deliver. It is the iteration ABOVE the maximum that ends the run.
 		Invoke(UpdateLsnAfterProcessingMethod, checkpointMgr, table, max, max);
+		GetNextLsn(checkpointMgr).ShouldBe(max);
+
+		Invoke(UpdateLsnAfterProcessingMethod, checkpointMgr, table, new byte[] { 0x40 }, max);
 		GetNextLsn(checkpointMgr).ShouldBeNull();
 	}
 

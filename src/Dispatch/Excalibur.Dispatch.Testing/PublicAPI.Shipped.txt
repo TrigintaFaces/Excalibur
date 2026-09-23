@@ -223,6 +223,7 @@ Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.VerifyFlush
 Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.VerifyGetServiceReturnsNullForUnknownType() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.VerifySendBatchDeliversAllMessages() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.VerifySendBatchHandlesEmptyBatch() -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.VerifySendBatchResultsAreOnePerInputInOrder() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.VerifySendBatchReturnsPerMessageResults() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.VerifySendDeliversMessage() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.VerifySendPreservesMessageId() -> System.Threading.Tasks.Task!
@@ -260,8 +261,10 @@ static Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.Cr
 static Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.CreateTestMessage(string! body, string? id = null) -> Excalibur.Dispatch.Transport.TransportReceivedMessage!
 static Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions.AddDispatchTesting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! destination = "test-destination", string! source = "test-source") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Dispatch.Testing.Polling.WaitHelpers.DefaultPollInterval -> System.TimeSpan
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.CreatePolicyWhoseCloseFails() -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy?
 virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyABlankTransportNameIsRefused() -> void
 virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyABoundedRegistryNeverSharesOneCircuitBetweenTransports() -> void
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyAFailedCloseSurfacesAsAFaultedTask() -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyANewPolicyIsUsableAndStartsClosed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyAnUnknownNameIsAbsentRatherThanFabricated() -> void
 virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyEveryValueTheOptionsTypeAdmitsIsAccepted() -> void
@@ -269,6 +272,7 @@ virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryCon
 virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyResetReturnsAnOpenedCircuitToService() -> System.Threading.Tasks.Task!
 virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyTheCircuitOpensOnTheConfiguredThresholdThenAdmitsAProbe() -> System.Threading.Tasks.Task!
 virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyTheSameNameReturnsTheSamePolicy() -> void
+virtual Excalibur.Dispatch.Testing.Resilience.TransportCircuitBreakerRegistryConformanceTests.VerifyTransportNamesAreMatchedWithoutRegardToCase() -> void
 virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.CreateCloudEvent() -> CloudNative.CloudEvents.CloudEvent!
 virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.Payload.get -> byte[]!
 virtual Excalibur.Dispatch.Testing.Transport.CloudEventTransportConformanceTests.SupportedModes.get -> System.Collections.Generic.IReadOnlyCollection<Excalibur.Dispatch.CloudEvents.CloudEventMode>!

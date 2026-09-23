@@ -1,13 +1,12 @@
-> SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+> SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 # Excalibur-Dispatch License
 
-This project is licensed under multiple licenses. You may choose to use this software under the terms of any of the following licenses:
+This project is licensed under multiple licenses. You may choose to use this software under the terms of any one of the following licenses:
 
-- **Excalibur License 1.0** (see [licenses/LICENSE-EXCALIBUR.txt](licenses/LICENSE-EXCALIBUR.txt))
+- **Excalibur License 1.1** (see [licenses/LICENSE-EXCALIBUR.txt](licenses/LICENSE-EXCALIBUR.txt))
 - **GNU Affero General Public License v3.0 or later (AGPL-3.0)** (see [licenses/LICENSE-AGPL-3.0.txt](licenses/LICENSE-AGPL-3.0.txt))
 - **Server Side Public License v1.0 (SSPL-1.0)** (see [licenses/LICENSE-SSPL-1.0.txt](licenses/LICENSE-SSPL-1.0.txt))
-- **Apache License 2.0** (see [licenses/LICENSE-APACHE-2.0.txt](licenses/LICENSE-APACHE-2.0.txt))
 
 ## License Selection
 
@@ -18,8 +17,10 @@ License terms listed above. You may obtain copies of the licenses in the `licens
 
 Unless otherwise stated, you agree that any contribution intentionally submitted
 for inclusion in this project is licensed to the Excalibur Project under
-the Excalibur License 1.0 and additionally grants the Excalibur Project
-the right to distribute such contributions under any of the licenses listed above.
+the Excalibur License 1.1, and additionally grants the Excalibur Project a perpetual,
+worldwide, non-exclusive, royalty-free, irrevocable right to use, modify, and distribute
+such contributions, and to license them to others under any of the licenses listed above
+or under any other license terms, including commercial license terms.
 
 ## Copyright Notice
 
@@ -36,4 +37,3 @@ For the complete text of each license, please refer to the respective files in t
 - `licenses/LICENSE-EXCALIBUR.txt`
 - `licenses/LICENSE-AGPL-3.0.txt`
 - `licenses/LICENSE-SSPL-1.0.txt`
-- `licenses/LICENSE-APACHE-2.0.txt`

@@ -122,7 +122,14 @@ builder.Services.AddExcalibur(excalibur =>
 	});
 });
 
+// Unhandled exceptions become RFC 9457 Problem Details responses, with the status code taken from
+// the exception (404 for ResourceNotFoundException, 409 for ConcurrencyException). Details of a
+// 5xx response are hidden outside Development.
+builder.Services.AddGlobalExceptionHandler();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 // Establish the ambient tenant for the request from the X-Tenant-Id header.
 // ITenantContext (and every tenant-aware component) reads this via BeginScope.

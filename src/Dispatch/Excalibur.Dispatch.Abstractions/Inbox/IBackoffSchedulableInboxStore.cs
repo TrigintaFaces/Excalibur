@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch;
@@ -57,10 +57,44 @@ public interface IBackoffSchedulableInboxStore
 	/// <c>now + IBackoffCalculator.CalculateDelay(attempt)</c>, computed by the caller.
 	/// </param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task that represents the asynchronous mark-failed-with-backoff operation.</returns>
+	/// <returns>
+	/// <see cref="InboxMarkFailedOutcome.Applied"/> when the entry was mutated and the backoff was scheduled
+	/// — scheduling is part of applying, so it has no separate outcome;
+	/// <see cref="InboxMarkFailedOutcome.EntryNotFound"/> when no such entry exists in the caller's tenant
+	/// scope; <see cref="InboxMarkFailedOutcome.AlreadyProcessed"/> when the entry is present but terminal
+	/// and the transition was refused, in which case no backoff is scheduled either.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// Carries the same three obligations as <see cref="IInboxStore.MarkFailedAsync"/> <b>about the state of
+	/// an entry</b>: an absent entry returns <see cref="InboxMarkFailedOutcome.EntryNotFound"/> rather than
+	/// throwing, a refused terminal entry is reported rather than silently ignored, and the outcome is
+	/// decided by the statement that performs the write rather than by a read taken after it.
+	/// </para>
+	/// <para>
+	/// <b>Those obligations are about the ENTRY. They do not cover the capability itself being absent.</b>
+	/// A decorator may implement this interface in order to FORWARD it and still wrap an inner store that
+	/// cannot schedule. Such a decorator reports <see cref="IInboxStoreCapabilities.SupportsBackoffScheduling"/>
+	/// as <see langword="false"/>, and calling this member anyway is a programming error — the caller ignored
+	/// the documented probe — so it throws <see cref="NotSupportedException"/> rather than degrading to a
+	/// plain mark-failed. Scheduling is part of applying here, so a silent degrade would return
+	/// <see cref="InboxMarkFailedOutcome.Applied"/> while asserting a schedule that does not exist, and
+	/// nothing downstream would ever learn otherwise.
+	/// </para>
+	/// <para>
+	/// <b>Consumer obligation: probe <see cref="IInboxStoreCapabilities.SupportsBackoffScheduling"/> before
+	/// calling this member.</b> A bare type test is not sufficient — it is satisfied by a forwarding
+	/// decorator whose inner store lacks the capability.
+	/// </para>
+	/// </remarks>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="messageId"/> or <paramref name="handlerType"/> is null or empty.</exception>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="errorMessage"/> is null.</exception>
-	ValueTask MarkFailedWithBackoffAsync(
+	/// <exception cref="NotSupportedException">
+	/// Thrown when the implementation declares this capability in order to forward it but the store behind it
+	/// cannot schedule a backoff — that is, when
+	/// <see cref="IInboxStoreCapabilities.SupportsBackoffScheduling"/> is <see langword="false"/>.
+	/// </exception>
+	ValueTask<InboxMarkFailedOutcome> MarkFailedWithBackoffAsync(
 		string messageId,
 		string handlerType,
 		string errorMessage,

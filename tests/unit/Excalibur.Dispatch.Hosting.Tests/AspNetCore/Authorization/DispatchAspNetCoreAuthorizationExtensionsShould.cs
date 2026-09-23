@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Hosting.AspNetCore;
@@ -49,11 +49,10 @@ public sealed class DispatchAspNetCoreAuthorizationExtensionsShould
 
 		_ = builder.UseAspNetCoreAuthorization();
 
-		var provider = services.BuildServiceProvider();
+		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AspNetCoreAuthorizationOptions>>().Value;
 		options.Enabled.ShouldBeTrue();
 		options.RequireAuthenticatedUser.ShouldBeTrue();
-		options.DefaultPolicy.ShouldBeNull();
 	}
 
 	[Fact]
@@ -68,14 +67,34 @@ public sealed class DispatchAspNetCoreAuthorizationExtensionsShould
 		{
 			o.Enabled = false;
 			o.RequireAuthenticatedUser = false;
-			o.DefaultPolicy = "MyPolicy";
 		});
 
-		var provider = services.BuildServiceProvider();
+		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AspNetCoreAuthorizationOptions>>().Value;
 		options.Enabled.ShouldBeFalse();
 		options.RequireAuthenticatedUser.ShouldBeFalse();
-		options.DefaultPolicy.ShouldBe("MyPolicy");
+	}
+
+	/// <summary>
+	/// A consumer configuring one option must not silently acquire a changed value for the other. There is
+	/// deliberately no default-policy option here — the host's own <c>AuthorizationOptions.DefaultPolicy</c>
+	/// governs a bare <c>[Authorize]</c> — so the two options below are the whole configurable surface and
+	/// each must be independently settable.
+	/// </summary>
+	[Fact]
+	public void RegisterOptions_LeavingUnconfiguredOptionsAtTheirDefaults()
+	{
+		var services = new ServiceCollection();
+		var builder = A.Fake<IDispatchBuilder>();
+		_ = A.CallTo(() => builder.Services).Returns(services);
+		_ = A.CallTo(() => builder.UseMiddleware<AspNetCoreAuthorizationMiddleware>()).Returns(builder);
+
+		_ = builder.UseAspNetCoreAuthorization(o => o.RequireAuthenticatedUser = false);
+
+		using var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<AspNetCoreAuthorizationOptions>>().Value;
+		options.RequireAuthenticatedUser.ShouldBeFalse();
+		options.Enabled.ShouldBeTrue();
 	}
 
 	[Fact]

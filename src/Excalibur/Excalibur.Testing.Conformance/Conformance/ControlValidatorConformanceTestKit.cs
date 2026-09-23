@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 #pragma warning disable IDE0270 // Null check can be simplified
@@ -201,8 +201,15 @@ public abstract class ControlValidatorConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that <see cref="IControlValidator.ValidateAsync"/> returns result with IsEffective=false for unsupported controls.
+	/// Verifies that <see cref="IControlValidator.ValidateAsync"/> reports <c>NotVerified</c> for a control the
+	/// validator does not support.
 	/// </summary>
+	/// <remarks>
+	/// A control the validator does not support cannot have been examined, so neither verdict is available to it.
+	/// <c>Effective</c> is an assurance nobody earned; <c>Deficient</c> is an accusation nobody earned, and it is the
+	/// more damaging of the two, because a deficiency travels into the report a consumer hands to an assessor as a
+	/// finding against them. <c>NotVerified</c> is the only outcome the validator is entitled to produce here.
+	/// </remarks>
 	public virtual async Task ValidateAsync_UnsupportedControl_ShouldReturnFailure()
 	{
 		// Arrange
@@ -218,10 +225,15 @@ public abstract class ControlValidatorConformanceTestKit : ConformanceTestKit
 				"Expected ValidateAsync to return non-null result for unsupported control.");
 		}
 
-		if (result.IsEffective)
+		if (result.Outcome != ControlOutcome.NotVerified)
 		{
 			throw new TestFixtureAssertionException(
-				"Expected ValidateAsync to return IsEffective=false for unsupported control.");
+				$"Expected ValidateAsync to report NotVerified for an unsupported control, but it "
+				+ $"reported {result.Outcome}. A control the validator does not support cannot have been "
+				+ "examined, so it may claim neither verdict: Effective is an assurance nobody earned, and "
+				+ "Deficient is an accusation nobody earned. A deficiency reaches the assessor as a finding "
+				+ "against the consumer, so reporting one for a control that was never examined is the more "
+				+ "damaging of the two errors. NotVerified is the only outcome available here.");
 		}
 	}
 
@@ -250,10 +262,34 @@ public abstract class ControlValidatorConformanceTestKit : ConformanceTestKit
 				"Expected ControlId property to be non-null and non-empty.");
 		}
 
-		if (result.EffectivenessScore is < 0 or > 100)
+		// This used to test "is the score between 0 and 100", which no validator could fail: the
+		// interesting wrong answers -- 75, 50, 30 -- are all inside that range, and the shipped report
+		// reads every one of them as a deficiency the consumer never earned. A range check over a
+		// continuous-looking scale cannot detect a wrong point on that scale. These two can.
+		if (!Enum.IsDefined(result.EffectivenessScore))
 		{
 			throw new TestFixtureAssertionException(
-				$"Expected EffectivenessScore to be between 0 and 100, but got {result.EffectivenessScore}.");
+				$"Expected the reported effectiveness to be a declared ControlEffectiveness band, but got "
+				+ $"the undeclared value {(int)result.EffectivenessScore}. The bands are a closed, ordered "
+				+ "set -- a value outside it has no place in that order, so nothing downstream can say what "
+				+ "it means, and a plausible-looking number reaches an external assessor as a finding "
+				+ "against you.");
+		}
+
+		var impliedByBand = result.EffectivenessScore switch
+		{
+			ControlEffectiveness.Effective => ControlOutcome.Effective,
+			ControlEffectiveness.Unverified => ControlOutcome.NotVerified,
+			_ => ControlOutcome.Deficient,
+		};
+
+		if (result.Outcome != impliedByBand)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected Outcome to be {impliedByBand}, which is what a band of "
+				+ $"{result.EffectivenessScore} asserts, but the result reports {result.Outcome}. A verdict "
+				+ "that contradicts its own band is a self-contradictory result, and it travels into the "
+				+ "document handed to an external assessor.");
 		}
 
 		if (result.ValidatedAt == default)
@@ -339,10 +375,16 @@ public abstract class ControlValidatorConformanceTestKit : ConformanceTestKit
 	/// </summary>
 	/// <remarks>
 	/// This arm was named <c>ShouldReturnExceptions</c> and its body was an <c>if</c> with nothing in
-	/// it, so every implementation passed it, including one that fabricated a clean result. A validator
-	/// asked about a control outside <see cref="IControlValidator.SupportedControls"/> ran no test, so
-	/// <see cref="TestOutcome.NoExceptions"/> - which an assessor reads as "tested, and it held" - is the
-	/// one outcome it must not report. Any other outcome is left to the implementation.
+	/// it, so every implementation passed it, including one that fabricated a clean result. Tightening it
+	/// to reject <see cref="TestOutcome.NoExceptions"/> closed the fabricated-assurance half and left the
+	/// fabricated-accusation half open: a validator could report <see cref="TestOutcome.ControlFailure"/>
+	/// or <see cref="TestOutcome.SignificantExceptions"/> about a control it never examined and still pass
+	/// conformance. That is the more damaging direction, and this kit's own sibling arm
+	/// (<see cref="ValidateAsync_UnsupportedControl_ShouldReturnFailure"/>) already says so: an accusation
+	/// nobody earned travels into the SOC 2 report a consumer hands an assessor, as a finding against them.
+	/// A validator that ran no test may claim neither verdict, so <see cref="TestOutcome.NotTested"/> is the
+	/// only outcome available here - matching the sibling's single-value requirement rather than excluding
+	/// one value and permitting the rest.
 	/// </remarks>
 	public virtual async Task RunTestAsync_UnsupportedControl_ShouldNotFabricateAPass()
 	{
@@ -360,11 +402,15 @@ public abstract class ControlValidatorConformanceTestKit : ConformanceTestKit
 				"Expected RunTestAsync to return non-null result for unsupported control.");
 		}
 
-		if (result.Outcome == TestOutcome.NoExceptions)
+		if (result.Outcome != TestOutcome.NotTested)
 		{
 			throw new TestFixtureAssertionException(
-				"Expected any outcome other than NoExceptions for an unsupported control. No test ran, so "
-				+ "a clean result attests to a verification that did not happen; NotTested says only what is "
+				$"Expected RunTestAsync to report NotTested for an unsupported control, but it reported "
+				+ $"{result.Outcome}. A control the validator does not support cannot have been examined, so "
+				+ "it may claim neither direction: NoExceptions attests to a verification that did not happen, "
+				+ "and ControlFailure or SignificantExceptions accuse a control nobody tested. Soc2Report "
+				+ "collects every non-NoExceptions outcome into the report findings, so a fabricated exception "
+				+ "reaches an external assessor as a finding against the consumer. NotTested says only what is "
 				+ "true.");
 		}
 	}

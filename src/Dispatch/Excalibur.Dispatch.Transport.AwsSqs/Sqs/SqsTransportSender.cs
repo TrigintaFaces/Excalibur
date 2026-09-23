@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Text;
 
 using Amazon.SQS;
 using Amazon.SQS.Model;
@@ -80,9 +79,7 @@ internal sealed partial class SqsTransportSender : ITransportSender
 			{
 				IsSuccess = true,
 				MessageId = response.MessageId,
-				SequenceNumber = !string.IsNullOrEmpty(response.SequenceNumber)
-					? long.Parse(response.SequenceNumber, CultureInfo.InvariantCulture)
-					: null,
+				SequenceNumber = ParseSequenceNumber(response.SequenceNumber),
 				AcceptedAt = DateTimeOffset.UtcNow,
 			};
 		}
@@ -94,6 +91,11 @@ internal sealed partial class SqsTransportSender : ITransportSender
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// The returned <see cref="BatchSendResult.Results"/> is positional: element <c>i</c> is the result
+	/// for <c>messages[i]</c>, and there is exactly one element per input. A caller recovering from a
+	/// partial failure can therefore retry precisely the inputs that failed.
+	/// </remarks>
 	public async Task<BatchSendResult> SendBatchAsync(IReadOnlyList<TransportMessage> messages, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(messages);
@@ -104,9 +106,15 @@ internal sealed partial class SqsTransportSender : ITransportSender
 		}
 
 		var stopwatch = ValueStopwatch.StartNew();
-		var allResults = new List<SendResult>(messages.Count);
-		var successCount = 0;
-		var failureCount = 0;
+
+		// Results are held positionally: slot i is the result for messages[i]. SQS returns the entry ID
+		// we issued in both the Successful and Failed arrays, so each result is placed against the input
+		// it came from rather than appended in arrival order. Appending would order the batch as all
+		// successes then all failures, which leaves a caller recovering from a partial failure with no
+		// way to tell which inputs to retry -- and on an at-least-once transport, retrying the whole
+		// batch to be safe manufactures duplicates of messages that were already delivered.
+		var results = new SendResult?[messages.Count];
+		Exception? batchException = null;
 
 		try
 		{
@@ -131,52 +139,81 @@ internal sealed partial class SqsTransportSender : ITransportSender
 
 				foreach (var success in batchResponse.Successful)
 				{
-					allResults.Add(new SendResult
+					if (TryResolveInputIndex(success.Id, chunkStart, chunkEnd, out var index))
 					{
-						IsSuccess = true,
-						MessageId = success.MessageId,
-						SequenceNumber = !string.IsNullOrEmpty(success.SequenceNumber)
-							? long.Parse(success.SequenceNumber, CultureInfo.InvariantCulture)
-							: null,
-						AcceptedAt = DateTimeOffset.UtcNow,
-					});
-					successCount++;
+						results[index] = new SendResult
+						{
+							IsSuccess = true,
+							MessageId = success.MessageId,
+							SequenceNumber = ParseSequenceNumber(success.SequenceNumber),
+							AcceptedAt = DateTimeOffset.UtcNow,
+						};
+					}
+					else
+					{
+						LogUnresolvedBatchEntry(Destination, success.Id ?? string.Empty);
+					}
 				}
 
 				foreach (var failure in batchResponse.Failed)
 				{
-					allResults.Add(new SendResult
+					if (TryResolveInputIndex(failure.Id, chunkStart, chunkEnd, out var index))
 					{
-						IsSuccess = false,
-						Error = new SendError
+						results[index] = new SendResult
 						{
-							Code = failure.Code,
-							Message = failure.Message,
-							IsRetryable = failure.SenderFault != true,
-						},
-					});
-					failureCount++;
+							IsSuccess = false,
+							Error = new SendError
+							{
+								Code = failure.Code,
+								Message = failure.Message,
+								IsRetryable = failure.SenderFault != true,
+							},
+						};
+					}
+					else
+					{
+						LogUnresolvedBatchEntry(Destination, failure.Id ?? string.Empty);
+					}
 				}
 			}
 		}
 		catch (Exception ex)
 		{
 			LogBatchSendFailed(Destination, messages.Count, ex);
+			batchException = ex;
+		}
 
-			for (var i = allResults.Count; i < messages.Count; i++)
+		// Every input gets exactly one result. A slot still empty here is an input the broker returned
+		// no per-entry result for -- either because the call failed before reaching it, or because the
+		// response omitted it. Its outcome is unknown, so it is reported as a retryable failure: on an
+		// at-least-once transport a duplicate is recoverable and a silent loss is not.
+		var successCount = 0;
+		var finalResults = new SendResult[messages.Count];
+		for (var i = 0; i < finalResults.Length; i++)
+		{
+			finalResults[i] = results[i] ?? (batchException is not null
+				? SendResult.Failure(SendError.FromException(batchException, IsTransient(batchException)))
+				: SendResult.Failure(new SendError
+				{
+					Code = "NoBatchResult",
+					Message = "SQS returned no result entry for this message; its delivery status is unknown.",
+					IsRetryable = true,
+				}));
+
+			if (finalResults[i].IsSuccess)
 			{
-				allResults.Add(SendResult.Failure(SendError.FromException(ex, IsTransient(ex))));
-				failureCount++;
+				successCount++;
 			}
 		}
+
 		LogBatchSent(Destination, messages.Count, successCount);
 
 		return new BatchSendResult
 		{
 			TotalMessages = messages.Count,
 			SuccessCount = successCount,
-			FailureCount = failureCount,
-			Results = allResults,
+			FailureCount = messages.Count - successCount,
+			Results = finalResults,
 			Duration = stopwatch.Elapsed,
 		};
 	}
@@ -214,169 +251,203 @@ internal sealed partial class SqsTransportSender : ITransportSender
 		return ValueTask.CompletedTask;
 	}
 
-	private SendMessageRequest CreateSendRequest(TransportMessage message)
+	/// <summary>
+	/// Builds a single SQS request from a <see cref="TransportMessage"/>. Both the single-send and the
+	/// batch path go through here, so a field can only reach the wire on one path if it is deleted from
+	/// the other -- the two paths previously carried separate mappings and the batch copy fell behind.
+	/// </summary>
+	private static SqsOutboundMapping MapMessage(TransportMessage message)
 	{
-		var request = new SendMessageRequest
-		{
-			QueueUrl = Destination,
-			MessageBody = Encoding.UTF8.GetString(message.Body.Span),
-		};
+		var body = AwsSqsMessageBodyCodec.EncodeBody(message.Body.Span, out var isBase64Body);
 
-		// Map well-known properties to SQS native concepts
+		string? messageGroupId = null;
 		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.OrderingKey, out var orderingKey) &&
 			orderingKey is string orderingKeyStr)
 		{
-			request.MessageGroupId = orderingKeyStr;
+			messageGroupId = orderingKeyStr;
 		}
 
+		string? messageDeduplicationId = null;
 		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.DeduplicationId, out var dedupId) &&
 			dedupId is string dedupIdStr)
 		{
-			request.MessageDeduplicationId = dedupIdStr;
+			messageDeduplicationId = dedupIdStr;
 		}
 
-		ApplyDelay(request, message);
+		Dictionary<string, MessageAttributeValue>? attributes = null;
 
-		// Copy custom properties as message attributes
+		// Copy custom properties as message attributes.
 		if (message.Properties.Count > 0)
 		{
-			request.MessageAttributes = new Dictionary<string, MessageAttributeValue>(
+			attributes = new Dictionary<string, MessageAttributeValue>(
 				message.Properties.Count, StringComparer.Ordinal);
 
 			foreach (var (key, value) in message.Properties)
 			{
-				if (!key.StartsWith("dispatch.", StringComparison.Ordinal))
+				// "dispatch."-prefixed keys are transport hints consumed above, not consumer metadata.
+				// The body-encoding attribute is written authoritatively below: a value that survived a
+				// previous round trip in Properties would otherwise mislabel this body.
+				if (key.StartsWith("dispatch.", StringComparison.Ordinal) ||
+					string.Equals(key, AwsSqsMessageAttributes.BodyEncoding, StringComparison.Ordinal))
 				{
-					request.MessageAttributes[key] = new MessageAttributeValue
-					{
-						DataType = "String",
-						StringValue = value?.ToString() ?? string.Empty,
-					};
+					continue;
 				}
+
+				attributes[key] = StringAttribute(value?.ToString() ?? string.Empty);
 			}
 		}
 
-		// Add message metadata as attributes
-		if (message.ContentType is not null)
+		// Message metadata, written last so it wins over a same-named custom property.
+		AddIfPresent(ref attributes, "content-type", message.ContentType);
+		AddIfPresent(ref attributes, OutboxHeaderNames.CorrelationId, message.CorrelationId);
+		AddIfPresent(ref attributes, OutboxHeaderNames.CausationId, message.CausationId);
+		AddIfPresent(ref attributes, "message-type", message.MessageType);
+
+		if (isBase64Body)
 		{
-			request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);
-			request.MessageAttributes["content-type"] = new MessageAttributeValue
-			{
-				DataType = "String",
-				StringValue = message.ContentType,
-			};
+			AddIfPresent(ref attributes, AwsSqsMessageAttributes.BodyEncoding, AwsSqsMessageAttributes.BodyEncodingBase64);
 		}
 
-		if (message.CorrelationId is not null)
+		return new SqsOutboundMapping
 		{
-			request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);
-			request.MessageAttributes[OutboxHeaderNames.CorrelationId] = new MessageAttributeValue
-			{
-				DataType = "String",
-				StringValue = message.CorrelationId,
-			};
+			Body = body,
+			MessageGroupId = messageGroupId,
+			MessageDeduplicationId = messageDeduplicationId,
+			DelaySeconds = ComputeDelaySeconds(message),
+			MessageAttributes = attributes,
+		};
+	}
+
+	private static void AddIfPresent(
+		ref Dictionary<string, MessageAttributeValue>? attributes,
+		string name,
+		string? value)
+	{
+		if (value is null)
+		{
+			return;
 		}
 
-		if (message.CausationId is not null)
+		attributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);
+		attributes[name] = StringAttribute(value);
+	}
+
+	private static MessageAttributeValue StringAttribute(string value) =>
+		new() { DataType = AwsSqsMessageAttributes.StringDataType, StringValue = value };
+
+	private static int? ComputeDelaySeconds(TransportMessage message)
+	{
+		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.DelaySeconds, out var delayObj) &&
+			delayObj is string delayStr && int.TryParse(delayStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var delaySec))
 		{
-			request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);
-			request.MessageAttributes[OutboxHeaderNames.CausationId] = new MessageAttributeValue
-			{
-				DataType = "String",
-				StringValue = message.CausationId,
-			};
+			return Math.Clamp(delaySec, 0, 900);
 		}
 
-		if (message.MessageType is not null)
+		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.ScheduledTime, out var scheduledObj) &&
+			scheduledObj is string scheduledStr &&
+			DateTimeOffset.TryParse(scheduledStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var scheduledTime))
 		{
-			request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);
-			request.MessageAttributes["message-type"] = new MessageAttributeValue
+			var computed = (int)Math.Ceiling((scheduledTime - DateTimeOffset.UtcNow).TotalSeconds);
+			if (computed > 0)
 			{
-				DataType = "String",
-				StringValue = message.MessageType,
-			};
+				return Math.Clamp(computed, 0, 900);
+			}
+		}
+
+		return null;
+	}
+
+	private SendMessageRequest CreateSendRequest(TransportMessage message)
+	{
+		var mapping = MapMessage(message);
+
+		var request = new SendMessageRequest
+		{
+			QueueUrl = Destination,
+			MessageBody = mapping.Body,
+		};
+
+		if (mapping.MessageGroupId is not null)
+		{
+			request.MessageGroupId = mapping.MessageGroupId;
+		}
+
+		if (mapping.MessageDeduplicationId is not null)
+		{
+			request.MessageDeduplicationId = mapping.MessageDeduplicationId;
+		}
+
+		if (mapping.DelaySeconds is { } delaySeconds)
+		{
+			request.DelaySeconds = delaySeconds;
+		}
+
+		if (mapping.MessageAttributes is not null)
+		{
+			request.MessageAttributes = mapping.MessageAttributes;
 		}
 
 		return request;
 	}
 
-	private SendMessageBatchRequestEntry CreateBatchEntry(TransportMessage message, int index)
+	private static SendMessageBatchRequestEntry CreateBatchEntry(TransportMessage message, int index)
 	{
+		var mapping = MapMessage(message);
+
 		var entry = new SendMessageBatchRequestEntry
 		{
 			Id = index.ToString(CultureInfo.InvariantCulture),
-			MessageBody = Encoding.UTF8.GetString(message.Body.Span),
+			MessageBody = mapping.Body,
 		};
 
-		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.OrderingKey, out var orderingKey) &&
-			orderingKey is string orderingKeyStr)
+		if (mapping.MessageGroupId is not null)
 		{
-			entry.MessageGroupId = orderingKeyStr;
+			entry.MessageGroupId = mapping.MessageGroupId;
 		}
 
-		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.DeduplicationId, out var dedupId) &&
-			dedupId is string dedupIdStr)
+		if (mapping.MessageDeduplicationId is not null)
 		{
-			entry.MessageDeduplicationId = dedupIdStr;
+			entry.MessageDeduplicationId = mapping.MessageDeduplicationId;
 		}
 
-		// Apply delay
-		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.DelaySeconds, out var delayObj) &&
-			delayObj is string delayStr && int.TryParse(delayStr, out var delaySec))
+		if (mapping.DelaySeconds is { } delaySeconds)
 		{
-			entry.DelaySeconds = Math.Clamp(delaySec, 0, 900);
-		}
-		else if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.ScheduledTime, out var scheduledObj) &&
-			scheduledObj is string scheduledStr && DateTimeOffset.TryParse(scheduledStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var scheduledTime))
-		{
-			var computed = (int)Math.Ceiling((scheduledTime - DateTimeOffset.UtcNow).TotalSeconds);
-			if (computed > 0)
-			{
-				entry.DelaySeconds = Math.Clamp(computed, 0, 900);
-			}
+			entry.DelaySeconds = delaySeconds;
 		}
 
-		// Copy custom properties as message attributes
-		if (message.Properties.Count > 0)
+		if (mapping.MessageAttributes is not null)
 		{
-			entry.MessageAttributes = new Dictionary<string, MessageAttributeValue>(
-				message.Properties.Count, StringComparer.Ordinal);
-
-			foreach (var (key, value) in message.Properties)
-			{
-				if (!key.StartsWith("dispatch.", StringComparison.Ordinal))
-				{
-					entry.MessageAttributes[key] = new MessageAttributeValue
-					{
-						DataType = "String",
-						StringValue = value?.ToString() ?? string.Empty,
-					};
-				}
-			}
+			entry.MessageAttributes = mapping.MessageAttributes;
 		}
 
 		return entry;
 	}
 
-	private static void ApplyDelay(SendMessageRequest request, TransportMessage message)
-	{
-		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.DelaySeconds, out var delayObj) &&
-			delayObj is string delayStr && int.TryParse(delayStr, out var delaySec))
-		{
-			request.DelaySeconds = Math.Clamp(delaySec, 0, 900);
-			return;
-		}
+	/// <summary>
+	/// Reads the broker's sequence number without letting it turn an accepted message into a failure.
+	/// </summary>
+	/// <remarks>
+	/// SQS defines <c>SequenceNumber</c> as a 128-bit decimal string and observed FIFO values exceed
+	/// <see cref="long.MaxValue"/>, so the value does not always fit the <see cref="SendResult"/>
+	/// contract's <see cref="long"/>. The sequence number is optional metadata reported after the broker
+	/// has already accepted the message; a value that does not fit is dropped rather than allowed to
+	/// report a delivered message as failed, which would make a correctly-written caller retry it.
+	/// </remarks>
+	private static long? ParseSequenceNumber(string? sequenceNumber) =>
+		!string.IsNullOrEmpty(sequenceNumber) &&
+		long.TryParse(sequenceNumber, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+			? parsed
+			: null;
 
-		if (message.Properties.TryGetValue(TransportTelemetryConstants.PropertyKeys.ScheduledTime, out var scheduledObj) &&
-			scheduledObj is string scheduledStr && DateTimeOffset.TryParse(scheduledStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var scheduledTime))
-		{
-			var computed = (int)Math.Ceiling((scheduledTime - DateTimeOffset.UtcNow).TotalSeconds);
-			if (computed > 0)
-			{
-				request.DelaySeconds = Math.Clamp(computed, 0, 900);
-			}
-		}
-	}
+	/// <summary>
+	/// Resolves an SQS batch result entry ID back to the index of the input message it came from.
+	/// Bounding the index to the chunk that was actually sent rejects an ID we did not issue rather than
+	/// attributing a result to the wrong input.
+	/// </summary>
+	private static bool TryResolveInputIndex(string? entryId, int chunkStart, int chunkEnd, out int index) =>
+		int.TryParse(entryId, NumberStyles.Integer, CultureInfo.InvariantCulture, out index) &&
+		index >= chunkStart &&
+		index < chunkEnd;
 
 	private static bool IsTransient(Exception ex) =>
 		ex is AmazonSQSException sqsEx && sqsEx.ErrorCode is
@@ -401,4 +472,25 @@ internal sealed partial class SqsTransportSender : ITransportSender
 	[LoggerMessage(AwsSqsEventId.TransportSenderDisposed, LogLevel.Debug,
 		"SQS transport sender disposed for {Destination}")]
 	private partial void LogDisposed(string destination);
+
+	[LoggerMessage(AwsSqsEventId.TransportSenderUnresolvedBatchEntry, LogLevel.Warning,
+		"SQS transport sender: batch result for {Destination} carried entry ID {EntryId}, which was not issued for that batch; the corresponding message is reported with an unknown outcome")]
+	private partial void LogUnresolvedBatchEntry(string destination, string entryId);
+
+	/// <summary>
+	/// The single mapping of a <see cref="TransportMessage"/> onto the SQS wire shape, shared by the
+	/// single-send request and the batch entry.
+	/// </summary>
+	private sealed class SqsOutboundMapping
+	{
+		public string Body { get; init; } = string.Empty;
+
+		public string? MessageGroupId { get; init; }
+
+		public string? MessageDeduplicationId { get; init; }
+
+		public int? DelaySeconds { get; init; }
+
+		public Dictionary<string, MessageAttributeValue>? MessageAttributes { get; init; }
+	}
 }

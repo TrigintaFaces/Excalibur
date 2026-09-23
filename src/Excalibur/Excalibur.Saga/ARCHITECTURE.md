@@ -110,6 +110,15 @@ processed. The set of remembered ids is bounded at **1000 per saga instance** an
 bound, a redelivery of an evicted event **re-executes the step**. This is a bounded window, not an
 approximation of exactly-once.
 
+**The event id is derived from the NAMESPACE-QUALIFIED type name, the saga id, and the step id** —
+`{Type.FullName}:{SagaId}:{StepId}`, or `{Type.FullName}:{SagaId}` when no step id is set. The qualification
+is load-bearing and is part of the guarantee, not an implementation detail: two distinct event types that
+share a simple name in different namespaces are two distinct events, and a key derived from the simple name
+would collapse them onto one, so the second would be discarded as a duplicate and **never execute**. That is
+the opposite failure direction from the bounded window above — the window's failure is re-execution, which
+an idempotent step absorbs; a collision's failure is zero execution, which no consumer obligation on this
+page covers and which emits the same log line a correct dedup emits.
+
 **Consumer obligation:** saga steps **MUST be idempotent**. If a saga can process more than 1000 events, or you
 need dedup with no bound, place the transactional inbox in front of the saga — the saga's own set is not a
 substitute for it.
@@ -125,6 +134,25 @@ still inside the window and asserting the step does not run again, and a livenes
 bound and asserting that a redelivery of the evicted first event **does** run again. The liveness arm is the
 load-bearing one — it fails the moment the bound or the eviction policy changes without this paragraph changing
 with it.
+
+**Both of those arms hold the state in memory, so neither can observe a store that loses the set.** They
+hand the coordinator the same object on every load, which is the right shape for testing the dedup
+decision and the wrong shape for testing whether the decision survives persistence. A third arm covers
+that half: it round-trips a derived saga state through the serializer every durable store persists
+through and asserts the remembered ids come back, with a plain settable property asserted first as a
+control so a broken round trip cannot be mistaken for a lost set.
+
+A fourth arm binds the key derivation itself: two event types deliberately given the **same simple name in
+sibling namespaces** are delivered to one saga at one step, and both must execute. It carries a fixture
+control asserting the two types really do collide on their simple name (so a rename cannot make the arm pass
+vacuously) and a liveness control asserting a true redelivery of the *same* type is still deduplicated (so a
+derivation that stopped deduplicating anything at all fails rather than passes). Reverting the derivation to
+the simple type name turns the first two arms red.
+
+**Why that arm is load-bearing rather than redundant.** The remembered ids live in a get-only collection,
+which the serializer writes and then discards on read unless the property can be populated. When that
+happens the set returns empty, every event looks new, and the bound stated above is not 1000 but zero —
+the guarantee reads as satisfied while nothing is deduplicated anywhere durable.
 
 ## Consumer obligations
 
@@ -246,3 +274,73 @@ same transaction as the state — rather than from the dispatch.
 **Known gap.** Closing this requires the messages to be written in the same atomic unit as the saga
 state, which is a store-contract change across every provider. Until then the guarantee above is the
 one that holds.
+
+## Timeout delivery guarantee
+
+A scheduled saga timeout is delivered **at-least-once**. The duplicate window is bounded by the claim
+lease: a processor leases a due timeout before delivering it, and if that processor stalls for longer
+than the lease without completing, another processor may re-claim and deliver the same timeout.
+**Timeout handlers must therefore be idempotent.** A timeout delivered twice is inside this contract; a
+timeout delivered zero times and then retired is not.
+
+**How the floor is held.** A timeout row is retired only after a dispatch that both returned *and*
+reported success. This distinction is load-bearing, because a dispatch can fail **without throwing**:
+the timeout middleware returns an unsuccessful result rather than raising when its throw-on-timeout
+option is disabled, and the rate-limiting middleware returns one when the limit is exceeded. Retiring
+on the strength of "the call returned" would delete a timeout that was never delivered, leaving the
+saga waiting forever for something that no longer exists. The delivery service inspects the result and
+raises on an unsuccessful one, which reaches the handler that deliberately does **not** retire the row,
+so the claim lapses and the timeout is re-delivered on a later poll.
+
+This closes the case where the dispatch *reported* a failure. It does not establish that a handler ran —
+see the first known gap below, which is the wider hole and is not yet closed.
+
+**Evidence.** `SagaTimeoutDeliveryServiceShould.NotMarkDelivered_WhenDispatchReturnsFailedResultWithoutThrowing`
+covers the returned-but-unsuccessful path, and
+`SagaTimeoutDeliveryServiceShould.NotMarkDelivered_WhenDispatchFails` covers the throwing path. Their
+liveness partner is `SagaTimeoutDeliveryServiceShould.ProcessDueTimeouts_WhenTimeoutsExist`, which
+asserts that a successful dispatch still retires the row — without it, a service that never retired
+anything would satisfy both safety arms.
+
+Ownership is covered by
+`InMemorySagaTimeoutStoreShould.RefuseAStaleClaimantAfterTheLeaseWasTakenOver_AndStillLetTheLiveOneRetire`,
+which constructs the stale-claimant interleaving directly — claim, let the lease lapse, re-claim, then
+attempt the first claim's retirement — and asserts both halves: the stale claimant is refused and the
+row survives, and the live claimant still retires it. Cross-tenant confinement of the same call is
+covered by `InMemorySagaTimeoutStoreTenantIsolationShould.ConfineAMarkDeliveredToTheCallingTenant`,
+which shows that holding a valid claim is not sufficient when the ambient tenant does not own the row.
+
+### Known gaps
+
+- **A successful dispatch is not proof that a handler ran, and the row is retired anyway.** Inspecting
+  the result closes the case where the dispatch reported failure; it does not establish that a timeout
+  handler was reached. Four reachable paths end in a successful result with no handler invocation and the
+  row deleted: a registered timeout type that is dispatchable but is not a saga event is ignored by the
+  saga middleware; a saga that does not handle the event returns without acting; a host that composes the
+  timeout delivery service without the saga handling middleware silently delivers nothing at all; and a
+  delivery suppressed as a duplicate by an inbox reports success while the competing attempt may still
+  fail. The first three are deterministic and need no concurrency. The common cause is that each of those
+  layers can decline to act and none of them can report that it declined, so the caller cannot
+  distinguish "handled" from "ignored". **UNVERIFIED**, and the widest of the gaps listed here.
+- ~~Retirement is not claim-conditional.~~ **Closed.** Retirement now requires the claim it is
+  completing. `ClaimDueTimeoutsAsync` returns each timeout paired with a per-claim token, and retirement
+  takes that pair and reports whether it retired the row or found the claim superseded. Every store makes
+  the ownership test and the removal one atomic step — a single conditional `DELETE … AND ClaimedBy = …`
+  on the relational stores, one lock on the in-memory store — so there is no window between testing
+  ownership and acting on it. A processor that stalls past its lease is refused and cannot destroy the
+  live claimant's retry. The retirement call is only reachable from a claim, so retiring a timeout you do
+  not hold is not expressible: the diagnostic read returns bare timeouts and claims nothing.
+- **A timeout whose message type does not resolve in the running process is retired permanently.**
+  Resolution is limited to the types the host registered during composition, which is a deliberate
+  restriction — resolving an arbitrary stored type name would let stored data select any type in the
+  process. The consequence is that during a rolling deployment an instance running the older build can
+  permanently retire a timeout that only the newer build can handle. **UNVERIFIED.**
+- **A dispatch satisfied without invoking a handler counts as delivered.** A result that succeeds
+  because it was served from cache, or suppressed as a duplicate, currently retires the row even though
+  no timeout handler ran. Treating those as undelivered is not simply a tightening: if the suppression
+  is durable, the row would never retire and the timeout would be re-polled forever, so the correct
+  rule has to preserve liveness as well as safety. **UNVERIFIED.**
+
+**Consumer obligation.** Make timeout handlers idempotent, and do not rely on a timeout firing exactly
+once. If a timeout drives work that must not be lost, have the handler record its own completion
+durably rather than inferring it from the timeout having been delivered.

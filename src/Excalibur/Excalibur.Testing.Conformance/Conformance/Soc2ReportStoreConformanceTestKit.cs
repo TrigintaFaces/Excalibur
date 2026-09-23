@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 #pragma warning disable IDE0270 // Null check can be simplified
@@ -78,7 +78,7 @@ public abstract class Soc2ReportStoreConformanceTestKit : ConformanceTestKit
 	/// <param name="title">Optional title. Default is "Test SOC 2 Report".</param>
 	/// <param name="periodStart">Optional period start. Default is 6 months ago.</param>
 	/// <param name="periodEnd">Optional period end. Default is now.</param>
-	/// <param name="opinion">The auditor opinion. Default is Unqualified.</param>
+	/// <param name="overallLevel"> The overall compliance level this library determined. </param>
 	/// <param name="tenantId">Optional tenant identifier for multi-tenant isolation.</param>
 	/// <param name="generatedAt">Optional generation timestamp. Default is now.</param>
 	/// <param name="exceptionCount">Number of exceptions to add. Default is 0.</param>
@@ -89,7 +89,7 @@ public abstract class Soc2ReportStoreConformanceTestKit : ConformanceTestKit
 		string? title = null,
 		DateTimeOffset? periodStart = null,
 		DateTimeOffset? periodEnd = null,
-		AuditorOpinion opinion = AuditorOpinion.Unqualified,
+		ComplianceLevel overallLevel = ComplianceLevel.FullyCompliant,
 		string? tenantId = null,
 		DateTimeOffset? generatedAt = null,
 		int exceptionCount = 0)
@@ -120,7 +120,7 @@ public abstract class Soc2ReportStoreConformanceTestKit : ConformanceTestKit
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = CreateMinimalSystemDescription(),
 			ControlSections = [CreateMinimalControlSection()],
-			Opinion = opinion,
+			OverallLevel = overallLevel,
 			Exceptions = exceptions,
 			GeneratedAt = generatedAt ?? now,
 			TenantId = tenantId
@@ -193,7 +193,7 @@ public abstract class Soc2ReportStoreConformanceTestKit : ConformanceTestKit
 			if (retrieved.ReportId != report.ReportId ||
 				retrieved.Title != report.Title ||
 				retrieved.ReportType != report.ReportType ||
-				retrieved.Opinion != report.Opinion)
+				retrieved.OverallLevel != report.OverallLevel)
 			{
 				throw new TestFixtureAssertionException(
 					"SaveReportAsync should persist all report properties correctly");

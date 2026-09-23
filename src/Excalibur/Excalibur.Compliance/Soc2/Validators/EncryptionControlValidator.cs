@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 
@@ -50,7 +50,13 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 			ControlSec001 => await ValidateEncryptionAtRestAsync(cancellationToken).ConfigureAwait(false),
 			ControlSec002 => ValidateEncryptionInTransit(),
 			ControlSec003 => await ValidateKeyManagementAsync(cancellationToken).ConfigureAwait(false),
-			_ => CreateFailureResult(controlId, [$"Unknown control: {controlId}"])
+			// NotVerified, never the default score. A control this validator does not support was never
+			// examined, so the honest outcome is "not assessed" -- Deficient means examined-and-failing and
+			// reaches the assessor as a finding against the consumer.
+			_ => CreateFailureResult(
+				controlId,
+				[$"Unknown control: {controlId}"],
+				effectivenessScore: ControlEffectiveness.Unverified)
 		};
 	}
 
@@ -98,7 +104,9 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 		if (_encryptionProvider == null)
 		{
 			issues.Add("Encryption provider not configured");
-			return CreateFailureResult(ControlSec001, issues);
+			// No provider is registered, so the mechanism this control depends on is absent rather than
+			// merely unexamined.
+			return CreateFailureResult(ControlSec001, issues, ControlEffectiveness.MechanismAbsent);
 		}
 
 		// Validate FIPS compliance if available
@@ -152,20 +160,16 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 			return CreateSuccessResult(ControlSec001, evidence);
 		}
 
-		// Constructed rather than routed through CreateFailureResult for the same reason as SEC-004:
-		// the helper sets IsConfigured = issues.Count == 0, so naming any issue makes the result claim
-		// the encryption provider is not configured. It demonstrably is -- the null check above returned
-		// long ago. Removable the moment the base gains a configured-but-unverified factory.
-		return new ControlValidationResult
-		{
-			ControlId = ControlSec001,
-			IsConfigured = true,
-			IsEffective = false,
-			EffectivenessScore = 50,
-			ConfigurationIssues = issues,
-			Evidence = evidence,
-			ValidatedAt = DateTimeOffset.UtcNow
-		};
+		// The provider is configured -- the null check above returned long ago -- but nothing here
+		// established that it operates. That is configured-but-unverified, which the factory now states
+		// directly. It previously scored 50: a number in no band at all, sitting between "not examined"
+		// and the met threshold, and therefore asserting a degree of assurance nothing measured.
+		return CreateFailureResult(
+			ControlSec001,
+			issues,
+			ControlEffectiveness.Unverified,
+			evidence,
+			isConfigured: true);
 	}
 
 	private ControlValidationResult ValidateEncryptionInTransit()
@@ -192,7 +196,7 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 				+ "is unverified here; TLS terminated by a gateway, service mesh or load balancer requires "
 				+ "independent attestation."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence);
 	}
 
@@ -210,7 +214,7 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 		{
 			issues.Add("Key management provider not configured");
 			return CreateFailureResult(
-				ControlSec003, issues, Soc2EffectivenessScore.MechanismAbsent);
+				ControlSec003, issues, ControlEffectiveness.MechanismAbsent);
 		}
 
 		try
@@ -256,8 +260,8 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 		// A check that threw leaves key management UNVERIFIED; a key examined and found missing or
 		// expired is a finding, and a finding must never read as better than an open question.
 		var score = violationDetected
-			? Soc2EffectivenessScore.ViolationDetected
-			: Soc2EffectivenessScore.Unverified;
+			? ControlEffectiveness.ViolationDetected
+			: ControlEffectiveness.Unverified;
 
 		// The provider null-guard returned above, so key management IS configured; what varies is
 		// whether we examined it and what we found.

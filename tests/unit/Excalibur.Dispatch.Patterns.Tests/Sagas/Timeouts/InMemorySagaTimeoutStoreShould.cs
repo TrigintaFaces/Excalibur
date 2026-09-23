@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Storage;
@@ -143,16 +143,22 @@ public sealed class InMemorySagaTimeoutStoreShould
 		await store.ScheduleTimeoutAsync(timeout, CancellationToken.None);
 		store.GetPendingCount().ShouldBe(1);
 
-		// Act - Mark as delivered
-		await store.MarkDeliveredAsync("timeout-delivered", CancellationToken.None);
+		// Retirement is claim-conditional, so the claim is taken first -- the delivery loop's own sequence.
+		var claims = await store.ClaimDueTimeoutsAsync(DateTimeOffset.UtcNow, 10, CancellationToken.None);
+		var claim = claims.Single(c => c.Timeout.TimeoutId == "timeout-delivered");
 
-		// Assert - Timeout removed
+		// Act - Mark as delivered
+		var first = await store.MarkDeliveredAsync(claim, CancellationToken.None);
+
+		// Assert - Timeout removed, and the store SAYS it retired it
+		first.ShouldBe(SagaTimeoutRetirementOutcome.Retired);
 		store.GetPendingCount().ShouldBe(0);
 
-		// Act - Mark again (idempotent)
-		await store.MarkDeliveredAsync("timeout-delivered", CancellationToken.None);
+		// Act - Mark again with the same, now-spent claim. Harmless, but no longer silent.
+		var second = await store.MarkDeliveredAsync(claim, CancellationToken.None);
 
-		// Assert - Still zero
+		// Assert - Still zero, and reported as superseded rather than as a second success
+		second.ShouldBe(SagaTimeoutRetirementOutcome.Superseded);
 		store.GetPendingCount().ShouldBe(0);
 	}
 

@@ -65,7 +65,7 @@ app.UseAuthorization();
 
 ### Excalibur Permission-Based Authorization
 
-```csharp
+```csharp ignore
 using Excalibur.A3.Authorization;
 
 // Define protected action

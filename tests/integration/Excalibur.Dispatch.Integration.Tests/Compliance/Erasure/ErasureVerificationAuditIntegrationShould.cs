@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.AuditLogging;
 using Excalibur.Compliance;
@@ -350,23 +350,26 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 	{
 		return new ErasureCertificate
 		{
-			CertificateId = Guid.NewGuid(),
-			RequestId = requestId,
-			DataSubjectReference = "hash-abc123",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary { KeysDeleted = deletedKeyIds.Count, RecordsAffected = 10 },
-			Verification = new VerificationSummary
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = requestId,
+				DataSubjectReference = "hash-abc123",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary { KeysDeleted = deletedKeyIds.Count, RecordsAffected = 10 },
+				Verification = new VerificationSummary
 			{
 				Verified = true,
 				Methods = VerificationMethod.KeyManagementSystem,
 				DeletedKeyIds = deletedKeyIds.ToList(),
 				VerifiedAt = DateTimeOffset.UtcNow
 			},
-			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
-			Signature = "signature-123",
-			RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "signature-123"
 		};
 	}
 

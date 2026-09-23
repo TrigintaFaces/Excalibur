@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Compliance;
 
@@ -124,9 +124,9 @@ public record ReportFilter
 	public DateTimeOffset? PeriodEndBefore { get; init; }
 
 	/// <summary>
-	/// Filter by opinion type.
+	/// Filter by the overall compliance level this library determined.
 	/// </summary>
-	public AuditorOpinion? Opinion { get; init; }
+	public ComplianceLevel? OverallLevel { get; init; }
 
 	/// <summary>
 	/// Maximum number of results to return.
@@ -180,9 +180,9 @@ public record ReportSummary
 	public required DateTimeOffset GeneratedAt { get; init; }
 
 	/// <summary>
-	/// Auditor opinion.
+	/// The overall compliance level this library determined. Not an auditor's opinion.
 	/// </summary>
-	public required AuditorOpinion Opinion { get; init; }
+	public required ComplianceLevel OverallLevel { get; init; }
 
 	/// <summary>
 	/// Number of exceptions.

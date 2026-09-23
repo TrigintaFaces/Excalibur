@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 using Dapper;
@@ -62,16 +62,22 @@ public sealed class PostgresPersistenceProviderConformanceShould : PersistencePr
 
 	/// <inheritdoc/>
 	/// <remarks>
-	/// One specification for every deriver: the suite configures this name on the provider and
-	/// expects the provider to report it back. An expectation set to whatever the provider happens
-	/// to return cannot detect a provider that ignores its configured name -- it certifies it.
+	/// Declared rather than left to default. Undeclared, the arm can only check the value is present and
+	/// stable -- which a provider reporting another engine's family passes. Naming it here is what makes
+	/// the arm a substitution check.
 	/// </remarks>
+	protected override string? ExpectedDatabaseType => "Postgres";
 
 	/// <inheritdoc/>
 	protected override IReadOnlyCollection<Type> RequiredCapabilities =>
 		[typeof(IPersistenceProviderHealth), typeof(IPersistenceProviderConnection), typeof(IPersistenceProviderTransaction)];
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// One specification for every deriver: the suite configures this name on the provider and
+	/// expects the provider to report it back. An expectation set to whatever the provider happens
+	/// to return cannot detect a provider that ignores its configured name -- it certifies it.
+	/// </remarks>
 	protected override IPersistenceProvider CreateProvider(string providerName)
 	{
 		_fixture.DockerAvailable.ShouldBeTrue(
@@ -213,6 +219,23 @@ public sealed class PostgresPersistenceProviderConformanceShould : PersistencePr
 		return connection;
 	}
 
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// The acceptable request is ordinary Postgres SQL. The rejectable one carries EMPTY command text,
+	/// which is the one input all three shipped implementations agree is invalid -- so this probe binds
+	/// the part of the contract that is settled.
+	/// <para>
+	/// It deliberately does NOT probe a null request. The three implementations disagree there (one
+	/// throws, two return false) and the interface does not say which is correct, so a probe either way
+	/// would make this suite enforce a decision nobody has taken.
+	/// </para>
+	/// </remarks>
+	protected override Task<(IDataRequest<IDbConnection, object> Acceptable, IDataRequest<IDbConnection, object> Rejectable)?>
+		CreateValidateRequestProbeAsync(ISqlPersistenceProvider provider) =>
+		Task.FromResult<(IDataRequest<IDbConnection, object>, IDataRequest<IDbConnection, object>)?>(
+			(new SqlProbeRequest("SELECT 1"), new SqlProbeRequest(string.Empty)));
+
 	private sealed class SqlProbeRequest : IDataRequest<IDbConnection, object>
 	{
 		public SqlProbeRequest(string sql)
@@ -270,6 +293,8 @@ public sealed class PostgresPersistenceProviderConformanceShould : PersistencePr
 	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 	[Fact] public void ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers_Test() => ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public void SqlProvider_ShouldReportItsDatabaseType_Test() => SqlProvider_ShouldReportItsDatabaseType();
+	[Fact] public Task SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne_Test() => SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne();
 	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
 	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
 	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();

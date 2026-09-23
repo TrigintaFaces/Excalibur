@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Governance.AccessReviews;
@@ -255,15 +255,23 @@ internal sealed partial class AccessReviewExpiryService(
 			return false;
 		}
 
-		// Resolve scope to grant query parameters
-		var (grantType, qualifier) = ResolveScopeToGrantFilter(campaign.Scope);
+		// A scope that cannot say which grants it means revokes nothing and leaves the campaign open. The
+		// alternative -- treating a missing filter as "unconstrained" -- would revoke every grant in the
+		// tenant on the strength of a malformed record.
+		if (!TryResolveScopeToGrantFilter(campaign.Scope, out var userId, out var grantType, out var qualifier))
+		{
+			LogCampaignScopeUnresolvable(logger, campaign.CampaignId, campaign.Scope.Type);
+			return false;
+		}
 
+		// Always confined to the campaign's own tenant: a campaign's revoke is a destructive write, and one
+		// record must never be able to drive it across tenants.
 		var matchingGrants = await queryStore.GetMatchingGrantsAsync(
-			userId: null,
-			tenantId: string.Empty,
-			grantType: grantType,
-			qualifier: qualifier,
-			cancellationToken: cancellationToken).ConfigureAwait(false);
+			campaign.TenantId,
+			userId,
+			grantType,
+			qualifier,
+			cancellationToken).ConfigureAwait(false);
 
 		var allRevoked = true;
 
@@ -301,15 +309,40 @@ internal sealed partial class AccessReviewExpiryService(
 		return allRevoked;
 	}
 
-	private static (string GrantType, string Qualifier) ResolveScopeToGrantFilter(AccessReviewScope scope)
+	/// <summary>
+	/// Maps a campaign scope to the grant filter it denotes, inside the campaign's tenant.
+	/// </summary>
+	/// <returns>
+	/// <see langword="false"/> when the scope names a user or a role but carries no value, so it denotes no
+	/// set of grants at all.
+	/// </returns>
+	internal static bool TryResolveScopeToGrantFilter(
+		AccessReviewScope scope,
+		out string? userId,
+		out string? grantType,
+		out string? qualifier)
 	{
-		return scope.Type switch
+		userId = null;
+		grantType = null;
+		qualifier = null;
+
+		switch (scope.Type)
 		{
-			AccessReviewScopeType.ByRole => (Authorization.Grants.GrantType.Role, scope.FilterValue ?? string.Empty),
-			AccessReviewScopeType.ByUser => (string.Empty, string.Empty),
-			AccessReviewScopeType.ByTenant => (string.Empty, string.Empty),
-			_ => (string.Empty, string.Empty),
-		};
+			case AccessReviewScopeType.ByUser:
+				userId = scope.FilterValue;
+				return !string.IsNullOrWhiteSpace(userId);
+
+			case AccessReviewScopeType.ByRole:
+				grantType = Authorization.Grants.GrantType.Role;
+				qualifier = scope.FilterValue;
+				return !string.IsNullOrWhiteSpace(qualifier);
+
+			case AccessReviewScopeType.AllGrants:
+				return true;
+
+			default:
+				return false;
+		}
 	}
 
 	private static async Task MarkCampaignExpiredAsync(
@@ -338,6 +371,9 @@ internal sealed partial class AccessReviewExpiryService(
 
 	[LoggerMessage(EventId = 3532, Level = LogLevel.Error, Message = "Campaign '{CampaignId}' was left open: its unreviewed grants were not all revoked, so it is not recorded as completed. The preceding entries name what could not be revoked.")]
 	private static partial void LogCampaignLeftOpenAfterIncompleteRevocation(ILogger logger, string campaignId);
+
+	[LoggerMessage(EventId = 3533, Level = LogLevel.Error, Message = "Campaign '{CampaignId}' has a {ScopeType} scope with no filter value, so it names no grants; nothing was revoked and the campaign was left open. A ByUser or ByRole scope must carry the user or role it reviews.")]
+	private static partial void LogCampaignScopeUnresolvable(ILogger logger, string campaignId, AccessReviewScopeType scopeType);
 
 	[LoggerMessage(EventId = 3524, Level = LogLevel.Information, Message = "Revoking {UnreviewedCount} unreviewed items for campaign '{CampaignId}'.")]
 	private static partial void LogRevokeUnreviewedStart(ILogger logger, string campaignId, int unreviewedCount);

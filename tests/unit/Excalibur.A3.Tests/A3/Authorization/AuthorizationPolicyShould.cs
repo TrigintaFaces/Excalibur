@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants;
@@ -192,9 +192,9 @@ public sealed class AuthorizationPolicyShould
 		{
 			[$"tenant-1:{GrantType.ActivityGroup}:AdminGroup"] = true,
 		};
-		var activityGroups = new Dictionary<string, object>
+		var activityGroups = new Dictionary<string, IReadOnlyCollection<string>>
 		{
-			["AdminGroup"] = new List<object> { "TestActivity", "OtherActivity" },
+			[SegmentedKey.Compose("tenant-1", "AdminGroup")] = new List<string> { "TestActivity", "OtherActivity" },
 		};
 		var sut = CreatePolicy(grants: grants, activityGroups: activityGroups);
 
@@ -213,9 +213,9 @@ public sealed class AuthorizationPolicyShould
 		{
 			[$"tenant-1:{GrantType.ActivityGroup}:ViewerGroup"] = true,
 		};
-		var activityGroups = new Dictionary<string, object>
+		var activityGroups = new Dictionary<string, IReadOnlyCollection<string>>
 		{
-			["ViewerGroup"] = new List<object> { "ReadOnly", "ViewReport" },
+			[SegmentedKey.Compose("tenant-1", "ViewerGroup")] = new List<string> { "ReadOnly", "ViewReport" },
 		};
 		var sut = CreatePolicy(grants: grants, activityGroups: activityGroups);
 
@@ -228,11 +228,11 @@ public sealed class AuthorizationPolicyShould
 
 	private AuthorizationPolicy CreatePolicy(
 		IDictionary<string, object>? grants = null,
-		IDictionary<string, object>? activityGroups = null)
+		IReadOnlyDictionary<string, IReadOnlyCollection<string>>? activityGroups = null)
 	{
 		return new AuthorizationPolicy(
 			grants ?? new Dictionary<string, object>(),
-			activityGroups ?? new Dictionary<string, object>(),
+			activityGroups ?? new Dictionary<string, IReadOnlyCollection<string>>(),
 			_tenantId,
 			"user-1");
 	}

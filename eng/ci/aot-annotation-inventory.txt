@@ -197,9 +197,8 @@ src/Excalibur/Excalibur.Compliance.SqlServer/SqlServerKeyEscrowServiceCollection
 src/Excalibur/Excalibur.Compliance/Encryption/Decorators/EncryptingOutboxStoreDecorator.cs::EnqueueAsync
 src/Excalibur/Excalibur.Compliance/Encryption/Decorators/EncryptingOutboxStoreDecorator.cs::GetUnsentMessagesAsync
 src/Excalibur/Excalibur.Compliance/Encryption/EncryptionDecryptionService.cs::DynamicallyAccessedMembers
+src/Excalibur/Excalibur.Compliance/GdprServiceCollectionExtensions.cs::AddRetentionPoliciesFromAssembly
 src/Excalibur/Excalibur.Compliance/Masking/RegexDataMasker.cs::class
-src/Excalibur/Excalibur.Compliance/Retention/RetentionEnforcementService.cs::EnforceRetentionAsync
-src/Excalibur/Excalibur.Compliance/Retention/RetentionEnforcementService.cs::GetRetentionPoliciesAsync
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::QueryCursorAsync
@@ -213,12 +212,14 @@ src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs::ExecuteBat
 src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs::public async Task<CloudOperationResult<T
 src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs::public async Task<CloudQueryResult<TDocu
 src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs::public async Task<TDocument?> GetByIdAsy
+src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbServiceCollectionExtensions.cs::AddExcaliburDynamoDb
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::QueryCursorAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotDocument.cs::FromSnapshot
 src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotDocument.cs::ToSnapshot
+src/Excalibur/Excalibur.Data.ElasticSearch.Azure/ElasticsearchAzureServiceCollectionExtensions.cs::AddAzureKeyVaultCredentialStorage
 src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddElasticsearchIndexManagement
 src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddElasticsearchMonitoring
 src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddElasticsearchProjections
@@ -244,7 +245,6 @@ src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs::EncryptDocumentAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs::EncryptFieldAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddAuthentication
-src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddAzureKeyVaultCredentialStorage
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddElasticsearchSecurity
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddKeyManagement
 src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddSecurityMonitoring
@@ -253,6 +253,7 @@ src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::
 src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.Data.InMemory/InMemoryPersistenceProvider.cs::InitializeAsync
 src/Excalibur/Excalibur.Data.InMemory/InMemoryPersistenceProvider.cs::PersistToDiskAsync
+src/Excalibur/Excalibur.Data.InMemory/InMemoryServiceCollectionExtensions.cs::AddExcaliburInMemory
 src/Excalibur/Excalibur.Data.MongoDB/MaterializedViews/MongoDbMaterializedViewStore.cs::public async ValueTask SaveAsync<TView>(
 src/Excalibur/Excalibur.Data.MongoDB/MaterializedViews/MongoDbMaterializedViewStore.cs::public async ValueTask SaveViewAndPositi
 src/Excalibur/Excalibur.Data.MongoDB/MaterializedViews/MongoDbMaterializedViewStore.cs::public async ValueTask<TView?> GetAsync<
@@ -359,7 +360,6 @@ src/Excalibur/Excalibur.Jobs.Redis/Coordination/RedisJobCoordinator.cs::Distribu
 src/Excalibur/Excalibur.Jobs.Redis/Coordination/RedisJobCoordinator.cs::ReportJobCompletionAsync
 src/Excalibur/Excalibur.Jobs.SqlServer/SqlServerJobCoordinator.cs::DistributeJobAsync
 src/Excalibur/Excalibur.Jobs.SqlServer/SqlServerJobCoordinator.cs::ReportJobCompletionAsync
-src/Excalibur/Excalibur.Jobs/Core/ConfigurationExtensions.cs::public static TOptions GetJobConfigurati
 src/Excalibur/Excalibur.Jobs/Quartz/ApplicationBuilderExtensions.cs::UseExcaliburJobHost
 src/Excalibur/Excalibur.LeaderElection.InMemory/InMemoryLeaderElectionServiceCollectionExtensions.cs::AddInMemoryLeaderElection
 src/Excalibur/Excalibur.LeaderElection.Kubernetes/DependencyInjection/KubernetesLeaderElectionBuilderExtensions.cs::UseKubernetes

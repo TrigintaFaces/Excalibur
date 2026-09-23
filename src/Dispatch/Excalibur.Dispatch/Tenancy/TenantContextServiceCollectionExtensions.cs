@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -39,9 +39,9 @@ public static class TenantContextServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TenantContextOptions>, TenantContextOptionsValidator>());
 
-		// Replace (not TryAdd): the ambient context must win over the fail-closed single-tenant
-		// default registered on the core store path, regardless of composition order.
-		services.Replace(ServiceDescriptor.Singleton<ITenantContext, AmbientTenantContext>());
+		// Contributed, not replaced: the ambient mode outranks the single-tenant default and is outranked by
+		// the HTTP mode, which also reads the ambient tenant, whatever order the registrations run in.
+		_ = services.AddTenantContextMode<AmbientTenantContextMode>();
 
 		return services;
 	}

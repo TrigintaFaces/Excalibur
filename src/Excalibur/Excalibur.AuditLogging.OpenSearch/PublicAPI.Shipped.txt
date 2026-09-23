@@ -10,6 +10,10 @@ Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.ExportAsync(Excalibur.
 Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportBatchResult!>!
 Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.Name.get -> string!
 Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.OpenSearchAuditExporter(System.Net.Http.HttpClient! httpClient, Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter!>! logger) -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditRefreshPolicy
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditRefreshPolicy.Immediate = 2 -> Excalibur.AuditLogging.OpenSearch.OpenSearchAuditRefreshPolicy
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditRefreshPolicy.None = 0 -> Excalibur.AuditLogging.OpenSearch.OpenSearchAuditRefreshPolicy
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditRefreshPolicy.WaitFor = 1 -> Excalibur.AuditLogging.OpenSearch.OpenSearchAuditRefreshPolicy
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.ApiKey.get -> string?
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.ApiKey.set -> void
@@ -26,7 +30,7 @@ Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.NodeUrls.set -> void
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.OpenSearchExporterOptions() -> void
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.OpenSearchUrl.get -> string!
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.OpenSearchUrl.set -> void
-Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RefreshPolicy.get -> string!
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RefreshPolicy.get -> Excalibur.AuditLogging.OpenSearch.OpenSearchAuditRefreshPolicy
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RefreshPolicy.set -> void
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RetryBaseDelay.get -> System.TimeSpan
 Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RetryBaseDelay.set -> void

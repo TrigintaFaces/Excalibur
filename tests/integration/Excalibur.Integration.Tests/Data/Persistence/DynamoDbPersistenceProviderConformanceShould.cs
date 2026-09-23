@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.DynamoDb;
@@ -69,7 +69,7 @@ public sealed class DynamoDbPersistenceProviderConformanceShould
 		var options = Options.Create(new DynamoDbOptions
 		{
 			Name = providerName,
-			DefaultTableName = "persistence_conformance",
+			DefaultTableName = _fixture.ConformanceTableName,
 			Connection = new DynamoDbConnectionOptions
 			{
 				ServiceUrl = _fixture.ServiceUrl,
@@ -115,6 +115,8 @@ public sealed class DynamoDbPersistenceProviderConformanceShould
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public void SqlProvider_ShouldReportItsDatabaseType_Test() => SqlProvider_ShouldReportItsDatabaseType();
+	[Fact] public Task SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne_Test() => SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne();
 	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
 	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
 	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();
@@ -129,7 +131,8 @@ public sealed class DynamoDbPersistenceProviderConformanceShould
 	/// document's own id, so two different ids under one partition key is a valid, real multi-item
 	/// transaction (not the single-id constraint Cosmos's <c>/id</c> partition-key path imposes). The
 	/// conflict target is seeded before the batch so the second Create's
-	/// <c>ConditionExpression = "attribute_not_exists(pk)"</c> hits a genuine, already-committed item.
+	/// <c>attribute_not_exists</c> guard (bound to the configured partition key attribute) hits a genuine,
+	/// already-committed item.
 	/// </remarks>
 	protected override async Task<(IPartitionKey PartitionKey, IReadOnlyList<ICloudBatchOperation> Operations, Func<Task<bool>> FirstEffectVisibleAsync, Func<Task<bool>> FirstEffectPersistsWhenBatchSucceedsAsync)?>
 		CreateCloudNativeBatchAtomicityProbeAsync(ICloudNativePersistenceBatchOperations batchOperations)
@@ -142,10 +145,10 @@ public sealed class DynamoDbPersistenceProviderConformanceShould
 
 		var seeded = await provider.CreateAsync(
 			new AtomicityProbeDocument(conflictId, "seed"), partitionKey, TestContext.Current.CancellationToken);
-		if (!seeded.Success)
-		{
-			return null;
-		}
+
+		// A failed seed is a broken harness, never a decline: returning null here would let the arm report
+		// PASS having asserted nothing, which is what it did while the fixture created no table.
+		seeded.Success.ShouldBeTrue($"seeding the conflict target must succeed: {seeded.ErrorMessage}");
 
 		IReadOnlyList<ICloudBatchOperation> operations =
 		[

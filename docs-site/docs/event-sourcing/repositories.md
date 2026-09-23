@@ -312,17 +312,21 @@ catch (ConcurrencyException ex)
     _logger.LogWarning("Concurrency conflict for order {OrderId}", order.Id);
     throw new ConflictException("Order was modified");
 }
-catch (AggregateNotFoundException ex)
+catch (Exception ex) when (ex is not ConflictException)
 {
-    // Aggregate doesn't exist
-    throw new NotFoundException($"Order {ex.AggregateId} not found");
-}
-catch (EventStoreException ex)
-{
-    // Storage error
+    // Any other failure comes from the underlying store (for example SqlException or
+    // NpgsqlException), so log it and let it propagate.
     _logger.LogError(ex, "Failed to save order {OrderId}", order.Id);
     throw;
 }
+```
+
+`SaveAsync` does not report a missing aggregate: an aggregate that does not exist is `null` from
+`GetByIdAsync`, not an exception. Check for it where you load:
+
+```csharp
+var order = await _repository.GetByIdAsync(orderId, ct)
+    ?? throw new ResourceNotFoundException("Order", orderId.ToString());
 ```
 
 ### Retry Logic

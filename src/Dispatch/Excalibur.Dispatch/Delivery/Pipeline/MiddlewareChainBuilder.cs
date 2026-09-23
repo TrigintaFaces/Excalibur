@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -279,7 +279,7 @@ internal sealed class MiddlewareChainBuilder
 
 		foreach (var middleware in middlewares)
 		{
-			hash.Add(middleware.GetType().FullName, StringComparer.Ordinal);
+			hash.Add(MiddlewareIdentity.TypeOf(middleware).FullName, StringComparer.Ordinal);
 			hash.Add((int)(middleware.Stage ?? DispatchMiddlewareStage.End));
 			hash.Add((int)middleware.ApplicableMessageKinds);
 		}
@@ -402,7 +402,7 @@ public sealed class ChainExecutor
 	/// </remarks>
 	public bool HasOnlyRoutingMiddleware =>
 		_middlewares.Length == 1 &&
-		_middlewares[0] is RoutingMiddleware;
+		MiddlewareIdentity.IsRouting(_middlewares[0]);
 
 	/// <summary>
 	/// Gets the number of middleware in this chain.

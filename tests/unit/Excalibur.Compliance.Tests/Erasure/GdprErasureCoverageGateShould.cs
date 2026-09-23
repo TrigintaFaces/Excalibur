@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.Erasure.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace Excalibur.Compliance.Tests.Erasure;
@@ -65,8 +66,14 @@ public sealed class GdprErasureCoverageGateShould
 
     // ── Arm 2 (LIVENESS pair): identical wiring but KeyShredOnly=true is a LEGITIMATE completion basis (the
     // per-subject key is still shredded), so the gate must NOT fire — the erasure completes. Proves the gate
-    // keys on the unverified-coverage condition, not a blanket failure. Resolves the DEFAULT annotation source
-    // via real DI (no [PersonalData]-annotated types are loaded in this test process → no annotated-coverage gap).
+    // keys on the unverified-coverage condition, not a blanket failure.
+    //
+    // CORRECTED: this arm previously claimed it resolved the default annotation source because "no
+    // [PersonalData]-annotated types are loaded in this test process". That premise was FALSE — this assembly
+    // declares four of them (SubjectFieldCryptorEnvelopeMarkerShould, SubjectFieldCryptorTruncatedEnvelope
+    // FailsClosedShould, and two nested types in SensitiveSelectsForEncryptionShould), so the scan returned
+    // {General}, nothing covered it, and this arm went red on an input it never set up. BuildProvider now pins
+    // the input explicitly rather than depending on which fixtures share the assembly.
     [Fact]
     public async Task CertifyCompletedWhenKeyShredOnlyErasureIsExplicitlyOptedIn()
     {
@@ -121,15 +128,67 @@ public sealed class GdprErasureCoverageGateShould
         await Should.NotThrowAsync(() => validator.StartAsync(CancellationToken.None));
     }
 
+    // ARM (SAFETY): the registry cannot be READ. Distinct from an empty registry and refused for the
+    // opposite reason -- an empty registry is a legitimate first boot, a store that throws is never one.
+    // Without this arm the refusal is unbound: the suite passes whether the throw is present or absent,
+    // because nothing else in it drives an unreadable store. A fail-closed property that holds only by
+    // accident of structure is a latent fail-open.
+    [Fact]
+    public async Task FailStartupWhenTheRegistryCannotBeRead()
+    {
+        await using var provider = BuildProvider(
+            o => o.KeyShredOnlyErasure = false,
+            withDiscovery: true,
+            registryReadFails: true);
+        var validator = ResolveDiscoveryValidator(provider);
+
+        var refusal = await Should.ThrowAsync<InvalidOperationException>(
+            () => validator.StartAsync(CancellationToken.None));
+
+        // The message must not claim the registry is EMPTY -- that is the absence-of-evidence error this
+        // guard exists to prevent, and reporting "nothing is registered" for "I could not tell" commits it.
+        refusal.Message.ShouldContain("could not be READ");
+        refusal.InnerException.ShouldNotBeNull();
+    }
+
+    // ARM (LIVENESS): an EMPTY registry must NOT fail startup. Paired with the arm above so the two halves
+    // of the ruled matrix are bound separately -- a guard that refused both would satisfy the safety arm
+    // and deadlock every first boot, which is the failure the placement ruling exists to prevent.
+    [Fact]
+    public async Task StartCleanlyWhenTheRegistryIsMerelyEmpty()
+    {
+        await using var provider = BuildProvider(o => o.KeyShredOnlyErasure = false, withDiscovery: true);
+        var validator = ResolveDiscoveryValidator(provider);
+
+        await Should.NotThrowAsync(() => validator.StartAsync(CancellationToken.None));
+    }
+
     /// <summary>
     /// Builds a real <see cref="ServiceProvider"/> from the production registration path — GDPR erasure plus
     /// the in-memory erasure store — with the required hashing pepper configured (else ValidateOnStart fails).
     /// Optionally wires the data-inventory discovery source.
     /// </summary>
-    private static ServiceProvider BuildProvider(Action<ErasureOptions> configure, bool withDiscovery = false)
+    private static ServiceProvider BuildProvider(
+        Action<ErasureOptions> configure,
+        bool withDiscovery = false,
+        bool registryReadFails = false)
     {
         var services = new ServiceCollection();
         _ = services.AddLogging();
+
+        // Registered BEFORE AddGdprErasure so it wins the TryAdd: a store whose registry read throws.
+        if (registryReadFails)
+        {
+            services.TryAddSingleton<IDataInventoryStore>(new UnreadableRegistryStore());
+        }
+
+        // Pin the annotated-coverage input BEFORE AddGdprErasure, whose registration is TryAdd. Left to the
+        // production default this resolves the whole-AppDomain assembly scan, which inside a test process
+        // reports this assembly's own [PersonalData] fixture properties (all bare, so PersonalDataCategory
+        // .General) as annotated domain categories no discovered location covers. These arms are about the
+        // UNVERIFIED-coverage and key-shred-only conditions, so the annotated gate is pinned empty and cannot
+        // contribute; the annotated gate has its own arms in ErasureCoverageGateShould.
+        services.TryAddSingleton(TestAnnotationSource.None);
 
         // The keyed data-subject hasher fails closed without a pepper — supply one (as a consumer would from
         // a secret manager) so the real store can pseudonymize identifiers.
@@ -181,4 +240,35 @@ public sealed class GdprErasureCoverageGateShould
     /// <summary>Resolves the internal startup guard registered as an <see cref="IHostedService"/> by AddGdprErasure.</summary>
     private static ErasureDiscoverySourceValidator ResolveDiscoveryValidator(IServiceProvider provider) =>
         provider.GetServices<IHostedService>().OfType<ErasureDiscoverySourceValidator>().Single();
+
+    /// <summary>
+    /// A data-inventory store whose registry read FAILS. Models an unreachable or misconfigured backing
+    /// store -- not an empty one. Every other member throws, because this fixture exists for exactly one
+    /// question and a member answering silently would let an arm pass for the wrong reason.
+    /// </summary>
+    private sealed class UnreadableRegistryStore : IDataInventoryStore
+    {
+        public Task<IReadOnlyList<DataLocationRegistration>> GetAllRegistrationsAsync(
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("registry backing store is unreachable");
+
+        public Task SaveRegistrationAsync(
+            DataLocationRegistration registration,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("fixture: registry writes are out of scope for this arm");
+
+        public Task<bool> RemoveRegistrationAsync(
+            string tableName,
+            string fieldName,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("fixture: registry writes are out of scope for this arm");
+
+        public Task RecordDiscoveredLocationAsync(
+            DataLocation location,
+            string dataSubjectId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("fixture: discovery writes are out of scope for this arm");
+
+        public object? GetService(Type serviceType) => null;
+    }
 }

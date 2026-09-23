@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Globalization;
 
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.MongoDB.MaterializedViews;
 
@@ -70,10 +72,16 @@ internal sealed class MongoDbMaterializedViewDocument
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// The tenant segment is length-prefixed rather than merely delimited. A tenant identifier may legally
-	/// contain the delimiter, and without the prefix ("a", "b:c") and ("a:b", "c") compose to the SAME
-	/// identifier -- a cross-tenant collision reintroduced by the very code meant to prevent one. The prefix
-	/// makes the segment self-delimiting, so no two distinct tenants can produce the same identifier.
+	/// Every segment is escaped before joining. A tenant identifier may legally contain the delimiter, and
+	/// without escaping ("a", "b:c") and ("a:b", "c") compose to the SAME identifier -- a cross-tenant
+	/// collision reintroduced by the very code meant to prevent one.
+	/// </para>
+	/// <para>
+	/// Composed through the framework's single injective composer. The previous form length-prefixed the
+	/// tenant term only, which made THAT term self-delimiting while leaving the remaining terms bare-joined
+	/// -- so a view name containing the delimiter still collided with a different name/id pair. Escaping
+	/// every term closes the tail as well as the head, and puts this key on the one encoding the rest of
+	/// the framework uses.
 	/// </para>
 	/// <para>
 	/// The term is always present. The caller resolves it through <c>KeyedTenantPartition</c>, which has no
@@ -87,7 +95,7 @@ internal sealed class MongoDbMaterializedViewDocument
 	/// <param name="viewId">The view ID.</param>
 	/// <returns>The composite document ID.</returns>
 	public static string CreateId(string tenantId, string viewName, string viewId) =>
-		string.Create(CultureInfo.InvariantCulture, $"t{tenantId.Length}:{tenantId}:{viewName}:{viewId}");
+		TenantScopedKey.Compose(tenantId, viewName, viewId);
 
 	/// <summary>
 	/// Creates the checkpoint document ID for a view, confined to the owning tenant.
@@ -96,13 +104,13 @@ internal sealed class MongoDbMaterializedViewDocument
 	/// Keyed on view name alone this collection held ONE checkpoint for every tenant, so one tenant's
 	/// progress advanced another's and that tenant's projector skipped every event in between -- silently,
 	/// and permanently, because the monotonic advance exists to stop the checkpoint moving backwards.
-	/// See <see cref="CreateId(string, string, string)"/> for why the tenant segment is length-prefixed.
+	/// See <see cref="CreateId(string, string, string)"/> for why every segment is escaped.
 	/// </remarks>
 	/// <param name="tenantId">The owning tenant, as resolved from the store's ambient context.</param>
 	/// <param name="viewName">The view name.</param>
 	/// <returns>The checkpoint document ID.</returns>
 	public static string CreatePositionId(string tenantId, string viewName) =>
-		string.Create(CultureInfo.InvariantCulture, $"t{tenantId.Length}:{tenantId}:{viewName}");
+		TenantScopedKey.Compose(tenantId, viewName);
 }
 
 /// <summary>

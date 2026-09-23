@@ -77,7 +77,6 @@ lockfile-drift-gate.sh
 npm-audit.sh
 orphan-test-project-gate.sh
 package-metadata-gate.sh
-pre-commit-dispatch-gate.sh
 real-infra-tenant-gate.sh
 receipt-without-work-gate.sh
 release-test-verdict-gate.sh

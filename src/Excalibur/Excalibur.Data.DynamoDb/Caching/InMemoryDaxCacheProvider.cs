@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Text.Json;
+
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -113,12 +115,32 @@ internal sealed partial class InMemoryDaxCacheProvider : IDaxCacheProvider
 		return Task.CompletedTask;
 	}
 
-	private static string BuildCacheKey(string tableName, string partitionKey, string? sortKey)
-	{
-		return sortKey is null
-			? $"{tableName}:{partitionKey}"
-			: $"{tableName}:{partitionKey}:{sortKey}";
-	}
+	/// <summary>
+	/// Composes the cache key for one item.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// DynamoDB key values are arbitrary strings and may contain ':' freely, so joining them with a bare
+	/// ':' is not injective: pk <c>a:b</c> with sk <c>c</c> and pk <c>a</c> with sk <c>b:c</c> are two
+	/// different items in one table that rendered one key. A read for either was then answered with the
+	/// other's value -- a wrong answer rather than a miss, and silent.
+	/// </para>
+	/// <para>
+	/// The absent-sort-key form made it worse by varying the ARITY: a ':' in the partition key
+	/// manufactured a sort-key boundary that was never written, so a two-term key and a three-term key
+	/// could collide as well.
+	/// </para>
+	/// <para>
+	/// <see cref="SegmentedKey"/> is the framework's existing injective composer and is already used
+	/// elsewhere in this package, so this reuses it rather than introducing a second encoding for one
+	/// cache. It is the identity on any term containing neither ':' nor '%', so ordinary keys are
+	/// unchanged; and this cache is per-process and in-memory, so no stored key shape moves.
+	/// </para>
+	/// </remarks>
+	private static string BuildCacheKey(string tableName, string partitionKey, string? sortKey) =>
+		sortKey is null
+			? SegmentedKey.Compose(tableName, partitionKey)
+			: SegmentedKey.Compose(tableName, partitionKey, sortKey);
 
 	[LoggerMessage(3200, LogLevel.Debug, "DAX cache hit for table '{TableName}', key '{PartitionKey}'")]
 	private partial void LogCacheHit(string tableName, string partitionKey);

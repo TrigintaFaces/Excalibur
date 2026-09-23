@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
 
@@ -156,7 +156,7 @@ public sealed class EncryptingProjectionStoreCiphertextAtRestShould : IClassFixt
 			_fixture.ConnectionString, _logger, tenantContext: tenantContext, tableName: TableName);
 		var registry = encryptionServices.GetRequiredService<IEncryptionProviderRegistry>();
 		var options = Microsoft.Extensions.Options.Options.Create(new EncryptionOptions { Mode = mode });
-		return new EncryptingProjectionStoreDecorator<EncryptedTestProjection>(inner, registry, options);
+		return new EncryptingProjectionStoreDecorator<EncryptedTestProjection>(inner, registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 	}
 
 	// Build a REAL AES-GCM provider registry (in-memory key management = real encryption, ephemeral keys).

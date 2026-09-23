@@ -1,12 +1,18 @@
 #nullable enable
+Excalibur.Saga.Abstractions.ClaimedSagaTimeout
+Excalibur.Saga.Abstractions.ClaimedSagaTimeout.ClaimToken.get -> string!
+Excalibur.Saga.Abstractions.ClaimedSagaTimeout.ClaimToken.init -> void
+Excalibur.Saga.Abstractions.ClaimedSagaTimeout.ClaimedSagaTimeout(Excalibur.Saga.Abstractions.SagaTimeout! Timeout, string! ClaimToken) -> void
+Excalibur.Saga.Abstractions.ClaimedSagaTimeout.Timeout.get -> Excalibur.Saga.Abstractions.SagaTimeout!
+Excalibur.Saga.Abstractions.ClaimedSagaTimeout.Timeout.init -> void
 Excalibur.Saga.Abstractions.ISagaTimeout<TMessage>
 Excalibur.Saga.Abstractions.ISagaTimeout<TMessage>.HandleTimeoutAsync(TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Abstractions.ISagaTimeoutStore
 Excalibur.Saga.Abstractions.ISagaTimeoutStore.CancelAllTimeoutsAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Abstractions.ISagaTimeoutStore.CancelTimeoutAsync(string! sagaId, string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Abstractions.ISagaTimeoutStore.ClaimDueTimeoutsAsync(System.DateTimeOffset asOf, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaTimeout!>!>!
+Excalibur.Saga.Abstractions.ISagaTimeoutStore.ClaimDueTimeoutsAsync(System.DateTimeOffset asOf, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.ClaimedSagaTimeout!>!>!
 Excalibur.Saga.Abstractions.ISagaTimeoutStore.GetDueTimeoutsAsync(System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaTimeout!>!>!
-Excalibur.Saga.Abstractions.ISagaTimeoutStore.MarkDeliveredAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ISagaTimeoutStore.MarkDeliveredAsync(Excalibur.Saga.Abstractions.ClaimedSagaTimeout! claim, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.SagaTimeoutRetirementOutcome>!
 Excalibur.Saga.Abstractions.ISagaTimeoutStore.ScheduleTimeoutAsync(Excalibur.Saga.Abstractions.SagaTimeout! timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Abstractions.SagaInstanceInfo
 Excalibur.Saga.Abstractions.SagaInstanceInfo.CompletedAt.get -> System.DateTimeOffset?
@@ -42,6 +48,9 @@ Excalibur.Saga.Abstractions.SagaTimeout.TimeoutId.get -> string!
 Excalibur.Saga.Abstractions.SagaTimeout.TimeoutId.init -> void
 Excalibur.Saga.Abstractions.SagaTimeout.TimeoutType.get -> string!
 Excalibur.Saga.Abstractions.SagaTimeout.TimeoutType.init -> void
+Excalibur.Saga.Abstractions.SagaTimeoutRetirementOutcome
+Excalibur.Saga.Abstractions.SagaTimeoutRetirementOutcome.Retired = 0 -> Excalibur.Saga.Abstractions.SagaTimeoutRetirementOutcome
+Excalibur.Saga.Abstractions.SagaTimeoutRetirementOutcome.Superseded = 1 -> Excalibur.Saga.Abstractions.SagaTimeoutRetirementOutcome
 Excalibur.Saga.Attributes.SagaStepAttribute
 Excalibur.Saga.Attributes.SagaStepAttribute.Order.get -> int
 Excalibur.Saga.Attributes.SagaStepAttribute.Order.set -> void

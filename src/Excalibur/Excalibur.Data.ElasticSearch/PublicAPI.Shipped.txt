@@ -1720,29 +1720,6 @@ Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs
 Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs.AutomatedResponseTriggeredEventArgs(Excalibur.Data.ElasticSearch.Security.ThreatType threatType) -> void
 Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs.ThreatType.get -> Excalibur.Data.ElasticSearch.Security.ThreatType
 Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs.TriggeredAt.get -> System.DateTimeOffset
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.AzureKeyVaultOptions() -> void
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.ClientId.get -> string?
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.ClientId.init -> void
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.MaxConcurrentOperations.get -> int
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.MaxConcurrentOperations.init -> void
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.PurgeOnDelete.get -> bool
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.PurgeOnDelete.init -> void
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.TenantId.get -> string?
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.TenantId.init -> void
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.VaultUri.get -> string!
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions.VaultUri.init -> void
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.AzureKeyVaultProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider!>! logger) -> void
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.DeleteSecretAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.Dispose() -> void
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GetSecretAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GetSecretMetadataAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.SecretMetadata?>!
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.ListSecretsAsync(string? prefix, bool includeMetadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Data.ElasticSearch.Security.SecretInfo!>!>!
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.SecretAccessed -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.SecretAccessedEventArgs!>?
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.SecretExistsAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.SetSecretAsync(string! keyName, string! secretValue, Excalibur.Data.ElasticSearch.Security.SecretMetadata? metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.Security.ComplianceControlStatus
 Excalibur.Data.ElasticSearch.Security.ComplianceControlStatus.ComplianceControlStatus(string! controlId, string! controlName, string! status, double score) -> void
 Excalibur.Data.ElasticSearch.Security.ComplianceControlStatus.ControlId.get -> string!
@@ -2609,7 +2586,6 @@ static Microsoft.Extensions.DependencyInjection.ElasticSearchTenantShardingExten
 static Microsoft.Extensions.DependencyInjection.ElasticsearchPersistenceServiceCollectionExtensions.AddElasticsearchPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticsearchPersistenceServiceCollectionExtensions.AddElasticsearchPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddAuthentication(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddAzureKeyVaultCredentialStorage(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddElasticsearchSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Excalibur.Data.ElasticSearch.Security.ElasticsearchSecurityOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddFieldEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

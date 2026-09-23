@@ -31,3 +31,12 @@ on `TenantId`. The primary/unique key in the database **must** match your deploy
 In multi-tenant mode `TenantId` **must be `NOT NULL`** so two tenants sharing
 `(MessageId, HandlerType)` do not collide on the pair key. The shipped DDL ships the
 single-tenant pair key by default with the multi-tenant triple key as a documented alternative.
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

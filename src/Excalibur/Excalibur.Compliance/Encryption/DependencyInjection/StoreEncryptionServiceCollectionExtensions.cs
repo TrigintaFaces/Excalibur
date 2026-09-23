@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
@@ -54,13 +54,18 @@ public static class StoreEncryptionServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// The decorator binds the ambient tenant into each entry's authenticated data, so a tenant context is
+		// required; a single-tenant host receives the framework default.
+		_ = services.AddDefaultTenantContext();
+
 		// Decorate FIRST, record the marker ONLY if a store was actually decorated. A marker recorded on the
 		// mere call would attest at-rest encryption for a container that has no inbox store to encrypt.
 		var decorated = services.DecorateKeyedStores<IInboxStore>(
 			static (inner, sp) => new EncryptingInboxStoreDecorator(
 				inner,
 				sp.GetRequiredService<IEncryptionProviderRegistry>(),
-				sp.GetRequiredService<IOptions<EncryptionOptions>>()));
+				sp.GetRequiredService<IOptions<EncryptionOptions>>(),
+				sp.GetRequiredService<ITenantContext>()));
 
 		if (decorated)
 		{

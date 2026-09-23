@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization.PolicyData;
@@ -68,13 +68,13 @@ internal sealed class CoreAuthorizationPolicyProvider(
 				"Establish the ambient tenant (TenantContextHolder.BeginScope / tenant middleware) before evaluating authorization.");
 		}
 
-		return await (_cachedPolicy ??= BuildPolicyAsync(currentUser.UserId)).ConfigureAwait(false);
+		return await (_cachedPolicy ??= BuildPolicyAsync(currentUser.UserId, tenantContext.TenantId)).ConfigureAwait(false);
 	}
 
-	private async Task<IAuthorizationPolicy> BuildPolicyAsync(string userId)
+	private async Task<IAuthorizationPolicy> BuildPolicyAsync(string userId, string tenantId)
 	{
 		var grantsTask = userGrants.ValueAsync(userId, CancellationToken.None);
-		var activityGroupsTask = activityGroups.ValueAsync(CancellationToken.None);
+		var activityGroupsTask = activityGroups.ValueAsync(tenantId, CancellationToken.None);
 
 		await Task.WhenAll(grantsTask, activityGroupsTask).ConfigureAwait(false);
 

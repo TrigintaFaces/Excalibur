@@ -42,8 +42,8 @@ public sealed class EncryptionControlValidatorShould
 
 		result.ControlId.ShouldBe("SEC-001");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
-		result.EffectivenessScore.ShouldBe(100);
+		result.Outcome.ShouldBe(ControlOutcome.Effective);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Effective);
 	}
 
 	[Fact]
@@ -54,7 +54,7 @@ public sealed class EncryptionControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-001", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-001");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("not configured"));
 	}
 
@@ -67,8 +67,12 @@ public sealed class EncryptionControlValidatorShould
 
 		result.ControlId.ShouldBe("SEC-002");
 		result.IsConfigured.ShouldBeFalse();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("unverified", StringComparison.Ordinal));
 	}
 
@@ -92,7 +96,7 @@ public sealed class EncryptionControlValidatorShould
 
 		result.ControlId.ShouldBe("SEC-003");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
+		result.Outcome.ShouldBe(ControlOutcome.Effective);
 	}
 
 	[Fact]
@@ -103,7 +107,7 @@ public sealed class EncryptionControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-003", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-003");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("not configured"));
 	}
 
@@ -117,7 +121,7 @@ public sealed class EncryptionControlValidatorShould
 
 		var result = await sut.ValidateAsync("SEC-003", CancellationToken.None).ConfigureAwait(false);
 
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("No active encryption key"));
 	}
 
@@ -139,7 +143,7 @@ public sealed class EncryptionControlValidatorShould
 
 		var result = await sut.ValidateAsync("SEC-003", CancellationToken.None).ConfigureAwait(false);
 
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("expired"));
 	}
 
@@ -150,7 +154,7 @@ public sealed class EncryptionControlValidatorShould
 
 		var result = await sut.ValidateAsync("UNKNOWN", CancellationToken.None).ConfigureAwait(false);
 
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Unknown control"));
 	}
 
@@ -239,7 +243,7 @@ public sealed class EncryptionControlValidatorShould
 		result.IsConfigured.ShouldBeTrue();
 		// The check THREW. It used to be caught, recorded as evidence, and then scored 100 --
 		// a perfect score for a verification that failed to run. "Gracefully" meant "silently".
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("did not complete", StringComparison.Ordinal));
 		result.Evidence.ShouldNotBeEmpty();
 	}

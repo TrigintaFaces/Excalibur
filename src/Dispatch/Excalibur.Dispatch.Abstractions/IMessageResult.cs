@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch;
@@ -22,12 +22,6 @@ public interface IMessageResult
 	string? ErrorMessage { get; }
 
 	/// <summary>
-	/// Gets a value indicating whether the result was served from cache rather than processed anew.
-	/// </summary>
-	/// <value> <see langword="true" /> when the result was served from cache; otherwise, <see langword="false" />. </value>
-	bool CacheHit { get; }
-
-	/// <summary>
 	/// Gets a value describing how this result was produced — whether a handler ran, or the operation was
 	/// satisfied without one.
 	/// </summary>
@@ -35,11 +29,18 @@ public interface IMessageResult
 	/// <see cref="MessageDisposition.Handled" /> unless an implementation states otherwise.
 	/// </value>
 	/// <remarks>
+	/// <para>
 	/// <see cref="Succeeded" /> answers whether the operation failed; this answers what produced the
 	/// outcome, and the two are independent. A cached result and a suppressed duplicate both succeed with
 	/// no handler invocation, so a caller that records completion on the strength of <see cref="Succeeded" />
 	/// alone can mark a message complete that nothing handled. Implementations that run a handler need not
 	/// override this.
+	/// </para>
+	/// <para>
+	/// This is the only member describing how the result was produced. A second boolean "was this a cache
+	/// hit" member is deliberately absent: two members answering one question can disagree, and a boolean
+	/// cannot express a third state — a suppressed duplicate would read as a genuine handled result.
+	/// </para>
 	/// </remarks>
 	MessageDisposition Disposition => MessageDisposition.Handled;
 

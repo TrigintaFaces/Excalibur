@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Routing.LoadBalancing;
@@ -16,7 +16,12 @@ namespace Excalibur.Dispatch.Routing.Strategies;
 public partial class RandomLoadBalancer(ILogger<RandomLoadBalancer> logger) : ILoadBalancingStrategy
 {
 	private readonly ILogger<RandomLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly Random _random = new();
+	// Random.Shared, never a per-instance Random. SelectRoute is entered concurrently by design, and
+	// System.Random's INSTANCE methods are documented as not thread-safe -- concurrent calls corrupt its
+	// internal state and it degenerates into returning the same value, which silently destroys the weight
+	// proportionality this balancer exists to provide. There is no exception and no log; the distribution
+	// just stops being a distribution. Random.Shared is thread-safe by contract and is the BCL's own
+	// answer to exactly this, so there is nothing to hand-roll and no lock to take.
 
 	/// <inheritdoc />
 	public RouteDefinition SelectRoute(IReadOnlyList<RouteDefinition> routes, RoutingContext context)
@@ -42,7 +47,7 @@ public partial class RandomLoadBalancer(ILogger<RandomLoadBalancer> logger) : IL
 		}
 		// CA5394: Random used for weighted load balancing, not cryptographic purposes
 #pragma warning disable CA5394
-		var randomValue = _random.Next(totalWeight);
+		var randomValue = Random.Shared.Next(totalWeight);
 #pragma warning restore CA5394
 
 		// Select based on weight

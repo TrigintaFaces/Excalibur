@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Dispatch;
@@ -54,6 +54,15 @@ internal sealed class OutboxPrerequisiteValidator : IHostedService, IStartupPrer
 
 	public void Validate()
 	{
+		// Asked FIRST, and independently of which store family is present, because it is not a question
+		// about the store: both mechanisms can be registered over either family, and the composition is
+		// wrong before anything is drained. A host that would publish every message twice should not
+		// reach the missing-store check and be told its problem is a missing store.
+		if (OutboxDeliveryExclusivity.BothMechanismsRegistered(_services))
+		{
+			throw new InvalidOperationException(OutboxDeliveryExclusivity.BothMechanismsRegisteredMessage);
+		}
+
 		// Fall back to the non-keyed registration: a provider extension supplies the keyed "default"
 		// (aliased onto the non-keyed contract), but a consumer supplying their own store registers it
 		// directly and non-keyed -- and that is the instance OutboxProcessor/MessageOutbox are handed,

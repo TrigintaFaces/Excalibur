@@ -21,6 +21,7 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3\Excalibur.A3.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

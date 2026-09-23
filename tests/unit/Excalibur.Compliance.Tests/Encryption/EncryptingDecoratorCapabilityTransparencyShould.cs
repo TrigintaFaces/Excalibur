@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance.Configuration;
 using Excalibur.Compliance.Encryption.Decorators;
@@ -42,7 +42,7 @@ namespace Excalibur.Compliance.Tests.Encryption;
 public sealed class EncryptingDecoratorCapabilityTransparencyShould
 {
 	private static EncryptingInboxStoreDecorator CreateInboxDecorator(IInboxStore inner) =>
-		new(inner, A.Fake<IEncryptionProviderRegistry>(), Options.Create(new EncryptionOptions()));
+		new(inner, A.Fake<IEncryptionProviderRegistry>(), Options.Create(new EncryptionOptions()), global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 	private static EncryptingOutboxStoreDecorator CreateOutboxDecorator(IOutboxStore inner) =>
 		new(inner, A.Fake<IEncryptionProviderRegistry>(), Options.Create(new EncryptionOptions()));

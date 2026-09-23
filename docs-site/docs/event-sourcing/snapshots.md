@@ -391,16 +391,24 @@ The document and blob-backed stores — Cosmos DB, DynamoDB, Firestore, MongoDB,
 providers — create their own containers and need no schema step.
 
 :::note SQLite
-`Excalibur.EventSourcing.Sqlite` ships no snapshot script, and does not need one: it creates its own
-table on first use and keeps it current. If you derive the schema by hand for inspection, take it from
-the SQLite provider's own SQL rather than from another provider's script — the column types differ.
+`Excalibur.EventSourcing.Sqlite` creates its own table on first use and keeps it current, so no schema
+step is required to get started. Its DDL still ships, for the deployment that provisions ahead of the
+application: `scripts/001_CreateEventStoreSchema.sql` creates the snapshot table alongside the event
+table. Take the schema from that script rather than from another provider's — the column types differ.
 
-**Upgrading an existing SQLite database needs no action from you.** A database created before the
-snapshot table carried a tenant column is reconciled automatically the first time the store opens it:
+**Upgrading an existing SQLite database needs no action from you, provided the application holds
+`CREATE TABLE`.** A database created before the snapshot table carried a tenant column is reconciled
+automatically the first time the store opens it:
 the table is rebuilt with the tenant column and every existing snapshot is stamped as untenanted, so
 the snapshots you already have stay readable. A database whose rows store the untenanted partition as
 an empty string has those rows converged onto the reserved untenanted key by the same step. Both are
 idempotent.
+
+A deployment whose schema is owned elsewhere never reaches that reconciliation, and re-running `001`
+against its database changes nothing. For it the package ships
+`scripts/002_MakeEventAndSnapshotIdentityTenantScoped.sql`, which performs the same rebuild for the
+snapshot and event tables. Run it with the application stopped and a runner that stops on the first
+error.
 
 The single case that stops rather than guessing is a table holding **both** representations for the same
 aggregate — an empty-string row and a reserved-key row. Those two rows would have to become one, so the

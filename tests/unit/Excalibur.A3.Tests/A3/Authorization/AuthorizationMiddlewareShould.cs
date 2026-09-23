@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Security.Claims;
 
@@ -35,7 +35,11 @@ public sealed class AuthorizationMiddlewareShould : IDisposable
 		_accessToken = A.Fake<IAccessToken>();
 		_authorizationService = A.Fake<IDispatchAuthorizationService>();
 		_attributeCache = new A3AttributeAuthorizationCache();
-		_sut = new A3AuthorizationMiddleware(_authorizationService, _attributeCache, new ConditionExpressionEvaluator());
+		_sut = new A3AuthorizationMiddleware(
+			_authorizationService,
+			_attributeCache,
+			new ConditionExpressionEvaluator(),
+			NullLogger<A3AuthorizationMiddleware>.Instance);
 
 		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
 		_ = services.AddScoped(_ => _accessToken);

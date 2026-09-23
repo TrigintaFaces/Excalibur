@@ -244,7 +244,7 @@ public class SqlServerEventStore
 
 **✅ CORRECT - Uses Abstractions Publicly**:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;        // IDomainEvent
 using Excalibur.EventSourcing;   // IEventStore, StoredEvent, AppendResult
 
@@ -301,7 +301,7 @@ public static class ServiceCollectionExtensions
 
 **✅ CORRECT - Uses Abstractions in Signature**:
 
-```csharp
+```csharp ignore
 using Excalibur.EventSourcing;   // IEventStore
 
 public static class ServiceCollectionExtensions
@@ -329,7 +329,7 @@ public static class ServiceCollectionExtensions
 
 **✅ BEST PRACTICE - Zero Core Dependency**:
 
-```csharp
+```csharp ignore
 // Excalibur.Domain project
 using Excalibur.Dispatch;        // IDomainEvent
 using Excalibur.EventSourcing;   // IEventStore

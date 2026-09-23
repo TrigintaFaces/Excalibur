@@ -975,4 +975,4 @@ This comprehensive benchmark suite provides:
 
 **Questions or Issues?** Open a GitHub issue or contact the Excalibur team.
 
-**License**: Excalibur License 1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0 (see `../../LICENSE`)
+**License**: Excalibur License 1.1 OR AGPL-3.0-or-later OR SSPL-1.0 (see `../../LICENSE`)

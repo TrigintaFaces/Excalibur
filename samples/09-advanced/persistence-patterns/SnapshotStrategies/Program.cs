@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // Snapshot Strategies Sample
 // ===========================
@@ -44,6 +44,11 @@ builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // Add in-memory event store for demo
 builder.Services.AddInMemoryEventStore();
+
+// A snapshot STRATEGY decides when to write a snapshot; a snapshot STORE decides where it goes.
+// They are registered separately, so configuring a strategy without a store gives you a host that
+// starts and never persists anything. Register both.
+builder.Services.AddInMemorySnapshotStore();
 
 // ============================================================
 // Configure Event Sourcing with Snapshot Strategy
@@ -258,9 +263,11 @@ logger.LogInformation("4. Monitor event counts per aggregate to tune interval va
 logger.LogInformation("5. Consider aggregate load patterns when choosing strategy");
 logger.LogInformation("");
 
-logger.LogInformation("Sample completed. Press Ctrl+C to exit...");
+logger.LogInformation("Sample completed.");
 
-await host.WaitForShutdownAsync().ConfigureAwait(false);
+// The demo is a fixed script, not a service: everything above has run, so stop the host and
+// exit. Waiting for shutdown here would leave a finished sample sitting idle until killed.
+await host.StopAsync().ConfigureAwait(false);
 
 #pragma warning restore CA1506
 #pragma warning restore CA1303

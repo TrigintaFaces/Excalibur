@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.QueryDsl;
@@ -10,6 +10,7 @@ using Excalibur.Inbox.Observability;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Excalibur.Data.ElasticSearch.Persistence;
 
 namespace Excalibur.Inbox.ElasticSearch;
 
@@ -27,7 +28,6 @@ namespace Excalibur.Inbox.ElasticSearch;
 public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin
 {
 	/// <summary>Bounded retries for the optimistic-concurrency conditional delete in <see cref="ReleaseAsync"/>.</summary>
-	private const int ReleaseMaxRetries = 5;
 
 	/// <summary>
 	/// Test-only seam: when non-null, invoked once inside <see cref="ReleaseAsync"/> in the window between
@@ -39,6 +39,14 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchInboxOptions _options;
+
+	/// <summary>
+	/// The optimistic-concurrency attempt bound, read from configuration rather than fixed, so the
+	/// exhaustion branch this store reports <see cref="InboxMarkFailedOutcome.Undecided"/> from is
+	/// reachable deterministically and can therefore be asserted.
+	/// </summary>
+	private int ReleaseMaxRetries => _options.MaxConcurrencyRetries;
+
 	private readonly ILogger<ElasticsearchInboxStore> _logger;
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
@@ -347,66 +355,138 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
 
-		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
-
-		var docId = GetDocumentId(messageId, handlerType);
-		var existing = await GetDocumentAsync(docId, cancellationToken).ConfigureAwait(false)
-			?? throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-
-		// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which would
-		// make it re-admittable and run the handler again.
-		if (existing.Status == (int)InboxStatus.Processed)
-		{
-			return;
-		}
-
-		existing.Status = (int)InboxStatus.Failed;
-		existing.LastError = errorMessage;
-		existing.RetryCount++;
-		existing.LastAttemptAt = DateTimeOffset.UtcNow;
-
-		await UpdateDocumentAsync(docId, existing, cancellationToken).ConfigureAwait(false);
-		LogFailedEntry(messageId, handlerType, errorMessage);
+		// The retry count is INCREMENTED here rather than set: this is the delivery path, where the attempt
+		// the caller just spent is the thing being recorded. The administrative overload sets it exactly.
+		return new ValueTask<InboxMarkFailedOutcome>(
+			MarkFailedConditionalAsync(
+				GetDocumentId(messageId, handlerType),
+				messageId,
+				handlerType,
+				errorMessage,
+				exactRetryCount: null,
+				cancellationToken));
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
 
-		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
-
-		var docId = GetDocumentId(messageId, handlerType);
-		var existing = await GetDocumentAsync(docId, cancellationToken).ConfigureAwait(false)
-			?? throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-
-		// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which would
-		// make it re-admittable and run the handler again.
-		if (existing.Status == (int)InboxStatus.Processed)
-		{
-			return;
-		}
-
-		existing.Status = (int)InboxStatus.Failed;
-		existing.LastError = errorMessage;
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. A caller reading the estate-wide drain sees
+		// documents from every partition, so a document id composed from ambient context would address a
+		// different partition than the read that produced the entry, with nothing in either signature to say
+		// so.
+		var docId = ComposeDocumentId(tenant.TenantId, messageId, handlerType);
 
 		// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
 		// re-admittable without consuming a delivery attempt.
-		existing.RetryCount = retryCount;
-		existing.LastAttemptAt = DateTimeOffset.UtcNow;
+		return await MarkFailedConditionalAsync(
+			docId,
+			messageId,
+			handlerType,
+			errorMessage,
+			retryCount,
+			cancellationToken).ConfigureAwait(false);
+	}
 
-		await UpdateDocumentAsync(docId, existing, cancellationToken).ConfigureAwait(false);
-		LogFailedEntry(messageId, handlerType, errorMessage);
+	// Atomic guarded Failed transition, shared by the delivery and administrative marks: the two differ
+	// only in the document addressed and in whether the retry count is incremented or set exactly.
+	//
+	// THE READ IS PART OF THE WRITE, NOT A CLASSIFICATION TAKEN BEFORE IT. Elasticsearch has no conditional
+	// update expression this store can push the terminal-state guard into, so the optimistic-concurrency
+	// tokens replace one: the conditional index below is refused with a 409 if anything changed the document
+	// after the read, so the status this method decided on is provably the status the write acted upon.
+	// Without them the plain index was a lost-update race as well as an unclassifiable one -- a concurrent
+	// finalize landing in the window was silently overwritten with a Failed document, re-admitting a message
+	// whose handler had already run. Same shape as the conditional delete in ReleaseAsync.
+	//
+	// Absence is REPORTED, NOT THROWN. The delivery path used to raise InvalidOperationException while the
+	// SQL stores affected zero rows in silence, so no caller could be written correct against both. The call
+	// is issued from inside a drain's failure handling, where an exception abandons every other entry the
+	// caller still holds -- a refusal on one entry must cost that entry only.
+	private async Task<InboxMarkFailedOutcome> MarkFailedConditionalAsync(
+		string docId,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int? exactRetryCount,
+		CancellationToken cancellationToken)
+	{
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		for (var attempt = 0; attempt < ReleaseMaxRetries; attempt++)
+		{
+			var get = await _client.GetAsync<ElasticsearchInboxDocument>(
+				_options.IndexName, docId, cancellationToken).ConfigureAwait(false);
+
+			if (!get.IsValidResponse || !get.Found || get.Source is null)
+			{
+				return InboxMarkFailedOutcome.EntryNotFound;
+			}
+
+			var existing = get.Source;
+
+			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which would make
+			// it re-admittable and run the handler again.
+			if (existing.Status == (int)InboxStatus.Processed)
+			{
+				return InboxMarkFailedOutcome.AlreadyProcessed;
+			}
+
+			existing.Status = (int)InboxStatus.Failed;
+			existing.LastError = errorMessage;
+			existing.RetryCount = exactRetryCount ?? (existing.RetryCount + 1);
+			existing.LastAttemptAt = DateTimeOffset.UtcNow;
+
+			var response = await _client.IndexAsync(
+				existing,
+				idx => idx
+					.Index(_options.IndexName)
+					.Id(docId)
+					.IfSeqNo(get.SeqNo)
+					.IfPrimaryTerm(get.PrimaryTerm)
+					.Refresh(GetRefresh()),
+				cancellationToken).ConfigureAwait(false);
+
+			if (response.IsValidResponse)
+			{
+				LogFailedEntry(messageId, handlerType, errorMessage);
+
+				return InboxMarkFailedOutcome.Applied;
+			}
+
+			// A 409 means another writer changed the document between the read and the conditional index, so
+			// the status this iteration decided on is stale. Nothing was written; re-read and decide again.
+			// Any other failure is not retriable here and is not silently reported as an outcome.
+			if (response.ElasticsearchServerError?.Status != 409)
+			{
+				throw new InvalidOperationException(
+					$"Failed to mark inbox entry as failed for message '{messageId}' and handler '{handlerType}': "
+					+ (response.ElasticsearchServerError?.Error?.Reason ?? "Unknown error"));
+			}
+		}
+
+		// Contention that outlasts the bounded retries is reported as Undecided, not thrown. Every losing
+		// attempt wrote nothing, so the entry is exactly as it was found and the call is safe to re-drive.
+		// It is a RETURNED value because the caller is typically already handling a failure -- the message
+		// it was recording is the thing that went wrong -- and throwing here would replace that original
+		// error with one about the store. Throw only when the store could not be ASKED; this one answered.
+		return InboxMarkFailedOutcome.Undecided;
 	}
 
 	/// <inheritdoc/>
@@ -578,9 +658,15 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	private const int MaxDocumentIdUtf8Bytes = 512;
 
 	private Refresh GetRefresh() =>
-		_options.RefreshPolicy == "true" ? Refresh.True
-		: _options.RefreshPolicy == "false" ? Refresh.False
-		: Refresh.WaitFor;
+		_options.RefreshPolicy switch
+		{
+			// Total over the enumeration by construction. The string form this replaced compared ordinally
+			// against two literals and quietly used the fall-through for everything else, so a typo
+			// configured a policy the consumer never chose.
+			ElasticsearchRefreshPolicy.Immediate => Refresh.True,
+			ElasticsearchRefreshPolicy.None => Refresh.False,
+			_ => Refresh.WaitFor,
+		};
 
 	private static ElasticsearchInboxDocument ToDocument(InboxEntry entry) =>
 		new()

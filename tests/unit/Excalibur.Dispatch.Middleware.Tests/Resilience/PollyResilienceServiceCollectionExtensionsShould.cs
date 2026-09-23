@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
 using Microsoft.Extensions.Caching.Distributed;
@@ -719,4 +720,118 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 	}
 
 	#endregion
+
+	#region 4my18e — the named overload must reach the retry pipeline
+
+	/// <summary>
+	/// SAFETY-side of the named-options contract: a value set through the NAMED overload must
+	/// actually govern the pipeline, not merely be written to an options instance nothing resolves.
+	/// </summary>
+	/// <remarks>
+	/// This arm is behavioural on purpose. The three pre-existing arms assert that
+	/// <c>AddOptions&lt;PollyRetryOptions&gt;(name)</c> RECORDED the value; that is satisfied by a
+	/// container in which nothing ever reads the named instance, which is exactly the defect. Here
+	/// the delegate always throws, so the number of invocations IS the configured attempt count:
+	/// one initial call plus <c>MaxRetryAttempts</c> retries. The default is 3, so asserting 1 + 1
+	/// distinguishes "the caller's value reached the pipeline" from "the default did".
+	/// </remarks>
+	[Fact]
+	public async Task AddPollyRetryPolicy_NamedOverload_GovernsTheRetryPipeline()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddPollyRetryPolicy(
+			"frugal",
+			options =>
+			{
+				options.MaxRetryAttempts = 1;
+				options.BaseDelay = TimeSpan.FromMilliseconds(1);
+			});
+
+		await using var provider = services.BuildServiceProvider();
+		var policy = provider.GetRequiredKeyedService<IRetryPolicy>("frugal");
+
+		var calls = 0;
+		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await policy.ExecuteAsync(
+				_ =>
+				{
+					calls++;
+					throw new InvalidOperationException("always fails");
+				},
+				TestContext.Current.CancellationToken));
+
+		calls.ShouldBe(
+			2,
+			"MaxRetryAttempts=1 set through the NAMED overload means one initial call plus one retry; "
+			+ "3 would mean the adapter read the unnamed instance and the caller's value was discarded");
+	}
+
+	/// <summary>
+	/// LIVENESS: the jitter overload's advertised default must also reach the pipeline, and the
+	/// policy must still SUCCEED when the delegate succeeds. Without this the arm above is
+	/// satisfied by a policy that refuses everything.
+	/// </summary>
+	[Fact]
+	public async Task AddRetryPolicyWithJitter_NamedOverload_StillExecutesSuccessfully()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddRetryPolicyWithJitter(
+			"jittered",
+			options => options.BaseDelay = TimeSpan.FromMilliseconds(1));
+
+		await using var provider = services.BuildServiceProvider();
+		var policy = provider.GetRequiredKeyedService<IRetryPolicy>("jittered");
+
+		var result = await policy.ExecuteAsync(
+			_ => Task.FromResult(42),
+			TestContext.Current.CancellationToken);
+
+		result.ShouldBe(42, "a healthy delegate must still run and return through the named policy");
+	}
+
+	/// <summary>
+	/// Two names must not collide: each keyed policy honours its OWN configuration.
+	/// </summary>
+	[Fact]
+	public async Task NamedOverloads_WithTwoNames_EachHonoursItsOwnConfiguration()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddPollyRetryPolicy("one", o => { o.MaxRetryAttempts = 1; o.BaseDelay = TimeSpan.FromMilliseconds(1); });
+		_ = services.AddPollyRetryPolicy("four", o => { o.MaxRetryAttempts = 4; o.BaseDelay = TimeSpan.FromMilliseconds(1); });
+
+		await using var provider = services.BuildServiceProvider();
+
+		static async Task<int> CountAsync(IRetryPolicy policy)
+		{
+			var calls = 0;
+			try
+			{
+				await policy.ExecuteAsync(
+					_ =>
+					{
+						calls++;
+						throw new InvalidOperationException("always fails");
+					},
+					TestContext.Current.CancellationToken);
+			}
+			catch (InvalidOperationException)
+			{
+				// expected: the delegate always throws
+			}
+
+			return calls;
+		}
+
+		var one = await CountAsync(provider.GetRequiredKeyedService<IRetryPolicy>("one"));
+		var four = await CountAsync(provider.GetRequiredKeyedService<IRetryPolicy>("four"));
+
+		one.ShouldBe(2, "name 'one' configured MaxRetryAttempts=1");
+		four.ShouldBe(5, "name 'four' configured MaxRetryAttempts=4; equal counts would mean the names collapsed");
+	}
+
+	#endregion
+
 }

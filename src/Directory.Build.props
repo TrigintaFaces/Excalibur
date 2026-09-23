@@ -106,9 +106,9 @@
 		<!-- ============================================================================================
          Multi-License Stack
          ============================================================================================
-         License stack: Excalibur 1.0, AGPL-3.0-or-later, SSPL-1.0, Apache-2.0
+         License stack: Excalibur 1.1, AGPL-3.0-or-later, SSPL-1.0
          Using PackageLicenseFile instead of PackageLicenseExpression because:
-         - Excalibur License 1.0 is not a standard SPDX identifier
+         - Excalibur License 1.1 is not a standard SPDX identifier
          - NuGet PackageLicenseExpression requires valid SPDX expression
          - PackageLicenseFile includes full LICENSE in package
          ============================================================================================ -->

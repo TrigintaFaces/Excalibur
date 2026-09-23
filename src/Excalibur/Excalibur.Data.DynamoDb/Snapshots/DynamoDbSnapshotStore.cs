@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 using Amazon.DynamoDBv2;
@@ -39,6 +40,13 @@ namespace Excalibur.Data.DynamoDb.Snapshots;
 public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDisposable, IDisposable
 {
 	private readonly DynamoDbSnapshotStoreOptions _options;
+
+	/// <summary>Canonical serializer options, carrying the consumer's resolver when one was supplied.</summary>
+	private readonly System.Text.Json.JsonSerializerOptions _jsonOptions =
+		EventSerializationDefaults.CreateCanonicalOptions();
+
+	/// <summary>Whether a source-generated resolver is attached, so the reflection path is not needed.</summary>
+	private readonly bool _hasSnapshotTypeInfoResolver;
 	private readonly ILogger<DynamoDbSnapshotStore> _logger;
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
@@ -83,6 +91,15 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		_options.Validate();
 		_logger = logger;
 		_ownsClient = true;
+
+		// FAIL CLOSED AT CONSTRUCTION, NOT AT THE FIRST SAVE.
+		// Snapshot state and metadata are consumer types, so with no resolver they go through the
+		// reflection-based serializer. Under Native AOT that path does not exist, and the only signal a
+		// consumer would otherwise get is a failure from the first snapshot they write -- in production, on
+		// a store that constructed cleanly. The shared helper throws here instead, naming the option that
+		// satisfies it. Under the JIT it simply reports that no resolver was attached.
+		_hasSnapshotTypeInfoResolver =
+			EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, _options.SnapshotTypeInfoResolver);
 	}
 
 	/// <summary>
@@ -112,6 +129,15 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		_options = options.Value;
 		_logger = logger;
 		_ownsClient = false;
+
+		// FAIL CLOSED AT CONSTRUCTION, NOT AT THE FIRST SAVE.
+		// Snapshot state and metadata are consumer types, so with no resolver they go through the
+		// reflection-based serializer. Under Native AOT that path does not exist, and the only signal a
+		// consumer would otherwise get is a failure from the first snapshot they write -- in production, on
+		// a store that constructed cleanly. The shared helper throws here instead, naming the option that
+		// satisfies it. Under the JIT it simply reports that no resolver was attached.
+		_hasSnapshotTypeInfoResolver =
+			EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, _options.SnapshotTypeInfoResolver);
 
 		// Do NOT mark initialized here: a consumer-supplied client still needs InitializeAsync to run
 		// EnsureTableExistsAsync when CreateTableIfNotExists is set. Marking initialized would bypass
@@ -156,6 +182,10 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "The reflection path these members fall back to is unreachable in the configuration this warns about: the constructor calls EventSerializationDefaults.TryApplyTypeInfoResolver, which throws when no resolver was supplied and reflection is unavailable, naming SnapshotTypeInfoResolver. A store reaching this call therefore has either a resolver or a working reflection path.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "The reflection path these members fall back to is unreachable in the configuration this warns about: the constructor calls EventSerializationDefaults.TryApplyTypeInfoResolver, which throws when no resolver was supplied and reflection is unavailable, naming SnapshotTypeInfoResolver. A store reaching this call therefore has either a resolver or a working reflection path.")]
 	public async ValueTask<ISnapshot?> GetLatestSnapshotAsync(
 		string aggregateId,
 		string aggregateType,
@@ -192,9 +222,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				return null;
 			}
 
-#pragma warning disable IL2026, IL3050
-			var snapshot = DynamoDbSnapshotDocument.ToSnapshot(response.Item);
-#pragma warning restore IL2026, IL3050
+			var snapshot = DynamoDbSnapshotDocument.ToSnapshot(response.Item, _jsonOptions);
 			LogSnapshotRetrieved(aggregateType, aggregateId, snapshot.Version);
 
 			return snapshot;
@@ -228,6 +256,10 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "The reflection path these members fall back to is unreachable in the configuration this warns about: the constructor calls EventSerializationDefaults.TryApplyTypeInfoResolver, which throws when no resolver was supplied and reflection is unavailable, naming SnapshotTypeInfoResolver. A store reaching this call therefore has either a resolver or a working reflection path.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "The reflection path these members fall back to is unreachable in the configuration this warns about: the constructor calls EventSerializationDefaults.TryApplyTypeInfoResolver, which throws when no resolver was supplied and reflection is unavailable, naming SnapshotTypeInfoResolver. A store reaching this call therefore has either a resolver or a working reflection path.")]
 	public async ValueTask SaveSnapshotAsync(
 		ISnapshot snapshot,
 		CancellationToken cancellationToken)
@@ -275,9 +307,13 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			}
 
 			// Put with conditional expression - version must still be lower OR not exist
-#pragma warning disable IL2026, IL3050
-			var document = DynamoDbSnapshotDocument.FromSnapshot(snapshot, CurrentTenantScope.TenantId, _options.DefaultTtlSeconds);
-#pragma warning restore IL2026, IL3050
+			var document = DynamoDbSnapshotDocument.FromSnapshot(
+				snapshot,
+				CurrentTenantScope.TenantId,
+				_jsonOptions,
+				_hasSnapshotTypeInfoResolver,
+				_options.DefaultTtlSeconds,
+				_options.TtlAttributeName);
 
 			var putRequest = new PutItemRequest
 			{

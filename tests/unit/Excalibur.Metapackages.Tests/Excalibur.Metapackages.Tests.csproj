@@ -26,6 +26,9 @@
     <!-- Leader election, so the outbox fencing invariant can be armed and exercised: registering a
          leader gate is what makes the startup fencing check fire. -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.SqlServer\Excalibur.LeaderElection.SqlServer.csproj" />
+    <!-- Substitutes the provider inbox store so the deduplication arm exercises the metapackage's
+         WIRING without a database. The store is provider infrastructure; the wiring is the subject. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
 
@@ -217,6 +217,7 @@ public sealed partial class CosmosDbAllVersionsChangeFeedProcessor : IAsyncDispo
 		var sourceElement = currentDoc?.RootElement ?? previousDoc?.RootElement;
 		var documentId = string.Empty;
 		string? partitionKey = null;
+		var partitionKeyKind = CosmosDbPartitionKeyKind.None;
 
 		if (sourceElement.HasValue)
 		{
@@ -225,14 +226,12 @@ public sealed partial class CosmosDbAllVersionsChangeFeedProcessor : IAsyncDispo
 				documentId = idProp.GetString() ?? string.Empty;
 			}
 
-			if (!string.IsNullOrEmpty(_cdcOptions.PartitionKeyPath))
-			{
-				var pkPath = _cdcOptions.PartitionKeyPath.TrimStart('/');
-				if (sourceElement.Value.TryGetProperty(pkPath, out var pkProp))
-				{
-					partitionKey = pkProp.GetString();
-				}
-			}
+			// Same single shared resolver as the incremental processor: one implementation of what a
+			// partition-key path means, so the two paths cannot drift apart again.
+			partitionKey = CosmosDbPartitionKeyExtractor.Extract(
+				sourceElement.Value,
+				_cdcOptions.PartitionKeyPath,
+				out partitionKeyKind);
 		}
 
 		// Extract timestamp
@@ -264,11 +263,11 @@ public sealed partial class CosmosDbAllVersionsChangeFeedProcessor : IAsyncDispo
 		return changeType switch
 		{
 			CosmosDbDataChangeType.Insert => CosmosDbDataChangeEvent.CreateInsert(
-				position, documentId, partitionKey, currentDoc!, timestamp, lsn, null),
+				position, documentId, partitionKey, currentDoc!, timestamp, lsn, null, partitionKeyKind),
 			CosmosDbDataChangeType.Delete => CosmosDbDataChangeEvent.CreateDelete(
-				position, documentId, partitionKey, previousDoc, timestamp, lsn),
+				position, documentId, partitionKey, previousDoc, timestamp, lsn, partitionKeyKind),
 			_ => CosmosDbDataChangeEvent.CreateUpdate(
-				position, documentId, partitionKey, currentDoc!, previousDoc, timestamp, lsn, null),
+				position, documentId, partitionKey, currentDoc!, previousDoc, timestamp, lsn, null, partitionKeyKind),
 		};
 	}
 

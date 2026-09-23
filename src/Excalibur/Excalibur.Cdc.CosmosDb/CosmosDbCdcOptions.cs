@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.ComponentModel.DataAnnotations;
@@ -49,21 +49,23 @@ public sealed class CosmosDbCdcOptions
 	public string ProcessorName { get; set; } = "cdc-processor";
 
 	/// <summary>
-	/// Gets or sets the partition key path for filtering.
+	/// Gets or sets the Cosmos DB partition-key path whose value is reported on each change event.
 	/// </summary>
 	/// <remarks>
-	/// If specified, only changes from this partition are processed.
-	/// Example: "/tenantId" or "/category".
+	/// <para>
+	/// A slash-delimited path into the document, as Cosmos DB defines the term: <c>/tenantId</c> addresses
+	/// a top-level property and <c>/tenant/id</c> addresses <c>id</c> nested inside <c>tenant</c>. Every
+	/// segment is walked, and a value of any type Cosmos accepts as a partition key — string, number or
+	/// boolean — is reported. The value reaches the handler as
+	/// <see cref="CosmosDbDataChangeEvent.PartitionKey"/>, with its JSON type as
+	/// <see cref="CosmosDbDataChangeEvent.PartitionKeyKind"/>.
+	/// </para>
+	/// <para>
+	/// This does not restrict which changes are processed. The change feed is read in full; leaving this
+	/// unset only means the events carry no partition key.
+	/// </para>
 	/// </remarks>
 	public string? PartitionKeyPath { get; set; }
-
-	/// <summary>
-	/// Gets or sets specific partition key values to filter.
-	/// </summary>
-	/// <remarks>
-	/// If null, all partitions are processed.
-	/// </remarks>
-	public List<string>? PartitionKeyValues { get; set; }
 
 	/// <summary>
 	/// Gets or sets the Change Feed processing options.

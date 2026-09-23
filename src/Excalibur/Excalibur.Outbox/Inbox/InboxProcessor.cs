@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
@@ -119,7 +119,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	/// <param name="envelopeDeserializer"> Optional binary envelope deserializer for high-performance binary envelope support. </param>
 	/// <param name="deadLetterQueue"> Optional dead letter queue for failed messages. Uses NullDeadLetterQueue if not provided. </param>
 	/// <param name="circuitBreakerRegistry">
-	/// Optional circuit breaker registry for message type resilience. Uses NullTransportCircuitBreakerRegistry if not provided.
+	/// Required circuit breaker registry for message-type resilience. It is required rather than optional
+	/// because a drain that silently ran without a circuit breaker was indistinguishable from one that had
+	/// a working breaker, and the difference only became visible under a failing transport.
 	/// </param>
 	/// <param name="backoffCalculator"> Optional backoff calculator for retry delays. Uses ExponentialBackoffCalculator if not provided. </param>
 	/// <param name="deliveryGuaranteeOptions"> Optional delivery guarantee options. Uses default at-least-once semantics if not provided. </param>
@@ -143,9 +145,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		IServiceProvider serviceProvider,
 		DispatchJsonSerializer serializer,
 		ILogger<InboxProcessor> logger,
+		ITransportCircuitBreakerRegistry circuitBreakerRegistry,
 		IBinaryEnvelopeDeserializer? envelopeDeserializer = null,
 		IDeadLetterQueue? deadLetterQueue = null,
-		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
 		IOptions<DeliveryGuaranteeOptions>? deliveryGuaranteeOptions = null,
 		IDeduplicationStore? deduplicationStore = null,
@@ -154,6 +156,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(inboxStore);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(circuitBreakerRegistry);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
@@ -203,16 +206,11 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 		// Initialize resilience components -- warn when using silent no-op fallbacks
 		_deadLetterQueue = deadLetterQueue ?? NullDeadLetterQueue.Instance;
-		_circuitBreakerRegistry = circuitBreakerRegistry ?? NullTransportCircuitBreakerRegistry.Instance;
+		_circuitBreakerRegistry = circuitBreakerRegistry;
 
 		if (deadLetterQueue is null)
 		{
 			LogDeadLetterQueueNotConfigured();
-		}
-
-		if (circuitBreakerRegistry is null)
-		{
-			LogCircuitBreakerNotConfigured();
 		}
 		_backoffCalculator = backoffCalculator ?? ExponentialBackoffCalculator.CreateForMessageQueue();
 		_deliveryGuaranteeOptions = deliveryGuaranteeOptions?.Value ?? new DeliveryGuaranteeOptions();
@@ -741,8 +739,13 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				// conversion. A raw null CLEARS the ambient, and a cleared ambient means "no tenant was
 				// established" -- which a multi-tenant store fails closed on. An untenanted row is a
 				// different state and binds the reserved untenanted term.
-				using var tenantScope = TenantContextHolder.BeginScope(
-					KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
+				//
+				// Bound ONCE and then both opened as the ambient scope and passed explicitly to the
+				// administrative mark below. Deriving it twice is what would let the scope a handler ran
+				// under and the partition a mark addressed drift apart, and the drain is precisely where
+				// that can happen: the read that produced this batch spans every tenant.
+				var entryPartition = KeyedTenantPartition.FromStoredValue(message.TenantId);
+				using var tenantScope = TenantContextHolder.BeginScope(entryPartition.TenantId);
 
 				// THE DRAIN'S CROSS-INSTANCE FENCE.
 				//
@@ -790,7 +793,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				{
 					LogCircuitBreakerOpen(message.MessageType, message.ExternalMessageId);
 					await LeaveForRetryWithoutConsumingAnAttemptAsync(
-						storeMessageId, handlerType, message.Attempts, ct).ConfigureAwait(false);
+						entryPartition, storeMessageId, handlerType, message.Attempts, ct).ConfigureAwait(false);
 
 					return;
 				}
@@ -826,7 +829,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					// Circuit opened mid-dispatch: transient, same as the pre-check above.
 					LogCircuitBreakerOpen(message.MessageType, message.ExternalMessageId);
 					await LeaveForRetryWithoutConsumingAnAttemptAsync(
-						storeMessageId, handlerType, message.Attempts, ct).ConfigureAwait(false);
+						entryPartition, storeMessageId, handlerType, message.Attempts, ct).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -925,7 +928,15 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	private async Task FinalizeFailedAsync(
 		string messageId, string handlerType, int attempt, string error, CancellationToken cancellationToken)
 	{
-		await MarkFailedForRetryAsync(messageId, handlerType, attempt, cancellationToken).ConfigureAwait(false);
+		var outcome = await MarkFailedForRetryAsync(messageId, handlerType, attempt, cancellationToken)
+			.ConfigureAwait(false);
+
+		// Tested BY NAME rather than by excluding the refusals: any member added to the outcome later would
+		// otherwise start life reading as a success here, which is how this check fails open.
+		if (outcome != InboxMarkFailedOutcome.Applied)
+		{
+			LogMarkFailedForRetryNotApplied(messageId, handlerType, outcome.ToString());
+		}
 	}
 
 	/// <summary>
@@ -939,15 +950,33 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	/// is never selected again.
 	/// </remarks>
 	private async Task LeaveForRetryWithoutConsumingAnAttemptAsync(
-		string messageId, string handlerType, int retryCount, CancellationToken cancellationToken)
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
 		var admin = (IInboxStoreAdmin)_inboxStore;
-		await admin.MarkFailedAsync(
-				messageId, handlerType, ErrorConstants.ProcessingFailedRetryAttempt, retryCount, cancellationToken)
+
+		// The partition is passed, not resolved. The entry came off an estate-wide read, so the only
+		// partition that can be right is the one carried on the entry itself; a store re-deriving it from
+		// whatever is ambient would address a different population, and until this parameter existed
+		// nothing in the call said which.
+		var outcome = await admin.MarkFailedAsync(
+				tenant, messageId, handlerType, ErrorConstants.ProcessingFailedRetryAttempt, retryCount, cancellationToken)
 			.ConfigureAwait(false);
+
+		// Tested BY NAME rather than by excluding the refusals: any member added to the outcome later
+		// would otherwise start life reading as a success here, which is how this check fails open.
+		if (outcome != InboxMarkFailedOutcome.Applied)
+		{
+			// The store declined, and it can now say so. Before it could, this drain believed every
+			// short-circuit had been parked for retry -- including the ones the store never wrote.
+			LogDrainLeaveForRetryNotApplied(messageId, handlerType, outcome.ToString());
+		}
 	}
 
-	private Task MarkFailedForRetryAsync(string messageId, string handlerType, int attempt, CancellationToken cancellationToken)
+	private Task<InboxMarkFailedOutcome> MarkFailedForRetryAsync(string messageId, string handlerType, int attempt, CancellationToken cancellationToken)
 	{
 		// If the store persists a per-entry next-attempt time, record now + CalculateDelay(attempt) so the
 		// re-admission claim honors exponential backoff (the PRIMARY throttle). Stores that don't support it
@@ -1121,11 +1150,19 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		}
 
 		// Mark the message as failed (moved to DLQ or discarded)
-		await _inboxStore.MarkFailedAsync(
+		var deadLetterOutcome = await _inboxStore.MarkFailedAsync(
 			storeMessageId,
 			handlerType,
 			_deadLetterQueue is NullDeadLetterQueue ? $"DISCARDED (no DLQ): {reasonText}" : $"Moved to DLQ: {reasonText}",
 			cancellationToken).ConfigureAwait(false);
+
+		// Tested BY NAME, as above. This refusal matters more than the retry one: the dead-letter publish has
+		// already happened, so a refused mark leaves the queue holding a record the store does not agree is
+		// terminal. Reported rather than thrown -- throwing here would re-run the publish on the next cycle.
+		if (deadLetterOutcome != InboxMarkFailedOutcome.Applied)
+		{
+			LogDeadLetterMarkFailedNotApplied(storeMessageId, handlerType, deadLetterOutcome.ToString());
+		}
 	}
 
 	/// <summary>
@@ -1226,13 +1263,22 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		"Retry drain could not record the outcome for inbox entry {MessageId}/{HandlerType}: its ownership term lapsed and the entry was reclaimed. The handler already ran, so its effect stands; the entry will be retried by whichever processor now holds it.")]
 	private partial void LogDrainFinalizeLostTerm(string messageId, string handlerType);
 
+	[LoggerMessage(OutboxEventId.InboxMarkFailedForRetryNotApplied, LogLevel.Warning,
+		"Could not record a failed attempt for inbox entry {MessageId}/{HandlerType}: the store reported {Outcome}. The attempt was NOT counted, so this entry will not back off as scheduled -- it is either already finalized by another worker or absent from the tenant partition the entry named.")]
+	private partial void LogMarkFailedForRetryNotApplied(string messageId, string handlerType, string outcome);
+
+	[LoggerMessage(OutboxEventId.InboxDeadLetterMarkFailedNotApplied, LogLevel.Warning,
+		"Inbox entry {MessageId}/{HandlerType} was routed to the dead-letter disposition but the store refused the terminal mark: it reported {Outcome}. The dead-letter side effect has already happened, so the entry and the queue now disagree.")]
+	private partial void LogDeadLetterMarkFailedNotApplied(string messageId, string handlerType, string outcome);
+
+	[LoggerMessage(OutboxEventId.InboxDrainLeaveForRetryNotApplied, LogLevel.Warning,
+		"Retry drain could not park inbox entry {MessageId}/{HandlerType} for retry after a transient short-circuit: the store reported {Outcome}. The entry was NOT left in the failed state by this cycle -- it is either already finalized or absent from the tenant partition the entry named.")]
+	private partial void LogDrainLeaveForRetryNotApplied(string messageId, string handlerType, string outcome);
+
 	[LoggerMessage(OutboxEventId.InboxDeadLetterQueueNotConfigured, LogLevel.Warning,
 		"No IDeadLetterQueue registered. Failed inbox messages will be discarded silently. Register a dead letter queue implementation to preserve failed messages for investigation.")]
 	private partial void LogDeadLetterQueueNotConfigured();
 
-	[LoggerMessage(OutboxEventId.InboxCircuitBreakerNotConfigured, LogLevel.Warning,
-		"No ITransportCircuitBreakerRegistry registered. Transport failures will not trigger circuit breakers. Register AddDispatchResilience() to enable transport protection.")]
-	private partial void LogCircuitBreakerNotConfigured();
 
 	[LoggerMessage(OutboxEventId.InboxMessageDiscardedNoDlq, LogLevel.Error,
 		"INBOX MESSAGE LOST: Message {MessageId} failed ({Reason}) but no dead letter queue is configured. Message has been discarded permanently. Register an IDeadLetterQueue to prevent message loss.")]

@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 using System.Globalization;
@@ -1001,7 +1001,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -1011,86 +1011,198 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
-		// Processed is absorbing: the predicate refuses the transition rather than demoting a
-		// finalized entry to Failed, which would make it re-admittable and run the handler again.
-		// Also clears any lease term: a failed entry has no holder, so it must not keep a term a
-		// later lease comparison (CompleteAsync/FailAsync) could match.
+
+		// THE GUARD SITS IN SET, NOT IN WHERE, AND THAT PLACEMENT IS THE WHOLE POINT.
+		//
+		// Processed is absorbing: the entry must not be demoted to Failed, which would re-admit it to the
+		// drain and run its handler again over side effects already committed. A WHERE-side
+		// "Status <> :ProcessedStatus" enforces that, but it also makes a refused terminal row and an absent
+		// row emit the identical zero affected count, so the caller cannot tell "already done" from "not
+		// there" -- the two diagnoses whose next steps are opposite.
+		//
+		// Guarding the ASSIGNMENT instead leaves the key-only WHERE deciding existence and the CASE deciding
+		// the transition, both inside one statement under one row lock. Every right-hand side reads the row
+		// as it was before the statement, so the refused branch rewrites each column with its own value and
+		// the row is left unchanged -- including RetryCount, which is incremented only on the applied
+		// branch, and LeaseExpiresAtUtc, cleared only there because a failed entry has no holder and must
+		// not keep a term a later lease comparison (CompleteAsync/FailAsync) could match. RETURNING Status
+		// INTO reports the resulting status FROM THE SAME DML that wrote it: no affected row means absent;
+		// a resulting Processed means refused, since nothing on this path ever WRITES Processed; anything
+		// else means applied. Oracle has no OUTPUT-style RETURNING a plain Dapper CommandDefinition can
+		// express, so a raw OracleCommand with an output OracleParameter is the mechanism, exactly as the
+		// administrative overload below does.
 		var sql = $"""
 		           UPDATE {Table}
-		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = RetryCount + 1, LastAttemptAt = :LastAttemptAt, LeaseExpiresAtUtc = NULL
-		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate} AND Status <> :ProcessedStatus
+		           SET Status = CASE WHEN Status = :ProcessedStatus THEN Status ELSE :FailedStatus END,
+		           	LastError = CASE WHEN Status = :ProcessedStatus THEN LastError ELSE :LastError END,
+		           	RetryCount = CASE WHEN Status = :ProcessedStatus THEN RetryCount ELSE RetryCount + 1 END,
+		           	LastAttemptAt = CASE WHEN Status = :ProcessedStatus THEN LastAttemptAt ELSE :LastAttemptAt END,
+		           	LeaseExpiresAtUtc = CASE WHEN Status = :ProcessedStatus THEN LeaseExpiresAtUtc ELSE NULL END
+		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
+		           RETURNING Status INTO :OutStatus
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-		var command = new CommandDefinition(
-			sql,
-			new
-			{
-				FailedStatus = (int)InboxStatus.Failed,
-				ProcessedStatus = (int)InboxStatus.Processed,
-				LastError = NormalizeError(errorMessage),
-				LastAttemptAt = DateTimeOffset.UtcNow,
-				MessageId = messageId,
-				HandlerType = handlerType,
-				TenantId = TenantTerm
-			},
-			commandTimeout: _options.CommandTimeoutSeconds,
-			cancellationToken: cancellationToken);
+		await using var command = connection.CreateCommand();
+#pragma warning disable CA2100 // sql is built from the configured Table/tenant-column shape; no user input.
+		command.CommandText = sql;
+#pragma warning restore CA2100
+		command.BindByName = true;
+		command.CommandTimeout = _options.CommandTimeoutSeconds;
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		_ = command.Parameters.Add(IntParameter("ProcessedStatus", (int)InboxStatus.Processed));
+		_ = command.Parameters.Add(IntParameter("FailedStatus", (int)InboxStatus.Failed));
+		_ = command.Parameters.Add(new OracleParameter("LastError", NormalizeError(errorMessage)));
+		_ = command.Parameters.Add(new OracleParameter("LastAttemptAt", OracleDbType.TimeStampTZ) { Value = DateTimeOffset.UtcNow });
+		_ = command.Parameters.Add(new OracleParameter("MessageId", messageId));
+		_ = command.Parameters.Add(new OracleParameter("HandlerType", handlerType));
+		if (hasTenantColumn)
+		{
+			_ = command.Parameters.Add(new OracleParameter("TenantId", TenantTerm));
+		}
+
+		var outStatus = new OracleParameter("OutStatus", OracleDbType.Int32) { Direction = ParameterDirection.Output };
+		_ = command.Parameters.Add(outStatus);
+
+		var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+		if (affected == 0)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (ReadStatus(outStatus.Value) == (int)InboxStatus.Processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
-		// Set RetryCount EXACTLY (no +1) so a transient short-circuit leaves the entry re-admittable
-		// without consuming a delivery attempt.
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. Every other statement in this store binds
+		// TenantTerm off the ambient context; this one binds what it was handed. A caller reading the
+		// estate-wide drain sees entries from every partition, so a mark that silently re-derived the scope
+		// would address a different population than the read that produced the entry, with nothing in
+		// either signature to say so. KeyedTenantPartition has no "ambient" inhabitant, so this statement
+		// cannot be reached without a partition having been named.
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
-		// Processed is absorbing: the predicate refuses the transition rather than demoting a
-		// finalized entry to Failed, which would make it re-admittable and run the handler again.
-		// Also clears any lease term: a failed entry has no holder, so it must not keep a term a
-		// later lease comparison (CompleteAsync/FailAsync) could match.
+
+		// THE GUARD SITS IN SET, NOT IN WHERE -- the same placement MarkProcessingAsync above already uses,
+		// and for a stronger reason here.
+		//
+		// Processed is absorbing: the entry must not be demoted to Failed, which would re-admit it to the
+		// drain and run its handler again over side effects already committed. A WHERE-side
+		// "Status <> :ProcessedStatus" enforces that, but it also makes a refused terminal row and an absent
+		// row emit the identical zero affected count, so the caller cannot tell "already done" from "not
+		// there" -- the two diagnoses whose next steps are opposite.
+		//
+		// Guarding the ASSIGNMENT instead leaves the key-only WHERE deciding existence and the CASE deciding
+		// the transition, both inside one statement under one row lock. Every right-hand side reads the row
+		// as it was before the statement, so the refused branch rewrites each column with its own value and
+		// the row is left unchanged -- including LeaseExpiresAtUtc, cleared only on the applied branch
+		// because a failed entry has no holder. RETURNING Status INTO reports the resulting status FROM THE
+		// SAME DML that wrote it: no row at all means absent; a resulting Processed means refused, since
+		// nothing on this path ever WRITES Processed; anything else means applied. Oracle has no
+		// `OUTPUT`-style multi-row RETURNING a plain Dapper CommandDefinition can express, so a raw
+		// OracleCommand with an output OracleParameter is the mechanism, exactly as TryAcquireLeaseAsync
+		// does for its lease term.
 		var sql = $"""
 		           UPDATE {Table}
-		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = :RetryCount, LastAttemptAt = :LastAttemptAt, LeaseExpiresAtUtc = NULL
-		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate} AND Status <> :ProcessedStatus
+		           SET Status = CASE WHEN Status = :ProcessedStatus THEN Status ELSE :FailedStatus END,
+		           	LastError = CASE WHEN Status = :ProcessedStatus THEN LastError ELSE :LastError END,
+		           	RetryCount = CASE WHEN Status = :ProcessedStatus THEN RetryCount ELSE :RetryCount END,
+		           	LastAttemptAt = CASE WHEN Status = :ProcessedStatus THEN LastAttemptAt ELSE :LastAttemptAt END,
+		           	LeaseExpiresAtUtc = CASE WHEN Status = :ProcessedStatus THEN LeaseExpiresAtUtc ELSE NULL END
+		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
+		           RETURNING Status INTO :OutStatus
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-		var command = new CommandDefinition(
-			sql,
-			new
-			{
-				FailedStatus = (int)InboxStatus.Failed,
-				ProcessedStatus = (int)InboxStatus.Processed,
-				LastError = NormalizeError(errorMessage),
-				RetryCount = retryCount,
-				LastAttemptAt = DateTimeOffset.UtcNow,
-				MessageId = messageId,
-				HandlerType = handlerType,
-				TenantId = TenantTerm
-			},
-			commandTimeout: _options.CommandTimeoutSeconds,
-			cancellationToken: cancellationToken);
+		await using var command = connection.CreateCommand();
+#pragma warning disable CA2100 // sql is built from the configured Table/tenant-column shape; no user input.
+		command.CommandText = sql;
+#pragma warning restore CA2100
+		command.BindByName = true;
+		command.CommandTimeout = _options.CommandTimeoutSeconds;
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		_ = command.Parameters.Add(IntParameter("ProcessedStatus", (int)InboxStatus.Processed));
+		_ = command.Parameters.Add(IntParameter("FailedStatus", (int)InboxStatus.Failed));
+		_ = command.Parameters.Add(new OracleParameter("LastError", NormalizeError(errorMessage)));
+		_ = command.Parameters.Add(IntParameter("RetryCount", retryCount));
+		_ = command.Parameters.Add(new OracleParameter("LastAttemptAt", OracleDbType.TimeStampTZ) { Value = DateTimeOffset.UtcNow });
+		_ = command.Parameters.Add(new OracleParameter("MessageId", messageId));
+		_ = command.Parameters.Add(new OracleParameter("HandlerType", handlerType));
+		if (hasTenantColumn)
+		{
+			_ = command.Parameters.Add(new OracleParameter("TenantId", tenant.TenantId));
+		}
+
+		var outStatus = new OracleParameter("OutStatus", OracleDbType.Int32) { Direction = ParameterDirection.Output };
+		_ = command.Parameters.Add(outStatus);
+
+		var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+		if (affected == 0)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (ReadStatus(outStatus.Value) == (int)InboxStatus.Processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
+	/// <summary>
+	/// Converts a <c>RETURNING Status INTO</c> output parameter's value to the CLR <see cref="int"/> the
+	/// outcome decision is made on.
+	/// </summary>
+	/// <remarks>
+	/// ODP.NET surfaces a NUMBER RETURNING-INTO output as an <see cref="OracleDecimal"/> rather than a boxed
+	/// <see cref="int"/>, so the cases are enumerated rather than cast. A null here would mean the statement
+	/// reported an affected row and then produced no value for it, which cannot happen and is not silently
+	/// treated as any outcome.
+	/// </remarks>
+	private static int ReadStatus(object? value) => value switch
+	{
+		OracleDecimal dec => dec.IsNull
+			? throw new InvalidOperationException("Mark-failed's RETURNING Status produced a null value for an affected row.")
+			: dec.ToInt32(),
+		int i => i,
+		decimal d => (int)d,
+		null or DBNull => throw new InvalidOperationException("Mark-failed's RETURNING Status produced no value for an affected row."),
+		_ => throw new InvalidOperationException($"Unexpected RETURNING Status value type '{value.GetType()}'.")
+	};
+
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedWithBackoffAsync(
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedWithBackoffAsync(
 		string messageId,
 		string handlerType,
 		string errorMessage,
@@ -1106,45 +1218,84 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 
 		// Deliberately does NOT clear LeaseExpiresAtUtc, unlike the two MarkFailedAsync overloads above.
 		// This method belongs to IBackoffSchedulableInboxStore, a separate capability from the leased-claim
-		// protocol (ILeasedInboxStore) — it schedules a NextAttemptAt for the non-lease claim/processing-
+		// protocol (ILeasedInboxStore) -- it schedules a NextAttemptAt for the non-lease claim/processing-
 		// tracking paths, which never populate the lease column in the first place. Left untouched to keep
 		// this store consistent with SqlServerInboxStore.MarkFailedWithBackoffAsync, which makes the same
 		// scope call for the same reason.
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
-		// Processed is absorbing, as on the two MarkFailedAsync overloads above: the predicate refuses the
-		// transition rather than demoting a finalized entry to Failed, which would re-admit it for retry
-		// and run the handler again on side effects already committed.
+
+		// THE GUARD SITS IN SET, NOT IN WHERE -- the same placement the two MarkFailedAsync overloads above
+		// already use, and for the same reason.
+		//
+		// Processed is absorbing: the entry must not be demoted to Failed, which would re-admit it to the
+		// drain and run its handler again over side effects already committed. A WHERE-side
+		// "Status <> :ProcessedStatus" enforces that, but it also makes a refused terminal row and an absent
+		// row emit the identical zero affected count, so the caller cannot tell "already done" from "not
+		// there" -- the two diagnoses whose next steps are opposite.
+		//
+		// Guarding the ASSIGNMENT instead leaves the key-only WHERE deciding existence and the CASE deciding
+		// the transition, both inside one statement under one row lock. Every right-hand side reads the row
+		// as it was before the statement, so the refused branch rewrites each column with its own value and
+		// the row is left unchanged -- NextAttemptAt included, so a refused entry is not given a backoff it
+		// will never serve. RETURNING Status INTO reports the resulting status FROM THE SAME DML that wrote
+		// it: no affected row means absent; a resulting Processed means refused, since nothing on this path
+		// ever WRITES Processed; anything else means applied. Oracle has no OUTPUT-style RETURNING a plain
+		// Dapper CommandDefinition can express, so a raw OracleCommand with an output OracleParameter is the
+		// mechanism, exactly as the administrative MarkFailedAsync above does.
 		var sql = $"""
 		           UPDATE {Table}
-		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = :RetryCount,
-		           	LastAttemptAt = :LastAttemptAt, NextAttemptAt = :NextAttemptAt
-		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate} AND Status <> :ProcessedStatus
+		           SET Status = CASE WHEN Status = :ProcessedStatus THEN Status ELSE :FailedStatus END,
+		           	LastError = CASE WHEN Status = :ProcessedStatus THEN LastError ELSE :LastError END,
+		           	RetryCount = CASE WHEN Status = :ProcessedStatus THEN RetryCount ELSE :RetryCount END,
+		           	LastAttemptAt = CASE WHEN Status = :ProcessedStatus THEN LastAttemptAt ELSE :LastAttemptAt END,
+		           	NextAttemptAt = CASE WHEN Status = :ProcessedStatus THEN NextAttemptAt ELSE :NextAttemptAt END
+		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
+		           RETURNING Status INTO :OutStatus
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-		var command = new CommandDefinition(
-			sql,
-			new
-			{
-				FailedStatus = (int)InboxStatus.Failed,
-				ProcessedStatus = (int)InboxStatus.Processed,
-				LastError = NormalizeError(errorMessage),
-				RetryCount = retryCount,
-				LastAttemptAt = DateTimeOffset.UtcNow,
-				NextAttemptAt = nextAttemptAt,
-				MessageId = messageId,
-				HandlerType = handlerType,
-				TenantId = TenantTerm
-			},
-			commandTimeout: _options.CommandTimeoutSeconds,
-			cancellationToken: cancellationToken);
+		await using var command = connection.CreateCommand();
+#pragma warning disable CA2100 // sql is built from the configured Table/tenant-column shape; no user input.
+		command.CommandText = sql;
+#pragma warning restore CA2100
+		command.BindByName = true;
+		command.CommandTimeout = _options.CommandTimeoutSeconds;
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		_ = command.Parameters.Add(IntParameter("ProcessedStatus", (int)InboxStatus.Processed));
+		_ = command.Parameters.Add(IntParameter("FailedStatus", (int)InboxStatus.Failed));
+		_ = command.Parameters.Add(new OracleParameter("LastError", NormalizeError(errorMessage)));
+		_ = command.Parameters.Add(IntParameter("RetryCount", retryCount));
+		_ = command.Parameters.Add(new OracleParameter("LastAttemptAt", OracleDbType.TimeStampTZ) { Value = DateTimeOffset.UtcNow });
+		_ = command.Parameters.Add(new OracleParameter("NextAttemptAt", OracleDbType.TimeStampTZ) { Value = nextAttemptAt });
+		_ = command.Parameters.Add(new OracleParameter("MessageId", messageId));
+		_ = command.Parameters.Add(new OracleParameter("HandlerType", handlerType));
+		if (hasTenantColumn)
+		{
+			_ = command.Parameters.Add(new OracleParameter("TenantId", TenantTerm));
+		}
+
+		var outStatus = new OracleParameter("OutStatus", OracleDbType.Int32) { Direction = ParameterDirection.Output };
+		_ = command.Parameters.Add(outStatus);
+
+		var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+		if (affected == 0)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (ReadStatus(outStatus.Value) == (int)InboxStatus.Processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		_logger.LogWarning(
 			"Marked inbox entry as failed with backoff for message {MessageId} and handler {HandlerType} (next attempt at {NextAttemptAt:O}): {Error}",
 			messageId, handlerType, nextAttemptAt, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>

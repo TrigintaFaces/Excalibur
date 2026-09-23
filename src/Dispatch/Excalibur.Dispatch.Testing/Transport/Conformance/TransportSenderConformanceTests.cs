@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
 
@@ -210,6 +210,89 @@ public abstract class TransportSenderConformanceTests
 			{
 				throw new InvalidOperationException(
 					$"BatchSendResult.Results[{i}] should be successful.");
+			}
+		}
+	}
+
+	/// <summary>
+	/// Verifies the batch contract stated on <see cref="BatchSendResult.Results"/>: exactly one result per
+	/// input, index-aligned with the input list.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the cross-provider arm for that contract. It exists because two transports were fixed to a
+	/// positional contract independently and each documented it on its own sender, which is two
+	/// coincidences rather than one guarantee — the next implementation would have been bound by nothing.
+	/// </para>
+	/// <para>
+	/// <b>Alignment is checked through the results' own identifiers, not assumed.</b> A batch of
+	/// uniformly successful messages looks identical however it is ordered, so an arm that only counted
+	/// entries would pass a provider that groups its successes before its failures. This sends messages
+	/// with distinct bodies and identifiers and requires the result at each index to name that index's
+	/// input.
+	/// </para>
+	/// <para>
+	/// <b>A provider whose results carry no input identity FAILS here rather than being skipped.</b> It is
+	/// not that such a provider is known to be misaligned — it is that its alignment cannot be verified at
+	/// all, and a check that cannot fail is not protection. Reporting "unverifiable" as a pass is how the
+	/// original defect survived.
+	/// </para>
+	/// </remarks>
+	protected async Task VerifySendBatchResultsAreOnePerInputInOrder()
+	{
+		await using var sender = await CreateSenderAsync().ConfigureAwait(false);
+
+		var messages = new List<TransportMessage>();
+		for (var i = 0; i < 5; i++)
+		{
+			messages.Add(TransportMessage.FromString($"aligned-{i}"));
+		}
+
+		var result = await sender.SendBatchAsync(messages, CancellationToken.None).ConfigureAwait(false);
+
+		// Clause 1 — exactly one result per input, and the counts describe that same list.
+		if (result.Results.Count != messages.Count)
+		{
+			throw new InvalidOperationException(
+				$"BatchSendResult.Results must carry exactly one entry per input: expected {messages.Count}, "
+				+ $"got {result.Results.Count}. A caller cannot attribute a result to a message it cannot find.");
+		}
+
+		if (result.TotalMessages != messages.Count)
+		{
+			throw new InvalidOperationException(
+				$"BatchSendResult.TotalMessages should be {messages.Count}, got {result.TotalMessages}.");
+		}
+
+		if (result.SuccessCount + result.FailureCount != messages.Count)
+		{
+			throw new InvalidOperationException(
+				$"SuccessCount ({result.SuccessCount}) + FailureCount ({result.FailureCount}) should equal "
+				+ $"{messages.Count}; the counts do not describe the results list.");
+		}
+
+		// Clause 2 — index alignment, verified from the identifiers the results carry.
+		var inputIds = new HashSet<string>(messages.Select(static m => m.Id), StringComparer.Ordinal);
+		var carriesInputIdentity = result.Results.All(
+			r => r.MessageId is { Length: > 0 } id && inputIds.Contains(id));
+
+		if (!carriesInputIdentity)
+		{
+			throw new InvalidOperationException(
+				"BatchSendResult.Results does not carry the identity of the inputs, so index alignment "
+				+ "cannot be verified. Each result's MessageId should name the TransportMessage it "
+				+ "reports on. Until it does, a caller performing selective retry is trusting position "
+				+ "with nothing to check it against.");
+		}
+
+		for (var i = 0; i < messages.Count; i++)
+		{
+			if (!string.Equals(result.Results[i].MessageId, messages[i].Id, StringComparison.Ordinal))
+			{
+				throw new InvalidOperationException(
+					$"BatchSendResult.Results[{i}] reports message '{result.Results[i].MessageId}' but "
+					+ $"input {i} was '{messages[i].Id}'. Results must be index-aligned with the inputs; "
+					+ "grouping them by outcome makes selective retry resend the wrong messages.");
 			}
 		}
 	}

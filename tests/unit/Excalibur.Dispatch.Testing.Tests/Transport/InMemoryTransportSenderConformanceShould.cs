@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Testing.Transport;
 using Excalibur.Dispatch.Transport;
@@ -78,6 +78,9 @@ public sealed class InMemoryTransportSenderConformanceShould : TransportSenderCo
 
 	[Fact]
 	public Task SendBatchAsync_HandlesEmptyBatch() => VerifySendBatchHandlesEmptyBatch();
+
+	[Fact]
+	public Task SendBatchAsync_ReturnsOneResultPerInputInOrder() => VerifySendBatchResultsAreOnePerInputInOrder();
 
 	[Fact]
 	public Task FlushAsync_CompletesSuccessfully() => VerifyFlushCompletesSuccessfully();

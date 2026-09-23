@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Runtime.CompilerServices;
 
@@ -182,26 +182,33 @@ public static class AuditChainVerifier
 			}
 		}
 
-		// Nothing was examined, so nothing was established. Reported distinctly rather than as a pass: an
-		// unexpectedly empty window may itself be the evidence that records are not reaching the store.
-		if (eventsExamined == 0)
-		{
-			return AuditIntegrityResult.NoEventsInScope(startDate, endDate);
-		}
-
-		if (compromisedPartitions > 0)
-		{
-			return AuditIntegrityResult.ViolationsDetected(
+		// ONE verdict, derived from the facts — not a sequence of early returns over a mutable pair.
+		//
+		// The two conditions below are not competing descriptions of one run. "I found a break" is
+		// knowledge; "there was nothing to look at" is the absence of knowledge, and an absence may never
+		// suppress a finding. Both were reachable at once: a partition carrying no events but a successor
+		// whose tail fails leaves nothing examined AND a real violation recorded, and deciding that by the
+		// order of two `if` statements meant the empty answer won and the detection was discarded.
+		//
+		// Expressed this way the contradiction is not merely avoided, it is UNREACHABLE: NoEventsInScope
+		// lies inside the branch where there is no failure, so no reordering can put it in front of one.
+		// The previous shape was correct only while the two tests happened to be written in one order, and
+		// nothing in it told the next reader that the order was load-bearing rather than incidental.
+		return earliestFailure is { } detected
+			? AuditIntegrityResult.ViolationsDetected(
 				eventsExamined,
 				startDate,
 				endDate,
-				earliestFailure!.Value.EventId,
-				earliestFailure.Value.Description,
+				detected.EventId,
+				detected.Description,
 				compromisedPartitions,
-				isHashChained);
-		}
-
-		return AuditIntegrityResult.Verified(eventsExamined, startDate, endDate, isHashChained);
+				isHashChained)
+			: eventsExamined == 0
+				// Nothing was examined, so nothing was established. Reported distinctly rather than as a
+				// pass: an unexpectedly empty window may itself be the evidence that records are not
+				// reaching the store.
+				? AuditIntegrityResult.NoEventsInScope(startDate, endDate)
+				: AuditIntegrityResult.Verified(eventsExamined, startDate, endDate, isHashChained);
 	}
 
 	private static async Task<(long Examined, PartitionFailure? Failure)> VerifyPartitionAsync(

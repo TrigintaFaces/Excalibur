@@ -720,10 +720,9 @@ If you encounter bugs or have feature requests:
 
 This project is licensed under multiple licenses. See the following files in the project root:
 
-- [LICENSE-EXCALIBUR.txt](..\..\..\licenses\LICENSE-EXCALIBUR.txt) - Excalibur License 1.0
-- [LICENSE-AGPL-3.0.txt](..\..\..\licenses\LICENSE-AGPL-3.0.txt) - GNU Affero General Public License v3.0
-- [LICENSE-SSPL-1.0.txt](..\..\..\licenses\LICENSE-SSPL-1.0.txt) - Server Side Public License v1.0
-- [LICENSE-APACHE-2.0.txt](..\..\..\licenses\LICENSE-APACHE-2.0.txt) - Apache License 2.0
+- [LICENSE-EXCALIBUR.txt](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt) - Excalibur License 1.1
+- [LICENSE-AGPL-3.0.txt](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt) - GNU Affero General Public License v3.0
+- [LICENSE-SSPL-1.0.txt](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt) - Server Side Public License v1.0
 
 ---
 

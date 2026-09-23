@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // Event Upcasting Sample
 // =======================
@@ -272,9 +272,11 @@ logger.LogInformation("| Test upgrade paths          | Catch data loss before pr
 logger.LogInformation("| Document schema changes     | Future developers need context         |");
 logger.LogInformation("");
 
-logger.LogInformation("Sample completed. Press Ctrl+C to exit...");
+logger.LogInformation("Sample completed.");
 
-await host.WaitForShutdownAsync().ConfigureAwait(false);
+// The demo is a fixed script, not a service: every upcasting path above has run, so stop the host
+// and exit. Waiting for shutdown here would leave a finished sample sitting idle until killed.
+await host.StopAsync().ConfigureAwait(false);
 
 #pragma warning restore CA1506
 #pragma warning restore CA1303

@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Compliance;
 
 /// <summary>
 /// Thrown by <see cref="IErasureCertificateStore.SaveCertificateAsync"/> when — and only when — a
-/// certificate with the same <see cref="ErasureCertificate.CertificateId"/> is already stored.
+/// certificate with the same <see cref="ErasureCertificatePayload.CertificateId"/> is already stored.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -59,7 +59,7 @@ public sealed class DuplicateErasureCertificateException : InvalidOperationExcep
 	/// Gets the identifier of the certificate that is already stored.
 	/// </summary>
 	/// <value>
-	/// The <see cref="ErasureCertificate.CertificateId"/> that was re-issued, or <see langword="null"/>
+	/// The <see cref="ErasureCertificatePayload.CertificateId"/> that was re-issued, or <see langword="null"/>
 	/// when the exception was constructed without one.
 	/// </value>
 	public Guid? CertificateId { get; init; }

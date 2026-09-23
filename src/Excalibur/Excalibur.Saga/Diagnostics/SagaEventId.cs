@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Saga.Diagnostics;
 
@@ -270,6 +270,15 @@ internal static class SagaEventId
 
 	/// <summary>Timeout service stopped.</summary>
 	public const int TimeoutServiceStopped = 121205;
+
+	/// <summary>
+	/// A delivered timeout could not be retired because the claim presented was no longer the current one.
+	/// </summary>
+	/// <remarks>
+	/// Expected under a multi-instance deployment: this processor's lease expired and another re-claimed
+	/// the timeout. Informational rather than an error — the live claim holder now owns the outcome.
+	/// </remarks>
+	public const int TimeoutRetirementSuperseded = 121209;
 
 	/// <summary>Timeout type resolution failed.</summary>
 	public const int TimeoutTypeResolutionFailed = 121206;

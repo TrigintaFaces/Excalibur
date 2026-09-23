@@ -1297,6 +1297,58 @@ Each candidate exposes health information:
 | `LastUpdated` | `DateTimeOffset` | When health was last reported |
 | `Metadata` | `IDictionary<string, string>` | Custom health metadata |
 
+### Making timestamps deterministic in your tests
+
+`CandidateHealth.LastUpdated` and the acquisition instant on `CurrentLeadership` come from the
+`TimeProvider` the election was constructed with. Supply your own and those timestamps become yours to
+control:
+
+```csharp
+using Microsoft.Extensions.Time.Testing;
+
+var clock = new FakeTimeProvider();
+
+var election = new InMemoryLeaderElection(
+    resourceName: "orders-processor",
+    options: Options.Create(new LeaderElectionOptions { InstanceId = "candidate-1" }),
+    logger: NullLogger<InMemoryLeaderElection>.Instance,
+    sharedState: new InMemoryLeaderElectionSharedState(),
+    timeProvider: clock);
+
+await election.StartAsync(ct);
+
+var registeredAt = (await election.GetCandidateHealthAsync(ct)).Single().LastUpdated;
+// registeredAt == clock.GetUtcNow()
+
+clock.Advance(TimeSpan.FromMinutes(5));
+await election.UpdateHealthAsync(isHealthy: true, metadata: null, ct);
+
+var updatedAt = (await election.GetCandidateHealthAsync(ct)).Single().LastUpdated;
+// updatedAt - registeredAt == 5 minutes, with no waiting
+```
+
+The provider is optional on every election; omit it and the system clock is used. The Consul and Kubernetes
+elections take it as the last constructor parameter in the same way.
+
+:::note
+This controls **timestamps the election records**, not lease or session expiry, which the coordination
+store enforces on its own clock. A fake provider will not make Consul or Kubernetes expire a lease early.
+:::
+
+This covers the election's events too. The `Timestamp` on `BecameLeader`, `LostLeadership`,
+`LeaderChanged` and `AcquisitionFailed` is stamped from the same provider, so an event's `Timestamp` and
+the properties above agree on when a transition happened:
+
+```csharp
+election.BecameLeader += (_, e) =>
+{
+    // e.Timestamp == clock.GetUtcNow()
+};
+```
+
+`DefaultLeaderElectionWatcher` takes the provider as an optional last constructor parameter and stamps
+`LeaderChangeEvent.ChangedAt` from it, so a watch loop is deterministic on the same clock.
+
 ## Fencing tokens
 
 A fencing token is a strictly monotonic number minted on each leadership acquisition. Passing it to a shared resource lets that resource **reject a write from a stale leader** — one that was paused (GC, network partition) long enough to lose leadership without noticing — because the stale leader's token is lower than the token the resource has already seen. Fencing tokens are the standard defence against the split-brain write hazard.

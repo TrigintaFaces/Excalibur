@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Storage;
@@ -153,29 +153,42 @@ public sealed class InMemorySagaTimeoutStoreShould
 		// Arrange
 		await _sut.ScheduleTimeoutAsync(CreateTimeout("saga-1", "t1", DateTimeOffset.UtcNow), CancellationToken.None);
 
+		// A timeout is retired by the processor HOLDING its claim, so the claim has to be taken first.
+		// That is the contract, not test ceremony: retiring one you never claimed is no longer expressible.
+		var claims = await _sut.ClaimDueTimeoutsAsync(DateTimeOffset.UtcNow, 10, CancellationToken.None);
+		var claim = claims.Single(c => c.Timeout.TimeoutId == "t1");
+
 		// Act
-		await _sut.MarkDeliveredAsync("t1", CancellationToken.None);
+		var outcome = await _sut.MarkDeliveredAsync(claim, CancellationToken.None);
 
 		// Assert
+		outcome.ShouldBe(SagaTimeoutRetirementOutcome.Retired);
 		_sut.GetPendingCount().ShouldBe(0);
 	}
 
 	[Fact]
-	public async Task MarkDeliveredAsync_BeIdempotent()
+	public async Task MarkDeliveredAsync_ReportSuperseded_WhenRepeatedWithASpentClaim()
 	{
-		// Arrange
+		// The contract used to be described as idempotent, and a repeat is still harmless. What changed is
+		// that the repeat is now REPORTED rather than silently absorbed: the row is gone, so this caller is
+		// no longer its owner, and saying so is what lets a stalled processor tell "I retired it" from
+		// "somebody else owns this now". Absorbing the second call made those the same observation.
 		await _sut.ScheduleTimeoutAsync(CreateTimeout("saga-1", "t1", DateTimeOffset.UtcNow), CancellationToken.None);
-		await _sut.MarkDeliveredAsync("t1", CancellationToken.None);
+		var claims = await _sut.ClaimDueTimeoutsAsync(DateTimeOffset.UtcNow, 10, CancellationToken.None);
+		var claim = claims.Single(c => c.Timeout.TimeoutId == "t1");
 
-		// Act & Assert - second call should not throw
-		await _sut.MarkDeliveredAsync("t1", CancellationToken.None);
+		(await _sut.MarkDeliveredAsync(claim, CancellationToken.None)).ShouldBe(SagaTimeoutRetirementOutcome.Retired);
+
+		// Act & Assert - the repeat does not throw, and it does not claim to have retired anything.
+		var second = await _sut.MarkDeliveredAsync(claim, CancellationToken.None);
+		second.ShouldBe(SagaTimeoutRetirementOutcome.Superseded);
 		_sut.GetPendingCount().ShouldBe(0);
 	}
 
 	[Fact]
-	public async Task MarkDeliveredAsync_ThrowOnNullTimeoutId()
+	public async Task MarkDeliveredAsync_ThrowOnNullClaim()
 	{
-		await Should.ThrowAsync<ArgumentException>(
+		await Should.ThrowAsync<ArgumentNullException>(
 			() => _sut.MarkDeliveredAsync(null!, CancellationToken.None));
 	}
 

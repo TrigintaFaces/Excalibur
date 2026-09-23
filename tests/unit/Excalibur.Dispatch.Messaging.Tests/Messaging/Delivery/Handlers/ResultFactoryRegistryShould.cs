@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Routing;
@@ -88,7 +88,7 @@ public sealed class ResultFactoryRegistryShould
 		var factory = ResultFactoryRegistry.GetFactory(typeof(string))!;
 
 		// Act
-		var result = factory("hello", null, null, null, false);
+		var result = factory("hello", null, null, null, MessageDisposition.Handled);
 
 		// Assert
 		result.ShouldNotBeNull();
@@ -106,7 +106,7 @@ public sealed class ResultFactoryRegistryShould
 		var factory = ResultFactoryRegistry.GetFactory(typeof(int))!;
 
 		// Act — pass null routing (RoutingDecision is sealed, can't fake)
-		var result = factory(42, null, null, null, false);
+		var result = factory(42, null, null, null, MessageDisposition.Handled);
 
 		// Assert
 		result.ShouldNotBeNull();
@@ -114,18 +114,22 @@ public sealed class ResultFactoryRegistryShould
 	}
 
 	[Fact]
-	public void GetFactory_ReturnsFactory_ThatPassesCacheHitFlag()
+	public void GetFactory_ReturnsFactory_ThatPassesDisposition()
 	{
 		// Arrange
 		ResultFactoryRegistry.RegisterFactory<bool>();
 		var factory = ResultFactoryRegistry.GetFactory(typeof(bool))!;
 
 		// Act
-		var result = factory(true, null, null, null, true);
+		var result = factory(true, null, null, null, MessageDisposition.ServedFromCache);
 
 		// Assert
 		result.ShouldNotBeNull();
 		result.Succeeded.ShouldBeTrue();
+
+		// The factory must carry the disposition through, not default it: the previous arm passed a flag
+		// and asserted nothing about it, so it could not have failed if the flag were dropped.
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	#endregion

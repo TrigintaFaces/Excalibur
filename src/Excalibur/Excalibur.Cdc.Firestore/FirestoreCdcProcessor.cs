@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -293,17 +293,26 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 	{
 		var query = BuildListenerQuery();
 
-		_listener = query.Listen(snapshot =>
-		{
-			try
+		// The SDK's asynchronous listen overload is what lets the snapshot handler WAIT for channel
+		// capacity. The synchronous overload would force either a dropped change or a blocked callback
+		// thread, and the first of those is the defect this replaced.
+		_listener = query.Listen(
+			async (snapshot, cancellationToken) =>
 			{
-				ProcessSnapshot(snapshot);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error processing Firestore snapshot for CDC processor {ProcessorName}", _options.ProcessorName);
-			}
-		});
+				try
+				{
+					await ProcessSnapshotAsync(snapshot, cancellationToken).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException)
+				{
+					// Shutdown, not a fault. Whatever was not written stays unwritten and, because the
+					// position only advances behind a handled event, stays un-checkpointed with it.
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error processing Firestore snapshot for CDC processor {ProcessorName}", _options.ProcessorName);
+				}
+			});
 	}
 
 	private async Task StopListenerAsync()
@@ -359,7 +368,26 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 		return query;
 	}
 
-	private void ProcessSnapshot(QuerySnapshot snapshot)
+	/// <summary>
+	/// Hands every change in a snapshot to the processing channel, waiting when the channel is full.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This waits rather than dropping, and that is the whole point.</b> The channel is bounded with
+	/// <see cref="BoundedChannelFullMode.Wait"/>, but a non-blocking write does not wait — it reports
+	/// failure the instant the channel is full. Treating that as an error abandoned the rest of the
+	/// snapshot, and Firestore does not re-deliver it: those changes were gone, the consumer was told
+	/// nothing, and a later change moved the stored position past them. Waiting applies backpressure to
+	/// the listener instead, which is what a bounded channel is for.
+	/// </para>
+	/// <para>
+	/// The position is deliberately NOT advanced here. It moves only once an event has been read from the
+	/// channel and handled, so a checkpoint continues to mean every change before it was delivered.
+	/// </para>
+	/// </remarks>
+	/// <param name="snapshot">The snapshot to process.</param>
+	/// <param name="cancellationToken">Cancelled on shutdown; stops waiting for channel capacity.</param>
+	private async Task ProcessSnapshotAsync(QuerySnapshot snapshot, CancellationToken cancellationToken)
 	{
 		if (!_isRunning || _disposed)
 		{
@@ -429,13 +457,7 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 					docSnapshot.CreateTime?.ToDateTimeOffset());
 			}
 
-			if (!_channel.Writer.TryWrite(changeEvent))
-			{
-				LogEventDropped(_options.ProcessorName, docId);
-				throw new InvalidOperationException(
-					$"CDC event for document '{docId}' could not be written to the processing channel. " +
-					"The channel is full — increase MaxBatchSize or process events faster.");
-			}
+			await _channel.Writer.WriteAsync(changeEvent, cancellationToken).ConfigureAwait(false);
 		}
 	}
 

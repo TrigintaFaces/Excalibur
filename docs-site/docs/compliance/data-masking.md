@@ -6,6 +6,14 @@ description: PII/PHI data masking for logs and responses
 
 # Data Masking
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../legal/compliance-disclaimer.md).
+:::
+
 Data masking protects sensitive information (PII/PHI) by replacing identifiable patterns with masked values in logs, error messages, and API responses.
 
 ## Before You Start

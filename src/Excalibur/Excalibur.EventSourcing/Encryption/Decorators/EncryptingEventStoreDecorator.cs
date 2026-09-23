@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
@@ -41,7 +41,18 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 	private readonly IOptions<EncryptionOptions> _options;
 	private readonly SubjectFieldCryptor _subjectFieldCryptor;
 	private readonly IEventSerializer _eventSerializer;
-	private readonly EncryptionContext _defaultContext;
+	/// <summary>
+	/// Resolves the tenant of the operation in flight. Consulted PER CALL, never captured.
+	/// </summary>
+	/// <remarks>
+	/// The AES-GCM provider binds this into the Additional Authenticated Data, and its own comment
+	/// names cross-tenant decryption as the thing that prevents. Stamping it once at construction from
+	/// a process-wide option made every record in a multi-tenant host carry the SAME tenant, so the
+	/// component advertised as the cross-tenant control contributed nothing on exactly the paths that
+	/// encrypt stored data. A construction-time context cannot carry a per-operation value, so the
+	/// cached field is removed rather than corrected -- a constant stamp now has nowhere to live.
+	/// </remarks>
+	private readonly ITenantContext _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EncryptingEventStoreDecorator"/> class.
@@ -57,12 +68,17 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 	/// fields can be decrypted, and to resolve the event's runtime type from its stored name.
 	/// </param>
 	/// <param name="options">The encryption configuration options.</param>
+	/// <param name="tenantContext">
+	/// Resolves the tenant each operation runs as, so the AAD binds the DATA's tenant rather than a
+	/// process-wide constant. Required: a single-tenant host receives the framework's single-tenant default.
+	/// </param>
 	public EncryptingEventStoreDecorator(
 		IEventStore inner,
 		IEncryptionProviderRegistry registry,
 		SubjectFieldCryptor subjectFieldCryptor,
 		IEventSerializer eventSerializer,
-		IOptions<EncryptionOptions> options)
+		IOptions<EncryptionOptions> options,
+		ITenantContext tenantContext)
 		: base(inner)
 	{
 		_inner = Inner;
@@ -70,12 +86,7 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 		_subjectFieldCryptor = subjectFieldCryptor ?? throw new ArgumentNullException(nameof(subjectFieldCryptor));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
-		_defaultContext = new EncryptionContext
-		{
-			Purpose = options.Value.DefaultPurpose,
-			TenantId = options.Value.DefaultTenantId,
-			RequireFipsCompliance = options.Value.RequireFipsCompliance
-		};
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 	}
 
 	/// <inheritdoc/>
@@ -285,7 +296,7 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 					   ?? throw new EncryptionException(
 						   Resources.Encryption_NoProviderCanDecrypt);
 
-		return await provider.DecryptAsync(encryptedData, _defaultContext, cancellationToken).ConfigureAwait(false);
+		return await provider.DecryptAsync(encryptedData, CurrentEncryptionContext(), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -340,4 +351,20 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 				.ConfigureAwait(false);
 		}
 	}
+
+	/// <summary>
+	/// Builds the encryption context for the operation in flight, binding the tenant it is running as.
+	/// </summary>
+	/// <remarks>
+	/// Falls back to the configured default ONLY when no tenant context is registered at all, which is
+	/// the single-tenant composition -- there a constant is the correct answer and always was, so this
+	/// keeps existing single-tenant ciphertext decryptable. A multi-tenant host always resolves a tenant
+	/// and therefore always gets real separation, which is the case the defect was about.
+	/// </remarks>
+	private EncryptionContext CurrentEncryptionContext() => new()
+	{
+		Purpose = _options.Value.DefaultPurpose,
+		TenantId = _tenantContext.TenantId,
+		RequireFipsCompliance = _options.Value.RequireFipsCompliance
+	};
 }

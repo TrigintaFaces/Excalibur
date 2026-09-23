@@ -286,6 +286,108 @@ else
     fail "J: guard-1 regressed — production default roots are not 'docs-site samples'"
 fi
 
+# ── N/O/P. SECOND AXIS: the shipped copy must declare the same TYPE as the script it copies ──
+# The presence axis (G/H) answers "is every column our code writes declared here?" and cannot see a
+# column declared at a different width or collation. A consumer-facing copy could narrow a column, or
+# drop a binary collation, and the gate reported ok -- a false PASS on an axis it did not have.
+#
+# N is the safety arm the requirement names (widen a column in the doc -> FAIL). O is its liveness
+# partner: without it, a gate that flagged every pair would satisfy N. P is the case that actually
+# costs something -- a tenant column that loses its binary collation matches case-INSENSITIVELY, so
+# the tenant predicate returns another tenant's rows and nothing errors.
+TFX="$WORK/tfx"; mkdir -p "$TFX/docs" "$TFX/src"
+cat > "$TFX/src/w.cs" <<'EOF'
+var sql = $"""
+   UPDATE {t} SET attempts = @Attempts, tenant_id = @TenantId
+   WHERE message_id = @MessageId
+   """;
+EOF
+cat > "$TFX/script.sql" <<'EOF'
+CREATE TABLE t_outbox (
+    message_id TEXT         NOT NULL,
+    attempts   INT          NOT NULL,
+    tenant_id  NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+);
+EOF
+printf 't_outbox|%s/**|t|type-axis fixture|.|%s\n' "$TFX/src" "$TFX/script.sql" > "$TFX/map"
+
+run_type_gate() {  # prints exit code
+    SHIPPED_DDL_DOC_ROOTS="$TFX/docs" SHIPPED_DDL_SRC_ROOTS="$TFX/src" \
+      SHIPPED_DDL_MAP_FILE="$TFX/map" SHIPPED_DDL_MIN_COLS=1 SHIPPED_DDL_REPO_ROOT="$PWD" \
+      bash "$GATE" --sweep >/dev/null 2>&1
+    echo $?
+}
+
+# --- N. doc WIDENS a column the script narrows -> FAIL(1) -------------------
+cat > "$TFX/docs/schema.md" <<'EOF'
+```sql
+CREATE TABLE t_outbox (
+    message_id TEXT          NOT NULL,
+    attempts   BIGINT        NOT NULL,
+    tenant_id  NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+);
+```
+EOF
+rc="$(run_type_gate)"
+if [ "$rc" -eq 1 ]; then
+    pass "N: shipped DDL declares a column at a different type than the script -> FAIL(1)"
+else
+    fail "N: type divergence did NOT FAIL (got exit $rc, expected 1) — the presence-only blindness"
+fi
+
+# --- O. script and doc agree on every type -> PASS(0) (liveness) ------------
+cat > "$TFX/docs/schema.md" <<'EOF'
+```sql
+CREATE TABLE t_outbox (
+    message_id TEXT         NOT NULL,
+    attempts   INT          NOT NULL,
+    tenant_id  NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+);
+```
+EOF
+rc="$(run_type_gate)"
+if [ "$rc" -eq 0 ]; then
+    pass "O: script and shipped DDL agree on type/width/collation -> PASS(0) (no false positive)"
+else
+    fail "O: matching types did NOT PASS (got exit $rc, expected 0) — the gate cries wolf and gets switched off"
+fi
+
+# --- P. COLLATION dropped on a tenant column -> FAIL(1) ---------------------
+# Same type, same width, no collation. Presence sees nothing; width sees nothing.
+cat > "$TFX/docs/schema.md" <<'EOF'
+```sql
+CREATE TABLE t_outbox (
+    message_id TEXT         NOT NULL,
+    attempts   INT          NOT NULL,
+    tenant_id  NVARCHAR(64) NOT NULL
+);
+```
+EOF
+rc="$(run_type_gate)"
+if [ "$rc" -eq 1 ]; then
+    pass "P: tenant column shipped WITHOUT its binary collation -> FAIL(1) (the predicate would fail OPEN)"
+else
+    fail "P: dropped collation did NOT FAIL (got exit $rc, expected 1) — a cross-tenant read ships unnoticed"
+fi
+
+# --- Q. a declared canonical script that is absent -> REFUSE(2), never a pass
+printf 't_outbox|%s/**|t|type-axis fixture|.|%s/does-not-exist.sql\n' "$TFX/src" "$TFX" > "$TFX/map"
+cat > "$TFX/docs/schema.md" <<'EOF'
+```sql
+CREATE TABLE t_outbox (
+    message_id TEXT         NOT NULL,
+    attempts   INT          NOT NULL,
+    tenant_id  NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+);
+```
+EOF
+rc="$(run_type_gate)"
+if [ "$rc" -eq 2 ]; then
+    pass "Q: declared canonical script missing -> REFUSE(2) (a comparison that never ran is not a pass)"
+else
+    fail "Q: missing canonical script did NOT REFUSE (got exit $rc, expected 2)"
+fi
+
 echo ""
 if [ "$FAILURES" -eq 0 ]; then
     echo "✅ shipped-ddl-sweep.test.sh: ALL GREEN"

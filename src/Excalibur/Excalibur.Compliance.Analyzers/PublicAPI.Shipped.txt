@@ -1,0 +1,5 @@
+#nullable enable
+Excalibur.Compliance.Analyzers.EncryptedFieldHonourabilityAnalyzer
+Excalibur.Compliance.Analyzers.EncryptedFieldHonourabilityAnalyzer.EncryptedFieldHonourabilityAnalyzer() -> void
+override Excalibur.Compliance.Analyzers.EncryptedFieldHonourabilityAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Compliance.Analyzers.EncryptedFieldHonourabilityAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>

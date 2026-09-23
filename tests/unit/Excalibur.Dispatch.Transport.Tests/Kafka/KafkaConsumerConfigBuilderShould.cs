@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Confluent.Kafka;
 
@@ -78,4 +78,56 @@ public sealed class KafkaConsumerConfigBuilderShould : UnitTestBase
 		// Assert
 		config.PartitionAssignmentStrategy.ShouldBeNull();
 	}
+	/// <summary>
+	/// SAFETY. The consumer must be built with the offset store under our control. librdkafka defaults
+	/// enable.auto.offset.store to TRUE, which records offset+1 when a message is HANDED TO the
+	/// application rather than when it is finished with — so a commit of stored offsets can move the
+	/// group past work still inside handlers, and a rebalance at that moment loses it silently.
+	/// </summary>
+	[Fact]
+	public void Build_AlwaysDisablesAutoOffsetStore()
+	{
+		var options = new KafkaOptions { BootstrapServers = "localhost:9092", SecurityProtocol = SecurityProtocol.Ssl };
+
+		var config = KafkaConsumerConfigBuilder.Build(options);
+
+		// RED on pre-fix: the builder never set this, so it was null and librdkafka's default (true) applied.
+		config.EnableAutoOffsetStore.ShouldBe(false);
+	}
+
+	/// <summary>
+	/// LIVENESS for the guard itself. AdditionalConfig is applied AFTER the strongly-typed settings and
+	/// can set any librdkafka property by name, so it is the one path that could put auto-offset-store
+	/// back. This is the single point that makes the stored-position rule unbypassable, and without an
+	/// arm here it could be deleted with every other test still green.
+	/// </summary>
+	[Fact]
+	public void Build_RefusesWhenAdditionalConfigReEnablesAutoOffsetStore()
+	{
+		var options = new KafkaOptions { BootstrapServers = "localhost:9092", SecurityProtocol = SecurityProtocol.Ssl };
+		options.AdditionalConfig["enable.auto.offset.store"] = "true";
+
+		var ex = Should.Throw<InvalidOperationException>(() => KafkaConsumerConfigBuilder.Build(options));
+
+		// The message has to tell the consumer WHY, not merely that it was refused: they set this
+		// deliberately and will otherwise reach for a way around it.
+		ex.Message.ShouldContain("enable.auto.offset.store");
+		ex.Message.ShouldContain("before the handler");
+	}
+
+	/// <summary>
+	/// The guard must not fire on the value it is there to ALLOW. Without this arm a guard that refused
+	/// every configuration would satisfy the arm above perfectly.
+	/// </summary>
+	[Fact]
+	public void Build_AllowsAdditionalConfigThatLeavesAutoOffsetStoreDisabled()
+	{
+		var options = new KafkaOptions { BootstrapServers = "localhost:9092", SecurityProtocol = SecurityProtocol.Ssl };
+		options.AdditionalConfig["enable.auto.offset.store"] = "false";
+
+		var config = KafkaConsumerConfigBuilder.Build(options);
+
+		config.EnableAutoOffsetStore.ShouldBe(false);
+	}
+
 }

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Options;
 
@@ -70,7 +70,7 @@ public sealed class Soc2ComplianceServiceShould
 	{
 		// Arrange
 		var controlId = "SEC-001";
-		SetupValidationResult(controlId, isEffective: true, score: 100);
+		SetupValidationResult(controlId, isEffective: true, score: ControlEffectiveness.Effective);
 
 		// Act
 		var result = await _sut.GetComplianceStatusAsync(null, CancellationToken.None);
@@ -84,7 +84,7 @@ public sealed class Soc2ComplianceServiceShould
 	{
 		// Arrange
 		var controlId = "SEC-001";
-		SetupValidationResult(controlId, isEffective: false, score: 20);
+		SetupValidationResult(controlId, isEffective: false, score: ControlEffectiveness.ViolationDetected);
 
 		// Act
 		var result = await _sut.GetComplianceStatusAsync(null, CancellationToken.None);
@@ -98,7 +98,7 @@ public sealed class Soc2ComplianceServiceShould
 	{
 		// Arrange
 		var controlId = "SEC-001";
-		SetupValidationResult(controlId, isEffective: false, score: 50, issues: ["Missing encryption"]);
+		SetupValidationResult(controlId, isEffective: false, score: ControlEffectiveness.ViolationDetected, issues: ["Missing encryption"]);
 
 		// Act
 		var result = await _sut.GetComplianceStatusAsync(null, CancellationToken.None);
@@ -113,7 +113,7 @@ public sealed class Soc2ComplianceServiceShould
 	{
 		// Arrange
 		var controlId = "SEC-001";
-		SetupValidationResult(controlId, isEffective: false, score: 20, issues: ["Critical issue"]);
+		SetupValidationResult(controlId, isEffective: false, score: ControlEffectiveness.ViolationDetected, issues: ["Critical issue"]);
 
 		// Act
 		var result = await _sut.GetComplianceStatusAsync(null, CancellationToken.None);
@@ -310,14 +310,14 @@ public sealed class Soc2ComplianceServiceShould
 	{
 		// Arrange
 		var controlId = "SEC-001";
-		SetupValidationResult(controlId, isEffective: true, score: 100);
+		SetupValidationResult(controlId, isEffective: true, score: ControlEffectiveness.Effective);
 		var options = new ReportOptions();
 
 		// Act
 		var result = await _sut.GenerateTypeIReportAsync(DateTimeOffset.UtcNow, options, CancellationToken.None);
 
 		// Assert
-		result.Opinion.ShouldBe(AuditorOpinion.Unqualified);
+		result.OverallLevel.ShouldBe(ComplianceLevel.FullyCompliant);
 	}
 
 	[Fact]
@@ -325,14 +325,14 @@ public sealed class Soc2ComplianceServiceShould
 	{
 		// Arrange
 		var controlId = "SEC-001";
-		SetupValidationResult(controlId, isEffective: false, score: 20);
+		SetupValidationResult(controlId, isEffective: false, score: ControlEffectiveness.ViolationDetected);
 		var options = new ReportOptions();
 
 		// Act
 		var result = await _sut.GenerateTypeIReportAsync(DateTimeOffset.UtcNow, options, CancellationToken.None);
 
 		// Assert
-		result.Opinion.ShouldBe(AuditorOpinion.Adverse);
+		result.OverallLevel.ShouldBe(ComplianceLevel.NonCompliant);
 	}
 
 	[Fact]
@@ -479,14 +479,14 @@ public sealed class Soc2ComplianceServiceShould
 		// Arrange -- the failing control is SECOND, so a first-control verdict would report a pass.
 		_ = A.CallTo(() => _fakeControlValidation.ValidateCriterionAsync(TrustServicesCriterion.CC6_LogicalAccess, A<CancellationToken>._))
 			.Returns<IReadOnlyList<ControlValidationResult>>(
-				[CreateValidationResult("SEC-001", true, 100), CreateValidationResult("SEC-002", false, 10)]);
+				[CreateValidationResult("SEC-001", true, ControlEffectiveness.Effective), CreateValidationResult("SEC-002", false, ControlEffectiveness.ViolationDetected)]);
 
 		// Act
 		var results = await _sut.ValidateCriterionAsync(TrustServicesCriterion.CC6_LogicalAccess, CancellationToken.None);
 
 		// Assert
 		results.Count.ShouldBe(2);
-		results.ShouldContain(r => r.ControlId == "SEC-002" && !r.IsEffective);
+		results.ShouldContain(r => r.ControlId == "SEC-002" && r.Outcome != ControlOutcome.Effective);
 	}
 
 	#endregion ValidateControlAsync Tests
@@ -531,14 +531,16 @@ public sealed class Soc2ComplianceServiceShould
 	private static ControlValidationResult CreateValidationResult(
 		string controlId,
 		bool isEffective,
-		int score,
+		ControlEffectiveness score,
 		IReadOnlyList<string>? issues = null)
 	{
 		return new ControlValidationResult
 		{
 			ControlId = controlId,
 			IsConfigured = true,
-			IsEffective = isEffective,
+			// The verdict is derived from the band, so the caller states the band alone. The isEffective
+			// flag now selects which band a caller passes rather than a second, independently settable
+			// fact that could contradict it.
 			EffectivenessScore = score,
 			ConfigurationIssues = issues ?? [],
 			Evidence = [],
@@ -552,7 +554,7 @@ public sealed class Soc2ComplianceServiceShould
 			.Returns(["SEC-001"]);
 
 		_ = A.CallTo(() => _fakeControlValidation.ValidateControlAsync(A<string>._, A<CancellationToken>._))
-			.Returns(CreateValidationResult("SEC-001", true, 100));
+			.Returns(CreateValidationResult("SEC-001", true, ControlEffectiveness.Effective));
 	}
 
 	private void SetupDefaultValidationWithTestResults()
@@ -577,7 +579,7 @@ public sealed class Soc2ComplianceServiceShould
 	private void SetupValidationResult(
 		string controlId,
 		bool isEffective,
-		int score,
+		ControlEffectiveness score,
 		IReadOnlyList<string>? issues = null)
 	{
 		_ = A.CallTo(() => _fakeControlValidation.GetControlsForCriterion(A<TrustServicesCriterion>._))

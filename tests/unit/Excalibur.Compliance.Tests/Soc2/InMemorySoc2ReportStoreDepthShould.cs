@@ -154,14 +154,14 @@ public sealed class InMemorySoc2ReportStoreDepthShould
 	public async Task Combine_multiple_filters()
 	{
 		var store = new InMemorySoc2ReportStore();
-		await store.SaveReportAsync(CreateReport(Soc2ReportType.TypeI, AuditorOpinion.Unqualified, "t1"), CancellationToken.None).ConfigureAwait(false);
-		await store.SaveReportAsync(CreateReport(Soc2ReportType.TypeI, AuditorOpinion.Adverse, "t1"), CancellationToken.None).ConfigureAwait(false);
-		await store.SaveReportAsync(CreateReport(Soc2ReportType.TypeII, AuditorOpinion.Unqualified, "t2"), CancellationToken.None).ConfigureAwait(false);
+		await store.SaveReportAsync(CreateReport(Soc2ReportType.TypeI, ComplianceLevel.FullyCompliant, "t1"), CancellationToken.None).ConfigureAwait(false);
+		await store.SaveReportAsync(CreateReport(Soc2ReportType.TypeI, ComplianceLevel.NonCompliant, "t1"), CancellationToken.None).ConfigureAwait(false);
+		await store.SaveReportAsync(CreateReport(Soc2ReportType.TypeII, ComplianceLevel.FullyCompliant, "t2"), CancellationToken.None).ConfigureAwait(false);
 
 		var filter = new ReportFilter
 		{
 			ReportType = Soc2ReportType.TypeI,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			TenantId = "t1"
 		};
 		var results = await store.ListReportsAsync(filter, CancellationToken.None).ConfigureAwait(false);
@@ -232,11 +232,11 @@ public sealed class InMemorySoc2ReportStoreDepthShould
 	public async Task Get_report_count_filtered_by_opinion()
 	{
 		var store = new InMemorySoc2ReportStore();
-		await store.SaveReportAsync(CreateReport(opinion: AuditorOpinion.Unqualified), CancellationToken.None).ConfigureAwait(false);
-		await store.SaveReportAsync(CreateReport(opinion: AuditorOpinion.Adverse), CancellationToken.None).ConfigureAwait(false);
-		await store.SaveReportAsync(CreateReport(opinion: AuditorOpinion.Unqualified), CancellationToken.None).ConfigureAwait(false);
+		await store.SaveReportAsync(CreateReport(overallLevel: ComplianceLevel.FullyCompliant), CancellationToken.None).ConfigureAwait(false);
+		await store.SaveReportAsync(CreateReport(overallLevel: ComplianceLevel.NonCompliant), CancellationToken.None).ConfigureAwait(false);
+		await store.SaveReportAsync(CreateReport(overallLevel: ComplianceLevel.FullyCompliant), CancellationToken.None).ConfigureAwait(false);
 
-		var filter = new ReportFilter { Opinion = AuditorOpinion.Adverse };
+		var filter = new ReportFilter { OverallLevel = ComplianceLevel.NonCompliant };
 		var count = await store.GetReportCountAsync(filter, CancellationToken.None).ConfigureAwait(false);
 
 		count.ShouldBe(1);
@@ -302,7 +302,7 @@ public sealed class InMemorySoc2ReportStoreDepthShould
 
 	private static Soc2Report CreateReport(
 		Soc2ReportType type = Soc2ReportType.TypeI,
-		AuditorOpinion opinion = AuditorOpinion.Unqualified,
+		ComplianceLevel overallLevel = ComplianceLevel.FullyCompliant,
 		string? tenantId = null,
 		DateTimeOffset? generatedAt = null,
 		DateTimeOffset? periodStart = null,
@@ -315,7 +315,7 @@ public sealed class InMemorySoc2ReportStoreDepthShould
 			PeriodStart = periodStart ?? DateTimeOffset.UtcNow.AddDays(-30),
 			PeriodEnd = periodEnd ?? DateTimeOffset.UtcNow,
 			GeneratedAt = generatedAt ?? DateTimeOffset.UtcNow,
-			Opinion = opinion,
+			OverallLevel = overallLevel,
 			ControlSections = [],
 			Exceptions = [],
 			CategoriesIncluded = [TrustServicesCategory.Security],

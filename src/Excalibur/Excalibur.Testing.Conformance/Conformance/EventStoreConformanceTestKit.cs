@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 #pragma warning disable IDE0007 // Use implicit type (var)
@@ -127,7 +127,13 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 	/// </remarks>
 	private sealed class SwitchableTenantContext : ITenantContext
 	{
-		public string? TenantId { get; private set; }
+		// Defaults to the reserved UNTENANTED term, never null. A null tenant on a PRESENT context
+		// does not read as "untenanted" - it reads as "multi-tenancy is active and unresolved", which
+		// the partition seam fails closed on, so an arm that forgot SwitchTo threw from three types
+		// away from its own mistake. The setter stays permissive on purpose: the tenant-context
+		// census drives every mutable implementation to the empty string and requires HasTenant to
+		// be false there, so refusing a blank here would make this type invisible to that arm.
+		public string? TenantId { get; private set; } = TenantScope.UntenantedSentinel;
 
 		public bool HasTenant => !string.IsNullOrEmpty(TenantId);
 

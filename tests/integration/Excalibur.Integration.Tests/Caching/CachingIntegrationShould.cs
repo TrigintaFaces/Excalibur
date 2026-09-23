@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -82,9 +82,23 @@ public sealed class ConditionalCachePolicy : IResultCachePolicy<CachingTestQuery
 	Justification = "Instantiated via DI")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
-public sealed class TestTrackingMiddleware : IDispatchMiddleware
+public sealed class TestMiddlewareCallTracker
 {
-	public int CallCount { get; private set; }
+	private int _callCount;
+
+	public int CallCount => Volatile.Read(ref _callCount);
+
+	public void Record() => Interlocked.Increment(ref _callCount);
+}
+
+/// <summary>
+/// Counts through a Singleton <see cref="TestMiddlewareCallTracker"/>, never on itself: the pipeline resolves
+/// a middleware registered with <c>UseMiddleware&lt;T&gt;</c> per dispatch, so the instance a test can
+/// resolve from the root provider is not one the pipeline ever invokes.
+/// </summary>
+public sealed class TestTrackingMiddleware(TestMiddlewareCallTracker tracker) : IDispatchMiddleware
+{
+	public int CallCount => tracker.CallCount;
 
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
 
@@ -94,7 +108,7 @@ public sealed class TestTrackingMiddleware : IDispatchMiddleware
 		DispatchRequestDelegate nextDelegate,
 		CancellationToken cancellationToken)
 	{
-		CallCount++;
+		tracker.Record();
 		return await nextDelegate(message, context, cancellationToken);
 	}
 }
@@ -415,7 +429,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Cached: second call returns same value as first without executing handler
 		result2a.ReturnValue.Value.ShouldBe(300); // 150 * 2
 		result2b.ReturnValue.Value.ShouldBe(300); // 150 * 2
-		result2b.CacheHit.ShouldBeTrue();
+		result2b.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	[Fact]
@@ -434,7 +448,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddTransient<IActionHandler<InvalidateCacheCommand>, InvalidateCacheCommandHandler>();
 
 		// Register as singleton so we can retrieve the instance for assertions
-		_ = services.AddSingleton<TestTrackingMiddleware>();
+		_ = services.AddSingleton<TestMiddlewareCallTracker>();
 
 		_ = services.AddDispatch(dispatch =>
 		{
@@ -452,7 +466,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Ensure the local bus is registered
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
-		var trackingMiddleware = provider.GetRequiredService<TestTrackingMiddleware>();
+		var trackingMiddleware = provider.GetRequiredService<TestMiddlewareCallTracker>();
 
 		var query = new CachingTestQuery { Value = 789 };
 
@@ -526,7 +540,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// which case the entry legitimately expired, a miss on the second dispatch is CORRECT behaviour, and
 		// this arm would be reporting a defect that does not exist. When the measurement cannot tell those
 		// apart, say so instead of accusing the product.
-		var servedFromCache = CachingTestQueryHandler.CallCount == 1 && result2.CacheHit;
+		var servedFromCache = CachingTestQueryHandler.CallCount == 1 && result2.Disposition == MessageDisposition.ServedFromCache;
 		if (!servedFromCache && elapsedCacheToObservation >= ShortestPossibleEntryLifetime)
 		{
 			Assert.Fail(
@@ -538,7 +552,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 				+ $"under load and by a cache that never served the entry at all. The arm cannot discriminate; "
 				+ $"re-run on a less loaded host. Deliberately NOT fixed by lengthening the expiration — that "
 				+ $"would only make this rarer, not correct. (handler calls: "
-				+ $"{CachingTestQueryHandler.CallCount}, result2.CacheHit: {result2.CacheHit})");
+				+ $"{CachingTestQueryHandler.CallCount}, result2.Disposition: {result2.Disposition})");
 		}
 
 		CachingTestQueryHandler.CallCount.ShouldBe(
@@ -548,7 +562,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 			+ $"inside the {ShortestPossibleEntryLifetime.TotalMilliseconds:F0} ms floor of the jittered "
 			+ $"{DefaultExpirationWindow.TotalMilliseconds:F0} ms expiration, so this arm DID "
 			+ $"discriminate)");
-		result2.CacheHit.ShouldBeTrue(
+		result2.Disposition.ShouldBe(
+			MessageDisposition.ServedFromCache,
 			$"the entry is still inside the {ShortestPossibleEntryLifetime.TotalMilliseconds:F0} ms floor of "
 			+ $"its jittered {DefaultExpirationWindow.TotalMilliseconds:F0} ms window "
 			+ $"(measured elapsed: {elapsedCacheToObservation.TotalMilliseconds:F0} ms), so the second "
@@ -564,7 +579,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		// Assert
 		CachingTestQueryHandler.CallCount.ShouldBe(2);
-		result3.CacheHit.ShouldBeFalse();
+		result3.Disposition.ShouldBe(MessageDisposition.Handled);
 		result3.ReturnValue.Timestamp.ShouldNotBe(result1.ReturnValue.Timestamp);
 	}
 
@@ -656,9 +671,11 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var result3 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Assert
-		result1.CacheHit.ShouldBeFalse();
-		result2.CacheHit.ShouldBeFalse();
-		result3.CacheHit.ShouldBeFalse("a null result must never be cached, no matter how many times it is requested");
+		result1.Disposition.ShouldBe(MessageDisposition.Handled);
+		result2.Disposition.ShouldBe(MessageDisposition.Handled);
+		result3.Disposition.ShouldBe(
+			MessageDisposition.Handled,
+			"a null result must never be cached, no matter how many times it is requested");
 
 		// AT LEAST once per dispatch, not EXACTLY. The previous `ShouldBe(2)` was not a statement about
 		// caching at all — it asserted that nothing anywhere invokes the handler out of band, and that is
@@ -807,7 +824,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		// Assert cached
 		result1.Succeeded.ShouldBeTrue();
-		result2.CacheHit.ShouldBeTrue();
+		result2.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		CachingTestQueryHandler.CallCount.ShouldBe(1);
 
 		// Invalidate
@@ -823,7 +840,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		// Assert - handler should be called twice: first call + third call after invalidation
 		CachingTestQueryHandler.CallCount.ShouldBe(2);
-		result3.CacheHit.ShouldBeFalse();
+		result3.Disposition.ShouldBe(MessageDisposition.Handled);
 	}
 
 	private static async Task<IMessageResult<CachingTestResult>> DispatchUntilHandlerRunsAgainAsync(

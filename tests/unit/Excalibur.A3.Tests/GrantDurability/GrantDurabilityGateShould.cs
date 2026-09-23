@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.A3.Authorization;
@@ -22,6 +22,82 @@ namespace Excalibur.A3.Tests.GrantDurability;
 [Trait("Component", "Compliance")]
 public sealed class GrantDurabilityGateShould
 {
+	// ---------- THE STANDALONE-CORE PATH ----------
+	//
+	// These two are the pair the ruling requires, and they are a pair on purpose: the safety arm alone is
+	// satisfied by a gate that never installs, and the liveness arm alone is satisfied by one that always
+	// refuses. What they bind together is that the verb, and only the verb, decides.
+	//
+	// The defect they close: GrantDurabilityOptions is public and shipped from A3.Core, and its own XML doc
+	// promises a fail-fast startup check — but the only thing that installed the gate lived in the sibling
+	// A3 package. A consumer on the documented standalone path set the option, read the doc, and got
+	// nothing.
+
+	/// <summary>
+	/// LIVENESS: a host wiring ONLY A3.Core and calling the verb refuses to start on a volatile store.
+	/// </summary>
+	/// <remarks>
+	/// This is the arm that would have caught the original defect, and it fails against pre-fix source by
+	/// construction: before the fix there was no <c>RequireDurableGrants</c> to call, so it does not compile.
+	/// </remarks>
+	[Fact]
+	public void Refuse_to_start_on_the_standalone_core_path_when_the_verb_is_called()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddExcaliburA3Core().RequireDurableGrants();
+
+		using var provider = services.BuildServiceProvider();
+
+		_ = Should.Throw<OptionsValidationException>(
+			() => Resolve(provider),
+			"the standalone Core host asked for durable grants and the fallback store is volatile");
+	}
+
+	/// <summary>
+	/// SAFETY: the same host that does NOT call the verb still starts.
+	/// </summary>
+	/// <remarks>
+	/// Without this, installing the gate unconditionally on Core would pass the arm above while breaking
+	/// every existing standalone host — including the shipped StandaloneA3 sample, which calls
+	/// <c>AddExcaliburA3Core()</c> and then builds. Opt-in means opt-in.
+	/// </remarks>
+	[Fact]
+	public void Still_start_on_the_standalone_core_path_when_the_verb_is_not_called()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddExcaliburA3Core();
+
+		using var provider = services.BuildServiceProvider();
+
+		// The property is that NO durability validation was installed, and it is asserted directly rather
+		// than through the options value. My first version of this arm resolved IOptions<GrantDurabilityOptions>
+		// and asserted it did not throw OptionsValidationException -- which fails for an unrelated reason:
+		// without the verb the option is never registered at all, so the resolve throws
+		// InvalidOperationException instead. That probe tested "is the option resolvable", not "is the gate
+		// installed", and the two answers differ exactly here.
+		provider.GetService<IValidateOptions<GrantDurabilityOptions>>().ShouldBeNull(
+			"the host never asked for durable grants, so nothing may refuse its startup");
+	}
+
+	/// <summary>
+	/// LIVENESS, the other direction: the verb does not refuse a host that HAS a durable store.
+	/// </summary>
+	/// <remarks>
+	/// Without this, "refuse whenever the verb is called" passes the first arm. The gate must discriminate
+	/// on the store, not on having been asked.
+	/// </remarks>
+	[Fact]
+	public void Start_when_the_verb_is_called_and_the_grant_store_is_durable()
+	{
+		var services = new ServiceCollection();
+		services.AddSingleton<IGrantStore, FakeDurableGrantStore>();
+		_ = services.AddExcaliburA3Core().RequireDurableGrants();
+
+		using var provider = services.BuildServiceProvider();
+
+		_ = Should.NotThrow(() => Resolve(provider));
+	}
+
 	// ---------- SAFETY ----------
 
 	[Fact]
@@ -74,8 +150,61 @@ public sealed class GrantDurabilityGateShould
 	}
 
 	// ---------- PRODUCTION-PATH WIRING ----------
+	//
+	// Every arm above invokes the gate DIRECTLY. That proves the gate works when called and says nothing
+	// about whether anything calls it -- so the evidence that the production entry point is protected was a
+	// source read (one grep hit at A3ServiceCollectionExtensions.cs). A source read is sound today and it is
+	// not a lock: drop that one line in a refactor and every arm above still passes while every host
+	// composed through AddExcaliburA3() silently accepts a volatile grant store. These three arms bind
+	// REACHABILITY: they go through the public registration call a consumer actually writes, and never name
+	// the gate.
 
+	[Fact]
+	public void Refuse_a_volatile_store_through_the_PUBLIC_full_stack_registration()
+	{
+		// SAFETY, and the arm the source read could not provide. Nothing here mentions the gate; the only
+		// thing under test is that composing A3 the documented way leaves a host unable to start on a
+		// volatile grant store.
+		var services = new ServiceCollection();
+		_ = services.AddExcaliburA3();
 
+		using var provider = services.BuildServiceProvider();
+
+		_ = Should.Throw<OptionsValidationException>(
+			() => Resolve(provider),
+			"AddExcaliburA3() is the production composition; a host that registers no durable grant store "
+			+ "and opts out of nothing must fail at startup rather than deny every user after a restart");
+	}
+
+	[Fact]
+	public void Start_through_the_PUBLIC_full_stack_registration_when_a_durable_store_is_present()
+	{
+		// LIVENESS. Without this, the arm above is satisfied by a composition that refuses EVERY
+		// configuration -- which is the cheapest way to look safe and the most expensive way to be wrong.
+		// The durable store is registered BEFORE the composition because the in-memory default goes in
+		// through TryAdd, so first registration wins and this is what a consumer's UseGrantStore() achieves.
+		var services = new ServiceCollection();
+		_ = services.AddSingleton<IGrantStore, FakeDurableGrantStore>();
+		_ = services.AddExcaliburA3();
+
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(() => Resolve(provider));
+	}
+
+	[Fact]
+	public void Start_through_the_PUBLIC_full_stack_registration_when_the_host_opts_out_deliberately()
+	{
+		// LIVENESS. The documented escape hatch has to survive the composition too: a host that has read
+		// what volatile grants cost and accepts them must still be able to run.
+		var services = new ServiceCollection();
+		_ = services.AddExcaliburA3();
+		_ = services.Configure<GrantDurabilityOptions>(static o => o.AllowVolatileGrantStore = true);
+
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(() => Resolve(provider));
+	}
 
 	[Fact]
 	public void Not_answer_the_durability_capability_for_a_volatile_store()

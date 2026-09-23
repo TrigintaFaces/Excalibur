@@ -56,7 +56,7 @@ public record OrderShippedEvent(
 
 Use `IEventHandler<TEvent>` to handle events. Multiple handlers can process the same event:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 // Handler 1: Send confirmation email

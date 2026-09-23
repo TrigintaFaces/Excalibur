@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
 
@@ -33,7 +35,7 @@ public static class DefaultTenantContextServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.TryAddSingleton<ITenantContext, SingleTenantContext>();
+		AddTenantContextResolution(services);
 
 		// Fail-closed consistency guard: RequireTenant==false requires the framework single-tenant default
 		// context; a custom resolving context in single-tenant mode is the silent cross-tenant-loss config
@@ -43,5 +45,49 @@ public static class DefaultTenantContextServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<TenantContextOptions>, TenantContextConsistencyValidator>());
 
 		return services;
+	}
+
+	/// <summary>
+	/// Contributes a tenant-context mode. <see cref="ITenantContext"/> resolves to the contributed mode with the
+	/// highest <see cref="ITenantContextMode.Precedence"/>, whatever order modes were contributed in.
+	/// </summary>
+	/// <typeparam name="TMode">The mode to contribute.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The same <paramref name="services"/> instance, for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Idempotent: contributing the same mode twice has the effect of contributing it once. The single-tenant
+	/// default is always present, at precedence 0.
+	/// </para>
+	/// <para>
+	/// Two different modes with the same highest precedence are refused when the host starts, and on first
+	/// resolution, naming both. A context registered directly as <see cref="ITenantContext"/> takes the place
+	/// of every mode.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddTenantContextMode<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMode>(
+		this IServiceCollection services)
+		where TMode : class, ITenantContextMode
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		AddTenantContextResolution(services);
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<ITenantContextMode, TMode>());
+
+		return services;
+	}
+
+	// One resolver, one default mode, and the startup check for an ambiguous choice. Every mode registration
+	// goes through here, so no package ever replaces ITenantContext itself: that replacement is what made the
+	// winner depend on which package's registration ran last.
+	private static void AddTenantContextResolution(IServiceCollection services)
+	{
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<ITenantContextMode, SingleTenantContextMode>());
+		services.TryAddSingleton<ITenantContext>(TenantContextModeResolver.Resolve);
+
+		_ = services.AddOptions<TenantContextOptions>().ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TenantContextOptions>, TenantContextModeValidator>());
 	}
 }

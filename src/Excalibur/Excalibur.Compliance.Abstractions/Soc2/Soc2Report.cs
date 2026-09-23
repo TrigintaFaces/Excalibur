@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.ComponentModel.DataAnnotations;
@@ -55,9 +55,15 @@ public record Soc2Report
 	public required IReadOnlyList<ControlSection> ControlSections { get; init; }
 
 	/// <summary>
-	/// Overall auditor opinion.
+	/// The overall compliance level THIS LIBRARY determined from the control checks it ran.
 	/// </summary>
-	public required AuditorOpinion Opinion { get; init; }
+	/// <remarks>
+	/// The concluding party is this software, not a service auditor. This value summarises what our
+	/// own control validation observed; it is not, and must not be presented as, the opinion of an
+	/// independent practitioner following an examination. A real auditor's opinion is a separate
+	/// artifact supplied by that auditor and is never computed here.
+	/// </remarks>
+	public required ComplianceLevel OverallLevel { get; init; }
 
 	/// <summary>
 	/// Exceptions or deviations noted.
@@ -343,24 +349,6 @@ public enum TestOutcome
 	/// <see cref="TestResult.Notes"/> states why no test ran.
 	/// </summary>
 	NotTested
-}
-
-/// <summary>
-/// Auditor opinion types.
-/// </summary>
-public enum AuditorOpinion
-{
-	/// <summary>Unqualified (clean) opinion.</summary>
-	Unqualified,
-
-	/// <summary>Qualified opinion (some exceptions).</summary>
-	Qualified,
-
-	/// <summary>Adverse opinion (significant issues).</summary>
-	Adverse,
-
-	/// <summary>Disclaimer (unable to form opinion).</summary>
-	Disclaimer
 }
 
 /// <summary>

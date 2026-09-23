@@ -22,7 +22,7 @@ public sealed class EncryptingInboxStoreDecoratorShould
 			Mode = mode,
 			DefaultPurpose = "test",
 		});
-		return new EncryptingInboxStoreDecorator(_inner, _registry, options);
+		return new EncryptingInboxStoreDecorator(_inner, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 	}
 
 	[Fact]
@@ -216,7 +216,7 @@ public sealed class EncryptingInboxStoreDecoratorShould
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new EncryptionOptions());
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingInboxStoreDecorator(null!, _registry, options));
+			new EncryptingInboxStoreDecorator(null!, _registry, options, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]
@@ -224,13 +224,13 @@ public sealed class EncryptingInboxStoreDecoratorShould
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new EncryptionOptions());
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingInboxStoreDecorator(_inner, null!, options));
+			new EncryptingInboxStoreDecorator(_inner, null!, options, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]
 	public void Throw_for_null_options()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingInboxStoreDecorator(_inner, _registry, null!));
+			new EncryptingInboxStoreDecorator(_inner, _registry, null!, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 }

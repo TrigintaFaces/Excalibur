@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Data.ElasticSearch.IndexManagement;
@@ -18,7 +18,7 @@ public sealed class WarmPhaseConfiguration : PhaseConfiguration
 	/// <summary>
 	/// Gets a value indicating whether to shrink the index in warm phase.
 	/// </summary>
-	/// <value> The number of shards to shrink Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </value>
+	/// <value> The number of shards to shrink to. </value>
 	public int? ShrinkNumberOfShards { get; init; }
 
 	/// <summary>

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Classification;
 
@@ -21,8 +21,6 @@ public sealed class SensitiveAttributeShould : UnitTestBase
 		attribute.Classification.ShouldBe(DataClassification.Confidential);
 		attribute.Category.ShouldBe(SensitiveDataCategory.General);
 		attribute.MaskInLogs.ShouldBeTrue();
-		attribute.ExcludeFromErrors.ShouldBeTrue();
-		attribute.EncryptionKeyPurpose.ShouldBeNull();
 	}
 
 	[Fact]
@@ -33,15 +31,13 @@ public sealed class SensitiveAttributeShould : UnitTestBase
 		{
 			Classification = DataClassification.Restricted,
 			Category = SensitiveDataCategory.Credentials,
-			MaskInLogs = true,
-			ExcludeFromErrors = true,
-			EncryptionKeyPurpose = "api-credentials"
+			MaskInLogs = true
 		};
 
 		// Assert
 		attribute.Classification.ShouldBe(DataClassification.Restricted);
 		attribute.Category.ShouldBe(SensitiveDataCategory.Credentials);
-		attribute.EncryptionKeyPurpose.ShouldBe("api-credentials");
+		attribute.MaskInLogs.ShouldBeTrue();
 	}
 
 	[Theory]
@@ -103,17 +99,18 @@ public sealed class SensitiveAttributeShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AllowKeyIsolation()
+	public void NotExposeAnyEncryptionOrErrorSuppressionSurface()
 	{
-		// Act - separate encryption keys for different purposes
-		var attribute = new SensitiveAttribute
-		{
-			Category = SensitiveDataCategory.CryptographicMaterial,
-			EncryptionKeyPurpose = "master-key-backup"
-		};
+		// The attribute classifies and drives masking. It does not encrypt and it does not filter exception
+		// details, so it must not carry a property implying either - a consumer setting one would be relying
+		// on protection that does not exist.
+		var propertyNames = typeof(SensitiveAttribute)
+			.GetProperties()
+			.Where(p => p.DeclaringType == typeof(SensitiveAttribute))
+			.Select(p => p.Name)
+			.ToArray();
 
-		// Assert
-		attribute.EncryptionKeyPurpose.ShouldBe("master-key-backup");
+		propertyNames.ShouldBe(["Classification", "Category", "MaskInLogs"], ignoreOrder: true);
 	}
 
 	[Fact]

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -408,9 +408,16 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 
 	/// <summary>
 	/// Derives a unique event identifier for idempotent replay detection.
-	/// Uses the event type name, saga ID, and step ID to produce a deterministic key.
+	/// Uses the namespace-qualified event type name, saga ID, and step ID to produce a deterministic key.
 	/// </summary>
 	/// <remarks>
+	/// <para>
+	/// The type component is the <b>namespace-qualified</b> type name, not the simple name. Two distinct
+	/// event types that share a simple name in different namespaces are distinct events and must derive
+	/// distinct keys; deriving from the simple name collapses them onto one key, and the second event is
+	/// then discarded as a duplicate and never executed. Idempotency is protection against double
+	/// execution and is no protection against zero execution, so no consumer obligation covers that case.
+	/// </para>
 	/// <para>
 	/// When <see cref="ISagaEvent.StepId"/> is <see langword="null"/>, the derived ID
 	/// uses only the event type name and saga ID: <c>{EventType}:{SagaId}</c>.
@@ -426,10 +433,14 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	/// </remarks>
 	private static string DeriveEventId(ISagaEvent evt)
 	{
+		// Namespace-qualified, so two distinct types sharing a simple name cannot collapse onto one key.
+		// FullName is null only for open generic parameters, which an event instance's type is never.
+		var eventType = evt.GetType().FullName ?? evt.GetType().Name;
+
 		// Combine type + sagaId + stepId for a deterministic unique key per saga event delivery
 		return evt.StepId is not null
-			? $"{evt.GetType().Name}:{evt.SagaId}:{evt.StepId}"
-			: $"{evt.GetType().Name}:{evt.SagaId}";
+			? $"{eventType}:{evt.SagaId}:{evt.StepId}"
+			: $"{eventType}:{evt.SagaId}";
 	}
 
 	// Source-generated logging methods

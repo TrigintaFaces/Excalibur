@@ -62,6 +62,43 @@ function Get-PackageReferencesFromCsproj {
   }
 }
 
+function Get-CentralTransitiveFromLock {
+  # A packed nuspec declares MORE than the project file references. With
+  # CentralPackageTransitivePinningEnabled=true (Directory.Packages.props), NuGet promotes every
+  # centrally-pinned TRANSITIVE dependency to a pinned direct reference, and pack writes those into
+  # the nuspec's dependency group. A consumer's restore therefore resolves them, and a procurement
+  # scan of the published package finds them -- so the inventory must list them.
+  #
+  # The committed packages.lock.json records exactly that promotion as type "CentralTransitive"
+  # (plain "Transitive" entries are NOT promoted and are NOT declared, so they are excluded here).
+  # The lock files are committed and version-controlled, so this stays deterministic and
+  # machine-independent: no restore, no package cache, no pack run.
+  param([string]$Path)
+
+  if (!(Test-Path $Path)) { return @() }
+  try {
+    $json = Get-Content -Raw -- $Path | ConvertFrom-Json
+  }
+  catch {
+    Write-Warning "Skipping malformed lock file: $Path"
+    return @()
+  }
+
+  $depsProp = $json.PSObject.Properties['dependencies']
+  if (!$depsProp) { return @() }
+
+  foreach ($tfm in $depsProp.Value.PSObject.Properties) {
+    foreach ($pkg in $tfm.Value.PSObject.Properties) {
+      $typeProp = $pkg.Value.PSObject.Properties['type']
+      if (!$typeProp -or [string]$typeProp.Value -ne 'CentralTransitive') { continue }
+      $ver = ''
+      $resolvedProp = $pkg.Value.PSObject.Properties['resolved']
+      if ($resolvedProp) { $ver = [string]$resolvedProp.Value }
+      [pscustomobject]@{ Id = [string]$pkg.Name; Version = $ver }
+    }
+  }
+}
+
 function Get-SolutionProjectPaths {
   param([string]$Path)
 
@@ -88,6 +125,13 @@ $projectPaths = Get-ChildItem -Path (Join-Path $RepoRoot 'src') -Recurse -File -
 
 $projRefs = $projectPaths | ForEach-Object { Get-PackageReferencesFromCsproj $_ }
 
+# ...plus the transitive dependencies that central transitive pinning promotes into each packed
+# nuspec. Read from the lock file sitting beside each scanned project, so the set of lock files is
+# bound to the same project set as the references above.
+$lockRefs = $projectPaths |
+  ForEach-Object { Join-Path (Split-Path -Parent $_) 'packages.lock.json' } |
+  ForEach-Object { Get-CentralTransitiveFromLock $_ }
+
 # Licences come from a committed map rather than from the restored package cache. A cache read would
 # make this file's content depend on what a given machine happened to have restored, and the CI gate
 # diffs the generated file byte-for-byte against the committed one -- so an unrestored package would
@@ -108,7 +152,7 @@ foreach ($p in $central) { $centralVersions[$p.Id] = $p.Version }
 # Only include packages actually referenced in src/ projects.
 # Resolve versions from explicit csproj Version attributes, falling back to central management.
 $all = @{}
-foreach ($r in $projRefs) {
+foreach ($r in @($projRefs) + @($lockRefs)) {
   # First-party packages are not third-party notices. Metapackages reference their siblings by
   # PackageReference, which is why 22 Excalibur.* rows were listed here carrying a blank version --
   # they are not centrally pinned, because their version is the build's.
@@ -134,8 +178,11 @@ foreach ($r in $projRefs) {
 $lines = @()
 $lines += "# THIRD-PARTY NOTICES"
 $lines += ""
-$lines += "This file lists third-party packages referenced by this repository."
-$lines += "It is generated from project files; licenses remain with their respective owners."
+$lines += "This file lists every third-party package that the shipping projects in this repository"
+$lines += "declare: the packages their project files reference, plus the transitive dependencies that"
+$lines += "central package pinning promotes into each published package's own dependency list. It is"
+$lines += "generated from those project files and their committed lock files, so it matches what a"
+$lines += "consumer's restore resolves. Licenses remain with their respective owners."
 $lines += ""
 $lines += "Licenses are recorded per package id in ``eng/ci/package-licenses.json``. Most are SPDX"
 $lines += "expressions taken from the package's own metadata. Where a package ships its terms as a"
@@ -162,6 +209,35 @@ foreach ($k in $sortedKeys) {
 if ($unlicensed.Count -gt 0) {
   Write-Error ("No licence recorded for: " + ($unlicensed -join ', ') + ". Add each to eng/ci/package-licenses.json, reading the licence the package actually ships rather than the vendor's usual one.")
   exit 1
+}
+
+# Native assets reach a consumer through a package that is resolved transitively rather than declared,
+# so it cannot appear in the table above -- but a procurement scan of the consumer's restore graph will
+# find it, and it carries no SPDX expression of its own. Emitted only when the managed client that pulls
+# it is actually in the set.
+#
+# MAINTAINER NOTE: the component list below was read from librdkafka's LICENSES.txt at the tag matching
+# the pinned Confluent.Kafka version, and Confluent.Kafka's nuspec declares librdkafka.redist at that
+# same version. When the Confluent.Kafka pin moves, re-read LICENSES.txt at the new tag and update the
+# component list; do not assume it is unchanged.
+if ($all.ContainsKey('Confluent.Kafka')) {
+  $kafkaVersion = $all['Confluent.Kafka']
+  $lines += ""
+  $lines += "## Native components reached through Confluent.Kafka"
+  $lines += ""
+  $lines += "The ``Confluent.Kafka`` package contains managed assemblies only. The native Kafka client it"
+  $lines += "calls arrives as a separate NuGet package, ``librdkafka.redist``, which your restore resolves"
+  $lines += "transitively -- no package in this repository declares it, which is why it has no row above."
+  $lines += ""
+  $lines += "``librdkafka.redist`` ships prebuilt native binaries and states no SPDX license expression."
+  $lines += "Its terms are published as a single ``LICENSES.txt`` covering librdkafka itself, which is"
+  $lines += "BSD-2-Clause, together with the third-party components built into those binaries. At the"
+  $lines += "version this repository resolves, that file names fourteen: cjson, crc32c, fnv1a,"
+  $lines += "hdrhistogram, lz4, murmur2, nanopb, opentelemetry, pycrc, queue, regexp, snappy, tinycthread"
+  $lines += "and wingetopt. Read it at the version your build resolves, not at the package's own license"
+  $lines += "link, which points at a moving branch:"
+  $lines += ""
+  $lines += "    https://github.com/confluentinc/librdkafka/blob/v$kafkaVersion/LICENSES.txt"
 }
 
 # Use explicit UTF-8 without BOM for stable cross-platform diffs in CI.

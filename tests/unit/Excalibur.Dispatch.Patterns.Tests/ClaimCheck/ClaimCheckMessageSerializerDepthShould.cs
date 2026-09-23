@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -151,10 +151,14 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	}
 
 	[Fact]
-	public void ContentType_DelegatesToBase()
+	public void ContentType_DeclaresTheFraming_NotTheBaseFormat()
 	{
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		serializer.ContentType.ShouldBe("application/json");
+
+		// This test previously asserted "application/json" and was certifying the defect: every payload
+		// this serializer writes carries a one-byte frame tag, so the bytes are not JSON and a host
+		// negotiating on this value handed out something no JSON reader accepts.
+		serializer.ContentType.ShouldBe("application/vnd.excalibur.claimcheck");
 	}
 
 	[Fact]

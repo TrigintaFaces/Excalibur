@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Text.Json;
@@ -133,21 +133,22 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			LogProcessingTimeouts(claimedTimeouts.Count);
 		}
 
-		foreach (var timeout in claimedTimeouts)
+		foreach (var claim in claimedTimeouts)
 		{
 			if (cancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
 
-			await DeliverTimeoutAsync(timeout, cancellationToken).ConfigureAwait(false);
+			await DeliverTimeoutAsync(claim, cancellationToken).ConfigureAwait(false);
 		}
 	}
 
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON deserialization may require types that cannot be statically analyzed")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON deserialization may require runtime code generation")]
-	private async Task DeliverTimeoutAsync(SagaTimeout timeout, CancellationToken cancellationToken)
+	private async Task DeliverTimeoutAsync(ClaimedSagaTimeout claim, CancellationToken cancellationToken)
 	{
+		var timeout = claim.Timeout;
 		using var activity = SagaActivitySource.StartActivity("DeliverTimeout");
 		_ = (activity?.SetTag("saga.id", timeout.SagaId));
 		_ = (activity?.SetTag("timeout.id", timeout.TimeoutId));
@@ -191,7 +192,7 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 					timeout.TimeoutType,
 					timeout.TimeoutId);
 				// Mark as delivered to prevent retry loop for unresolvable types
-				await _timeoutStore.MarkDeliveredAsync(timeout.TimeoutId, cancellationToken).ConfigureAwait(false);
+				await RetireAsync(claim, cancellationToken).ConfigureAwait(false);
 				return;
 			}
 
@@ -208,14 +209,14 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			if (timeoutMessage is null)
 			{
 				LogTimeoutMessageCreationFailed(timeout.TimeoutType);
-				await _timeoutStore.MarkDeliveredAsync(timeout.TimeoutId, cancellationToken).ConfigureAwait(false);
+				await RetireAsync(claim, cancellationToken).ConfigureAwait(false);
 				return;
 			}
 
 			if (timeoutMessage is not IDispatchMessage dispatchMessage)
 			{
 				LogTimeoutMessageTypeInvalid(timeout.TimeoutType);
-				await _timeoutStore.MarkDeliveredAsync(timeout.TimeoutId, cancellationToken).ConfigureAwait(false);
+				await RetireAsync(claim, cancellationToken).ConfigureAwait(false);
 				return;
 			}
 
@@ -231,8 +232,9 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 			// The TenantContextHolder.BeginScope(...) above establishes the timeout's own tenant --
-			// partition.IsRealTenant ? partition.TenantId : null, deliberately null for an estate-wide
-			// timeout -- as the AMBIENT (Channel A) tenant for this delivery, but nothing previously
+			// partition.TenantId, which for an estate-wide timeout is the partition's own reserved
+			// untenanted term and NOT null, for the reason given at the BeginScope call itself --
+			// as the AMBIENT (Channel A) tenant for this delivery, but nothing previously
 			// carried it onto THIS context's identity feature (Channel B), so any message this handler
 			// republishes via the ambient dispatch overload inherited no tenant at all, regardless of
 			// BeginScope. ApplyAmbientTenantFallback reads TenantContextHolder.Current directly (not
@@ -240,10 +242,27 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			// tenant or deliberately absent -- never converting the untenanted case into a false owner.
 			context.ApplyAmbientTenantFallback();
 
-			_ = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken).ConfigureAwait(false);
+			var result = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken).ConfigureAwait(false);
+
+			// A dispatch can FAIL WITHOUT THROWING, so the result cannot be discarded. TimeoutMiddleware
+			// returns a result with Succeeded:false when TimeoutOptions.ThrowOnTimeout is disabled, and
+			// RateLimitingMiddleware returns one when the limit is exceeded. Retiring the row on the
+			// strength of "DispatchAsync returned" therefore deletes a timeout that was never delivered --
+			// zero deliveries, row gone, and the saga waits forever for a timeout that no longer exists.
+			// That is strictly outside the at-least-once guarantee this store documents.
+			//
+			// Both sibling processors already convert a failed result into a throw so their retry
+			// machinery fires (OutboxProcessor and InboxProcessor); this is the third such caller and was
+			// the only one that did not. Throwing here reaches the catch below, which deliberately does
+			// NOT mark delivered, so the claim lapses and the timeout is re-delivered on a later poll.
+			if (result is { Succeeded: false })
+			{
+				var errorMessage = result.ErrorMessage ?? ErrorConstants.MessageDispatchFailed;
+				throw new InvalidOperationException(errorMessage);
+			}
 
 			// Mark delivered after successful dispatch
-			await _timeoutStore.MarkDeliveredAsync(timeout.TimeoutId, cancellationToken).ConfigureAwait(false);
+			await RetireAsync(claim, cancellationToken).ConfigureAwait(false);
 
 			if (_options.EnableVerboseLogging)
 			{
@@ -265,6 +284,26 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		return constructor?.Invoke(null);
 	}
 
+	/// <summary>
+	/// Retires a timeout the caller has just delivered, presenting the claim it holds.
+	/// </summary>
+	/// <remarks>
+	/// A refusal here is NOT an error and must not be raised as one. It means this processor stalled past
+	/// its lease and another has re-claimed the timeout, which is the case the lease exists to handle. The
+	/// live claim holder owns the outcome from that point, so the correct behaviour is to record the fact
+	/// and stop touching the row -- retrying the retirement would be an attempt to remove a row this caller
+	/// no longer owns, which is the defect the claim exists to prevent.
+	/// </remarks>
+	private async Task RetireAsync(ClaimedSagaTimeout claim, CancellationToken cancellationToken)
+	{
+		var outcome = await _timeoutStore.MarkDeliveredAsync(claim, cancellationToken).ConfigureAwait(false);
+
+		if (outcome == SagaTimeoutRetirementOutcome.Superseded)
+		{
+			LogTimeoutRetirementSuperseded(claim.Timeout.TimeoutId, claim.Timeout.SagaId);
+		}
+	}
+
 	// Source-generated logging methods
 	[LoggerMessage(SagaEventId.TimeoutDeliveryStarted, LogLevel.Information,
 		"Saga timeout delivery service starting")]
@@ -281,6 +320,10 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	[LoggerMessage(SagaEventId.TimeoutDeliveredSuccessfully, LogLevel.Debug,
 		"Delivered timeout {TimeoutId} to saga {SagaId}")]
 	private partial void LogTimeoutDelivered(string timeoutId, string sagaId);
+
+	[LoggerMessage(SagaEventId.TimeoutRetirementSuperseded, LogLevel.Information,
+		"Timeout {TimeoutId} for saga {SagaId} was delivered but could not be retired: this processor's claim was superseded, so a live claimant now owns it")]
+	private partial void LogTimeoutRetirementSuperseded(string timeoutId, string sagaId);
 
 	[LoggerMessage(SagaEventId.TimeoutDeliveryFailed, LogLevel.Error,
 		"Failed to deliver timeout {TimeoutId} to saga {SagaId}")]

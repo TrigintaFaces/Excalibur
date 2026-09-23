@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+
+using Excalibur.Cdc;
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -114,6 +116,7 @@ public static class CdcBuilderMongoDbExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbCdcOptions>, MongoDbCdcOptionsValidator>());
 		services.AddOptions<MongoDbCdcOptions>().ValidateOnStart();
+		_ = services.AddCdcFatalErrorOptionsValidation<MongoDbDataChangeEvent>();
 		services.TryAddSingleton<IMongoDbCdcProcessor, MongoDbCdcProcessor>();
 
 		// The processor and state store resolve IMongoClient from DI, so a builder-supplied client has to

@@ -96,16 +96,32 @@ rc="$(run_on "$dir")"
   || bad "C2-precision: distinct blocks must not be merged" "got $rc: $(cat "$dir/.stderr")"
 rm -rf "$dir"
 
-# C3-precision: a duplicate tag inside a GENERATED file (*.Designer.cs) must be IGNORED, while a
-# sibling real .cs keeps cs_files>0. Must PASS (generated files are not hand-authored surface).
+# C3-safety: a duplicate tag inside a COMMITTED *.Designer.cs must be DETECTED. These files are
+# committed, are edited by hand, and their XML docs ship in the package's .xml, so they are part of
+# the surface this gate protects. Excluding them previously made the gate blind to the only place the
+# defect was found in practice — and the compiler emits no warning for it, so nothing else catches it.
 dir="$(mktemp -d)"
 write_cs "$dir" "Real.cs" "$CLEAN_MEMBER"
 write_cs "$dir" "Resources.Designer.cs" '/// <summary>gen</summary>
 /// <summary>gen2</summary>
 public int G;'
 rc="$(run_on "$dir")"
-[ "$rc" = "$E_OK" ] && ok "C3-precision: duplicate tag in *.Designer.cs is excluded (PASS)" \
-  || bad "C3-precision: generated files must be excluded" "got $rc: $(cat "$dir/.stderr")"
+{ [ "$rc" = "$E_VIOLATION" ] && grep -q 'summary> x2' "$dir/.stderr"; } \
+  && ok "C3-safety: duplicate tag in a committed *.Designer.cs is REFUSED (E_VIOLATION)" \
+  || bad "C3-safety: committed *.Designer.cs must be scanned, not excluded" "got $rc: $(cat "$dir/.stderr")"
+rm -rf "$dir"
+
+# C4-precision: build output that is regenerated and never committed stays excluded, so narrowing the
+# rule above did not widen it into obj/bin. Must PASS.
+dir="$(mktemp -d)"
+write_cs "$dir" "Real.cs" "$CLEAN_MEMBER"
+mkdir -p "$dir/obj"
+write_cs "$dir/obj" "Thing.g.cs" '/// <summary>gen</summary>
+/// <summary>gen2</summary>
+public int G;'
+rc="$(run_on "$dir")"
+[ "$rc" = "$E_OK" ] && ok "C4-precision: *.g.cs under obj/ is still excluded (PASS)" \
+  || bad "C4-precision: regenerated build output must stay excluded" "got $rc: $(cat "$dir/.stderr")"
 rm -rf "$dir"
 
 echo

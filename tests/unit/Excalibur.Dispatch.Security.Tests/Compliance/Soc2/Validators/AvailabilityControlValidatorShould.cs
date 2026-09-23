@@ -1,6 +1,6 @@
 using Excalibur.Compliance.Soc2.Validators;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2.Validators;
 
@@ -67,8 +67,12 @@ public sealed class AvailabilityControlValidatorShould
 		// Assert
 		// Health monitoring is performed by the HOST, typically ASP.NET Core health checks, and is
 		// not observable from this framework. Offering the capability is not operating the control.
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.ControlId.ShouldBe("AVL-001");
 	}
@@ -98,7 +102,7 @@ public sealed class AvailabilityControlValidatorShould
 		// a component being CONFIGURED was read as the control SUCCEEDING. The mechanism is present and
 		// the result still says so; nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ControlId.ShouldBe("AVL-002");
 	}
 
@@ -112,11 +116,15 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("AVL-002", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		// Partial by design: a compensating external arrangement may exist, but the declared control is
 		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
 		// the exact figure is the framework's encoding and may be restated without changing the meaning.
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("IComplianceMetrics"));
 	}
 
@@ -140,7 +148,7 @@ public sealed class AvailabilityControlValidatorShould
 		// a component being CONFIGURED was read as the control SUCCEEDING. The mechanism is present and
 		// the result still says so; nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ControlId.ShouldBe("AVL-003");
 		result.Evidence.ShouldContain(e => e.Description.Contains("SqlServerSnapshotStore"));
 	}
@@ -155,11 +163,15 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("AVL-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		// Partial by design: a compensating external arrangement may exist, but the declared control is
 		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
 		// the exact figure is the framework's encoding and may be restated without changing the meaning.
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("reports itself not configured"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("not configured"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("Recommendation"));
@@ -175,11 +187,15 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("AVL-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		// Partial by design: a compensating external arrangement may exist, but the declared control is
 		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
 		// the exact figure is the framework's encoding and may be restated without changing the meaning.
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("not registered"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("not registered"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("Recommendation"));
@@ -231,7 +247,7 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await _sut.ValidateAsync("UNKNOWN-001", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Unknown control"));
 	}
 

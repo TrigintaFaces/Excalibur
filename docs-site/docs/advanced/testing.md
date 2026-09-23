@@ -132,7 +132,7 @@ public class GetOrderHandlerTests
         var action = new GetOrderAction(orderId);
 
         // Act & Assert
-        await Should.ThrowAsync<NotFoundException>(
+        await Should.ThrowAsync<ResourceNotFoundException>(
             () => _handler.HandleAsync(action, CancellationToken.None));
     }
 }
@@ -144,7 +144,7 @@ The `Excalibur.Testing` package provides a fluent Given-When-Then API for testin
 
 ### Basic Aggregate Testing
 
-```csharp
+```csharp ignore
 using Excalibur.Testing;
 using Xunit;
 
@@ -361,48 +361,17 @@ public class SqlServerIntegrationTests : IAsyncLifetime
 
 ## Conformance Testing
 
-The `Excalibur.Testing.Conformance` package includes conformance test kits for verifying custom implementations. (The kits are **not** in `Excalibur.Testing` — installing that package alone gets you the aggregate test fixtures and no kits.)
+The `Excalibur.Testing.Conformance` package ships conformance kits for verifying your own store implementations against the contracts the framework expects. **The kits are *not* in `Excalibur.Testing`** — installing that package alone gets you the aggregate test fixtures and no kits.
 
-### Event Store Conformance
+**[Conformance toolkit](../testing/conformance-toolkit.md) is the reference for using them**, including the per-kit factory methods, how arms are wired, and what a passing run does and does not establish.
 
-```csharp
-using Excalibur.Testing.Conformance;
+:::warning An arm you do not wire does not run, and it looks exactly like one that passed
 
-public class CustomEventStoreConformanceTests : EventStoreConformanceTestKit
-{
-    protected override IEventStore CreateEventStore()
-    {
-        return new CustomEventStore(/* your configuration */);
-    }
+A kit carries no `[Fact]`/`[Theory]` attributes, so deriving from it runs nothing on its own — each arm executes only when you declare an attributed wrapper that calls it. **An arm that never executes cannot fail, and is indistinguishable in the results from an arm that passed**, so a suite can be green while verifying none of the contract.
 
-    // All conformance tests are inherited and run automatically
-    // Override specific tests if your implementation has special behavior
-}
-```
+Call `ConformanceSuite_ShouldWireEveryArm()` from a wrapper of its own: it fails and names every arm you have not wired. Without it, coverage is whatever you remember to write.
 
-### Snapshot Store Conformance
-
-```csharp
-public class CustomSnapshotStoreConformanceTests : SnapshotStoreConformanceTestKit
-{
-    protected override ISnapshotStore CreateSnapshotStore()
-    {
-        return new CustomSnapshotStore(/* your configuration */);
-    }
-}
-```
-
-### Available Conformance Test Kits
-
-| Test Kit | Tests |
-|----------|-------|
-| `EventStoreConformanceTestKit` | Append, load, concurrency, versioning |
-| `SnapshotStoreConformanceTestKit` | Save, load, delete snapshots |
-| `OutboxStoreConformanceTestKit` | Publish, mark sent, cleanup |
-| `InboxStoreConformanceTestKit` | Deduplication, expiry |
-| `SagaStoreConformanceTestKit` | State persistence, timeout handling |
-| `LeaderElectionConformanceTestKit` | Acquire, renew, release leadership |
-| `DeadLetterStoreConformanceTestKit` | Store, retrieve, reprocess |
+:::
 
 ## Testing Middleware
 

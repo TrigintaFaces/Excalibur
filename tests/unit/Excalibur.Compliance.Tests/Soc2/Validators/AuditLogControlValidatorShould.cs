@@ -45,8 +45,8 @@ public sealed class AuditLogControlValidatorShould
 
 		result.ControlId.ShouldBe("SEC-004");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
-		result.EffectivenessScore.ShouldBe(100);
+		result.Outcome.ShouldBe(ControlOutcome.Effective);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Effective);
 		result.Evidence.ShouldNotBeEmpty();
 
 		// A window that WAS exercised must say so, must say over how many events, and must say what the pass
@@ -64,7 +64,7 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-004", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-004");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("not configured"));
 	}
 
@@ -86,7 +86,7 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-004", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-004");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("integrity check failed"));
 
 		// The auditor reads this line, not the field, so it carries the UNIT and the consequence in words:
@@ -127,15 +127,19 @@ public sealed class AuditLogControlValidatorShould
 		// Liveness: without an arm on the RESULT, the evidence assertions above would also be satisfied
 		// by a validator that reported nothing at all. That concern was right and is kept.
 		//
-		// What this arm used to require was IsEffective == true, on the reasoning that an unexercised
+		// What this arm used to require was the outcome was Effective, on the reasoning that an unexercised
 		// window is not a control failure. The first half is correct and the conclusion does not follow:
 		// "not a failure" is not "a pass". The evidence said the period provides no evidence of
 		// integrity while the verdict said the control was effective at full score, and an auditor reads
 		// the verdict.
 		result.ControlId.ShouldBe("SEC-004");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("not verified", StringComparison.Ordinal));
 	}
 
@@ -156,8 +160,12 @@ public sealed class AuditLogControlValidatorShould
 		// verification that failed to run.
 		result.ControlId.ShouldBe("SEC-004");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.Evidence.ShouldNotBeEmpty();
 	}
 
@@ -172,8 +180,12 @@ public sealed class AuditLogControlValidatorShould
 		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
 		// longer says is that the CONTROL operated, because nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.Evidence.ShouldNotBeEmpty();
 	}
 
@@ -188,7 +200,7 @@ public sealed class AuditLogControlValidatorShould
 		// substitution in one line: a monitoring CAPABILITY is not monitoring having been performed.
 		result.ControlId.ShouldBe("SEC-005");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 	}
 
 	[Fact]
@@ -199,7 +211,7 @@ public sealed class AuditLogControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-005", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("SEC-005");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("No audit infrastructure"));
 	}
 
@@ -210,7 +222,7 @@ public sealed class AuditLogControlValidatorShould
 
 		var result = await sut.ValidateAsync("UNKNOWN", CancellationToken.None).ConfigureAwait(false);
 
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Unknown control"));
 	}
 

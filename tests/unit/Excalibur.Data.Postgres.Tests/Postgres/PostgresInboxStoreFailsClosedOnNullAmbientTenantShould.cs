@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 
@@ -82,8 +82,13 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 		{ "ReleaseAsync", static s => s.ReleaseAsync("m", "h", CancellationToken.None) },
 		{ "IsProcessedAsync", static s => new ValueTask(s.IsProcessedAsync("m", "h", CancellationToken.None).AsTask()) },
 		{ "GetEntryAsync", static s => new ValueTask(s.GetEntryAsync("m", "h", CancellationToken.None).AsTask()) },
-		{ "MarkFailedAsync", static s => s.MarkFailedAsync("m", "h", "boom", CancellationToken.None) },
-		{ "MarkFailedAsync(retryCount)", static s => s.MarkFailedAsync("m", "h", "boom", 3, CancellationToken.None) },
+		{ "MarkFailedAsync", static s => new ValueTask(s.MarkFailedAsync("m", "h", "boom", CancellationToken.None).AsTask()) },
+		// The ADMIN MarkFailedAsync(retryCount) overload is deliberately absent from this table. It takes its
+		// partition as a parameter and reads no ambient context, so it has no null-ambient path to fail closed
+		// on -- asserting one here would pin a property the operation no longer has, and would go red for the
+		// fix rather than for a regression. Its replacement guarantee is stronger and is asserted by the two
+		// facts below: the partition is unconstructable from an unresolved tenant, so the refusal happens at
+		// the CALL SITE before the store exists at all, and a null AMBIENT tenant cannot stop it reaching SQL.
 	};
 
 	public static TheoryData<string> TenantFacingOperations() => [.. Operations.Keys];
@@ -108,6 +113,47 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 			"here silently discards tenant B's message as a duplicate of tenant A's same id (cross-tenant loss) and " +
 			"leaks keyed reads. The op must throw before it ever opens a connection, symmetric with the event " +
 			"store's fdepwq guard.");
+	}
+
+	[Fact]
+	public async Task RefuseTheAdminMarkFailed_WhenNoPartitionIsSupplied()
+	{
+		// SAFETY, moved one layer OUT. The ambient operations above fail closed inside the store, which is the
+		// best a store can do when the scope arrives invisibly. This one cannot be called without a scope at
+		// all: KeyedTenantPartition has no inhabitant meaning "whatever is ambient" and no public constructor,
+		// so a caller with an unresolved tenant has nothing to pass. RED against a nullable parameter, or
+		// against one whose null is read as "use the ambient tenant" -- which is the defect this signature
+		// replaced, reintroduced with extra steps.
+		var store = CreateStore(tenantContext: new AmbientTenantContext(tenantId: "tenant-a"));
+
+		_ = await Should.ThrowAsync<ArgumentNullException>(
+			async () => await store.MarkFailedAsync(null!, "m", "h", "boom", 3, CancellationToken.None),
+			"The administrative mark-failed must refuse a missing partition outright. A null that were read as " +
+			"'use the ambient tenant' would restore exactly the silent re-scoping the parameter exists to end.");
+
+		_ = Should.Throw<TenantRequiredException>(
+			() => KeyedTenantPartition.Scoped(null),
+			"An unresolved tenant must not be constructible into a partition, or the refusal above is reachable " +
+			"only by passing null literally -- and a host with no ambient tenant would pass a partition that " +
+			"silently means nothing.");
+	}
+
+	[Fact]
+	public async Task ReachSql_OnTheAdminMarkFailed_EvenWhenAmbientTenantIsNull()
+	{
+		// LIVENESS, and the partner of the safety arm above. The administrative mark-failed binds the partition
+		// it was HANDED, so a null ambient tenant is simply irrelevant to it: it must reach SQL. This arm goes
+		// RED the moment the operation reads ambient context again -- the store would fail closed on the null
+		// ambient and never reach the sentinel -- which is precisely the regression that would undo the fix
+		// while every other arm in this file stayed green.
+		var store = CreateStore(tenantContext: new AmbientTenantContext(tenantId: null));
+
+		await Should.ThrowAsync<SentinelConnectionReached>(
+			async () => await store.MarkFailedAsync(
+				KeyedTenantPartition.Scoped("tenant-a"), "m", "h", "boom", 3, CancellationToken.None),
+			"The administrative mark-failed was handed a resolved partition and must reach SQL with it, whatever " +
+			"the ambient tenant is. If this throws TenantRequiredException, the operation has gone back to " +
+			"resolving the ambient tenant and the partition parameter is being ignored.");
 	}
 
 	[Fact]

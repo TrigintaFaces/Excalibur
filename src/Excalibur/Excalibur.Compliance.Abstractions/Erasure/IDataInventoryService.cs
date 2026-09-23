@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Compliance;
 
@@ -103,6 +103,56 @@ public sealed record DataInventory
 	public IReadOnlyList<DataLocation> Locations { get; init; } = [];
 
 	/// <summary>
+	/// Gets the table-and-field pairs a consumer REGISTERED as holding this subject's personal data.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the obligation, and it is what coverage is judged against. It is deliberately coarser than
+	/// <see cref="Locations"/>: a registration declares WHERE TO LOOK — a table and the columns that hold
+	/// the subject identifier and the key — while a location is a row that was actually found. The two
+	/// cannot be converted into one another without querying the consumer's own schema, so coverage is
+	/// evaluated at the granularity both sides can honestly express.
+	/// </para>
+	/// <para>
+	/// An erasure may be reported complete only when every declared pair was discharged by a contributor
+	/// that reported doing so. An EMPTY declared set is not a clean bill of health: it means nothing was
+	/// registered, so nothing could be enumerated, and a certificate issued over it would attest to an
+	/// absence of evidence rather than to erasure.
+	/// </para>
+	/// </remarks>
+	public IReadOnlyList<DataLocationKey> DeclaredLocations { get; init; } = [];
+
+	/// <summary>
+	/// Gets the store kind registered for each declared pair, for routing a pair to the contributor that
+	/// covers its store. A pair absent from this map is <see cref="DataStoreKind.Unknown"/> and is offered
+	/// to no contributor, so it stays outstanding.
+	/// </summary>
+	public IReadOnlyDictionary<DataLocationKey, DataStoreKind> DeclaredLocationKinds { get; init; }
+		= new Dictionary<DataLocationKey, DataStoreKind>();
+
+	/// <summary>
+	/// Gets the data categories named by the registrations behind <see cref="DeclaredLocations"/>.
+	/// </summary>
+	/// <value>The declared categories, deduplicated, case-insensitively.</value>
+	/// <remarks>
+	/// <para>
+	/// <b>Why this is a separate collection rather than a member of <see cref="DataLocationKey"/>.</b> The
+	/// declared-versus-discharged gate matches on table-and-field pairs deliberately: that is the
+	/// granularity a registration and a contributor can each state honestly, and a contributor reporting
+	/// that it erased <c>Customers.Email</c> has no way to know which category a registration filed it
+	/// under. Adding the category to the key would make the two sides stop matching and report a false
+	/// outstanding obligation on every pair whose category the contributor could not name.
+	/// </para>
+	/// <para>
+	/// <b>What it is for.</b> The annotated-but-undiscovered arm asks whether an annotated category is
+	/// represented by any location. Before this existed it could see only DISCOVERED locations, so a
+	/// category that had been registered but whose rows no contributor happened to find was reported as an
+	/// uncovered annotation — the gate told the consumer to register something they had already registered.
+	/// </para>
+	/// </remarks>
+	public IReadOnlyList<string> DeclaredCategories { get; init; } = [];
+
+	/// <summary>
 	/// Gets the encryption keys associated with this data subject.
 	/// </summary>
 	public IReadOnlyList<KeyReference> AssociatedKeys { get; init; } = [];
@@ -122,6 +172,36 @@ public sealed record DataInventory
 	/// </summary>
 	public static DataInventory Empty(string dataSubjectId) =>
 		new() { DataSubjectId = dataSubjectId };
+}
+
+/// <summary>
+/// A table-and-field pair, the granularity at which an erasure obligation is declared and discharged.
+/// </summary>
+/// <param name="TableName">The table or collection name.</param>
+/// <param name="FieldName">The column or field name.</param>
+/// <remarks>
+/// Comparison is ordinal and case-insensitive, because a consumer registering <c>Customers.Email</c> and
+/// a contributor reporting <c>customers.email</c> have discharged the same obligation, and treating them
+/// as different would report a false gap on every provider that normalises identifier case.
+/// </remarks>
+public readonly record struct DataLocationKey(string TableName, string FieldName)
+{
+	/// <summary>Gets a comparer that treats table and field names as case-insensitive.</summary>
+	public static IEqualityComparer<DataLocationKey> Comparer { get; } = new CaseInsensitiveComparer();
+
+	/// <inheritdoc />
+	public override string ToString() => $"{TableName}.{FieldName}";
+
+	private sealed class CaseInsensitiveComparer : IEqualityComparer<DataLocationKey>
+	{
+		public bool Equals(DataLocationKey x, DataLocationKey y) =>
+			string.Equals(x.TableName, y.TableName, StringComparison.OrdinalIgnoreCase)
+			&& string.Equals(x.FieldName, y.FieldName, StringComparison.OrdinalIgnoreCase);
+
+		public int GetHashCode(DataLocationKey obj) => HashCode.Combine(
+			obj.TableName?.ToUpperInvariant(),
+			obj.FieldName?.ToUpperInvariant());
+	}
 }
 
 /// <summary>
@@ -221,6 +301,17 @@ public sealed record DataLocationRegistration
 	/// Gets the column containing the data subject identifier.
 	/// </summary>
 	public required string DataSubjectIdColumn { get; init; }
+
+	/// <summary>
+	/// Gets the kind of store that holds this registered location.
+	/// </summary>
+	/// <remarks>
+	/// Defaults to <see cref="DataStoreKind.Unknown"/>. An erasure contributor discharges a declared pair
+	/// only when this kind is one it covers, so an unclassified registration discharges NOTHING and the
+	/// erasure refuses to complete. That is deliberate: a registration whose store nobody claims is an
+	/// obligation nobody has shown they erased, and silence must fail closed.
+	/// </remarks>
+	public DataStoreKind StoreKind { get; init; }
 
 	/// <summary>
 	/// Gets the type of identifier in the column.

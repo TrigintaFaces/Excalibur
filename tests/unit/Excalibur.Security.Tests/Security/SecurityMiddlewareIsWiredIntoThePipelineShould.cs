@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
@@ -233,26 +233,41 @@ public sealed class SecurityMiddlewareIsWiredIntoThePipelineShould
 			provider.GetRequiredService<IDispatchMiddlewareInvoker>().ShouldNotBeNull();
 		}
 
-		AcceptedAsGlobalMiddleware(wired, expected).ShouldBeTrue(
-			$"{expected.Name} was composed and UseSecurityMiddleware() was called, but the builder " +
-			"pipeline did not accept it -- the middleware is inert on the builder path.");
+		// LIVENESS, at the seam: UseSecurityMiddleware() hands the composed feature's middleware to the
+		// builder. Observed on the builder the extension receives, because the composed pipeline's
+		// middleware list is not public -- and a registration side effect is not a signal of acceptance:
+		// UseMiddleware<T>() registers with TryAdd, so a feature that already registered its type leaves
+		// no new descriptor behind.
+		var accepted = MiddlewareHandedToBuilder(Compose(composeFeature));
+		accepted.ShouldContain(
+			expected,
+			$"{expected.Name} was composed and UseSecurityMiddleware() was called, but it was never " +
+			"handed to the builder -- the middleware is inert on the builder path.");
 
-		// SAFETY -- same feature composed, UseSecurityMiddleware NOT called.
-		var unwired = Compose(composeFeature);
-		_ = unwired.AddDispatch(static _ => { });
-
-		AcceptedAsGlobalMiddleware(unwired, expected).ShouldBeFalse(
-			$"{expected.Name} reached the builder pipeline without UseSecurityMiddleware() being " +
-			"called, so the test cannot tell a working Use* from an inert one.");
+		// SAFETY: composing one feature hands exactly that middleware, and none of the others.
+		accepted.ShouldBe(
+			[expected],
+			$"UseSecurityMiddleware() handed the builder more than the one composed feature ({expected.Name}).");
 	}
 
 	/// <summary>
-	/// DispatchBuilder.Build() appends a Scoped descriptor for each type it took as global
-	/// middleware. The security features register their concrete types as Singleton or Transient, so
-	/// a Scoped descriptor for the type can only have come from the builder accepting it.
+	/// Calls <c>UseSecurityMiddleware()</c> on a builder over <paramref name="services"/> and returns every
+	/// middleware type it handed to <c>UseMiddleware&lt;T&gt;()</c>.
 	/// </summary>
-	private static bool AcceptedAsGlobalMiddleware(IServiceCollection services, Type middleware) =>
-		services.Any(d => d.ServiceType == middleware && d.Lifetime == ServiceLifetime.Scoped);
+	private static List<Type> MiddlewareHandedToBuilder(IServiceCollection services)
+	{
+		var handed = new List<Type>();
+		var builder = A.Fake<IDispatchBuilder>();
+		_ = A.CallTo(() => builder.Services).Returns(services);
+		_ = A.CallTo(builder)
+			.Where(static call => call.Method.Name == nameof(IDispatchBuilder.UseMiddleware) && call.Method.IsGenericMethod)
+			.WithReturnType<IDispatchBuilder>()
+			.Invokes(call => handed.Add(call.Method.GetGenericArguments()[0]))
+			.Returns(builder);
+
+		_ = builder.UseSecurityMiddleware();
+		return handed;
+	}
 
 	private void AssertPipelineContainesExactlySigning() =>
 		AssertPipelineContainsExactly(

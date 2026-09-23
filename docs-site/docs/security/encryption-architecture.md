@@ -432,6 +432,22 @@ builder.Services.AddEventSourcingCryptoShredding();
 | `EncryptingInboxStoreDecorator` | `Excalibur.Compliance` | Inbox message encryption |
 | `EncryptingOutboxStoreDecorator` | `Excalibur.Compliance` | Outbox message encryption |
 
+### Tenant Binding in the Store Decorators
+
+The decorators build the `EncryptionContext` for you, per record, and bind a tenant into the AAD. Which tenant depends on whether the record carries one:
+
+| Decorator | Tenant bound on write | Tenant bound on read |
+|-----------|----------------------|----------------------|
+| `EncryptingOutboxStoreDecorator` | the message's `TenantId` | the stored message's `TenantId` |
+| `EncryptingInboxStoreDecorator` | the ambient tenant (the one the inbox store stamps on the entry) | the stored entry's `TenantId` |
+| `EncryptingProjectionStoreDecorator` | the ambient tenant | the ambient tenant |
+| `EncryptingEventStoreDecorator` | not applicable (personal fields use per-subject keys) | the ambient tenant |
+
+- **Outbox and inbox bind the record's own tenant on read**, never the reader's ambient tenant. Both are drained for every tenant by background processors that run outside any tenant scope, so the record's tenant is the only value that can be re-derived at drain time. A payload moved into a row carrying a different tenant fails authentication.
+- **A record with no tenant** (`null`, empty, or whitespace) binds the reserved untenanted partition value, the same value the store returns for it on read.
+- **A tenant context is always present.** The decorators require an `ITenantContext`; their registration methods add the framework's single-tenant default when you have not registered one, so a single-tenant host binds one fixed tenant identity. A multi-tenant host registers its own resolving context and gets per-tenant binding.
+- **Keys are not per tenant on these paths.** One active key per purpose serves every tenant, so the AAD tenant is the only cryptographic tenant separation the decorators provide. Row-level tenant filtering in each store remains the control that stops one tenant from reading another tenant's rows at all; the AAD binding is a second, independent layer.
+
 ### Mixed-Mode Migration
 
 The decorators support seamless migration from plaintext to encrypted data:

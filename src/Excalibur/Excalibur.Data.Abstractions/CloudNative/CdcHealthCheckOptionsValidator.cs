@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Options;
 
@@ -35,6 +35,13 @@ internal sealed class CdcHealthCheckOptionsValidator : IValidateOptions<CdcHealt
 		if (options.DegradedInactivityTimeout <= TimeSpan.Zero)
 		{
 			failures.Add($"{nameof(CdcHealthCheckOptions.DegradedInactivityTimeout)} must be greater than zero.");
+		}
+
+		if (options.UnhealthyConsecutiveTransientFailures < 1)
+		{
+			failures.Add(
+				$"{nameof(CdcHealthCheckOptions.UnhealthyConsecutiveTransientFailures)} must be at least 1 " +
+				$"(was {options.UnhealthyConsecutiveTransientFailures}).");
 		}
 
 		return failures.Count > 0 ? ValidateOptionsResult.Fail(failures) : ValidateOptionsResult.Success;

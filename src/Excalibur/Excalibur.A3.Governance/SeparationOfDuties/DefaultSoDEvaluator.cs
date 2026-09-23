@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants;
@@ -105,7 +105,7 @@ internal sealed class DefaultSoDEvaluator(
 				if (rolePermissionResolver is not null)
 				{
 					var activities = await rolePermissionResolver.ResolveRolePermissionsAsync(
-						grant.Qualifier, cancellationToken).ConfigureAwait(false);
+						grant.TenantId, grant.Qualifier, cancellationToken).ConfigureAwait(false);
 					foreach (var activity in activities)
 					{
 						userActivities.Add(activity);
@@ -125,14 +125,33 @@ internal sealed class DefaultSoDEvaluator(
 			{
 				userRoles.Add(additionalScope);
 
-				// Expand hypothetical role to activities for Activity-scoped policy checks
+				// Expand hypothetical role to activities for Activity-scoped policy checks.
+				//
+				// The proposed grant carries no tenant: EvaluateHypotheticalAsync takes a bare qualifier,
+				// so which tenant the proposal belongs to is not expressible through this contract. A role
+				// name identifies one role WITHIN a tenant, so the expansion is evaluated in every tenant
+				// this user already holds a grant in, and the results are unioned.
+				//
+				// That OVER-approximates, deliberately. Separation of duties is a DETECTIVE control: a
+				// conflict reported that a narrower reading would not raise costs a review, while a
+				// conflict missed is the failure the control exists to prevent. Expanding in no tenant at
+				// all -- the alternative available without a tenant -- would silently stop reporting
+				// Activity-scoped conflicts for hypothetical Role grants entirely.
 				if (rolePermissionResolver is not null)
 				{
-					var activities = await rolePermissionResolver.ResolveRolePermissionsAsync(
-						additionalScope, cancellationToken).ConfigureAwait(false);
-					foreach (var activity in activities)
+					var proposalTenants = grants
+						.Select(g => g.TenantId)
+						.Distinct(StringComparer.Ordinal)
+						.ToArray();
+
+					foreach (var proposalTenantId in proposalTenants)
 					{
-						userActivities.Add(activity);
+						var activities = await rolePermissionResolver.ResolveRolePermissionsAsync(
+							proposalTenantId, additionalScope, cancellationToken).ConfigureAwait(false);
+						foreach (var activity in activities)
+						{
+							userActivities.Add(activity);
+						}
 					}
 				}
 			}

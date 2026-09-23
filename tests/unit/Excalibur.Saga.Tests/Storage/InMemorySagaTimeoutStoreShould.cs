@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -251,35 +251,76 @@ public sealed class InMemorySagaTimeoutStoreShould
 		var timeout = CreateTimeout("timeout-1", "saga-1");
 		await _store.ScheduleTimeoutAsync(timeout, CancellationToken.None);
 
+		// Claim first: retirement is claim-conditional, so a caller that never claimed cannot retire.
+		var claims = await _store.ClaimDueTimeoutsAsync(DateTimeOffset.UtcNow, 10, CancellationToken.None);
+		var claim = claims.Single(c => c.Timeout.TimeoutId == "timeout-1");
+
 		// Act
-		await _store.MarkDeliveredAsync("timeout-1", CancellationToken.None);
+		var outcome = await _store.MarkDeliveredAsync(claim, CancellationToken.None);
 
 		// Assert
+		outcome.ShouldBe(SagaTimeoutRetirementOutcome.Retired);
 		_store.GetPendingCount().ShouldBe(0);
 	}
 
 	[Fact]
-	public async Task MarkDeliveredAsync_ThrowsArgumentException_WhenTimeoutIdIsNull()
+	public async Task MarkDeliveredAsync_ThrowsArgumentNullException_WhenClaimIsNull()
 	{
 		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentException>(() =>
+		_ = await Should.ThrowAsync<ArgumentNullException>(() =>
 			_store.MarkDeliveredAsync(null!, CancellationToken.None));
 	}
 
 	[Fact]
-	public async Task MarkDeliveredAsync_ThrowsArgumentException_WhenTimeoutIdIsEmpty()
+	public async Task MarkDeliveredAsync_ReportsSuperseded_WhenTheClaimWasNeverHeld()
 	{
-		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentException>(() =>
-			_store.MarkDeliveredAsync("", CancellationToken.None));
+		// A fabricated claim for a timeout this caller never claimed. It does not throw -- a store cannot
+		// distinguish "never existed" from "already retired by the live owner" once the row is gone, which
+		// is exactly why the outcome has two values and not three. What it must NOT do is report success.
+		var neverHeld = new ClaimedSagaTimeout(CreateTimeout("nonexistent", "saga-1"), "not-a-real-token");
+
+		var outcome = await _store.MarkDeliveredAsync(neverHeld, CancellationToken.None);
+
+		outcome.ShouldBe(SagaTimeoutRetirementOutcome.Superseded);
 	}
 
+
 	[Fact]
-	public async Task MarkDeliveredAsync_IsIdempotent_WhenTimeoutDoesNotExist()
+	public async Task RefuseAStaleClaimantAfterTheLeaseWasTakenOver_AndStillLetTheLiveOneRetire()
 	{
-		// Act & Assert - Should not throw
-		await Should.NotThrowAsync(() =>
-			_store.MarkDeliveredAsync("nonexistent", CancellationToken.None));
+		// THE INTERLEAVING THIS WHOLE CONTRACT EXISTS FOR, and it needs no concurrency to construct.
+		//
+		//   A claims T                      -> token A
+		//   A stalls past the lease         -> the lease goes stale; this is the state the lease exists for
+		//   B re-claims T                   -> token B, legitimately
+		//   A resumes and retires T         <- MUST BE REFUSED. If it lands, B's own delivery has no row
+		//                                      left to retry, and the saga waits forever for a timeout that
+		//                                      no longer exists: zero deliveries plus deletion.
+		//
+		// The lease is 120s, so a second claim 121s later is stale by construction -- no wall-clock waiting
+		// and no sleep, because asOf is a parameter rather than a read of the system clock.
+		var ct = CancellationToken.None;
+		var start = DateTimeOffset.UtcNow;
+		await _store.ScheduleTimeoutAsync(CreateTimeout("timeout-contested", "saga-1"), ct);
+
+		var claimA = (await _store.ClaimDueTimeoutsAsync(start, 10, ct)).Single();
+		var claimB = (await _store.ClaimDueTimeoutsAsync(start.AddSeconds(121), 10, ct)).Single();
+
+		claimB.ClaimToken.ShouldNotBe(
+			claimA.ClaimToken,
+			"a re-claim after lease expiry must mint a NEW token -- if the token were the process identity "
+			+ "it would be identical here and the predicate below could not tell the two claims apart");
+
+		// SAFETY - the stale claimant is refused and the row survives for the live claimant to retry.
+		var stale = await _store.MarkDeliveredAsync(claimA, ct);
+		stale.ShouldBe(SagaTimeoutRetirementOutcome.Superseded);
+		_store.GetPendingCount().ShouldBe(1, "the row must survive a stale claimant's retirement attempt");
+
+		// LIVENESS - the live claimant still retires it. Without this arm a store that refused EVERY
+		// retirement would satisfy the safety half above and be completely broken.
+		var live = await _store.MarkDeliveredAsync(claimB, ct);
+		live.ShouldBe(SagaTimeoutRetirementOutcome.Retired);
+		_store.GetPendingCount().ShouldBe(0, "the holder of the current claim retires the row");
 	}
 
 	#endregion MarkDeliveredAsync Tests

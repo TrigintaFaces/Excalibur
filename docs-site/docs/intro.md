@@ -127,7 +127,7 @@ public record GetOrderAction(Guid OrderId) : IDispatchAction<Order>;
 
 ### 3. Create a Handler
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>

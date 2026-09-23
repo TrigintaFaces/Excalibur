@@ -387,6 +387,25 @@ jobs:
       - name: architecture-evidence-gate
         run: bash eng/ci/architecture-evidence-gate.sh
 
+      # BLOCKING — a seam whose blast radius demands a higher CLASS of guarantee than it produces,
+      # reported as covered. architecture-evidence-gate (above) asserts that a guarantee's named test
+      # still resolves; this one asserts the guarantee is of the right CLASS at all. A green
+      # sampling-class suite says nothing about a state space it never enumerated, so a catastrophic
+      # seam with no model check is UNVERIFIED at that rung, never clean. Coverage is bidirectional:
+      # a new ARCHITECTURE.md with no ladder entry FAILS, and the debt baseline is shrink-only.
+      # Self-test (17 arms) proves the gate FAILS on each defect it claims to detect and REFUSES
+      # rather than passing when it cannot read the manifest or the tree.
+      # The ladder manifest is YAML. Without the parser the gate REFUSEs (exit 2) rather than
+      # reporting a tree it could not read as clean, so the install is load-bearing, not cosmetic.
+      - name: Install PyYAML (the rigor ladder manifest is YAML)
+        run: python3 -m pip install --quiet pyyaml
+
+      - name: rigor-ladder-gate self-test (non-vacuity)
+        run: bash eng/ci/rigor-ladder-gate.sh --self-test
+
+      - name: rigor-ladder-gate
+        run: bash eng/ci/rigor-ladder-gate.sh
+
       # BLOCKING — a raw `await Task.Delay(...)` sync-wait in test code, or a sub-ten-second
       # CancellationTokenSource deadline, is a non-deterministic wall-clock dependency (poll a condition
       # with a bounded timeout instead).
@@ -413,6 +432,22 @@ jobs:
       # asserts detection, plus safety, baseline-honouring, and REFUSE-not-pass on an unsearchable tree.
       - name: message-identity-single-source self-test
         run: bash eng/ci/message-identity-single-source-gate.test.sh
+
+      # Its arms first, for the same reason as every other gate here. Six of them, and one exists because
+      # the gate's own first run was green on small fixtures while reporting every real release missing:
+      # a reader that exits early makes an existing section look absent, and only a large input shows it.
+      - name: changelog-tag-coverage self-test (non-vacuity)
+        run: bash eng/ci/changelog-tag-coverage-gate.sh --self-test
+
+      # BLOCKING -- a tag is the moment a version becomes installable, and the changelog is where the
+      # consumer looks to find out what is in it. Nothing linked the two, so a release was published and
+      # the file never grew a section for it: everything that shipped stayed under [Unreleased], and a
+      # Known Issues entry kept saying a defect was "not yet fixed" after the fix shipped in the version
+      # the reader had installed. Derived from the tags that exist, so a new release is covered the moment
+      # it is tagged. Requires the tags -- this job checks out at fetch-depth 0; the gate REFUSES rather
+      # than passing vacuously if they are ever absent.
+      - name: changelog-tag-coverage
+        run: bash eng/ci/changelog-tag-coverage-gate.sh
 
       # ADVISORY pending cleanup — a .ValidateOnStart() with no IValidateOptions<T>/ValidateDataAnnotations
       # validator validates nothing (false-safety). There are pre-existing chains in src/ tracked for fix;

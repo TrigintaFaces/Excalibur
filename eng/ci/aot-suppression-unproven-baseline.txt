@@ -207,8 +207,6 @@
 1	src/Excalibur/Excalibur.Compliance/CryptoShredding/SubjectFieldCryptor.cs	IL2072
 1	src/Excalibur/Excalibur.Compliance/Erasure/PersonalDataAnnotationSource.cs	IL2026
 1	src/Excalibur/Excalibur.Compliance/Erasure/PersonalDataAnnotationSource.cs	IL2075
-1	src/Excalibur/Excalibur.Compliance/Retention/RetentionEnforcementBackgroundService.cs	IL2026
-1	src/Excalibur/Excalibur.Compliance/Retention/RetentionEnforcementService.cs	IL2026
 2	src/Excalibur/Excalibur.Data.CosmosDb/CosmosDbPersistenceProvider.cs	IL2095
 2	src/Excalibur/Excalibur.Data.CosmosDb/CosmosDbServiceCollectionExtensions.cs	IL2026
 2	src/Excalibur/Excalibur.Data.CosmosDb/CosmosDbServiceCollectionExtensions.cs	IL3050

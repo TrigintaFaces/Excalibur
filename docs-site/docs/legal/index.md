@@ -44,14 +44,27 @@ However, proper implementation, configuration, and independent validation remain
 
 ## License
 
-The Excalibur framework is distributed under a [multi-license scheme](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE). You may choose to use the software under any of the following licenses:
+The Excalibur framework is distributed under a [multi-license scheme](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE). You may choose to use the software under any one of the following licenses:
 
-- **Excalibur License 1.0** — Permissive with hosted-service restriction
+- **Excalibur License 1.1** — source-available; grants broad use, copying, distribution and derivative works, with two restrictions: you may not resell the framework itself, and you may not offer it to others as a hosted or managed service
 - **AGPL-3.0-or-later** — GNU Affero General Public License
 - **SSPL-1.0** — Server Side Public License
-- **Apache-2.0** — Apache License 2.0
 
-See the `licenses/` directory in the repository for full license texts.
+See the `licenses/` directory in the repository for full license texts. The license texts govern; the summary below is a plain-language guide and does not replace them.
+
+### What the Excalibur License permits, in plain terms
+
+| Can I… | Under the Excalibur License 1.1 |
+|---|---|
+| Use the framework in my company's internal systems? | **Yes.** |
+| Build a commercial application on it and sell it? | **Yes.** Your application is yours to sell, license and support. |
+| Run my application as a SaaS product for my customers? | **Yes.** Hosting your own application is not hosting the framework. |
+| Ship the framework inside my application to customers? | **Yes**, as a component of your application, keeping the license notices. |
+| Modify the framework for my own use? | **Yes.** Mark modified files as modified. |
+| Sell the framework itself, rebranded, repackaged or as a competing framework or SDK? | **No.** |
+| Offer the framework's capabilities to others as a service — a hosted outbox, event store, dispatcher or operations dashboard, or a platform where customers run their own handlers on it? | **No.** |
+
+If your use falls outside this table, read the license text and consult your own legal counsel.
 
 ---
 

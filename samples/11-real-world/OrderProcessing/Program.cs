@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // ============================================================================
 // Order Processing Sample - Real-World Integration Patterns
@@ -23,6 +23,9 @@
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
+// FluentValidation ships its own ValidationException; the one the Dispatch pipeline throws is
+// Excalibur.Dispatch.Exceptions.ValidationException. Alias it so the catch below is unambiguous.
+using DispatchValidationException = Excalibur.Dispatch.Exceptions.ValidationException;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Validation;
 using Excalibur.EventSourcing;
@@ -229,8 +232,27 @@ var invalidCommand = new CreateOrderCommand(
 	"Short"); // Too short - will fail validation
 
 Console.WriteLine("Attempting to create order with invalid data...");
-result = await dispatcher.DispatchAsync(invalidCommand, context, CancellationToken.None);
-PrintValidationResult(result);
+
+// A validation failure is THROWN by the validation middleware -- it does not come back as a failed
+// IMessageResult. This try/catch is the error boundary a real caller needs; a web API would map the
+// exception to a 400 with the same per-property detail printed here.
+try
+{
+	result = await dispatcher.DispatchAsync(invalidCommand, context, CancellationToken.None);
+	PrintValidationResult(result);
+}
+catch (DispatchValidationException ex)
+{
+	Console.WriteLine("  [VALIDATION FAILED]");
+	foreach (var failure in ex.ValidationErrors)
+	{
+		var property = string.IsNullOrEmpty(failure.Key) ? "(General)" : failure.Key;
+		foreach (var text in failure.Value)
+		{
+			Console.WriteLine($"    - [{property}]: {text}");
+		}
+	}
+}
 
 // ============================================================================
 // Demo 4: Inventory Validation Failure (Saga Compensation)

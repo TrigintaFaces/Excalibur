@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Delivery;
 
@@ -149,6 +149,7 @@ public static class OutboxServiceCollectionExtensions
 		if (options.EnableBackgroundProcessing)
 		{
 			_ = services.AddHostedService<OutboxBackgroundService>();
+			services.TryAddSingleton<OutboxDrainMarker>();
 		}
 
 		return services;
@@ -403,6 +404,7 @@ public static class OutboxServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddHostedService<OutboxBackgroundService>();
+		services.TryAddSingleton<OutboxDrainMarker>();
 
 		return services;
 	}
@@ -443,6 +445,13 @@ public static class OutboxServiceCollectionExtensions
 		// the transient lifetime exists to serve -- a real regression traded for an imagined guarantee.
 		// The gap is closed store-side or not at all; a lifetime is not a distributed lock, and must never
 		// be recorded as one.
+		// The processor DISPATCHES what it drains, so it needs the pipeline for the same reason its outbox
+		// twin does -- and AddDispatchPipeline is also what registers the transport circuit-breaker
+		// registry, which InboxProcessor takes as a required dependency. Without it this composition fails
+		// to construct. The pipeline entry point scans nothing and every registration in it is TryAdd, so
+		// calling it here as well as from AddExcaliburOutbox is idempotent.
+		_ = services.AddDispatchPipeline();
+
 		services.TryAddSingleton<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
 		services.TryAddTransient<Excalibur.Dispatch.IInboxProcessor, Excalibur.Dispatch.Delivery.InboxProcessor>();
 		services.TryAddSingleton<Excalibur.Dispatch.IInbox, Excalibur.Dispatch.Delivery.MessageInbox>();

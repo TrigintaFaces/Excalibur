@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
@@ -213,6 +213,29 @@ public sealed class DynamoDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// <b>Supplying <see cref="QueryOptions.OrderBy"/> makes this a FULL READ of every matched projection.</b>
+	/// DynamoDB's <c>Scan</c> has no server-side sort, so the rows must all be retrieved before any of them
+	/// can be known to be first. The store therefore reads every match before applying
+	/// <see cref="QueryOptions.Skip"/> and <see cref="QueryOptions.Take"/>.
+	/// </para>
+	/// <para>
+	/// The consequence is that <b><see cref="QueryOptions.Take"/> does not bound the cost of an ordered
+	/// query</b> — it bounds only the rows returned. Bound the cost with the <c>filters</c> argument
+	/// instead, so that fewer rows match. An ordered query over an unfiltered table reads the table.
+	/// </para>
+	/// <para>
+	/// Ordering is not refused, because refusing it would make this the one projection store where a
+	/// portable query stops working. It is not applied per page either: sorting a page bounded by
+	/// <see cref="QueryOptions.Take"/> would order an arbitrary subset and return rows that are not the
+	/// first by the requested key, and nothing in the result would distinguish that from a correct answer.
+	/// </para>
+	/// <para>
+	/// For bounded paging that does not read the whole match set, use the cursor API this store also
+	/// implements (<see cref="ICursorProjectionStore{TProjection}"/>); it pages without ordering.
+	/// </para>
+	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
@@ -226,32 +249,206 @@ public sealed class DynamoDbProjectionStore<
 		//. A null/empty filter leaves only the discriminator.
 		var (filterExpression, names, values) = BuildScanFilter(filters);
 
-		var request = new ScanRequest
-		{
-			TableName = _options.TableName,
-			FilterExpression = filterExpression,
-			ExpressionAttributeNames = names,
-			ExpressionAttributeValues = values,
-		};
+		// Follow LastEvaluatedKey to exhaustion. A single Scan reads a bounded amount of the table, so one
+		// request returns only the projections that happened to fall in it -- and nothing in the returned
+		// list distinguishes that from the complete set. Take caps MATCHED projections; Scan's own Limit
+		// caps items SCANNED (it is applied before the filter), so it can only bound the work per request
+		// and never fill the result. The loop is what fills it -- the same shape QueryPagedAsync uses.
+		var take = options?.Take > 0 ? options.Take.Value : (int?)null;
+		var skip = options?.Skip > 0 ? options.Skip.Value : 0;
+		var orderBy = string.IsNullOrWhiteSpace(options?.OrderBy) ? null : options.OrderBy;
 
-		if (options?.Take > 0)
-		{
-			request.Limit = options.Take.Value;
-		}
-
-		var response = await _client.ScanAsync(request, cancellationToken).ConfigureAwait(false);
+		// ORDERING FORCES A FULL DRAIN, and that is a correctness requirement rather than a tuning choice.
+		// DynamoDB Scan has no server-side sort -- it yields items in whatever order the partitions produce
+		// them -- so a page truncated by Take BEFORE sorting would order the wrong subset and return rows
+		// that are not the first by the requested key, with nothing to distinguish the result from a correct
+		// one. When OrderBy is set the scan therefore sees every match before Skip and Take are applied, and
+		// the cost is bounded by the number of MATCHED projections rather than by Take: narrow the filter if
+		// that set is large. Without OrderBy the per-request bound below still applies.
+		var mustDrain = orderBy is not null;
 
 		var results = new List<TProjection>();
-		foreach (var item in response.Items)
+		var ordered = mustDrain ? new List<Dictionary<string, AttributeValue>>() : null;
+		var skipped = 0;
+		Dictionary<string, AttributeValue>? startKey = null;
+
+		do
 		{
-			var projection = DeserializeItem(item);
-			if (projection != null)
+			var request = new ScanRequest
 			{
+				TableName = _options.TableName,
+				FilterExpression = filterExpression,
+				ExpressionAttributeNames = names,
+				ExpressionAttributeValues = values,
+				ExclusiveStartKey = startKey,
+			};
+
+			// Bounding the request is only sound when nothing is pending that could reorder the result, and
+			// the bound must cover the skipped prefix as well as the page itself.
+			if (!mustDrain && take is { } remaining)
+			{
+				request.Limit = skip + remaining - results.Count;
+			}
+
+			var response = await _client.ScanAsync(request, cancellationToken).ConfigureAwait(false);
+
+			foreach (var item in response.Items)
+			{
+				if (ordered is not null)
+				{
+					ordered.Add(item);
+					continue;
+				}
+
+				var projection = DeserializeItem(item);
+				if (projection is null)
+				{
+					continue;
+				}
+
+				// Skip counts MATCHED projections, not scanned items, so an item the filter admitted but the
+				// deserializer rejected must not consume a place in the skipped prefix.
+				if (skipped < skip)
+				{
+					skipped++;
+					continue;
+				}
+
 				results.Add(projection);
+
+				if (take is { } cap && results.Count >= cap)
+				{
+					return results;
+				}
+			}
+
+			startKey = response.LastEvaluatedKey is { Count: > 0 } lastEvaluatedKey ? lastEvaluatedKey : null;
+		}
+		while (startKey is not null);
+
+		if (ordered is null)
+		{
+			return results;
+		}
+
+		// Resolve the caller's property name to the attribute actually stored, ONCE. Projections are
+		// written through a camelCase naming policy, so a caller ordering by the documented CLR property
+		// name ("Rank") is asking for an attribute stored as "rank". Matching only exactly would find
+		// nothing and return the set unordered -- silently, which is the defect this method is fixing.
+		var sortKey = ResolveAttributeName(ordered, orderBy!);
+
+		ordered.Sort((left, right) => CompareByAttribute(left, right, sortKey, options!.Descending));
+
+		for (var index = skip; index < ordered.Count; index++)
+		{
+			var projection = DeserializeItem(ordered[index]);
+			if (projection is null)
+			{
+				continue;
+			}
+
+			results.Add(projection);
+
+			if (take is { } cap && results.Count >= cap)
+			{
+				break;
 			}
 		}
 
 		return results;
+	}
+
+	/// <summary>
+	/// Maps the caller's order-by name onto the attribute key the items actually carry.
+	/// </summary>
+	/// <remarks>
+	/// An exact match always wins. Only when nothing matches exactly is a case-insensitive match used,
+	/// which is what lets a caller order by the CLR property name against the camelCased attribute the
+	/// serializer wrote. If neither matches, the caller's name is returned unchanged and the comparison
+	/// treats every item as missing the attribute, so the order is left alone rather than scrambled.
+	/// </remarks>
+	/// <param name="items">The scanned items to inspect.</param>
+	/// <param name="requestedName">The attribute name the caller asked to order by.</param>
+	/// <returns>The stored attribute key to order on.</returns>
+	private static string ResolveAttributeName(List<Dictionary<string, AttributeValue>> items, string requestedName)
+	{
+		foreach (var item in items)
+		{
+			if (item.ContainsKey(requestedName))
+			{
+				return requestedName;
+			}
+
+			foreach (var key in item.Keys)
+			{
+				if (string.Equals(key, requestedName, StringComparison.OrdinalIgnoreCase))
+				{
+					return key;
+				}
+			}
+		}
+
+		return requestedName;
+	}
+
+	/// <summary>
+	/// Orders two scanned items by one stored attribute, without materializing either projection.
+	/// </summary>
+	/// <remarks>
+	/// Comparing the stored <see cref="AttributeValue"/> rather than a property of the deserialized
+	/// projection keeps this free of reflection, which is required here: this package is trimming- and
+	/// AOT-clean, and a name-based property lookup would be neither. Numbers compare numerically so that
+	/// 10 sorts after 9 rather than before it, and strings compare ordinally. An item that does not carry
+	/// the attribute sorts last in BOTH directions, so a partially populated projection set still has a
+	/// total order and reversing the sort never promotes an absent value to the first page.
+	/// </remarks>
+	/// <param name="left">The first scanned item.</param>
+	/// <param name="right">The second scanned item.</param>
+	/// <param name="attributeName">The stored attribute to order by.</param>
+	/// <param name="descending">Whether the caller asked for descending order.</param>
+	/// <returns>A signed value describing the relative order of the two items.</returns>
+	private static int CompareByAttribute(
+		Dictionary<string, AttributeValue> left,
+		Dictionary<string, AttributeValue> right,
+		string attributeName,
+		bool descending)
+	{
+		var hasLeft = left.TryGetValue(attributeName, out var leftValue);
+		var hasRight = right.TryGetValue(attributeName, out var rightValue);
+
+		if (!hasLeft || !hasRight)
+		{
+			// Deliberately NOT negated for descending: a missing attribute is not a value that can be
+			// "greatest", and letting it lead the descending page would hide the rows the caller asked for.
+			return hasLeft == hasRight ? 0 : hasLeft ? -1 : 1;
+		}
+
+		var comparison = CompareAttributeValues(leftValue!, rightValue!);
+		return descending ? -comparison : comparison;
+	}
+
+	/// <summary>
+	/// Compares two stored attribute values by their DynamoDB type.
+	/// </summary>
+	/// <param name="left">The first value.</param>
+	/// <param name="right">The second value.</param>
+	/// <returns>A signed value describing the relative order, or zero when the types are not comparable.</returns>
+	private static int CompareAttributeValues(AttributeValue left, AttributeValue right)
+	{
+		if (left.N is not null
+			&& right.N is not null
+			&& decimal.TryParse(left.N, NumberStyles.Number, CultureInfo.InvariantCulture, out var leftNumber)
+			&& decimal.TryParse(right.N, NumberStyles.Number, CultureInfo.InvariantCulture, out var rightNumber))
+		{
+			return leftNumber.CompareTo(rightNumber);
+		}
+
+		if (left.S is not null && right.S is not null)
+		{
+			return string.CompareOrdinal(left.S, right.S);
+		}
+
+		return 0;
 	}
 
 	/// <inheritdoc/>

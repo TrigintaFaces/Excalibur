@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Inbox.InMemory;
 using Excalibur.Testing.Conformance;
@@ -132,6 +132,26 @@ public sealed class InMemoryInboxStoreConformanceTests : InboxStoreConformanceTe
 	public Task GetAllTenantsFailedEntriesAsync_MustReturnEveryTenantsFailedEntries_Test() =>
 		GetAllTenantsFailedEntriesAsync_MustReturnEveryTenantsFailedEntries();
 
+	[Fact]
+	public Task AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount_Test() =>
+		AdminMarkFailed_ForAnExistingEntry_MustReportAppliedAndSetTheRetryCount();
+
+	[Fact]
+	public Task AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne_Test() =>
+		AdminMarkFailed_MustAddressTheTenantItIsGiven_NotTheAmbientOne();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched_Test() =>
+		AdminMarkFailed_ForAPartitionTheEntryIsNotIn_MustReportEntryNotFound_AndLeaveItUntouched();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow_Test() =>
+		AdminMarkFailed_ForAnAbsentEntry_MustReportEntryNotFound_RatherThanThrow();
+
+	[Fact]
+	public Task AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged_Test() =>
+		AdminMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessed_AndLeaveItUnchanged();
+
 
 	#endregion Fail Tests
 
@@ -254,6 +274,40 @@ public sealed class InMemoryInboxStoreConformanceTests : InboxStoreConformanceTe
 	[Fact]
 	public Task FailedEntry_MustNotBeReadmittedByTheClaimPath_Test() =>
 		FailedEntry_MustNotBeReadmittedByTheClaimPath();
+
+	// The mark-failed outcome arms. These arrived with the InboxMarkFailedOutcome contract change and were
+	// wired into the nine PROVIDER suites, every one of which needs a real container or emulator. This suite
+	// is the only one that runs with no infrastructure, so until these wrappers existed the four arms were
+	// present, correct, and executed by nothing that runs in CI — which the kit's own wiring check was
+	// already saying out loud: it was RED here, naming all four.
+
+	[Fact]
+	public Task CoreMarkFailed_ForAnExistingEntry_MustReportApplied_Test() =>
+		CoreMarkFailed_ForAnExistingEntry_MustReportApplied();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow_Test() =>
+		CoreMarkFailed_ForAnAbsentEntry_MustReportEntryNotFoundAndNotThrow();
+
+	[Fact]
+	public Task CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged_Test() =>
+		CoreMarkFailed_ForAProcessedEntry_MustReportAlreadyProcessedAndLeaveItUnchanged();
+
+	/// <summary>
+	/// Wired so the kit's wiring check stays honest, but it DECLINES on this store and proves nothing here.
+	/// </summary>
+	/// <remarks>
+	/// <c>InMemoryInboxStore</c> implements <c>IInboxStore</c>, <c>IProcessingTrackingInboxStore</c>,
+	/// <c>IClaimableInboxStore</c>, <c>ILeasedInboxStore</c> and <c>IInboxStoreAdmin</c> — and NOT
+	/// <c>IBackoffSchedulableInboxStore</c>. The arm reads the capability the same way the processor does and
+	/// returns early when it is absent, which is correct: asserting an optional capability against a store
+	/// that never claimed it would fail for the wrong reason. Stated explicitly because a green here is a
+	/// DECLINE, not a pass, and the three arms above are the ones carrying real coverage in this suite.
+	/// Backoff scheduling is proved by the provider suites that declare the capability.
+	/// </remarks>
+	[Fact]
+	public Task BackoffMarkFailed_ForAnExistingEntry_MustReportApplied_Test() =>
+		BackoffMarkFailed_ForAnExistingEntry_MustReportApplied();
 
 	/// <summary>
 	/// Fails if this suite stops exposing any arm the kit declares.

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.ComponentModel.DataAnnotations;
@@ -7,9 +7,15 @@ using System.ComponentModel.DataAnnotations;
 namespace Excalibur.Dispatch.Options.Performance;
 
 /// <summary>
-/// Options for micro-batching.
+/// The values the batch processor is constructed with.
 /// </summary>
-public sealed class MicroBatchOptions
+/// <remarks>
+/// This is a constructor argument, not a configuration surface: nothing binds it from configuration and
+/// its only consumer is the batch processor. Batching is configured through the batching middleware's
+/// options, which are bound and validated at host start. Keeping this type internal is what stops the two
+/// from being mistaken for each other.
+/// </remarks>
+internal sealed class MicroBatchOptions
 {
 	/// <summary>
 	/// Gets or sets maximum items in a batch.

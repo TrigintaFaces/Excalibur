@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Net;
 using System.Net.Http.Json;
@@ -172,7 +172,7 @@ public sealed class SagaStuckEndpointShould
 		/// subsequent claimer. Modeled as remove-on-claim so a second call cannot re-deliver the same timeout —
 		/// a stub that merely returned the due set would let a first-writer-wins lock pass vacuously.
 		/// </summary>
-		public Task<IReadOnlyList<SagaTimeout>> ClaimDueTimeoutsAsync(
+		public Task<IReadOnlyList<ClaimedSagaTimeout>> ClaimDueTimeoutsAsync(
 			DateTimeOffset asOf,
 			int batchSize,
 			CancellationToken cancellationToken)
@@ -188,7 +188,10 @@ public sealed class SagaStuckEndpointShould
 				_ = _timeouts.Remove(timeout);
 			}
 
-			return Task.FromResult<IReadOnlyList<SagaTimeout>>(claimed);
+			// Each claim carries its own token, as the real stores do -- the fake must not hand back a
+			// constant, or an ownership arm written against it would pass for the wrong reason.
+			return Task.FromResult<IReadOnlyList<ClaimedSagaTimeout>>(
+				[.. claimed.Select(t => new ClaimedSagaTimeout(t, Guid.NewGuid().ToString("N")))]);
 		}
 
 		public Task ScheduleTimeoutAsync(SagaTimeout timeout, CancellationToken cancellationToken)
@@ -201,7 +204,8 @@ public sealed class SagaStuckEndpointShould
 
 		public Task CancelAllTimeoutsAsync(string sagaId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-		public Task MarkDeliveredAsync(string timeoutId, CancellationToken cancellationToken) => Task.CompletedTask;
+		public Task<SagaTimeoutRetirementOutcome> MarkDeliveredAsync(ClaimedSagaTimeout claim, CancellationToken cancellationToken) =>
+			Task.FromResult(SagaTimeoutRetirementOutcome.Retired);
 	}
 
 	private sealed class StuckLockSagaState : SagaState

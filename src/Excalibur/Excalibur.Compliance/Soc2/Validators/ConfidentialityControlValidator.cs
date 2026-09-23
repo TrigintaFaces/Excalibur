@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 
@@ -57,7 +57,14 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 			ControlCnf001 => Task.FromResult(ValidateDataClassification()),
 			ControlCnf002 => Task.FromResult(ValidateDataProtection()),
 			ControlCnf003 => Task.FromResult(ValidateDataDisposal()),
-			_ => Task.FromResult(CreateFailureResult(controlId, [$"Unknown control: {controlId}"]))
+			// NotVerified, never the default score. A control this validator does not support was never
+			// examined, so the honest outcome is "not assessed" -- Deficient means examined-and-failing and
+			// reaches the assessor as a finding against the consumer.
+			_ => Task.FromResult(
+				CreateFailureResult(
+					controlId,
+					[$"Unknown control: {controlId}"],
+					effectivenessScore: ControlEffectiveness.Unverified))
 		};
 	}
 
@@ -118,7 +125,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 			[
 				"Classification attributes ship with the framework, but whether the consumer applied them to their personal data is not observable from here, so this control is unverified."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence,
 			// Same shape as the ProcessingIntegrity trio: the classification attributes ship here, so
 			// reporting the capability absent contradicts the Configuration evidence just above.
@@ -133,7 +140,9 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 		if (_encryptionProvider == null)
 		{
 			issues.Add("Encryption provider not configured for data protection");
-			return CreateFailureResult(ControlCnf002, issues);
+			// No provider is registered, so the mechanism this control depends on is absent rather than
+			// merely unexamined.
+			return CreateFailureResult(ControlCnf002, issues, ControlEffectiveness.MechanismAbsent);
 		}
 
 		evidence.Add(CreateEvidence(
@@ -157,7 +166,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 				+ "it depends on the consumer applying classification, which is not observable from here, "
 				+ "so this control is unverified."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence,
 			isConfigured: true);
 	}
@@ -185,7 +194,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 
 			// Partial score: a compensating manual procedure MAY exist, but the declared automated
 			// control is absent and unverifiable here — not a full failure, not a pass.
-			return CreateFailureResult(ControlCnf003, issues, effectivenessScore: Soc2EffectivenessScore.Unverified, evidence);
+			return CreateFailureResult(ControlCnf003, issues, effectivenessScore: ControlEffectiveness.Unverified, evidence);
 		}
 
 		evidence.Add(CreateEvidence(
@@ -208,7 +217,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 				"Cryptographic erasure is available, but no disposal was observed in this period, so the "
 				+ "disposal control is unverified here and requires independent attestation."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence,
 			isConfigured: true);
 	}

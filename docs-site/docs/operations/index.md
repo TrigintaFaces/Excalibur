@@ -24,6 +24,8 @@ Operational guidance for running Excalibur in production environments, including
 | [Incident Runbooks](incident-runbooks.md) | Escalation model and step-by-step response playbooks for common runtime incidents |
 | [Operational Resilience](resilience.md) | Transient error handling, retry policies, and recovery strategies |
 | [Recovery Runbooks](recovery-runbooks.md) | Step-by-step recovery procedures for common failure scenarios |
+| [Disaster Recovery](disaster-recovery.md) | Backup, restore, and recovery ordering per stateful subsystem — and what a restore does to fences, checkpoints, and deduplication windows |
+| [Fault and Degraded-Mode Catalog](fault-catalog.md) | Per-subsystem faults with the log event id and metric you will see, what the framework does, and what is left for you |
 | [Operational Dashboard](dashboard.md) | Free, OSS, read-only-by-default dashboard for live outbox/DLQ/inbox/saga/projection-lag/leader state |
 
 ## Quick Reference

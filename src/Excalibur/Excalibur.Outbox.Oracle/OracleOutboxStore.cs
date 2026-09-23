@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -977,17 +977,18 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	/// void. Reading the row count first would report ClaimLost for a superseded tenure, which tells the
 	/// caller to carry on with the rest of its batch: the wrong instruction, and indistinguishable from the
 	/// benign case in a log.
+	/// <para>
+	/// <b>This store's terminal transitions remove the row</b> -- a sent message is deleted and a
+	/// dead-lettered one is moved to the dead-letter table -- so a row that is present is never terminal,
+	/// and a terminal message is reported as <see cref="OutboxCompletionOutcome.MessageNotFound"/>, which is
+	/// the accurate answer for this idiom.
+	/// </para>
 	/// </remarks>
 	private static OutboxCompletionOutcome ClassifyFenced(
 		Requests.FencedClaimMutationResult result,
 		long presentedToken) =>
-		result.HighWaterToken != presentedToken
-			? OutboxCompletionOutcome.FenceRefused
-			: result.UpdatedCount > 0
-				? OutboxCompletionOutcome.Applied
-				: result.RowExists
-					? OutboxCompletionOutcome.ClaimLost
-					: OutboxCompletionOutcome.MessageNotFound;
+		Excalibur.Outbox.FencedCompletionClassifier.Classify(
+			result.HighWaterToken, presentedToken, result.UpdatedCount, result.RowExists, isTerminal: false);
 
 	/// <summary>
 	/// Marks a message as failed and records an exponential-backoff schedule so it is not re-claimed for retry

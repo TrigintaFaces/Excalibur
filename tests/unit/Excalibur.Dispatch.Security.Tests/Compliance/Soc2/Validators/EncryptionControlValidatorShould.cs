@@ -1,6 +1,6 @@
 using Excalibur.Compliance.Soc2.Validators;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2.Validators;
 
@@ -68,7 +68,7 @@ public sealed class EncryptionControlValidatorShould
 
 		// Assert
 		result.IsConfigured.ShouldBeFalse();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain("Encryption provider not configured");
 	}
 
@@ -83,8 +83,8 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-001", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
-		result.EffectivenessScore.ShouldBe(100);
+		result.Outcome.ShouldBe(ControlOutcome.Effective);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Effective);
 	}
 
 	[Fact]
@@ -114,7 +114,7 @@ public sealed class EncryptionControlValidatorShould
 		// Assert
 		// The FIPS check THREW. It was caught, recorded as evidence, and then scored as a pass -- a
 		// perfect result for a verification that failed to run.
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.Evidence.ShouldContain(e => e.Description.Contains("FIPS validation check"));
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("did not complete", StringComparison.Ordinal));
 	}
@@ -130,8 +130,12 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-002", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("unverified", StringComparison.Ordinal));
 		result.ControlId.ShouldBe("SEC-002");
 	}
@@ -162,7 +166,7 @@ public sealed class EncryptionControlValidatorShould
 		var result = await sut.ValidateAsync("SEC-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain("Key management provider not configured");
 	}
 
@@ -185,8 +189,8 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeTrue();
-		result.EffectivenessScore.ShouldBe(100);
+		result.Outcome.ShouldBe(ControlOutcome.Effective);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Effective);
 	}
 
 	[Fact]
@@ -200,7 +204,7 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain("No active encryption key available");
 	}
 
@@ -223,7 +227,7 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("expired"));
 	}
 
@@ -260,7 +264,7 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("SEC-003", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Failed to validate"));
 	}
 
@@ -275,7 +279,7 @@ public sealed class EncryptionControlValidatorShould
 		var result = await _sut.ValidateAsync("UNKNOWN-001", CancellationToken.None);
 
 		// Assert
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Unknown control"));
 	}
 

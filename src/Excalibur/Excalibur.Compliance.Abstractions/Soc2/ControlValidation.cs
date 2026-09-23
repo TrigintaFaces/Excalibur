@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -22,14 +22,69 @@ public record ControlValidationResult
 	public required bool IsConfigured { get; init; }
 
 	/// <summary>
-	/// Whether the control is operating effectively.
+	/// What this validation established about the control.
 	/// </summary>
-	public required bool IsEffective { get; init; }
+	/// <remarks>
+	/// <para>
+	/// <b>Derived from <see cref="EffectivenessScore" />, never stated separately.</b> A result whose
+	/// verdict contradicts its own band is not rejected here — it cannot be written. The band is the
+	/// finer fact and it already determines the verdict, so offering a second place to say so would
+	/// only offer a second place to say something different.
+	/// </para>
+	/// <para>
+	/// <b>Three states, because there are three facts.</b> A boolean verdict can say that a control is
+	/// operating and that it is not; it has nowhere to put "nobody looked". A validator that could not
+	/// examine a control is then forced to pick one of the two, and both choices are false statements
+	/// to an external auditor. See <see cref="ControlOutcome" /> for why the distinction is
+	/// load-bearing.
+	/// </para>
+	/// </remarks>
+	public ControlOutcome Outcome => OutcomeFor(EffectivenessScore);
 
 	/// <summary>
-	/// Effectiveness score (0-100).
+	/// What this validation established about the control's effectiveness, as one of the reportable
+	/// bands.
 	/// </summary>
-	public required int EffectivenessScore { get; init; }
+	/// <remarks>
+	/// Finer-grained than <see cref="Outcome" />, which it determines: the band separates a control
+	/// whose mechanism is absent from one that was examined and found broken, which
+	/// <see cref="ControlOutcome.Deficient" /> covers jointly. Only a declared band may be supplied —
+	/// a value outside <see cref="ControlEffectiveness" /> is rejected at construction, because the
+	/// ordering the report relies on is defined only over the declared members.
+	/// </remarks>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// The supplied value is not a declared <see cref="ControlEffectiveness" /> member.
+	/// </exception>
+	public required ControlEffectiveness EffectivenessScore
+	{
+		get => _effectiveness;
+		init => _effectiveness = Enum.IsDefined(value)
+			? value
+			: throw new ArgumentOutOfRangeException(
+				nameof(value),
+				value,
+				"Only a declared ControlEffectiveness band may be reported. The bands are a closed, "
+				+ "ordered set and an undeclared value has no place in that order, so nothing "
+				+ "downstream — the verdict, the criterion aggregate, the assessor-facing report — can "
+				+ "say what it means.");
+	}
+
+	private readonly ControlEffectiveness _effectiveness;
+
+	/// <summary>
+	/// Maps a reportable band to the verdict it asserts.
+	/// </summary>
+	/// <remarks>
+	/// Only <see cref="ControlEffectiveness.Unverified" /> means "not examined". Every lower band is a
+	/// finding the validator actually made, and <see cref="ControlEffectiveness.Effective" /> is the
+	/// only band reporting assurance.
+	/// </remarks>
+	private static ControlOutcome OutcomeFor(ControlEffectiveness effectiveness) => effectiveness switch
+	{
+		ControlEffectiveness.Effective => ControlOutcome.Effective,
+		ControlEffectiveness.Unverified => ControlOutcome.NotVerified,
+		_ => ControlOutcome.Deficient,
+	};
 
 	/// <summary>
 	/// Configuration issues found.

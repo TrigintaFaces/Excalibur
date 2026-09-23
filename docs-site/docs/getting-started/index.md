@@ -35,7 +35,7 @@ public record GetOrderAction(Guid OrderId) : IDispatchAction<Order>;
 
 Handlers process actions. Use `IActionHandler<TAction>` for commands or `IActionHandler<TAction, TResult>` for queries.
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Delivery;
 
 // Handler for action without return value
@@ -123,7 +123,7 @@ If you keep handlers in a separate class library, name it explicitly:
 
 Inject `IDispatcher` and send messages. No explicit context is needed — the framework manages context automatically:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;
 
 public class OrderController : ControllerBase

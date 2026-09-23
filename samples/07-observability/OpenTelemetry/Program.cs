@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable CA1506 // Avoid excessive class coupling - expected for sample demonstrating multiple integrations
 
@@ -92,7 +92,14 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
+// Unhandled exceptions become a generic RFC 9457 Problem Details 500; the exception message is
+// not written to the response. (Excalibur.Hosting.Web's AddGlobalExceptionHandler() adds status-code
+// mapping for framework exceptions, such as 404 for ResourceNotFoundException.)
+builder.Services.AddProblemDetails();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 // Sample endpoints
 app.MapGet("/", () => "OpenTelemetry Sample - POST /orders to create traces");
@@ -149,5 +156,11 @@ Console.WriteLine("View traces at: http://localhost:16686 (Jaeger)");
 Console.WriteLine();
 Console.WriteLine("Start Jaeger with: docker-compose up -d");
 Console.WriteLine();
+
+// Printed once the host is actually listening. A startup failure never reaches this line, so it
+// separates "started and serving" from "died or hung during startup" for anyone -- or anything --
+// watching the output.
+app.Lifetime.ApplicationStarted.Register(static () =>
+	Console.WriteLine("Sample ready: instrumented API listening, exporting traces and metrics. Press Ctrl+C to stop."));
 
 app.Run();

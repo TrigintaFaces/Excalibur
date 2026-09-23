@@ -24,5 +24,9 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <!-- The dispatcher itself, so the aggregate-handler registration can be exercised through the
+         real dispatch path. Without it these tests can only resolve a handler and call it by hand,
+         which cannot observe whether the handler index ever saw the registration. -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
   </ItemGroup>
 </Project>

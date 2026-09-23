@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Grpc.Core;
 using Excalibur.A3.Authorization;
@@ -9,6 +9,8 @@ using Google.Cloud.Firestore;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.Firestore.Authorization;
 
@@ -177,40 +179,29 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IDurableGrantStor
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
-		string? userId,
+	public Task<IReadOnlyList<Grant>> GetMatchingGrantsAsync(
 		string tenantId,
-		string grantType,
-		string qualifier,
+		string? userId,
+		string? grantType,
+		string? qualifier,
 		CancellationToken cancellationToken)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
 
-		var query = _collection!
-			.WhereEqualTo(FirestoreGrantDocument.TenantIdFieldName, tenantId)
-			.WhereEqualTo(FirestoreGrantDocument.GrantTypeFieldName, grantType)
-			.WhereEqualTo(FirestoreGrantDocument.QualifierFieldName, qualifier)
-			.WhereEqualTo(FirestoreGrantDocument.IsRevokedFieldName, false);
+		return QueryMatchingAsync(tenantId, userId, grantType, qualifier, cancellationToken);
+	}
 
-		if (userId is not null)
-		{
-			query = query.WhereEqualTo(FirestoreGrantDocument.UserIdFieldName, userId);
-		}
+	/// <inheritdoc/>
+	public Task<IReadOnlyList<Grant>> GetMatchingGrantsAcrossTenantsAsync(
+		string? userId,
+		string? grantType,
+		string? qualifier,
+		CancellationToken cancellationToken)
+	{
+		ThrowIfEmptyFilter(userId, grantType, qualifier);
 
-		var querySnapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-		var results = new List<Grant>();
-		foreach (var doc in querySnapshot.Documents)
-		{
-			var grant = FirestoreGrantDocument.FromSnapshot(doc);
-			if (grant is not null)
-			{
-				results.Add(grant);
-			}
-		}
-
-		return results;
+		return QueryMatchingAsync(tenantId: null, userId, grantType, qualifier, cancellationToken);
 	}
 
 	/// <inheritdoc/>
@@ -304,7 +295,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IDurableGrantStor
 			var grant = FirestoreGrantDocument.FromSnapshot(doc);
 			if (grant is not null)
 			{
-				var key = GrantKeyFormat.ComposeScope(grant.TenantId, grant.GrantType, grant.Qualifier);
+				var key = SegmentedKey.Compose(grant.TenantId, grant.GrantType, grant.Qualifier);
 				result[key] = grant;
 			}
 		}
@@ -515,4 +506,70 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IDurableGrantStor
 	[LoggerMessage(DataFirestoreEventId.GrantRevoked, LogLevel.Debug,
 		"Grant revoked: userId={UserId}, tenantId={TenantId}, grantType={GrantType}, qualifier={Qualifier}")]
 	private partial void LogGrantRevoked(string userId, string tenantId, string grantType, string qualifier);
+
+	// Firestore equality filters are exact; a null filter adds no clause.
+	private async Task<IReadOnlyList<Grant>> QueryMatchingAsync(
+		string? tenantId,
+		string? userId,
+		string? grantType,
+		string? qualifier,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var query = _collection!.WhereEqualTo(FirestoreGrantDocument.IsRevokedFieldName, false);
+
+		if (tenantId is not null)
+		{
+			query = query.WhereEqualTo(FirestoreGrantDocument.TenantIdFieldName, tenantId);
+		}
+
+		if (userId is not null)
+		{
+			query = query.WhereEqualTo(FirestoreGrantDocument.UserIdFieldName, userId);
+		}
+
+		if (grantType is not null)
+		{
+			query = query.WhereEqualTo(FirestoreGrantDocument.GrantTypeFieldName, grantType);
+		}
+
+		if (qualifier is not null)
+		{
+			query = query.WhereEqualTo(FirestoreGrantDocument.QualifierFieldName, qualifier);
+		}
+
+		var querySnapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+		var results = new List<Grant>();
+		foreach (var doc in querySnapshot.Documents)
+		{
+			var grant = FirestoreGrantDocument.FromSnapshot(doc);
+			if (grant is not null)
+			{
+				results.Add(grant);
+			}
+		}
+
+		return results;
+	}
+
+	private static void ThrowIfEmptyFilter(string? userId, string? grantType, string? qualifier)
+	{
+		if (userId is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		}
+
+		if (grantType is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(grantType);
+		}
+
+		if (qualifier is not null)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(qualifier);
+		}
+	}
 }

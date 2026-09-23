@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch.LeaderElection;
@@ -14,7 +14,12 @@ namespace Excalibur.Dispatch.LeaderElection;
 /// The fencing token minted for this leadership acquisition, or null when this node did not acquire
 /// leadership (relinquish) or no fencing token provider is configured.
 /// </param>
-public sealed class LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string resourceName, long? fencingToken = null) : EventArgs
+/// <param name="timestamp">
+/// When the change occurred, supplied by the caller from its configured time source. Omit it to read the
+/// system clock. An election that was given a <see cref="TimeProvider"/> passes that provider's time, so
+/// a caller controlling the clock sees the same instant here as on the election's own properties.
+/// </param>
+public sealed class LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string resourceName, long? fencingToken = null, DateTimeOffset? timestamp = null) : EventArgs
 {
 	/// <summary>
 	/// Gets the fencing token minted for this leadership acquisition, carried on the event so subscribers
@@ -46,5 +51,5 @@ public sealed class LeaderChangedEventArgs(string? previousLeaderId, string? new
 	/// Gets when the change occurred.
 	/// </summary>
 	/// <value>when the change occurred.</value>
-	public DateTimeOffset Timestamp { get; } = DateTimeOffset.UtcNow;
+	public DateTimeOffset Timestamp { get; } = timestamp ?? DateTimeOffset.UtcNow;
 }

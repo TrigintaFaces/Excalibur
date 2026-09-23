@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Caching;
@@ -107,7 +107,7 @@ public sealed class DistributedCacheOnlyShould
 		result2.Succeeded.ShouldBeTrue();
 		DistributedTestQueryHandler.CallCount.ShouldBeGreaterThanOrEqualTo(1);
 		result1.ReturnValue.Value.ShouldBe(result2.ReturnValue.Value);
-		result2.CacheHit.ShouldBeTrue();
+		result2.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	private static async Task<Excalibur.Dispatch.IMessageResult<DistributedTestResult>> DispatchUntilCacheHitAsync(
@@ -126,7 +126,7 @@ public sealed class DistributedCacheOnlyShould
 				new MessageContext(new TestDispatchAction(), provider),
 				CancellationToken.None);
 
-			if (lastResult.CacheHit)
+			if (lastResult.Disposition == MessageDisposition.ServedFromCache)
 			{
 				return lastResult;
 			}

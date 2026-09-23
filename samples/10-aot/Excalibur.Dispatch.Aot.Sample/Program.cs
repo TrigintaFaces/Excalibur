@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // ============================================================================
 // Excalibur.Dispatch.Aot.Sample - Native AOT Compatible Dispatch Example
@@ -441,7 +441,7 @@ static async Task RunComplianceDemoAsync()
 		CategoriesIncluded = [TrustServicesCategory.Security],
 		System = soc2Options.SystemDescription!,
 		ControlSections = [],
-		Opinion = AuditorOpinion.Unqualified
+		OverallLevel = ComplianceLevel.FullyCompliant
 	};
 
 	var soc2Export = await soc2Exporter.ExportAsync(soc2Report, ExportFormat.Json, null, CancellationToken.None)

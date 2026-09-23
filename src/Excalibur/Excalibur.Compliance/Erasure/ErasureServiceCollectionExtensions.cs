@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -444,6 +444,13 @@ public static class ErasureServiceCollectionExtensions
 		// AddNoLegalHolds(), which supplies a service that truthfully reports none. Startup validation
 		// still refuses a container that has done neither, so the failure is a startup message rather than
 		// a resolution error on the first erasure.
+		// The annotated-coverage input is resolved rather than hard-constructed, so the assembly scan is a
+		// DEFAULT and not the only possibility. TryAdd leaves an earlier registration in place, which is what
+		// lets a host (or a test) supply a deterministic set instead of whatever assemblies happen to be
+		// loaded. Behaviour is unchanged for a host that registers nothing: it still gets the reflection scan.
+		services.TryAddSingleton<IPersonalDataAnnotationSource>(
+			static _ => IPersonalDataAnnotationSource.CreateDefault());
+
 		services.TryAddScoped<ErasureService>(sp => new ErasureService(
 			sp.GetRequiredService<IErasureStore>(),
 			sp.GetRequiredService<IKeyManagementAdmin>(),
@@ -453,10 +460,21 @@ public static class ErasureServiceCollectionExtensions
 			sp.GetRequiredService<ILegalHoldService>(),
 			sp.GetService<IDataInventoryService>(),
 			sp.GetService<IKeyEscrowService>(),
+			sp.GetRequiredService<IPersonalDataAnnotationSource>(),
 			sp.GetServices<IErasureContributor>()));
 
 		services.TryAddScoped<IErasureService>(static sp => sp.GetRequiredService<ErasureService>());
 		services.TryAddScoped<IErasureExecutor>(static sp => sp.GetRequiredService<ErasureService>());
+
+		// The revisit for requests awaiting a provider's key destruction. Registered unconditionally so a host
+		// with no background service (a serverless function, for example) can call it from its own trigger;
+		// the optional erasure scheduler calls it too. The verification service is resolved optionally: without
+		// one, waiting requests are reported and left waiting -- never completed unconfirmed.
+		services.TryAddScoped<IErasureCompletionProcessor>(static sp => new ErasureCompletionProcessor(
+			sp.GetRequiredService<ErasureService>(),
+			sp.GetRequiredService<IErasureStore>(),
+			sp.GetService<IErasureVerificationService>(),
+			sp.GetRequiredService<ILogger<ErasureCompletionProcessor>>()));
 
 		// startup fail-fast: reject an erasure registration that has no data-inventory discovery
 		// source AND no key-shred-only opt-in, so a completion certificate is never issued over unverified

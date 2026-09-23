@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Shouldly;
@@ -15,54 +15,60 @@ public sealed class ErasureCertificateShould
     public void CreateWithRequiredProperties()
     {
         var cert = new ErasureCertificate
-        {
-            CertificateId = Guid.NewGuid(),
-            RequestId = Guid.NewGuid(),
-            DataSubjectReference = "hash-of-user",
-            RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            CompletedAt = DateTimeOffset.UtcNow,
-            Method = ErasureMethod.CryptographicErasure,
-            Summary = new ErasureSummary { KeysDeleted = 3, RecordsAffected = 15 },
-            Verification = new VerificationSummary
+		{
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = Guid.NewGuid(),
+				DataSubjectReference = "hash-of-user",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary { KeysDeleted = 3, RecordsAffected = 15 },
+				Verification = new VerificationSummary
             {
                 Verified = true,
                 Methods = VerificationMethod.AuditLog | VerificationMethod.KeyManagementSystem,
                 VerifiedAt = DateTimeOffset.UtcNow
             },
-            LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
-            Signature = "sig-abc",
-            RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
-        };
+				LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "sig-abc"
+		};
 
-        cert.Method.ShouldBe(ErasureMethod.CryptographicErasure);
-        cert.Summary.KeysDeleted.ShouldBe(3);
-        cert.Verification.Verified.ShouldBeTrue();
-        cert.Exceptions.ShouldBeEmpty();
-        cert.Version.ShouldBe("1.0");
+        cert.Payload.Method.ShouldBe(ErasureMethod.CryptographicErasure);
+        cert.Payload.Summary.KeysDeleted.ShouldBe(3);
+        cert.Payload.Verification.Verified.ShouldBeTrue();
+        cert.Payload.Exceptions.ShouldBeEmpty();
+        // 2.0 is the first version whose signature covers the certificate's CLAIMS rather than three
+        // identity fields. Asserted so a silent revert to the weaker scheme fails.
+        cert.Payload.Version.ShouldBe("2.0");
     }
 
     [Fact]
     public void SupportErasureExceptions()
     {
         var cert = new ErasureCertificate
-        {
-            CertificateId = Guid.NewGuid(),
-            RequestId = Guid.NewGuid(),
-            DataSubjectReference = "hash",
-            RequestReceivedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Method = ErasureMethod.Hybrid,
-            Summary = new ErasureSummary(),
-            Verification = new VerificationSummary
+		{
+			Payload = new()
+			{
+				CertificateId = Guid.NewGuid(),
+				RequestId = Guid.NewGuid(),
+				DataSubjectReference = "hash",
+				RequestReceivedAt = DateTimeOffset.UtcNow,
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.Hybrid,
+				Summary = new ErasureSummary(),
+				Verification = new VerificationSummary
             {
                 Verified = true,
                 Methods = VerificationMethod.AuditLog,
                 VerifiedAt = DateTimeOffset.UtcNow
             },
-            LegalBasis = ErasureLegalBasis.DataSubjectRequest,
-            Signature = "sig",
-            RetainUntil = DateTimeOffset.UtcNow.AddYears(7),
-            Exceptions = new[]
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7),
+				Exceptions = new[]
             {
                 new ErasureException
                 {
@@ -72,10 +78,12 @@ public sealed class ErasureCertificateShould
                     RetentionPeriod = TimeSpan.FromDays(365 * 7)
                 }
             }
-        };
+			},
+			Signature = "sig"
+		};
 
-        cert.Exceptions.Count.ShouldBe(1);
-        cert.Exceptions[0].Basis.ShouldBe(LegalHoldBasis.LegalObligation);
+        cert.Payload.Exceptions.Count.ShouldBe(1);
+        cert.Payload.Exceptions[0].Basis.ShouldBe(LegalHoldBasis.LegalObligation);
     }
 
     [Fact]

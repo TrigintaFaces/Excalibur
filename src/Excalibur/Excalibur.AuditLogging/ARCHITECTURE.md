@@ -228,6 +228,7 @@ and is not asserted.
 | Left-boundary anchoring — SQL providers | `SqlServerAuditUntenantedRangeVerificationShould` and `PostgresAuditUntenantedRangeVerificationShould` verify windows that begin after the trail's first record, against real containers | verified |
 | Untenanted records verify against their own tag | the `…UntenantedRangeVerificationShould` classes on both SQL providers, including the arm mixing both spellings of "no tenant" in one trail, executed against real containers | verified |
 | `NoEventsInScope` reported for an empty window | `AuditStoreConformanceTestKit.VerifyChainIntegrityAsync_EmptyRange_ShouldReportNoEventsInScope`, surfaced by every provider's conformance class, real containers for SQL Server and Postgres | verified |
+| A detected violation outranks an empty scope | `AuditChainVerifierPrecedenceShould.ReportTheViolationWhenNothingWasExaminedButTheSuccessorLinkIsBroken` — a partition carrying no in-range records but a successor whose link is broken is the one shape in which nothing is examined AND a violation is found. RED against a verifier that decides the verdict by testing the empty case first, which reported the truncated tail D2 promises to detect as nothing-to-see. Paired with `StillReportAnEmptyScopeWhenThereIsNoFailureAndNothingToExamine`, without which the arm is satisfied by a verifier that never reports an empty scope at all | verified |
 | Intact chain reports `Verified` | `AuditStoreConformanceTestKit.VerifyChainIntegrityAsync_ValidChain_ShouldReportVerified`, surfaced by every provider's conformance class, real containers for SQL Server and Postgres | verified |
 | An unservable filter is refused, never answered emptily — encryption decorator | `EncryptingAuditStoreConformanceTests.QueryAsync_ByActorId_ShouldFilter` (overriding the kit arm), `…QueryAsync_ByEncryptedIpAddress_ShouldRefuseRatherThanReturnEmpty` and `…CountAsync_ByEncryptedActorId_ShouldRefuseRatherThanCountZero`, over a real Postgres container with real AES-256-GCM. Each is RED against the forwarding decorator, which returned an empty list and a zero. Paired with the liveness arms in `EncryptingAuditEventStoreFilterRefusalShould`, which prove a field left in the clear is still filtered and a query naming no encrypted field is still forwarded — without them a guard that refused everything would pass | verified |
 
@@ -280,6 +281,18 @@ To obtain the guarantee, a caller must:
    an actor of "unknown". The framework logs that gap rather than binding one context for the life of the
    container, which would attribute every later message to the first caller. Entries so recorded are still
    chained and still tamper-evident; what is absent is the attribution, not the integrity.
+
+9. **Expect one signing-key resolution per key rotation the range spans, not one per record.** A
+   verification pass resolves each distinct key identifier it encounters once and reuses it for the
+   remainder of that pass. This is stated because it is observable through a custom
+   `IAuditSigningKeyProvider`: a provider backed by a key-management service is called once per
+   rotation boundary, not once per audit record, so a range of a million records does not produce a
+   million key requests. Two consequences follow. Size any rate limit or quota on the rotation count
+   rather than the record count. And note that a key revoked *while a pass is running* is not observed
+   by that pass; it is resolved again on the next one. Revocation is therefore effective between
+   verifications, not within one. Nothing about detection changes: an unresolvable key still fails
+   closed, and a record signed by a key the provider will not return is still reported as a violation
+   rather than skipped.
 
 ## Known gaps
 

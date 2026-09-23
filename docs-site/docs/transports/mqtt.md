@@ -82,6 +82,8 @@ services.AddMqttTransport("local-dev", mqtt =>
 | `UseTls` | `bool` | `false` | Connect over TLS. |
 | `RequireTls` | `bool` | `true` | Refuse the connection unless `UseTls` is set. |
 | `QualityOfService` | `MqttQualityOfService` | `AtLeastOnce` | The delivery guarantee (see below). |
+| `PersistentSession` | `bool` | `true` | Keep this client's session on the broker across disconnects. This is what makes rejection with redelivery work; see below. |
+| `SessionExpiryInterval` | `TimeSpan` | `1 hour` | How long the broker keeps the session after the connection closes — the recovery window. Must be positive and a whole number of seconds. |
 | `UseTls` | `bool` | `false` | Connect to the broker over TLS. |
 | `UseSharedSubscription` | `bool` | `false` | Subscribe using an MQTT-5 shared subscription so multiple consumers compete for messages. Requires an MQTT-5 broker that supports shared subscriptions. |
 | `SharedSubscriptionGroup` | `string` | `"dispatch"` | The shared-subscription group applied when `UseSharedSubscription` is enabled. Must be a shared, stable name distinct from `ClientId`, or subscribers do not compete. |
@@ -96,11 +98,20 @@ services.AddMqttTransport("local-dev", mqtt =>
 
 | Value | Semantics |
 |-------|-----------|
-| `AtMostOnce` (0) | Fire-and-forget; no broker acknowledgement. |
+| `AtMostOnce` (0) | Fire-and-forget; no broker acknowledgement. **Refused for a receiver** — see below. |
 | `AtLeastOnce` (1, default) | Acknowledged delivery; messages may be redelivered (duplicates possible). |
 | `ExactlyOnce` (2) | Exactly-once delivery end-to-end. |
 
 Ordering is not guaranteed under QoS 0/1. Exactly-once end-to-end requires QoS 2.
+
+:::warning QoS 0 is rejected at startup when a receiver is registered
+At QoS 0 the protocol sends no acknowledgement packet, so the receiver's whole settlement surface is
+inoperable: `AcknowledgeAsync` settles a message the broker already stopped tracking,
+`RejectAsync(…, requeue: true, …)` cannot cause a redelivery — so it discards the message outright — and
+`RejectAsync(…, requeue: false, …)` suppresses a redelivery that was never going to happen. Rather than
+accept that configuration and report success for operations that do nothing, `AddMqttTransport` fails
+validation at startup. Publish-only hosts are unaffected.
+:::
 
 ## Using the sender and receiver
 
@@ -135,7 +146,55 @@ The receiver uses **manual acknowledgement**: an inbound message is only PUBACK/
 
 ### Redelivery and rejection
 
-MQTT has no active per-message negative-acknowledge or requeue. Calling `RejectAsync` therefore **withholds** the acknowledgement rather than requeuing — the broker redelivers the unacknowledged QoS 1/2 message when the session resumes.
+`RejectAsync` honours the `requeue` argument, and it uses a different mechanism for each outcome:
+
+| Call | Mechanism | Outcome |
+|------|-----------|---------|
+| `RejectAsync(…, requeue: true, …)` | The acknowledgement is **withheld**. | The broker redelivers the message when the session resumes. |
+| `RejectAsync(…, requeue: false, …)` | The acknowledgement is **sent carrying a failure reason code**. | The delivery flow completes and ownership transfers to the client, so the broker does **not** redeliver. |
+
+The second row is the one to reach for in a poison-message handler. Under MQTT 5 a PUBACK completes the
+QoS 1 flow whatever its reason code, and at QoS 2 a PUBREC with a reason code of 0x80 or above terminates
+the flow before PUBREL — so acknowledging with a failure code is how a client says "I could not process
+this, and do not send it again." The transport always connects as MQTT 5, so this is available on every
+connection it opens.
+
+:::caution `requeue: false` suppresses redelivery on a best-effort basis
+Returning normally means the acknowledgement was handed to the transport. MQTT has no acknowledgement of
+an acknowledgement, so if the connection fails before the broker processes the packet, the message stays
+outstanding and is redelivered on resume — and nothing in the protocol can distinguish that from success.
+**Deduplicate in your dead-letter handler** — but not on `TransportReceivedMessage.Id`, which is unique per
+*delivery* and so differs on every redelivery. It has to be: it keys the receiver's pending-settlement map,
+and deriving it from a content field a producer may legitimately repeat would let two in-flight messages
+settle against each other's handle. Set a deduplication id at the sender (`UseDeduplication`); it travels as
+an MQTT user property, the broker retransmits it with the message, and it is readable from
+`TransportReceivedMessage.Properties`. That is the key that survives a redelivery.
+:::
+
+The requeue promise depends on the session outliving the disconnect, which is why `PersistentSession` defaults to `true`.
+The transport connects with a non-clean start and a one-hour session expiry so that a rejected message is still held
+by the broker when the client comes back.
+
+:::caution Rejection needs a stable `ClientId`
+A session is resumed by **client id**. If you generate `ClientId` per process — a GUID at start-up, a pod name, a
+random suffix — the broker cannot match the returning client to the old session, so every restart begins a fresh one
+and anything you rejected is gone. Configuration validation cannot catch this: a random id is a valid id. Use a name
+that is stable for the deployment.
+:::
+
+Setting `PersistentSession` to `false` opts out. The broker then discards the session as soon as the connection
+closes, so a rejected message is **dropped rather than redelivered** — with no error and no warning. Choose it only
+if you do not rely on rejection, for example when every failure is handled in-process or routed to a dead-letter
+topic by your own code.
+
+`SessionExpiryInterval` is the recovery window, sized for reconnects and rolling restarts rather than for outages. A
+subscriber that returns inside the window resumes its session and receives what it left unacknowledged; one that
+returns after it gets a clean session. The window is encoded on the wire as whole seconds, so a fractional value is
+**rejected at start-up** rather than rounded — a silently-shortened recovery window is the defect this setting exists
+to prevent.
+
+A persistent session is not free: the broker retains state for each client id, and brokers bound how much they will
+hold. If you run many short-lived clients, prefer a shorter window over disabling persistence.
 
 ### Competing consumers (shared subscriptions)
 

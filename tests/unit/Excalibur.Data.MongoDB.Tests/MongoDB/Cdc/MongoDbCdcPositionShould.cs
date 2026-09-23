@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Cdc.MongoDB;
 using Excalibur.Dispatch;
@@ -140,11 +140,18 @@ public sealed class MongoDbCdcPositionShould
 	}
 
 	[Fact]
-	public void ReturnZeroHashCodeForNullToken()
+	public void ReturnAConsistentHashCodeForNullToken()
 	{
-		var position = new MongoDbCdcPosition(null);
+		// This arm used to pin the literal value 0, which is an implementation detail no caller can rely
+		// on — the hash now also folds in the resume mode. What a caller DOES rely on is the
+		// Equals/GetHashCode contract, so that is what is asserted: equal positions hash equally, and a
+		// position that differs only in mode is free to hash differently.
+		var a = new MongoDbCdcPosition(null);
+		var b = new MongoDbCdcPosition(null);
 
-		position.GetHashCode().ShouldBe(0);
+		a.Equals(b).ShouldBeTrue();
+		a.GetHashCode().ShouldBe(b.GetHashCode());
+		a.GetHashCode().ShouldBe(MongoDbCdcPosition.Start.GetHashCode());
 	}
 
 	[Fact]
@@ -195,5 +202,57 @@ public sealed class MongoDbCdcPositionShould
 		var position = new MongoDbCdcPosition(null);
 
 		position.Equals("not-a-position").ShouldBeFalse();
+	}
+
+	[Fact]
+	public void DefaultToResumeAfterModeForAnOrdinaryCheckpoint()
+	{
+		// CONTROL. The single-argument constructor is what every ordinary checkpoint uses; it must keep
+		// meaning "reopen with resumeAfter".
+		new MongoDbCdcPosition(new BsonDocument("_data", "ordinary")).ResumeMode
+			.ShouldBe(MongoDbChangeStreamResumeMode.ResumeAfter);
+		MongoDbCdcPosition.Start.ResumeMode.ShouldBe(MongoDbChangeStreamResumeMode.ResumeAfter);
+	}
+
+	[Fact]
+	public void CarryTheResumeModeThroughSerializationAndBack()
+	{
+		// A checkpoint taken at an invalidation boundary is only usable as a startAfter, and a restarted
+		// process reads it back as a string. A mode held only in memory would be lost exactly there.
+		var original = new MongoDbCdcPosition(
+			new BsonDocument("_data", "at-the-invalidation"),
+			MongoDbChangeStreamResumeMode.StartAfter);
+
+		var reread = MongoDbCdcPosition.FromString(original.TokenString);
+
+		reread.ResumeMode.ShouldBe(MongoDbChangeStreamResumeMode.StartAfter);
+		reread.ResumeToken.ShouldNotBeNull();
+		reread.ResumeToken!["_data"].AsString.ShouldBe("at-the-invalidation");
+		reread.ShouldBe(original);
+	}
+
+	[Fact]
+	public void ReadABareTokenAsAnOrdinaryResumeAfterCheckpoint()
+	{
+		// LIVENESS for the envelope: a token written before the mode existed, and every ordinary
+		// checkpoint written since, must still parse — as resumeAfter, unwrapped.
+		var bare = MongoDbCdcPosition.FromString(new BsonDocument("_data", "plain").ToJson());
+
+		bare.ResumeMode.ShouldBe(MongoDbChangeStreamResumeMode.ResumeAfter);
+		bare.ResumeToken!["_data"].AsString.ShouldBe("plain");
+	}
+
+	[Fact]
+	public void TreatTheSameTokenInDifferentModesAsDifferentPositions()
+	{
+		// The two open different streams — one lands before an invalidation, the other after it — so
+		// collapsing them would let a startAfter checkpoint be mistaken for an ordinary one.
+		var token = new BsonDocument("_data", "same");
+		var resumeAfter = new MongoDbCdcPosition(token);
+		var startAfter = new MongoDbCdcPosition(token, MongoDbChangeStreamResumeMode.StartAfter);
+
+		resumeAfter.Equals(startAfter).ShouldBeFalse();
+		(resumeAfter == startAfter).ShouldBeFalse();
+		(resumeAfter != startAfter).ShouldBeTrue();
 	}
 }

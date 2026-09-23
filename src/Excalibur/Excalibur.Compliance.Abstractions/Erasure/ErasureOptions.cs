@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance;
@@ -45,7 +45,7 @@ public sealed class ErasureOptions
 	/// verifying store-level coverage.
 	/// </summary>
 	/// <remarks>
-	/// A completion certificate is a compliance PROOF and therefore fails closed: when this is
+	/// A completion certificate is relied on as a compliance record, so it fails closed: when this is
 	/// <see langword="false"/> (the default) and no data-inventory discovery source is registered, the
 	/// erasure registration is rejected at startup, because a certificate must never be issued over
 	/// coverage that was never verified. Set this to <see langword="true"/> to explicitly accept
@@ -121,8 +121,15 @@ public sealed class ErasureRetentionOptions
 	public TimeSpan CertificateRetentionPeriod { get; set; } = TimeSpan.FromDays(365 * 7);
 
 	/// <summary>
-	/// Gets or sets the signing key identifier for certificate signatures.
+	/// Gets or sets an identifier for the certificate signing key, for a host's own key-management
+	/// bookkeeping. <strong>The framework does not read it.</strong>
 	/// </summary>
+	/// <remarks>
+	/// Setting this does not select, fetch or rotate a key, and leaving it unset changes nothing.
+	/// Certificate signing uses the key bytes in <see cref="SigningKey"/> and only those; supply them
+	/// from your key-management system. This property is carried on the options so a host can record
+	/// which of its own keys those bytes came from.
+	/// </remarks>
 	public string? SigningKeyId { get; set; }
 
 	/// <summary>

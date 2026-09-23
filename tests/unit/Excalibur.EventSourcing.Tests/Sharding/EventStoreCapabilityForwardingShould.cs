@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 
@@ -220,7 +220,13 @@ public sealed class EventStoreCapabilityForwardingShould
 
 		var stored = inner.Staged.ShouldHaveSingleItem().ShouldBeOfType<SubjectEvent>();
 		stored.Email.ShouldNotBe(SubjectEvent.PlaintextEmail, "the store must never receive the plaintext");
-		EncryptedData.IsFieldEncrypted(Convert.FromBase64String(stored.Email))
+		// Read the stored form through the binding rather than decoding it here. The stored form is the
+		// marker followed by Base64, and only the binding knows that; a raw Convert.FromBase64String asserts
+		// on a representation this test was never promised and breaks whenever the marker changes.
+		var emailProperty = typeof(SubjectEvent).GetProperty(nameof(SubjectEvent.Email))!;
+		EncryptedFieldBinding.TryReadEnvelope(emailProperty, stored, out var envelope)
+			.ShouldBeTrue("the field that reached storage must be a readable ciphertext envelope");
+		EncryptedData.IsFieldEncrypted(envelope)
 			.ShouldBeTrue("the field that reached storage must be a ciphertext envelope");
 	}
 
@@ -236,7 +242,7 @@ public sealed class EventStoreCapabilityForwardingShould
 			A.Fake<IEncryptionProviderRegistry>(),
 			new SubjectFieldCryptor(fieldEncryptor),
 			A.Fake<IEventSerializer>(),
-			Options.Create(new EncryptionOptions { Mode = EncryptionMode.EncryptAndDecrypt }));
+			Options.Create(new EncryptionOptions { Mode = EncryptionMode.EncryptAndDecrypt }), global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 	private static IReadOnlyList<StoredEvent> Versions(params long[] versions) =>
 	[

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Inbox.Firestore;
@@ -88,7 +88,17 @@ public sealed class FirestoreInboxStoreTerminalTransitionGuardShould
 		(await store.IsProcessedAsync(messageId, HandlerType, ct)).ShouldBeTrue();
 
 		await store.MarkFailedAsync(messageId, HandlerType, "boom", ct);
-		await store.MarkFailedAsync(messageId, HandlerType, "boom-again", retryCount: 3, ct);
+		// The refusal is now REPORTED as well as performed. Asserting only the unchanged entry would certify
+		// a store that declined in silence, which is the half of this defect the caller could not see.
+		var outcome = await store.MarkFailedAsync(
+			// The store writes under SingleTenantTestContext, so address THAT partition; Untenanted is a
+			// different one, where a correct store rightly finds nothing.
+			KeyedTenantPartition.FromContext(SingleTenantTestContext.Instance), messageId, HandlerType, "boom-again", retryCount: 3, ct);
+
+		outcome.ShouldBe(
+			InboxMarkFailedOutcome.AlreadyProcessed,
+			"the entry is present and terminal, which is a different answer from absent -- the two send the "
+			+ "operator in opposite directions");
 
 		var entry = await store.GetEntryAsync(messageId, HandlerType, ct);
 		_ = entry.ShouldNotBeNull();

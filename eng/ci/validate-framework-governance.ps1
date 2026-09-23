@@ -435,6 +435,11 @@ if ($Mode -eq 'Governance') {
     }
 
     $smokeByProject = @{}
+    # Certification reports these separately and never as one figure: a sample that was RUN and a
+    # sample that only COMPILED are different claims, and a single total reads as the stronger one.
+    $ranCount = 0
+    $buildOnlyInfrastructureCount = 0
+    $buildOnlyNotAssessedCount = 0
     foreach ($profile in $smokeProfiles) {
         $project = Normalize-RepoPath $profile.project
         if ([string]::IsNullOrWhiteSpace($project)) {
@@ -461,6 +466,7 @@ if ($Mode -eq 'Governance') {
         }
 
         if ($smokeMode -eq 'run') {
+            $ranCount++
             $timeout = 0
             if ($null -ne $profile.timeoutSeconds) {
                 [int]$timeout = $profile.timeoutSeconds
@@ -468,6 +474,47 @@ if ($Mode -eq 'Governance') {
 
             if ($timeout -le 0) {
                 $issues.Add("Run smoke profile must have timeoutSeconds > 0 for $project.")
+            }
+        }
+
+        # A build-mode profile certifies that the sample COMPILES. It does not certify that the
+        # sample's scenario was ever executed, and the two reported the same symbol until a sample
+        # that crashed on every start stayed certified because certification never started it.
+        # So build mode must DECLARE why it is not run, exactly as run mode must declare its timeout:
+        #   requires-external-infrastructure -- CI cannot provide the dependency; name it
+        #   not-yet-assessed                 -- nobody has established whether it could run
+        # 'not-yet-assessed' is a legitimate, honest value. It is a declared gap that the published
+        # figures count separately, never a pass.
+        if ($smokeMode -eq 'build') {
+            # Set-StrictMode -Version Latest is in force, so a property that is simply absent throws
+            # rather than yielding $null. Probe membership before reading -- an absent reason is the
+            # case this check exists to catch, so it must not crash the validator on the way there.
+            $propertyNames = @($profile.PSObject.Properties.Name)
+            $reason = ''
+            if ($propertyNames -contains 'buildOnlyReason') {
+                $reason = [string]$profile.buildOnlyReason
+            }
+            $allowedReasons = @('requires-external-infrastructure', 'not-yet-assessed')
+
+            if ([string]::IsNullOrWhiteSpace($reason)) {
+                $issues.Add("Build smoke profile must declare buildOnlyReason for $project (one of: $($allowedReasons -join ', ')).")
+            }
+            elseif ($reason -notin $allowedReasons) {
+                $issues.Add("Build smoke profile has unknown buildOnlyReason '$reason' for $project (expected one of: $($allowedReasons -join ', ')).")
+            }
+            elseif ($reason -eq 'not-yet-assessed') {
+                $buildOnlyNotAssessedCount++
+            }
+            elseif ($reason -eq 'requires-external-infrastructure') {
+                $buildOnlyInfrastructureCount++
+                $requires = @()
+                if ($propertyNames -contains 'requiresExternalInfrastructure') {
+                    $requires = @($profile.requiresExternalInfrastructure)
+                }
+                $named = @($requires | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                if ($named.Count -eq 0) {
+                    $issues.Add("Build smoke profile claiming external infrastructure must name it in requiresExternalInfrastructure for $project.")
+                }
             }
         }
 
@@ -491,7 +538,9 @@ if ($Mode -eq 'Governance') {
         "- Capability entries: $($matrix.capabilityOwnership.Count)",
         "- Critical package entries: $($matrix.criticalPackageTestMatrix.Count)",
         "- Test mapping rules: $($rules.Count)",
-        "- Certified samples: $($certified.Count)",
+        "- Samples run in certification: $ranCount",
+        "- Samples certified by build only, needing infrastructure CI cannot provide: $buildOnlyInfrastructureCount",
+        "- Samples certified by build only, not yet assessed for running: $buildOnlyNotAssessedCount",
         "- Quarantined samples: $($quarantined.Count)",
         "- Issues: $($issues.Count)",
         "- Warnings: $($warnings.Count)",
@@ -528,6 +577,9 @@ if ($Mode -eq 'Governance') {
         criticalPackageCount = $matrix.criticalPackageTestMatrix.Count
         packageTestRuleCount = $rules.Count
         certifiedSampleCount = $certified.Count
+        ranSampleCount = $ranCount
+        buildOnlyInfrastructureSampleCount = $buildOnlyInfrastructureCount
+        buildOnlyNotAssessedSampleCount = $buildOnlyNotAssessedCount
         quarantinedSampleCount = $quarantined.Count
     }
 

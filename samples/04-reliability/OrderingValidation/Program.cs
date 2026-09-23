@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // Ordering Validation Sample
 // ==========================
@@ -39,11 +39,9 @@ builder.Services.AddLogging(logging =>
 // ============================================================
 // Configure Dispatch
 // ============================================================
-// IMPORTANT: AddOrderingValidation() only activates paired with the assembly-scanning
-// AddDispatch(Assembly) overload used here. Paired instead with the builder-lambda
-// AddDispatch(dispatch => { ... }) form, it registers without error but never runs --
-// no exception, no log, out-of-order messages pass silently. See the "Ordering
-// Validation" docs-site page for this limitation in detail.
+// The assembly-scanning AddDispatch(Assembly) overload is used here; the builder-lambda
+// AddDispatch(dispatch => { ... }) form composes the same pipeline and works the same way
+// with AddOrderingValidation().
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
 // AddOrderingValidation() is a service-collection extension, not a dispatch builder one --

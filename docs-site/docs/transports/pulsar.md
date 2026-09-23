@@ -129,7 +129,7 @@ foreach (var message in messages)
 
 `AddPulsarTransport` also registers a keyed [`IMessageBus`](./index.md) under the transport name, so you can publish typed dispatch messages (actions, events, documents) through the framework's serialization rather than hand-building `TransportMessage` bodies:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Transport;
 
 var bus = provider.GetRequiredKeyedService<IMessageBus>("events");

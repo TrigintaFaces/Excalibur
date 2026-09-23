@@ -114,6 +114,7 @@ public sealed class ErasureStatusShould
 	[InlineData(ErasureRequestStatus.InProgress, false)]
 	[InlineData(ErasureRequestStatus.Completed, false)]
 	[InlineData(ErasureRequestStatus.Failed, false)]
+	[InlineData(ErasureRequestStatus.AwaitingKeyDestruction, false)]
 	public void Report_cancellability_correctly(ErasureRequestStatus status, bool canCancel)
 	{
 		var erasureStatus = new ErasureStatus
@@ -135,6 +136,7 @@ public sealed class ErasureStatusShould
 	[Theory]
 	[InlineData(ErasureRequestStatus.Completed, true)]
 	[InlineData(ErasureRequestStatus.PartiallyCompleted, true)]
+	[InlineData(ErasureRequestStatus.AwaitingKeyDestruction, true)]
 	[InlineData(ErasureRequestStatus.InProgress, false)]
 	[InlineData(ErasureRequestStatus.Pending, false)]
 	public void Report_execution_status_correctly(ErasureRequestStatus status, bool isExecuted)
@@ -211,15 +213,16 @@ public sealed class ErasureRequestStatusShould
 	[InlineData(ErasureRequestStatus.Cancelled, 5)]
 	[InlineData(ErasureRequestStatus.Failed, 6)]
 	[InlineData(ErasureRequestStatus.PartiallyCompleted, 7)]
+	[InlineData(ErasureRequestStatus.AwaitingKeyDestruction, 8)]
 	public void Have_expected_integer_values(ErasureRequestStatus status, int expectedValue)
 	{
 		((int)status).ShouldBe(expectedValue);
 	}
 
 	[Fact]
-	public void Have_exactly_eight_values()
+	public void Have_exactly_nine_values()
 	{
-		Enum.GetValues<ErasureRequestStatus>().Length.ShouldBe(8);
+		Enum.GetValues<ErasureRequestStatus>().Length.ShouldBe(9);
 	}
 }
 

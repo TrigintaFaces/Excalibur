@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch;
@@ -23,8 +24,8 @@ public static class MessageContextExtensions
 	private const string PartitionKeyKey = "__PartitionKey";
 	private const string ReplyToKey = "__ReplyTo";
 	private const string MetadataKey = "__Metadata";
-	private const string MessageTypeKey = "__MessageType";
-	private const string MessageTypeIsRoutingDefaultKey = "__MessageTypeIsRoutingDefault";
+	internal const string MessageTypeKey = "__MessageType";
+	internal const string MessageTypeIsRoutingDefaultKey = "__MessageTypeIsRoutingDefault";
 	private const string ContentTypeKey = "__ContentType";
 	private const string ReceivedTimestampUtcKey = "__ReceivedTimestampUtc";
 	private const string SentTimestampUtcKey = "__SentTimestampUtc";
@@ -194,14 +195,37 @@ public static class MessageContextExtensions
 	/// <summary>
 	/// Gets the message type from Items.
 	/// </summary>
+	/// <remarks>
+	/// <see cref="MessageContext"/> keeps this value in a dedicated field and is read from there,
+	/// mirroring how correlation and causation are already special-cased for that type: every dispatch
+	/// reads and writes the message type, and routing it through the Items dictionary cost a hash lookup
+	/// per read and per write on the hot path. An Items entry, if one exists, still wins — the
+	/// dictionary stays authoritative for anything that writes the key directly — and every other
+	/// <see cref="IMessageContext"/> implementation reads the dictionary exactly as before.
+	/// </remarks>
 	public static string? GetMessageType(this IMessageContext context) =>
-		context.GetProperty<string>(MessageTypeKey);
+		context is MessageContext messageContext
+			? messageContext.TryGetItemFast(MessageTypeKey, out var raw) ? raw as string : messageContext.MessageTypeName
+			: context.GetProperty<string>(MessageTypeKey);
 
 	/// <summary>
 	/// Sets the message type in Items.
 	/// </summary>
-	public static void SetMessageType(this IMessageContext context, string? value) =>
+	/// <remarks>
+	/// See <see cref="GetMessageType"/> for why <see cref="MessageContext"/> stores this in a field.
+	/// The value is still surfaced through <see cref="IMessageContext.Items"/> for anything that
+	/// enumerates or reads the dictionary.
+	/// </remarks>
+	public static void SetMessageType(this IMessageContext context, string? value)
+	{
+		if (context is MessageContext messageContext)
+		{
+			messageContext.SetMessageTypeFast(value);
+			return;
+		}
+
 		context.SetProperty(MessageTypeKey, value);
+	}
 
 	/// <summary>
 	/// Records that <see cref="GetMessageType"/> holds a routing name the framework defaulted in from
@@ -227,6 +251,12 @@ public static class MessageContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
+		if (context is MessageContext messageContext)
+		{
+			messageContext.MarkMessageTypeAsRoutingDefaultFast();
+			return;
+		}
+
 		context.Items[MessageTypeIsRoutingDefaultKey] = true;
 	}
 
@@ -244,6 +274,13 @@ public static class MessageContextExtensions
 	public static bool IsMessageTypeRoutingDefault(this IMessageContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+
+		if (context is MessageContext messageContext)
+		{
+			return messageContext.TryGetItemFast(MessageTypeIsRoutingDefaultKey, out var item)
+				? item is true
+				: messageContext.MessageTypeIsRoutingDefault;
+		}
 
 		return context.Items.TryGetValue(MessageTypeIsRoutingDefaultKey, out var raw) && raw is true;
 	}

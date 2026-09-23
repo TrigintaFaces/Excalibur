@@ -1,10 +1,13 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Postgres;
 using Excalibur.Saga.Postgres.DependencyInjection;
+
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Middleware.Inbox;
 
 using Microsoft.Extensions.Configuration;
 
@@ -104,10 +107,30 @@ public static class ExcaliburPostgresServiceCollectionExtensions
 	{
 		// Core: Dispatch + EventSourcing (via the starter metapackage). No outbox: see the remarks on
 		// the public entry point above for what a host must supply to get one.
-		_ = services.AddDispatchWithPostgres(options.ConnectionString, options.DispatchConfiguration);
+		// UseInbox means the inbox is OPERATIVE, not that a store is in the container: the store is read by
+		// the retry drain and the manual IInboxProcessor path, while DEDUPLICATION is performed by the inbox
+		// middleware. Registering the store alone left a host that took the default with an option named
+		// UseInbox set to true and nothing deduplicating, and no way to tell -- an absence of duplicate
+		// suppression looks exactly like an absence of duplicates. So the option places both halves.
+		var configureDispatch = options.DispatchConfiguration;
+		if (options.UseInbox)
+		{
+			// Mirrors AddDispatchWithPostgres's own default for a host that supplied no dispatch configuration.
+			var handlers = configureDispatch ?? (static dispatch => _ = dispatch.AddHandlersFromEntryAssembly());
+			configureDispatch = dispatch =>
+			{
+				// WithInboxMode selects the durable store-backed inbox over in-memory deduplication, which is
+				// the correct mode here because a store is registered below. Pipeline position is decided by
+				// the middleware's own declared stage, not by where it is added.
+				_ = dispatch.WithInboxMode().UseInbox();
+				handlers(dispatch);
+			};
+		}
+
+		_ = services.AddDispatchWithPostgres(options.ConnectionString, configureDispatch);
 
 		// Inbox (builder API)
-		if (options.UseInboxStore)
+		if (options.UseInbox)
 		{
 			_ = services.AddExcaliburInbox(inbox =>
 				inbox.UsePostgres(pg =>

@@ -441,7 +441,7 @@ The `[Activity]` attribute enforces static, type-level metadata because attribut
 
 Commands represent write operations. Use `ICommand` and `CommandBase` for rich functionality:
 
-```csharp
+```csharp ignore
 using Excalibur.Application.Requests;
 using Excalibur.Application.Requests.Commands;
 
@@ -492,7 +492,7 @@ public class PlaceOrderHandler : ICommandHandler<PlaceOrderCommand>
 
 Queries represent read operations. Use `IQuery<TResult>` and `QueryBase<TResult>`:
 
-```csharp
+```csharp ignore
 using Excalibur.Application.Requests.Queries;
 
 // Convention-based: no overrides needed

@@ -152,10 +152,13 @@ The outbox pattern is the gold standard for producer-side reliability. Most mess
 
 Even with a perfect producer, the consumer must handle redeliveries. The Idempotent Consumer pattern tracks which messages have been processed and skips duplicates.
 
-Excalibur provides this as pipeline middleware, and it is **opt-in**. `AddDispatch` makes
-`InboxMiddleware` resolvable but does not place it in any pipeline — no shipped profile contains it —
-so registering an `IInboxStore` on its own deduplicates nothing. Call `UseInbox()` (or its alias
-`UseIdempotency()`) to place it, as the registration below does.
+Excalibur provides this as pipeline middleware, and on the granular `AddDispatch` composition it is
+**opt-in**. `AddDispatch` makes `InboxMiddleware` resolvable but does not place it in any pipeline — no
+shipped profile contains it — so registering an `IInboxStore` on its own deduplicates nothing. Call
+`UseInbox()` (or its alias `UseIdempotency()`) to place it, as the registration below does.
+
+The full-stack metapackages do this for you: `AddExcaliburSqlServer` and `AddExcaliburPostgres` register
+the store and place the middleware together while their `UseInbox` option is left at its default.
 
 ## Implementing the Idempotent Consumer
 

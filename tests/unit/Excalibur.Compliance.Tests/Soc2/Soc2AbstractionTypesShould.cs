@@ -54,7 +54,7 @@ public sealed class Soc2AbstractionTypesShould
 		filter.GeneratedBefore.ShouldBeNull();
 		filter.PeriodStartAfter.ShouldBeNull();
 		filter.PeriodEndBefore.ShouldBeNull();
-		filter.Opinion.ShouldBeNull();
+		filter.OverallLevel.ShouldBeNull();
 		filter.MaxResults.ShouldBeNull();
 		filter.Skip.ShouldBeNull();
 		filter.SortOrder.ShouldBe(ReportSortOrder.GeneratedAtDescending);
@@ -72,7 +72,7 @@ public sealed class Soc2AbstractionTypesShould
 			GeneratedBefore = now,
 			PeriodStartAfter = now.AddDays(-365),
 			PeriodEndBefore = now,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			MaxResults = 10,
 			Skip = 5,
 			SortOrder = ReportSortOrder.PeriodEndAscending
@@ -98,7 +98,7 @@ public sealed class Soc2AbstractionTypesShould
 			PeriodStart = DateTimeOffset.UtcNow.AddDays(-30),
 			PeriodEnd = DateTimeOffset.UtcNow,
 			GeneratedAt = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			ExceptionCount = 0,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			TenantId = "tenant-1"
@@ -177,8 +177,7 @@ public sealed class Soc2AbstractionTypesShould
 		{
 			ControlId = "SEC-001",
 			IsConfigured = true,
-			IsEffective = true,
-			EffectivenessScore = 95
+			EffectivenessScore = ControlEffectiveness.Effective
 		};
 
 		result.ConfigurationIssues.ShouldBeEmpty();
@@ -353,14 +352,6 @@ public sealed class Soc2AbstractionTypesShould
 		// members -- so the one that matters is named: a test result must be able to say no test ran.
 		outcomes.Length.ShouldBe(5);
 		outcomes.ShouldContain(TestOutcome.NotTested);
-	}
-
-	[Fact]
-	public void Enumerate_all_auditor_opinions()
-	{
-		var opinions = Enum.GetValues<AuditorOpinion>();
-
-		opinions.Length.ShouldBe(4);
 	}
 
 	[Fact]

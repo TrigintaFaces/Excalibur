@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Threading;
 
@@ -125,8 +125,8 @@ public sealed class KeyedLockShould
 	{
 		// Assert
 		typeof(IExecuteInBackground).IsInterface.ShouldBeTrue();
-		typeof(IExecuteInBackground).GetProperties().Length.ShouldBe(1);
-		typeof(IExecuteInBackground).GetProperty("PropagateExceptions").ShouldNotBeNull();
+		// A pure marker: the failure policy is host-level (BackgroundExecutionOptions), never per message.
+		typeof(IExecuteInBackground).GetMembers().ShouldBeEmpty();
 	}
 }
 

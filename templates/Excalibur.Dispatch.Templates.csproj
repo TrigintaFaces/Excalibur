@@ -11,8 +11,16 @@
     <ContentTargetFolders>content</ContentTargetFolders>
     <NoDefaultExcludes>true</NoDefaultExcludes>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <!-- NU5128: a template package ships content only and deliberately has no lib/ref assembly,
+         so the dependency-group/lib-folder correspondence NuGet checks for cannot exist here.
+         Narrowly suppressed for that documented reason; it is not a blanket relaxation. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- The isolating props blank PackageReadmeFile for template CONTENT; this package is the
+         shipped artifact a consumer sees on the gallery, so it carries its own readme. -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <Content Include="dispatch-api\**\*" Exclude="dispatch-api\**\bin\**;dispatch-api\**\obj\**" />
     <Content Include="dispatch-worker\**\*" Exclude="dispatch-worker\**\bin\**;dispatch-worker\**\obj\**" />
     <Content Include="excalibur-ddd\**\*" Exclude="excalibur-ddd\**\bin\**;excalibur-ddd\**\obj\**" />

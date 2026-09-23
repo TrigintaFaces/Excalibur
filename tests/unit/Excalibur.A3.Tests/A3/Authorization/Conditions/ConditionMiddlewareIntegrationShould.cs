@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Security.Claims;
 
@@ -10,6 +10,8 @@ using Excalibur.Dispatch;
 using FakeItEasy;
 
 using Microsoft.AspNetCore.Authorization;
+
+using Tests.Shared.Helpers;
 
 
 namespace Excalibur.Tests.A3.Authorization.Conditions;
@@ -26,6 +28,7 @@ public sealed class ConditionMiddlewareIntegrationShould : IDisposable
     private readonly IAccessToken _accessToken;
     private readonly IDispatchAuthorizationService _authorizationService;
     private readonly AttributeAuthorizationCache _attributeCache;
+    private readonly CapturingLogger<A3AuthorizationMiddleware> _logger = new();
     private readonly A3AuthorizationMiddleware _sut;
     private readonly ServiceProvider _serviceProvider;
     private readonly IServiceScope _requestScope;
@@ -37,7 +40,8 @@ public sealed class ConditionMiddlewareIntegrationShould : IDisposable
         _attributeCache = new AttributeAuthorizationCache();
         _sut = new A3AuthorizationMiddleware(
             _authorizationService, _attributeCache,
-            new ConditionExpressionEvaluator());
+            new ConditionExpressionEvaluator(),
+            _logger);
 
         var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
         _ = services.AddScoped(_ => _accessToken);
@@ -207,7 +211,16 @@ public sealed class ConditionMiddlewareIntegrationShould : IDisposable
         // Assert -- malformed expression cached as null -> deny
         result.ProblemDetails.ShouldNotBeNull();
         result.ProblemDetails!.Status.ShouldBe(403);
-        result.ProblemDetails.Detail.ShouldContain("Malformed");
+
+        // SAFETY -- a condition expression is the consumer's own permission vocabulary and must
+        // not reach the caller. FLIPPED from the old arm, which asserted the opposite.
+        result.ProblemDetails.Detail.ShouldBe(A3AuthorizationMiddleware.DenialDetail);
+        result.ProblemDetails.Detail.ShouldNotContain("Malformed");
+
+        // LIVENESS -- it must still reach the DEVELOPER, or the refusal is undiagnosable. Without
+        // this arm a middleware that swallowed the reason entirely would also pass.
+        _logger.HasLogged(LogLevel.Warning, "Malformed condition expression")
+            .ShouldBeTrue("the denial reason must reach the log when it leaves the body");
     }
 
     // ──────────────────────────────────────────────

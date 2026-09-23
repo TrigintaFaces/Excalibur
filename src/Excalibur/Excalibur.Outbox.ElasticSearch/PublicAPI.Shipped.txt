@@ -11,7 +11,7 @@ Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.LeaseTimeoutSeconds.ge
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.LeaseTimeoutSeconds.set -> void
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.ProcessorId.get -> string?
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.ProcessorId.set -> void
-Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.RefreshPolicy.get -> string!
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.RefreshPolicy.get -> Excalibur.Data.ElasticSearch.Persistence.ElasticsearchRefreshPolicy
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.RefreshPolicy.set -> void
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.CleanupAllTenantsSentMessagesAsync(System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>

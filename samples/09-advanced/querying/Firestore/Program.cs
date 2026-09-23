@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // -----------------------------------------------------------------------
 // Excalibur.Data.Firestore -- Getting Started Sample
@@ -137,13 +137,16 @@ logger.LogInformation(
 // -- QUERY --
 logger.LogInformation("--- Query ---");
 var queryOps = (ICloudNativePersistenceQueryOperations)provider;
+// Firestore returns the whole result in a single page and issues no continuation token, so one call
+// is the complete answer here. On a provider that DOES page (Cosmos DB, DynamoDB) a single call returns
+// only the first page -- loop while HasMoreResults, feeding ContinuationToken back into the request.
 var queryResult = await queryOps.QueryAsync<SampleItem>(
-    queryText: "",
-    partitionKey,
-    parameters: null,
-    consistencyOptions: null,
+    new CloudQueryRequest { QueryText = "", PartitionKey = partitionKey },
     CancellationToken.None);
-logger.LogInformation("Query returned {Count} document(s).", queryResult.Documents.Count);
+logger.LogInformation(
+    "Query returned {Count} document(s); more pages: {HasMore}.",
+    queryResult.Documents.Count,
+    queryResult.HasMoreResults);
 
 // -- DELETE --
 logger.LogInformation("--- Delete ---");

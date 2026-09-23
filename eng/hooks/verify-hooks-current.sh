@@ -40,7 +40,7 @@ readonly E_DRIFT=1
 readonly E_ENV=2
 
 SRC_DIR="${HOOKS_SRC_DIR:-eng/hooks}"
-HOOKS="${HOOKS_LIST:-pre-commit}"
+HOOKS="${HOOKS_LIST:-post-checkout post-commit post-merge}"
 
 # ── THE DESTINATION IS core.hooksPath WHEN IT IS SET, NOT .git/hooks ─────────────────────────────
 # This script answers "is the hook git EXECUTES current with the canonical one?" — and `.git/hooks`

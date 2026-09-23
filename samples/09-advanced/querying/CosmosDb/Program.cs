@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json.Serialization;
 
@@ -141,10 +141,12 @@ Console.WriteLine();
 // -- QUERY --
 Console.WriteLine("4. Querying documents (price > $50)...");
 var queryResult = await provider.QueryAsync<Product>(
-    "SELECT * FROM c WHERE c.price > @minPrice",
-    partitionKey,
-    new Dictionary<string, object> { ["minPrice"] = 50.0 },
-    null,
+    new CloudQueryRequest
+    {
+        QueryText = "SELECT * FROM c WHERE c.price > @minPrice",
+        PartitionKey = partitionKey,
+        Parameters = new Dictionary<string, object> { ["minPrice"] = 50.0 },
+    },
     ct).ConfigureAwait(false);
 
 Console.WriteLine($"   Found {queryResult.Documents.Count} document(s), RU={queryResult.RequestCharge:F2}");

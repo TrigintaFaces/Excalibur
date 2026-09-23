@@ -1,6 +1,6 @@
 using Excalibur.Compliance.Erasure;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
@@ -193,44 +193,37 @@ public sealed class ErasureVerificationServiceReportShould
 			() => _sut.VerifyKeyDeletionAsync("", CancellationToken.None)).ConfigureAwait(false);
 	}
 
-	[Fact]
-	public async Task VerifyKeyDeletionAsync_ReturnsTrue_WhenKeyNotFound()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task VerifyKeyDeletionAsync_ReturnsFalse_WhenProviderCannotConfirmDestruction_EvenIfLookupSaysGone(bool lookupReportsDestroyedStatus)
 	{
-		// Arrange
+		// Arrange: this provider does not implement IKeyDestructionStatusProvider. Neither "not found" nor a
+		// Destroyed status from its lookup confirms destruction -- a recoverable key can look exactly like that.
 		A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
-			.Returns(Task.FromResult<KeyMetadata?>(null));
+			.Returns(Task.FromResult<KeyMetadata?>(lookupReportsDestroyedStatus
+				? new KeyMetadata
+				{
+					KeyId = "key-1",
+					Status = KeyStatus.Destroyed,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+					CreatedAt = DateTimeOffset.UtcNow,
+					Version = 1
+				}
+				: null));
 
 		// Act
 		var result = await _sut.VerifyKeyDeletionAsync("key-1", CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldBeTrue();
+		result.ShouldBeFalse();
 	}
 
 	[Fact]
-	public async Task VerifyKeyDeletionAsync_ReturnsTrue_WhenKeyIsDestroyed()
+	public async Task VerifyKeyDeletionAsync_ReturnsFalse_WhenKeyIsPendingDestruction()
 	{
-		// Arrange
-		A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
-			.Returns(Task.FromResult<KeyMetadata?>(new KeyMetadata
-			{
-				KeyId = "key-1",
-				Status = KeyStatus.Destroyed,
-				Algorithm = EncryptionAlgorithm.Aes256Gcm,
-				CreatedAt = DateTimeOffset.UtcNow,
-				Version = 1
-			}));
-
-		// Act
-		var result = await _sut.VerifyKeyDeletionAsync("key-1", CancellationToken.None).ConfigureAwait(false);
-
-		// Assert
-		result.ShouldBeTrue();
-	}
-
-	[Fact]
-	public async Task VerifyKeyDeletionAsync_ReturnsTrue_WhenKeyIsPendingDestruction()
-	{
+		// A key pending destruction is still RECOVERABLE (AWS KMS CancelKeyDeletion). Confirming it as deleted
+		// would let an erasure be completed and certified while the key can be restored.
 		// Arrange
 		A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
 			.Returns(Task.FromResult<KeyMetadata?>(new KeyMetadata
@@ -246,7 +239,7 @@ public sealed class ErasureVerificationServiceReportShould
 		var result = await _sut.VerifyKeyDeletionAsync("key-1", CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldBeTrue();
+		result.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -271,7 +264,7 @@ public sealed class ErasureVerificationServiceReportShould
 	}
 
 	[Fact]
-	public async Task VerifyKeyDeletionAsync_ReturnsTrue_WhenKeyNotFoundException()
+	public async Task VerifyKeyDeletionAsync_ReturnsFalse_WhenProviderCannotConfirmDestruction_EvenIfLookupThrowsKeyNotFound()
 	{
 		// Arrange
 		A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
@@ -281,7 +274,7 @@ public sealed class ErasureVerificationServiceReportShould
 		var result = await _sut.VerifyKeyDeletionAsync("key-1", CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldBeTrue();
+		result.ShouldBeFalse();
 	}
 
 	[Fact]

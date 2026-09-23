@@ -348,6 +348,22 @@ var publishOptions = new PublishOptions
 Compressed messages include `dispatch-compression` and `dispatch-body-encoding=base64` attributes; the SQS consumer automatically decodes them.
 Supported compression algorithms for SQS payloads are Gzip, Deflate, and Brotli. Snappy is not supported.
 
+## Binary Payloads
+
+An SQS message body is text: the service accepts the XML 1.0 character set and rejects anything else with
+`InvalidMessageContents`. A message body that is not reversible text — one that is not well-formed UTF-8, or
+whose text contains a character SQS does not accept — is therefore Base64-encoded on the wire and tagged with
+`dispatch-body-encoding=base64`, which the SQS receiver and subscriber decode automatically. Round-tripping a
+message through SQS returns the bytes the producer supplied, whatever those bytes are, so binary serializers
+such as MessagePack and Protobuf are safe to use.
+
+Bodies that are already reversible text are sent unchanged and carry no encoding attribute, so a queue read
+with any other tool shows the same text it always has. Note that the attribute can appear for either reason:
+compression implies it, and so does a binary body, independently.
+
+Base64 expands a payload by roughly one third. A payload close to the 256 KiB SQS limit can therefore exceed
+it once encoded, and SQS rejects it; the send reports a failure rather than delivering altered data.
+
 ## LocalStack Development
 
 ```csharp

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Stores.InMemory;
@@ -304,7 +304,7 @@ public sealed class InMemoryGrantStoreShould : UnitTestBase
 		await _sut.SaveGrantAsync(CreateGrant(userId: "user-2", qualifier: "admin"), _ct);
 
 		// Act
-		var results = await _sut.GetMatchingGrantsAsync("user-1", "tenant-1", "role", "admin", _ct);
+		var results = await _sut.GetMatchingGrantsAsync("tenant-1", "user-1", "role", "admin", _ct);
 
 		// Assert
 		results.Count.ShouldBe(1);
@@ -320,7 +320,7 @@ public sealed class InMemoryGrantStoreShould : UnitTestBase
 		await _sut.SaveGrantAsync(CreateGrant(userId: "user-3", qualifier: "editor"), _ct);
 
 		// Act
-		var results = await _sut.GetMatchingGrantsAsync(null, "tenant-1", "role", "admin", _ct);
+		var results = await _sut.GetMatchingGrantsAsync("tenant-1", null, "role", "admin", _ct);
 
 		// Assert
 		results.Count.ShouldBe(2);
@@ -333,7 +333,7 @@ public sealed class InMemoryGrantStoreShould : UnitTestBase
 		await _sut.SaveGrantAsync(CreateGrant(), _ct);
 
 		// Act
-		var results = await _sut.GetMatchingGrantsAsync("user-1", "tenant-1", "role", "nonexistent", _ct);
+		var results = await _sut.GetMatchingGrantsAsync("tenant-1", "user-1", "role", "nonexistent", _ct);
 
 		// Assert
 		results.ShouldBeEmpty();

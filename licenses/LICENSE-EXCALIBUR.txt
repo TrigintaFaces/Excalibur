@@ -1,14 +1,16 @@
+# Excalibur License 1.1
+
 ## Acceptance
 
 By using the software, you agree to all of the terms and conditions below.
 
 ## Scope
 
-These terms apply only if you choose to use the software under the Excalibur License 1.0.
-If the software is made available to you under an alternative license, including but not
-limited to the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later),
-the Server Side Public License v1.0 (SSPL-1.0), or the Apache License 2.0,
-then the terms of that license apply instead, and these terms do not apply.
+These terms apply only if you choose to use the software under the Excalibur License 1.1.
+If the software is made available to you under an alternative license, namely the
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later) or the Server Side
+Public License v1.0 (SSPL-1.0), and you choose that license, then the terms of that
+license apply instead, and these terms do not apply.
 
 ## Copyright License
 
@@ -20,17 +22,35 @@ the limitations and conditions below.
 ## Limitations
 
 You may not provide the software to third parties as a hosted or managed
-service, where the service provides users with access to any substantial set of
-the features or functionality of the software.
+service whose primary value derives from the features or functionality of the
+software. Examples include offering the software's message dispatching, outbox,
+inbox, event store, saga, scheduling, or operations dashboard capabilities to
+third parties as a service, or operating the software on behalf of third parties
+so that they can run their own handlers or workloads on it.
 
 For the avoidance of doubt, internal use of the software within your own organization,
 including internal services, internal platforms, and internal tooling used solely
 by you or your company, does not constitute a hosted or managed service under
 these terms.
 
-You may not move, change, disable, or circumvent the license key functionality
-in the software, and you may not remove or obscure any functionality in the
-software that is protected by the license key.
+You may not sell, resell, license, sublicense, rent, lease, or otherwise distribute
+the software to third parties for a fee or other commercial consideration, whether
+unmodified, modified, rebranded, or bundled, where the software, or a product
+whose primary value derives from the features or functionality of the software,
+is the thing being offered. This includes offering a framework, library, software
+development kit, or developer tool that is substantially derived from the software.
+
+## Your Applications
+
+These terms are intended to let you build and sell your own software. You may use
+the software to develop your own applications and services, and you may sell,
+license, distribute, host, operate, and support those applications and services,
+including commercially and including as a hosted service, provided that their
+primary value does not derive from the features or functionality of the software
+itself. You may distribute the software, modified or unmodified, as a component of
+such an application or service, subject to the Notices section below. Providing
+your own application or service to third parties is not providing the software as
+a hosted or managed service under the Limitations above.
 
 You may not alter, remove, or obscure any licensing, copyright, or other notices
 of the licensor in the software. Any use of the licensor’s trademarks is subject

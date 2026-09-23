@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.Dispatch.Routing;
@@ -13,12 +13,12 @@ namespace Excalibur.Dispatch.Delivery;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Framework type available for consumer instantiation scenarios")]
 internal sealed class SimpleMessageResult : IMessageResult
 {
-	public static readonly IMessageResult SuccessResult = new SimpleMessageResult(cacheHit: false);
-	public static readonly IMessageResult SuccessCacheHitResult = new SimpleMessageResult(cacheHit: true);
+	public static readonly IMessageResult SuccessResult = new SimpleMessageResult(MessageDisposition.Handled);
+	public static readonly IMessageResult SuccessFromCacheResult = new SimpleMessageResult(MessageDisposition.ServedFromCache);
 
-	private SimpleMessageResult(bool cacheHit)
+	private SimpleMessageResult(MessageDisposition disposition)
 	{
-		CacheHit = cacheHit;
+		Disposition = disposition;
 	}
 
 	/// <inheritdoc/>
@@ -34,7 +34,7 @@ internal sealed class SimpleMessageResult : IMessageResult
 	public static IAuthorizationResult? AuthorizationResult => null;
 
 	/// <inheritdoc/>
-	public bool CacheHit { get; }
+	public MessageDisposition Disposition { get; }
 
 	// MA0041: Property must remain instance member to implement IMessageResult interface.
 #pragma warning disable MA0041

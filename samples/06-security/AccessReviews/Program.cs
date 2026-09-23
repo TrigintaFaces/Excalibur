@@ -80,6 +80,9 @@ Console.WriteLine();
 Console.WriteLine("--- Step 2: Create Access Review Campaign ---");
 var campaign = new AccessReviewCampaignSummary(
 	CampaignId: "campaign-001",
+	// A campaign reviews ONE tenant's grants; every grant it revokes is in this tenant. A single-tenant
+	// application passes TenantScope.UntenantedSentinel. To review several tenants, create one campaign each.
+	TenantId: "tenant-1",
 	CampaignName: "Q1 2026 Access Review",
 	Scope: new AccessReviewScope(AccessReviewScopeType.AllGrants, null),
 	CreatedBy: "security-officer",

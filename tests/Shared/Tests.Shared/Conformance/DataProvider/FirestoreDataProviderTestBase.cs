@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.Persistence;
@@ -214,7 +214,8 @@ public abstract class FirestoreDataProviderTestBase : IAsyncDisposable
 			?? throw new InvalidOperationException("Provider should expose ICloudNativePersistenceQueryOperations via GetService.");
 
 		var results = await queryOps.QueryAsync<TestDocument>(
-			"*", partitionKey, null, null, CancellationToken.None).ConfigureAwait(false);
+			new CloudQueryRequest { QueryText = "*", PartitionKey = partitionKey },
+			CancellationToken.None).ConfigureAwait(false);
 
 		if (results.Documents.Count == 0)
 		{

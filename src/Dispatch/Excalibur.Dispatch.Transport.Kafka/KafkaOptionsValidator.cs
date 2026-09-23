@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Options;
 
@@ -28,6 +28,21 @@ internal sealed class KafkaOptionsValidator : IValidateOptions<KafkaOptions>
 		{
 			return ValidateOptionsResult.Fail(
 				"KafkaOptions.Consumer.MaxPayloadBytes must be at least 1 byte when specified. Set it to null to opt out of the payload-size limit.");
+		}
+
+		if (options.Consumer is { EnableAutoCommit: true })
+		{
+			// Refused at startup rather than degraded at runtime. Background auto-commit publishes a position
+			// on a timer, with no knowledge of which messages are still inside handlers, so a rebalance or a
+			// crash can leave the group positioned past work that was never completed -- the messages are then
+			// never delivered to any member again, with no error and no dead-letter. The transport commits
+			// only what it has settled, and that guarantee cannot hold alongside a timer that commits
+			// independently of it.
+			return ValidateOptionsResult.Fail(
+				"KafkaOptions.Consumer.EnableAutoCommit must be false. This transport commits only offsets whose "
+				+ "messages have reached a terminal state; a background auto-commit publishes positions on a timer "
+				+ "regardless of whether handlers have finished, which can advance the group past in-flight "
+				+ "messages and lose them. Leave it false and let the transport commit as messages are settled.");
 		}
 
 		return ValidateOptionsResult.Success;

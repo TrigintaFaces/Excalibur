@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance.Soc2.Validators;
@@ -36,7 +36,14 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 			ControlInt001 => Task.FromResult(ValidateInputValidation()),
 			ControlInt002 => Task.FromResult(ValidateIdempotency()),
 			ControlInt003 => Task.FromResult(ValidateDeliveryConfirmation()),
-			_ => Task.FromResult(CreateFailureResult(controlId, [$"Unknown control: {controlId}"]))
+			// NotVerified, never the default score. A control this validator does not support was never
+			// examined, so the honest outcome is "not assessed" -- Deficient means examined-and-failing and
+			// reaches the assessor as a finding against the consumer.
+			_ => Task.FromResult(
+				CreateFailureResult(
+					controlId,
+					[$"Unknown control: {controlId}"],
+					effectivenessScore: ControlEffectiveness.Unverified))
 		};
 	}
 
@@ -97,7 +104,7 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 			[
 				"The message validation pipeline ships with the framework but runs only where the consumer registered it, so its operation is unverified here and requires independent attestation."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence,
 			// The capability ships in this framework -- the Configuration evidence above says so. What is
 			// unknown is whether the consumer wired it, and that is the OUTCOME, not the configuration.
@@ -125,7 +132,7 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 			[
 				"Outbox deduplication provides idempotency where an outbox is configured; the outbox is optional and a deployment dispatching in process has none, so this is unverified here."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence,
 			// The capability ships in this framework -- the Configuration evidence above says so. What is
 			// unknown is whether the consumer wired it, and that is the OUTCOME, not the configuration.
@@ -153,7 +160,7 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 			[
 				"Delivery confirmation is tracked by the outbox where one is configured; the outbox is optional, so this control is unverified here and requires independent attestation."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence,
 			// The capability ships in this framework -- the Configuration evidence above says so. What is
 			// unknown is whether the consumer wired it, and that is the OUTCOME, not the configuration.

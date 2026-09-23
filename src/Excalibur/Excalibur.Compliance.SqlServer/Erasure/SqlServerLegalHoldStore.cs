@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -40,9 +40,10 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
 	/// Gets the tenant scope this store runs under, resolved in one place so every statement it builds binds
-	/// the same term. When the deployment is not multi-tenant the store
-	/// deliberately emits no tenant predicate. That decision is stated here and nowhere else: a conversion
-	/// cannot make it on the store's behalf without inventing a tenant decision the host never made.
+	/// the same term. The tenant context is required, and the conversion yields either a scoped term or the
+	/// reserved untenanted sentinel &#8212; never an absent one, so there is no state in which the partition is
+	/// undecided. A single-tenant host receives the framework default context and operates as the one canonical
+	/// tenant; it does not cause the predicate to be omitted.
 	/// </summary>
 	private TenantScope CurrentTenantScope =>
 		TenantScope.FromContext(_tenantContext);

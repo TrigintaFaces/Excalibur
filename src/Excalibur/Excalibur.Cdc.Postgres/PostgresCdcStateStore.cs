@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Runtime.CompilerServices;
 
@@ -135,11 +135,23 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		await using var connection = new NpgsqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// MONOTONIC CHECKPOINT. Without a guard this is an unconditional last-writer-wins upsert, so a
+		// stale or out-of-order write silently moves the durable position BACKWARDS. A position behind
+		// what was delivered is re-delivery; one ahead is silent data loss. The guard makes a regression
+		// a no-op, and the affected-row count reports it so a caller can tell a refusal from an advance.
+		//
+		// THE ::pg_lsn CAST IS LOAD-BEARING AND THE OBVIOUS FORM IS WRONG. `position` is VARCHAR(32) and
+		// an LSN renders as %X/%X with NO zero padding, so a plain `EXCLUDED.position > position` compares
+		// LEXICALLY: '0/9' sorts ABOVE '0/10' although 0x9 is numerically BELOW 0x10. That form would
+		// reject legitimate advances across a hex-digit boundary and stall the checkpoint permanently --
+		// a worse defect than the one it was added to prevent. pg_lsn compares numerically, which is the
+		// ordering the value actually has.
 		var sql = $@"
 			INSERT INTO {_fullTableName} (processor_id, slot_name, table_name, position, updated_at)
 			VALUES (@ProcessorId, @SlotName, '', @Position, @UpdatedAt)
 			ON CONFLICT (processor_id, slot_name, table_name)
-			DO UPDATE SET position = @Position, updated_at = @UpdatedAt";
+			DO UPDATE SET position = @Position, updated_at = @UpdatedAt
+			WHERE EXCLUDED.position::pg_lsn > {_fullTableName}.position::pg_lsn";
 
 		_ = await connection
 			.ExecuteAsync(new CommandDefinition(sql,
@@ -185,12 +197,19 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		await using var connection = new NpgsqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// MONOTONIC POSITION, CLAMPED RATHER THAN REFUSED -- this path differs from the two pure position
+		// upserts on purpose. It also accumulates event_count, so a WHERE that refuses the whole row on a
+		// stale position would silently stop COUNTING as well, which is a second defect wearing the first
+		// one's clothes. GREATEST keeps the position monotonic while the counter still accumulates. The
+		// ::pg_lsn cast is load-bearing here for the same reason as above: VARCHAR compares lexically and
+		// an un-padded %X/%X LSN orders wrongly under it.
 		var sql = $@"
 			INSERT INTO {_fullTableName}
 			       (processor_id, slot_name, table_name, position, last_event_time, updated_at, event_count)
 			VALUES (@ProcessorId, @SlotName, COALESCE(@TableName, ''), @Position, @LastEventTime, @UpdatedAt, @EventCount)
 			ON CONFLICT (processor_id, slot_name, table_name)
-			DO UPDATE SET position = @Position, last_event_time = @LastEventTime,
+			DO UPDATE SET position = GREATEST(EXCLUDED.position::pg_lsn, {_fullTableName}.position::pg_lsn)::text,
+			              last_event_time = @LastEventTime,
 			              updated_at = @UpdatedAt, event_count = {_fullTableName}.event_count + @EventCount";
 
 		_ = await connection
@@ -273,11 +292,23 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		await using var connection = new NpgsqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// MONOTONIC CHECKPOINT. Without a guard this is an unconditional last-writer-wins upsert, so a
+		// stale or out-of-order write silently moves the durable position BACKWARDS. A position behind
+		// what was delivered is re-delivery; one ahead is silent data loss. The guard makes a regression
+		// a no-op, and the affected-row count reports it so a caller can tell a refusal from an advance.
+		//
+		// THE ::pg_lsn CAST IS LOAD-BEARING AND THE OBVIOUS FORM IS WRONG. `position` is VARCHAR(32) and
+		// an LSN renders as %X/%X with NO zero padding, so a plain `EXCLUDED.position > position` compares
+		// LEXICALLY: '0/9' sorts ABOVE '0/10' although 0x9 is numerically BELOW 0x10. That form would
+		// reject legitimate advances across a hex-digit boundary and stall the checkpoint permanently --
+		// a worse defect than the one it was added to prevent. pg_lsn compares numerically, which is the
+		// ordering the value actually has.
 		var sql = $@"
 			INSERT INTO {_fullTableName} (processor_id, slot_name, table_name, position, updated_at)
 			VALUES (@ProcessorId, @SlotName, '', @Position, @UpdatedAt)
 			ON CONFLICT (processor_id, slot_name, table_name)
-			DO UPDATE SET position = @Position, updated_at = @UpdatedAt";
+			DO UPDATE SET position = @Position, updated_at = @UpdatedAt
+			WHERE EXCLUDED.position::pg_lsn > {_fullTableName}.position::pg_lsn";
 
 		_ = await connection
 			.ExecuteAsync(new CommandDefinition(sql,

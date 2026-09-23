@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -144,12 +144,13 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 						   KeyIdColumn = @KeyIdColumn,
 						   TenantIdColumn = @TenantIdColumn,
 						   Description = @Description,
+						   StoreKind = @StoreKind,
 						   UpdatedAt = @Now
 			WHEN NOT MATCHED THEN
 				INSERT (TableName, FieldName, TenantId, DataCategory, DataSubjectIdColumn, IdType,
-						KeyIdColumn, TenantIdColumn, Description, CreatedAt, UpdatedAt)
+						KeyIdColumn, TenantIdColumn, Description, StoreKind, CreatedAt, UpdatedAt)
 				VALUES (@TableName, @FieldName, @TenantId, @DataCategory, @DataSubjectIdColumn, @IdType,
-						@KeyIdColumn, @TenantIdColumn, @Description, @Now, @Now);";
+						@KeyIdColumn, @TenantIdColumn, @Description, @StoreKind, @Now, @Now);";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -168,6 +169,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 			// another tenant's partition by populating the field.
 			TenantId = CurrentTenantTerm,
 			registration.Description,
+			StoreKind = registration.StoreKind == DataStoreKind.Unknown ? null : registration.StoreKind.Value,
 			Now = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken)).ConfigureAwait(false);
 
@@ -215,7 +217,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		// compliance inventory of the estate, from a method whose name invites exactly that call.
 		var sql = $@"
 			SELECT TableName, FieldName, DataCategory, DataSubjectIdColumn, IdType,
-				   KeyIdColumn, TenantIdColumn, Description
+				   KeyIdColumn, TenantIdColumn, Description, StoreKind
 			FROM {_options.FullRegistrationsTableName}
 			WHERE TenantId IN (@ScopedTenantId, @UntenantedTenantId)
 			ORDER BY TableName, FieldName";
@@ -790,6 +792,9 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		public string? TenantIdColumn { get; init; }
 		public string? Description { get; init; }
 
+		// Nullable so a row written before the column existed reads as Unknown rather than failing.
+		public string? StoreKind { get; init; }
+
 		public DataLocationRegistration ToRegistration() => new()
 		{
 			TableName = TableName,
@@ -797,6 +802,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 			DataCategory = DataCategory,
 			DataSubjectIdColumn = DataSubjectIdColumn,
 			IdType = (DataSubjectIdType)IdType,
+			StoreKind = string.IsNullOrWhiteSpace(StoreKind) ? DataStoreKind.Unknown : DataStoreKind.Create(StoreKind),
 			KeyIdColumn = KeyIdColumn,
 			TenantIdColumn = TenantIdColumn,
 			Description = Description

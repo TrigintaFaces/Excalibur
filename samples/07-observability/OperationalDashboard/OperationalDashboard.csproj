@@ -13,5 +13,6 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Operations.Dashboard\Excalibur.Operations.Dashboard.csproj" />
     <!-- A3 for the turnkey grant-authorization helper (AddGrantAuthorization). -->
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3\Excalibur.A3.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
 </Project>

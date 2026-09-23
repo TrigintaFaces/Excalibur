@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Logging;
 
@@ -260,7 +260,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "Minimal Report",
 			PeriodStart = DateTimeOffset.UtcNow.AddDays(-30),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			ControlSections = [],
@@ -297,7 +297,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "Large Report with Many Controls",
 			PeriodStart = DateTimeOffset.UtcNow.AddDays(-90),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = CreateSystemDescription(),
@@ -344,7 +344,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "Test Report",
 			PeriodStart = DateTimeOffset.UtcNow,
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			ControlSections = [],
@@ -367,7 +367,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "", // Invalid
 			PeriodStart = DateTimeOffset.UtcNow,
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			ControlSections = [],
@@ -435,7 +435,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "Test",
 			PeriodStart = DateTimeOffset.UtcNow,
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [],
 			ControlSections = [],
@@ -461,7 +461,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "",
 			PeriodStart = DateTimeOffset.UtcNow,
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [],
 			ControlSections = [],
@@ -487,7 +487,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "Test",
 			PeriodStart = DateTimeOffset.UtcNow,
 			PeriodEnd = DateTimeOffset.UtcNow.AddDays(-30), // End before start
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [],
 			ControlSections = [],
@@ -563,7 +563,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "SOC 2 Type II Examination Report",
 			PeriodStart = DateTimeOffset.UtcNow.AddDays(-90),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security, TrustServicesCategory.Availability],
 			System = CreateSystemDescription(),
@@ -633,7 +633,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "SOC 2 Type II with Test Results",
 			PeriodStart = DateTimeOffset.UtcNow.AddDays(-90),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security],
 			System = CreateSystemDescription(),
@@ -686,7 +686,7 @@ public sealed class Soc2ReportExporterPdfShould
 			Title = "Multi-Section Report",
 			PeriodStart = DateTimeOffset.UtcNow.AddDays(-90),
 			PeriodEnd = DateTimeOffset.UtcNow,
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = DateTimeOffset.UtcNow,
 			CategoriesIncluded = [TrustServicesCategory.Security, TrustServicesCategory.Confidentiality],
 			System = CreateSystemDescription(),

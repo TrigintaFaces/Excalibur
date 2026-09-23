@@ -44,3 +44,12 @@ The interface shapes used by MediatR-based code, mapped to canonical Excalibur.D
 > interoperability — that is, to identify the third-party API that this package helps existing code
 > migrate away from. Excalibur.Dispatch.Compat.MediatR is an independent work distributed under the
 > Excalibur project license; it is not derived from MediatR's source.
+
+## License
+
+This project is multi-licensed under:
+- [Excalibur License 1.1](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-EXCALIBUR.txt)
+- [AGPL-3.0-or-later](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-AGPL-3.0.txt)
+- [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
+
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

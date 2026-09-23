@@ -1,5 +1,5 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data;
 using Excalibur.Dispatch;
@@ -40,6 +40,10 @@ public sealed class PostgresOutboxStoreConformanceShould : OutboxStoreConformanc
 {
 	/// <summary>This store fences, so an arm that finds no IFencedOutboxStore must FAIL, not skip.</summary>
 	protected override bool ParticipatesInFencing => true;
+
+	/// <inheritdoc />
+	/// <remarks>A sent message is deleted and a dead-lettered one is moved to the dead-letter table.</remarks>
+	protected override bool TerminalTransitionRemovesMessage => true;
 
 	private readonly PostgresOutboxStoreContainerFixture _fixture;
 
@@ -280,6 +284,10 @@ public sealed class PostgresOutboxStoreConformanceShould : OutboxStoreConformanc
 	[Fact]
 	public Task MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim_Test() =>
 		MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim();
+
+	[Fact]
+	public Task MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied_Test() =>
+		MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied();
 
 	[Fact]
 	public Task MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage_Test() =>

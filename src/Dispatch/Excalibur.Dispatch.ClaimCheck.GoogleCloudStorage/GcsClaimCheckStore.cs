@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 
@@ -96,8 +96,10 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 	{
 		ArgumentNullException.ThrowIfNull(payload);
 
-		var id = $"{_claimCheckOptions.IdPrefix}{Guid.NewGuid():N}";
-		var objectName = GetObjectName(id);
+		// The identifier carries its own date partition, so the key is derivable from the identifier
+		// alone and never from the clock at lookup time.
+		var id = ClaimCheckId.Create(_claimCheckOptions.IdPrefix, DateTimeOffset.UtcNow);
+		var objectName = RequireStorageKey(id);
 
 		metadata ??= new ClaimCheckMetadata();
 
@@ -148,10 +150,15 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 	{
 		ArgumentNullException.ThrowIfNull(reference);
 
-		// Resolve from the recorded name rather than recomputing one. GetObjectName derives a
-		// date-partitioned name from the CURRENT UTC date, so a payload stored at 23:59:59 was looked for
-		// under the next day's prefix a second later and reported not-found while still in the bucket.
-		var objectName = string.IsNullOrEmpty(reference.BlobName) ? GetObjectName(reference.Id) : reference.BlobName;
+		// The key is derived from the identifier and from nothing else the wire supplied. The previous
+		// form honoured the recorded name verbatim, which let whoever could publish to the consumed queue
+		// name ANY object in this container and have it fetched with our credentials. Falling back to
+		// recomputing from the identifier would not have fixed it: the identifier is wire-supplied too, so
+		// that merely moves which field names the object.
+		//
+		// The midnight problem the recorded-name branch existed to solve is solved differently now -- the
+		// identifier carries its own date partition, so the key no longer depends on the clock at lookup.
+		var objectName = RequireStorageKey(reference.Id);
 
 		// An expired payload is a form of missing payload, so it surfaces as the same exception a deleted
 		// or never-stored one does. Cloud Storage has no per-object time-to-live -- its lifecycle rules
@@ -188,10 +195,23 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 	{
 		ArgumentNullException.ThrowIfNull(reference);
 
-		// Resolve from the recorded name rather than recomputing one. GetObjectName derives a
-		// date-partitioned name from the CURRENT UTC date, so a payload stored at 23:59:59 was looked for
-		// under the next day's prefix a second later and reported not-found while still in the bucket.
-		var objectName = string.IsNullOrEmpty(reference.BlobName) ? GetObjectName(reference.Id) : reference.BlobName;
+		// The key is derived from the identifier and from nothing else the wire supplied. The previous
+		// form honoured the recorded name verbatim, which let whoever could publish to the consumed queue
+		// name ANY object in this container and have it fetched with our credentials. Falling back to
+		// recomputing from the identifier would not have fixed it: the identifier is wire-supplied too, so
+		// that merely moves which field names the object.
+		//
+		// The midnight problem the recorded-name branch existed to solve is solved differently now -- the
+		// identifier carries its own date partition, so the key no longer depends on the clock at lookup.
+		// A refused identifier is reported as "there was nothing to delete" rather than as a throw. The
+		// contract of this method is the observation "did an object exist", and an identifier this store
+		// never issued names no object, so false is the accurate answer. It is also the non-committal
+		// one: throwing here would tell a prober which of their guesses had the right shape, and the
+		// conformance kit already requires a non-existent reference to return false rather than raise.
+		if (!ClaimCheckId.TryGetStorageKey(_claimCheckOptions.IdPrefix, _options.Prefix, reference.Id, out var objectName))
+		{
+			return false;
+		}
 
 		try
 		{
@@ -230,10 +250,26 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 		return payload.Length >= _claimCheckOptions.PayloadThreshold;
 	}
 
-	private string GetObjectName(string claimCheckId)
+	/// <summary>
+	/// Resolves an identifier to its storage key, refusing any identifier this store did not mint.
+	/// </summary>
+	/// <param name="claimCheckId">The identifier, which may have arrived on the wire.</param>
+	/// <returns>The container-relative storage key.</returns>
+	/// <exception cref="KeyNotFoundException">
+	/// Thrown when the identifier does not have the shape this store mints.
+	/// </exception>
+	private string RequireStorageKey(string claimCheckId)
 	{
-		var date = DateTimeOffset.UtcNow;
-		return $"{_options.Prefix}{date:yyyy/MM/dd}/{claimCheckId}";
+		if (!ClaimCheckId.TryGetStorageKey(_claimCheckOptions.IdPrefix, _options.Prefix, claimCheckId, out var key))
+		{
+			// Reported as not-found rather than as a validation fault, deliberately: a forged identifier
+			// and an identifier for a payload that never existed are the same observation from the
+			// caller's side, and distinguishing them would confirm to a prober which of their guesses had
+			// the right shape.
+			throw new KeyNotFoundException("Claim check identifier is not one this store issued.");
+		}
+
+		return key;
 	}
 
 	[LoggerMessage(3310, LogLevel.Debug, "Stored claim check '{ClaimCheckId}' in GCS ({Size} bytes)")]

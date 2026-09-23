@@ -1,7 +1,7 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly - FakeItEasy needs stored ValueTask
 
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3;
 using Excalibur.A3.Authorization;
@@ -34,7 +34,11 @@ public sealed class AuthorizationMiddlewareDepthShould : IDisposable
 
 		A.CallTo(() => _accessToken.IsAuthenticated()).Returns(true);
 
-		_sut = new A3AuthorizationMiddleware(_authorization, _attributeCache, new ConditionExpressionEvaluator());
+		_sut = new A3AuthorizationMiddleware(
+			_authorization,
+			_attributeCache,
+			new ConditionExpressionEvaluator(),
+			NullLogger<A3AuthorizationMiddleware>.Instance);
 
 		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
 		_ = services.AddScoped(_ => _accessToken);

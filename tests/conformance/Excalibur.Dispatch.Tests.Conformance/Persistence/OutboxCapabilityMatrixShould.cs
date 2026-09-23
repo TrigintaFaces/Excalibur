@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Linq;
 using System.Reflection;
@@ -62,12 +62,31 @@ public sealed class OutboxCapabilityMatrixShould
 	/// The optional capability-interface vocabulary the matrix tracks. Each store's actual footprint over
 	/// this set is compared (by reflection) against its frozen <see cref="ProviderEntry.ExpectedCapabilities"/>.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The three fencing capabilities are in this vocabulary because they decide whether a host STARTS.</b>
+	/// The outbox composition guard refuses to start a host that registers a leader election over a store
+	/// which cannot fence, so gaining or losing one of them is not a quiet capability change - it is the
+	/// difference between a supported deployment and a startup refusal. Before they were tracked here,
+	/// that population lived only in a class declaration nobody diffed, and three stores could drift out of
+	/// it without any gate moving.
+	/// </para>
+	/// <para>
+	/// <b>They are also separately losable, which is why all three are listed rather than one.</b>
+	/// <see cref="IFencedOutboxStore"/> fences only the claim and the mark-sent; the completion path - the
+	/// failure report and the dead-letter transition - is fenced by the other two, and a store that offers
+	/// the first alone closes half the window while reading as though it closed all of it.
+	/// </para>
+	/// </remarks>
 	private static readonly Type[] CapabilityVocabulary =
 	[
 		typeof(ICloudNativeOutboxStore),
 		typeof(ICloudNativeOutboxStoreBatch),
 		typeof(ICloudNativeOutboxStoreClaim),
 		typeof(IMultiTransportOutboxStore),
+		typeof(IFencedOutboxStore),
+		typeof(IFencedClaimScopedOutboxStore),
+		typeof(IFencedDeadLetterableOutboxStore),
 	];
 
 	private sealed record ProviderEntry(
@@ -83,14 +102,39 @@ public sealed class OutboxCapabilityMatrixShould
 	private static readonly ProviderEntry[] Matrix =
 	[
 		// -- Traditional IOutboxStore family --
-		new("InMemory", typeof(global::Excalibur.Outbox.InMemory.InMemoryOutboxStore), OutboxFamily.Traditional, []),
-		new("Postgres", typeof(global::Excalibur.Outbox.Postgres.PostgresOutboxStore), OutboxFamily.Traditional, []),
-		new("Oracle", typeof(global::Excalibur.Outbox.Oracle.OracleOutboxStore), OutboxFamily.Traditional, []),
+		new("InMemory", typeof(global::Excalibur.Outbox.InMemory.InMemoryOutboxStore), OutboxFamily.Traditional,
+			[
+				typeof(IFencedOutboxStore),
+				typeof(IFencedClaimScopedOutboxStore),
+				typeof(IFencedDeadLetterableOutboxStore)
+			]),
+		new("Postgres", typeof(global::Excalibur.Outbox.Postgres.PostgresOutboxStore), OutboxFamily.Traditional,
+			[
+				typeof(IFencedOutboxStore),
+				typeof(IFencedClaimScopedOutboxStore),
+				typeof(IFencedDeadLetterableOutboxStore)
+			]),
+		new("Oracle", typeof(global::Excalibur.Outbox.Oracle.OracleOutboxStore), OutboxFamily.Traditional,
+			[
+				typeof(IFencedOutboxStore),
+				typeof(IFencedClaimScopedOutboxStore),
+				typeof(IFencedDeadLetterableOutboxStore)
+			]),
 		new("Redis", typeof(global::Excalibur.Outbox.Redis.RedisOutboxStore), OutboxFamily.Traditional, []),
 		new("MongoDb", typeof(global::Excalibur.Outbox.MongoDB.MongoDbOutboxStore), OutboxFamily.Traditional, []),
+		// Redis and MongoDb declare NO fenced capability, and that is the frozen fact rather than an
+		// omission. Both were removed from IFencedOutboxStore because neither substrate can carry the
+		// contract: a fence needs its high-water to be monotone across failover, and an asynchronously
+		// replicated value can roll backwards. Restoring an entry here without restoring the interface
+		// would re-freeze a capability the stores do not have.
 		new("Elasticsearch", typeof(global::Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore), OutboxFamily.Traditional, []),
 		new("SqlServer", typeof(global::Excalibur.Outbox.SqlServer.SqlServerOutboxStore), OutboxFamily.Traditional,
-			[typeof(IMultiTransportOutboxStore)]),
+			[
+				typeof(IMultiTransportOutboxStore),
+				typeof(IFencedOutboxStore),
+				typeof(IFencedClaimScopedOutboxStore),
+				typeof(IFencedDeadLetterableOutboxStore)
+			]),
 
 		// -- Cloud-native ICloudNativeOutboxStore family --
 		new("CosmosDb", typeof(global::Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore), OutboxFamily.CloudNative,

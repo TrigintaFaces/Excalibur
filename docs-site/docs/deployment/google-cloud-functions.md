@@ -33,16 +33,19 @@ Deploy Excalibur applications to Google Cloud Functions for serverless, event-dr
 // Function.cs
 using Google.Cloud.Functions.Framework;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Excalibur.Dispatch;
 using System.Text.Json;
 
 public class DispatchFunction : IHttpFunction
 {
     private readonly IDispatcher _dispatcher;
+    private readonly ILogger<DispatchFunction> _logger;
 
-    public DispatchFunction(IDispatcher dispatcher)
+    public DispatchFunction(IDispatcher dispatcher, ILogger<DispatchFunction> logger)
     {
         _dispatcher = dispatcher;
+        _logger = logger;
     }
 
     public async Task HandleAsync(HttpContext context)
@@ -60,8 +63,11 @@ public class DispatchFunction : IHttpFunction
         }
         catch (Exception ex)
         {
+            // Log the detail; never return it. ex.Message can carry connection strings,
+            // SQL or file paths, and this response reaches whoever called the function.
+            _logger.LogError(ex, "Unhandled exception processing request");
             context.Response.StatusCode = 500;
-            await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+            await context.Response.WriteAsJsonAsync(new { error = "An internal error occurred." });
         }
     }
 }
@@ -143,7 +149,7 @@ curl https://us-central1-PROJECT_ID.cloudfunctions.net/dispatch-function \
 
 ### Pub/Sub Triggered Function
 
-```csharp
+```csharp ignore
 // PubSubFunction.cs
 using Google.Cloud.Functions.Framework;
 using Google.Events.Protobuf.Cloud.PubSub.V1;
@@ -213,7 +219,7 @@ gcloud functions deploy pubsub-processor \
 
 ### Scheduled Outbox Processor
 
-```csharp
+```csharp ignore
 // OutboxProcessorFunction.cs
 using Google.Cloud.Functions.Framework;
 using Google.Events.Protobuf.Cloud.Scheduler.V1;

@@ -1,5 +1,13 @@
 # Compliance Documentation Navigation Guide
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../legal/compliance-disclaimer.md).
+:::
+
 **Framework:** Excalibur
 **Purpose:** Visual navigation for compliance documentation
 **Last Updated:** 2026-09-12
@@ -89,7 +97,7 @@ graph TD
     Scripts --> Audit[export-audit-samples.sh<br/>Audit logs]
     Scripts --> RoPA[generate-ropa-template.sh<br/>GDPR RoPA]
 
-    FedRAMPDocs --> FedREADME[README.md<br/>12 of 14 Controls]
+    FedRAMPDocs --> FedREADME[README.md<br/>NIST 800-53 overview]
     FedRAMPDocs --> SBOM[CM-8-SBOM.md<br/>Component Inventory]
 
     FedRAMP -.->|References| FedREADME
@@ -205,104 +213,91 @@ flowchart TD
 
 ## 5. Certification Timeline
 
-### FedRAMP Timeline (6-12 months)
+### FedRAMP Timeline
 
-```mermaid
-gantt
-    title FedRAMP Moderate Certification
-    dateFormat YYYY-MM-DD
-    section Preparation
-    Risk Assessment           :2025-01-01, 60d
-    SSP Development           :2025-03-01, 60d
-    section Implementation
-    Install Framework         :2025-05-01, 14d
-    Configure Controls        :2025-05-15, 63d
-    Evidence Collection       :2025-07-01, 30d
-    section Assessment
-    3PAO Engagement           :2025-08-01, 90d
-    Remediation               :2025-11-01, 30d
-    section Authorization
-    PMO Review                :2025-12-01, 90d
-    ATO Issuance              :milestone, 2026-03-01, 1d
-```
+**FedRAMP Moderate Certification** — all offsets are relative to the day you start; no calendar dates are implied.
 
-### GDPR Timeline (3-6 months)
+| Phase | Activity | Starts (day) | Duration |
+|---|---|---|---|
+| Preparation | Risk Assessment | 0 | 60 days |
+|  | SSP Development | 59 | 60 days |
+| Implementation | Install Framework | 120 | 14 days |
+|  | Configure Controls | 134 | 63 days |
+|  | Evidence Collection | 181 | 30 days |
+| Assessment | 3PAO Engagement | 212 | 90 days |
+|  | Remediation | 304 | 30 days |
+| Authorization | PMO Review | 334 | 90 days |
+|  | ATO Issuance | 424 | milestone |
 
-```mermaid
-gantt
-    title GDPR Compliance
-    dateFormat YYYY-MM-DD
-    section Preparation
-    Scope Assessment          :2025-01-01, 30d
-    Risk Assessment           :2025-02-01, 30d
-    section Implementation
-    Install Framework         :2025-03-01, 14d
-    Configure Erasure         :2025-03-15, 21d
-    Configure RoPA            :2025-04-05, 14d
-    Policy Development        :2025-04-19, 30d
-    section Verification
-    Conformance Testing       :2025-05-19, 14d
-    Training                  :2025-06-02, 30d
-    section Audit
-    External Audit (Optional) :2025-07-02, 30d
-    Certification             :milestone, 2025-08-01, 1d
-```
+Total elapsed: **425 days** (~14 months) from start to the final milestone, summed from the table above rather than quoted.
 
-### SOC 2 Type I Timeline (3-6 months)
+### GDPR Timeline
 
-```mermaid
-gantt
-    title SOC 2 Type I Certification
-    dateFormat YYYY-MM-DD
-    section Preparation
-    Scope Definition          :2025-01-01, 30d
-    section Implementation
-    Install Framework         :2025-02-01, 14d
-    Configure Controls        :2025-02-15, 60d
-    Automated Validators      :2025-04-16, 14d
-    Readiness Assessment      :2025-04-30, 30d
-    section Audit
-    CPA Engagement            :2025-05-30, 60d
-    Type I Report             :milestone, 2025-07-29, 1d
-```
+**GDPR Compliance** — all offsets are relative to the day you start; no calendar dates are implied.
 
-### SOC 2 Type II Timeline (12-18 months)
+| Phase | Activity | Starts (day) | Duration |
+|---|---|---|---|
+| Preparation | Scope Assessment | 0 | 30 days |
+|  | Risk Assessment | 31 | 30 days |
+| Implementation | Install Framework | 59 | 14 days |
+|  | Configure Erasure | 73 | 21 days |
+|  | Configure RoPA | 94 | 14 days |
+|  | Policy Development | 108 | 30 days |
+| Verification | Conformance Testing | 138 | 14 days |
+|  | Training | 152 | 30 days |
+| Audit | External Audit (Optional) | 182 | 30 days |
+|  | Certification | 212 | milestone |
 
-```mermaid
-gantt
-    title SOC 2 Type II Certification
-    dateFormat YYYY-MM-DD
-    section Type I
-    Type I Certification      :2025-01-01, 180d
-    section Observation Period
-    6-Month Operation         :2025-07-01, 180d
-    12-Month Operation        :2025-07-01, 365d
-    section Type II Audit
-    CPA Engagement            :2025-12-28, 60d
-    Type II Report            :milestone, 2026-02-26, 1d
-```
+Total elapsed: **213 days** (~7 months) from start to the final milestone, summed from the table above rather than quoted.
 
-### HIPAA Timeline (6-12 months)
+### SOC 2 Type I Timeline
 
-```mermaid
-gantt
-    title HIPAA Compliance
-    dateFormat YYYY-MM-DD
-    section Preparation
-    Engage Specialist         :2025-01-01, 14d
-    Risk Assessment           :2025-01-15, 60d
-    section Policy Development
-    Security Policies         :2025-03-16, 60d
-    Privacy Policies          :2025-03-16, 60d
-    section Implementation
-    Install Framework         :2025-05-15, 14d
-    Configure Tech Safeguards :2025-05-29, 60d
-    Workforce Training        :2025-07-28, 60d
-    section Verification
-    Internal Audit            :2025-09-26, 60d
-    External Audit            :2025-11-25, 60d
-    Certification             :milestone, 2026-01-24, 1d
-```
+**SOC 2 Type I Certification** — all offsets are relative to the day you start; no calendar dates are implied.
+
+| Phase | Activity | Starts (day) | Duration |
+|---|---|---|---|
+| Preparation | Scope Definition | 0 | 30 days |
+| Implementation | Install Framework | 31 | 14 days |
+|  | Configure Controls | 45 | 60 days |
+|  | Automated Validators | 105 | 14 days |
+|  | Readiness Assessment | 119 | 30 days |
+| Audit | CPA Engagement | 149 | 60 days |
+|  | Type I Report | 209 | milestone |
+
+Total elapsed: **210 days** (~7 months) from start to the final milestone, summed from the table above rather than quoted.
+
+### SOC 2 Type II Timeline
+
+**SOC 2 Type II Certification** — all offsets are relative to the day you start; no calendar dates are implied.
+
+| Phase | Activity | Starts (day) | Duration |
+|---|---|---|---|
+| Type I | Type I Certification | 0 | 180 days |
+| Observation Period | 6-Month Operation | 181 | 180 days |
+|  | 12-Month Operation | 181 | 365 days |
+| Type II Audit | CPA Engagement | 361 | 60 days |
+|  | Type II Report | 421 | milestone |
+
+Total elapsed: **546 days** (~18 months) from start to the final milestone, summed from the table above rather than quoted.
+
+### HIPAA Timeline
+
+**HIPAA Compliance** — all offsets are relative to the day you start; no calendar dates are implied.
+
+| Phase | Activity | Starts (day) | Duration |
+|---|---|---|---|
+| Preparation | Engage Specialist | 0 | 14 days |
+|  | Risk Assessment | 14 | 60 days |
+| Policy Development | Security Policies | 74 | 60 days |
+|  | Privacy Policies | 74 | 60 days |
+| Implementation | Install Framework | 134 | 14 days |
+|  | Configure Tech Safeguards | 148 | 60 days |
+|  | Workforce Training | 208 | 60 days |
+| Verification | Internal Audit | 268 | 60 days |
+|  | External Audit | 328 | 60 days |
+|  | Certification | 388 | milestone |
+
+Total elapsed: **389 days** (~13 months) from start to the final milestone, summed from the table above rather than quoted.
 
 ---
 
@@ -312,7 +307,7 @@ gantt
 |----------|-------------|----------|------------------|-------------------|-----------|
 | **1. Preparation** | Risk assessment, scope | DPIA, scope | Scope definition | Type I complete | Engage specialist |
 | **2. Install** | 2 weeks | 2 weeks | 2 weeks | N/A | 2 weeks |
-| **3. Implement** | 9 weeks (14 controls) | 7 weeks (Articles 17, 30, 32) | 6 weeks of control phases (CC1-CC9, A1-A3, PI1-PI3, C1-C3) | N/A | 12 weeks (§164.312) |
+| **3. Implement** | 9 weeks (14 controls) | 7 weeks (Articles 17, 17(3), 25, 30, 32) | 6 weeks of control phases (CC1-CC9, A1-A3, PI1-PI3, C1-C3) | N/A | 7 weeks (§164.308, §164.310, §164.312) |
 | **4. Policies** | SSP, SAR | Privacy policy, RoPA | System description | N/A | Security + Privacy policies |
 | **5. Tests** | Opt-in conformance arms | Opt-in conformance arms | Automated validators | N/A | Opt-in conformance arms |
 | **6. Evidence** | SBOM, scans, audit logs | Erasure certs, RoPA | Reports, logs | Continuous | Audit logs, BAAs |

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -208,7 +208,7 @@ public sealed class MongoDbComplianceStoreShould
 		var id = MongoDbComplianceStore.ConsentDocument.CreateId("tenant-a", "user-123", "marketing");
 
 		// Assert
-		id.ShouldBe("8:tenant-a:8:user-123:marketing");
+		id.ShouldBe("tenant-a:user-123:marketing");
 	}
 
 	[Fact]
@@ -254,7 +254,7 @@ public sealed class MongoDbComplianceStoreShould
 		var doc = MongoDbComplianceStore.ConsentDocument.FromRecord(record, "tenant-a");
 
 		// Assert
-		doc.Id.ShouldBe("8:tenant-a:8:user-456:analytics");
+		doc.Id.ShouldBe("tenant-a:user-456:analytics");
 		doc.TenantId.ShouldBe("tenant-a");
 		doc.SubjectId.ShouldBe("user-456");
 		doc.Purpose.ShouldBe("analytics");
@@ -343,7 +343,7 @@ public sealed class MongoDbComplianceStoreShould
 		var doc = MongoDbComplianceStore.SubjectAccessDocument.FromResult(result, "tenant-a");
 
 		// Assert
-		doc.Id.ShouldBe("8:tenant-a:SAR-001");
+		doc.Id.ShouldBe("tenant-a:SAR-001");
 		doc.TenantId.ShouldBe("tenant-a");
 		doc.Status.ShouldBe((int)SubjectAccessRequestStatus.Fulfilled);
 		doc.Deadline.ShouldBe(now.AddDays(30));
@@ -366,7 +366,7 @@ public sealed class MongoDbComplianceStoreShould
 		var doc = MongoDbComplianceStore.SubjectAccessDocument.FromResult(result, "tenant-a");
 
 		// Assert
-		doc.Id.ShouldBe("8:tenant-a:SAR-002");
+		doc.Id.ShouldBe("tenant-a:SAR-002");
 		doc.TenantId.ShouldBe("tenant-a");
 		doc.Status.ShouldBe((int)SubjectAccessRequestStatus.Pending);
 		doc.Deadline.ShouldBeNull();

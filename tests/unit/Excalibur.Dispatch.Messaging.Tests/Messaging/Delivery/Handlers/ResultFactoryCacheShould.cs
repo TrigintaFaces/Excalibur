@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
@@ -124,7 +124,7 @@ public sealed class ResultFactoryCacheShould
 	}
 
 	[Fact]
-	public async Task CreateTypedResult_WithCacheHit_SetsCacheHitFlag()
+	public async Task CreateTypedResult_WithCacheHit_SetsServedFromCacheDisposition()
 	{
 		// Arrange
 		var action = new TestActionWithResult();
@@ -137,7 +137,10 @@ public sealed class ResultFactoryCacheShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		// The CacheHit flag should be passed through to the result factory
+
+		// The context's cache-hit flag must reach the result factory. This arm previously asserted only
+		// Succeeded, so it could not have failed if the flag were dropped on the way.
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 	}
 
 	#endregion

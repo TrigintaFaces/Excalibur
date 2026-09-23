@@ -9,7 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" />
-    <PackageReference Include="Quartz" />
+        <PackageReference Include="Quartz" />
   </ItemGroup>
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>

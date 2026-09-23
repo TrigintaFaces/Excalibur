@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -53,6 +53,16 @@ public static class DispatchServiceCollectionExtensions
 		// one would have failed to resolve. TryAdd, so a test or a consumer can substitute a fake clock.
 		RegisterTimeProvider(services);
 
+		// Baggage propagation is default-deny, and the caps that bound an opted-in key are only meaningful
+		// if a misconfigured one fails at startup. Registering the options here rather than leaving it to
+		// the consumer is what makes ValidateOnStart non-vacuous: without a registered validator the call
+		// has nothing to run, and a cap that could never admit an entry would drop every allowed key in
+		// silence while the configuration still read as though propagation were on.
+		_ = services.AddOptions<Excalibur.Dispatch.Options.BaggagePropagationOptions>().ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<Excalibur.Dispatch.Options.BaggagePropagationOptions>,
+				Excalibur.Dispatch.Configuration.BaggagePropagationOptionsValidator>());
+
 		services.TryAddSingleton<IMessageBusProvider, MessageBusProvider>();
 		services.TryAddSingleton<IMessageContextAccessor, MessageContextAccessor>();
 		services.TryAddSingleton<IMessageContextPool>(static sp => new MessageContextPool(sp));
@@ -86,9 +96,10 @@ public static class DispatchServiceCollectionExtensions
 			(IStreamingDispatcher)sp.GetRequiredService<IDispatcher>());
 		services.TryAddSingleton<IProgressDispatcher>(static sp =>
 			(IProgressDispatcher)sp.GetRequiredService<IDispatcher>());
-		// Legacy fallback: discovers middleware from DI via GetServices<IDispatchMiddleware>().
-		// When DispatchBuilder.Build() is called (the modern path), these TryAdd registrations
-		// are replaced via Services.Replace() with builder-materialized middleware.
+		// Fallback for a container composed with AddDispatchPipeline() alone: discovers middleware from DI
+		// via GetServices<IDispatchMiddleware>(). Both AddDispatch entry points replace these registrations
+		// (Services.Replace) with the builder-composed pipeline, which is itself built when first resolved
+		// and unions in the same GetServices<IDispatchMiddleware>() registrations.
 		services.TryAddSingleton<IDispatchPipeline>(sp => new DispatchPipeline(
 			sp.GetServices<IDispatchMiddleware>(),
 			sp.GetRequiredService<IMiddlewareApplicabilityStrategy>()));
@@ -102,9 +113,11 @@ public static class DispatchServiceCollectionExtensions
 		// the retry policy/middleware and the outbox/inbox/CDC processors. Consumers override via TryAdd.
 		services.TryAddSingleton<IMessageFailureClassifier, DefaultMessageFailureClassifier>();
 
-		// Without this the outbox and inbox drains resolve nothing and fall through to their
-		// NullTransportCircuitBreakerRegistry default, which means a host that has not taken the
-		// opt-in Polly package runs those paths with no circuit breaker at all. The Polly package
+		// The outbox and inbox drains take this registry as a REQUIRED constructor dependency, so a host
+		// that has not opted into the Polly package would otherwise fail to construct them. This is the
+		// registration that makes a plain host work, and it is a real bounded registry rather than a
+		// silent no-op: the drains used to fall back to a null registry that handed out breakers which
+		// never opened, which is indistinguishable at runtime from having protection. The Polly package
 		// RemoveAll()s this registration before substituting its own, so opting in still wins.
 		services.TryAddSingleton<ITransportCircuitBreakerRegistry, TransportCircuitBreakerRegistry>();
 		services.TryAddSingleton<FinalDispatchHandler>();
@@ -331,7 +344,12 @@ public static class DispatchServiceCollectionExtensions
 					{
 						var messageType = descriptor.ServiceType.GetGenericArguments()[0];
 						// keyed-safe accessors handle the keyed/non-keyed distinction.
-						var handlerType = descriptor.GetImplementationType() ?? descriptor.GetImplementationInstance()?.GetType();
+						// Refused rather than skipped: a descriptor with no implementation type contributes no
+						// index entry, and an unindexed handler is registered, resolvable, and never invoked.
+						var handlerType = HandlerRegistry.RequireIndexableHandlerType(
+							descriptor.ServiceType,
+							descriptor.GetImplementationType(),
+							descriptor.GetImplementationInstance());
 
 						if (handlerType is { IsAbstract: false, IsInterface: false })
 						{
@@ -464,9 +482,6 @@ public static class DispatchServiceCollectionExtensions
 		}
 
 		// Apply default performance promotion without calling Build().
-		// Build() replaces IDispatchMiddlewareInvoker with a builder-materialized snapshot,
-		// which would prevent any middleware registered later (via AddDispatchMiddleware<T>())
-		// from being discovered by the legacy GetServices<IDispatchMiddleware>() path.
 		_ = services.Configure<DispatchOptions>(static opt =>
 			opt.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = true);
 
@@ -474,12 +489,20 @@ public static class DispatchServiceCollectionExtensions
 		// continues the composition rather than starting one beside it.
 		var builder = new DispatchBuilder(services);
 
-		// This route deliberately never calls Build() (see the comment above), so it must reach the two
-		// registrations Build() would otherwise apply directly -- otherwise a composition assembled through
-		// this overload validates nothing at start-up and gets neither the empty-composition warning nor the
-		// fail-closed authorization guard that AddDispatch(configure) callers receive.
+		// This route never calls Build(), so it must reach the registrations Build() would otherwise apply
+		// directly -- otherwise a composition assembled through this overload validates nothing at start-up
+		// and gets neither the empty-composition warning nor the fail-closed authorization guard that
+		// AddDispatch(configure) callers receive.
 		builder.RegisterOptions();
 		builder.RegisterStartupSafetyNets();
+
+		// The pipeline itself, registered as a factory that runs when it is first resolved. This is what
+		// makes the builder returned below a live one: a Use*() chained off it lands in the composition the
+		// factory reads, so it is in the pipeline. Without it this route composed only from
+		// IDispatchMiddleware registrations and every Use*() made here was accepted and silently ignored.
+		// Middleware registered later through AddDispatchMiddleware<T>() is still seen: the composed
+		// pipeline unions in the registered IDispatchMiddleware set when it is built.
+		builder.RegisterPipelineComposition();
 
 		return builder;
 	}
@@ -581,7 +604,8 @@ public static class DispatchServiceCollectionExtensions
 		// Materialize pipelines — without this call, ConfigurePipeline() configurations are silently lost.
 		// Build() also registers the empty-composition warning and the fail-closed authorization guard
 		// (DispatchBuilder.RegisterStartupSafetyNets()) — the params route (AddDispatch(Assembly[]), which
-		// deliberately never calls Build()) reaches the same two registrations by calling that method directly.
+		// never calls Build()) reaches the same registrations, and the same deferred pipeline composition,
+		// by calling those methods directly.
 		_ = builder.Build();
 
 		return builder;
@@ -645,8 +669,8 @@ public static class DispatchServiceCollectionExtensions
 	{
 		services.TryAddSingleton<TMiddleware>();
 
-		// Also register as IDispatchMiddleware so the legacy GetServices<IDispatchMiddleware>()
-		// discovery path (used when DispatchBuilder.Build() hasn't run) can find it.
+		// Also register as IDispatchMiddleware: the composed pipeline unions in every registered
+		// IDispatchMiddleware when it is first resolved, which is how this middleware reaches it.
 		_ = services.AddSingleton<IDispatchMiddleware>(static sp => sp.GetRequiredService<TMiddleware>());
 
 		return services;

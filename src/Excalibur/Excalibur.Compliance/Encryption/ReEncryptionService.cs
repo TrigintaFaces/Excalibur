@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -66,13 +66,7 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 
 			foreach (var prop in encryptedProperties)
 			{
-				var value = (byte[]?)prop.GetValue(entity);
-				if (value is null || value.Length == 0)
-				{
-					continue;
-				}
-
-				if (!EncryptedData.IsFieldEncrypted(value))
+				if (!EncryptedFieldBinding.TryReadEnvelope(prop, entity, out var value))
 				{
 					continue;
 				}
@@ -82,7 +76,7 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 					context,
 					cancellationToken).ConfigureAwait(false);
 
-				prop.SetValue(entity, reEncrypted);
+				EncryptedFieldBinding.WriteEnvelope(prop, entity, reEncrypted);
 				fieldsReEncrypted++;
 				sourceProviderId ??= source;
 				targetProviderId ??= target;
@@ -219,8 +213,14 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 		cancellationToken.ThrowIfCancellationRequested();
 		ArgumentOutOfRangeException.ThrowIfNegative(itemCount);
 
-		// Detect encrypted fields on the entity type
-		var encryptedProps = GetEncryptedProperties<T>();
+		// Detect encrypted fields on the entity type.
+		//
+		// An ESTIMATE reports; it does not refuse. An annotation that cannot be honoured is surfaced as a
+		// warning rather than thrown, because refusing would deny this method the answer it exists to
+		// produce — and a type carrying one good annotation beside one bad one must estimate as one field
+		// plus a warning, not as a failure. The paths that actually ENCRYPT call Select, which refuses,
+		// because proceeding there would leave a field unprotected in silence.
+		var encryptedProps = EncryptedFieldBinding.Inspect(typeof(T), out var unhonourable);
 		var fieldsPerItem = encryptedProps.Length;
 
 		if (fieldsPerItem == 0)
@@ -231,7 +231,7 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 				EstimatedFieldsPerItem = 0,
 				EstimatedDuration = TimeSpan.Zero,
 				IsSampled = false,
-				Warnings = [$"No encrypted fields found on entity type {typeof(T).Name}"],
+				Warnings = [$"No encrypted fields found on entity type {typeof(T).Name}", .. unhonourable],
 			});
 		}
 
@@ -252,17 +252,13 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 			EstimatedFieldsPerItem = fieldsPerItem,
 			EstimatedDuration = estimatedDuration,
 			IsSampled = false,
-			Warnings = [],
+			Warnings = [.. unhonourable],
 		});
 	}
 
 	private static PropertyInfo[] GetEncryptedProperties<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>()
 	{
-		return [.. typeof(T)
-			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-			.Where(p => p.PropertyType == typeof(byte[]) &&
-						p.GetCustomAttribute<EncryptedFieldAttribute>() is not null &&
-						p.CanRead && p.CanWrite)];
+		return EncryptedFieldBinding.Select<T>();
 	}
 
 	private static EncryptedData DeserializeEncryptedData(byte[] data)
@@ -327,6 +323,35 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 		ReEncryptionContext context,
 		CancellationToken cancellationToken)
 	{
+		// THE IDENTITY NEVER COMES FROM THE VALUE. Without a caller-supplied context this method used to
+		// build one from the envelope itself - its KeyId, its KeyVersion and its TenantId - so the data
+		// being re-encrypted chose the key it was fetched under and asserted the tenant it belonged to.
+		// Anyone able to write the stored column could therefore steer provider and key selection and
+		// claim a tenant identity they have no right to: a confused deputy, with the store as the deputy.
+		//
+		// AN EARLIER VERSION OF THIS GUARD APPLIED ONLY TO A STRING CARRIER, on the reasoning that a
+		// varchar column is consumer-writable while opaque bytes are not. THAT DISTINCTION IS WRONG and is
+		// removed here: a varbinary column is exactly as writable as a varchar one by anyone with write
+		// access to the row, so the threat model is type-agnostic. The string carrier widened the affected
+		// COLUMN POPULATION; it did not create the hole and it never bounded it.
+		//
+		// Refused BEFORE the envelope is parsed, which matters twice: the key lookup happens ahead of any
+		// decryption, so a steered fetch is not undone by a later authentication failure - and where the
+		// provider is NOT authenticated encryption there is no later failure at all, since
+		// IEncryptionProvider only says implementations SHOULD use AES-256-GCM. Refusing ahead of the
+		// parse also means a value we have already decided not to trust is never deserialized.
+		// Bound in the guard rather than re-read below, so the non-null fact is carried by the language
+		// instead of asserted with a null-forgiving operator. The refusal and the value it authorises are
+		// then one statement, and no later edit can reintroduce a fallback without deleting this line.
+		if (context.EncryptionContext is not { } encryptionContext)
+		{
+			throw new EncryptionException(
+				"Re-encrypting an [EncryptedField] requires an explicit EncryptionContext. Without one the " +
+				"key and tenant would be read from the stored value itself, which anyone with write access " +
+				"to the row can set, so the value could name a tenant whose key it has no claim to. Supply " +
+				"ReEncryptionContext.EncryptionContext naming the tenant and key being re-encrypted under.");
+		}
+
 		// Deserialize the encrypted data envelope
 		var encryptedData = DeserializeEncryptedData(data);
 
@@ -380,13 +405,8 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 			return (data, sourceProviderId, targetProviderId);
 		}
 
-		// Decrypt with source provider
-		var encryptionContext = context.EncryptionContext ?? new EncryptionContext
-		{
-			KeyId = encryptedData.KeyId,
-			KeyVersion = encryptedData.KeyVersion,
-			TenantId = encryptedData.TenantId,
-		};
+		// No envelope-derived fallback here, deliberately: this is the site the guard at the top of the
+		// method exists to protect, and the context it bound is the only identity in play.
 
 		var plaintext = await sourceProvider.DecryptAsync(encryptedData, encryptionContext, cancellationToken).ConfigureAwait(false);
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
 using System.Text.Json;
@@ -163,7 +163,8 @@ public sealed class InboxDrainQueueBoundShould
 				provider,
 				new DispatchJsonSerializer(),
 				NullLogger<InboxProcessor>.Instance,
-				deduplicationStore: deduplicationStore);
+				deduplicationStore: deduplicationStore,
+				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 			processor.Init("dispatcher-queue-bound");
 

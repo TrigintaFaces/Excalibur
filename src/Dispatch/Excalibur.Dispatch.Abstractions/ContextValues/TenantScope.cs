@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch;
 
@@ -164,6 +164,11 @@ public readonly struct TenantScope : IEquatable<TenantScope>
 	/// </para>
 	/// </remarks>
 	/// <exception cref="TenantRequiredException"><paramref name="tenantId"/> is null or whitespace.</exception>
+	/// <exception cref="ArgumentException">
+	/// <paramref name="tenantId"/> is longer than <see cref="Excalibur.Dispatch.TenantId.MaxLength"/>
+	/// characters. The sentinel is answered before the conversion, so the reserved-name rejection in
+	/// <see cref="Scoped(string?)"/> is not reachable from here.
+	/// </exception>
 	internal static TenantScope FromTenantTerm(string? tenantId)
 		=> string.Equals(tenantId, UntenantedSentinel, StringComparison.Ordinal)
 			? Untenanted
@@ -195,6 +200,12 @@ public readonly struct TenantScope : IEquatable<TenantScope>
 	/// <exception cref="TenantRequiredException">
 	/// <paramref name="tenantContext"/> resolves a null/whitespace tenant (multi-tenancy active but
 	/// unresolved) — the store fails closed rather than binding a tenant the caller never established.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// <paramref name="tenantContext"/> resolves a tenant longer than
+	/// <see cref="Excalibur.Dispatch.TenantId.MaxLength"/> characters. The ambient holder refuses such an
+	/// id when the scope is established, so this is reachable only from a context that obtained its id
+	/// elsewhere — a custom <see cref="ITenantContext"/> is the usual source.
 	/// </exception>
 	public static TenantScope FromContext(ITenantContext tenantContext)
 	{

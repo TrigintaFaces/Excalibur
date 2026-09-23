@@ -491,6 +491,10 @@ Excalibur.Dispatch.Transport.SendResult.Partition.init -> void
 Excalibur.Dispatch.Transport.SendResult.SendResult() -> void
 Excalibur.Dispatch.Transport.SendResult.SequenceNumber.get -> long?
 Excalibur.Dispatch.Transport.SendResult.SequenceNumber.init -> void
+Excalibur.Dispatch.Transport.SettlementRetryability
+Excalibur.Dispatch.Transport.SettlementRetryability.Permanent = 2 -> Excalibur.Dispatch.Transport.SettlementRetryability
+Excalibur.Dispatch.Transport.SettlementRetryability.Retryable = 1 -> Excalibur.Dispatch.Transport.SettlementRetryability
+Excalibur.Dispatch.Transport.SettlementRetryability.Unspecified = 0 -> Excalibur.Dispatch.Transport.SettlementRetryability
 Excalibur.Dispatch.Transport.TransportConnectionBase
 Excalibur.Dispatch.Transport.TransportConnectionBase.ConnectAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.TransportConnectionBase.DisposeAsync() -> System.Threading.Tasks.ValueTask
@@ -551,6 +555,10 @@ Excalibur.Dispatch.Transport.TransportReceivedMessage.Source.set -> void
 Excalibur.Dispatch.Transport.TransportReceivedMessage.Subject.get -> string?
 Excalibur.Dispatch.Transport.TransportReceivedMessage.Subject.set -> void
 Excalibur.Dispatch.Transport.TransportReceivedMessage.TransportReceivedMessage() -> void
+Excalibur.Dispatch.Transport.TransportRedeliveryExpectation
+Excalibur.Dispatch.Transport.TransportRedeliveryExpectation.Expected = 1 -> Excalibur.Dispatch.Transport.TransportRedeliveryExpectation
+Excalibur.Dispatch.Transport.TransportRedeliveryExpectation.NotExpected = 2 -> Excalibur.Dispatch.Transport.TransportRedeliveryExpectation
+Excalibur.Dispatch.Transport.TransportRedeliveryExpectation.Unspecified = 0 -> Excalibur.Dispatch.Transport.TransportRedeliveryExpectation
 Excalibur.Dispatch.Transport.TransportRetryPolicyOptions
 Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.BaseDelayMs.get -> int
 Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.BaseDelayMs.set -> void
@@ -576,6 +584,16 @@ Excalibur.Dispatch.Transport.TransportSecurityOptions
 Excalibur.Dispatch.Transport.TransportSecurityOptions.RequireTls.get -> bool
 Excalibur.Dispatch.Transport.TransportSecurityOptions.RequireTls.set -> void
 Excalibur.Dispatch.Transport.TransportSecurityOptions.TransportSecurityOptions() -> void
+Excalibur.Dispatch.Transport.TransportSettlementException
+Excalibur.Dispatch.Transport.TransportSettlementException.RedeliveryExpectation.get -> Excalibur.Dispatch.Transport.TransportRedeliveryExpectation
+Excalibur.Dispatch.Transport.TransportSettlementException.RedeliveryExpectation.init -> void
+Excalibur.Dispatch.Transport.TransportSettlementException.Retryability.get -> Excalibur.Dispatch.Transport.SettlementRetryability
+Excalibur.Dispatch.Transport.TransportSettlementException.Retryability.init -> void
+Excalibur.Dispatch.Transport.TransportSettlementException.TransportName.get -> string?
+Excalibur.Dispatch.Transport.TransportSettlementException.TransportName.init -> void
+Excalibur.Dispatch.Transport.TransportSettlementException.TransportSettlementException() -> void
+Excalibur.Dispatch.Transport.TransportSettlementException.TransportSettlementException(string! message) -> void
+Excalibur.Dispatch.Transport.TransportSettlementException.TransportSettlementException(string! message, System.Exception! innerException) -> void
 Microsoft.Extensions.DependencyInjection.CloudEventEncoderServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.TransportSerializationServiceCollectionExtensions
@@ -596,6 +614,7 @@ static Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilderExtension
 static Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilderExtensions.UseTelemetry(this Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilder! builder, string! transportName, System.Diagnostics.Metrics.Meter! meter, System.Diagnostics.ActivitySource! activitySource) -> Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilder!
 static Excalibur.Dispatch.Transport.CloudEventBinding.Amqp10.get -> Excalibur.Dispatch.Transport.CloudEventBinding!
 static Excalibur.Dispatch.Transport.CloudEventBinding.HouseConvention.get -> Excalibur.Dispatch.Transport.CloudEventBinding!
+static Excalibur.Dispatch.Transport.CloudEventBinding.IbmMq.get -> Excalibur.Dispatch.Transport.CloudEventBinding!
 static Excalibur.Dispatch.Transport.CloudEventBinding.Kafka.get -> Excalibur.Dispatch.Transport.CloudEventBinding!
 static Excalibur.Dispatch.Transport.CloudEventBinding.Mqtt.get -> Excalibur.Dispatch.Transport.CloudEventBinding!
 static Excalibur.Dispatch.Transport.CloudEventBinding.StructuredOnly.get -> Excalibur.Dispatch.Transport.CloudEventBinding!

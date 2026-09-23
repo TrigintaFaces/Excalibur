@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Cdc.Postgres.Diagnostics;
 
@@ -41,4 +41,15 @@ internal static class CdcPostgresEventId
 
 	/// <summary>CDC fatal (non-retryable) error — processor stops instead of reconnecting.</summary>
 	public const int CdcFatalError = 102309;
+
+	/// <summary>Synchronous Dispose() could not release the replication connection.</summary>
+	public const int CdcSyncDisposeLeaksReplicationConnection = 102310;
+
+	/// <summary>
+	/// An overlapping replication call found a loop already running and returned without processing.
+	/// Specified single-flight behaviour, not an error — but it is logged so a host that is persistently
+	/// overlapping (a timer firing faster than a batch drains) can see it rather than infer it from
+	/// throughput.
+	/// </summary>
+	public const int CdcConcurrentInvocationSkipped = 102311;
 }

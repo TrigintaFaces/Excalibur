@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // ============================================================================
 // QuickDemo - Interactive Event Dispatch Demo
@@ -37,12 +37,25 @@ await host.StartAsync().ConfigureAwait(false);
 
 var dispatcher = host.Services.GetRequiredService<IDispatcher>();
 
-Console.WriteLine("Press any key to simulate orders (ESC to exit):");
+// Console.ReadKey throws when there is no console to read from -- a piped or redirected stdin, a
+// container started without a TTY, an IDE run window, a CI job. Detect that once and replay a fixed
+// script instead, so the same sample works in both places rather than crashing in one of them.
+const int ScriptedOrderCount = 3;
+var interactive = !Console.IsInputRedirected;
+
+if (interactive)
+{
+	Console.WriteLine("Press any key to simulate orders (ESC to exit):");
+}
+else
+{
+	Console.WriteLine($"No interactive console detected — dispatching {ScriptedOrderCount} scripted orders.");
+}
+
 Console.WriteLine();
 
-// Demonstration loop - generate sample order amounts
 var orderCount = 0;
-while (Console.ReadKey(true).Key != ConsoleKey.Escape)
+while (interactive ? Console.ReadKey(true).Key != ConsoleKey.Escape : orderCount < ScriptedOrderCount)
 {
 	orderCount++;
 	var orderId = Guid.NewGuid();
@@ -63,7 +76,7 @@ while (Console.ReadKey(true).Key != ConsoleKey.Escape)
 }
 
 Console.WriteLine();
-Console.WriteLine("Shutting down...");
+Console.WriteLine($"Dispatched {orderCount} order(s). Shutting down...");
 await host.StopAsync().ConfigureAwait(false);
 
 namespace QuickDemo

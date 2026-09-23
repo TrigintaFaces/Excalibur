@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Governance.AccessReviews;
 using Excalibur.A3.Governance.Events;
@@ -37,6 +37,7 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 	/// Creates a new access review campaign.
 	/// </summary>
 	/// <param name="campaignId">Unique campaign identifier.</param>
+	/// <param name="tenantId">The tenant whose grants the campaign reviews.</param>
 	/// <param name="campaignName">Display name.</param>
 	/// <param name="scope">The scope defining which grants to review.</param>
 	/// <param name="createdBy">The actor creating the campaign.</param>
@@ -46,6 +47,7 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 	/// <param name="items">The grants to review (populated from scope query at creation).</param>
 	public AccessReviewCampaign(
 		string campaignId,
+		string tenantId,
 		string campaignName,
 		AccessReviewScope scope,
 		string createdBy,
@@ -55,6 +57,7 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 		IReadOnlyList<AccessReviewItem> items)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(campaignId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
 		ArgumentException.ThrowIfNullOrEmpty(campaignName);
 		ArgumentNullException.ThrowIfNull(scope);
 		ArgumentException.ThrowIfNullOrEmpty(createdBy);
@@ -68,6 +71,7 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 		RaiseEvent(new AccessReviewCampaignCreated
 		{
 			CampaignId = campaignId,
+			TenantId = tenantId,
 			CampaignName = campaignName,
 			Scope = scope,
 			CreatedBy = createdBy,
@@ -77,6 +81,11 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 			Items = items,
 		});
 	}
+
+	/// <summary>
+	/// Gets the tenant whose grants the campaign reviews.
+	/// </summary>
+	public string TenantId { get; private set; } = string.Empty;
 
 	/// <summary>
 	/// Gets the campaign display name.
@@ -258,6 +267,7 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 	/// </summary>
 	internal AccessReviewCampaignSummary ToSummary() => new(
 		CampaignId: Id,
+		TenantId: TenantId,
 		CampaignName: CampaignName,
 		Scope: Scope,
 		CreatedBy: CreatedBy,
@@ -296,6 +306,7 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 	private void Apply(AccessReviewCampaignCreated e)
 	{
 		Id = e.CampaignId;
+		TenantId = e.TenantId;
 		CampaignName = e.CampaignName;
 		Scope = e.Scope;
 		CreatedBy = e.CreatedBy;

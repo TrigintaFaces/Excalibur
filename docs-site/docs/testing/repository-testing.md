@@ -33,7 +33,7 @@ Repository tests verify that aggregates can be saved to and loaded from the even
 
 For fast integration tests without external dependencies:
 
-```csharp
+```csharp ignore
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing;
 

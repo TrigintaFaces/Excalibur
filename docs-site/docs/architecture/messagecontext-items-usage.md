@@ -136,11 +136,25 @@ context.Items["RoutedTimestamp"] = DateTimeOffset.UtcNow;
 ### Distributed Tracing Context
 
 ```csharp
-// Set by DispatchContextInitializer for W3C Baggage propagation
+// Set by DispatchContextInitializer — only for keys the application allowed by name
 context.Items[$"baggage.{key}"] = value;
 ```
 
 **Rationale**: W3C Baggage entries are user-defined with unpredictable keys.
+
+**Nothing is copied unless you opt the key in.** The runtime parses an inbound `baggage` header into the ambient activity without being asked, so on a publicly reachable endpoint those keys and values are chosen by the caller. Copying them here would put caller-supplied data onto the wire for remote transports and into every downstream log, telemetry sink and store. Name the keys you want:
+
+```csharp
+services.Configure<BaggagePropagationOptions>(o =>
+{
+    o.AllowedKeys.Add("tenant-hint");   // copied as context.Items["baggage.tenant-hint"]
+    o.MaxEntries = 8;                   // caps apply after the allowlist
+    o.MaxValueLength = 256;             // an oversized value is DROPPED, never truncated
+    o.MaxTotalLength = 1024;
+});
+```
+
+The allowlist and the caps solve different problems and neither substitutes for the other: the allowlist keeps untrusted values out of trusted sinks, and the caps bound how much a *permitted* key can amplify — one cheap request riding every downstream message.
 
 ## Internal Framework Usage
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Fluent;
@@ -59,6 +59,19 @@ public sealed class CosmosDbEventStoreContainerFixture : ContainerFixtureBase
 	/// Gets the emulator HttpClient (trusts the self-signed cert).
 	/// </summary>
 	public HttpClient EmulatorHttpClient => _container?.HttpClient
+		?? throw new InvalidOperationException("Container not initialized");
+
+	/// <summary>
+	/// Gets the emulator's message handler — the transport underneath <see cref="EmulatorHttpClient"/>.
+	/// </summary>
+	/// <remarks>
+	/// Exposed so a suite can compose a <see cref="DelegatingHandler"/> ON TOP of the real transport rather
+	/// than building its own. The emulator advertises its own address on the container-internal port, so
+	/// this handler re-aims each request at the mapped host port as well as accepting the self-signed
+	/// certificate; a hand-built <c>HttpClientHandler</c> skips that rewrite and every request is refused
+	/// at a port nothing is listening on.
+	/// </remarks>
+	public HttpMessageHandler EmulatorHttpMessageHandler => _container?.HttpMessageHandler
 		?? throw new InvalidOperationException("Container not initialized");
 
 	/// <inheritdoc/>

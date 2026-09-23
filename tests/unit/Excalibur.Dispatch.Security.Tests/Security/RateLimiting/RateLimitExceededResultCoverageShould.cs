@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Routing;
@@ -37,7 +37,6 @@ public sealed class RateLimitExceededResultCoverageShould
             ValidationResult = "validation",
             AuthorizationResult = "authorization",
             ErrorMessage = "Rate limit exceeded",
-            CacheHit = true,
             RetryAfterMilliseconds = 3000,
             RateLimitKey = "tenant:abc",
         };
@@ -49,7 +48,6 @@ public sealed class RateLimitExceededResultCoverageShould
         result.ValidationResult.ShouldBe("validation");
         result.AuthorizationResult.ShouldBe("authorization");
         result.ErrorMessage!.ShouldBe("Rate limit exceeded");
-        result.CacheHit.ShouldBeTrue();
         result.RetryAfterMilliseconds.ShouldBe(3000);
         result.RateLimitKey.ShouldBe("tenant:abc");
     }
@@ -67,7 +65,6 @@ public sealed class RateLimitExceededResultCoverageShould
         result.AuthorizationResult.ShouldBeNull();
         result.ErrorMessage!.ShouldBeNull();
         result.RateLimitKey.ShouldBeNull();
-        result.CacheHit.ShouldBeFalse();
         result.Succeeded.ShouldBeFalse();
         result.RetryAfterMilliseconds.ShouldBe(0);
     }

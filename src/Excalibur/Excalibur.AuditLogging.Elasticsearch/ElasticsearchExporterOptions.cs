@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
 
@@ -51,13 +51,13 @@ public sealed class ElasticsearchExporterOptions
 	public int BulkBatchSize { get; set; } = 500;
 
 	/// <summary>
-	/// Gets or sets the refresh policy for index operations.
+	/// Gets or sets the refresh policy applied to the bulk write.
 	/// </summary>
-	/// <remarks>
-	/// Valid values: "true" (immediate), "wait_for" (wait until refreshed), "false" (no refresh).
-	/// Default is "false" for optimal performance.
-	/// </remarks>
-	public string RefreshPolicy { get; set; } = "false";
+	/// <value>
+	/// The refresh policy. Defaults to <see cref="ElasticsearchAuditRefreshPolicy.None"/>, which is the right default for an
+	/// audit path: the write must be durable, and it does not need to be searchable in the same breath.
+	/// </value>
+	public ElasticsearchAuditRefreshPolicy RefreshPolicy { get; set; } = ElasticsearchAuditRefreshPolicy.None;
 
 	/// <summary>
 	/// Gets or sets the optional API key for authentication.

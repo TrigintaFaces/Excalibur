@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Net.Http.Json;
 
@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using Shouldly;
 
 using Tests.Shared.Conformance.Inbox;
+using Excalibur.Data.ElasticSearch.Persistence;
 
 namespace Excalibur.Integration.Tests.Data.Inbox;
 
@@ -44,6 +45,10 @@ public sealed class ElasticsearchInboxStoreConformanceShould : InboxStoreConform
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>The same context <see cref="CreateStoreAsync"/> hands the store.</remarks>
+	protected override ITenantContext StoreTenantContext => SingleTenantTestContext.Instance;
+
+	/// <inheritdoc/>
 	protected override Task<IInboxStore> CreateStoreAsync()
 	{
 		_fixture.DockerAvailable.ShouldBeTrue(
@@ -54,7 +59,7 @@ public sealed class ElasticsearchInboxStoreConformanceShould : InboxStoreConform
 		var options = Options.Create(new ElasticsearchInboxOptions
 		{
 			IndexName = _fixture.IndexName,
-			RefreshPolicy = "wait_for",
+			RefreshPolicy = ElasticsearchRefreshPolicy.WaitFor,
 		});
 
 		var store = new ElasticsearchInboxStore(

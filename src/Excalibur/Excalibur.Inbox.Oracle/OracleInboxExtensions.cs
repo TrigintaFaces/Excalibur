@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Inbox;
@@ -47,6 +47,14 @@ public static class OracleInboxExtensions
 		services.AddKeyedSingleton<IInboxStore>("oracle", (sp, _) => sp.GetRequiredService<OracleInboxStore>());
 		services.AddInboxSchemaValidation();
 		services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<OracleInboxStore>());
+		// Non-keyed convenience alias, so a host that calls only this extension can inject
+		// IInboxStore without [FromKeyedServices]. AddTenantAwareStore registers the CONCRETE store --
+		// it infers the service type from the factory, not from the contract -- so without this the
+		// contract this method is named for resolves to nothing, and the consumer meets it at startup.
+		// Forwards to keyed "default" so the keyed and non-keyed views can never disagree; TryAdd so a
+		// consumer's own registration still wins.
+		services.TryAddSingleton<IInboxStore>(static sp => sp.GetRequiredKeyedService<IInboxStore>("default"));
+
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("oracle"));
 
@@ -87,6 +95,14 @@ public static class OracleInboxExtensions
 		services.AddKeyedSingleton<IInboxStore>("oracle", (sp, _) => sp.GetRequiredService<OracleInboxStore>());
 		services.AddInboxSchemaValidation();
 		services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<OracleInboxStore>());
+		// Non-keyed convenience alias, so a host that calls only this extension can inject
+		// IInboxStore without [FromKeyedServices]. AddTenantAwareStore registers the CONCRETE store --
+		// it infers the service type from the factory, not from the contract -- so without this the
+		// contract this method is named for resolves to nothing, and the consumer meets it at startup.
+		// Forwards to keyed "default" so the keyed and non-keyed views can never disagree; TryAdd so a
+		// consumer's own registration still wins.
+		services.TryAddSingleton<IInboxStore>(static sp => sp.GetRequiredKeyedService<IInboxStore>("default"));
+
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("oracle"));
 

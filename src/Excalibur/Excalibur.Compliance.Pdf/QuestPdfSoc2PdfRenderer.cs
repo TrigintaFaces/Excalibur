@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 
@@ -214,7 +214,7 @@ internal sealed class QuestPdfSoc2PdfRenderer : ISoc2PdfRenderer
 			_ = col.Item().PaddingTop(25).Text(
 					$"Period: {report.PeriodStart:yyyy-MM-dd} to {report.PeriodEnd:yyyy-MM-dd}")
 				.FontSize(12);
-			_ = col.Item().Text($"Opinion: {report.Opinion}").FontSize(12);
+			_ = col.Item().Text($"Self-assessed compliance level: {report.OverallLevel}").FontSize(12);
 			_ = col.Item().Text($"Report ID: {report.ReportId}")
 				.FontSize(10).FontColor(Colors.Grey.Medium);
 
@@ -267,7 +267,7 @@ internal sealed class QuestPdfSoc2PdfRenderer : ISoc2PdfRenderer
 				row.RelativeItem().Column(left =>
 				{
 					_ = left.Item().Text($"Report Type: {report.ReportType}");
-					_ = left.Item().Text($"Opinion: {report.Opinion}");
+					_ = left.Item().Text($"Self-assessed compliance level: {report.OverallLevel}");
 					_ = left.Item().Text($"Report ID: {report.ReportId}");
 				});
 				row.RelativeItem().Column(right =>

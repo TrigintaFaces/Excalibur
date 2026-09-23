@@ -18,7 +18,7 @@ public sealed class RetentionEnforcementServiceShould
 		_options = new RetentionEnforcementOptions();
 		_sut = new RetentionEnforcementService(
 			Microsoft.Extensions.Options.Options.Create(_options),
-			NullLogger<RetentionEnforcementService>.Instance);
+			[RetentionPolicyDeclaration.ForType(typeof(DeclaredRetentionSubject))], TimeProvider.System, NullLogger<RetentionEnforcementService>.Instance);
 	}
 
 	[Fact]
@@ -27,7 +27,7 @@ public sealed class RetentionEnforcementServiceShould
 		var result = await _sut.EnforceRetentionAsync(CancellationToken.None);
 
 		result.ShouldNotBeNull();
-		result.PoliciesEvaluated.ShouldBeGreaterThanOrEqualTo(0);
+		result.PoliciesEvaluated.ShouldBe(1);
 		result.RecordsCleaned.ShouldBe(0);
 		result.IsDryRun.ShouldBeFalse();
 		result.CompletedAt.ShouldNotBe(default);
@@ -40,7 +40,7 @@ public sealed class RetentionEnforcementServiceShould
 
 		var sut = new RetentionEnforcementService(
 			Microsoft.Extensions.Options.Options.Create(_options),
-			NullLogger<RetentionEnforcementService>.Instance);
+			[RetentionPolicyDeclaration.ForType(typeof(DeclaredRetentionSubject))], TimeProvider.System, NullLogger<RetentionEnforcementService>.Instance);
 
 		var result = await sut.EnforceRetentionAsync(CancellationToken.None);
 
@@ -52,25 +52,21 @@ public sealed class RetentionEnforcementServiceShould
 	{
 		var policies = await _sut.GetRetentionPoliciesAsync(CancellationToken.None);
 
-		policies.ShouldNotBeNull();
+		policies.ShouldHaveSingleItem().RetentionDays.ShouldBe(30);
 	}
 
 	[Fact]
 	public void Throw_when_options_is_null()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => new RetentionEnforcementService(
-				null!,
-				NullLogger<RetentionEnforcementService>.Instance));
+			() => new RetentionEnforcementService(null!, [RetentionPolicyDeclaration.ForType(typeof(DeclaredRetentionSubject))], TimeProvider.System, NullLogger<RetentionEnforcementService>.Instance));
 	}
 
 	[Fact]
 	public void Throw_when_logger_is_null()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => new RetentionEnforcementService(
-				Microsoft.Extensions.Options.Options.Create(new RetentionEnforcementOptions()),
-				null!));
+			() => new RetentionEnforcementService(Microsoft.Extensions.Options.Options.Create(new RetentionEnforcementOptions()), [RetentionPolicyDeclaration.ForType(typeof(DeclaredRetentionSubject))], TimeProvider.System, null!));
 	}
 }
 

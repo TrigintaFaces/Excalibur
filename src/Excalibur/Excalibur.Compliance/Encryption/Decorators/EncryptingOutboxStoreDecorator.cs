@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
 
@@ -66,7 +66,6 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 
 	private readonly IEncryptionProviderRegistry _registry;
 	private readonly IOptions<EncryptionOptions> _options;
-	private readonly EncryptionContext _defaultContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EncryptingOutboxStoreDecorator" /> class.
@@ -74,6 +73,11 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	/// <param name="inner"> The underlying outbox store to decorate. </param>
 	/// <param name="registry"> The encryption provider registry for multi-provider support. </param>
 	/// <param name="options"> The encryption configuration options. </param>
+	/// <remarks>
+	/// The tenant bound into each payload's Additional Authenticated Data is the tenant the MESSAGE
+	/// carries, never the ambient tenant: the outbox is drained for every tenant from outside any tenant
+	/// scope, so only the record's own tenant can be re-derived at drain time.
+	/// </remarks>
 	public EncryptingOutboxStoreDecorator(
 		IOutboxStore inner,
 		IEncryptionProviderRegistry registry,
@@ -82,12 +86,6 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	{
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
-		_defaultContext = new EncryptionContext
-		{
-			Purpose = options.Value.DefaultPurpose,
-			TenantId = options.Value.DefaultTenantId,
-			RequireFipsCompliance = options.Value.RequireFipsCompliance
-		};
 	}
 
 	/// <inheritdoc />
@@ -152,7 +150,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		message.Payload = await EncryptForWriteAsync(message.Payload, cancellationToken).ConfigureAwait(false);
+		message.Payload = await EncryptForWriteAsync(message.Payload, message.TenantId, cancellationToken).ConfigureAwait(false);
 
 		await Inner.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
 	}
@@ -240,7 +238,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		{
 			ArgumentNullException.ThrowIfNull(inboxEntry);
 
-			inboxEntry.Payload = await owner.EncryptForWriteAsync(inboxEntry.Payload, cancellationToken).ConfigureAwait(false);
+			inboxEntry.Payload = await owner.EncryptForWriteAsync(inboxEntry.Payload, inboxEntry.TenantId, cancellationToken).ConfigureAwait(false);
 
 			return await inner.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken).ConfigureAwait(false);
 		}
@@ -260,7 +258,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		{
 			ArgumentNullException.ThrowIfNull(message);
 
-			message.Payload = await owner.EncryptForWriteAsync(message.Payload, cancellationToken).ConfigureAwait(false);
+			message.Payload = await owner.EncryptForWriteAsync(message.Payload, message.TenantId, cancellationToken).ConfigureAwait(false);
 
 			await inner.StageMessageWithTransportsAsync(message, transports, cancellationToken).ConfigureAwait(false);
 		}
@@ -382,7 +380,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	/// Encrypts a payload on its way to the decorated store, honouring the configured <see cref="EncryptionMode"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException"> Thrown when the store is configured read-only. </exception>
-	private async ValueTask<byte[]> EncryptForWriteAsync(byte[] payload, CancellationToken cancellationToken)
+	private async ValueTask<byte[]> EncryptForWriteAsync(byte[] payload, string? tenantId, CancellationToken cancellationToken)
 	{
 		var mode = _options.Value.Mode;
 
@@ -393,7 +391,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		}
 
 		return mode is EncryptionMode.EncryptAndDecrypt or EncryptionMode.EncryptNewDecryptAll
-			? await EncryptPayloadAsync(payload, cancellationToken).ConfigureAwait(false)
+			? await EncryptPayloadAsync(payload, tenantId, cancellationToken).ConfigureAwait(false)
 			: payload;
 	}
 
@@ -401,7 +399,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	{
 		if (EncryptedData.IsFieldEncrypted(message.Payload))
 		{
-			message.Payload = await TryDecryptFieldAsync(message.Payload, cancellationToken).ConfigureAwait(false);
+			message.Payload = await TryDecryptFieldAsync(message.Payload, message.TenantId, cancellationToken).ConfigureAwait(false);
 		}
 
 		return message;
@@ -443,14 +441,14 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		return results;
 	}
 
-	private async ValueTask<byte[]> EncryptPayloadAsync(byte[] data, CancellationToken cancellationToken)
+	private async ValueTask<byte[]> EncryptPayloadAsync(byte[] data, string? tenantId, CancellationToken cancellationToken)
 	{
 		var provider = _registry.GetPrimary();
-		var encryptedData = await provider.EncryptAsync(data, _defaultContext, cancellationToken).ConfigureAwait(false);
+		var encryptedData = await provider.EncryptAsync(data, ContextFor(tenantId), cancellationToken).ConfigureAwait(false);
 		return SerializeEncryptedData(encryptedData);
 	}
 
-	private async ValueTask<byte[]> TryDecryptFieldAsync(byte[] data, CancellationToken cancellationToken)
+	private async ValueTask<byte[]> TryDecryptFieldAsync(byte[] data, string? tenantId, CancellationToken cancellationToken)
 	{
 		if (!EncryptedData.IsFieldEncrypted(data))
 		{
@@ -462,7 +460,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 			?? throw new EncryptionException(
 				Resources.Encryption_NoProviderCanDecryptKeyRemoved);
 
-		return await provider.DecryptAsync(encryptedData, _defaultContext, cancellationToken).ConfigureAwait(false);
+		return await provider.DecryptAsync(encryptedData, ContextFor(tenantId), cancellationToken).ConfigureAwait(false);
 	}
 		private static byte[] SerializeEncryptedData(EncryptedData encryptedData)
 	{
@@ -483,4 +481,19 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 			EncryptionJsonContext.Default.EncryptedData)
 			?? throw new EncryptionException(Resources.Encryption_EncryptedDataEnvelopeDeserializeFailed);
 	}
+
+	/// <summary>
+	/// Builds the encryption context for one record, binding the tenant that RECORD belongs to.
+	/// </summary>
+	/// <remarks>
+	/// The tenant is normalised through the stores' own read-back conversion, so a message staged with no
+	/// tenant and drained carrying the untenanted sentinel binds the same value on both sides. A different
+	/// tenant on the row than the one the ciphertext was written under fails the tag check.
+	/// </remarks>
+	private EncryptionContext ContextFor(string? tenantId) => new()
+	{
+		Purpose = _options.Value.DefaultPurpose,
+		TenantId = KeyedTenantPartition.FromStoredValue(tenantId).TenantId,
+		RequireFipsCompliance = _options.Value.RequireFipsCompliance
+	};
 }

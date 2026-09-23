@@ -164,7 +164,7 @@ endpoints.DispatchPostAction<CreateOrderRequest, CreateOrderCommand, OrderResult
 
 In addition to the endpoint routing extensions above, the package provides terminal operators for converting `IMessageResult` to `IResult` at the end of a [functional composition](../core-concepts/results-and-errors.md#functional-composition) chain. These are useful when writing manual Minimal API endpoints (not using the bridge) and want fluent ROP chaining:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Hosting.AspNetCore;
 
 // Query — 200 OK with value (async, chains from Task<IMessageResult<T>>)
@@ -265,7 +265,6 @@ builder.AddDispatch(dispatch =>
     dispatch.UseAspNetCoreAuthorization(options =>
     {
         options.RequireAuthenticatedUser = true;  // Reject unauthenticated
-        options.DefaultPolicy = "MyPolicy";       // Default policy name
     });
 });
 ```
@@ -281,7 +280,9 @@ public record CreatePrescriptionCommand(Guid PatientId, string Medication)
 public record GetPublicInfoQuery() : IDispatchAction<PublicInfoResult>;
 ```
 
-The middleware reads `[Authorize]` from both message and handler types, evaluates policies via `IAuthorizationService`, and returns 403 Forbidden on failure.
+The middleware reads `[Authorize]` from both message and handler types — resolving which handlers will run from the dispatch handler registry, so a requirement declared on a **handler** is enforced even when the message declares nothing — composes them with the host's `IAuthorizationPolicyProvider`, evaluates the result via `IAuthorizationService`, and returns 403 Forbidden on failure.
+
+When it cannot determine which handlers will run, it declines rather than assuming none applies: an **action** whose handlers are unknown is refused with a log entry naming the message type, while an **event** with no registered subscriber proceeds, because no handler will run and there is nothing to enforce. Registering handlers through `AddDispatchHandlers()` makes them determinable.
 
 ### Options
 
@@ -289,7 +290,8 @@ The middleware reads `[Authorize]` from both message and handler types, evaluate
 |----------|---------|-------------|
 | `Enabled` | `true` | Enable/disable the middleware |
 | `RequireAuthenticatedUser` | `true` | Reject unauthenticated requests |
-| `DefaultPolicy` | `null` | Default authorization policy name |
+
+A bare `[Authorize]` resolves the host's own `AuthorizationOptions.DefaultPolicy`, configured with `AddAuthorization`. This middleware has no default-policy setting of its own — the host's is the single place a default policy is configured.
 
 ## MVC Controller Support
 

@@ -39,7 +39,8 @@ Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.FindUserGrantsAsync(str
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
-Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetMatchingGrantsAcrossTenantsAsync(string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetMatchingGrantsAsync(string! tenantId, string? userId, string? grantType, string? qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -133,7 +134,7 @@ Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.InitializeAsync(System.Threa
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.Name.get -> string!
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.QueryAsync<TDocument>(string! queryText, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IDictionary<string!, object!>? parameters, Excalibur.Data.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.QueryAsync<TDocument>(Excalibur.Data.CloudNative.CloudQueryRequest! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.SupportsChangeFeed.get -> bool
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.SupportsMultiRegionWrites.get -> bool
@@ -157,7 +158,7 @@ Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.Timestamp.get -> System.D
 Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>
 Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.CurrentContinuationToken.get -> string?
 Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.DynamoDbStreamsSubscription(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, string! tableName, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.DynamoDbStreamsSubscription(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, string! tableName, string! partitionKeyAttribute, string! sortKeyAttribute, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.IsActive.get -> bool
 Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.ReadChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Data.CloudNative.IChangeFeedEvent<TDocument!>!>!
 Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -176,7 +177,7 @@ Excalibur.Data.DynamoDb.IDynamoDbRepositoryBase<TDocument>.AddOrUpdateAsync(stri
 Excalibur.Data.DynamoDb.IDynamoDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 Excalibur.Data.DynamoDb.IDynamoDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.DynamoDb.IDynamoDbRepositoryBaseQuery<TDocument>
-Excalibur.Data.DynamoDb.IDynamoDbRepositoryBaseQuery<TDocument>.ScanAsync(Amazon.DynamoDBv2.Model.ScanRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
+Excalibur.Data.DynamoDb.IDynamoDbRepositoryBaseQuery<TDocument>.ScanAsync(Amazon.DynamoDBv2.Model.ScanRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -217,6 +218,8 @@ Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.DynamoDbSnapshotS
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.GetRegionEndpoint() -> Amazon.RegionEndpoint?
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.MaxRetryAttempts.get -> int
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.SnapshotTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.SnapshotTypeInfoResolver.set -> void
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TableName.get -> string!
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TableName.set -> void
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TimeoutInSeconds.get -> int
@@ -251,4 +254,4 @@ static Microsoft.Extensions.DependencyInjection.DynamoDbSnapshotStoreExtensions.
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.AddOrUpdateAsync(string! documentId, TDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.ScanAsync(Amazon.DynamoDBv2.Model.ScanRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
+virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.ScanAsync(Amazon.DynamoDBv2.Model.ScanRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!

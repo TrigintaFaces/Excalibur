@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
 
@@ -81,9 +81,10 @@ public sealed class AzureBlobClaimCheckProviderExpiryShould
 		// An expired payload is a form of missing payload, so it raises the same exception a deleted or
 		// never-stored one does.
 		var setup = CreateProvider(TimeSpan.FromHours(1));
+		var idExpired = MintedId("claim-");
 		var reference = new ClaimCheckReference
 		{
-			Id = "claim-expired",
+			Id = idExpired,
 			BlobName = "claim-check/claim-expired",
 			ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1)
 		};
@@ -91,7 +92,7 @@ public sealed class AzureBlobClaimCheckProviderExpiryShould
 		var ex = await Should.ThrowAsync<KeyNotFoundException>(
 			() => setup.Provider.RetrieveAsync(reference, CancellationToken.None));
 
-		ex.Message.ShouldContain("claim-expired");
+		ex.Message.ShouldContain(idExpired);
 
 		// The blob is never downloaded: expiry is decided before the request goes out.
 		A.CallTo(() => setup.BlobClient.DownloadContentAsync(A<CancellationToken>._)).MustNotHaveHappened();
@@ -134,4 +135,17 @@ public sealed class AzureBlobClaimCheckProviderExpiryShould
 
 		return (provider, fakeBlob);
 	}
+	/// <summary>
+	/// A well-formed identifier of the shape the provider mints: the configured prefix, the date partition
+	/// the identifier carries, and a 128-bit body.
+	/// </summary>
+	/// <remarks>
+	/// These arms used descriptive literals. The provider now refuses any identifier it did not mint,
+	/// because a claim-check reference arrives on the wire and resolving a blob name from one let a
+	/// publisher name any blob in the container. A descriptive literal is exactly the shape that is now
+	/// refused, so the arms mint a real identifier.
+	/// </remarks>
+	private static string MintedId(string prefix = "cc-") =>
+		$"{prefix}{DateTimeOffset.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}";
+
 }

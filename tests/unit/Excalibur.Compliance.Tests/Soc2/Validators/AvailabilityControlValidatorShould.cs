@@ -36,12 +36,16 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.ValidateAsync("AVL-001", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-001");
-		// This arm was named "always passes" and required exactly that: IsEffective true at full
+		// This arm was named "always passes" and required exactly that: Effective at full
 		// score from a method that observes nothing. The capability really is shipped, which is
 		// what the Configuration evidence says; whether this deployment operates it is not
 		// observable from here, so the control is unverified rather than effective.
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.Evidence.ShouldNotBeEmpty();
 	}
@@ -58,7 +62,7 @@ public sealed class AvailabilityControlValidatorShould
 		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
 		// longer says is that the CONTROL operated, because nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 	}
 
 	[Fact]
@@ -69,12 +73,16 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.ValidateAsync("AVL-002", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-002");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.IsConfigured.ShouldBeFalse();
 		// Partial by design: a compensating external arrangement may exist, but the declared control is
 		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
 		// the exact figure is the framework's encoding and may be restated without changing the meaning.
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("IComplianceMetrics"));
 	}
 
@@ -94,7 +102,7 @@ public sealed class AvailabilityControlValidatorShould
 		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
 		// longer says is that the CONTROL operated, because nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.Evidence.ShouldContain(e => e.Description.Contains("SqlServerSnapshotStore"));
 	}
 
@@ -106,11 +114,15 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.ValidateAsync("AVL-003", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-003");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		// Partial by design: a compensating external arrangement may exist, but the declared control is
 		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
 		// the exact figure is the framework's encoding and may be restated without changing the meaning.
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("not registered"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("not registered"));
 	}
@@ -126,11 +138,15 @@ public sealed class AvailabilityControlValidatorShould
 		var result = await sut.ValidateAsync("AVL-003", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("AVL-003");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		// Partial by design: a compensating external arrangement may exist, but the declared control is
 		// absent and unverifiable here — neither a pass nor a total failure. The band is the property;
 		// the exact figure is the framework's encoding and may be restated without changing the meaning.
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("reports itself not configured"));
 		result.Evidence.ShouldContain(e => e.Description.Contains("not configured"));
 	}
@@ -142,7 +158,7 @@ public sealed class AvailabilityControlValidatorShould
 
 		var result = await sut.ValidateAsync("UNKNOWN", CancellationToken.None).ConfigureAwait(false);
 
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Unknown control"));
 	}
 

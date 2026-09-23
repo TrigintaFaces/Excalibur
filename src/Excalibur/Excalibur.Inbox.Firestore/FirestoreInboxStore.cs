@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.Firestore;
 using Excalibur.Data.Firestore.Diagnostics;
@@ -29,7 +29,6 @@ namespace Excalibur.Inbox.Firestore;
 public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	/// <summary>Bounded retries for the precondition-guarded conditional delete in <see cref="ReleaseAsync"/>.</summary>
-	private const int ReleaseMaxRetries = 5;
 
 	/// <summary>
 	/// Test-only seam: when non-null, invoked once inside <see cref="ReleaseAsync"/> in the window between
@@ -40,6 +39,14 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	internal Func<CancellationToken, Task>? ReleaseRaceHookForTests { get; set; }
 
 	private readonly FirestoreInboxOptions _options;
+
+	/// <summary>
+	/// The optimistic-concurrency attempt bound, read from configuration rather than fixed, so the
+	/// exhaustion branch this store reports <see cref="InboxMarkFailedOutcome.Undecided"/> from is
+	/// reachable deterministically and can therefore be asserted.
+	/// </summary>
+	private int ReleaseMaxRetries => _options.MaxConcurrencyRetries;
+
 	private readonly ILogger<FirestoreInboxStore> _logger;
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
@@ -506,7 +513,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -519,7 +526,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
 
-		await MarkFailedConditionalAsync(
+		var outcome = await MarkFailedConditionalAsync(
 			docRef,
 			new Dictionary<string, object>
 			{
@@ -530,14 +537,27 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 			},
 			messageId,
 			handlerType,
+			ReleaseMaxRetries,
 			cancellationToken).ConfigureAwait(false);
 
-		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+		if (outcome == InboxMarkFailedOutcome.Applied)
+		{
+			LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+		}
+
+		return outcome;
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
@@ -546,12 +566,15 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var docId = GetDocumentId(messageId, handlerType);
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. A caller reading the estate-wide drain sees
+		// documents from every partition, so an id composed from ambient context would address a different
+		// partition than the read that produced the entry, with nothing in either signature to say so.
+		var docId = ComposeDocumentId(tenant.TenantId, messageId, handlerType);
 		var docRef = _collection!.Document(docId);
 
 		// Set retryCount EXACTLY (not FieldValue.Increment) so a transient short-circuit leaves the entry
 		// re-admittable without consuming a delivery attempt.
-		await MarkFailedConditionalAsync(
+		var outcome = await MarkFailedConditionalAsync(
 			docRef,
 			new Dictionary<string, object>
 			{
@@ -562,35 +585,53 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 			},
 			messageId,
 			handlerType,
+			ReleaseMaxRetries,
 			cancellationToken).ConfigureAwait(false);
 
-		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+		if (outcome == InboxMarkFailedOutcome.Applied)
+		{
+			LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+		}
+
+		return outcome;
 	}
 
 	// Atomic guarded Failed transition: conditional update guarded by Precondition.LastUpdated so a concurrent
-	// finalize is never overwritten; refuse to downgrade a terminal Processed entry (no-op). Throws if the
-	// entry is absent. Mirrors the conditional-delete guard in ReleaseAsync.
-	private static async Task MarkFailedConditionalAsync(
+	// finalize is never overwritten; refuse to downgrade a terminal Processed entry. Mirrors the conditional-
+	// delete guard in ReleaseAsync.
+	//
+	// THE SNAPSHOT IS PART OF THE WRITE, NOT A CLASSIFICATION TAKEN BEFORE IT. Firestore has no conditional
+	// update expression, so the terminal-state guard cannot be pushed into the statement the way a SQL CASE
+	// can. Precondition.LastUpdated is what replaces one: the update is refused if anything changed the
+	// document after the snapshot, so the status this method decided on is provably the status the write
+	// acted upon, and a concurrent finalize sends the loop back to re-read rather than demoting a document
+	// that reached Processed in the window.
+	//
+	// Absence is REPORTED, NOT THROWN. It used to raise InvalidOperationException while the SQL stores
+	// affected zero rows in silence, so no caller could be written correct against both. The call is issued
+	// from inside a drain's failure handling, where an exception abandons every other entry the caller still
+	// holds -- a refusal on one entry must cost that entry only.
+	private static async Task<InboxMarkFailedOutcome> MarkFailedConditionalAsync(
 		DocumentReference docRef,
 		Dictionary<string, object> updates,
 		string messageId,
 		string handlerType,
+		int maxConcurrencyRetries,
 		CancellationToken cancellationToken)
 	{
-		for (var attempt = 0; attempt < ReleaseMaxRetries; attempt++)
+		for (var attempt = 0; attempt < maxConcurrencyRetries; attempt++)
 		{
 			var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
 			if (!snapshot.Exists)
 			{
-				throw new InvalidOperationException(
-					$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+				return InboxMarkFailedOutcome.EntryNotFound;
 			}
 
-			// Never downgrade a finalized (Processed) entry to Failed → no-op.
+			// Never downgrade a finalized (Processed) entry to Failed.
 			if (snapshot.GetValue<int>("status") == (int)InboxStatus.Processed)
 			{
-				return;
+				return InboxMarkFailedOutcome.AlreadyProcessed;
 			}
 
 			var precondition = snapshot.UpdateTime is { } updatedAt
@@ -600,16 +641,25 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 			try
 			{
 				_ = await docRef.UpdateAsync(updates, precondition, cancellationToken: cancellationToken).ConfigureAwait(false);
-				return;
+				return InboxMarkFailedOutcome.Applied;
 			}
 			catch (RpcException ex) when (ex.StatusCode == StatusCode.FailedPrecondition)
 			{
 				// Concurrent transition — re-read and re-evaluate on the next iteration.
 			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+			{
+				// Retention removed the document in the same window.
+				return InboxMarkFailedOutcome.EntryNotFound;
+			}
 		}
 
-		throw new InvalidOperationException(
-			$"Failed to mark inbox entry as failed for message '{messageId}' and handler '{handlerType}' after {ReleaseMaxRetries} attempts due to concurrent modification.");
+		// Contention that outlasts the bounded retries is reported as Undecided, not thrown. Every losing
+		// attempt wrote nothing, so the entry is exactly as it was found and the call is safe to re-drive.
+		// It is a RETURNED value because the caller is typically already handling a failure -- the message
+		// it was recording is the thing that went wrong -- and throwing here would replace that original
+		// error with one about the store. Throw only when the store could not be ASKED; this one answered.
+		return InboxMarkFailedOutcome.Undecided;
 	}
 
 	/// <inheritdoc/>

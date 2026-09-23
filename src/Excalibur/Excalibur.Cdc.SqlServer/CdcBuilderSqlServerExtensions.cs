@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -549,6 +549,15 @@ public static class CdcBuilderSqlServerExtensions
 			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<DataChangeEvent>>>();
 			var idempotencyFilter = sp.GetService<ICdcIdempotencyFilter>();
 
+			// Resolved and forwarded for the same reason the direct processor above resolves them. Omitting
+			// them here does not disable fencing visibly -- it makes the hosted processor take the
+			// null-election unconditional path and checkpoint with a null token, so an application that
+			// registered a leader-election provider still gets replicas processing the same feed with no
+			// fence between them. Both remain optional: a single-instance host registers neither and is
+			// unaffected.
+			var leaderElection = sp.GetService<ILeaderElection>();
+			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
+
 			return new DataChangeEventProcessor(
 				appLifetime,
 				databaseConfig,
@@ -560,7 +569,9 @@ public static class CdcBuilderSqlServerExtensions
 				timeProvider,
 				logger,
 				fatalErrorOptions,
-				idempotencyFilter);
+				idempotencyFilter,
+				leaderElection,
+				failureClassifier);
 		});
 
 		// Register ICdcBackgroundProcessor adapter for the hosted service

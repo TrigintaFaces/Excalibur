@@ -28,9 +28,12 @@ public sealed class AuthorizationCacheKeyShould
 	[Fact]
 	public void Generate_activity_groups_key()
 	{
-		var key = AuthorizationCacheKey.ForActivityGroups();
+		var key = AuthorizationCacheKey.ForActivityGroups("tenant-1");
 
-		key.ShouldBe("authorization/activity-groups");
+		// The trailing shape version is part of the contract, not decoration: it is what stops an instance
+		// running a different version of this library from reading a cached document it cannot interpret.
+		// Asserting it here means a change to the document's shape that forgets to bump the key goes red.
+		key.ShouldBe("authorization/tenant-1/activity-groups/v3");
 	}
 
 	[Fact]
@@ -52,10 +55,10 @@ public sealed class AuthorizationCacheKeyShould
 		// these throw -- and it passed, which is how a shipped path that no stock consumer could execute
 		// stayed green. Nothing is initialised here, deliberately.
 		var grants = AuthorizationCacheKey.ForGrants("user-123");
-		var activityGroups = AuthorizationCacheKey.ForActivityGroups();
+		var activityGroups = AuthorizationCacheKey.ForActivityGroups("tenant-1");
 
 		grants.ShouldBe("authorization/user-123/grants");
-		activityGroups.ShouldBe("authorization/activity-groups");
+		activityGroups.ShouldBe("authorization/tenant-1/activity-groups/v3");
 	}
 
 	[Fact]
@@ -67,7 +70,45 @@ public sealed class AuthorizationCacheKeyShould
 			.ShouldBe(AuthorizationCacheKey.ForGrants("user-a"));
 		AuthorizationCacheKey.ForGrants("user-a")
 			.ShouldNotBe(AuthorizationCacheKey.ForGrants("user-b"));
-		AuthorizationCacheKey.ForActivityGroups()
+		AuthorizationCacheKey.ForActivityGroups("tenant-a")
+			.ShouldBe(AuthorizationCacheKey.ForActivityGroups("tenant-a"));
+		AuthorizationCacheKey.ForActivityGroups("tenant-a")
 			.ShouldNotBe(AuthorizationCacheKey.ForGrants("user-a"));
+	}
+
+	/// <summary>
+	/// SAFETY: two tenants never address the same activity-group entry.
+	/// </summary>
+	/// <remarks>
+	/// The entry holds ONE tenant's catalogue, keyed by composed (tenant, name). A shared key would serve
+	/// whichever tenant loaded it first to all of them, and a tenant finds none of its own groups under
+	/// another's composed keys -- so every activity-group grant is denied, with no exception and no log.
+	/// This arm is RED the moment the tenant term leaves the key.
+	/// </remarks>
+	[Fact]
+	public void Give_two_tenants_distinct_activity_group_keys() =>
+		AuthorizationCacheKey.ForActivityGroups("tenant-a")
+			.ShouldNotBe(AuthorizationCacheKey.ForActivityGroups("tenant-b"));
+
+	/// <summary>
+	/// LIVENESS: the key builder still answers for a legitimate tenant.
+	/// </summary>
+	/// <remarks>
+	/// Without this, a builder that threw for every input -- or returned the empty string -- would satisfy
+	/// the distinctness arm above by refusing everyone equally.
+	/// </remarks>
+	[Fact]
+	public void Build_a_usable_key_for_a_legitimate_tenant() =>
+		AuthorizationCacheKey.ForActivityGroups("tenant-a")
+			.ShouldBe("authorization/tenant-a/activity-groups/v3");
+
+	[Fact]
+	public void Throw_when_the_tenant_is_missing()
+	{
+		// A blank tenant would compose one shared key for everybody -- the exact cross-tenant entry the
+		// tenant term exists to prevent -- so it is refused rather than silently accepted.
+		_ = Should.Throw<ArgumentException>(() => AuthorizationCacheKey.ForActivityGroups(null!));
+		_ = Should.Throw<ArgumentException>(() => AuthorizationCacheKey.ForActivityGroups(string.Empty));
+		_ = Should.Throw<ArgumentException>(() => AuthorizationCacheKey.ForActivityGroups("   "));
 	}
 }

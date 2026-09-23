@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -42,8 +42,34 @@ public sealed partial class UnifiedBatchingMiddleware(
 {
 	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.UnifiedBatchingMiddleware, "1.0.0");
 
-	private readonly UnifiedBatchingOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+	private readonly UnifiedBatchingOptions _options = ValidateOrThrow(options);
 	private readonly ILogger<UnifiedBatchingMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+	/// <summary>
+	/// Checks the batching options at construction, so the check cannot be skipped by constructing this
+	/// middleware directly instead of through the dispatch pipeline.
+	/// </summary>
+	/// <remarks>
+	/// Registering batching on the pipeline validates these options at host start, which is where a
+	/// misconfiguration is cheapest to see. That covers the container; it does not cover a caller who
+	/// constructs this type itself, and the values would then reach the batch processor unexamined.
+	/// Validating here makes a batcher holding unusable options impossible to construct by any route,
+	/// rather than leaving one route honest and the other silent.
+	/// </remarks>
+	/// <param name="options">The options to check.</param>
+	/// <returns>The validated options.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="options"/> or its value is null.</exception>
+	/// <exception cref="ArgumentException">The options are not usable.</exception>
+	private static UnifiedBatchingOptions ValidateOrThrow(IOptions<UnifiedBatchingOptions> options)
+	{
+		var value = options?.Value ?? throw new ArgumentNullException(nameof(options));
+
+		var result = new UnifiedBatchingOptionsValidator().Validate(name: null, value);
+
+		return result.Failed
+			? throw new ArgumentException(result.FailureMessage, nameof(options))
+			: value;
+	}
 
 	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.BatchingMiddlewareExecuting, LogLevel.Debug,
@@ -126,6 +152,13 @@ public sealed partial class UnifiedBatchingMiddleware(
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
+		// REFUSE AFTER DISPOSAL rather than resurrect. Without this check GetOrAdd below repopulates the
+		// dictionary that ReleaseResources just cleared, CONSTRUCTING a new BatchProcessor -- a dedicated
+		// long-running thread, a Meter and an ActivitySource -- that nothing will ever dispose, because the
+		// only disposer has already run. The middleware is registered SCOPED, so disposal happens at the end
+		// of every scope and this is a steady-state path, not a shutdown-only one.
+		ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+
 		var batchKey = GetBatchKey(message);
 		_ = (activity?.SetTag("batching.key", batchKey));
 		_ = (activity?.SetTag("batching.enabled", value: true));
@@ -133,6 +166,29 @@ public sealed partial class UnifiedBatchingMiddleware(
 		// Create completion source for this message
 		var completionSource = new TaskCompletionSource<IMessageResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var batchItem = new BatchItem(message, context, completionSource, nextDelegate);
+
+		// THE AWAIT BELOW IS UNBOUNDED, SO EVERY WAY THE ITEM CAN STOP BEING PROCESSED MUST COMPLETE IT HERE.
+		// The batch loop is not obliged to complete what it discards, and it discards on two ordinary paths:
+		// it drops an item whose token is already cancelled when the batch is assembled, and it abandons the
+		// items it has read but not yet flushed when disposal cancels it. Neither is exceptional -- the first
+		// is a client disconnect, the second is the end of any scope -- and in both the completion source was
+		// simply never completed, so the caller awaited a task that nothing would ever finish.
+		//
+		// Registering on both tokens closes that by construction rather than by agreement with the batch
+		// loop: whichever happens first -- processed, caller cancelled, middleware disposed -- completes the
+		// task, and TrySet* makes the other two no-ops. So the item is completed EXACTLY once without the
+		// two components having to coordinate, which is what the seam could not express before.
+		await using var callerCancellation = cancellationToken.Register(
+			static state => ((TaskCompletionSource<IMessageResult>)state!).TrySetCanceled(),
+			completionSource).ConfigureAwait(false);
+
+		await using var disposalCancellation = _cancellationTokenSource.Token.Register(
+			static state => ((TaskCompletionSource<IMessageResult>)state!).TrySetException(
+				new ObjectDisposedException(
+					nameof(UnifiedBatchingMiddleware),
+					"The batching middleware was disposed while this message was waiting in a batch. The "
+					+ "message was accepted but not dispatched; it has not been sent and may be retried.")),
+			completionSource).ConfigureAwait(false);
 
 		// Get or create micro-batch processor for this batch key
 		var processor = _processors.GetOrAdd(batchKey, CreateProcessor);

@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Middleware;
@@ -241,16 +243,57 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Composition happens inside a dependency-injection scope. Every middleware this framework seats is
+	/// registered <see cref="ServiceLifetime.Scoped"/>, and the provider a pipeline is composed from is
+	/// the root -- a singleton factory is handed the root by definition. Resolving a scoped service there
+	/// is refused outright under <see cref="ServiceProviderOptions.ValidateScopes"/> and succeeds silently
+	/// without it, which is the worse half: one middleware graph, and everything it was constructed with,
+	/// shared by every dispatch for the life of the process.
+	/// </remarks>
 	public IDispatchPipeline Build()
+	{
+		// Unconditionally, because the root cannot be recognised by inspection: the provider handed to a
+		// singleton factory is the root ENGINE scope, which implements IServiceScope exactly as a real
+		// child scope does. A guard that skipped this when the provider "already is a scope" would
+		// therefore skip it precisely on the path that needs it. A scope nested inside a genuine child
+		// scope costs one allocation at start-up and resolves the same services.
+		var owned = _serviceProvider.GetService<IServiceScopeFactory>()?.CreateScope();
+
+		try
+		{
+			return BuildFrom(owned?.ServiceProvider ?? _serviceProvider);
+		}
+		finally
+		{
+			owned?.Dispose();
+		}
+	}
+
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2072:'target parameter' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The return value of the source method does not have matching annotations.",
+		Justification = "A middleware type is resolved from DI; its constructors are preserved by its registration. " +
+			"The scope verdict is advisory -- a type the walk cannot inspect is treated as scope-requiring, which " +
+			"is the safe direction -- and AOT consumers use the source-generated dispatcher.")]
+	private IDispatchPipeline BuildFrom(IServiceProvider resolutionProvider)
 	{
 		// Resolve all middleware instances
 		var resolvedMiddleware = new List<IDispatchMiddleware>();
 		List<(Type? Type, string Reason)>? unresolvedRequired = null;
 
+		// Decides, per middleware type, whether an instance resolved here may be reused by every dispatch
+		// or must be resolved per dispatch. The same verdict function the scoped-handler path uses, and for
+		// the same question: would holding this from the root be a captive dependency? Null when the
+		// composition has no scoping infrastructure at all, in which case there is no scope to resolve from
+		// and every entry is held as before.
+		var scopeResolver = new HandlerScopeResolver(_serviceProvider);
+		var canResolvePerDispatch = scopeResolver.CanCreateScope;
+
 		foreach (var registration in _middlewares)
 		{
 			// Check condition if present
-			if (registration.Condition != null && !registration.Condition(_serviceProvider))
+			if (registration.Condition != null && !registration.Condition(resolutionProvider))
 			{
 				continue;
 			}
@@ -273,7 +316,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 			IDispatchMiddleware? middleware;
 			try
 			{
-				middleware = registration.Factory(_serviceProvider);
+				middleware = registration.Factory(resolutionProvider);
 			}
 			catch (InvalidOperationException ex)
 			{
@@ -283,7 +326,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 					continue;
 				}
 
-				LogSkippedMiddleware(registration.Type);
+				LogSkippedMiddleware(resolutionProvider, registration.Type);
 				continue;
 			}
 
@@ -296,8 +339,42 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 					continue;
 				}
 
-				LogSkippedMiddleware(registration.Type);
+				LogSkippedMiddleware(resolutionProvider, registration.Type);
 				continue;
+			}
+
+			// The instance just resolved proves the registration can be materialized, and carries the
+			// stage and applicable-kinds metadata ordering and filtering need before any dispatch exists.
+			// Whether it may also SERVE every dispatch is a separate question, and the container answers
+			// it: a middleware the container would hand out fresh per scope must not be held here, because
+			// this pipeline is a singleton. Those entries become a per-dispatch resolver instead, and the
+			// instance resolved above is released with the composition scope.
+			IDispatchMiddleware entry;
+			if (canResolvePerDispatch
+				&& registration.Type is not null
+				&& scopeResolver.RequiresScope(registration.Type))
+			{
+				entry = new ScopeResolvedMiddleware(
+					registration.Type,
+					registration.Factory,
+					middleware.Stage,
+					middleware.ApplicableMessageKinds,
+					scopeResolver,
+					_serviceProvider);
+			}
+			else if (canResolvePerDispatch && registration.Type is not null)
+			{
+				// Held by this singleton pipeline for its whole lifetime, so it must come from the ROOT
+				// provider -- never from the composition scope, which Build() disposes on return. A transient
+				// (or any disposable) middleware resolved there would be disposed and then invoked on every
+				// dispatch. The walk above has proven the type root-safe, so resolving it from root cannot
+				// capture a scoped dependency. This is how convention middleware lives in ASP.NET Core:
+				// constructed once from the application's services, for the application's lifetime.
+				entry = registration.Factory(_serviceProvider) ?? middleware;
+			}
+			else
+			{
+				entry = middleware;
 			}
 
 			// Apply a registration-time stage override (UseAt<T>(stage)) by decoration. It must not be
@@ -305,8 +382,8 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 			// pipeline, so assigning its stage would leak this registration's ordering into all of them.
 			resolvedMiddleware.Add(
 				registration.Stage.HasValue
-					? new StageOverrideMiddleware(middleware, registration.Stage.Value)
-					: middleware);
+					? new StageOverrideMiddleware(entry, registration.Stage.Value)
+					: entry);
 		}
 
 		// Fail closed once, naming every Required middleware that could not be materialized
@@ -355,14 +432,14 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 			details.ToString());
 	}
 
-	private void LogSkippedMiddleware(Type? middlewareType)
+	private static void LogSkippedMiddleware(IServiceProvider serviceProvider, Type? middlewareType)
 	{
 		if (middlewareType is null)
 		{
 			return;
 		}
 
-		var logger = _serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<PipelineBuilder>();
+		var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<PipelineBuilder>();
 		if (logger is not null)
 		{
 			LogPipelineMiddlewareSkipped(logger, middlewareType.FullName ?? middlewareType.Name);

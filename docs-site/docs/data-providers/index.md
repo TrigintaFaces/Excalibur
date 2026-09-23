@@ -344,6 +344,7 @@ Cloud-native providers (CosmosDb, DynamoDb, Firestore) support:
 - **Consistency options** via `IConsistencyOptions` (strong, eventual, session, bounded staleness)
 - **Change feeds** via `IChangeFeedSubscription<T>` for real-time change tracking
 - **Batch operations** via `ExecuteBatchAsync` for transactional multi-document writes
+- **Paged queries** via `CloudQueryRequest` / `CloudQueryResult<T>`
 - **ETag-based concurrency** for optimistic concurrency control
 
 ```csharp
@@ -351,11 +352,60 @@ Cloud-native providers (CosmosDb, DynamoDb, Firestore) support:
 var key = new PartitionKey("tenant-123", "/tenantId");
 var result = await provider.GetByIdAsync<Order>("order-1", key, consistencyOptions: null, ct);
 
-// Consistency options
-var options = ConsistencyOptions.WithSession(sessionToken);
-var query = await provider.QueryAsync<Order>(
-    "SELECT * FROM c", key, parameters: null, consistencyOptions: options, ct);
+// A query is described by a request object
+var page = await provider.QueryAsync<Order>(
+    new CloudQueryRequest
+    {
+        QueryText = "SELECT * FROM c",
+        PartitionKey = key,
+        ConsistencyOptions = ConsistencyOptions.WithSession(sessionToken),
+    },
+    ct);
 ```
+
+### Querying returns one page at a time
+
+`QueryAsync` returns a **single page**, not the whole result set. Cloud document stores page server-side
+whether or not your code models it, so a query that reads the first page and stops will silently process
+part of your data and report success.
+
+`CloudQueryResult<T>.HasMoreResults` tells you whether the set is complete. When it is `true`, copy
+`ContinuationToken` into the next request:
+
+```csharp
+var results = new List<Order>();
+string? continuationToken = null;
+
+do
+{
+    var page = await provider.QueryAsync<Order>(
+        new CloudQueryRequest
+        {
+            QueryText = "SELECT * FROM c",
+            PartitionKey = key,
+            MaxItemCount = 100,          // optional: bounds what you hold in memory per page
+            ContinuationToken = continuationToken,
+        },
+        ct);
+
+    results.AddRange(page.Documents);
+    continuationToken = page.ContinuationToken;
+}
+while (continuationToken is not null);
+```
+
+`MaxItemCount` bounds a **page**, never the result set — the remainder is still reached by continuing to
+page, so the loop above returns every document either way.
+
+A continuation token is **opaque** and belongs to the provider that issued it. Passing one to a different
+provider, or to a provider that cannot resume a query, throws rather than quietly returning the first page
+again — which would otherwise leave the loop above spinning forever.
+
+| Provider | Paged queries | Notes |
+|----------|---------------|-------|
+| CosmosDb | Yes | Continuation and page size are passed through to the query iterator. |
+| DynamoDb | Yes | The token carries the last evaluated key; `MaxItemCount` sets the query limit. |
+| Firestore | No | Returns the whole result in one page and issues no token. Supplying `ContinuationToken` or `MaxItemCount` throws `NotSupportedException` rather than truncating a result it cannot continue. |
 
 ## Default Naming Conventions
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Outbox.SqlServer.Requests;
 
@@ -22,4 +22,7 @@ internal sealed class FencedClaimMutationResult
 
 	/// <summary>Gets or sets a value indicating whether the addressed row exists at all.</summary>
 	public bool RowExists { get; set; }
+
+	/// <summary>Gets or sets a value indicating whether the addressed row exists in a terminal status.</summary>
+	public bool IsTerminal { get; set; }
 }

@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
 using Microsoft.Extensions.Configuration;
@@ -141,6 +142,20 @@ public static class PollyResilienceServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PollyRetryOptions>, RetryOptionsValidator>());
+		// Honour the name: resolve the NAMED options this method just configured and expose the policy
+		// under the same key. Without this the only IRetryPolicy in the container reads the UNNAMED
+		// instance, so a caller's configure lambda never reaches the retry pipeline. Keyed registration
+		// is the pattern this package already uses for named resilience pipelines
+		// (DispatchResilienceServiceCollectionExtensions.cs:61).
+		_ = services.AddKeyedTransient<IRetryPolicy>(name, (sp, key) =>
+		{{
+			var monitor = sp.GetRequiredService<IOptionsMonitor<PollyRetryOptions>>();
+			var logger = sp.GetService<ILogger<PollyRetryPolicyAdapter>>();
+			return new PollyRetryPolicyAdapter(
+				Microsoft.Extensions.Options.Options.Create(monitor.Get((string)key!)),
+				logger);
+		}});
+
 
 		return services;
 	}
@@ -177,6 +192,20 @@ public static class PollyResilienceServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PollyRetryOptions>, RetryOptionsValidator>());
+		// Honour the name: resolve the NAMED options this method just configured and expose the policy
+		// under the same key. Without this the only IRetryPolicy in the container reads the UNNAMED
+		// instance, so a caller's configure lambda never reaches the retry pipeline. Keyed registration
+		// is the pattern this package already uses for named resilience pipelines
+		// (DispatchResilienceServiceCollectionExtensions.cs:61).
+		_ = services.AddKeyedTransient<IRetryPolicy>(name, (sp, key) =>
+		{{
+			var monitor = sp.GetRequiredService<IOptionsMonitor<PollyRetryOptions>>();
+			var logger = sp.GetService<ILogger<PollyRetryPolicyAdapter>>();
+			return new PollyRetryPolicyAdapter(
+				Microsoft.Extensions.Options.Options.Create(monitor.Get((string)key!)),
+				logger);
+		}});
+
 
 
 		return services;

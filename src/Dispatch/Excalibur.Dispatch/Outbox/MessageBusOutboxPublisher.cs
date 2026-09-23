@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Globalization;
@@ -205,6 +205,15 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// compares against its durable high-water, so a drain that cannot present one under an active tenure has
 	/// no way to be refused and must refuse itself. With no election configured a null token is the
 	/// legitimate unfenced path and drains normally.
+	/// </remarks>
+	/// <remarks>
+	/// <b>CALL THIS ONLY FROM A <c>try</c> WHOSE <c>catch</c> HANDLES
+	/// <see cref="OutboxFenceRefusedException"/>.</b> It refuses by THROWING, and a throw raised from
+	/// inside a <c>catch</c> clause is not eligible for any sibling <c>catch</c> on the same <c>try</c> --
+	/// it propagates out of the whole construct and abandons every remaining message in the batch. The
+	/// completion paths that run inside the drain's exception handling therefore REPORT the same refusal
+	/// instead of calling this; see the refusal blocks in the failure and dead-letter members. That
+	/// asymmetry is deliberate and this is the reason for it.
 	/// </remarks>
 	private void GuardActiveGateHasFencingToken()
 	{
@@ -774,6 +783,21 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				LogFailureReportDeclined(message.Id, fencedOutcome.ToString());
 			}
 
+			return;
+		}
+
+		// A MISSING TOKEN IS A REFUSAL, NEVER A DOWNGRADE. The guard above conjoins the token, so it is false
+		// either because fencing is off -- the legitimate unfenced drain -- or because fencing is ON and the
+		// token has gone, which under an active gate means THIS TENURE HAS BEEN SUPERSEDED. Both routes below
+		// write without a token, and the claim term the second one carries does not cover this: the
+		// dispatcher identity is fixed for the process and survives losing and regaining leadership, so it
+		// refuses a different dispatcher and never a stale tenure of the same one.
+		//
+		// Returned, never thrown, for the reason given below on the declined report: this runs inside a catch
+		// block, so an exception here would abandon every remaining message this publisher legitimately holds.
+		if (_fencingActive && _leaderGate?.FencingToken is null)
+		{
+			LogFailureReportDeclined(message.Id, "FencingTokenUnavailable");
 			return;
 		}
 

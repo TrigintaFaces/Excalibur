@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Middleware.Validation;
 
@@ -61,7 +61,7 @@ public sealed class DispatchBuilderSentinelShould
 		// Assert - ValidationMiddleware should still be registered (sentinel prevented overwrite)
 		services.Any(sd =>
 			sd.ServiceType == typeof(ValidationMiddleware) &&
-			sd.Lifetime == ServiceLifetime.Scoped)
+			sd.Lifetime == ServiceLifetime.Transient)
 			.ShouldBeTrue("Sentinel guard should prevent parameterless AddDispatch() from replacing configured middleware");
 	}
 

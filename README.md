@@ -13,7 +13,7 @@
 [![Release Date](https://img.shields.io/github/release-date/TrigintaFaces/Excalibur?style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
 <!-- badges -->
 
-**High-performance .NET messaging framework with CQRS, event sourcing, and production hosting — 195 packages, Native AOT ready**
+**High-performance .NET messaging framework with CQRS, event sourcing, and production hosting — 194 packages, Native AOT ready**
 
 **[Read the full documentation](https://docs.excalibur-dispatch.dev/)**
 
@@ -174,6 +174,9 @@ So: **MediatR is a few nanoseconds ahead on the bare paths, we allocate less on 
 
 The query comparison is deliberately absent. MediatR's own query row moved about 21% between epochs for reasons that have nothing to do with this framework and were consistent across every run of the new one; until that is explained the ratio means nothing in either direction. Dispatch's own query figures are in the table above.
 
+> MediatR, MassTransit, Wolverine and NServiceBus are trademarks of their respective owners. They are
+> named here only to identify the products measured; no affiliation or endorsement is implied.
+
 > **Reading these numbers.** They come from BenchmarkDotNet's warm job (`WarmPathBenchmarkConfig`), which is the configuration used for published comparisons; the cold job is a CI latency gate and does not report allocation. Every arm calls its library directly from the benchmark method with no intermediate `async` frame, so the allocation column compares libraries rather than harness — an extra `async` frame returning a reference costs ~72 bytes on x64 and would silently charge one side for the measurement itself. Your own call site adds whatever your `await` costs on top of the figures above.
 
 ### Optimizations Included
@@ -206,11 +209,11 @@ For detailed benchmarks, methodology caveats, and raw reports, see:
 
 ## Status & Testing
 
-- **195 NuGet packages** across Dispatch, Excalibur, and hosting families (390 projects in the solution)
+- **194 NuGet packages** across Dispatch, Excalibur, and hosting families (438 projects in the solution)
 - **Supported framework:** .NET 10.0 (LTS)
-- **160 of 195 packages** are Native AOT compatible (`IsAotCompatible=true`)
-- **112,000+ automated tests** across 10 CI shards (unit, integration, functional, conformance, performance)
-- **20 Roslyn source generators** for AOT-safe handler registration, serialization, and saga coordination
+- **148 of the 194 packages** are Native AOT compatible (`IsAotCompatible=true`)
+- **Over 100,000 automated tests** across the CI shards (unit, integration, functional, conformance, performance)
+- **14 Roslyn source generators** for AOT-safe handler registration, serialization, and saga coordination
 
 Run the full suite locally:
 
@@ -232,6 +235,14 @@ dotnet test Excalibur.sln
 - Engaging qualified legal and compliance professionals
 
 **The framework is provided "AS IS" without warranty.**
+
+## License
+
+You may use Excalibur under the **Excalibur License 1.1**, **AGPL-3.0-or-later**, or **SSPL-1.0** — your
+choice ([LICENSE](LICENSE)). Under the Excalibur License you may build, sell, host and support your own
+applications on the framework, including commercially. You may not resell the framework itself or
+offer it to others as a hosted service. See the [plain-language summary](docs-site/docs/legal/index.md)
+and the full texts in [`licenses/`](licenses/).
 
 ---
 

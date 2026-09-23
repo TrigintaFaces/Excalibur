@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
@@ -994,7 +994,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -1010,12 +1010,33 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		var tenant = ResolveTenantTerm();
 		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
-		// Processed is absorbing: the predicate refuses the transition rather than demoting a
-		// finalized entry to Failed, which would make it re-admittable and run the handler again.
+
+		// THE GUARD SITS IN SET, NOT IN WHERE, AND THAT PLACEMENT IS THE WHOLE POINT.
+		//
+		// Processed is absorbing: the entry must not be demoted to Failed, which would re-admit it to the
+		// drain and run its handler again over side effects already committed. A WHERE-side
+		// "status <> @ProcessedStatus" enforces that, but it also makes a refused terminal row and an absent
+		// row emit the identical empty result, so the caller cannot tell "already done" from "not there" --
+		// the two diagnoses whose next steps are opposite.
+		//
+		// Guarding the ASSIGNMENT instead leaves the key-only WHERE deciding existence and the CASE deciding
+		// the transition, both inside one statement under one row lock. Every right-hand side reads the row
+		// as it was before the statement, so the refused branch rewrites each column with its own value and
+		// the row is left unchanged -- including retry_count, which is incremented only on the applied
+		// branch, and lease_expires_at, which is cleared only there because a failed entry has no holder.
+		// RETURNING then reports the resulting status FROM THE SAME STATEMENT that wrote it: no row at all
+		// means absent; a resulting Processed means refused, since nothing on this path ever WRITES
+		// Processed; anything else means applied. One statement decides all three, so no classification is
+		// read from outside the window it describes.
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
-		           SET status = @FailedStatus, last_error = @LastError, retry_count = retry_count + 1, last_attempt_at = @LastAttemptAt, lease_expires_at = NULL
-		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate} AND status <> @ProcessedStatus
+		           SET status = CASE WHEN status = @ProcessedStatus THEN status ELSE @FailedStatus END,
+		           	last_error = CASE WHEN status = @ProcessedStatus THEN last_error ELSE @LastError END,
+		           	retry_count = CASE WHEN status = @ProcessedStatus THEN retry_count ELSE retry_count + 1 END,
+		           	last_attempt_at = CASE WHEN status = @ProcessedStatus THEN last_attempt_at ELSE @LastAttemptAt END,
+		           	lease_expires_at = CASE WHEN status = @ProcessedStatus THEN lease_expires_at ELSE NULL END
+		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate}
+		           RETURNING status
 		           """;
 
 		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
@@ -1035,40 +1056,78 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		var resultingStatus = await connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
+
+		if (resultingStatus is null)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (resultingStatus == (int)InboxStatus.Processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
-		// Set retry_count EXACTLY (no +1) so a transient short-circuit leaves the entry re-admittable
-		// without consuming a delivery attempt. UPDATE-only: same existence semantics as the
-		// incrementing overload (a missing row affects 0 rows).
-		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
-		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
-		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
-		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
-		// they are cross-tenant by contract.
-		var tenant = ResolveTenantTerm();
-		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. Every other statement in this store resolves the
+		// partition from ambient context; this one is handed it. A caller reading the estate-wide drain sees
+		// entries from every partition, so a mark that silently re-derived the scope would address a
+		// different population than the read that produced the entry -- and nothing in either signature
+		// would say so. KeyedTenantPartition has no "ambient" inhabitant, so there is no way to reach this
+		// statement without having named a partition.
+		var resolved = new ResolvedTenantTerm(tenant.TenantId);
+		var hasTenantColumn = await EnsureSchemaAsync(resolved, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
-		// Processed is absorbing: the predicate refuses the transition rather than demoting a
-		// finalized entry to Failed, which would make it re-admittable and run the handler again.
+
+		// THE GUARD SITS IN SET, NOT IN WHERE, AND THAT PLACEMENT IS THE WHOLE POINT.
+		//
+		// Processed is absorbing: the entry must not be demoted to Failed, which would re-admit it to the
+		// drain and run its handler again over side effects already committed. A WHERE-side
+		// "status <> processed" enforces that, but it also makes a refused terminal row and an absent row
+		// emit the identical empty result, so the caller cannot tell "already done" from "not there" -- the
+		// two diagnoses whose next steps are opposite.
+		//
+		// Guarding the ASSIGNMENT instead leaves the key-only WHERE deciding existence and the CASE deciding
+		// the transition, both inside one statement under one row lock. Every right-hand side reads the row
+		// as it was before the statement, so the refused branch rewrites each column with its own value and
+		// the row is left unchanged. RETURNING then reports the resulting status: no row at all means
+		// absent; a resulting Processed means refused, since nothing on this path ever WRITES Processed;
+		// anything else means applied. One statement decides all three, so no classification is read from
+		// outside the window it describes. MarkProcessingAsync on the Oracle store already carries this
+		// shape, for the same reason.
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
-		           SET status = @FailedStatus, last_error = @LastError, retry_count = @RetryCount, last_attempt_at = @LastAttemptAt, lease_expires_at = NULL
-		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate} AND status <> @ProcessedStatus
+		           SET status = CASE WHEN status = @ProcessedStatus THEN status ELSE @FailedStatus END,
+		           	last_error = CASE WHEN status = @ProcessedStatus THEN last_error ELSE @LastError END,
+		           	retry_count = CASE WHEN status = @ProcessedStatus THEN retry_count ELSE @RetryCount END,
+		           	last_attempt_at = CASE WHEN status = @ProcessedStatus THEN last_attempt_at ELSE @LastAttemptAt END,
+		           	lease_expires_at = CASE WHEN status = @ProcessedStatus THEN lease_expires_at ELSE NULL END
+		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate}
+		           RETURNING status
 		           """;
 
-		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(resolved, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -1081,14 +1140,27 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				LastError = errorMessage,
 				RetryCount = retryCount,
 				LastAttemptAt = DateTimeOffset.UtcNow,
-				TenantId = tenant.Term
+				TenantId = resolved.Term
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		var resultingStatus = await connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
+
+		if (resultingStatus is null)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (resultingStatus == (int)InboxStatus.Processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>

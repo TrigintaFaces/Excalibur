@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch;
@@ -235,6 +235,91 @@ public sealed class InMemoryOutboxExtensionsShould : UnitTestBase
 		// Assert
 		var options = provider.GetRequiredService<IOptions<InMemoryOutboxOptions>>();
 		options.Value.MaxMessages.ShouldBe(expectedMaxMessages);
+	}
+
+	#endregion
+
+	#region Non-keyed contract resolution
+
+	/// <summary>
+	/// A host that calls only AddInMemoryOutboxStore() must be able to inject the plain
+	/// <see cref="IOutboxStore"/>. Without the non-keyed alias the consumer meets
+	/// "Unable to resolve service for type ..." at startup, after wiring, which no documentation can
+	/// prevent.
+	/// </summary>
+	[Fact]
+	public void AddInMemoryOutboxStore_RegistersNonKeyedIOutboxStore()
+	{
+		// Arrange
+		var services = CreateServicesWithLogging();
+
+		// Act -- ONLY the in-memory extension, never the AddExcaliburOutbox composition, which
+		// registers the alias itself and would make this arm pass either way.
+		_ = services.AddInMemoryOutboxStore();
+		using var provider = services.BuildServiceProvider();
+
+		// Assert
+		var store = provider.GetRequiredService<IOutboxStore>();
+		store.ShouldNotBeNull();
+	}
+
+	/// <summary>
+	/// The non-keyed alias must resolve the same singleton the keyed registrations serve, not a second
+	/// instance -- two stores would mean two independent in-memory states behind one contract.
+	/// </summary>
+	[Fact]
+	public void AddInMemoryOutboxStore_ResolvesNonKeyedToTheSameInstanceAsKeyed()
+	{
+		// Arrange
+		var services = CreateServicesWithLogging();
+		_ = services.AddInMemoryOutboxStore();
+		using var provider = services.BuildServiceProvider();
+
+		// Act
+		var nonKeyed = provider.GetRequiredService<IOutboxStore>();
+		var keyedInMemory = provider.GetRequiredKeyedService<IOutboxStore>("inmemory");
+		var keyedDefault = provider.GetRequiredKeyedService<IOutboxStore>("default");
+
+		// Assert
+		nonKeyed.ShouldBeSameAs(keyedInMemory);
+		nonKeyed.ShouldBeSameAs(keyedDefault);
+	}
+
+	/// <summary>
+	/// The alias uses TryAdd semantics, so calling the extension twice leaves exactly one non-keyed
+	/// descriptor rather than shadowing the first.
+	/// </summary>
+	[Fact]
+	public void AddInMemoryOutboxStore_RegistersTheNonKeyedAliasOnce_WhenCalledTwice()
+	{
+		// Arrange
+		var services = CreateServicesWithLogging();
+
+		// Act
+		_ = services.AddInMemoryOutboxStore();
+		_ = services.AddInMemoryOutboxStore();
+
+		// Assert
+		services.Count(d => d.ServiceType == typeof(IOutboxStore) && !d.IsKeyedService).ShouldBe(1);
+	}
+
+	/// <summary>
+	/// TryAdd must not clobber a consumer's own non-keyed registration made before the extension runs.
+	/// </summary>
+	[Fact]
+	public void AddInMemoryOutboxStore_KeepsAConsumerOwnNonKeyedRegistration()
+	{
+		// Arrange
+		var services = CreateServicesWithLogging();
+		var consumerStore = A.Fake<IOutboxStore>();
+		services.AddSingleton(consumerStore);
+
+		// Act
+		_ = services.AddInMemoryOutboxStore();
+		using var provider = services.BuildServiceProvider();
+
+		// Assert
+		provider.GetRequiredService<IOutboxStore>().ShouldBeSameAs(consumerStore);
 	}
 
 	#endregion

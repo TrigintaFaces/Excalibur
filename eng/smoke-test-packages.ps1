@@ -32,7 +32,11 @@
 #>
 
 [CmdletBinding()]
-param()
+param(
+    # Runs the gate's own arms instead of the smoke test, and proves this gate can FAIL.
+    # A gate never shown to reject anything is indistinguishable from one that cannot.
+    [switch]$SelfTest
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -603,8 +607,127 @@ function Invoke-CleanupPhase {
 }
 
 # ============================================================================
+# Coverage ratchet -- the DECISION, separated from the measurement so it is armable.
+#
+# This logic used to be inline in the script body, reading $Script: globals and files directly. That
+# made it unexercisable: the only way to watch it reject anything was to regress the real shipping
+# set, so nobody ever had, and a gate never shown to reject something is indistinguishable from one
+# that cannot. Taking (shipping, covered, baseline) as arguments and returning a verdict lets
+# -SelfTest drive it with synthetic inputs and assert BOTH polarities.
+# ============================================================================
+function Test-SmokeCoverage {
+    [CmdletBinding()]
+    param(
+        [string[]] $Shipping,
+        [string[]] $Covered,
+        [Nullable[int]] $Baseline
+    )
+
+    $uncovered = @($Shipping | Where-Object { $Covered -notcontains $_ })
+
+    # CONTROL on the ratchet's own inputs, checked BEFORE the count is believed. If the covered names
+    # match nothing in the shipping set, every package reads as uncovered and the gate fails with a
+    # number describing a parsing fault rather than coverage. A miscompare must SAY SO rather than
+    # masquerade as a regression.
+    $unmatched = @($Covered | Where-Object { $Shipping -notcontains $_ })
+    if ($unmatched.Count -gt 0) {
+        return [pscustomobject]@{
+            Passed        = $false
+            Uncovered     = $uncovered.Count
+            ControlFailed = $true
+            Unmatched     = $unmatched
+            Reason        = "COVERAGE CONTROL FAILED: $($unmatched.Count) of $($Covered.Count) smoke-tested name(s) do not appear in the shipping set. The uncovered count would be measuring a name-matching fault, not coverage."
+        }
+    }
+
+    if (($null -ne $Baseline) -and ($uncovered.Count -gt $Baseline)) {
+        return [pscustomobject]@{
+            Passed        = $false
+            Uncovered     = $uncovered.Count
+            ControlFailed = $false
+            Unmatched     = @()
+            Reason        = "SMOKE COVERAGE REGRESSED: $($uncovered.Count) uncovered, baseline is $Baseline. A shipping package was added without smoke-testing it."
+        }
+    }
+
+    $note = if (($null -ne $Baseline) -and ($uncovered.Count -lt $Baseline)) {
+        "Coverage improved ($($uncovered.Count) < $Baseline). Lower the baseline to lock it in."
+    } else {
+        "Coverage held at $($uncovered.Count) uncovered."
+    }
+
+    return [pscustomobject]@{
+        Passed        = $true
+        Uncovered     = $uncovered.Count
+        ControlFailed = $false
+        Unmatched     = @()
+        Reason        = $note
+    }
+}
+
+function Invoke-SmokeSelfTest {
+    Write-Banner "SMOKE GATE SELF-TEST"
+    Write-Host "Proves this gate can FAIL. Both polarities are asserted: a gate that only ever goes" -ForegroundColor Cyan
+    Write-Host "green is not evidence, and a gate that rejects everything passes every safety arm." -ForegroundColor Cyan
+    Write-Host ""
+
+    $script:SelfTestFailures = 0
+    $ship = @('A', 'B', 'C', 'D')
+
+    function Assert-Verdict {
+        param([string] $Name, [bool] $Expected, [object] $Result, [string] $Why)
+        if ($Result.Passed -eq $Expected) {
+            Write-Host "  PASS  $Name" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  FAIL  $Name -- expected Passed=$Expected, got $($Result.Passed). $Why" -ForegroundColor Red
+            $script:SelfTestFailures++
+        }
+    }
+
+    # ---- SAFETY: the gate must REJECT ----
+    Assert-Verdict 'rejects a coverage regression (3 uncovered vs baseline 1)' $false `
+        (Test-SmokeCoverage -Shipping $ship -Covered @('A') -Baseline 1) 'the ratchet did not bite'
+
+    $ctl = Test-SmokeCoverage -Shipping $ship -Covered @('Nope') -Baseline 99
+    Assert-Verdict 'rejects a name-matching fault' $false $ctl 'a miscompare was accepted'
+    if ($ctl.ControlFailed) {
+        Write-Host "  PASS  a miscompare is reported AS a control fault, not as a coverage number" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  FAIL  a miscompare must be distinguishable from a real regression" -ForegroundColor Red
+        $script:SelfTestFailures++
+    }
+
+    # ---- LIVENESS: without these, "reject everything" passes every arm above ----
+    Assert-Verdict 'accepts full coverage' $true `
+        (Test-SmokeCoverage -Shipping $ship -Covered $ship -Baseline 0) 'a clean input was rejected'
+    Assert-Verdict 'accepts coverage equal to the baseline' $true `
+        (Test-SmokeCoverage -Shipping $ship -Covered @('A', 'B', 'C') -Baseline 1) 'equal-to-baseline must pass'
+    Assert-Verdict 'accepts an improvement' $true `
+        (Test-SmokeCoverage -Shipping $ship -Covered $ship -Baseline 2) 'shrinking must be allowed'
+    Assert-Verdict 'does not ratchet when no baseline exists' $true `
+        (Test-SmokeCoverage -Shipping $ship -Covered @('A') -Baseline $null) 'an absent baseline must not fail the build'
+
+    Write-Host ""
+    if ($script:SelfTestFailures -eq 0) {
+        Write-Banner "SELF-TEST PASSED"
+        Write-Host "The gate rejects regressions and miscompares, and accepts healthy inputs." -ForegroundColor Green
+        return 0
+    }
+
+    Write-Banner "SELF-TEST FAILED"
+    Write-Host "$($script:SelfTestFailures) arm(s) failed." -ForegroundColor Red
+    return 1
+}
+
+# ============================================================================
 # Main Execution
 # ============================================================================
+
+if ($SelfTest) {
+    exit (Invoke-SmokeSelfTest)
+}
 
 $Script:TestPassed = $false
 
@@ -669,41 +792,34 @@ if (Test-Path $shippingFilter) {
     $covered = if ($Script:SurfaceReferenced.Count -gt 0) { @($Script:SurfaceReferenced) } else { @($Script:DispatchPackages) }
     $uncovered = @($shipping | Where-Object { $covered -notcontains $_ })
 
-    # CONTROL on the ratchet's own inputs. The count above is only meaningful if the two lists are
-    # comparable at all; if the covered names match nothing in the shipping set, every package reads
-    # as uncovered and the ratchet fails with a number that describes a parsing fault rather than
-    # coverage. That is not hypothetical -- it is exactly what happened when the shipping names were
-    # extracted with a path API that ignores backslashes on Linux: 197 uncovered instead of 193, a
-    # confident number about nothing. A miscompare must say so instead of masquerading as a
-    # regression.
-    $unmatched = @($covered | Where-Object { $shipping -notcontains $_ })
-    if ($unmatched.Count -gt 0) {
+    # The DECISION lives in Test-SmokeCoverage so that -SelfTest can exercise it with synthetic
+    # inputs. Reading the verdict here rather than re-deriving it keeps ONE source of truth for what
+    # "regressed" means -- a second copy here would let the self-test go green over logic this run
+    # never executes, which is the failure mode a self-test exists to prevent.
+    $baseline = if (Test-Path $baselineFile) { [int]((Get-Content $baselineFile -Raw) -replace '\D', '') } else { $null }
+    $verdict  = Test-SmokeCoverage -Shipping $shipping -Covered $covered -Baseline $baseline
+
+    Write-Host ""
+    Write-Host "Smoke-test coverage: $($covered.Count) of $($shipping.Count) shipping package(s) consumed as packages; $($verdict.Uncovered) uncovered." -ForegroundColor Cyan
+
+    if ($verdict.ControlFailed) {
         Write-Host ""
-        Write-Host "COVERAGE CONTROL FAILED: $($unmatched.Count) of $($covered.Count) smoke-tested name(s) do not appear in the shipping set:" -ForegroundColor Red
-        $unmatched | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
-        Write-Host "The uncovered count below would be measuring a name-matching fault, not coverage." -ForegroundColor Red
+        Write-Host $verdict.Reason -ForegroundColor Red
+        $verdict.Unmatched | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
         Write-Host "Check how shipping names are parsed from the solution filter before trusting any number here." -ForegroundColor Red
         $Script:TestPassed = $false
     }
-
-    Write-Host ""
-    Write-Host "Smoke-test coverage: $($covered.Count) of $($shipping.Count) shipping package(s) consumed as packages; $($uncovered.Count) uncovered." -ForegroundColor Cyan
-
-    if (Test-Path $baselineFile) {
-        $baseline = [int]((Get-Content $baselineFile -Raw) -replace '\D', '')
-        if ($uncovered.Count -gt $baseline) {
-            Write-Host ""
-            Write-Host "SMOKE COVERAGE REGRESSED: $($uncovered.Count) uncovered, baseline is $baseline." -ForegroundColor Red
-            Write-Host "A shipping package was added without smoke-testing it. Add it to `$Script:DispatchPackages," -ForegroundColor Red
-            Write-Host "or raise the baseline deliberately and say why in the commit message." -ForegroundColor Red
-            $Script:TestPassed = $false
-        }
-        elseif ($uncovered.Count -lt $baseline) {
-            Write-Host "Coverage improved ($($uncovered.Count) < $baseline). Lower the baseline in $baselineFile to lock it in." -ForegroundColor Yellow
-        }
+    elseif (-not $verdict.Passed) {
+        Write-Host ""
+        Write-Host $verdict.Reason -ForegroundColor Red
+        Write-Host "Add the package to the smoke-tested set, or raise the baseline deliberately and say why in the commit message." -ForegroundColor Red
+        $Script:TestPassed = $false
+    }
+    elseif ($null -eq $baseline) {
+        Write-Host "No coverage baseline at $baselineFile; not ratcheting." -ForegroundColor Yellow
     }
     else {
-        Write-Host "No coverage baseline at $baselineFile; not ratcheting." -ForegroundColor Yellow
+        Write-Host $verdict.Reason -ForegroundColor Yellow
     }
 }
 

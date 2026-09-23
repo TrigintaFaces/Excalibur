@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -278,23 +278,9 @@ public static class KafkaTransportServiceCollectionExtensions
 			return new ProducerBuilder<string, byte[]>(config).Build();
 		});
 
-		// Register the Kafka consumer used by the transport subscriber/receiver.
-		// The subscriber resolves IConsumer<string, byte[]> from DI (see RegisterSubscriber);
-		// without this registration, resolving the keyed ITransportSubscriber throws because no
-		// consumer is registered. The consumer carries the configured GroupId and manual-commit
-		// policy (EnableAutoCommit defaults to false) so it consumes from a real broker.
-		services.TryAddSingleton<IConsumer<string, byte[]>>(sp =>
-		{
-			var kafkaOptions = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(transportName);
-			var config = KafkaConsumerConfigBuilder.Build(kafkaOptions);
-
-			var rebalanceLogger = sp.GetRequiredService<ILoggerFactory>()
-				.CreateLogger("Excalibur.Dispatch.Transport.Kafka.KafkaConsumerRebalance");
-			var builder = new ConsumerBuilder<string, byte[]>(config);
-			KafkaConsumerRebalance.Configure(builder, rebalanceLogger);
-
-			return builder.Build();
-		});
+		// Register the Kafka consumer used by the transport subscriber/receiver, and the progress
+		// tracker its rebalance handlers and the receiver settle through.
+		RegisterConsumer(services, transportName);
 
 		// Register the Kafka message bus
 		services.TryAddSingleton<KafkaMessageBus>();
@@ -304,6 +290,41 @@ public static class KafkaTransportServiceCollectionExtensions
 		{
 			RegisterSchemaRegistryServices(services, transportOptions.Name ?? DefaultTransportName, transportOptions.SchemaRegistry);
 		}
+	}
+
+	/// <summary>
+	/// Registers the Kafka consumer used by the transport subscriber and receiver, together with the
+	/// per-partition progress tracker they settle through.
+	/// </summary>
+	/// <remarks>
+	/// The tracker is shared between the consumer's rebalance handlers and the transport receiver: the
+	/// handlers are the only place that observes a revoke and the assignment that follows it, and the
+	/// receiver is where a settlement arrives. Joining the two is what makes a receipt issued before a
+	/// handover unable to settle the position of whoever owns the partition afterwards, so both must
+	/// resolve the same instance.
+	/// </remarks>
+	/// <param name="services">The service collection to register into.</param>
+	/// <param name="transportName">The named transport whose options configure the consumer.</param>
+	private static void RegisterConsumer(IServiceCollection services, string transportName)
+	{
+		services.TryAddSingleton<KafkaPartitionProgress>();
+
+		// The subscriber resolves IConsumer<string, byte[]> from DI (see RegisterSubscriber); without this
+		// registration, resolving the keyed ITransportSubscriber throws because no consumer is registered.
+		// The consumer carries the configured GroupId and manual-commit policy (EnableAutoCommit defaults
+		// to false) so it consumes from a real broker.
+		services.TryAddSingleton<IConsumer<string, byte[]>>(sp =>
+		{
+			var kafkaOptions = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(transportName);
+			var config = KafkaConsumerConfigBuilder.Build(kafkaOptions);
+
+			var rebalanceLogger = sp.GetRequiredService<ILoggerFactory>()
+				.CreateLogger("Excalibur.Dispatch.Transport.Kafka.KafkaConsumerRebalance");
+			var builder = new ConsumerBuilder<string, byte[]>(config);
+			KafkaConsumerRebalance.Configure(builder, rebalanceLogger, sp.GetRequiredService<KafkaPartitionProgress>());
+
+			return builder.Build();
+		});
 	}
 
 	/// <summary>
@@ -448,7 +469,15 @@ public static class KafkaTransportServiceCollectionExtensions
 			var consumer = sp.GetRequiredService<IConsumer<string, byte[]>>();
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportReceiver>>();
 			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(name).Consumer.MaxPayloadBytes;
-			return new KafkaTransportReceiver(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming).WithCloudEventDecoding(CloudEventBinding.Kafka);
+			var progress = sp.GetRequiredService<KafkaPartitionProgress>();
+
+			// A record that cannot become a message goes to the dead-letter queue AddKafkaDeadLetterQueue registered
+			// under this transport's name; without one it is discarded with an Error log and a metric.
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));
+			var poison = new KafkaPoisonRecordRouter(sp.GetKeyedService<IDeadLetterQueueManager>(name), meter, source, logger);
+			return new KafkaTransportReceiver(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming, progress, poison)
+				.WithCloudEventDecoding(CloudEventBinding.Kafka);
 		});
 	}
 
@@ -470,10 +499,14 @@ public static class KafkaTransportServiceCollectionExtensions
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportSubscriber>>();
 			var source = transportOptions.ConsumerOptions?.GroupId ?? name;
 			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(name).Consumer.MaxPayloadBytes;
-			var nativeSubscriber = new KafkaTransportSubscriber(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming);
-
+			// The SAME tracker the consumer's rebalance handlers update. A private one would never see a revoke,
+			// so every settlement would carry a generation that is never superseded.
+			var progress = sp.GetRequiredService<KafkaPartitionProgress>();
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));
+			var poison = new KafkaPoisonRecordRouter(sp.GetKeyedService<IDeadLetterQueueManager>(name), meter, source, logger);
+			var nativeSubscriber = new KafkaTransportSubscriber(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming, progress, poison);
+
 			var activitySource = new ActivitySource(TransportTelemetryConstants.ActivitySourceName(name));
 
 			return new TransportSubscriberBuilder(nativeSubscriber)

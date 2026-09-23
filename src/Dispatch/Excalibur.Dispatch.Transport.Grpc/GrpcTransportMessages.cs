@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Transport.Grpc;
 
@@ -157,4 +157,24 @@ internal sealed class GrpcAcknowledgeResponse
 {
 	/// <summary>Gets or sets whether the operation succeeded.</summary>
 	public bool IsSuccess { get; set; }
+}
+
+/// <summary>
+/// Interprets the server's settlement response for the acknowledge, reject and requeue actions, which all
+/// share the one Acknowledge RPC and so must read its result the same way.
+/// </summary>
+internal static class GrpcSettlement
+{
+	/// <summary>
+	/// Determines whether the server accepted the settlement it was asked to perform.
+	/// </summary>
+	/// <param name="response">The settlement response, or <see langword="null"/> when the server sent no body.</param>
+	/// <returns><see langword="true"/> only when the server explicitly reported success.</returns>
+	/// <remarks>
+	/// Fail-closed: a null body and an unset <see cref="GrpcAcknowledgeResponse.IsSuccess"/> both read as
+	/// NOT accepted. The wire contract declares the field, so a server that omits it has not reported the
+	/// settlement done — and of the two ways to be wrong, reporting an accepted settlement that never
+	/// happened loses the message, while reporting an unaccepted one that did leaves it to be redelivered.
+	/// </remarks>
+	public static bool IsAccepted(GrpcAcknowledgeResponse? response) => response is { IsSuccess: true };
 }

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -305,24 +305,37 @@ public sealed class DataInventoryServiceShould
 	}
 
 	[Fact]
-	public async Task DiscoverAsync_FiltersByTenant_WhenProvided()
+	public async Task DiscoverAsync_ReadsTheWholeRegistry_NotASubjectScopedSlice()
 	{
 		// Arrange
 		const string tenantId = "tenant-123";
 
 		_ = A.CallTo(() => _queryStore.GetDiscoveredLocationsAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Array.Empty<DataLocation>());
+		_ = A.CallTo(() => _store.GetAllRegistrationsAsync(A<CancellationToken>._))
+			.Returns(Array.Empty<DataLocationRegistration>());
 
 		// Act
 		_ = await _sut.DiscoverAsync("user-123", DataSubjectIdType.UserId, tenantId, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _queryStore.FindRegistrationsForDataSubjectAsync(
-			"user-123",
-			DataSubjectIdType.UserId,
-			tenantId,
-			A<CancellationToken>._))
+		_ = A.CallTo(() => _store.GetAllRegistrationsAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+
+		// The half that records WHY, and the reason this arm was strengthened rather than retargeted.
+		// The subject-scoped read was not merely replaced for tidiness: it could never match. Discovery
+		// asks for it with a hardcoded Hash id type while every shipped registration example registers a
+		// natural one, and all three stores filter that query by id type without ever consulting the
+		// subject id. So the declared set came back empty for every subject, and the coverage gate
+		// downstream read that emptiness as "coverage unestablished" -- refusing every erasure in every
+		// shipped configuration. Reinstating the call is the regression; asserting its absence is what
+		// makes this arm detect it.
+		A.CallTo(() => _queryStore.FindRegistrationsForDataSubjectAsync(
+			A<string>._,
+			A<DataSubjectIdType>._,
+			A<string?>._,
+			A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	#endregion DiscoverAsync Tests

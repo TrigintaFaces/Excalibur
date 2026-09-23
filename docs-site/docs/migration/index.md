@@ -55,6 +55,16 @@ before:
   indefinitely. The retention sweep removes them either way. Rewrite them in place once every instance
   is running the new version.
 
+One change fails start-up until you answer it, and it touches no stored data:
+
+- **[Activity-group grant sync is atomic, and four providers must opt in](activity-group-grant-sync-atomicity.md)**
+  -- Synchronizing activity-group grants from a remote authority now replaces a set of grants in one step.
+  SQL Server, PostgreSQL and the in-memory store do that natively; on Cosmos DB, DynamoDB, Firestore and
+  MongoDB they cannot, so start-up fails until you accept the non-atomic sync explicitly. **Only hosts that
+  call the `IActivityGroupService` sync methods are affected.** The same change makes an empty per-user
+  payload revoke rather than be refused, and carries two provider fixes that made grant operations fail
+  outright on SQL Server and grant inserts fail on PostgreSQL.
+
 Also see **[Migrating to .NET 10](net10-only.md)** if your projects are not yet on `net10.0`, and
 **[Version Upgrades](version-upgrades.md)** for the versioning policy and what each release stage promises.
 
@@ -68,6 +78,14 @@ Also see **[Migrating to .NET 10](net10-only.md)** if your projects are not yet 
 ## Framework Migrations
 
 - **[Migrating to .NET 10](net10-only.md)** -- Every shipping package collapsed to `net10.0`. Consumer project TFM, SDK, Docker images, and serverless runtime identifiers must be updated.
+
+### Also required if you use GDPR erasure
+
+- **[Erasure registrations must declare a store kind](erasure-registration-store-kind.md)** -- Apply one
+  shipped schema script, then **classify your existing registrations**. A registration written before this
+  change reads back as an unknown store kind, reaches no contributor, and discharges nothing — so erasure
+  keeps reporting a non-`Completed` outcome until you classify it. Nothing fails at startup, which is why
+  this one is easy to miss.
 
 ## Reference
 

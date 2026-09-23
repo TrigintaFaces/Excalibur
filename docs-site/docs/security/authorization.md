@@ -63,9 +63,27 @@ services.AddExcaliburA3Core()
     .UseActivityGroupStore<MyActivityGroupStore>();
 ```
 
+:::info Implementing `IActivityGroupStore` yourself?
+Its read members now take a tenant and the estate-wide delete reports the tenants it emptied. See
+[Authorization grants require a tenant](../migration/authorization-tenant-required.md#if-you-implement-iactivitygroupstore-yourself)
+for the before/after signatures.
+:::
+
 **What you get:** Grant CRUD, activity group management, `GetService(Type)` ISP access to `IGrantQueryStore` and `IActivityGroupGrantStore`.
 
-**What you do NOT get:** Dispatch pipeline, CQRS commands (`AddGrantCommand`, `RevokeGrantCommand`), authentication HTTP clients, audit middleware, event-sourced Grant aggregate.
+**What you do NOT get:** Dispatch pipeline, CQRS commands (`AddGrantCommand`, `RevokeGrantCommand`), authentication HTTP clients, audit middleware, event-sourced Grant aggregate — **and no startup check on grant durability.**
+
+:::warning Grants registered this way do not survive a restart, and nothing tells you
+
+`AddExcaliburA3Core()` defaults `IGrantStore` to the in-memory store and installs no startup check, so the application starts normally on a store that loses every grant when the process ends.
+
+The failure that follows does not look like an outage. A user whose grants have vanished is indistinguishable from a user who never had any, so the application comes back up, reports itself healthy, and **denies everything to everyone** — having confirmed every grant as saved beforehand. Any process replacement does it: a rolling update, a scale-out whose new instance starts with its own empty dictionary, a container restart, an idle-timeout recycle.
+
+**In production, register a durable grant store** with `UseGrantStore<T>()`, as shown above.
+
+`AddExcaliburA3()` behaves differently: it **refuses to start** on a volatile grant store unless the host registers a durable one or sets `GrantDurabilityOptions.AllowVolatileGrantStore` to `true` as a deliberate statement that losing grants on restart is acceptable. That option has **no effect** on the `AddExcaliburA3Core()` composition, which performs no such check.
+
+:::
 
 ### Full-Stack Setup (A3)
 
@@ -92,6 +110,22 @@ services.AddHttpGrantAuthorization();
 The `Scope` string is what keeps two applications sharing one cache from reading each other's grants.
 :::
 
+### How long an authorization decision stays cached
+
+Authorization results are cached, so a grant you revoke can still authorize until its cache entry
+expires. `AuthorizationCacheOptions.AbsoluteExpirationRelativeToNow` is the upper bound on that
+window: it is measured from when the entry was written, and reads do not extend it, so the delay
+between a revocation and its taking effect can never exceed it. The default is 5 minutes.
+
+```csharp
+services.Configure<AuthorizationCacheOptions>(o =>
+    o.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1));
+```
+
+The value must be a positive duration; it is validated at startup, so an invalid one fails the host
+rather than silently disabling the bound. Shorten it when your revocations must take effect sooner,
+at the cost of more reads reaching the grant store.
+
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
@@ -116,6 +150,67 @@ services.AddExcaliburA3()
 services.AddExcaliburA3()
     .UseFirestore(options => { options.ProjectId = "my-project"; });
 ```
+
+#### Database schema for the SQL providers
+
+The SQL Server and PostgreSQL stores **never create their tables at runtime**. Apply the schema yourself
+before registering the store; without it, every operation fails on a missing table. The script ships
+inside the provider package, under `scripts/` (in your NuGet package cache at
+`~/.nuget/packages/excalibur.data.sqlserver/<version>/scripts/`, and likewise for
+`excalibur.data.postgres`):
+
+| Provider | Scripts |
+|---|---|
+| SQL Server | `002_CreateActivityGroupSchema.sql`, `003_CreateGrantSchema.sql` |
+| PostgreSQL | `002_CreateActivityGroupSchema.sql`, `003_CreateGrantSchema.sql` |
+
+Shipping a script does not migrate anything for you: you run it, once, like any other migration. Each
+statement is guarded, so re-running it is safe. The SQL Server scripts are single batches with no `GO`
+separators, so they also run when submitted as one command.
+
+If you already have a schema of your own, adapt it to these contracts rather than running the scripts.
+
+**Activity groups** (`002_CreateActivityGroupSchema.sql`):
+
+| SQL Server column | PostgreSQL column | Type | Null | Notes |
+|---|---|---|---|---|
+| `authz.ActivityGroup.TenantId` | `authz.activity_group.tenant_id` | `NVARCHAR(64)` / `VARCHAR(64)` | No | Default `__untenanted__`. SQL Server uses a binary collation (`Latin1_General_BIN2`) so tenant comparison is exact. |
+| `Name` | `name` | `NVARCHAR(128)` / `VARCHAR(128)` | No | The group name. Unique per tenant, not globally. |
+| `ActivityName` | `activity_name` | `NVARCHAR(256)` / `VARCHAR(256)` | No | One activity the group confers; a group is stored one row per activity. |
+
+**Primary key: `(TenantId, Name, ActivityName)`.** The widths are sized to fit SQL Server's 900-byte
+limit on a clustered key (64 + 128 + 256 characters at two bytes each is 896); keep them within that limit
+if you adapt the table, or long names will be refused on insert. The stores reject a longer name with an
+`ArgumentException` before it reaches the database, so both providers accept exactly the same names. The tenant is part of the key, not merely a column.
+Two tenants may each own a group with the same name, and those are separate groups. A key without the
+tenant would make the second tenant's group collide with the first. Keep the tenant in the key if you
+adapt the table.
+
+**Grants** (`003_CreateGrantSchema.sql`). `authz.Grant` holds the grants in force; `authz.GrantHistory`
+records every revocation. On PostgreSQL the tables are `authz."grant"` (`grant` is a reserved word) and
+`authz.grant_history`, with the snake_case column names shown.
+
+| SQL Server column | PostgreSQL column | Type | Null | Notes |
+|---|---|---|---|---|
+| `UserId` | `user_id` | `NVARCHAR(128)` / `VARCHAR(128)` | No | Part of the key. |
+| `TenantId` | `tenant_id` | `NVARCHAR(64)` / `VARCHAR(64)` | No | Part of the key. Default `__untenanted__`. |
+| `GrantType` | `grant_type` | `NVARCHAR(64)` / `VARCHAR(64)` | No | Part of the key. |
+| `Qualifier` | `qualifier` | `NVARCHAR(192)` / `VARCHAR(192)` | No | Part of the key. |
+| `FullName` | `full_name` | `NVARCHAR(256)` / `VARCHAR(256)` | Yes | |
+| `ExpiresOn` | `expires_on` | `DATETIMEOFFSET` / `TIMESTAMPTZ` | Yes | `NULL` never expires. |
+| `GrantedBy` | `granted_by` | `NVARCHAR(128)` / `VARCHAR(128)` | No | |
+| `GrantedOn` | `granted_on` | `DATETIMEOFFSET` / `TIMESTAMPTZ` | No | |
+
+**Primary key: `(UserId, TenantId, GrantType, Qualifier)`**, 896 bytes on SQL Server (128 + 64 + 64 + 192
+characters at two bytes each), inside its 900-byte key limit. Saving a grant that already exists replaces
+its details. The stores reject a longer value with an `ArgumentException` before it reaches the database.
+`authz.GrantHistory` has the same eight columns plus `RevokedBy` and `RevokedOn`, and a surrogate key: one
+grant can be revoked, granted again and revoked again, so its identity repeats in history.
+
+**Comparisons are exact.** Every grant lookup compares with a binary collation (`Latin1_General_BIN2` on
+SQL Server, `"C"` on PostgreSQL), so `Admin` and `admin` are different grants even on a table you created
+with a case-insensitive default. On PostgreSQL, keep `expires_on` and `granted_on` as `TIMESTAMPTZ`:
+expiry is compared with `now()`, and a column without a time zone is read in the session's time zone.
 
 For custom store implementations:
 
@@ -187,7 +282,7 @@ services.AddScoped<IAuthenticationToken, ClaimsPrincipalAuthenticationToken>();
 
 `IAccessToken` unifies authentication and authorization into a single object that combines `IAuthenticationToken` and `IAuthorizationPolicy`:
 
-```csharp
+```csharp ignore
 using Excalibur.A3;
 
 // IAccessToken provides both identity and authorization checks
@@ -236,7 +331,7 @@ public class DeleteOrderAction : IAmAuthorizable
 
 `IAuthorizationPolicy` provides tenant-scoped, activity-based authorization checks:
 
-```csharp
+```csharp ignore
 using Excalibur.A3.Authorization;
 
 // Check authorization against a policy
@@ -386,7 +481,7 @@ A runnable example covering both hosting styles is in `samples/06-security/Grant
 
 `IDispatchAuthorizationService` evaluates authorization using ASP.NET Core `IAuthorizationRequirement` and named policies:
 
-```csharp
+```csharp ignore
 using Excalibur.A3.Authorization;
 
 public class OrderHandler : IActionHandler<CreateOrderAction>
@@ -712,6 +807,33 @@ A3 uses a **store pattern** modeled after ASP.NET Core Identity (`IUserStore<T>`
 | `IGrantQueryStore` | 2 | ISP sub-interface for advanced queries (matching, find) |
 | `IActivityGroupStore` | 4 + `GetService(Type)` | Activity group operations (exists, findAll, deleteAll, create) |
 | `IActivityGroupGrantStore` | 4 | Bridging ISP for activity-group grant operations |
+| `IActivityGroupGrantReplacement` | 2 | **Optional capability.** Replaces a set of activity-group grants in one atomic step |
+
+#### Synchronizing grants from a remote authority
+
+The `IActivityGroupService` sync methods are a **full refresh**: the authority's snapshot becomes the
+whole set of grants. Replacing that set has to be atomic, or a reader caught between the delete and the
+inserts is denied access the snapshot confers, and a sync that fails part-way leaves the set partial
+until the next one succeeds.
+
+**SQL Server, PostgreSQL and the in-memory store implement `IActivityGroupGrantReplacement` and do this
+in one transaction.** Cosmos DB, DynamoDB, Firestore and MongoDB cannot, so composing one of them fails
+at start-up until you say that you accept the non-atomic sync:
+
+```csharp
+services.Configure<ActivityGroupSyncOptions>(options =>
+    options.GrantSyncAtomicity = GrantSyncAtomicity.BestEffort);
+```
+
+That logs one warning at start-up and runs the delete-then-insert. A store that implements the
+capability ignores the setting.
+
+**An empty response means different things to the two grant syncs.** For
+`SyncActivityGroupGrantsAsync(userId)` an empty list is applied — that user now holds no activity-group
+grants, and every one of theirs is revoked. For `SyncAllActivityGroupGrantsAsync()` it is refused and
+nothing is deleted, because it would revoke every user's grants at once and an empty response cannot be
+told apart from a filter or a schema change returning nothing. A body that did not deserialize into a
+list is a failed fetch in both cases and is never read as "there are none".
 
 Advanced features are accessed via the `GetService(Type)` escape hatch rather than adding optional methods to the core interface:
 
@@ -721,10 +843,20 @@ IGrantStore store = ...;
 var queryStore = store.GetService(typeof(IGrantQueryStore)) as IGrantQueryStore;
 if (queryStore is not null)
 {
+    // One tenant's grants. A null filter means "any"; an empty string is refused, never read as "all".
     var grants = await queryStore.GetMatchingGrantsAsync(
-        userId, tenantId, grantType, qualifier, cancellationToken);
+        tenantId, userId: null, grantType: "Role", qualifier: "Admin", cancellationToken);
 }
 ```
+
+`GetMatchingGrantsAsync` reads **one tenant**. It returns that tenant's non-revoked grants (expired ones
+included) whose fields equal every filter you pass, compared exactly: case-sensitive, with no wildcards.
+Pass `null` to leave a field unconstrained; an empty or whitespace value throws `ArgumentException`. A
+single-tenant application passes `TenantScope.UntenantedSentinel` as the tenant.
+
+`GetMatchingGrantsAcrossTenantsAsync` is the deliberate estate-wide read, for operator reports. Use it
+only to read: nothing that revokes a grant should be driven from a result that spans every tenant. On
+partitioned stores it costs a cross-partition query (Cosmos DB) or a table scan (DynamoDB).
 
 ### Builder Pattern (`IA3Builder`)
 
@@ -1216,6 +1348,7 @@ The entitlement report provider aggregates data from all governance subsystems. 
 | Activity group management (`IActivityGroupStore`) | Yes | Yes | Yes (via A3.Core) |
 | In-memory stores (dev/test/standalone) | Yes | Yes | Yes |
 | ISP sub-interfaces (`IGrantQueryStore`, `IActivityGroupGrantStore`) | Yes | Yes | Yes |
+| Atomic grant replacement (`IActivityGroupGrantReplacement`) | Yes | Yes | Yes (via A3.Core) |
 | `IA3Builder` with `UseGrantStore<T>()` / `UseActivityGroupStore<T>()` | Yes | Yes | Yes |
 | Role management (`IRoleStore`, `AddRoles()`) | -- | -- | Yes |
 | Access review campaigns (`IAccessReviewStore`, `AddAccessReviews()`) | -- | -- | Yes |

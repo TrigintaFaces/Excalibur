@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Text.Json.Serialization;
 
 using Excalibur.A3.Authorization;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.CosmosDb.Authorization;
 
@@ -109,7 +111,7 @@ internal sealed class GrantDocument
 	/// <param name="qualifier">The qualifier.</param>
 	/// <returns>The composite ID string.</returns>
 	public static string CreateId(string userId, string tenantId, string grantType, string qualifier) =>
-		$"{userId}:{tenantId}:{grantType}:{qualifier}";
+		SegmentedKey.Compose(userId, tenantId, grantType, qualifier);
 
 	/// <summary>
 	/// Converts a <see cref="Grant"/> to a <see cref="GrantDocument"/>.

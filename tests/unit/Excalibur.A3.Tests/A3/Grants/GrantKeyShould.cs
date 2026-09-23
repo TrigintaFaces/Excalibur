@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization.Grants;
 
@@ -126,7 +126,12 @@ public sealed class GrantKeyShould : UnitTestBase
 
 		// Act & Assert
 		var ex = Should.Throw<ArgumentException>(() => new GrantKey(invalidKey));
-		ex.Message.ShouldContain("expected format");
+
+		// The parse defers to the type that owns the key format, so the diagnostic is the owner's: it
+		// names the segment count found and the count expected, which says why the key cannot be decoded
+		// rather than only that it is wrong.
+		ex.Message.ShouldContain("3 segment(s)");
+		ex.Message.ShouldContain("4 were expected");
 	}
 
 	[Fact]

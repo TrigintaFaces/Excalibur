@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
 
@@ -23,6 +23,9 @@ namespace Excalibur.Saga.Tests.Services;
 [Trait("Priority", "1")]
 public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 {
+	// The fake hands back a stable token; the real stores mint one per claim.
+	private const string TestClaimToken = "test-claim-token";
+
 	private readonly ISagaTimeoutStore _timeoutStore;
 	private readonly IDispatcher _dispatcher;
 	private readonly IServiceProvider _serviceProvider;
@@ -115,7 +118,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			.ReturnsLazily(() =>
 			{
 				_ = firstPollObserved.TrySetResult();
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
@@ -162,16 +165,16 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return new List<SagaTimeout> { timeout };
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(MessageResult.Success()));
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
-			.Returns(Task.CompletedTask);
+			.Returns(Task.FromResult(SagaTimeoutRetirementOutcome.Retired));
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
@@ -199,7 +202,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			A<CancellationToken>._))
 			.MustHaveHappened();
 
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 #pragma warning restore CA1506
@@ -214,7 +217,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			.ReturnsLazily(() =>
 			{
 				_ = firstPollObserved.TrySetResult();
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
@@ -259,16 +262,16 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return new List<SagaTimeout> { timeout };
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
-			.Returns(Task.CompletedTask);
+			.Returns(Task.FromResult(SagaTimeoutRetirementOutcome.Retired));
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
@@ -287,7 +290,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		}
 
 		// Assert - should mark as delivered to prevent retry loop
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -311,9 +314,9 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return new List<SagaTimeout> { timeout };
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -340,7 +343,74 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		}
 
 		// Assert - should NOT mark as delivered when dispatch fails
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+#pragma warning restore CA1506
+
+	[Fact]
+#pragma warning disable CA1506 // Test method orchestrates multiple fakes/probes by design.
+	public async Task NotMarkDelivered_WhenDispatchReturnsFailedResultWithoutThrowing()
+	{
+		// A dispatch can FAIL WITHOUT THROWING. TimeoutMiddleware returns a Succeeded:false result when
+		// TimeoutOptions.ThrowOnTimeout is disabled, and RateLimitingMiddleware returns one when the limit
+		// is exceeded. The sibling arm above covers only the THROWING case, so this path was unguarded:
+		// the service discarded the result and deleted the row, producing ZERO deliveries plus deletion --
+		// the saga then waits forever for a timeout that no longer exists. That is strictly outside the
+		// at-least-once guarantee ISagaTimeoutStore documents.
+		//
+		// This arm is RED against the pre-fix service (which called MarkDeliveredAsync unconditionally)
+		// and GREEN once the result is inspected. Its liveness partner is
+		// ProcessDueTimeouts_WhenTimeoutsExist, which proves a SUCCEEDED dispatch still retires the row --
+		// without that partner, a service that never marked anything delivered would pass this arm.
+
+		// Arrange
+		var timeoutId = Guid.NewGuid().ToString();
+		var dispatchAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var timeout = CreateTimeout(
+			timeoutId,
+			Guid.NewGuid().ToString(),
+			typeof(TestTimeoutMessage).AssemblyQualifiedName,
+			JsonSerializer.SerializeToUtf8Bytes(new TestTimeoutMessage { Value = "test" }));
+
+		var hasReturned = false;
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				if (!hasReturned)
+				{
+					hasReturned = true;
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
+				}
+				return new List<ClaimedSagaTimeout>();
+			});
+
+		// Returns normally. Does NOT throw. Succeeded is false.
+		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes(() => _ = dispatchAttempted.TrySetResult())
+			.Returns(Task.FromResult(MessageResult.Failed("Timed out; ThrowOnTimeout disabled.")));
+
+		using var cts = new CancellationTokenSource();
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
+
+		// Act
+		var executeTask = service.StartAsync(cts.Token);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			dispatchAttempted.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
+		await cts.CancelAsync();
+
+		try
+		{
+			await service.StopAsync(CancellationToken.None);
+		}
+		catch (OperationCanceledException)
+		{
+			// Expected
+		}
+
+		// Assert - the row must survive so a later poll can re-deliver it.
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 #pragma warning restore CA1506
@@ -379,9 +449,9 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return timeouts.Take(batchSize).ToList();
+					return timeouts.Take(batchSize).Select(t => new ClaimedSagaTimeout(t, TestClaimToken)).ToList();
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -445,9 +515,9 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return new List<SagaTimeout> { timeout };
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -500,16 +570,16 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return new List<SagaTimeout> { timeout };
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
-			.Returns(Task.CompletedTask);
+			.Returns(Task.FromResult(SagaTimeoutRetirementOutcome.Retired));
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
@@ -528,7 +598,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		}
 
 		// Assert - should mark as delivered to prevent retry loop
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.MustHaveHappened();
 
 		// And should not dispatch
@@ -554,7 +624,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				{
 					observedSecondPoll.TrySetResult(true);
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		using var cts = new CancellationTokenSource();
@@ -599,16 +669,16 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return new List<SagaTimeout> { timeout };
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(MessageResult.Success()));
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
-			.Returns(Task.CompletedTask);
+			.Returns(Task.FromResult(SagaTimeoutRetirementOutcome.Retired));
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
@@ -631,7 +701,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		// Assert
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustHaveHappened();
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -654,16 +724,16 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return new List<SagaTimeout> { timeout };
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
-			.Returns(Task.CompletedTask);
+			.Returns(Task.FromResult(SagaTimeoutRetirementOutcome.Retired));
 
 		// Act
 		await service.StartAsync(cts.Token);
@@ -681,7 +751,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		}
 
 		// Assert
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.MustHaveHappened();
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -715,16 +785,16 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return new List<SagaTimeout> { timeout };
+					return new List<ClaimedSagaTimeout> { new(timeout, TestClaimToken) };
 				}
-				return new List<SagaTimeout>();
+				return new List<ClaimedSagaTimeout>();
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(MessageResult.Success()));
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
-			.Returns(Task.CompletedTask);
+			.Returns(Task.FromResult(SagaTimeoutRetirementOutcome.Retired));
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(
@@ -753,7 +823,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			A<CancellationToken>._))
 			.MustHaveHappened();
 
-		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == timeoutId), A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 #pragma warning restore CA1506

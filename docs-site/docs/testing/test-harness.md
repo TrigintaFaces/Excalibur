@@ -30,7 +30,7 @@ Key characteristics:
 
 ## Quick Start
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Testing;
 using Excalibur.Dispatch.Testing.Tracking;
@@ -225,7 +225,7 @@ context.GetItem<string>("RequestId").ShouldBe("req-abc-123");
 
 A full test showing handler registration, dispatching, and assertion:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Testing;
 using Excalibur.Dispatch.Testing.Tracking;

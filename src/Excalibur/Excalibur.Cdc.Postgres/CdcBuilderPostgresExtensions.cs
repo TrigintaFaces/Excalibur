@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+
+using Excalibur.Cdc;
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -290,6 +292,7 @@ public static class CdcBuilderPostgresExtensions
 			return new PostgresCdcStateStore(connection.ConnectionString, stateOptions);
 		});
 
+		_ = builder.Services.AddCdcFatalErrorOptionsValidation<PostgresDataChangeEvent>();
 		builder.Services.TryAddSingleton<IPostgresCdcProcessor>(sp =>
 		{
 			var sourceFactoryResult = sourceFactory(sp);
@@ -306,7 +309,14 @@ public static class CdcBuilderPostgresExtensions
 			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<PostgresDataChangeEvent>>>();
 			var failureClassifier = sp.GetService<Excalibur.Dispatch.IMessageFailureClassifier>();
 
-			return new PostgresCdcProcessor(Options.Create(optionsValue), stateStore, logger, fatalErrorOptions, failureClassifier);
+			return new PostgresCdcProcessor(
+				Options.Create(optionsValue),
+				stateStore,
+				logger,
+				fatalErrorOptions,
+				failureClassifier,
+				sp.GetService<TimeProvider>(),
+				sp.GetService<Excalibur.Cdc.Diagnostics.CdcHealthState>());
 		});
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need

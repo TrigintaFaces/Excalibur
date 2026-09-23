@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance.Azure;
 using Excalibur.Compliance;
@@ -699,6 +699,11 @@ public sealed class AzureKeyVaultProviderShould
 		SetPrivateField(sut, "_keyClient", keyClient);
 
 		A.CallTo(() => keyClient.StartDeleteKeyAsync("dispatch-orders", A<CancellationToken>._))
+			.Throws(new RequestFailedException(404, "missing"));
+
+		// Absent from the deleted-keys collection too: the vault holds no copy at all. (A key missing only from the
+		// live collection is soft-deleted and still recoverable, which is NOT NotFound.)
+		A.CallTo(() => keyClient.GetDeletedKeyAsync("dispatch-orders", A<CancellationToken>._))
 			.Throws(new RequestFailedException(404, "missing"));
 
 		var deleted = await sut.DeleteKeyAsync("orders", 30, CancellationToken.None);

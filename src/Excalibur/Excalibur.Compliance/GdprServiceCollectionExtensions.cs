@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Audit;
@@ -292,8 +293,16 @@ public static class GdprServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds retention enforcement services with background scanning.
+	/// Adds retention enforcement: a background pass that hands the declared retention policies to the
+	/// registered <see cref="IRetentionContributor"/> implementations.
 	/// </summary>
+	/// <remarks>
+	/// Only types declared with <see cref="AddRetentionPolicies{T}(IServiceCollection)"/> or
+	/// <see cref="AddRetentionPoliciesFromAssembly(IServiceCollection, Assembly)"/> are in retention scope.
+	/// With enforcement enabled and nothing declared, host startup fails, unless the only registered
+	/// contributors are the built-in outbox and inbox ones (which delete by their own age bound and do not read
+	/// the declared policies). Enforcement never falls back to scanning loaded assemblies.
+	/// </remarks>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configureOptions">Optional configuration for retention enforcement options.</param>
 	/// <returns>The service collection for chaining.</returns>
@@ -312,14 +321,7 @@ public static class GdprServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
-		services.TryAddScoped<IRetentionEnforcementService, RetentionEnforcementService>();
-		if (!services.Any(sd => sd.ServiceType == typeof(RetentionEnforcementBackgroundService)))
-		{
-			_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
-			_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RetentionEnforcementBackgroundService>());
-		}
-
-		return services;
+		return AddRetentionEnforcementCore(services);
 	}
 
 	/// <summary>
@@ -341,6 +343,52 @@ public static class GdprServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<RetentionEnforcementOptions>, RetentionEnforcementOptionsValidator>());
 
+		return AddRetentionEnforcementCore(services);
+	}
+
+	/// <summary>
+	/// Declares <typeparamref name="T"/> in retention scope: the <see cref="PersonalDataAttribute.RetentionDays"/>
+	/// of its annotated public properties become retention policies handed to the registered contributors.
+	/// </summary>
+	/// <typeparam name="T">A type with at least one <see cref="PersonalDataAttribute"/> property whose
+	/// <see cref="PersonalDataAttribute.RetentionDays"/> is positive.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentException"><typeparamref name="T"/> declares no retention period.</exception>
+	public static IServiceCollection AddRetentionPolicies<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
+		this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		_ = services.AddSingleton(RetentionPolicyDeclaration.ForType(typeof(T)));
+		return services;
+	}
+
+	/// <summary>
+	/// Declares every type in <paramref name="assembly"/> in retention scope: the
+	/// <see cref="PersonalDataAttribute.RetentionDays"/> of their annotated public properties become retention
+	/// policies handed to the registered contributors. Types in other assemblies are not affected.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="assembly">The assembly whose types are placed in retention scope.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentException"><paramref name="assembly"/> declares no retention period.</exception>
+	[RequiresUnreferencedCode("Enumerates the types of the assembly and reads their public properties, which trimming may remove. Use AddRetentionPolicies<T>() in trimmed applications.")]
+	public static IServiceCollection AddRetentionPoliciesFromAssembly(
+		this IServiceCollection services,
+		Assembly assembly)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(assembly);
+
+		_ = services.AddSingleton(RetentionPolicyDeclaration.ForAssembly(assembly));
+		return services;
+	}
+
+	private static IServiceCollection AddRetentionEnforcementCore(IServiceCollection services)
+	{
+		services.TryAddSingleton(TimeProvider.System);
 		services.TryAddScoped<IRetentionEnforcementService, RetentionEnforcementService>();
 		if (!services.Any(sd => sd.ServiceType == typeof(RetentionEnforcementBackgroundService)))
 		{

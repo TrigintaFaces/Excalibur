@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Saga.Abstractions;
@@ -105,20 +105,31 @@ public sealed class InMemorySagaTimeoutStoreTenantIsolationShould
 		var ct = CancellationToken.None;
 		await SeedBothTenantsAsync(ct).ConfigureAwait(false);
 
-		// SAFETY — retiring a timeout is scoped, so one tenant cannot retire another's pending row.
+		// The claim is taken the way the delivery loop takes it: estate-wide, with no tenant established.
+		// Tenant confinement is therefore enforced at the RETIREMENT, which is the property under test.
+		var claims = await _store.ClaimDueTimeoutsAsync(Far, batchSize: 10, ct).ConfigureAwait(false);
+		var claimForB = claims.Single(c => c.Timeout.TimeoutId == "timeout-b");
+
+		// SAFETY — retiring a timeout is scoped, so one tenant cannot retire another's pending row. Holding
+		// a valid claim is not sufficient: the ambient tenant must also own the row.
 		using (TenantContextHolder.BeginScope(TenantA))
 		{
-			await _store.MarkDeliveredAsync("timeout-b", ct).ConfigureAwait(false);
+			var foreign = await _store.MarkDeliveredAsync(claimForB, ct).ConfigureAwait(false);
+			foreign.ShouldBe(
+				SagaTimeoutRetirementOutcome.Superseded,
+				"a foreign-scoped retirement must report that it retired nothing, not silently succeed.");
 		}
 
 		_store.GetPendingCount().ShouldBe(2, "a foreign-scoped mark-delivered must retire nothing.");
 
 		// LIVENESS — under the row's own tenant it retires, which is what the delivery service does after
 		// re-establishing that tenant. A mark that matched nothing would leave the row pending and it would
-		// redeliver forever.
+		// redeliver forever. Without this arm a store that refused EVERY retirement would pass the safety
+		// half above.
 		using (TenantContextHolder.BeginScope(TenantB))
 		{
-			await _store.MarkDeliveredAsync("timeout-b", ct).ConfigureAwait(false);
+			var owned = await _store.MarkDeliveredAsync(claimForB, ct).ConfigureAwait(false);
+			owned.ShouldBe(SagaTimeoutRetirementOutcome.Retired, "the owning tenant's retirement succeeds.");
 		}
 
 		_store.GetPendingCount().ShouldBe(1, "the owning tenant retires its own row.");
@@ -156,7 +167,7 @@ public sealed class InMemorySagaTimeoutStoreTenantIsolationShould
 		var claimed = await _store.ClaimDueTimeoutsAsync(Far, batchSize: 10, ct).ConfigureAwait(false);
 
 		claimed.Count.ShouldBe(2, "the claim path is deliberately estate-wide.");
-		var tenants = claimed.Select(t => t.TenantId).OrderBy(t => t, StringComparer.Ordinal).ToList();
+		var tenants = claimed.Select(c => c.Timeout.TenantId).OrderBy(t => t, StringComparer.Ordinal).ToList();
 		tenants.ShouldBe(
 			[TenantA, TenantB],
 			customMessage: "and it carries each row's own tenant back for re-establishment.");

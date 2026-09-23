@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 
@@ -45,6 +45,14 @@ internal sealed partial class IbmMqTransportSender : ITransportSender
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Cancellation stops the batch; it does not discard what the batch already knows. Every input still
+	/// gets a result, because a caller who is told only "cancelled" cannot tell which messages were sent
+	/// and has no safe move left but to resend all of them — which on an at-least-once transport
+	/// duplicates every message that already arrived. Messages not reached, and the one in flight when
+	/// cancellation landed, are reported as retryable failures: their delivery is unknown, and a duplicate
+	/// is recoverable where a silent loss is not.
+	/// </remarks>
 	public async Task<BatchSendResult> SendBatchAsync(
 		IReadOnlyList<TransportMessage> messages,
 		CancellationToken cancellationToken)
@@ -55,8 +63,24 @@ internal sealed partial class IbmMqTransportSender : ITransportSender
 		var results = new List<SendResult>(messages.Count);
 		foreach (var message in messages)
 		{
-			cancellationToken.ThrowIfCancellationRequested();
+			if (cancellationToken.IsCancellationRequested)
+			{
+				break;
+			}
+
 			results.Add(await SendAsync(message, cancellationToken).ConfigureAwait(false));
+		}
+
+		// Cancellation is reported per input rather than thrown, so the caller can retry precisely the
+		// messages whose delivery is unknown. See BatchSendResult.Results for the contract.
+		while (results.Count < messages.Count)
+		{
+			results.Add(SendResult.Failure(new SendError
+			{
+				Code = "Canceled",
+				Message = "The batch was cancelled; this message is not confirmed sent.",
+				IsRetryable = true,
+			}));
 		}
 
 		var successCount = results.Count(static r => r.IsSuccess);
@@ -93,8 +117,8 @@ internal sealed partial class IbmMqTransportSender : ITransportSender
 
 	private SendResult PutSingle(TransportMessage message)
 	{
-		MQQueueManager? queueManager = null;
-		MQQueue? queue = null;
+		IIbmMqQueueManager? queueManager = null;
+		IIbmMqQueue? queue = null;
 		try
 		{
 			queueManager = _connectionProvider.CreateQueueManager();
@@ -228,7 +252,7 @@ internal sealed partial class IbmMqTransportSender : ITransportSender
 	private static bool IsRetryable(MQException ex) =>
 		ex.ReasonCode is MQC.MQRC_CONNECTION_BROKEN or MQC.MQRC_Q_MGR_NOT_AVAILABLE or MQC.MQRC_Q_MGR_QUIESCING;
 
-	private static void TryBackout(MQQueueManager? queueManager)
+	private static void TryBackout(IIbmMqQueueManager? queueManager)
 	{
 		try
 		{
@@ -240,11 +264,11 @@ internal sealed partial class IbmMqTransportSender : ITransportSender
 		}
 	}
 
-	private static void SafeClose(MQQueue? queue, MQQueueManager? queueManager)
+	private static void SafeClose(IIbmMqQueue? queue, IIbmMqQueueManager? queueManager)
 	{
 		try
 		{
-			queue?.Close();
+			queue?.Dispose();
 		}
 		catch (MQException)
 		{
@@ -253,7 +277,7 @@ internal sealed partial class IbmMqTransportSender : ITransportSender
 
 		try
 		{
-			queueManager?.Disconnect();
+			queueManager?.Dispose();
 		}
 		catch (MQException)
 		{

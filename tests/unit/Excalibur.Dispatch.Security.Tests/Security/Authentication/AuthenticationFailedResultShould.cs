@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Routing;
@@ -72,16 +72,6 @@ public sealed class AuthenticationFailedResultShould
 
 		// Assert
 		result.ErrorMessage!.ShouldBeNull();
-	}
-
-	[Fact]
-	public void HaveFalseCacheHit_ByDefault()
-	{
-		// Arrange & Act
-		var result = new AuthenticationFailedResult();
-
-		// Assert
-		result.CacheHit.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -174,19 +164,6 @@ public sealed class AuthenticationFailedResultShould
 		result.ErrorMessage!.ShouldBe("Token validation failed");
 	}
 
-	[Fact]
-	public void AllowSettingCacheHit()
-	{
-		// Arrange
-		var result = new AuthenticationFailedResult();
-
-		// Act
-		result.CacheHit = true;
-
-		// Assert
-		result.CacheHit.ShouldBeTrue();
-	}
-
 	[Theory]
 	[InlineData(AuthenticationFailureReason.MissingToken)]
 	[InlineData(AuthenticationFailureReason.InvalidToken)]
@@ -221,7 +198,6 @@ public sealed class AuthenticationFailedResultShould
 			ValidationResult = "valid",
 			AuthorizationResult = "denied",
 			ErrorMessage = "Invalid token signature",
-			CacheHit = false,
 			Reason = AuthenticationFailureReason.InvalidToken,
 		};
 
@@ -232,7 +208,6 @@ public sealed class AuthenticationFailedResultShould
 		result.ValidationResult.ShouldBe("valid");
 		result.AuthorizationResult.ShouldBe("denied");
 		result.ErrorMessage!.ShouldBe("Invalid token signature");
-		result.CacheHit.ShouldBeFalse();
 		result.Reason.ShouldBe(AuthenticationFailureReason.InvalidToken);
 	}
 

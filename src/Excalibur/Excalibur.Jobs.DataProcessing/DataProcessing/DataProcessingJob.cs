@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.Data.DataProcessing;
@@ -61,9 +61,15 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
-		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobOptions>(JobConfigSectionName);
-#pragma warning restore IL2026, IL3050
+		// The configuration-binding source generator does not intercept this call in this project,
+		// so the reflection-based ConfigurationBinder.Get<T> is reached and the trim analyzer is
+		// correct to flag it. Binding happens once at startup from a fixed section; the options type
+		// is referenced directly here so the trimmer keeps it. Suppressed rather than hidden: the
+		// member named below is the BCL one actually reached, not a wrapper of ours.
+		#pragma warning disable IL2026, IL3050 // ConfigurationBinder.Get<T> - see note above
+		var jobConfig = configuration.GetSection(JobConfigSectionName).Get<DataProcessingJobOptions>()
+			?? throw new InvalidOperationException($"Job configuration not found at {JobConfigSectionName}.");
+		#pragma warning restore IL2026, IL3050
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		// A Disabled job is never registered with the scheduler, so no trigger ever fires.
@@ -95,9 +101,15 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
-		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobOptions>(JobConfigSectionName);
-#pragma warning restore IL2026, IL3050
+		// The configuration-binding source generator does not intercept this call in this project,
+		// so the reflection-based ConfigurationBinder.Get<T> is reached and the trim analyzer is
+		// correct to flag it. Binding happens once at startup from a fixed section; the options type
+		// is referenced directly here so the trimmer keeps it. Suppressed rather than hidden: the
+		// member named below is the BCL one actually reached, not a wrapper of ours.
+		#pragma warning disable IL2026, IL3050 // ConfigurationBinder.Get<T> - see note above
+		var jobConfig = configuration.GetSection(JobConfigSectionName).Get<DataProcessingJobOptions>()
+			?? throw new InvalidOperationException($"Job configuration not found at {JobConfigSectionName}.");
+		#pragma warning restore IL2026, IL3050
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",

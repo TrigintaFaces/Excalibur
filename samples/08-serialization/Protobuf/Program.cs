@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // Protobuf Serialization Sample
 // ==============================
@@ -57,10 +57,22 @@ builder.Services.AddProtobufSerializer();
 // ============================================================
 // Configure outbox/inbox for reliable messaging
 // ============================================================
-builder.Services.AddOutbox<InMemoryOutboxStore>();
+// AddInMemoryOutboxStore() is the in-memory provider's own entry point. The generic
+// AddOutbox<TStore>() cannot be used with it: the store's constructor is internal, so container
+// activation has nothing public to call and the host fails to start.
+builder.Services.AddInMemoryOutboxStore();
 builder.Services.AddInMemoryInboxStore();
-builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
+
+// AddOutboxHostedService() is deliberately NOT called here.
+//
+// The outbox background service drains staged messages through an IOutboxPublisher, and a
+// publisher needs a transport (Kafka, RabbitMQ, Azure Service Bus, ...). This sample stages
+// messages to the in-memory outbox store to show the WRITE half of the pattern and registers
+// no transport, so starting the drain loop would abort host startup with:
+//   Unable to resolve service for type 'Excalibur.Dispatch.IOutboxPublisher'
+// Register the transport and AddOutboxHostedService() together -- see
+// samples/04-reliability/OutboxPattern for the full stage-and-drain path.
 
 // ============================================================
 // Build and start the host
@@ -232,10 +244,12 @@ logger.LogInformation("  - Binary size matters (network/storage)");
 logger.LogInformation("  - GCP/AWS integration (native Protobuf support)");
 
 logger.LogInformation("");
-logger.LogInformation("Sample completed. Press Ctrl+C to exit...");
+logger.LogInformation("Sample completed.");
 
 // Wait for shutdown signal
-await host.WaitForShutdownAsync().ConfigureAwait(false);
+// The demo is a fixed script, not a service: everything above has run, so stop the host and
+// exit. Waiting for shutdown here would leave a finished sample sitting idle until killed.
+await host.StopAsync().ConfigureAwait(false);
 
 #pragma warning restore CA1506
 #pragma warning restore CA1303

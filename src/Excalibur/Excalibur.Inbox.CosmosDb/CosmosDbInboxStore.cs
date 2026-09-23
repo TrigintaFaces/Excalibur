@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Net;
 using System.Text.Json.Serialization;
@@ -48,6 +48,14 @@ namespace Excalibur.Inbox.CosmosDb;
 public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IScopedTransactionalInboxStore, IInboxStoreCapabilities, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly CosmosDbInboxOptions _options;
+
+	/// <summary>
+	/// The optimistic-concurrency attempt bound, read from configuration rather than fixed, so the
+	/// exhaustion branch this store reports <see cref="InboxMarkFailedOutcome.Undecided"/> from is
+	/// reachable deterministically and can therefore be asserted.
+	/// </summary>
+	private int MarkFailedMaxEtagRetries => _options.MaxConcurrencyRetries;
+
 	private readonly ILogger<CosmosDbInboxStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 
@@ -538,7 +546,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -548,47 +556,30 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = ScopedId(messageId, handlerType);
-
-		try
-		{
-			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
-				documentId,
-				ResolvePartitionKey(handlerType),
-				cancellationToken: cancellationToken).ConfigureAwait(false);
-
-			var document = response.Resource;
-
-			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which
-			// would make it re-admittable and run the handler again.
-			if (document.Status == (int)InboxStatus.Processed)
-			{
-				return;
-			}
-
-			document.Status = (int)InboxStatus.Failed;
-			document.LastError = errorMessage;
-			document.LastAttemptAt = DateTimeOffset.UtcNow;
-			document.RetryCount++;
-
-			_ = await _container!.ReplaceItemAsync(
-				document,
-				documentId,
-				ResolvePartitionKey(handlerType),
-				new ItemRequestOptions { IfMatchEtag = response.ETag },
-				cancellationToken).ConfigureAwait(false);
-
-			LogMarkedFailed(messageId, handlerType, errorMessage);
-		}
-		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-		{
-			// Entry doesn't exist - nothing to mark as failed
-		}
+		// A null count means "increment the one the read observed", which is this overload's contract; the
+		// tenant-scoped overload below sets it exactly instead. The increment is applied to the document
+		// the ETag pins, so an attempt recorded by a concurrent writer invalidates the precondition and is
+		// re-read rather than overwritten.
+		return await MarkFailedCoreAsync(
+			ScopedId(messageId, handlerType),
+			ResolvePartitionKey(handlerType),
+			messageId,
+			handlerType,
+			errorMessage,
+			retryCount: null,
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
@@ -597,46 +588,108 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = ScopedId(messageId, handlerType);
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. A caller reading the estate-wide drain sees
+		// documents from every partition, so an id composed from ambient context would address a different
+		// partition than the read that produced the entry, with nothing in either signature to say so.
+		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType, tenant.TenantId);
 
-		try
+		// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
+		// re-admittable without consuming a delivery attempt.
+		return await MarkFailedCoreAsync(
+			documentId,
+			ResolvePartitionKey(handlerType),
+			messageId,
+			handlerType,
+			errorMessage,
+			retryCount,
+			cancellationToken).ConfigureAwait(false);
+	}
+
+	// The one read-and-conditional-replace both mark-failed overloads decide from. They differ only in
+	// which document the id addresses and in how the attempt count moves; the guard, the classification
+	// and the atomicity argument are identical, so they are stated once rather than twice. A null
+	// retryCount increments the count the pinned read observed; a value sets it exactly.
+	private async ValueTask<InboxMarkFailedOutcome> MarkFailedCoreAsync(
+		string documentId,
+		PartitionKey partitionKey,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int? retryCount,
+		CancellationToken cancellationToken)
+	{
+		// THE READ IS PART OF THE WRITE, NOT A CLASSIFICATION TAKEN BEFORE IT. Cosmos has no conditional
+		// update expression, so the terminal-state guard cannot be pushed into the statement the way a SQL
+		// CASE can. What replaces it is the ETag: the replace below is refused (412) if anything changed the
+		// document after the read, so the status this method decided on is provably the status the write
+		// acted upon. A concurrent finalize therefore cannot slip between them -- it invalidates the ETag and
+		// the loop re-reads, rather than demoting a document that reached Processed in the window.
+		for (var attempt = 0; attempt < MarkFailedMaxEtagRetries; attempt++)
 		{
-			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
-				documentId,
-				ResolvePartitionKey(handlerType),
-				cancellationToken: cancellationToken).ConfigureAwait(false);
+			ItemResponse<CosmosDbInboxDocument> response;
+
+			try
+			{
+				response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
+					documentId,
+					partitionKey,
+					cancellationToken: cancellationToken).ConfigureAwait(false);
+			}
+			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+			{
+				return InboxMarkFailedOutcome.EntryNotFound;
+			}
 
 			var document = response.Resource;
 
-			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which
-			// would make it re-admittable and run the handler again.
+			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which would
+			// make it re-admittable and run the handler again.
 			if (document.Status == (int)InboxStatus.Processed)
 			{
-				return;
+				return InboxMarkFailedOutcome.AlreadyProcessed;
 			}
 
 			document.Status = (int)InboxStatus.Failed;
 			document.LastError = errorMessage;
 			document.LastAttemptAt = DateTimeOffset.UtcNow;
+			document.RetryCount = retryCount ?? (document.RetryCount + 1);
 
-			// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
-			// re-admittable without consuming a delivery attempt.
-			document.RetryCount = retryCount;
-
-			_ = await _container!.ReplaceItemAsync(
-				document,
-				documentId,
-				ResolvePartitionKey(handlerType),
-				new ItemRequestOptions { IfMatchEtag = response.ETag },
-				cancellationToken).ConfigureAwait(false);
+			try
+			{
+				_ = await _container!.ReplaceItemAsync(
+					document,
+					documentId,
+					partitionKey,
+					new ItemRequestOptions { IfMatchEtag = response.ETag },
+					cancellationToken).ConfigureAwait(false);
+			}
+			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed)
+			{
+				// Someone else wrote the document between the read and the replace, so the status this
+				// iteration decided on is stale. Nothing was written; re-read and decide again.
+				continue;
+			}
+			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+			{
+				// Retention removed the document in the same window.
+				return InboxMarkFailedOutcome.EntryNotFound;
+			}
 
 			LogMarkedFailed(messageId, handlerType, errorMessage);
+
+			return InboxMarkFailedOutcome.Applied;
 		}
-		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-		{
-			// Entry doesn't exist - nothing to mark as failed
-		}
+
+		// Contention that outlasts the bounded retries is reported as Undecided, not thrown. Every losing
+		// attempt wrote nothing, so the entry is exactly as it was found and the call is safe to re-drive.
+		// It is a RETURNED value because the caller is typically already handling a failure -- the message
+		// it was recording is the thing that went wrong -- and throwing here would replace that original
+		// error with one about the store. Throw only when the store could not be ASKED; this one answered.
+		return InboxMarkFailedOutcome.Undecided;
 	}
+
+	// The bound on the ETag re-read loop above. Each iteration loses only to a writer that actually committed
+	// in the window, so a run of them means sustained contention on one entry rather than a livelock.
 
 	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(

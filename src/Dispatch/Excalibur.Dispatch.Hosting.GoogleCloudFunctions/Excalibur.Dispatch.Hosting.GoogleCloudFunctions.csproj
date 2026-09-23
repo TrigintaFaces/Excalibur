@@ -3,7 +3,6 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <RootNamespace>Excalibur.Dispatch.Hosting.GoogleCloudFunctions</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Hosting.GoogleCloudFunctions</AssemblyName>
     <PackageId>$(AssemblyName)</PackageId>

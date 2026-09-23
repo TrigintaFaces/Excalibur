@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Cdc.SqlServer;
 
@@ -176,15 +176,21 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void UpdateLsnAfterProcessing_RemovesTracking_WhenNextLsnEqualsMax()
+	public void UpdateLsnAfterProcessing_RetainsTracking_WhenNextLsnEqualsMax()
 	{
 		var sut = CreateSut();
 		InvokeUpdateLsnTracking(sut, "dbo_orders", new byte[] { 0x01 }, null);
 
 		sut.UpdateLsnAfterProcessing("dbo_orders", nextLsn: new byte[] { 0x10 }, maxLsn: new byte[] { 0x10 });
 
-		sut.GetTracking("dbo_orders").ShouldBeNull();
-		sut.GetNextLsn().ShouldBeNull();
+		// This arm previously asserted the table was DROPPED here, certifying a defect: the producer scans an
+		// INCLUSIVE window, so a transaction sitting exactly at the captured maximum still has to be
+		// delivered. Dropping it left that transaction neither delivered nor checkpointed, and every later
+		// run resumed from the same position and dropped it again.
+		var tracking = sut.GetTracking("dbo_orders");
+		tracking.ShouldNotBeNull();
+		tracking.Lsn.ShouldBe(new byte[] { 0x10 });
+		sut.GetNextLsn().ShouldBe(new byte[] { 0x10 });
 	}
 
 	[Fact]

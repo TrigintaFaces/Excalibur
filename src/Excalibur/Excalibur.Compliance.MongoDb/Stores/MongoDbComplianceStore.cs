@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
 
@@ -430,15 +430,16 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 		/// read leak.
 		/// </para>
 		/// <para>
-		/// Each part is length-prefixed rather than simply delimited. A plain <c>tenant:subject:purpose</c>
-		/// join is ambiguous when a value may itself contain the delimiter — tenant <c>"a:b"</c> with subject
+		/// Each part is escaped rather than simply delimited. A plain <c>tenant:subject:purpose</c> join is
+		/// ambiguous when a value may itself contain the delimiter — tenant <c>"a:b"</c> with subject
 		/// <c>"c"</c> and tenant <c>"a"</c> with subject <c>"b:c"</c> collapse to the same string — which would
 		/// reintroduce the very collision this key exists to prevent, for any consumer whose tenant
-		/// identifiers contain a colon. Length prefixes make the encoding injective for arbitrary inputs.
+		/// identifiers contain a colon. Escaping every term makes the encoding injective for arbitrary
+		/// inputs, and uses the one composer the rest of the framework composes keys with.
 		/// </para>
 		/// </remarks>
 		public static string CreateId(string tenantId, string subjectId, string purpose)
-			=> $"{tenantId.Length}:{tenantId}:{subjectId.Length}:{subjectId}:{purpose}";
+			=> SegmentedKey.Compose(tenantId, subjectId, purpose);
 
 		public static ConsentDocument FromRecord(ConsentRecord record, string tenantId) => new()
 		{
@@ -513,12 +514,12 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 		/// <remarks>
 		/// The request identifier alone is not a safe key: it is supplied by the caller, so two tenants can
 		/// legitimately present the same one, and this <c>_id</c> is the upsert conflict target — the second
-		/// tenant's write would overwrite the first tenant's request. Length-prefixed for the same reason as
-		/// the consent key: a plain delimiter join is ambiguous when a tenant identifier may contain the
+		/// tenant's write would overwrite the first tenant's request. Escaped for the same reason as the
+		/// consent key: a plain delimiter join is ambiguous when a tenant identifier may contain the
 		/// delimiter.
 		/// </remarks>
 		public static string CreateId(string tenantId, string requestId)
-			=> $"{tenantId.Length}:{tenantId}:{requestId}";
+			=> SegmentedKey.Compose(tenantId, requestId);
 
 		public static SubjectAccessDocument FromResult(SubjectAccessResult result, string tenantId) => new()
 		{

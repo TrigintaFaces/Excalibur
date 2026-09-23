@@ -15,6 +15,8 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Diagnostics.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.Azure" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.ClaimCheck.InMemory" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.ClaimCheck.AwsS3" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage" />
   </ItemGroup>
   <ItemGroup>
     <!-- Core Dispatch references -->

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -36,6 +36,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcOptions>, CosmosDbCdcOptionsValidator>());
+		_ = services.AddCdcFatalErrorOptionsValidation<CosmosDbDataChangeEvent>();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need
@@ -67,6 +68,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 			.Bind(configuration)
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcOptions>, CosmosDbCdcOptionsValidator>());
+		_ = services.AddCdcFatalErrorOptionsValidation<CosmosDbDataChangeEvent>();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need
@@ -100,6 +102,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 			.Bind(configuration.GetSection(sectionName))
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcOptions>, CosmosDbCdcOptionsValidator>());
+		_ = services.AddCdcFatalErrorOptionsValidation<CosmosDbDataChangeEvent>();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need

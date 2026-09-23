@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 
@@ -69,6 +69,7 @@ internal sealed class FencedMarkMessageDeadLetteredRequest : DataRequestBase<IDb
 			DECLARE @HighWater BIGINT;
 			DECLARE @Updated INT;
 			DECLARE @Exists BIT;
+			DECLARE @Terminal BIT;
 
 			MERGE {fenceTableName} WITH (UPDLOCK, HOLDLOCK) AS f
 			USING (SELECT @Scope AS OutboxTable) AS s ON (f.OutboxTable = s.OutboxTable)
@@ -92,7 +93,12 @@ internal sealed class FencedMarkMessageDeadLetteredRequest : DataRequestBase<IDb
 			SELECT @Exists = CASE WHEN EXISTS (
 				SELECT 1 FROM {outboxTableName} WHERE Id = @MessageId) THEN 1 ELSE 0 END;
 
-			SELECT @HighWater AS HighWaterToken, @Updated AS UpdatedCount, @Exists AS RowExists;
+			-- The same predicate the mutation refused on, so a terminal row is reported as terminal rather
+			-- than as a claim someone else holds.
+			SELECT @Terminal = CASE WHEN EXISTS (
+				SELECT 1 FROM {outboxTableName} WHERE Id = @MessageId AND Status IN (2, 5)) THEN 1 ELSE 0 END;
+
+			SELECT @HighWater AS HighWaterToken, @Updated AS UpdatedCount, @Exists AS RowExists, @Terminal AS IsTerminal;
 			""";
 
 		var parameters = new DynamicParameters();

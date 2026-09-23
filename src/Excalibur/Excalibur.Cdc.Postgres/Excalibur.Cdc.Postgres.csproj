@@ -31,6 +31,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />

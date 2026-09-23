@@ -32,10 +32,21 @@
     <!-- The SqlServer escrow provider delegates to the internal QuorumRecoverySeam so the M-of-N
          quorum invariant lives in exactly one place across both first-party provider assemblies. -->
     <InternalsVisibleTo Include="Excalibur.Compliance.SqlServer" />
+    <!-- The Postgres erasure store persists the certificate's canonical form through
+         ErasureCertificateCanonicalizer rather than projecting it into columns, so what it reads back is
+         what was signed. It uses the one canonicalizer instead of its own copy for the same reason the
+         signer and the verifier do. -->
+    <InternalsVisibleTo Include="Excalibur.Compliance.Postgres" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Benchmarks" />
     <InternalsVisibleTo Include="Excalibur.Compliance.Benchmarks" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />
     <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
+    <!-- The erasure-store conformance kit signs a certificate before storing it, so its round-trip arm can
+         ask whether the stored document still verifies. It uses the internal signer rather than its own
+         copy of the scheme: a second implementation of "the bytes we sign" is precisely the drift that
+         turns an honest certificate into a reported forgery. Same arrangement Excalibur.EventSourcing
+         already has with this package. -->
+    <InternalsVisibleTo Include="Excalibur.Testing.Conformance" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
     <!-- Real-infrastructure lock for the internal encrypting decorator's scoped-transactional forward: the
          atomic guarantee through a DECORATED store can only be proven against a live provider transaction. -->

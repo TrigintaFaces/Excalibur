@@ -9,6 +9,8 @@ description: Performance comparison of Excalibur.Dispatch vs MediatR, Wolverine,
 > **The non-MediatR comparisons below predate the 2026-09-05 correlation fix and are being re-measured.** Restoring correlation on the default fast path cost about 10-11 ns on the Dispatch side of every in-process comparison, so any ratio on this page that was not re-measured overstates Dispatch's lead. The MediatR rows have been re-measured; the Wolverine and MassTransit rows have not. Treat them as an upper bound on our favour until they are.
 
 
+MediatR, MassTransit, Wolverine and NServiceBus are trademarks of their respective owners. They are named on this page only to identify the products measured; no affiliation or endorsement is implied.
+
 This page documents comparative benchmarks for **Excalibur.Dispatch** using three explicit tracks:
 
 1. **In-process parity** (raw handler-dispatch, no middleware)

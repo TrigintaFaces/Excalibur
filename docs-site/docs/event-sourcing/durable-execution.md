@@ -40,7 +40,7 @@ At runtime the engine also requires an `IEventStore` (the journal) and an `IEven
 
 `AddWorkflows()` registers the engine (the `IWorkflowExecutor`, the workflow and activity registries, and validated `WorkflowOptions`). `AddWorkflow(name, body)` registers a workflow body under a name, and `AddActivity<TActivity, TInput, TOutput>(name)` registers an at-least-once activity:
 
-```csharp
+```csharp ignore
 using Microsoft.Extensions.DependencyInjection;
 using Excalibur.Workflows;
 
@@ -116,7 +116,7 @@ A Roslyn analyzer flags non-deterministic calls (`DateTimeOffset.UtcNow`, `Guid.
 
 An `IActivity<TInput, TOutput>` is an at-least-once unit of side-effecting work invoked through `CallActivityAsync`:
 
-```csharp
+```csharp ignore
 using Excalibur.Workflows;
 
 public sealed class ReserveInventoryActivity : IActivity<OrderInput, ReservationResult>

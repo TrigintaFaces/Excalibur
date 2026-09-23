@@ -2,14 +2,29 @@
 
 **Framework:** Excalibur
 **Standard:** NIST 800-53 Rev 5 (FedRAMP Moderate Baseline)
-**Status:** 12 of 14 controls satisfied by the framework; 2 partial (SI-7, PM-11)
+**Status:** 4 of 14 controls satisfied by the framework; 10 partial — the framework supplies a mechanism and you supply the rest
 **Last Updated:** 2026-09-12
 
 ---
 
+:::caution Verify every SSP statement against your own deployment before you adopt it
+
+The **SSP Statement** blocks on this page are written to be copied into your own System Security Plan,
+so treat each one as a draft about *your* system rather than as a finding about it. **A review of these
+statements is in progress and is not complete.**
+
+A statement that has not yet been reviewed may describe a capability that is **opt-in and not active
+unless you register it**, that is configured differently in your deployment, or that the framework does
+not provide. Several controls documented here are inactive until explicitly enabled.
+
+Before pasting any statement into a document an assessor will read, confirm it against the
+configuration you actually run.
+
+:::
+
 ## Overview
 
-This checklist provides a step-by-step guide for FedRAMP certification preparation using the Excalibur framework. The framework implements 12 NIST 800-53 Rev 5 controls as secure-by-default capabilities, and contributes partially to 2 more, enabling framework consumers to inherit compliance rather than implement from scratch.
+This checklist provides a step-by-step guide for FedRAMP certification preparation using the Excalibur framework. The framework fully implements 4 NIST 800-53 Rev 5 controls and contributes a mechanism to 10 more. For those 10, a mechanism is not the control: each row below says what the framework supplies and what you must still do, and your SSP must describe both.
 
 **FedRAMP Impact Level:** Moderate
 **Authorization Boundary:** Excalibur framework (NuGet packages)
@@ -23,20 +38,20 @@ This checklist provides a step-by-step guide for FedRAMP certification preparati
 |---------|-------|------------------|-----------------|-------------------|
 | **AC-3** | Access Enforcement | ✅ SATISFIED | Inherit `[RequirePermission]` | [Attribute-based authorization](../../advanced/security.md#requirepermission-attribute) |
 | **AC-6** | Least Privilege | ✅ SATISFIED | Inherit RBAC | [Role-based authorization](../../advanced/security.md#role-based-authorization) |
-| **AU-2** | Audit Events | ✅ SATISFIED | Inherit `IAuditLogger` | [Audit event types](../../security/audit-logging.md#event-types) |
+| **AU-2** | Audit Events | ⚠️ PARTIAL | Inherit the `IAuditLogger` API and event taxonomy. Nothing is audited automatically: you choose the events, call `IAuditLogger` at each point, and review the list periodically | [Audit event types](../../security/audit-logging.md#event-types) |
 | **AU-3** | Content of Audit Records | ✅ SATISFIED | Inherit audit schema | [Audit event properties](../../security/audit-logging.md#event-properties) |
-| **AU-9** | Protection of Audit Information | ✅ SATISFIED | Inherit immutable logs | [Hash chain integrity](../../security/audit-logging.md#hash-chain-integrity) |
-| **IA-5** | Authenticator Management | ✅ SATISFIED | Inherit Argon2id hashing | [Password hashing](../../advanced/security.md#password-hashing) |
-| **SC-8** | Transmission Confidentiality | ✅ SATISFIED | Inherit TLS 1.2+ | [Transport encryption](../../advanced/security.md#transport-encryption) |
+| **AU-9** | Protection of Audit Information | ⚠️ PARTIAL | Inherit tamper-EVIDENCE: a hash chain that detects modification after the fact. Immutability is NOT provided — store audit records where the application cannot update or delete them, and restrict access yourself | [Hash chain integrity](../../security/audit-logging.md#hash-chain-integrity) |
+| **IA-5** | Authenticator Management | ⚠️ PARTIAL | Inherit Argon2id hashing of stored passwords. Issuance, distribution, revocation on compromise and MFA are yours | [Password hashing](../../advanced/security.md#password-hashing) |
+| **SC-8** | Transmission Confidentiality | ⚠️ PARTIAL | Inherit TLS-required message transports (`TransportSecurityOptions.RequireTls` defaults to `true`). Your HTTP host's TLS is yours to configure | [Transport encryption](../../advanced/security.md#transport-encryption) |
 | **SC-13** | Cryptographic Protection | ✅ SATISFIED | Inherit `IEncryptionProvider` | [AES-256-GCM encryption](../../security/encryption-architecture.md#aes-256-gcm-encryption) |
-| **SC-28** | Protection of Information at Rest | ✅ SATISFIED | Inherit `[PersonalData]` | [Field-level encryption](../../security/encryption-architecture.md#personaldata-attribute) |
-| **SI-4** | System Monitoring | ✅ SATISFIED | Inherit OpenTelemetry | [OpenTelemetry](../../observability/index.md#opentelemetry) |
-| **SI-7** | Software Integrity | ⚠️ PARTIAL | Inherit SBOM + dependency scanning; packages are UNSIGNED | [SBOM generation](../fedramp/CM-8-SBOM.md#sbom-generation) |
+| **SC-28** | Protection of Information at Rest | ⚠️ PARTIAL | Inherit field encryption for `[PersonalData]` — ONLY in the event, inbox, outbox and projection stores once encryption is registered. Elsewhere the attribute encrypts nothing | [Field-level encryption](../../security/encryption-architecture.md#personaldata-attribute) |
+| **SI-4** | System Monitoring | ⚠️ PARTIAL | Inherit OpenTelemetry traces and metrics. The framework detects no attacks; detection and alerting are yours | [OpenTelemetry](../../observability/index.md#opentelemetry) |
+| **SI-7** | Software Integrity | ⚠️ PARTIAL | Inherit SBOM + dependency scanning; packages are NOT author-signed — they carry only NuGet.org's repository signature, which does not attest publisher provenance | [SBOM generation](../fedramp/CM-8-SBOM.md#sbom-generation) |
 | **PM-11** | Mission/Business Process Definition | ⚠️ PARTIAL | Define your own mission/business processes and their security risk | N/A (business process) |
-| **SA-15** | Development Process | ✅ SATISFIED | Reference CI/CD | [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) |
-| **CM-8** | Component Inventory | ✅ SATISFIED | Reference SBOM | [Component inventory (CM-8)](../fedramp/CM-8-SBOM.md) |
+| **SA-15** | Development Process | ⚠️ PARTIAL | The framework's own CI/CD is supplier evidence only. SA-15 is about YOUR development process | [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) |
+| **CM-8** | Component Inventory | ⚠️ PARTIAL | The framework's SBOM covers its own packages only — one entry in your inventory, not the inventory | [Component inventory (CM-8)](../fedramp/CM-8-SBOM.md) |
 
-**Status:** 12 satisfied, 2 partial (SI-7 software integrity, PM-11 business process)
+**Status:** 4 satisfied (AC-3, AC-6, AU-3, SC-13), 10 partial (AU-2, AU-9, IA-5, SC-8, SC-28, SI-4, SI-7, PM-11, SA-15, CM-8)
 
 ---
 
@@ -74,6 +89,14 @@ This checklist provides a step-by-step guide for FedRAMP certification preparati
 **Command:**
 ```bash
 # Download SBOM artifacts
+
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../../legal/compliance-disclaimer.md).
+:::
 gh run download <run-id> -n cyclonedx-sbom
 
 # Download security scan reports
@@ -121,8 +144,8 @@ public class DeleteUserCommand : IDispatchAction
 
 **Evidence:**
 - [Attribute-based authorization](../../advanced/security.md#attribute-based-authorization) - Authorization guide
-- Test coverage reports (enforced regression floor of 44% in CI)
-- GitHub Actions workflow runs
+- Test coverage reports from **your own** CI (the framework enforces a 44% regression floor in its own)
+- Workflow runs from **your own** CI
 
 **SSP Statement:**
 > "AC-3 is satisfied by the framework's `[RequirePermission]` attribute, which enforces permission-based access control at the API layer. All protected operations are annotated with required permissions, and unauthorized requests are rejected before execution."
@@ -229,7 +252,7 @@ public class UserService
 - Test coverage for audit logging
 
 **SSP Statement:**
-> "AU-2 is satisfied by the framework's `IAuditLogger` interface, which provides structured audit logging for all security-relevant events. Consumers implement the `IAuditStore` interface to persist audit logs to their chosen backend."
+> "AU-2 is implemented by [system name]. We audit the following event types: [list], selected because [justification] and reviewed every [period]. Each is recorded by calling the Excalibur `IAuditLogger` API at the point the event occurs; the framework records no event on its own."
 
 #### 3.2 AU-3: Content of Audit Records
 
@@ -246,23 +269,25 @@ The information system generates audit records containing information that estab
 - [ ] Review audit schema documentation
 - [ ] Ensure all required fields are populated
 
-**Audit Schema:**
-```csharp
-public sealed record AuditEvent
-{
-    public required string EventId { get; init; }           // Unique event identifier
-    public required AuditEventType EventType { get; init; } // What occurred (enum)
-    public required string Action { get; init; }            // Specific action
-    public required AuditOutcome Outcome { get; init; }     // Success/Failure (enum)
-    public required DateTimeOffset Timestamp { get; init; } // When it occurred
-    public required string ActorId { get; init; }           // Who initiated
-    public string? ResourceId { get; init; }                // What was affected
-    public string? ResourceType { get; init; }              // Resource category
-    public string? CorrelationId { get; init; }             // Request traceability
-    public string? TenantId { get; init; }                  // Tenant discriminator (scoping is caller-supplied per query)
-    public IReadOnlyDictionary<string, string>? Metadata { get; init; } // Additional context
-}
-```
+**Audit Schema.** Audit records are `Excalibur.Compliance.Abstractions.Audit.AuditEvent`. The fields
+below are the shipped surface; this page describes them rather than restating the declaration, so it
+cannot drift away from the type you actually receive.
+
+| AU-3 element | fields on `AuditEvent` |
+|---|---|
+| what type of event occurred | `EventType`, `Action` |
+| when the event occurred | `Timestamp` |
+| where the event occurred | `ApplicationName`, `SessionId` |
+| the source of the event | `IpAddress`, `UserAgent` |
+| the outcome of the event | `Outcome` |
+| identity of individuals or subjects | `ActorId`, `ActorType` |
+| affected resource | `ResourceId`, `ResourceType`, `ResourceClassification` |
+| traceability and context | `CorrelationId`, `TenantId`, `Reason`, `Metadata`, `EventId` |
+| tamper evidence | `EventHash`, `PreviousEventHash` |
+
+`EventHash` and `PreviousEventHash` chain each record to its predecessor, which is what lets an
+assessor detect that a record was altered or removed after the fact. Verify the chain over the period
+under assessment rather than treating the presence of the fields as evidence on its own.
 
 - [ ] Verify audit records include all required fields
 - [ ] Test audit record completeness (integration tests)
@@ -281,36 +306,31 @@ public sealed record AuditEvent
 The information system protects audit information and audit tools from unauthorized access, modification, and deletion.
 
 **Framework Implementation:**
-- Immutable append-only audit logs
-- Tamper detection via cryptographic hashing
-- Separate audit storage (read-only access for application)
+- **Tamper-evidence, not immutability.** The SQL Server and Postgres audit stores chain each record's hash to the previous one (`EnableHashChain`, on by default), and `AuditChainVerifier.VerifyAsync` checks the chain. That detects a modification after it has happened. It does not prevent one.
+- The shipped audit stores only ever `INSERT` audit records. They `DELETE` them only through the retention purges (`PurgeExpiredAsync`, `PurgeTenantAsync`).
+- Protecting audit information from unauthorized modification and deletion — the core of AU-9 — is **your storage and access configuration**, not something a library can supply.
+
+:::warning A hash chain is not immutability
+AU-9 asks that audit information be protected from unauthorized access, modification **and** deletion. A hash chain protects against none of the three: it tells you afterwards that one of them happened. Do not describe this control as inherited.
+:::
 
 **Consumer Checklist:**
 
-- [ ] Implement append-only `IAuditStore` (e.g., SQL Server with INSERT-only permissions)
+- [ ] Grant the application's database identity `INSERT` and `SELECT` only on the audit table — no `UPDATE`, no `DELETE`
+- [ ] Run retention purges under a **separate** identity that alone holds `DELETE`, so the application itself cannot remove audit records
+- [ ] Or write audit records to a WORM (write-once) sink with its own retention lock
 - [ ] Configure audit log encryption at rest
 - [ ] Restrict audit log access to security team only
 
-**Code Example:**
-```csharp
-public class AppendOnlyAuditStore : IAuditStore
-{
-    public async Task<AuditEventId> StoreAsync(AuditEvent auditEvent, CancellationToken ct)
-    {
-        // INSERT-only, no UPDATE or DELETE
-        await _db.ExecuteAsync(
-            "INSERT INTO AuditLog (EventId, EventType, Timestamp, UserId, Outcome, CorrelationId, Metadata) " +
-            "VALUES (@EventId, @EventType, @Timestamp, @UserId, @Outcome, @CorrelationId, @Metadata)",
-            auditEvent
-        );
+**Code Example** (SQL Server, default `audit.AuditEvents` table):
+```sql
+-- The application identity can write and read audit records, and nothing else.
+GRANT INSERT, SELECT ON audit.AuditEvents TO [app_identity];
+DENY  UPDATE, DELETE ON audit.AuditEvents TO [app_identity];
 
-        // Tamper detection: store hash of previous record
-        await _db.ExecuteAsync(
-            "UPDATE AuditLog SET PreviousHash = @Hash WHERE EventId = @EventId",
-            new { Hash = ComputeHash(auditEvent), auditEvent.EventId }
-        );
-    }
-}
+-- Retention purges (PurgeExpiredAsync / PurgeTenantAsync) delete rows, so run them
+-- under a separate identity that alone holds DELETE.
+GRANT SELECT, DELETE ON audit.AuditEvents TO [audit_retention_identity];
 ```
 
 - [ ] Test tamper detection (verify hash chain integrity)
@@ -322,7 +342,7 @@ public class AppendOnlyAuditStore : IAuditStore
 - Retention policy documentation
 
 **SSP Statement:**
-> "AU-9 is satisfied through append-only audit logs with cryptographic tamper detection. The framework stores a hash of each audit record, enabling detection of unauthorized modifications. Audit storage is configured with INSERT-only permissions."
+> "The framework contributes tamper-evidence to AU-9: each audit record carries a hash chained to the previous record, and the chain can be verified to detect unauthorized modification after the fact. Protection from modification and deletion is provided by [describe YOUR control — e.g. INSERT-only database permissions for the application identity, a separate identity for retention purges, or a WORM store]."
 
 ---
 
@@ -331,7 +351,18 @@ public class AppendOnlyAuditStore : IAuditStore
 #### 4.1 IA-5: Authenticator Management
 
 **Control Requirement:**
-The organization manages information system authenticators (passwords, tokens, etc.) by enforcing minimum password complexity, storing and transmitting only cryptographically-protected passwords, and enforcing password minimum and maximum lifetime restrictions.
+The organization manages information system authenticators (passwords, tokens, etc.) by screening candidate passwords against a list of commonly-used, expected or compromised values, transmitting passwords only over cryptographically-protected channels, storing them with an approved salted key-derivation function, requiring a new password on account recovery, and applying organization-defined composition and complexity rules.
+
+> **Revision note.** This summarises IA-5(1) as it stands in **NIST SP 800-53 Rev. 5**. Rev. 4's
+> IA-5(1)(d) additionally required *"password minimum and maximum lifetime restrictions"*; **Rev. 5
+> removed that item.** If your authorization is assessed against a Rev. 4 baseline, that requirement
+> still applies to you and this framework does not implement it — see the note under the SSP statement
+> below.
+>
+> **Confirm which revision your own authorization is assessed against.** FedRAMP is mid-transition, and
+> which baseline binds you is a fact about your authorization rather than about this framework, so we
+> do not assert it here. Check the current FedRAMP baselines directly rather than relying on a revision
+> named in this document.
 
 **Framework Implementation:**
 - Argon2id password hashing (OWASP recommended)
@@ -367,7 +398,22 @@ services.AddPasswordHasher(options =>
 - Unit tests for password hashing
 
 **SSP Statement:**
-> "IA-5 is satisfied by the framework's Argon2id password hashing implementation. Passwords are stored as cryptographic hashes with per-user salts. The framework enforces configurable password complexity requirements and maximum lifetime restrictions."
+> "IA-5 is partly addressed by the framework's Argon2id password hashing implementation, which is registered in this deployment; authenticator issuance, distribution, revocation on compromise and multi-factor authentication are provided by [your identity provider / process]. Passwords are stored as cryptographic hashes with per-user salts. The framework enforces configurable complexity requirements and screens candidate values against a prohibited-value list. Routine password expiration is deliberately not enforced, in line with NIST SP 800-63B Rev. 4, which directs that passwords be rotated only on suspected compromise. NIST SP 800-53 Rev. 5 carries no password-lifetime requirement in IA-5(1); confirm which revision your own authorization is assessed against."
+
+:::caution Password hashing is opt-in — register it before adopting this statement
+
+The Argon2id hasher is **not** composed by default: call `AddPasswordHasher()` to register
+`IPasswordHasher`. A deployment that never calls it has no framework password hashing at all, and the
+statement above does not describe it.
+
+**On the absence of password expiry — this is a position, not a gap.** NIST SP 800-63B Rev. 4 rejects
+routine expiration and requires rotation only on suspected compromise, and Rev. 5 of SP 800-53 removed
+the minimum/maximum lifetime item that Rev. 4's IA-5(1)(d) carried. Building an expiry policy here
+would implement a control the current standards direct against. If your authorizing official still
+requires a rotation period, it belongs in your identity provider, which owns the account lifecycle —
+this framework hashes and verifies credentials and does not manage accounts.
+
+:::
 
 ---
 
@@ -410,7 +456,7 @@ app.UseHsts();
 - Certificate management procedures
 
 **SSP Statement:**
-> "SC-8 is satisfied by enforcing TLS 1.2+ for all data in transit. The framework disables insecure protocols and validates certificates. Consumers configure TLS in their hosting environment."
+> "SC-8 is implemented by [system name]. Our HTTP endpoints require TLS [1.2/1.3], configured in [host/load balancer]. Message-transport connections made through the Excalibur transports require TLS by default (`TransportSecurityOptions.RequireTls = true`) and fail to connect without it."
 
 #### 5.2 SC-13: Cryptographic Protection
 
@@ -460,7 +506,7 @@ public class User
 - FIPS 140-2 compliance statement
 
 **SSP Statement:**
-> "SC-13 is satisfied by the framework's `IEncryptionProvider` abstraction, which implements AES-256-GCM encryption using NIST FIPS 140-2 validated algorithms. Consumers configure key management via Azure Key Vault or AWS KMS."
+> "SC-13 is satisfied by the framework's `IEncryptionProvider` abstraction, which implements AES-256-GCM encryption using NIST-approved algorithms (whether the underlying cryptographic module is FIPS 140 validated depends on your platform and its configuration). Consumers configure key management via Azure Key Vault or AWS KMS."
 
 #### 5.3 SC-28: Protection of Information at Rest
 
@@ -475,6 +521,7 @@ The information system protects the confidentiality and integrity of information
 **Consumer Checklist:**
 
 - [ ] Annotate sensitive fields with `[PersonalData]`
+- [ ] Register encryption for every store that holds them (`AddEncryption()` plus the store's encryption registration). **`[PersonalData]` on a type persisted any other way — your own SQL tables, a document store you write to directly — encrypts nothing and reports nothing.** Protect that data with storage-level encryption
 - [ ] Verify encryption at rest with database inspection
 
 **Code Example:**
@@ -512,7 +559,31 @@ Console.WriteLine(card.CardNumber);  // Decrypted: "4111111111111111"
 - Encryption verification tests
 
 **SSP Statement:**
-> "SC-28 is satisfied by field-level encryption using the `[PersonalData]` attribute. The framework transparently encrypts sensitive fields at rest using AES-256-GCM. Consumers annotate sensitive properties to enable automatic encryption."
+> "SC-28 is implemented by [system name]. Data held in the Excalibur event, inbox, outbox and projection stores is field-encrypted with AES-256-GCM where properties carry `[PersonalData]` on records with a `[DataSubjectId]`, with encryption registered at startup. All other data at rest is protected by [storage encryption / your mechanism]."
+
+:::caution Both attributes are required — `[PersonalData]` alone does not encrypt
+
+Encryption is keyed on the data subject, so the framework encrypts a field only when its record declares
+**both** `[PersonalData]` on the field **and** `[DataSubjectId]` on the identifying property. A record
+annotated with `[PersonalData]` alone names no subject key and is not encrypted by this path.
+
+**`[Sensitive]` — check the version you hold.** In every published version it classifies and masks only;
+it does not encrypt. On the main branch it also selects a property for encryption at rest. Until a
+release names that change, do not assert encryption on the strength of `[Sensitive]` alone.
+
+**And the annotations alone are not sufficient: at-rest field encryption is opt-in and must be
+registered.** Call `AddEventSourcingCryptoShredding()` to activate it for the event store, inbox and
+outbox; projection stores are registered per type, so each one carrying personal data also needs
+`AddProjectionEncryption<TProjection>()`. Annotating records without registering leaves them stored in
+plaintext.
+
+**A startup check covers only part of this, and the boundary matters.** If crypto-shredding is
+configured but the store is not wired for at-rest encryption, the host refuses to start — that
+half-configured state cannot boot. **It does not detect annotations alone:** a host that annotates
+records and registers no encryption at all starts normally and stores them in plaintext. So a clean
+startup is not evidence that this control is active; verify the registration.
+
+:::
 
 ---
 
@@ -568,7 +639,7 @@ app.MapHealthChecks("/health");
 - Alert rules and runbooks
 
 **SSP Statement:**
-> "SI-4 is satisfied through OpenTelemetry integration for distributed tracing and metrics. The framework provides health check endpoints and structured logging with correlation IDs. Consumers configure telemetry exporters and alerting rules."
+> "SI-4 is implemented by [system name] using [monitoring/SIEM tool], which detects [attack indicators, unauthorized access] and alerts [who]. Excalibur contributes OpenTelemetry traces, metrics and correlation IDs as input to that monitoring; it performs no detection itself."
 
 #### 6.2 SI-7: Software Integrity
 
@@ -593,12 +664,16 @@ The organization employs integrity verification mechanisms to detect unauthorize
 - Vulnerability scan reports
 
 **SSP Statement:**
-> "SI-7 is satisfied through SBOM generation, package hash verification and dependency vulnerability scanning. SBOM artifacts (CycloneDX format) enable supply chain transparency and automated vulnerability scanning. The framework's packages are published without an author signature; authenticity at the registry level is provided by nuget.org's own repository signature."
+> "SI-7 is partly addressed through SBOM generation, package hash verification and dependency vulnerability scanning. SBOM artifacts (CycloneDX format) enable supply chain transparency and automated vulnerability scanning. The framework's packages are published without an author signature; authenticity at the registry level is provided by nuget.org's own repository signature."
 
-:::warning Packages are published UNSIGNED — do not claim author signing
-There is currently no signing certificate, so every release produces packages carrying **no author
-signature**. This is a declared, committed default in the release pipeline rather than an accident
-of a missing secret, and the pipeline emits a warning on every release saying so.
+:::warning Packages carry no AUTHOR signature — do not claim author signing
+**Published packages carry no author signature.** That is measured from the shipped artifact:
+`dotnet nuget verify` reports a repository signature issued by NuGet.org and no publisher signature.
+
+**We are not stating why, because we cannot verify it from the artifact.** The release pipeline
+contains an author-signing step, conditional on a signing certificate being configured; whether it
+was configured for any particular published version is a property of the publishing environment and
+not of the package. Treat the absence as the fact and the cause as unestablished.
 
 What this means for your SSP: **do not inherit an author-signing control from this framework.**
 `dotnet nuget verify` on a package you download will not show a publisher signature. nuget.org
@@ -606,8 +681,9 @@ applies its own repository signature to everything it serves, so you retain a re
 authenticity guarantee — but that is nuget.org's control, not ours, and it should be attributed to
 them if you cite it.
 
-The signing path exists in the pipeline and activates when a certificate is configured. Re-check
-this section before an assessment rather than assuming it still reads the same.
+Author signing is not yet established for published packages. The pipeline's signing step activates
+when a certificate is configured, so this can change without the documentation changing — re-check
+it against a package you have actually downloaded before an assessment.
 :::
 
 ---
@@ -630,7 +706,7 @@ The organization defines mission/business processes with consideration for infor
 - [ ] Ensure consumer requirements trace to framework capabilities
 
 **SSP Statement:**
-> "PM-11 is satisfied through a requirements traceability matrix that links user stories to implementation and test coverage. Architecture Decision Records document risk assessments and trade-offs for security-relevant decisions."
+> "PM-11 is addressed by [organization] through a requirements traceability matrix that links user stories to implementation and test coverage. Architecture Decision Records document risk assessments and trade-offs for security-relevant decisions."
 
 ---
 
@@ -644,7 +720,7 @@ The organization requires the developer of the information system to follow a do
 **Framework Implementation:**
 - Comprehensive CI/CD pipeline with quality gates
 - Automated testing (unit, integration, functional)
-- Security scanning (SAST, DAST, container, secrets)
+- Security scanning (SAST via CodeQL, secrets via Gitleaks, dependency vulnerabilities)
 - SBOM generation on every build
 
 **Consumer Checklist:**
@@ -683,16 +759,44 @@ jobs:
     - Coverage enforcement
 ```
 
-- [ ] Verify all quality gates pass (GitHub Actions workflow runs)
+- [ ] Verify all quality gates pass in **your own** pipeline, and keep those run records — the
+      framework's repository runs are not evidence for your system
 - [ ] Document development standards in SSP
 
 **Evidence:**
 - [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) - CI/CD pipeline and quality gates
-- GitHub Actions workflow runs (audit trail)
+- Workflow runs from **your own** CI, retained as the audit trail — not the framework repository's
 - Security scan reports (SARIF, JSON)
 
 **SSP Statement:**
-> "SA-15 is satisfied through a comprehensive CI/CD pipeline with automated quality gates. Every build runs unit tests, security scans (SAST, DAST, container), dependency vulnerability checks, and SBOM generation. Coverage enforcement (≥60%) ensures test quality."
+
+Write this about **your own** pipeline. SA-15 is a control over *your* development process; the
+framework is a dependency of your system rather than a part of that process, so its repository's
+workflow runs are not evidence for your system and must not be cited as your audit trail. Replace each
+bracketed item with what your pipeline actually does, and keep only the gates you actually run:
+
+> "SA-15 is satisfied through our CI/CD pipeline and its automated quality gates. Every build of
+> [system name] runs [unit and integration tests], [static analysis tool], [secret scanning tool],
+> [dependency vulnerability scanning] and [SBOM generation]; a build that fails any of these gates is
+> not promoted. Workflow run records are retained for [retention period] as the audit trail, and
+> coverage is enforced at [your threshold]."
+
+**What the framework supplies, and what it does not.** The artifacts below are evidence about the
+*framework's* development. They belong to your supply-chain and inventory controls — not to SA-15,
+which an assessor will read as a statement about your own engineering process.
+
+| Artifact | Produced for the framework | Where it applies to you |
+|----------|---------------------------|-------------------------|
+| CycloneDX SBOM of the framework's packages | Yes — by the release pipeline | Component inventory (CM-8) and supply chain (SR-3) |
+| SAST (CodeQL) and secret scanning over framework source | Yes | Supply chain — evidence about a dependency |
+| DAST; container image scanning | **No** — neither runs | Nothing. Do not claim either. |
+| Test, scan or coverage records for **your** system | **No** | You produce these; nothing here substitutes |
+
+:::warning Do not paste the framework's coverage figure into your SSP
+The framework enforces a regression floor on **its own** test suite. That number is a threshold on
+framework code and says nothing about the coverage of your system. An assessor who reads it inside your
+SSP is reading a measurement nobody took against your code, and the claim is yours to defend, not ours.
+:::
 
 ---
 
@@ -731,7 +835,7 @@ ls -lh bom.json bom.xml
 ```json
 {
   "bomFormat": "CycloneDX",
-  "specVersion": "1.4",
+  "specVersion": "1.7",
   "version": 1,
   "components": [
     {
@@ -760,7 +864,7 @@ ls -lh bom.json bom.xml
 - GitHub Security tab (dependency graph)
 
 **SSP Statement:**
-> "CM-8 is satisfied through automated SBOM generation using the CycloneDX standard. SBOMs are generated on every CI build and retained for 90 days. The SBOM includes all framework components with package metadata, dependency graphs, and cryptographic hashes."
+> "CM-8 is implemented by [system name] through [inventory tool], covering our code, third-party libraries, infrastructure and containers, reviewed every [period]. For the Excalibur packages we use, the supplier's CycloneDX SBOM supplies package metadata, dependency graphs and hashes."
 
 ---
 
@@ -832,9 +936,9 @@ ls -lh bom.json bom.xml
 
 **Process Evidence:**
 - [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) - CI/CD pipeline and quality gates
-- GitHub Actions workflow runs (90-day audit trail)
+- Workflow runs from **your own** CI, retained as the audit trail (90 days is the platform default)
 - Test coverage reports (enforced regression floor of 44%)
-- Security scan reports (SAST, DAST, container, secrets)
+- Security scan reports (CodeQL SAST, Gitleaks secrets, dependency scanning)
 
 **Artifact Evidence:**
 - SBOM artifacts (CycloneDX JSON/XML)
@@ -910,4 +1014,4 @@ ls -lh bom.json bom.xml
 ---
 
 **Last Updated:** 2026-09-12
-**Status:** 12 of 14 controls satisfied by the framework; SI-7 and PM-11 partial
+**Status:** 4 of 14 controls satisfied by the framework; 10 partial

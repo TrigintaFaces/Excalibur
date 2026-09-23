@@ -1,6 +1,6 @@
 #nullable enable
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary
-Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.AccessReviewCampaignSummary(string! CampaignId, string! CampaignName, Excalibur.A3.Governance.AccessReviews.AccessReviewScope! Scope, string! CreatedBy, System.DateTimeOffset StartsAt, System.DateTimeOffset ExpiresAt, Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy ExpiryPolicy, Excalibur.A3.Governance.AccessReviews.AccessReviewState State, int TotalItems, int DecidedItems) -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.AccessReviewCampaignSummary(string! CampaignId, string! TenantId, string! CampaignName, Excalibur.A3.Governance.AccessReviews.AccessReviewScope! Scope, string! CreatedBy, System.DateTimeOffset StartsAt, System.DateTimeOffset ExpiresAt, Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy ExpiryPolicy, Excalibur.A3.Governance.AccessReviews.AccessReviewState State, int TotalItems, int DecidedItems) -> void
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CampaignId.get -> string!
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CampaignId.init -> void
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CampaignName.get -> string!
@@ -19,6 +19,8 @@ Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.StartsAt.get -
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.StartsAt.init -> void
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.State.get -> Excalibur.A3.Governance.AccessReviews.AccessReviewState
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.State.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.TenantId.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.TenantId.init -> void
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.TotalItems.get -> int
 Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.TotalItems.init -> void
 Excalibur.A3.Governance.AccessReviews.AccessReviewDecision
@@ -82,7 +84,6 @@ Excalibur.A3.Governance.AccessReviews.AccessReviewScope.Type.init -> void
 Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
 Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType.AllGrants = 0 -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
 Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType.ByRole = 1 -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
-Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType.ByTenant = 3 -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
 Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType.ByUser = 2 -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
 Excalibur.A3.Governance.AccessReviews.AccessReviewState
 Excalibur.A3.Governance.AccessReviews.AccessReviewState.Completed = 2 -> Excalibur.A3.Governance.AccessReviews.AccessReviewState

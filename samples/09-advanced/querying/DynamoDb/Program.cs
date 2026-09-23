@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.Persistence;
@@ -253,7 +253,9 @@ static void DemonstrateApiSurface()
     Console.WriteLine("  CreateAsync<T>(document, partitionKey, ct)");
     Console.WriteLine("  UpdateAsync<T>(document, partitionKey, etag, ct)");
     Console.WriteLine("  DeleteAsync(id, partitionKey, etag, ct)");
-    Console.WriteLine("  QueryAsync<T>(query, partitionKey, params, consistency, ct)");
+    Console.WriteLine("  QueryAsync<T>(CloudQueryRequest, ct)                     // one PAGE per call");
+    Console.WriteLine("    -> loop while result.HasMoreResults, feeding result.ContinuationToken");
+    Console.WriteLine("       back into the next CloudQueryRequest, or you read only page one");
     Console.WriteLine("  ExecuteBatchAsync(partitionKey, operations, ct)");
     Console.WriteLine();
     Console.WriteLine("Streams (Change Feed):");

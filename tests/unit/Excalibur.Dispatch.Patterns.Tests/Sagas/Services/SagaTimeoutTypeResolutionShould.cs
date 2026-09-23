@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Saga;
@@ -68,7 +68,7 @@ public sealed class SagaTimeoutTypeResolutionShould
 		// one-shot and the service never sees a timeout at all -- the arm then passes or fails for reasons
 		// unrelated to type resolution.
 		_ = A.CallTo(() => store.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
-			.Returns(Task.FromResult<IReadOnlyList<SagaTimeout>>([timeout]));
+			.Returns(Task.FromResult<IReadOnlyList<ClaimedSagaTimeout>>([new ClaimedSagaTimeout(timeout, "test-claim-token")]));
 
 		// A registry that is PRESENT but does not know this type -- the realistic shape of an unregistered
 		// type in a configured host, as opposed to a host with no registry at all.
@@ -109,7 +109,9 @@ public sealed class SagaTimeoutTypeResolutionShould
 		await service.StopAsync(CancellationToken.None);
 
 		// Assert -- the timeout was retired without ever reaching the dispatcher.
-		A.CallTo(() => store.MarkDeliveredAsync("timeout-1", A<CancellationToken>._)).MustHaveHappened();
+		A.CallTo(() => store.MarkDeliveredAsync(
+			A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == "timeout-1"),
+			A<CancellationToken>._)).MustHaveHappened();
 		A.CallTo(dispatcher).MustNotHaveHappened();
 	}
 }

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 using Dapper;
@@ -60,7 +60,14 @@ public sealed class SqlServerPersistenceProviderConformanceShould : PersistenceP
 	}
 
 	/// <inheritdoc/>
+	protected override string? ExpectedDatabaseType => "SqlServer";
+
+	/// <inheritdoc/>
 	protected override string ExpectedProviderType => "SQL";
+
+	/// <inheritdoc/>
+	protected override IReadOnlyCollection<Type> RequiredCapabilities =>
+		[typeof(IPersistenceProviderHealth), typeof(IPersistenceProviderConnection), typeof(IPersistenceProviderTransaction)];
 
 	/// <inheritdoc/>
 	/// <remarks>
@@ -68,12 +75,6 @@ public sealed class SqlServerPersistenceProviderConformanceShould : PersistenceP
 	/// expects the provider to report it back. An expectation set to whatever the provider happens
 	/// to return cannot detect a provider that ignores its configured name -- it certifies it.
 	/// </remarks>
-
-	/// <inheritdoc/>
-	protected override IReadOnlyCollection<Type> RequiredCapabilities =>
-		[typeof(IPersistenceProviderHealth), typeof(IPersistenceProviderConnection), typeof(IPersistenceProviderTransaction)];
-
-	/// <inheritdoc/>
 	protected override IPersistenceProvider CreateProvider(string providerName)
 	{
 		_fixture.DockerAvailable.ShouldBeTrue(
@@ -134,6 +135,8 @@ public sealed class SqlServerPersistenceProviderConformanceShould : PersistenceP
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
 	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public void SqlProvider_ShouldReportItsDatabaseType_Test() => SqlProvider_ShouldReportItsDatabaseType();
+	[Fact] public Task SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne_Test() => SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne();
 	[Fact] public Task ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope_Test() => ExecuteBatchInTransactionAsync_ShouldEnlistInTheCallersScope();
 	[Fact] public Task TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections_Test() => TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections();
 	[Fact] public Task ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_CloudNative_WhenARequestFails_ShouldLeaveNothingCommitted();

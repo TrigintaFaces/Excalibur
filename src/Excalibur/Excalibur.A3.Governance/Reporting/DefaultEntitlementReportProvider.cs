@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Governance.AccessReviews;
@@ -68,7 +68,7 @@ internal sealed partial class DefaultEntitlementReportProvider(
 		{
 			// Use query store to get all grants in the tenant
 			var grants = await queryStore.GetMatchingGrantsAsync(
-				null, tenantId, string.Empty, string.Empty, cancellationToken).ConfigureAwait(false);
+				tenantId, userId: null, grantType: null, qualifier: null, cancellationToken).ConfigureAwait(false);
 			entries = await BuildEntriesAsync(grants, cancellationToken).ConfigureAwait(false);
 		}
 		else
@@ -131,8 +131,7 @@ internal sealed partial class DefaultEntitlementReportProvider(
 			return [];
 		}
 
-		var grants = await queryStore.GetMatchingGrantsAsync(
-			null, tenantId ?? string.Empty, string.Empty, string.Empty, cancellationToken).ConfigureAwait(false);
+		var grants = await ReadGrantsAsync(queryStore, tenantId, cancellationToken).ConfigureAwait(false);
 
 		return await BuildEntriesAsync(grants, cancellationToken).ConfigureAwait(false);
 	}
@@ -178,8 +177,7 @@ internal sealed partial class DefaultEntitlementReportProvider(
 			return [];
 		}
 
-		var grants = await queryStore.GetMatchingGrantsAsync(
-			null, tenantId ?? string.Empty, string.Empty, string.Empty, cancellationToken).ConfigureAwait(false);
+		var grants = await ReadGrantsAsync(queryStore, tenantId, cancellationToken).ConfigureAwait(false);
 
 		var now = DateTimeOffset.UtcNow;
 		var expiringWindow = TimeSpan.FromDays(30);
@@ -207,8 +205,7 @@ internal sealed partial class DefaultEntitlementReportProvider(
 			return [];
 		}
 
-		var grants = await queryStore.GetMatchingGrantsAsync(
-			null, tenantId ?? string.Empty, string.Empty, string.Empty, cancellationToken).ConfigureAwait(false);
+		var grants = await ReadGrantsAsync(queryStore, tenantId, cancellationToken).ConfigureAwait(false);
 
 		var userIds = grants.Select(g => g.UserId).Distinct(StringComparer.Ordinal).ToList();
 		var entries = new List<EntitlementEntry>();
@@ -263,22 +260,48 @@ internal sealed partial class DefaultEntitlementReportProvider(
 			return [];
 		}
 
-		var grants = await queryStore.GetMatchingGrantsAsync(
-			null, tenantId ?? string.Empty, string.Empty, string.Empty, cancellationToken).ConfigureAwait(false);
+		var grants = await ReadGrantsAsync(queryStore, tenantId, cancellationToken).ConfigureAwait(false);
 
 		// Get completed campaigns to check which grants have been reviewed
 		var completedCampaigns = await accessReviewStore.GetCampaignsByStateAsync(
 			AccessReviewState.Completed, cancellationToken).ConfigureAwait(false);
 
-		var reviewedScopes = new HashSet<string>(
-			completedCampaigns.Select(c => c.Scope.FilterValue).Where(f => f is not null)!,
-			StringComparer.Ordinal);
-
+		// A grant counts as reviewed when a completed campaign of ITS OWN tenant covered it, judged by what
+		// the campaign's scope actually denotes: a ByUser scope names a user, a ByRole scope a role grant.
 		var unreviewedGrants = grants
-			.Where(g => !reviewedScopes.Contains(g.Qualifier))
+			.Where(g => !completedCampaigns.Any(c => CampaignCovers(c, g)))
 			.ToList();
 
 		return await BuildEntriesAsync(unreviewedGrants, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Reads the grants of one tenant, or of every tenant when <paramref name="tenantId"/> is
+	/// <see langword="null"/>. Reports only read, so the estate-wide member is permitted here.
+	/// </summary>
+	private static Task<IReadOnlyList<Grant>> ReadGrantsAsync(
+		IGrantQueryStore queryStore, string? tenantId, CancellationToken cancellationToken) =>
+		tenantId is null
+			? queryStore.GetMatchingGrantsAcrossTenantsAsync(userId: null, grantType: null, qualifier: null, cancellationToken)
+			: queryStore.GetMatchingGrantsAsync(tenantId, userId: null, grantType: null, qualifier: null, cancellationToken);
+
+	private static bool CampaignCovers(AccessReviewCampaignSummary campaign, Grant grant)
+	{
+		if (!string.Equals(campaign.TenantId, grant.TenantId, StringComparison.Ordinal))
+		{
+			return false;
+		}
+
+		return campaign.Scope.Type switch
+		{
+			AccessReviewScopeType.AllGrants => true,
+			AccessReviewScopeType.ByUser =>
+				string.Equals(campaign.Scope.FilterValue, grant.UserId, StringComparison.Ordinal),
+			AccessReviewScopeType.ByRole =>
+				string.Equals(grant.GrantType, Authorization.Grants.GrantType.Role, StringComparison.Ordinal)
+				&& string.Equals(campaign.Scope.FilterValue, grant.Qualifier, StringComparison.Ordinal),
+			_ => false,
+		};
 	}
 
 	private async Task<List<EntitlementEntry>> BuildEntriesAsync(

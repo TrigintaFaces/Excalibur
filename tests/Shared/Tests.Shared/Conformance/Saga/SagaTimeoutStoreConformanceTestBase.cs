@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Saga.Abstractions;
 
@@ -101,8 +101,8 @@ public abstract class SagaTimeoutStoreConformanceTestBase : IAsyncLifetime
 		first.Count.ShouldBe(2);
 		second.Count.ShouldBe(2);
 
-		var firstIds = first.Select(t => t.TimeoutId).ToHashSet(StringComparer.Ordinal);
-		var overlap = second.Where(t => firstIds.Contains(t.TimeoutId)).Select(t => t.TimeoutId).ToList();
+		var firstIds = first.Select(c => c.Timeout.TimeoutId).ToHashSet(StringComparer.Ordinal);
+		var overlap = second.Where(c => firstIds.Contains(c.Timeout.TimeoutId)).Select(c => c.Timeout.TimeoutId).ToList();
 
 		overlap.ShouldBeEmpty("a claimed timeout is leased and must never be handed to a second claimer");
 	}
@@ -136,7 +136,7 @@ public abstract class SagaTimeoutStoreConformanceTestBase : IAsyncLifetime
 				Task.Run(async () =>
 					(await Store.ClaimDueTimeoutsAsync(asOf, batchSize: dueCount, CancellationToken.None)
 						.ConfigureAwait(false))
-					.Select(t => t.TimeoutId).ToList())))
+					.Select(c => c.Timeout.TimeoutId).ToList())))
 			.ConfigureAwait(false);
 
 		var all = claims.SelectMany(ids => ids).ToList();

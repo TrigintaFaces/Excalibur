@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Options;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Messaging;
 
@@ -51,17 +53,75 @@ public static class DispatchContextInitializer
 		context.CorrelationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString();
 		context.GetOrCreateIdentityFeature().TraceParent = Activity.Current?.Id;
 
-		if (Activity.Current?.Baggage != null)
-		{
-			foreach (var (key, value) in Activity.Current.Baggage)
-			{
-				context.Items[$"baggage.{key}"] = value ?? string.Empty;
-			}
-		}
+		CopyAllowedBaggage(context, serviceProvider);
 
 		context.ApplyAmbientTenantFallback();
 
 		return context;
+	}
+
+	/// <summary>
+	/// Copies the baggage entries a consumer has opted in by name, within the configured caps.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <strong>Default-deny.</strong> Baggage is parsed from an inbound header by the runtime without being
+	/// asked, so its keys and values are attacker-reachable on any publicly addressable endpoint. Copying it
+	/// into a message context puts it on the wire for remote transports and into downstream logs and stores,
+	/// so an entry crosses that boundary only when the application has named it.
+	/// </para>
+	/// <para>
+	/// A value that exceeds a cap is <em>dropped, never truncated</em>. A truncated value is still read
+	/// downstream as though it were whole, and nothing there can tell that it is not.
+	/// </para>
+	/// </remarks>
+	private static void CopyAllowedBaggage(MessageContext context, IServiceProvider serviceProvider)
+	{
+		var baggage = Activity.Current?.Baggage;
+		if (baggage is null)
+		{
+			return;
+		}
+
+		var options = serviceProvider.GetService<IOptions<BaggagePropagationOptions>>()?.Value;
+
+		// No registration means no opt-in has been expressed, which is the same answer as an empty allowlist.
+		if (options is null || options.AllowedKeys.Count == 0)
+		{
+			return;
+		}
+
+		var copied = 0;
+		var totalLength = 0;
+
+		foreach (var (key, value) in baggage)
+		{
+			if (copied >= options.MaxEntries)
+			{
+				break;
+			}
+
+			if (!options.AllowedKeys.Contains(key))
+			{
+				continue;
+			}
+
+			var text = value ?? string.Empty;
+			if (text.Length > options.MaxValueLength)
+			{
+				continue;
+			}
+
+			var entryLength = key.Length + text.Length;
+			if (totalLength + entryLength > options.MaxTotalLength)
+			{
+				break;
+			}
+
+			context.Items[$"baggage.{key}"] = text;
+			totalLength += entryLength;
+			copied++;
+		}
 	}
 
 	/// <summary>

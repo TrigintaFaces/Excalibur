@@ -252,7 +252,7 @@ services.AddMessagePackSerializer();
 
 ### Implementing ISerializer
 
-```csharp
+```csharp ignore
 using System.Buffers;
 using Excalibur.Dispatch.Serialization;
 

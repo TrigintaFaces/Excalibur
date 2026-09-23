@@ -92,7 +92,14 @@ CREATE TABLE IF NOT EXISTS "compliance"."erasure_certificates" (
     legal_basis             INT           NOT NULL,
     signature               VARCHAR(512)  NOT NULL,
     retain_until            TIMESTAMPTZ   NOT NULL,
-    created_at              TIMESTAMPTZ   NOT NULL
+    exceptions              JSONB         NOT NULL,
+    generated_at            TIMESTAMPTZ   NOT NULL,
+    version                 VARCHAR(16)   NOT NULL,
+    created_at              TIMESTAMPTZ   NOT NULL,
+    -- The signed document, verbatim. Every column above is an index for querying; this is what a
+    -- read reconstructs the certificate from. TEXT rather than JSONB because jsonb normalizes what
+    -- it stores, and these are the exact bytes the signature covers.
+    payload                 TEXT          NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS ix_erasure_certificates_request
@@ -116,6 +123,10 @@ CREATE TABLE IF NOT EXISTS "compliance"."data_inventory_registrations" (
     -- have none. This is not a tenant identity -- see tenant_id below.
     tenant_id_column        VARCHAR(256)   NULL,
     description             VARCHAR(1000)  NULL,
+    -- WHICH KIND OF STORE holds this location. An erasure contributor is offered only the
+    -- obligations whose kind it covers, so an unclassified registration (NULL) reaches no
+    -- contributor, is discharged by nobody, and the erasure refuses to complete.
+    store_kind              VARCHAR(64)    NULL,
     created_at              TIMESTAMPTZ    NOT NULL,
     updated_at              TIMESTAMPTZ    NOT NULL,
     -- The tenant this registration BELONGS to. NOT NULL with an explicit sentinel default: a

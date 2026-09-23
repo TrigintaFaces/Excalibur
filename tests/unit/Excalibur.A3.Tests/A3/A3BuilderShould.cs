@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.A3;
 using Excalibur.A3.Authorization;
@@ -198,14 +198,17 @@ public sealed class A3BuilderShould
 
 	private sealed class FakeActivityGroupStore : IActivityGroupStore
 	{
-		public Task<bool> ActivityGroupExistsAsync(string activityGroupName, CancellationToken cancellationToken) =>
+		public Task<bool> ActivityGroupExistsAsync(string tenantId, string activityGroupName, CancellationToken cancellationToken) =>
 			Task.FromResult(false);
 
-		public Task<IReadOnlyDictionary<string, object>> FindActivityGroupsAsync(CancellationToken cancellationToken) =>
-			Task.FromResult<IReadOnlyDictionary<string, object>>(new Dictionary<string, object>());
+		public Task<IReadOnlyDictionary<string, IReadOnlyCollection<string>>> FindActivityGroupsAsync(string tenantId, CancellationToken cancellationToken) =>
+			Task.FromResult<IReadOnlyDictionary<string, IReadOnlyCollection<string>>>(new Dictionary<string, IReadOnlyCollection<string>>());
 
-		public Task<int> DeleteAllActivityGroupsAsync(CancellationToken cancellationToken) =>
+		public Task<int> DeleteActivityGroupsForTenantAsync(string tenantId, CancellationToken cancellationToken) =>
 			Task.FromResult(0);
+
+		public Task<IReadOnlyCollection<string>> ReplaceAllActivityGroupsAsync(ActivityGroupCatalogue catalogue, CancellationToken cancellationToken) =>
+			Task.FromResult<IReadOnlyCollection<string>>([]);
 
 		public Task<int> CreateActivityGroupAsync(string? tenantId, string name,
 			string activityName, CancellationToken cancellationToken) =>
@@ -216,14 +219,17 @@ public sealed class A3BuilderShould
 
 	private sealed class AnotherFakeActivityGroupStore : IActivityGroupStore
 	{
-		public Task<bool> ActivityGroupExistsAsync(string activityGroupName, CancellationToken cancellationToken) =>
+		public Task<bool> ActivityGroupExistsAsync(string tenantId, string activityGroupName, CancellationToken cancellationToken) =>
 			Task.FromResult(false);
 
-		public Task<IReadOnlyDictionary<string, object>> FindActivityGroupsAsync(CancellationToken cancellationToken) =>
-			Task.FromResult<IReadOnlyDictionary<string, object>>(new Dictionary<string, object>());
+		public Task<IReadOnlyDictionary<string, IReadOnlyCollection<string>>> FindActivityGroupsAsync(string tenantId, CancellationToken cancellationToken) =>
+			Task.FromResult<IReadOnlyDictionary<string, IReadOnlyCollection<string>>>(new Dictionary<string, IReadOnlyCollection<string>>());
 
-		public Task<int> DeleteAllActivityGroupsAsync(CancellationToken cancellationToken) =>
+		public Task<int> DeleteActivityGroupsForTenantAsync(string tenantId, CancellationToken cancellationToken) =>
 			Task.FromResult(0);
+
+		public Task<IReadOnlyCollection<string>> ReplaceAllActivityGroupsAsync(ActivityGroupCatalogue catalogue, CancellationToken cancellationToken) =>
+			Task.FromResult<IReadOnlyCollection<string>>([]);
 
 		public Task<int> CreateActivityGroupAsync(string? tenantId, string name,
 			string activityName, CancellationToken cancellationToken) =>

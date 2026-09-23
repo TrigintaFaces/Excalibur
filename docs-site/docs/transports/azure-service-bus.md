@@ -216,6 +216,82 @@ services.AddAzureServiceBusTransport("orders", sb =>
 });
 ```
 
+## Scheduled Delivery
+
+A scheduled message is held by the broker until its due time. The same scheduled time is honoured
+whether the message is sent on its own, inside a batch, or on the individual fallback a batch uses when
+a message does not fit — the delivery you get does not depend on how many other messages happened to be
+in flight.
+
+**Declare when a message is due; don't hand-write the property.** `UseScheduling` takes a selector and
+stamps the scheduling property for you:
+
+```csharp
+builder.UseScheduling(message => message.DueAt);
+```
+
+This is the supported way, and it is the one to reach for: the property name is a `const` the compiler
+holds, so it cannot be misspelled. A hand-written key that is slightly wrong does not fail — the lookup
+simply misses and the message goes out immediately.
+
+:::caution If you set the property yourself, the key must be exact
+The sender reads `TransportTelemetryConstants.PropertyKeys.ScheduledTime`, whose value is
+`dispatch.scheduled.time` — **dots, not hyphens**. A near-miss key is silently ignored: the message is
+not scheduled, no exception is raised, and the property is stripped by the `dispatch.`-prefix filter on
+the way out, so it does not even appear on the message in Service Bus Explorer.
+:::
+
+```csharp
+var message = new TransportMessage
+{
+    Body = payload,
+    Properties = new Dictionary<string, object>(StringComparer.Ordinal)
+    {
+        // Prefer TransportTelemetryConstants.PropertyKeys.ScheduledTime over a string literal.
+        ["dispatch.scheduled.time"] = DateTimeOffset.UtcNow.AddHours(2).ToString("O"),
+    },
+};
+
+await sender.SendAsync(message, cancellationToken);
+```
+
+The value must be a round-trippable timestamp (`"O"` format). A value that cannot be parsed is ignored
+and the message is delivered immediately, rather than failing the send.
+
+:::note Cancelling a scheduled message needs a sequence number, and only individual sends return one
+Azure Service Bus cancels a scheduled message by its broker sequence number. That number is returned by
+the individual send API and **not** by the batch send API, so `SendResult.SequenceNumber` is populated
+only for messages that were sent individually. A scheduled message that travelled inside a batch is
+delivered on time but cannot be cancelled by sequence number afterwards. If you need to be able to
+cancel a scheduled message, send it with `SendAsync` rather than as part of a batch.
+:::
+
+## Batch Results
+
+`SendBatchAsync` returns a `BatchSendResult` whose `Results` list is **positional**: entry `i` is the
+outcome of the input message at index `i`. That holds regardless of how the message travelled — inside
+the batch, or on the individual fallback used when a message does not fit the batch's size limit — and
+regardless of whether it succeeded. Every entry also carries its own `MessageId`.
+
+This is what lets you retry precisely the messages that failed:
+
+```csharp
+var result = await sender.SendBatchAsync(messages, cancellationToken);
+
+// Entry i describes messages[i], so the failed INPUTS can be selected directly —
+// which is what makes a partial failure retryable without redelivering the successes.
+var toRetry = result.Results
+    .Select((outcome, i) => (outcome, message: messages[i]))
+    .Where(x => !x.outcome.IsSuccess && x.outcome.Error?.IsRetryable == true)
+    .Select(x => x.message)
+    .ToList();
+
+await sender.SendBatchAsync(toRetry, cancellationToken);
+```
+
+Because the association between an input and its result is preserved, a partial failure never forces
+you to retry the whole batch — which would redeliver the messages that already succeeded.
+
 ## Health Checks
 Register the built-in namespace-connectivity probe on the health checks builder:
 

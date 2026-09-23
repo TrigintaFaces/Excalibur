@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -193,7 +193,15 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		services.TryAddSingleton(sp =>
 		{
 			var topicName = new TopicName(transportOptions.Connection.ProjectId, transportOptions.Connection.TopicId);
-			return PublisherClient.Create(topicName);
+
+			// Same emulator detection as every other default client this package builds. The SDK's
+			// static factory performs none, so a host running against the emulator would publish to
+			// production while its subscriber read the emulator.
+			return new PublisherClientBuilder
+			{
+				TopicName = topicName,
+				EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
+			}.Build();
 		});
 
 		// Register SubscriberClient if subscription is configured
@@ -414,10 +422,17 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 	/// <param name="services">The resolved services.</param>
 	/// <param name="name">The transport name, used as the lookup key.</param>
 	/// <returns>The client the sender will publish through.</returns>
-	private static PublisherServiceApiClient ResolvePublisherClient(IServiceProvider services, string name) =>
+	/// <remarks>
+	/// The default client is built with the same emulator detection as every other client this package
+	/// builds, so one host-level setting points the whole transport at one endpoint.
+	/// </remarks>
+	internal static PublisherServiceApiClient ResolvePublisherClient(IServiceProvider services, string name) =>
 		services.GetKeyedService<PublisherServiceApiClient>(name)
 		?? services.GetService<PublisherServiceApiClient>()
-		?? PublisherServiceApiClient.Create();
+		?? new PublisherServiceApiClientBuilder
+		{
+			EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
+		}.Build();
 
 	/// <summary>
 	/// Returns the subscriber client a consumer supplied, or the SDK's default one.
@@ -437,14 +452,23 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 	/// <para>
 	/// The keyed lookup comes first so a host running two named Pub/Sub transports can give each its own
 	/// client, which is the same reason the channel and connection seams elsewhere are keyed by name. The
-	/// unkeyed lookup follows for the single-transport host, and the SDK default last, so a consumer who
-	/// registers nothing sees exactly the behaviour they saw before.
+	/// unkeyed lookup follows for the single-transport host, and a built default last.
+	/// </para>
+	/// <para>
+	/// That default is built with the same emulator detection as the streaming subscriber, so both receive
+	/// paths answer <c>PUBSUB_EMULATOR_HOST</c> the same way. The SDK's static factory performs no
+	/// detection at all: a consumer who set the variable and used the pull path would have been subscribed
+	/// to production while their validator checked the emulator — a wrong endpoint reached silently, with
+	/// no error to read.
 	/// </para>
 	/// </remarks>
-	private static SubscriberServiceApiClient ResolveSubscriberClient(IServiceProvider services, string name) =>
+	internal static SubscriberServiceApiClient ResolveSubscriberClient(IServiceProvider services, string name) =>
 		services.GetKeyedService<SubscriberServiceApiClient>(name)
 		?? services.GetService<SubscriberServiceApiClient>()
-		?? SubscriberServiceApiClient.Create();
+		?? new SubscriberServiceApiClientBuilder
+		{
+			EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
+		}.Build();
 
 	/// <summary>
 	/// Registers a keyed <see cref="ITransportSubscriber"/> composed with telemetry.

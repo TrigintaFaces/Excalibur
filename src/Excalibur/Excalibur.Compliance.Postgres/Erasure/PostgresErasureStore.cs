@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
@@ -38,10 +38,10 @@ public sealed partial class PostgresErasureStore
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
 	/// Gets the tenant scope this store runs under, resolved in one place so every statement it builds binds
-	/// the same term. When the deployment is not multi-tenant the store
-	/// deliberately emits no tenant predicate. That decision is stated here
-	/// and nowhere else: a conversion cannot make it on the store's behalf without inventing a tenant
-	/// decision the host never made.
+	/// the same term. The tenant context is required, and the conversion yields either a scoped term or the
+	/// reserved untenanted sentinel &#8212; never an absent one, so there is no state in which the partition is
+	/// undecided. A single-tenant host receives the framework default context and operates as the one canonical
+	/// tenant; it does not cause the predicate to be omitted.
 	/// </summary>
 	private TenantScope CurrentTenantScope =>
 		TenantScope.FromContext(_tenantContext);
@@ -251,7 +251,9 @@ public sealed partial class PostgresErasureStore
 				error_message = @ErrorMessage,
 				executed_at = CASE WHEN @Status = {(int)ErasureRequestStatus.InProgress} THEN @Now ELSE executed_at END,
 				updated_at = @Now
-			WHERE request_id = @RequestId{tenantPredicate}";
+			WHERE request_id = @RequestId{tenantPredicate}
+			  AND (@Status <> {(int)ErasureRequestStatus.InProgress}
+			       OR status = {(int)ErasureRequestStatus.Scheduled})";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -284,7 +286,8 @@ public sealed partial class PostgresErasureStore
 				certificate_id = @CertificateId,
 				completed_at = @Now,
 				updated_at = @Now
-			WHERE request_id = @RequestId{tenantPredicate}";
+			WHERE request_id = @RequestId{tenantPredicate}
+			  AND status IN ({(int)ErasureRequestStatus.Scheduled}, {(int)ErasureRequestStatus.InProgress}, {(int)ErasureRequestStatus.AwaitingKeyDestruction})";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -309,7 +312,10 @@ public sealed partial class PostgresErasureStore
 		if (affected == 0)
 		{
 			throw new KeyNotFoundException(
-				$"No erasure request with id '{requestId}' exists, so its completion cannot be recorded.");
+				$"No erasure request with id '{requestId}' is in a state from which a completion can be "
+				+ "recorded: it does not exist, it belongs to another tenant, or its status changed while "
+				+ "the run was executing. A legal hold or a cancellation recorded mid-run takes the request "
+				+ "out of the run deliberately, and a completion must not overwrite it.");
 		}
 	}
 
@@ -482,10 +488,12 @@ public sealed partial class PostgresErasureStore
 		var sql = $@"
 			INSERT INTO {_options.FullCertificatesTableName}
 				(certificate_id, request_id, data_subject_reference, request_received_at, completed_at,
-				 method, summary, verification, legal_basis, signature, retain_until, created_at)
+				 method, summary, verification, legal_basis, signature, retain_until,
+				 exceptions, generated_at, version, created_at, payload)
 			VALUES
 				(@CertificateId, @RequestId, @DataSubjectReference, @RequestReceivedAt, @CompletedAt,
-				 @Method, @Summary::jsonb, @Verification::jsonb, @LegalBasis, @Signature, @RetainUntil, @CreatedAt)";
+				 @Method, @Summary::jsonb, @Verification::jsonb, @LegalBasis, @Signature, @RetainUntil,
+				 @Exceptions::jsonb, @GeneratedAt, @Version, @CreatedAt, @Payload)";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -494,22 +502,34 @@ public sealed partial class PostgresErasureStore
 		{
 			_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
 		{
-			certificate.CertificateId,
-			certificate.RequestId,
-			certificate.DataSubjectReference,
-			certificate.RequestReceivedAt,
-			certificate.CompletedAt,
-			Method = (int)certificate.Method,
+			certificate.Payload.CertificateId,
+			certificate.Payload.RequestId,
+			certificate.Payload.DataSubjectReference,
+			certificate.Payload.RequestReceivedAt,
+			certificate.Payload.CompletedAt,
+			Method = (int)certificate.Payload.Method,
 			Summary = JsonSerializer.Serialize(
-				certificate.Summary,
+				certificate.Payload.Summary,
 				PostgresComplianceJsonContext.Default.ErasureSummary),
 			Verification = JsonSerializer.Serialize(
-				certificate.Verification,
+				certificate.Payload.Verification,
 				PostgresComplianceJsonContext.Default.VerificationSummary),
-			LegalBasis = (int)certificate.LegalBasis,
+			LegalBasis = (int)certificate.Payload.LegalBasis,
 			certificate.Signature,
-			certificate.RetainUntil,
-			CreatedAt = DateTimeOffset.UtcNow
+			certificate.Payload.RetainUntil,
+			Exceptions = JsonSerializer.Serialize(
+				certificate.Payload.Exceptions,
+				PostgresComplianceJsonContext.Default.IReadOnlyListErasureException),
+			certificate.Payload.GeneratedAt,
+			certificate.Payload.Version,
+			CreatedAt = DateTimeOffset.UtcNow,
+
+			// The document itself. Every column above is an INDEX -- something a query filters or joins on --
+			// and nothing above is read back into the payload. A column has a type, and TIMESTAMPTZ cannot
+			// hold a .NET DateTimeOffset: it keeps microseconds where the value carries hundreds of
+			// nanoseconds, so a certificate reassembled from these columns came back with its instants
+			// quietly rounded and no longer matched its own signature.
+			Payload = ErasureCertificateCanonicalizer.ToCanonicalJson(certificate.Payload)
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 		}
 		catch (PostgresException ex) when (IsUniqueViolation(ex))
@@ -517,10 +537,10 @@ public sealed partial class PostgresErasureStore
 			// A certificate is the attestation itself, so silently replacing one would rewrite evidence
 			// that has already been issued. Same narrow filter, and same specific type, as the request
 			// insert.
-			throw DuplicateErasureCertificateException.ForCertificateId(certificate.CertificateId, ex);
+			throw DuplicateErasureCertificateException.ForCertificateId(certificate.Payload.CertificateId, ex);
 		}
 
-		LogSavedCertificate(certificate.CertificateId, certificate.RequestId);
+		LogSavedCertificate(certificate.Payload.CertificateId, certificate.Payload.RequestId);
 	}
 
 	/// <inheritdoc />
@@ -541,7 +561,8 @@ public sealed partial class PostgresErasureStore
 
 		var sql = $@"
 			SELECT certificate_id, request_id, data_subject_reference, request_received_at, completed_at,
-				   method, summary, verification, legal_basis, signature, retain_until
+				   method, summary, verification, legal_basis, signature, retain_until,
+				   exceptions, generated_at, version, payload
 			FROM {_options.FullCertificatesTableName}
 			WHERE request_id = @RequestId{tenantPredicate}";
 
@@ -571,7 +592,8 @@ public sealed partial class PostgresErasureStore
 
 		var sql = $@"
 			SELECT certificate_id, request_id, data_subject_reference, request_received_at, completed_at,
-				   method, summary, verification, legal_basis, signature, retain_until
+				   method, summary, verification, legal_basis, signature, retain_until,
+				   exceptions, generated_at, version, payload
 			FROM {_options.FullCertificatesTableName}
 			WHERE certificate_id = @CertificateId{tenantPredicate}";
 
@@ -637,12 +659,10 @@ public sealed partial class PostgresErasureStore
 	private string HashDataSubjectId(string dataSubjectId) =>
 		_dataSubjectHasher.HashDataSubjectId(dataSubjectId);
 
-	private static VerificationSummary CreateDefaultVerificationSummary() => new()
-	{
-		Verified = false,
-		Methods = VerificationMethod.None,
-		VerifiedAt = DateTimeOffset.MinValue
-	};
+	// CreateDefaultVerificationSummary lived here: the read path called it when the verification column
+	// could not be deserialized, fabricating "Verified = false, VerifiedAt = MinValue" for a certificate
+	// whose verification record was in fact unreadable. Reading the payload whole removes both the caller
+	// and the need: an unreadable document is now refused rather than replaced with a plausible one.
 
 	[LoggerMessage(LogLevel.Debug, "Saved erasure request {RequestId} scheduled for {ScheduledTime}")]
 	private partial void LogSavedRequest(Guid requestId, DateTimeOffset scheduledTime);
@@ -845,7 +865,8 @@ public sealed partial class PostgresErasureStore
 		(_options.FullCertificatesTableName,
 		[
 			"certificate_id", "request_id", "data_subject_reference", "request_received_at", "completed_at",
-			"method", "summary", "verification", "legal_basis", "signature", "retain_until", "created_at",
+			"method", "summary", "verification", "legal_basis", "signature", "retain_until",
+			"exceptions", "generated_at", "version", "created_at", "payload",
 		]),
 	];
 
@@ -912,7 +933,22 @@ public sealed partial class PostgresErasureStore
 				legal_basis INT NOT NULL,
 				signature VARCHAR(512) NOT NULL,
 				retain_until TIMESTAMPTZ NOT NULL,
-				created_at TIMESTAMPTZ NOT NULL
+				-- Every remaining payload claim gets a column. The signature covers the payload WHOLE, so a
+				-- field with nowhere to live here does not merely go missing on read -- the reassembled
+				-- payload no longer matches what was signed, and the certificate reports as TAMPERED.
+				-- exceptions is the Article 17(3) record of data lawfully RETAINED; losing it makes the
+				-- certificate attest a more complete erasure than occurred.
+				exceptions JSONB NOT NULL,
+				generated_at TIMESTAMPTZ NOT NULL,
+				version VARCHAR(16) NOT NULL,
+				created_at TIMESTAMPTZ NOT NULL,
+				-- The signed document, verbatim. The columns above are indexes for querying; this is what a
+				-- read reconstructs the certificate from, so what comes back is what was signed whatever the
+				-- engine's column types can express.
+				-- TEXT, not JSONB: jsonb normalizes what it stores -- it reorders keys and rewrites numbers --
+				-- so the bytes read back would not be the bytes written. These bytes are the ones the
+				-- signature covers and nothing queries inside them, so they are stored exactly as produced.
+				payload TEXT NOT NULL
 			)";
 
 		var createCertificatesIndexesSql = $@"
@@ -1007,25 +1043,20 @@ public sealed partial class PostgresErasureStore
 		public int legal_basis { get; init; }
 		public string signature { get; init; } = string.Empty;
 		public DateTimeOffset retain_until { get; init; }
+		public string exceptions { get; init; } = "[]";
+		public DateTimeOffset generated_at { get; init; }
+		public string version { get; init; } = string.Empty;
+		public string payload { get; init; } = string.Empty;
 		// ReSharper restore InconsistentNaming
 
+		// Restored WHOLE from the one column that holds the signed document. Deliberately not reassembled
+		// from the indexed columns: a hand-written projection has to agree with the serializer forever, and
+		// it cannot express a claim whose column type is narrower than the value -- which is how three of
+		// this table's timestamps used to come back rounded.
 		public ErasureCertificate ToCertificate() => new()
 		{
-			CertificateId = certificate_id,
-			RequestId = request_id,
-			DataSubjectReference = data_subject_reference,
-			RequestReceivedAt = request_received_at,
-			CompletedAt = completed_at,
-			Method = (ErasureMethod)method,
-			Summary = JsonSerializer.Deserialize(
-				summary,
-				PostgresComplianceJsonContext.Default.ErasureSummary) ?? new ErasureSummary(),
-			Verification = JsonSerializer.Deserialize(
-				verification,
-				PostgresComplianceJsonContext.Default.VerificationSummary) ?? CreateDefaultVerificationSummary(),
-			LegalBasis = (ErasureLegalBasis)legal_basis,
-			Signature = signature,
-			RetainUntil = retain_until
+			Payload = ErasureCertificateCanonicalizer.FromCanonicalJson(payload),
+			Signature = signature
 		};
 	}
 }

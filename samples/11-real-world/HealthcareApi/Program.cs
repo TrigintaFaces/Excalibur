@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // ============================================================================
 // Healthcare API - Vertical Slice Architecture Sample
@@ -44,13 +44,25 @@ builder.AddDispatch(dispatch =>
 	});
 });
 
+// The authorization bridge evaluates policies through ASP.NET Core's own IAuthorizationService, so
+// the host must register the authorization services it reuses. Without this the host does not start:
+// the bridge middleware has a dependency the container cannot satisfy.
+builder.Services.AddAuthorization();
+
 // Per-slice DI registration — each feature registers its own services.
 builder.Services.AddPatientsFeature();
 builder.Services.AddAppointmentsFeature();
 builder.Services.AddPrescriptionsFeature();
 builder.Services.AddNotificationsFeature();
 
+// Unhandled exceptions become a generic RFC 9457 Problem Details 500; the exception message is
+// not written to the response. (Excalibur.Hosting.Web's AddGlobalExceptionHandler() adds status-code
+// mapping for framework exceptions, such as 404 for ResourceNotFoundException.)
+builder.Services.AddProblemDetails();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 // Map feature endpoints using route groups.
 // Each slice owns its own endpoint registration via an extension method.
@@ -76,6 +88,12 @@ app.MapGet("/", () => Results.Ok(new
 		"GET    /api/prescriptions/{id}              - Get prescription by ID",
 	],
 }));
+
+// Printed once the host is actually listening. A startup failure never reaches this line, so it
+// separates "started and serving" from "died or hung during startup" for anyone -- or anything --
+// watching the output.
+app.Lifetime.ApplicationStarted.Register(static () =>
+	Console.WriteLine("Sample ready: Healthcare API listening. Press Ctrl+C to stop."));
 
 app.Run();
 

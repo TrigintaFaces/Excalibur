@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -763,17 +763,20 @@ public sealed class ErasureServiceShould
 
 		var existingCertificate = new ErasureCertificate
 		{
-			CertificateId = certificateId,
-			RequestId = requestId,
-			DataSubjectReference = "hash",
-			RequestReceivedAt = status.RequestedAt,
-			CompletedAt = status.CompletedAt.Value,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary { KeysDeleted = 5, RecordsAffected = 10 },
-			Verification = new VerificationSummary { Verified = true, Methods = VerificationMethod.KeyManagementSystem, VerifiedAt = DateTimeOffset.UtcNow },
-			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
-			Signature = "test-signature",
-			RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			Payload = new()
+			{
+				CertificateId = certificateId,
+				RequestId = requestId,
+				DataSubjectReference = "hash",
+				RequestReceivedAt = status.RequestedAt,
+				CompletedAt = status.CompletedAt.Value,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary { KeysDeleted = 5, RecordsAffected = 10 },
+				Verification = new VerificationSummary { Verified = true, Methods = VerificationMethod.KeyManagementSystem, VerifiedAt = DateTimeOffset.UtcNow },
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+			},
+			Signature = "test-signature"
 		};
 
 		_ = A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
@@ -825,12 +828,12 @@ public sealed class ErasureServiceShould
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.RequestId.ShouldBe(requestId);
-		result.DataSubjectReference.ShouldBe("hash");
+		result.Payload.RequestId.ShouldBe(requestId);
+		result.Payload.DataSubjectReference.ShouldBe("hash");
 		// bd-412fo4: Method now reflects the actual mechanism (was hardcoded CryptographicErasure). This
 		// fixture has KeysDeleted=5 AND RecordsAffected=10 (key deletion + contributor row-delete) -> Hybrid.
-		result.Method.ShouldBe(ErasureMethod.Hybrid);
-		result.Summary.KeysDeleted.ShouldBe(5);
+		result.Payload.Method.ShouldBe(ErasureMethod.Hybrid);
+		result.Payload.Summary.KeysDeleted.ShouldBe(5);
 		result.Signature.ShouldNotBeNullOrEmpty();
 	}
 
@@ -865,7 +868,7 @@ public sealed class ErasureServiceShould
 
 		// Assert
 		_ = A.CallTo(() => _certStore.SaveCertificateAsync(
-			A<ErasureCertificate>.That.Matches(c => c.RequestId == requestId),
+			A<ErasureCertificate>.That.Matches(c => c.Payload.RequestId == requestId),
 			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -1041,7 +1044,7 @@ public sealed class ErasureServiceShould
 			.Returns(true);
 
 		// Act
-		var result = await _sut.ExecuteAsync(requestId, CancellationToken.None);
+		var result = await CreateKeyShredOnlySut().ExecuteAsync(requestId, CancellationToken.None);
 
 		// Assert
 		result.Success.ShouldBeTrue();
@@ -1091,7 +1094,7 @@ public sealed class ErasureServiceShould
 			.ThrowsAsync(new InvalidOperationException("Database error"));
 
 		// Act
-		var result = await _sut.ExecuteAsync(requestId, CancellationToken.None);
+		var result = await CreateKeyShredOnlySut().ExecuteAsync(requestId, CancellationToken.None);
 
 		// Assert
 		result.Success.ShouldBeFalse();
@@ -1119,4 +1122,31 @@ public sealed class ErasureServiceShould
 	}
 
 	#endregion Helper Methods
+
+	/// <summary>
+	/// A service configured for key-destruction-only erasure -- the host model for an arm whose subject is
+	/// the request lifecycle rather than registry coverage: no contributors, no data-location registry,
+	/// coverage established by destroying the subject's keys rather than by a registry of tables.
+	/// </summary>
+	/// <remarks>
+	/// These arms used to run against a service with an EMPTY registry, which now correctly refuses to
+	/// issue a completion certificate -- an empty registry is an absence of evidence, not a proof of
+	/// erasure. That refusal is the fix, so the arms state the legitimate configuration they meant rather
+	/// than having their assertions relaxed to accommodate it. The framework has an explicit opt-in for
+	/// this host model; the fixture uses it.
+	/// </remarks>
+	private ErasureService CreateKeyShredOnlySut() =>
+		new(
+			_store,
+			_keyAdmin,
+			Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+			{
+				KeyShredOnlyErasure = true,
+				Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+			}),
+			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
+			_legalHoldService,
+			_dataInventoryService,
+			null);
 }

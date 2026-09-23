@@ -24,7 +24,7 @@ public sealed class RetentionEnforcementServiceDepthShould
 		result.IsDryRun.ShouldBeFalse();
 		result.CompletedAt.ShouldNotBe(default);
 		result.RecordsCleaned.ShouldBe(0);
-		result.PoliciesEvaluated.ShouldBeGreaterThanOrEqualTo(0);
+		result.PoliciesEvaluated.ShouldBe(1);
 	}
 
 	[Fact]
@@ -39,14 +39,14 @@ public sealed class RetentionEnforcementServiceDepthShould
 	}
 
 	[Fact]
-	public async Task Get_retention_policies_discovers_annotated_properties()
+	public async Task Get_retention_policies_returns_only_the_declared_scope()
 	{
 		var sut = CreateService();
 
 		var policies = await sut.GetRetentionPoliciesAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// May find annotated types in loaded assemblies depending on what is loaded
-		policies.ShouldNotBeNull();
+		// Exactly the declared scope, never what else happens to be loaded.
+		policies.ShouldHaveSingleItem().TypeName.ShouldBe(typeof(DeclaredRetentionSubject).FullName);
 	}
 
 	[Fact]
@@ -54,7 +54,7 @@ public sealed class RetentionEnforcementServiceDepthShould
 	{
 		var sut = new RetentionEnforcementService(
 			Microsoft.Extensions.Options.Options.Create(_options),
-			_logger);
+			[RetentionPolicyDeclaration.ForType(typeof(DeclaredRetentionSubject))], TimeProvider.System, _logger);
 
 		var result = await sut.EnforceRetentionAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -65,7 +65,7 @@ public sealed class RetentionEnforcementServiceDepthShould
 	public void Throw_for_null_options_in_constructor()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => new RetentionEnforcementService(null!, _logger));
+			() => new RetentionEnforcementService(null!, [RetentionPolicyDeclaration.ForType(typeof(DeclaredRetentionSubject))], TimeProvider.System, _logger));
 	}
 
 	[Fact]
@@ -73,7 +73,7 @@ public sealed class RetentionEnforcementServiceDepthShould
 	{
 		Should.Throw<ArgumentNullException>(
 			() => new RetentionEnforcementService(
-				Microsoft.Extensions.Options.Options.Create(_options), null!));
+				Microsoft.Extensions.Options.Options.Create(_options), [RetentionPolicyDeclaration.ForType(typeof(DeclaredRetentionSubject))], TimeProvider.System, null!));
 	}
 
 	[Fact]
@@ -88,5 +88,5 @@ public sealed class RetentionEnforcementServiceDepthShould
 	}
 
 	private RetentionEnforcementService CreateService() =>
-		new(Microsoft.Extensions.Options.Options.Create(_options), _logger);
+		new(Microsoft.Extensions.Options.Options.Create(_options), [RetentionPolicyDeclaration.ForType(typeof(DeclaredRetentionSubject))], TimeProvider.System, _logger);
 }

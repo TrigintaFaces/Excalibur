@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable CA1506 // Test class has high coupling by design
 
@@ -71,7 +71,8 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger));
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -89,7 +90,8 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			null!,
 			serializer,
 			serviceProvider,
-			logger));
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -107,7 +109,8 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			outboxStore,
 			serializer,
 			null!,
-			logger));
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -125,7 +128,8 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			null!));
+			null!,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -153,7 +157,8 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger));
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -172,7 +177,8 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			outboxStore,
 			serializer,
 			serviceProvider,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -198,7 +204,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 			envelopeDeserializer: null,
 			deadLetterQueue: null,
-			circuitBreakerRegistry: null,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: null,
 			deliveryGuaranteeOptions: null);
 
@@ -545,6 +551,442 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			.MustNotHaveHappened();
 		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
+	}
+
+	/// <summary>
+	/// A tenure that loses its token and then FAILS a dispatch must not write the failure unfenced.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The sibling arm above covers token-loss followed by a SUCCESSFUL delivery</b>, where the refusal is
+	/// learned at the mark-sent. This one covers token-loss followed by a FAILED one, which reaches a
+	/// different member by a different route and was covered nowhere.
+	/// </para>
+	/// <para>
+	/// <b>Why the fence was unreachable exactly when it mattered.</b> The fenced failure route is guarded by
+	/// a condition that CONJOINS the token, so the guard is false in two states: fencing is off, or fencing
+	/// is on and the token has gone. The gate yields a token only while this instance is the leader, so the
+	/// second state means THIS TENURE HAS BEEN SUPERSEDED -- and the code fell through it into an unfenced
+	/// write. The fence disappeared in precisely the state it exists to refuse.
+	/// </para>
+	/// <para>
+	/// <b>The claim term does not cover this, which is why the token is the only remedy.</b> The dispatcher
+	/// identity is assigned once per process and survives losing and regaining leadership, so a claim-scoped
+	/// write refuses a DIFFERENT dispatcher and never a STALE TENURE OF THE SAME ONE. The write therefore
+	/// lands whenever the successor has not yet re-claimed the row -- the ordinary case straight after a
+	/// handover, since the successor must wait for the reservation to age out. It consumes an attempt and
+	/// pushes the visibility floor out by a full backoff interval against a row this drain no longer owns.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_DoesNotWriteAFailureUnfenced_WhenTheGateIsActiveButHasNoToken()
+	{
+		// Arrange
+		const string MessageId = "message-failure-no-token";
+
+		var messageType = typeof(TestOutboxIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
+		var outboundMessage = CreateOutboundMessageWithEnvelope(MessageId, messageType, new TestOutboxIntegrationEvent(MessageId));
+		outboundMessage.DispatcherId = "dispatcher-failure-no-token";
+
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake
+			.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>()
+			.Implements<IClaimScopedOutboxStore>()
+			.Implements<IFencedDeadLetterableOutboxStore>()
+			.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => outboxStore.GetService(A<Type>._))
+			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(outboxStore) ? outboxStore : null);
+
+		// Leadership is held for the CLAIM and lost before the completion. A token absent from the start
+		// refuses at the claim, so the message is never dispatched and the arm would pass without ever
+		// reaching the path it exists to test.
+		var claimed = false;
+		A.CallTo(() => ((IFencedOutboxStore)outboxStore).GetUnsentMessagesAsync(A<int>._, 5L, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				claimed = true;
+				return new ValueTask<IEnumerable<OutboundMessage>>([outboundMessage]);
+			});
+
+		var dispatcher = A.Fake<IDispatcher>();
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("dispatch failed")));
+
+		var leaderGate = A.Fake<Excalibur.Dispatch.ILeaderProcessingGate>();
+		A.CallTo(() => leaderGate.FencingToken).ReturnsLazily(() => claimed ? (long?)null : 5L);
+
+		// maxAttempts 3, so this failure takes the ordinary retry route and never reaches dead-lettering --
+		// the row-destroying member has its own arm below.
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 3),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			leaderGate: leaderGate);
+		processor.Init("dispatcher-failure-no-token");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// LIVENESS FIRST. Every "must not have happened" below is trivially true of a drain that claimed
+		// nothing and dispatched nothing, and such a drain would pass this arm against the live defect.
+		claimed.ShouldBeTrue("the fenced claim must have run, or the refusal path was never reached");
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+
+		// SAFETY. No failure write of ANY shape reaches the store without a token: not the unscoped member,
+		// not the backoff member, and not the claim-scoped members -- the claim does not refuse a stale
+		// tenure of the same process, so routing through it is not containment.
+		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkFailedAsync(
+				A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkFailedWithBackoffAsync(
+				A<string>._, A<string>._, A<int>._, A<DateTimeOffset>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	/// <summary>
+	/// A retry-exhausted message whose tenure has been superseded must not have its outbox row destroyed.
+	/// </summary>
+	/// <remarks>
+	/// <b>This is the severe branch.</b> The unfenced dead-letter transition copies the message to the
+	/// dead-letter table and DELETES the outbox row on a message-id match alone -- no claim term, no tenure
+	/// term. So a superseded tenure reaching its attempt ceiling destroys a row a live successor has already
+	/// claimed and has not yet delivered. Every other completion leaves the row recoverable; this one does
+	/// not, and the message is lost from the outbox entirely.
+	/// </remarks>
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_DoesNotDestroyTheOutboxRow_WhenARetryExhaustedTenureHasNoToken()
+	{
+		// Arrange
+		const string MessageId = "message-deadletter-no-token";
+
+		var messageType = typeof(TestOutboxIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
+		var outboundMessage = CreateOutboundMessageWithEnvelope(MessageId, messageType, new TestOutboxIntegrationEvent(MessageId));
+		outboundMessage.DispatcherId = "dispatcher-deadletter-no-token";
+
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake
+			.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>()
+			.Implements<IFencedDeadLetterableOutboxStore>()
+			.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => outboxStore.GetService(A<Type>._))
+			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(outboxStore) ? outboxStore : null);
+
+		var claimed = false;
+		A.CallTo(() => ((IFencedOutboxStore)outboxStore).GetUnsentMessagesAsync(A<int>._, 5L, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				claimed = true;
+				return new ValueTask<IEnumerable<OutboundMessage>>([outboundMessage]);
+			});
+
+		var dispatcher = A.Fake<IDispatcher>();
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("dispatch failed")));
+
+		var leaderGate = A.Fake<Excalibur.Dispatch.ILeaderProcessingGate>();
+		A.CallTo(() => leaderGate.FencingToken).ReturnsLazily(() => claimed ? (long?)null : 5L);
+
+		// maxAttempts 1, so a failed dispatch exhausts retries on its FIRST pass and takes the dead-letter
+		// route -- the branch that destroys the row.
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 1),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			leaderGate: leaderGate);
+		processor.Init("dispatcher-deadletter-no-token");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// LIVENESS FIRST.
+		claimed.ShouldBeTrue("the fenced claim must have run, or the refusal path was never reached");
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+
+		// SAFETY. The row survives for the tenure that now owns it.
+		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
+				A<string>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	/// <summary>
+	/// A REFUSED dead-letter mark withdraws the dead-letter entry this tenure already enqueued.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the invariant the whole dead-letter path turns on, and it had NO coverage.</b> The
+	/// external enqueue happens BEFORE the fenced mark that would make it true, deliberately: a crash
+	/// between the two must leave the message in the dead-letter queue rather than marked terminal and
+	/// present nowhere. The cost of that order is that a REFUSED mark leaves an entry describing a message
+	/// this tenure no longer owns.
+	/// </para>
+	/// <para>
+	/// <b>Why an un-withdrawn entry is worse than it sounds.</b> A refusal means a newer tenure owns the
+	/// row — and that tenure may go on to DELIVER the message successfully. The message is then
+	/// simultaneously delivered and sitting unreplayed in the dead-letter queue, where the shipped redrive
+	/// path selects pending entries by filter. An operator draining the queue re-executes a message that
+	/// already succeeded, from our own bookkeeping rather than any fault of theirs. A dead-letter dedup key
+	/// cannot help: there is exactly one entry and it is the wrong entry.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task WithdrawTheDeadLetterEntry_WhenTheFencedMarkIsRefused()
+	{
+		// Arrange
+		const string MessageId = "message-dl-refused-compensate";
+		var entryId = Guid.NewGuid();
+
+		var (outboxStore, dispatcher, leaderGate, deadLetterQueue, admin) =
+			CompensationHarness(MessageId, entryId, tokenSurvives: true);
+
+		// The store REFUSES the fenced mark: a newer tenure has advanced the high-water.
+		A.CallTo(() => ((IFencedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
+				A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.FenceRefused));
+
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 1),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			deadLetterQueue: deadLetterQueue,
+			leaderGate: leaderGate);
+		processor.Init("dispatcher-dl-refused");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// LIVENESS FIRST -- the entry must actually have been written, or "withdrawn" is vacuous.
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._, A<DeadLetterReason>._, A<CancellationToken>._, A<Exception?>._, A<IDictionary<string, string>?>._))
+			.MustHaveHappenedOnceExactly();
+
+		// THE REFUSAL ACTUALLY HAPPENED. The store is a recording fake, so this is a spy's record, not the
+		// configured return value: a processor that never asked the store and purged for some other reason
+		// would otherwise pass this arm, and "never called" would read as "refused".
+		A.CallTo(() => ((IFencedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
+				MessageId, A<string>._, A<long>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly()
+			// SAFETY -- and the entry was withdrawn, by its own id, AFTER the refusal it compensates.
+			.Then(A.CallTo(() => admin.PurgeAsync(entryId, A<CancellationToken>._)).MustHaveHappenedOnceExactly());
+	}
+
+	/// <summary>
+	/// The same withdrawal happens when the tenure has NO TOKEN AT ALL, not only when the store refuses.
+	/// </summary>
+	/// <remarks>
+	/// The refusal branch above is reached by asking the store and being told no. This one never reaches
+	/// the store: under an active gate a null token IS the superseded state, so the fenced route is skipped
+	/// entirely. Before this was closed the drain fell through to the UNFENCED transition, which destroys
+	/// the outbox row on a message-id match alone — and left the dead-letter entry standing, because the
+	/// compensation lived only on the branch that asked.
+	/// </remarks>
+	[Fact]
+	public async Task WithdrawTheDeadLetterEntry_WhenTheTenureHasNoTokenAtAll()
+	{
+		// Arrange
+		const string MessageId = "message-dl-no-token-compensate";
+		var entryId = Guid.NewGuid();
+
+		var (outboxStore, dispatcher, leaderGate, deadLetterQueue, admin) =
+			CompensationHarness(MessageId, entryId, tokenSurvives: false);
+
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 1),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			deadLetterQueue: deadLetterQueue,
+			leaderGate: leaderGate);
+		processor.Init("dispatcher-dl-no-token");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// LIVENESS -- the drain actually ran; without this every "must not" below is trivially true.
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+
+		// SAFETY -- the entry is withdrawn ...
+		A.CallTo(() => admin.PurgeAsync(entryId, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+
+		// ... AND the row is not destroyed by the unfenced transition.
+		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
+				A<string>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	/// <summary>
+	/// LIVENESS, and it is the arm that matters most here: an APPLIED mark must NOT withdraw the entry.
+	/// </summary>
+	/// <remarks>
+	/// <b>Without this, a processor that purged unconditionally would pass both safety arms above while
+	/// silently deleting every legitimate dead letter it ever wrote.</b> That is a far worse defect than
+	/// the one those arms exist to catch — the messages would be gone from the outbox AND gone from the
+	/// queue an operator redrives from — and "the bad thing did not happen" cannot distinguish it, because
+	/// purging everything satisfies "the stale entry was purged" perfectly.
+	/// </remarks>
+	[Fact]
+	public async Task NotWithdrawTheDeadLetterEntry_WhenTheMarkIsApplied()
+	{
+		// Arrange
+		const string MessageId = "message-dl-applied-keep";
+		var entryId = Guid.NewGuid();
+
+		var (outboxStore, dispatcher, leaderGate, deadLetterQueue, admin) =
+			CompensationHarness(MessageId, entryId, tokenSurvives: true);
+
+		// The store ACCEPTS the fenced mark: this tenure genuinely owns the row.
+		A.CallTo(() => ((IFencedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
+				A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied));
+
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 1),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			deadLetterQueue: deadLetterQueue,
+			leaderGate: leaderGate);
+		processor.Init("dispatcher-dl-applied");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// LIVENESS -- the entry was written ...
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._, A<DeadLetterReason>._, A<CancellationToken>._, A<Exception?>._, A<IDictionary<string, string>?>._))
+			.MustHaveHappenedOnceExactly();
+
+		// SAFETY -- and it SURVIVES, because the mark that makes it true was applied.
+		A.CallTo(() => admin.PurgeAsync(A<Guid>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	/// <summary>
+	/// Builds the shared harness for the three dead-letter compensation arms.
+	/// </summary>
+	/// <param name="messageId">The message the drain will claim and fail.</param>
+	/// <param name="entryId">The id the dead-letter queue reports for the entry it wrote.</param>
+	/// <param name="tokenSurvives">
+	/// <see langword="false"/> drops the fencing token after the claim, which is the superseded state.
+	/// </param>
+	private static (IOutboxStore Store, IDispatcher Dispatcher, Excalibur.Dispatch.ILeaderProcessingGate Gate,
+		IDeadLetterQueue Queue, IDeadLetterQueueAdmin Admin) CompensationHarness(
+		string messageId, Guid entryId, bool tokenSurvives)
+	{
+		var messageType = typeof(TestOutboxIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
+		var outboundMessage = CreateOutboundMessageWithEnvelope(messageId, messageType, new TestOutboxIntegrationEvent(messageId));
+		outboundMessage.DispatcherId = "dispatcher-compensation";
+
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake
+			.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>()
+			.Implements<IFencedDeadLetterableOutboxStore>()
+			.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => outboxStore.GetService(A<Type>._))
+			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(outboxStore) ? outboxStore : null);
+
+		var claimed = false;
+		A.CallTo(() => ((IFencedOutboxStore)outboxStore).GetUnsentMessagesAsync(A<int>._, 5L, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				claimed = true;
+				return new ValueTask<IEnumerable<OutboundMessage>>([outboundMessage]);
+			});
+
+		var dispatcher = A.Fake<IDispatcher>();
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("dispatch failed")));
+
+		var leaderGate = A.Fake<Excalibur.Dispatch.ILeaderProcessingGate>();
+		A.CallTo(() => leaderGate.FencingToken)
+			.ReturnsLazily(() => tokenSurvives ? 5L : (claimed ? (long?)null : 5L));
+
+		// The queue must ALSO be the admin surface: withdrawal lives on IDeadLetterQueueAdmin, and the
+		// processor resolves it by casting the queue it was given. A queue that is not an admin cannot be
+		// compensated through, which is itself the documented degradation -- so the fake implements both.
+		var deadLetterQueue = A.Fake<IDeadLetterQueue>(f => f.Implements<IDeadLetterQueueAdmin>());
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._, A<DeadLetterReason>._, A<CancellationToken>._, A<Exception?>._, A<IDictionary<string, string>?>._))
+			.Returns(Task.FromResult(entryId));
+
+		var admin = (IDeadLetterQueueAdmin)deadLetterQueue;
+		A.CallTo(() => admin.PurgeAsync(A<Guid>._, A<CancellationToken>._)).Returns(Task.FromResult(true));
+
+		return (outboxStore, dispatcher, leaderGate, deadLetterQueue, admin);
+	}
+
+	/// <summary>
+	/// LIVENESS for the two arms above: a tenure that STILL HOLDS its token completes a failure normally.
+	/// </summary>
+	/// <remarks>
+	/// Without this, a processor that refused every completion write unconditionally -- or one that never
+	/// reached the completion path at all -- would satisfy both safety arms perfectly. Refusing everything is
+	/// the cheapest way to pass a "must not have happened" assertion and the most expensive way to be wrong:
+	/// the outbox would retry every message forever and mark nothing.
+	/// </remarks>
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_StillWritesTheFailureFenced_WhenTheTenureKeepsItsToken()
+	{
+		// Arrange
+		const string MessageId = "message-failure-token-held";
+
+		var messageType = typeof(TestOutboxIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
+		var outboundMessage = CreateOutboundMessageWithEnvelope(MessageId, messageType, new TestOutboxIntegrationEvent(MessageId));
+		outboundMessage.DispatcherId = "dispatcher-token-held";
+
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake
+			.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>()
+			.Implements<IClaimScopedOutboxStore>()
+			.Implements<IFencedDeadLetterableOutboxStore>()
+			.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => outboxStore.GetService(A<Type>._))
+			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(outboxStore) ? outboxStore : null);
+
+		A.CallTo(() => ((IFencedOutboxStore)outboxStore).GetUnsentMessagesAsync(A<int>._, 5L, A<CancellationToken>._))
+			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([outboundMessage]));
+
+		A.CallTo(() => ((IFencedClaimScopedOutboxStore)outboxStore).MarkFailedAsync(
+				A<string>._, A<string>._, A<int>._, A<DateTimeOffset?>._, A<OutboxWriteAuthority>._, A<CancellationToken>._))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied));
+
+		var dispatcher = A.Fake<IDispatcher>();
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("dispatch failed")));
+
+		// The token is held throughout -- the tenure is never superseded.
+		var leaderGate = A.Fake<Excalibur.Dispatch.ILeaderProcessingGate>();
+		A.CallTo(() => leaderGate.FencingToken).Returns(5L);
+
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 3),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			leaderGate: leaderGate);
+		processor.Init("dispatcher-token-held");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// LIVENESS. The failure IS recorded, through the fenced member, carrying the tenure's token.
+		A.CallTo(() => ((IFencedClaimScopedOutboxStore)outboxStore).MarkFailedAsync(
+				A<string>._, A<string>._, A<int>._, A<DateTimeOffset?>._, A<OutboxWriteAuthority>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -956,7 +1398,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer: serializer,
 			serviceProvider: serviceProvider,
 			deadLetterQueue: deadLetterQueue,
-			circuitBreakerRegistry: circuitBreakerRegistry);
+			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance);
 		processor.Init("dispatcher-single-open");
 		await using var scenario = new DispatchScenario(processor, outboxStore, deadLetterQueue, serviceProvider, dispatcher);
 
@@ -1245,6 +1687,272 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	}
 
 
+	/// <summary>
+	/// Independent regression lock (author != fixer, TestsDeveloper) for the dead-letter routing guard.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The property.</b> A fault while dead-lettering ONE message must not skip batch completion for a
+	/// DIFFERENT message that already delivered. The two messages are unrelated; only the control flow
+	/// joined them. Before the guard, a throw from <c>IDeadLetterQueue.EnqueueAsync</c> escaped the
+	/// <c>failedToDeadLetter</c> loop, the completion block below it never ran, and a message that HAD been
+	/// published was never marked sent -- so the next cycle published it again. A dead-letter fault turned
+	/// into a duplicate delivery of someone else's message.
+	/// </para>
+	/// <para>
+	/// <b>Identity, not call order.</b> The two dispatch outcomes are keyed on the message TYPE, following
+	/// the existing parallel-scenario idiom in this file, so the arm cannot pass or fail on which message
+	/// the drain happened to pick up first. Parallel degree is pinned to one for the same reason.
+	/// </para>
+	/// <para>
+	/// <b>Options are stated explicitly rather than taken from a preset.</b> The completion path under test
+	/// is the per-id fallback, which requires <c>EnableBatchDatabaseOperations = false</c>; a preset that
+	/// later flipped that flag would silently retarget this arm at the batch branch, where the assertion
+	/// below cannot fail.
+	/// </para>
+	/// <para>
+	/// <b>Mutant:</b> delete the try/catch around <c>RouteToDeadLetterQueueAsync</c> in
+	/// <c>OutboxProcessor</c>. The throw escapes, completion is skipped, and the safety assertion goes RED.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_StillMarksTheDeliveredMessage_WhenDeadLetteringAnotherMessageThrows()
+	{
+		// Arrange
+		const string DeliveredId = "message-delivered-despite-dlq-fault";
+		const string PoisonId = "message-terminal-failure";
+
+		var deliveredType = typeof(TestParallelSuccessIntegrationEvent).Name;
+		var failingType = typeof(TestParallelFailureIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestParallelSuccessIntegrationEvent>();
+		MessageTypeRegistry.RegisterType<TestParallelFailureIntegrationEvent>();
+
+		var outboxStore = CreateParallelOutboxStore(
+			CreateOutboundMessageWithEnvelope(DeliveredId, deliveredType, new TestParallelSuccessIntegrationEvent("ok")),
+			CreateOutboundMessageWithEnvelope(PoisonId, failingType, new TestParallelFailureIntegrationEvent("terminal")));
+
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(() => dispatcher.DispatchAsync(
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelSuccessIntegrationEvent),
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
+		_ = A.CallTo(() => dispatcher.DispatchAsync(
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelFailureIntegrationEvent),
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("terminal failure -> dead letter")));
+
+		// THE INJECTION: the dead-letter sink itself faults. This is the only thing that differs from the
+		// liveness partner below.
+		var deadLetterQueue = A.Fake<IDeadLetterQueue>();
+		_ = A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._,
+				A<DeadLetterReason>._,
+				A<CancellationToken>._,
+				A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.ThrowsAsync(new InvalidOperationException("dead-letter sink is unavailable"));
+
+		var processor = CreateProcessor(
+			options: CreateNonBatchTerminalFailureOptions(),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			deadLetterQueue: deadLetterQueue);
+		processor.Init("dispatcher-dlq-fault");
+
+		// Act -- called outside Should.NotThrowAsync deliberately: if the guard is absent the escape
+		// surfaces as the real exception and stack rather than a wrapped assertion message.
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert -- SAFETY. The delivered message is marked sent even though dead-lettering the OTHER
+		// message threw. Without the guard this call never happens and the message redelivers next cycle.
+		A.CallTo(() => outboxStore.MarkSentAsync(DeliveredId, A<CancellationToken>._))
+			.MustHaveHappened();
+
+		// The faulting sink was genuinely exercised -- otherwise the arm would pass on an implementation
+		// that never dead-letters at all, which is the inaction that satisfies every safety-only assertion.
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._, A<DeadLetterReason>._, A<CancellationToken>._, A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.MustHaveHappened();
+	}
+
+	/// <summary>
+	/// The sibling of the arm above, for the OTHER sequential-path dead-letter call. Independent
+	/// regression lock (author != fixer, TestsDeveloper).
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Why a second arm and not a theory.</b> The sequential path reaches the dead-letter queue from
+	/// two distinct places — a decode failure (<see cref="DeadLetterReason.DeserializationFailed"/>) and a
+	/// retry-ceiling failure (<see cref="DeadLetterReason.MaxRetriesExceeded"/>). They are different
+	/// <c>catch</c> blocks in different parts of the method, and a guard added to one says nothing about
+	/// the other. That is precisely the gap this bead turned out to have at the path level, so it is not a
+	/// gap worth re-introducing at the call-site level.
+	/// </para>
+	/// <para>
+	/// <b>The poison injection is the registry, not a corrupt payload.</b> A message whose declared type is
+	/// absent from <c>MessageTypeRegistry</c> raises <c>TypeLoadException</c> inside
+	/// <c>PrepareDispatchAsync</c>, which wraps every non-cancellation decode failure as
+	/// <c>OutboxPoisonMessageException</c>. That is deterministic and needs no malformed bytes.
+	/// </para>
+	/// <para>
+	/// <b>The reason assertion is what stops this arm being a duplicate.</b> Both sequential call sites
+	/// route to the same queue, so an arm that only asserted "the delivered message was marked" could be
+	/// exercising the retry-ceiling path and silently testing nothing new. Pinning the reason to
+	/// <c>DeserializationFailed</c> binds it to the decode call specifically.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_StillMarksTheDeliveredMessage_WhenDeadLetteringAPoisonMessageThrows()
+	{
+		// Arrange
+		const string DeliveredId = "message-delivered-despite-poison-dlq-fault";
+		const string PoisonId = "message-poison-unregistered-type";
+		const string UnregisteredType = "ThisTypeIsDeliberatelyNotInTheRegistry";
+
+		var deliveredType = typeof(TestParallelSuccessIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestParallelSuccessIntegrationEvent>();
+
+		// The poison row carries a well-formed envelope whose declared type the registry cannot resolve, so
+		// the failure happens at DECODE and never reaches a dispatcher. The payload object is only there to
+		// make the envelope well-formed -- its type is irrelevant because the lookup fails first.
+		var outboxStore = CreateParallelOutboxStore(
+			CreateOutboundMessageWithEnvelope(DeliveredId, deliveredType, new TestParallelSuccessIntegrationEvent("ok")),
+			CreateOutboundMessageWithEnvelope(PoisonId, UnregisteredType, new TestParallelSuccessIntegrationEvent("poison")));
+
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(() => dispatcher.DispatchAsync(
+				A<IDispatchMessage>._,
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
+
+		var deadLetterQueue = A.Fake<IDeadLetterQueue>();
+		_ = A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._,
+				A<DeadLetterReason>._,
+				A<CancellationToken>._,
+				A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.ThrowsAsync(new InvalidOperationException("dead-letter sink is unavailable"));
+
+		var processor = CreateProcessor(
+			options: CreateNonBatchTerminalFailureOptions(),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			deadLetterQueue: deadLetterQueue);
+		processor.Init("dispatcher-poison-dlq-fault");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert -- SAFETY. The decodable message is marked sent even though dead-lettering the poison row
+		// threw. Without the guard the throw escapes DispatchReservedRecordAsync and the drain aborts.
+		A.CallTo(() => outboxStore.MarkSentAsync(DeliveredId, A<CancellationToken>._))
+			.MustHaveHappened();
+
+		// NON-VACUITY, and it is what distinguishes this arm from its MaxRetriesExceeded sibling: the fault
+		// was injected on the DECODE call specifically. If this reason were ever to change, the arm is
+		// testing a different call site than the one it documents.
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._,
+				DeadLetterReason.DeserializationFailed,
+				A<CancellationToken>._,
+				A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.MustHaveHappened();
+
+		// The decodable message must never have been dead-lettered -- it dispatched cleanly. This rules out
+		// an implementation that dead-letters the whole batch on one poison row.
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>.That.Matches(m => m.MessageId == DeliveredId),
+				A<DeadLetterReason>._,
+				A<CancellationToken>._,
+				A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.MustNotHaveHappened();
+	}
+
+	/// <summary>
+	/// The liveness partner. A processor that swallowed everything -- never dead-lettering at all -- would
+	/// satisfy the safety arm above perfectly, because nothing would ever throw from the sink. This arm
+	/// fails on exactly that implementation: with no fault injected, the terminal failure MUST still reach
+	/// the dead-letter queue and the delivered message MUST still be marked.
+	/// </summary>
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_StillDeadLettersNormally_WhenTheSinkDoesNotFault()
+	{
+		// Arrange
+		const string DeliveredId = "message-delivered-no-fault";
+		const string FailedId = "message-terminal-no-fault";
+
+		var deliveredType = typeof(TestParallelSuccessIntegrationEvent).Name;
+		var failingType = typeof(TestParallelFailureIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestParallelSuccessIntegrationEvent>();
+		MessageTypeRegistry.RegisterType<TestParallelFailureIntegrationEvent>();
+
+		var outboxStore = CreateParallelOutboxStore(
+			CreateOutboundMessageWithEnvelope(DeliveredId, deliveredType, new TestParallelSuccessIntegrationEvent("ok")),
+			CreateOutboundMessageWithEnvelope(FailedId, failingType, new TestParallelFailureIntegrationEvent("terminal")));
+
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(() => dispatcher.DispatchAsync(
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelSuccessIntegrationEvent),
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
+		_ = A.CallTo(() => dispatcher.DispatchAsync(
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelFailureIntegrationEvent),
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("terminal failure -> dead letter")));
+
+		var deadLetterQueue = CreateDeadLetterQueue();
+
+		var processor = CreateProcessor(
+			options: CreateNonBatchTerminalFailureOptions(),
+			outboxStore: outboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: CreateServiceProvider(dispatcher),
+			deadLetterQueue: deadLetterQueue);
+		processor.Init("dispatcher-dlq-healthy");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert -- LIVENESS. The guard must not have turned dead-lettering into a no-op.
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._, A<DeadLetterReason>._, A<CancellationToken>._, A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.MustHaveHappened();
+
+		A.CallTo(() => outboxStore.MarkSentAsync(DeliveredId, A<CancellationToken>._))
+			.MustHaveHappened();
+	}
+
+	/// <summary>
+	/// At-least-once, batch database operations OFF, one message terminal on its first attempt. Stated
+	/// explicitly rather than taken from a preset: the arms above bind the PER-ID completion fallback, and
+	/// a preset whose <c>EnableBatchDatabaseOperations</c> later flipped would retarget them at the batch
+	/// branch without any test failing.
+	/// </summary>
+	private static IOptions<DeliveryOutboxOptions> CreateNonBatchTerminalFailureOptions() =>
+		Options.Create(new DeliveryOutboxOptions
+		{
+			QueueCapacity = 8,
+			ProducerBatchSize = 2,
+			ConsumerBatchSize = 2,
+			PerRunTotal = 2,
+			MaxAttempts = 1,
+			DeliveryGuarantee = DeliveryOutboxDeliveryGuarantee.AtLeastOnce,
+			EnableBatchDatabaseOperations = false,
+			BatchProcessing = { ParallelProcessingDegree = 1 },
+		});
+
 	private static IOptions<DeliveryOutboxOptions> CreateParallelBatchDatabaseOptions(
 		int maxAttempts,
 		DeliveryOutboxDeliveryGuarantee deliveryGuarantee = DeliveryOutboxDeliveryGuarantee.AtLeastOnce)
@@ -1299,7 +2007,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 			envelopeDeserializer: envelopeDeserializer,
 			deadLetterQueue: deadLetterQueue,
-			circuitBreakerRegistry: circuitBreakerRegistry,
+			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: backoffCalculator,
 			deliveryGuaranteeOptions: deliveryGuaranteeOptions,
 			leaderGate: leaderGate);
@@ -1526,7 +2234,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer: serializer,
 			serviceProvider: serviceProvider,
 			deadLetterQueue: deadLetterQueue,
-			circuitBreakerRegistry: circuitBreakerRegistry);
+			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance);
 		processor.Init("dispatcher-open");
 
 		await Task.CompletedTask;

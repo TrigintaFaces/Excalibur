@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Diagnostics;
 
@@ -486,6 +486,20 @@ internal static class CoreEventId
 	/// <summary>Background execution critical error.</summary>
 	public const int BackgroundExecutionCritical = 10914;
 
-	/// <summary>Background exception not propagated.</summary>
-	public const int BackgroundExceptionNotPropagated = 10915;
+	/// <summary>
+	/// A graceful shutdown waited for in-flight background work. Reports how much was outstanding, so an
+	/// operator can tell whether the host's shutdown budget is large enough for the work they background.
+	/// </summary>
+	public const int BackgroundWorkDrainedOnShutdown = 10916;
+
+	/// <summary>
+	/// The host's shutdown budget elapsed while background work was still running. That work is lost, and this
+	/// records how much, so the loss is never silent.
+	/// </summary>
+	public const int BackgroundWorkAbandonedOnShutdown = 10917;
+
+	/// <summary>
+	/// A message marked for background execution was not accepted because its dispatch was already cancelled.
+	/// </summary>
+	public const int BackgroundExecutionNotAccepted = 10918;
 }

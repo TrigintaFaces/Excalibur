@@ -66,3 +66,5 @@ For Sev 1 and Sev 2 incidents:
 
 - [Runtime Contract](runtime-contract.md)
 - [Reliability Guarantees](reliability-guarantees.md)
+- [Fault and Degraded-Mode Catalog](fault-catalog.md) — the log event id and metric for each fault, and what the framework does on its own
+- [Disaster Recovery](disaster-recovery.md) — restoring state, and the order to bring subsystems back

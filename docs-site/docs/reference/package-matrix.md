@@ -143,9 +143,9 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.SourceGenerators` | Compile-time handler discovery, AOT support |
-| `Excalibur.Dispatch.SourceGenerators.Analyzers` | Build-time code analysis |
-| `Excalibur.Dispatch.Analyzers` | Additional Roslyn analyzers |
+| `Excalibur.Dispatch.SourceGenerators` | Compile-time handler discovery, AOT support. Not a separate package — bundled into `Excalibur.Dispatch` and active as soon as you reference it. |
+| `Excalibur.Dispatch.SourceGenerators.Analyzers` | Build-time code analysis (diagnostics `DISP001`–`DISP006`). Not a separate package — bundled into `Excalibur.Dispatch` and active as soon as you reference it. |
+| `Excalibur.Dispatch.Analyzers` | Additional Roslyn analyzers. A separate package: reference it explicitly to enable them. |
 
 ## Testing
 

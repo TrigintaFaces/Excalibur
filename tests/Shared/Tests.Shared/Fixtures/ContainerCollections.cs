@@ -51,6 +51,13 @@ public static class ContainerCollections
 	/// AWS SQS (LocalStack) container shared across all tests in this collection.
 	/// </summary>
 	public const string AwsSqs = "AWS SQS";
+
+	/// <summary>
+	/// SQL Server with the Agent running, for Change Data Capture. Separate from
+	/// <see cref="SqlServer"/> because the Agent costs start-up time on every suite sharing a fixture,
+	/// and only CDC needs it.
+	/// </summary>
+	public const string SqlServerCdc = "SQL Server CDC";
 }
 
 // Collection definitions - these register fixtures for sharing
@@ -60,6 +67,9 @@ public class PostgresCollection : ICollectionFixture<PostgresContainerFixture> {
 
 [CollectionDefinition(ContainerCollections.SqlServer)]
 public class SqlServerCollection : ICollectionFixture<SqlServerContainerFixture> { }
+
+[CollectionDefinition(ContainerCollections.SqlServerCdc)]
+public class SqlServerCdcCollection : ICollectionFixture<SqlServerCdcContainerFixture> { }
 
 [CollectionDefinition(ContainerCollections.Redis)]
 public class RedisCollection : ICollectionFixture<RedisContainerFixture> { }

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -179,8 +179,7 @@ internal sealed class MongoDbInboxDocument
 	// record on upgrade and re-deliver already-processed messages. Under this encoding the only ids whose
 	// bytes change are the ones that were ambiguous before, which had no single correct owner anyway.
 	private static string EscapeSegment(string value) =>
-		value.Replace("%", "%25", StringComparison.Ordinal)
-			.Replace(":", "%3A", StringComparison.Ordinal);
+		SegmentedKey.Escape(value);
 
 	/// <summary>
 	/// Creates a document from an <see cref="InboxEntry"/>, scoped to the given tenant term.

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -701,7 +701,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -716,29 +716,56 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 
 		if (value.IsNullOrEmpty)
 		{
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.InvariantCulture,
-					EntryNotFoundFormat,
-					messageId,
-					handlerType));
+			// REPORTED, NOT THROWN. This used to raise InvalidOperationException while the SQL stores
+			// affected zero rows in silence, so no caller could be written correct against both. The call
+			// is issued from inside a drain's failure handling, where an exception abandons every other
+			// entry the caller still holds -- a refusal on one entry must cost that entry only.
+			//
+			// Absence is the ONE branch this read decides rather than the script below, and it cannot
+			// mislead: there is no stored value to mutate, so the write cannot be attempted at all. An
+			// entry created in the window between this read and the script is Received, which the claim
+			// path admits anyway, so nothing is stranded by naming it absent here.
+			return InboxMarkFailedOutcome.EntryNotFound;
 		}
 
 		var entry = DeserializeEntry(value!);
 		entry.MarkFailed(errorMessage);
 
-		// Atomic guarded write: never downgrade a concurrently-finalized (Processed) entry to Failed.
-		_ = await db.ScriptEvaluateAsync(
+		// Atomic guarded write: never downgrade a concurrently-finalized (Processed) entry to Failed. The
+		// script's own return code is what classifies the call -- 1 written, 0 refused as already
+		// Processed, -1 vanished between the read above and the script -- so the refusal is decided inside
+		// the same server-side invocation that would otherwise have performed the write, never by reading
+		// the entry back afterwards.
+		var code = (long)await db.ScriptEvaluateAsync(
 			GuardedTransitionIfNotProcessedScript,
 			[key],
 			[(int)InboxStatus.Processed, SerializeEntry(entry)]).ConfigureAwait(false);
 
+		if (code < 0)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (code == 0)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
@@ -747,17 +774,24 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 
 		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
-		var key = GetKey(messageId, handlerType);
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. A caller reading the estate-wide drain sees
+		// entries from every partition, so a key composed from ambient context would address a different
+		// partition than the read that produced the entry, with nothing in either signature to say so.
+		var key = GetKey(tenant.TenantId, messageId, handlerType);
 		var value = await db.StringGetAsync(key).ConfigureAwait(false);
 
 		if (value.IsNullOrEmpty)
 		{
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.InvariantCulture,
-					EntryNotFoundFormat,
-					messageId,
-					handlerType));
+			// REPORTED, NOT THROWN. This used to raise InvalidOperationException while the SQL stores
+			// affected zero rows in silence, so no caller could be written correct against both. The call
+			// is issued from inside a drain's failure handling, where an exception abandons every other
+			// entry the caller still holds -- a refusal on one entry must cost that entry only.
+			//
+			// Absence is the ONE branch this read decides rather than the script below, and it cannot
+			// mislead: there is no stored value to mutate, so the write cannot be attempted at all. An
+			// entry created in the window between this read and the script is Received, which the claim
+			// path admits anyway, so nothing is stranded by naming it absent here.
+			return InboxMarkFailedOutcome.EntryNotFound;
 		}
 
 		var entry = DeserializeEntry(value!);
@@ -769,13 +803,29 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		entry.RetryCount = retryCount;
 		entry.LastAttemptAt = DateTimeOffset.UtcNow;
 
-		// Atomic guarded write: never downgrade a concurrently-finalized (Processed) entry to Failed.
-		_ = await db.ScriptEvaluateAsync(
+		// Atomic guarded write: never downgrade a concurrently-finalized (Processed) entry to Failed. The
+		// script's own return code is what classifies the call -- 1 written, 0 refused as already
+		// Processed, -1 vanished between the read above and the script -- so the refusal is decided inside
+		// the same server-side invocation that would otherwise have performed the write, never by reading
+		// the entry back afterwards.
+		var code = (long)await db.ScriptEvaluateAsync(
 			GuardedTransitionIfNotProcessedScript,
 			[key],
 			[(int)InboxStatus.Processed, SerializeEntry(entry)]).ConfigureAwait(false);
 
+		if (code < 0)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (code == 0)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>
@@ -1153,9 +1203,18 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	// tenant-isolated by construction. An untenanted deployment composes the reserved sentinel, so the key
 	// shape is the same in every deployment and a single-tenant host cannot collide with a tenanted one.
 	private string GetKey(string messageId, string handlerType)
+		=> GetKey(CurrentTenantScope.TenantId, messageId, handlerType);
+
+	// The tenant-EXPLICIT composition. Required wherever a key is built for an entry that may belong to a
+	// tenant other than the caller's -- the administrative mark-failed is handed the partition rather than
+	// resolving one, because the entry it addresses came off an estate-wide read.
+	private string GetKey(string tenantId, string messageId, string handlerType)
 	{
-		var scope = CurrentTenantScope;
-		return $"{_options.KeyPrefix}:{EscapeSegment(scope.TenantId)}:{EscapeSegment(messageId)}:{EscapeSegment(handlerType)}";
+		// The configured prefix is concatenated OUTSIDE the composition: it is a deployment-chosen literal,
+		// not an identity term, and composing it as a segment would escape a prefix the operator expects to
+		// see verbatim in the keyspace.
+		return _options.KeyPrefix + ":"
+			+ SegmentedKey.Compose(tenantId, messageId, handlerType);
 	}
 
 	// The ':' joining the terms is not injective on its own. Neither the tenant term nor the message id is
@@ -1175,8 +1234,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	// encoding that moved every existing key would orphan every in-flight dedup record on upgrade and
 	// re-deliver already-processed messages. Only the previously-ambiguous keys change.
 	private static string EscapeSegment(string value) =>
-		value.Replace("%", "%25", StringComparison.Ordinal)
-			.Replace(":", "%3A", StringComparison.Ordinal);
+		SegmentedKey.Escape(value);
 
 	/// <summary>
 	/// Ensures the Redis connection is established and returns the database instance.

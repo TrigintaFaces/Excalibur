@@ -1,5 +1,5 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Data;
@@ -16,7 +16,7 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 [NoTenantTerm(
 	TenantConfinement.IdentityAddressed,
 	"the outbox Id is the table's primary key, so this statement already addresses at most one row. The drain claims across tenants and hands back a row addressed by that globally-unique Id, so the mark must be able to address the row the claim returned; a tenant term could only subtract that row, never redirect the statement to a different one")]
-public sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, int>
+internal sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, MarkSentMutationResult>
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MarkMessageSentRequest"/> class.
@@ -131,9 +131,15 @@ public sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, int>
 
 			DECLARE @Marked int = @@ROWCOUNT;
 
+			-- Evaluated INSIDE the mutating transaction, under the fence row lock the MERGE above still
+			-- holds. The caller used to establish this with a follow-up SELECT on its own connection
+			-- state, which cannot distinguish "the row is gone" from "the row changed after we looked".
+			DECLARE @Exists bit = CASE WHEN EXISTS (
+				SELECT 1 FROM {tableName} WHERE Id = @MessageId) THEN 1 ELSE 0 END;
+
 			COMMIT TRANSACTION;
 
-			SELECT @Marked;
+			SELECT @HighWater AS HighWaterToken, @Marked AS UpdatedCount, @Exists AS RowExists;
 			""";
 
 		var parameters = new DynamicParameters();
@@ -144,9 +150,10 @@ public sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, int>
 
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
-		// ExecuteScalar, not Execute: the batch reports the guarded UPDATE's own rowcount rather than the
-		// sum of its statements, so "refused" stays distinguishable from "applied".
+		// QuerySingle, not ExecuteScalar: the statement now projects three values, all computed inside
+		// the mutating transaction. The rowcount alone cannot tell a fencing refusal from a not-found,
+		// which is the defect this shape removes.
 		ResolveAsync = async connection =>
-			await connection.ExecuteScalarAsync<int>(Command).ConfigureAwait(false);
+			await connection.QuerySingleAsync<MarkSentMutationResult>(Command).ConfigureAwait(false);
 	}
 }

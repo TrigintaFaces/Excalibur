@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.RegularExpressions;
 
@@ -182,7 +182,7 @@ public sealed partial class Soc2PdfExportOptionsShould
 			ReportType = Soc2ReportType.TypeII,
 			PeriodStart = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
 			PeriodEnd = new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero),
-			Opinion = AuditorOpinion.Unqualified,
+			OverallLevel = ComplianceLevel.FullyCompliant,
 			GeneratedAt = new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero),
 			System = new SystemDescription
 			{

@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Compliance;
 
 /// <summary>
 /// Store-specific contributor that performs the actual deletion of personal data that has exceeded
-/// its retention period. The framework's <see cref="IRetentionEnforcementService"/> discovers the
-/// retention policies (from <see cref="PersonalDataAttribute.RetentionDays"/>) and orchestrates the
-/// registered contributors; each contributor knows how to delete expired records from its own store.
+/// its retention period. The framework's <see cref="IRetentionEnforcementService"/> supplies the
+/// retention policies the host has declared in scope (from <see cref="PersonalDataAttribute.RetentionDays"/>
+/// on the declared types) and orchestrates the registered contributors; each contributor knows how to delete expired records from its own store.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,6 +28,22 @@ public interface IRetentionContributor
 	string Name { get; }
 
 	/// <summary>
+	/// Gets a value indicating whether this contributor decides what to delete from the DECLARED retention
+	/// policies in <see cref="RetentionContributorContext.Policies"/>.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> if deletion is driven by the declared policies; <see langword="false"/> if this
+	/// contributor applies its own, self-contained rule (for example a fixed age bound on its own table).
+	/// </value>
+	/// <remarks>
+	/// A contributor that returns <see langword="false"/> is always handed an EMPTY
+	/// <see cref="RetentionContributorContext.Policies"/> list, so it cannot act on a population it said it does
+	/// not use. Enforcement refuses to start when any contributor returns <see langword="true"/> and no retention
+	/// scope has been declared, because such a contributor would otherwise have nothing trustworthy to act on.
+	/// </remarks>
+	bool ConsumesDeclaredPolicies { get; }
+
+	/// <summary>
 	/// Enforces the supplied retention policies against this contributor's store, deleting records
 	/// whose retention period has elapsed relative to <see cref="RetentionContributorContext.AsOf"/>.
 	/// </summary>
@@ -45,7 +61,8 @@ public interface IRetentionContributor
 public sealed record RetentionContributorContext
 {
 	/// <summary>
-	/// Gets the retention policies discovered from <see cref="PersonalDataAttribute"/> annotations.
+	/// Gets the retention policies of the types the host has declared in scope. A contributor must not
+/// delete data of any type absent from this list.
 	/// </summary>
 	public required IReadOnlyList<RetentionPolicy> Policies { get; init; }
 

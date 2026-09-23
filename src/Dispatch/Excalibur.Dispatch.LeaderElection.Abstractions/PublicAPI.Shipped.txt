@@ -66,7 +66,7 @@ Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateElection(string! 
 Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.FencingToken.get -> long?
-Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string! resourceName, long? fencingToken = null) -> void
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string! resourceName, long? fencingToken = null, System.DateTimeOffset? timestamp = null) -> void
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.NewLeaderId.get -> string?
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.PreviousLeaderId.get -> string?
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.ResourceName.get -> string!
@@ -80,7 +80,7 @@ Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.Resou
 Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.Timestamp.get -> System.DateTimeOffset
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.CandidateId.get -> string!
-Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.LeaderElectionEventArgs(string! candidateId, string! resourceName) -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.LeaderElectionEventArgs(string! candidateId, string! resourceName, System.DateTimeOffset? timestamp = null) -> void
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.ResourceName.get -> string!
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.Timestamp.get -> System.DateTimeOffset
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions

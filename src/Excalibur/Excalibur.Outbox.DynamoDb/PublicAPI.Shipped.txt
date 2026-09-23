@@ -14,6 +14,8 @@ Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.Connection.get -> Excalibur.Outb
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.Connection.set -> void
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.CreateTableIfNotExists.get -> bool
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.CreateTableIfNotExists.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.CreatedAtIndexName.get -> string!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.CreatedAtIndexName.set -> void
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.DefaultTimeToLiveSeconds.get -> int
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.DefaultTimeToLiveSeconds.set -> void
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.DynamoDbOutboxOptions() -> void
@@ -59,7 +61,7 @@ Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.Timestamp.get -> System.Date
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.CurrentContinuationToken.get -> string?
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.DynamoDbOutboxStreamsSubscription(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, string! tableName, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.DynamoDbOutboxStreamsSubscription(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions! storeOptions, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.IsActive.get -> bool
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.ReadChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Data.CloudNative.IChangeFeedEvent<Excalibur.Data.CloudNative.CloudOutboxMessage!>!>!
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -75,5 +77,3 @@ Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.TableName(string! tableName) ->
 Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.TablePrefix(string! prefix) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
 Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions
 static Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
-Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.CreatedAtIndexName.get -> string!
-Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.CreatedAtIndexName.set -> void

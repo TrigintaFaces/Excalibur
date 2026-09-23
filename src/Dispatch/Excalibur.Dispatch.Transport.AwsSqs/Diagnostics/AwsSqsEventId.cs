@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Transport.AwsSqs;
 
@@ -619,6 +619,9 @@ internal static class AwsSqsEventId
 
 	/// <summary>Transport sender: disposed.</summary>
 	public const int TransportSenderDisposed = 26104;
+
+	/// <summary>Transport sender: a batch result entry carried an ID that was not issued for that batch.</summary>
+	public const int TransportSenderUnresolvedBatchEntry = 26105;
 
 	/// <summary>Transport receiver: message received.</summary>
 	public const int TransportReceiverMessageReceived = 26110;

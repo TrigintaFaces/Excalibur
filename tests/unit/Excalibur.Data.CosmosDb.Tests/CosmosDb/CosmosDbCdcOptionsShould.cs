@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Cdc.CosmosDb;
 using Excalibur.Data.CosmosDb;
@@ -31,7 +31,6 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 		options.ChangeFeed.PollInterval.ShouldBe(TimeSpan.FromSeconds(5));
 		options.ChangeFeed.MaxWaitTime.ShouldBe(TimeSpan.FromSeconds(30));
 		options.PartitionKeyPath.ShouldBeNull();
-		options.PartitionKeyValues.ShouldBeNull();
 		options.ChangeFeed.IncludeTimestamp.ShouldBeTrue();
 		options.ChangeFeed.IncludeLsn.ShouldBeTrue();
 	}
@@ -181,7 +180,6 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 			ContainerId = "CustomContainer",
 			ProcessorName = "custom-processor",
 			PartitionKeyPath = "/tenantId",
-			PartitionKeyValues = ["tenant1", "tenant2"],
 			ChangeFeed =
 			{
 				Mode = CosmosDbCdcMode.AllVersionsAndDeletes,
@@ -205,8 +203,6 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 		options.ChangeFeed.PollInterval.ShouldBe(TimeSpan.FromSeconds(10));
 		options.ChangeFeed.MaxWaitTime.ShouldBe(TimeSpan.FromMinutes(1));
 		options.PartitionKeyPath.ShouldBe("/tenantId");
-		options.PartitionKeyValues.ShouldContain("tenant1");
-		options.PartitionKeyValues.ShouldContain("tenant2");
 		options.ChangeFeed.IncludeTimestamp.ShouldBeFalse();
 		options.ChangeFeed.IncludeLsn.ShouldBeFalse();
 	}

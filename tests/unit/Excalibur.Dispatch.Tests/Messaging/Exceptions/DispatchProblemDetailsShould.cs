@@ -166,7 +166,14 @@ public sealed class DispatchProblemDetailsShould
 		var pd = DispatchProblemDetails.ForUnauthorized("Expired token");
 
 		pd.Status.ShouldBe(401);
-		pd.Detail.ShouldBe("Expired token");
+
+		// SAFETY -- the reason must not reach the caller-visible body.
+		pd.Detail.ShouldBe("Authentication is required to access this resource");
+		pd.Detail.ShouldNotContain("Expired token");
+
+		// LIVENESS -- it must still be available server-side, or a developer cannot diagnose a 401.
+		pd.DiagnosticReason.ShouldBe("Expired token");
+
 		pd.SuggestedAction.ShouldNotBeNull();
 	}
 
@@ -185,7 +192,13 @@ public sealed class DispatchProblemDetailsShould
 		var pd = DispatchProblemDetails.ForForbidden("Admin required");
 
 		pd.Status.ShouldBe(403);
-		pd.Detail.ShouldBe("Admin required");
+
+		// SAFETY -- a role or policy name is authorization vocabulary and must not reach the caller.
+		pd.Detail.ShouldBe("You do not have permission to access this resource");
+		pd.Detail.ShouldNotContain("Admin required");
+
+		// LIVENESS -- still recoverable server-side for logging.
+		pd.DiagnosticReason.ShouldBe("Admin required");
 	}
 
 	[Fact]

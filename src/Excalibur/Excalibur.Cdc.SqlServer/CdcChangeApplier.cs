@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics;
@@ -91,6 +91,19 @@ internal sealed partial class CdcChangeApplier
 
 		var totalProcessedCount = 0;
 
+		// The failed-table barrier belongs to the RUN, not to one dequeued batch. Its job is to stop a
+		// durable checkpoint moving past a change that was handed to the fatal-error callback and swallowed,
+		// and the durable checkpoint outlives every individual batch — so a barrier scoped to a batch stops
+		// protecting the moment the next batch is dequeued. With ConsumerBatchSize=1 that is immediately:
+		// the failing change occupies a batch by itself, the barrier is discarded with that batch, and the
+		// NEXT same-table change — succeeding, or merely skipped as already-processed — writes a checkpoint
+		// past the change that never succeeded. That change is then never redelivered.
+		//
+		// Run scope is sufficient AND necessary. Sufficient because a run that bars a table writes no
+		// checkpoint for it, so the next run re-reads the same durable position and redelivers the failed
+		// change. Necessary because nothing shorter spans the interval over which the checkpoint can move.
+		var failedTables = new HashSet<string>(StringComparer.Ordinal);
+
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			if (isDisposed())
@@ -130,7 +143,7 @@ internal sealed partial class CdcChangeApplier
 				LogDequeuedMessages(batch.Length, stopwatch.Elapsed.TotalMilliseconds);
 				LogProcessingBatch(batch.Length);
 
-				await ProcessBatchAsync(batch, eventHandler, cancellationToken).ConfigureAwait(false);
+				await ProcessBatchAsync(batch, eventHandler, failedTables, cancellationToken).ConfigureAwait(false);
 
 				LogProcessedBatch(batch.Length, stopwatch.Elapsed.TotalMilliseconds);
 
@@ -155,6 +168,7 @@ internal sealed partial class CdcChangeApplier
 	private async Task ProcessBatchAsync(
 		IReadOnlyList<DataChangeEvent> batch,
 		Func<DataChangeEvent, CancellationToken, Task> eventHandler,
+		HashSet<string> failedTables,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(batch);
@@ -171,11 +185,9 @@ internal sealed partial class CdcChangeApplier
 		// a single checkpoint per table after the batch completes (instead of per-event).
 		var lastSuccessfulPerTable = new Dictionary<string, DataChangeEvent>(StringComparer.Ordinal);
 
-		// Tables that had a swallowed (onFatalError) failure in this batch. Once a table is here,
-		// NO later event for it — success OR idempotency-skip — may advance its checkpoint. Without
-		// this, a later same-table event re-adds the table to lastSuccessfulPerTable and the post-batch
-		// checkpoint advances PAST the failed change, permanently skipping it (the subtle re-add bug).
-		var failedTables = new HashSet<string>(StringComparer.Ordinal);
+		// Tables that had a swallowed (onFatalError) failure anywhere in this RUN — supplied by the caller,
+		// which owns the run. Once a table is in here, NO later event for it — success OR idempotency-skip,
+		// in this batch or any later one — may advance its checkpoint.
 
 		// Resolve the Polly policy once per batch instead of per-event.
 		// The policy configuration does not change within a processing cycle.
@@ -200,7 +212,7 @@ internal sealed partial class CdcChangeApplier
 					CdcChangeDetector.ByteArrayToHex(changeEvent.SeqVal));
 
 				// Treat as successful for checkpoint advancement purposes -- but ONLY if this table
-				// has not already had a swallowed failure in this batch. Advancing here would move the
+				// has not already had a swallowed failure in this run. Advancing here would move the
 				// checkpoint past the earlier failed change, permanently skipping it.
 				if (!failedTables.Contains(changeEvent.TableName))
 				{
@@ -270,7 +282,7 @@ internal sealed partial class CdcChangeApplier
 			// past the failed event -- otherwise that event is permanently skipped.
 			if (eventSucceeded)
 			{
-				// Do NOT re-advance a table that already had a swallowed failure in this batch.
+				// Do NOT re-advance a table that already had a swallowed failure in this run.
 				// A later same-table success must not move the checkpoint past the failed change
 				// (it would permanently skip it); the failed change must be reprocessed next cycle.
 				if (!failedTables.Contains(changeEvent.TableName))
@@ -281,10 +293,11 @@ internal sealed partial class CdcChangeApplier
 			else
 			{
 				// CRITICAL: Freeze this table's checkpoint at the pre-failure position.
-				// Mark the table failed (so no later event -- success OR idempotency-skip -- can
-				// re-add it) and remove any position already tracked for it this batch. On the next
-				// cycle, processing resumes from the previous cycle's checkpoint, ensuring the failed
-				// event is reprocessed.
+				// Mark the table failed for the REST OF THE RUN (so no later event -- success OR
+				// idempotency-skip, in this batch or any later one -- can re-add it) and remove any
+				// position already tracked for it in this batch. Because the run then writes no
+				// checkpoint for this table, the next cycle resumes from the previous cycle's durable
+				// position and the failed event is redelivered.
 				_ = failedTables.Add(changeEvent.TableName);
 				_ = lastSuccessfulPerTable.Remove(changeEvent.TableName);
 

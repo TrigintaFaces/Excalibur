@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.Persistence;
 
@@ -179,20 +179,38 @@ public interface ICloudNativePersistenceProvider : IDocumentPersistenceProvider
 public interface ICloudNativePersistenceQueryOperations
 {
 	/// <summary>
-	/// Queries documents within a partition.
+	/// Queries one page of documents within a partition.
 	/// </summary>
 	/// <typeparam name="TDocument">The document type.</typeparam>
-	/// <param name="queryText">The query text (provider-specific syntax).</param>
-	/// <param name="partitionKey">The partition key to query within.</param>
-	/// <param name="parameters">Query parameters.</param>
-	/// <param name="consistencyOptions">Consistency options for the query.</param>
+	/// <param name="query">The query to run, including the continuation token that resumes a previous page.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The query results with cost information.</returns>
+	/// <returns>The query results with cost information, and the continuation token for the next page.</returns>
+	/// <remarks>
+	/// <para>
+	/// This returns a <b>single page</b>. When
+	/// <see cref="CloudQueryResult{TDocument}.HasMoreResults"/> is <see langword="true"/> the result set is
+	/// incomplete; copy <see cref="CloudQueryResult{TDocument}.ContinuationToken"/> into
+	/// <see cref="CloudQueryRequest.ContinuationToken"/> and call again to obtain the next page.
+	/// </para>
+	/// <para>
+	/// Paging is server-side and happens whether or not the caller models it, so a caller that reads one
+	/// page and stops silently processes part of its data. Loop until
+	/// <see cref="CloudQueryResult{TDocument}.HasMoreResults"/> is <see langword="false"/>.
+	/// </para>
+	/// <para>
+	/// A continuation token is opaque and belongs to the provider that issued it. Passing one to a
+	/// different provider is rejected rather than silently misread — a token interpreted as a position it
+	/// does not name resumes from nowhere and returns an empty page that looks like the end of the data.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// <see cref="CloudQueryRequest.ContinuationToken"/> was supplied and was not issued by this provider.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// <see cref="CloudQueryRequest.MaxItemCount"/> was supplied and is not greater than zero.
+	/// </exception>
 	Task<CloudQueryResult<TDocument>> QueryAsync<TDocument>(
-		string queryText,
-		IPartitionKey partitionKey,
-		IDictionary<string, object>? parameters,
-		IConsistencyOptions? consistencyOptions,
+		CloudQueryRequest query,
 		CancellationToken cancellationToken)
 		where TDocument : class;
 }
@@ -364,6 +382,86 @@ public class CloudOperationResult<TDocument> : CloudOperationResult
 	/// Gets the document returned by the operation.
 	/// </summary>
 	public TDocument? Document { get; }
+}
+
+/// <summary>
+/// Describes one page of a partition-scoped cloud-native query.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This type exists so that a query can be <i>resumed</i>. The provider returns a
+/// <see cref="CloudQueryResult{TDocument}.ContinuationToken"/> when more results remain, and that token is
+/// handed back through <see cref="ContinuationToken"/> to fetch the next page — the same shape the
+/// underlying vendor SDKs use.
+/// </para>
+/// <para>
+/// It also keeps the query surface to two parameters. Passing the query, partition key, parameters,
+/// consistency options and continuation positionally would exceed the contract's parameter budget and make
+/// every future addition another breaking change.
+/// </para>
+/// </remarks>
+public sealed class CloudQueryRequest
+{
+	/// <summary>
+	/// Gets the query text, in the provider's own query syntax.
+	/// </summary>
+	/// <value>The provider-specific query text.</value>
+	public required string QueryText { get; init; }
+
+	/// <summary>
+	/// Gets the partition to query within.
+	/// </summary>
+	/// <value>The partition key that scopes the query.</value>
+	public required IPartitionKey PartitionKey { get; init; }
+
+	/// <summary>
+	/// Gets the query parameters, if the query text is parameterized.
+	/// </summary>
+	/// <value>The parameter values, or <see langword="null"/> when the query takes none.</value>
+	public IDictionary<string, object>? Parameters { get; init; }
+
+	/// <summary>
+	/// Gets the consistency options for this query.
+	/// </summary>
+	/// <value>The consistency options, or <see langword="null"/> to use the provider's default.</value>
+	public IConsistencyOptions? ConsistencyOptions { get; init; }
+
+	/// <summary>
+	/// Gets the maximum number of documents to return in this page.
+	/// </summary>
+	/// <value>
+	/// The page size, or <see langword="null"/> to let the provider choose.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// This bounds how much the caller must hold in memory at once. It does not bound the result set: when
+	/// a page is capped, the remainder is reached through
+	/// <see cref="CloudQueryResult{TDocument}.ContinuationToken"/>, so a caller that keeps paging still
+	/// sees every document.
+	/// </para>
+	/// <para>
+	/// Every provider honours it. An earlier revision of this contract allowed a provider to refuse a page
+	/// size instead, which made a caller bounding its own memory work against some providers and throw
+	/// against others — the caller could not write one correct loop, and there was no way to ask in advance
+	/// which it had.
+	/// </para>
+	/// </remarks>
+	public int? MaxItemCount { get; init; }
+
+	/// <summary>
+	/// Gets the continuation token that resumes a previous page.
+	/// </summary>
+	/// <value>
+	/// A token taken from a prior <see cref="CloudQueryResult{TDocument}.ContinuationToken"/>, or
+	/// <see langword="null"/> to start from the first page.
+	/// </value>
+	/// <remarks>
+	/// The token is <b>opaque</b> and is only meaningful to the provider that issued it. A provider given a
+	/// token it did not issue throws <see cref="ArgumentException"/> — it never ignores one, because
+	/// silently restarting at page one would return the first page forever while a paging loop appeared to
+	/// make progress.
+	/// </remarks>
+	public string? ContinuationToken { get; init; }
 }
 
 /// <summary>

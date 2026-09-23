@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.Dispatch.Options.Resilience;
@@ -19,6 +19,13 @@ namespace Excalibur.Dispatch.Resilience;
 /// kept off this interface so an implementation is not obliged to carry them. Test the registry
 /// instance for <see cref="ITransportCircuitBreakerDiagnostics"/> to reach them.
 /// </para>
+/// <para>
+/// <b>Transport names are matched without regard to case, using ordinal comparison.</b> "Kafka",
+/// "kafka" and "KAFKA" name one transport and share one circuit. An implementation that
+/// distinguishes them gives the same transport two breakers, so each observes only the calls that
+/// used its spelling &#8212; and a transport failing every call can stay below its configured
+/// threshold on both and never open.
+/// </para>
 /// </remarks>
 public interface ITransportCircuitBreakerRegistry
 {
@@ -27,6 +34,8 @@ public interface ITransportCircuitBreakerRegistry
 	/// </summary>
 	/// <param name="transportName">The name of the transport (e.g., "RabbitMQ", "AzureServiceBus").</param>
 	/// <returns>The circuit breaker policy for the transport.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="transportName"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException"><paramref name="transportName"/> is empty or consists only of white-space characters.</exception>
 	ICircuitBreakerPolicy GetOrCreate(string transportName);
 
 	/// <summary>
@@ -35,6 +44,8 @@ public interface ITransportCircuitBreakerRegistry
 	/// <param name="transportName">The name of the transport.</param>
 	/// <param name="options">The circuit breaker configuration options.</param>
 	/// <returns>The circuit breaker policy for the transport.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="transportName"/> or <paramref name="options"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException"><paramref name="transportName"/> is empty or consists only of white-space characters.</exception>
 	ICircuitBreakerPolicy GetOrCreate(string transportName, CircuitBreakerOptions options);
 
 	/// <summary>
@@ -42,6 +53,8 @@ public interface ITransportCircuitBreakerRegistry
 	/// </summary>
 	/// <param name="transportName">The name of the transport.</param>
 	/// <returns>The circuit breaker policy if found; otherwise, null.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="transportName"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException"><paramref name="transportName"/> is empty or consists only of white-space characters.</exception>
 	ICircuitBreakerPolicy? TryGet(string transportName);
 }
 
@@ -61,6 +74,8 @@ public interface ITransportCircuitBreakerDiagnostics
 	/// </summary>
 	/// <param name="transportName">The name of the transport.</param>
 	/// <returns>True if the circuit breaker was removed; otherwise, false.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="transportName"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException"><paramref name="transportName"/> is empty or consists only of white-space characters.</exception>
 	bool Remove(string transportName);
 
 	/// <summary>

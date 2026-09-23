@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.Firestore.Diagnostics;
 
@@ -43,9 +43,6 @@ public sealed partial class FirestoreCdcProcessor
 		"Starting CDC processor '{ProcessorName}' from beginning (no saved position)")]
 	private partial void LogStartingFromBeginning(string processorName);
 
-	[LoggerMessage(DataFirestoreEventId.CdcEventDropped, LogLevel.Warning,
-		"CDC processor '{ProcessorName}' dropped event for document '{DocumentId}' — channel full")]
-	private partial void LogEventDropped(string processorName, string documentId);
 
 	[LoggerMessage(DataFirestoreEventId.CdcFatalError, LogLevel.Critical,
 		"Fatal (non-retryable) error in Firestore CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
@@ -33,6 +33,8 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 	private readonly int _waitTimeSeconds;
 	private readonly int _visibilityTimeoutSeconds;
 	private readonly int? _maxPayloadBytes;
+
+	private readonly bool _hasDeadLetterQueue;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -47,13 +49,20 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 	/// The maximum inbound-payload length, in bytes, enforced before the body is materialized;
 	/// <see langword="null"/> opts out of the size limit. Defaults to the SQS provider ceiling (256 KiB).
 	/// </param>
+	/// <param name="hasDeadLetterQueue">
+	/// <see langword="true"/> when a dead-letter queue is configured for this queue. It decides how an
+	/// oversized poison payload is settled -- see <see cref="SqsPoisonPayloadSettlement"/>. It defaults to
+	/// <see langword="false"/> so that a caller who has not said otherwise keeps the loop-breaking
+	/// behaviour; the registration supplies the real value.
+	/// </param>
 	public SqsTransportReceiver(
 		IAmazonSQS sqsClient,
 		string source,
 		ILogger<SqsTransportReceiver> logger,
 		int waitTimeSeconds = 20,
 		int visibilityTimeoutSeconds = 30,
-		int? maxPayloadBytes = AwsSqsTransportAdapterOptions.SqsMaxPayloadBytes)
+		int? maxPayloadBytes = AwsSqsTransportAdapterOptions.SqsMaxPayloadBytes,
+		bool hasDeadLetterQueue = false)
 	{
 		_sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
@@ -61,6 +70,7 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 		_waitTimeSeconds = Math.Clamp(waitTimeSeconds, 0, 20);
 		_visibilityTimeoutSeconds = Math.Clamp(visibilityTimeoutSeconds, 0, 43200);
 		_maxPayloadBytes = maxPayloadBytes;
+		_hasDeadLetterQueue = hasDeadLetterQueue;
 	}
 
 	/// <inheritdoc />
@@ -99,15 +109,33 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 				}
 				catch (PayloadTooLargeException ex)
 				{
-					// Poison-message guard: an oversized payload can never be processed and, left in the
-					// queue, would be redelivered forever — a poison loop that stalls consumption. Delete
-					// the single offending message (DLQ routing is handled by the SQS redrive policy) and
-					// continue the batch, rather than letting the throw abort the whole receive.
+					// Poison-message guard. An oversized payload can never be processed, so it is settled
+					// here rather than allowed to abort the whole receive - but HOW it is settled depends
+					// on whether a dead-letter queue exists to catch it.
+					//
+					// THIS BRANCH USED TO DELETE UNCONDITIONALLY, and its comment said "DLQ routing is
+					// handled by the SQS redrive policy". That was not true of the code beneath it.
+					// DeleteMessage REMOVES the message from SQS; redrive is driven by the receive count
+					// of a message that becomes visible again, so a deleted message never redrives. A
+					// consumer who had configured a dead-letter queue - and whose producer sent a payload
+					// that is valid for the broker but larger than this consumer's MaxPayloadBytes - lost
+					// accepted durable work on first receive, with no copy anywhere.
+					//
+					// Doing NOTHING is the correct action when a DLQ exists: letting the visibility
+					// timeout expire is exactly what advances the receive count that drives redrive.
 					LogPayloadTooLargeRejected(Source, Encoding.UTF8.GetByteCount(sqsMessage.Body ?? string.Empty), ex);
-					using var poisonCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-					await _sqsClient.DeleteMessageAsync(
-						new DeleteMessageRequest { QueueUrl = Source, ReceiptHandle = sqsMessage.ReceiptHandle },
-						poisonCts.Token).ConfigureAwait(false);
+
+					if (SqsPoisonPayloadSettlement.ShouldDelete(_hasDeadLetterQueue))
+					{
+						// No dead-letter queue: the message has nowhere to go, and leaving it would
+						// redeliver it forever and stall the queue. Dropping is the fail-safe, and it is
+						// the same trade the Pub/Sub surface makes for the same reason.
+						using var poisonCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+						await _sqsClient.DeleteMessageAsync(
+							new DeleteMessageRequest { QueueUrl = Source, ReceiptHandle = sqsMessage.ReceiptHandle },
+							poisonCts.Token).ConfigureAwait(false);
+					}
+
 					continue;
 				}
 
@@ -305,16 +333,21 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 			enqueuedAt = DateTimeOffset.FromUnixTimeMilliseconds(sentTimestampMs);
 		}
 
+		// TransportReceivedMessage.Source is the queue this message was received from, not the message's
+		// own identity -- that is Id, and the receipt handle in ProviderData settles it. Reporting the
+		// message ID here made every message from one queue claim a different source.
+		var sourceQueue = Source;
+
 		return new TransportReceivedMessage
 		{
 			Id = sqsMessage.MessageId,
-			Body = Encoding.UTF8.GetBytes(sqsMessage.Body ?? string.Empty),
+			Body = AwsSqsMessageBodyCodec.DecodeBody(sqsMessage),
 			ContentType = contentType,
 			MessageType = messageType,
 			CorrelationId = correlationId,
 			DeliveryCount = deliveryCount,
 			EnqueuedAt = enqueuedAt,
-			Source = sqsMessage.MessageId,
+			Source = sourceQueue,
 			MessageGroupId = sqsMessage.Attributes?.TryGetValue("MessageGroupId", out var groupId) == true ? groupId : null,
 			Properties = properties,
 			ProviderData = new Dictionary<string, object>

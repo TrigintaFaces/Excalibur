@@ -1,7 +1,7 @@
 using Excalibur.Dispatch;
 using Excalibur.Compliance.Erasure;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
@@ -266,7 +266,7 @@ public sealed class InMemoryErasureStoreShould
 		await _sut.SaveCertificateAsync(cert, CancellationToken.None).ConfigureAwait(false);
 
 		// LIVENESS: the first certificate must persist and be readable back by its own id.
-		var stored = await _sut.GetCertificateByIdAsync(cert.CertificateId, CancellationToken.None)
+		var stored = await _sut.GetCertificateByIdAsync(cert.Payload.CertificateId, CancellationToken.None)
 			.ConfigureAwait(false);
 		stored.ShouldNotBeNull(
 			"a first save of a fresh CertificateId must store a retrievable certificate, or the duplicate "
@@ -276,7 +276,7 @@ public sealed class InMemoryErasureStoreShould
 		var thrown = await Should.ThrowAsync<DuplicateErasureCertificateException>(
 			() => _sut.SaveCertificateAsync(cert, CancellationToken.None)).ConfigureAwait(false);
 
-		thrown.CertificateId.ShouldBe(cert.CertificateId);
+		thrown.CertificateId.ShouldBe(cert.Payload.CertificateId);
 	}
 
 	[Fact]
@@ -301,11 +301,11 @@ public sealed class InMemoryErasureStoreShould
 		await _sut.SaveCertificateAsync(cert, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var result = await _sut.GetCertificateAsync(cert.RequestId, CancellationToken.None).ConfigureAwait(false);
+		var result = await _sut.GetCertificateAsync(cert.Payload.RequestId, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.CertificateId.ShouldBe(cert.CertificateId);
+		result.Payload.CertificateId.ShouldBe(cert.Payload.CertificateId);
 	}
 
 	[Fact]
@@ -323,11 +323,11 @@ public sealed class InMemoryErasureStoreShould
 		await _sut.SaveCertificateAsync(cert, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var result = await _sut.GetCertificateByIdAsync(cert.CertificateId, CancellationToken.None).ConfigureAwait(false);
+		var result = await _sut.GetCertificateByIdAsync(cert.Payload.CertificateId, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.CertificateId.ShouldBe(cert.CertificateId);
+		result.Payload.CertificateId.ShouldBe(cert.Payload.CertificateId);
 	}
 
 	#endregion
@@ -412,22 +412,28 @@ public sealed class InMemoryErasureStoreShould
 	private static ErasureCertificate CreateCertificate(DateTimeOffset? retainUntil = null) =>
 		new()
 		{
-			CertificateId = Guid.NewGuid(),
-			RequestId = Guid.NewGuid(),
-			DataSubjectReference = "hash-value",
-			RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
-			CompletedAt = DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
-			Summary = new ErasureSummary(),
-			Verification = new VerificationSummary
+			// Every claim lives in the payload; the envelope carries only the payload and its signature.
+			// A store test stores and reloads the envelope, so a fixed signature string is adequate here --
+			// a store's guarantee is FIDELITY (what was saved comes back), not signature validity.
+			Payload = new ErasureCertificatePayload
 			{
-				Verified = true,
-				Methods = VerificationMethod.KeyManagementSystem,
-				VerifiedAt = DateTimeOffset.UtcNow
+				CertificateId = Guid.NewGuid(),
+				RequestId = Guid.NewGuid(),
+				DataSubjectReference = "hash-value",
+				RequestReceivedAt = DateTimeOffset.UtcNow.AddDays(-1),
+				CompletedAt = DateTimeOffset.UtcNow,
+				Method = ErasureMethod.CryptographicErasure,
+				Summary = new ErasureSummary(),
+				Verification = new VerificationSummary
+				{
+					Verified = true,
+					Methods = VerificationMethod.KeyManagementSystem,
+					VerifiedAt = DateTimeOffset.UtcNow
+				},
+				LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+				RetainUntil = retainUntil ?? DateTimeOffset.UtcNow.AddDays(365)
 			},
-			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
-			Signature = "test-sig",
-			RetainUntil = retainUntil ?? DateTimeOffset.UtcNow.AddDays(365)
+			Signature = "test-sig"
 		};
 
 	#endregion

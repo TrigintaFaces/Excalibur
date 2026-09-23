@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 
@@ -73,12 +73,33 @@ public sealed partial class DataInventoryService : IDataInventoryService
 		var locations = new List<DataLocation>();
 		var keyReferences = new List<KeyReference>();
 
-		// Get registered data locations that might contain this data subject
-		var registrations = await _queryStore.FindRegistrationsForDataSubjectAsync(
-			dataSubjectId,
-			idType,
-			tenantId,
-			cancellationToken).ConfigureAwait(false);
+		// The DECLARED obligation. These are what a consumer registered as holding this subject's data,
+		// and they are what coverage is judged against. They are deliberately NOT merged into `locations`:
+		// a registration names the COLUMNS that hold the subject id and the key, while a location is a row
+		// that was actually found, and turning one into the other would mean querying the consumer's own
+		// schema. Carrying both at their honest granularity is what lets the certificate say something
+		// true rather than something vacuous.
+		//
+		// READ THE WHOLE REGISTRY, NOT A SUBJECT-SCOPED SLICE. This previously called
+		// FindRegistrationsForDataSubjectAsync(dataSubjectId, idType, ...), which refused every erasure in
+		// every shipped configuration, and the reason is worth keeping because it is not obvious from
+		// either side alone:
+		//
+		//   - the caller hardcodes DataSubjectIdType.Hash when it asks for discovery, while every shipped
+		//     registration example registers a NATURAL id type (Email/UserId);
+		//   - all three stores filter that query by id type and NEVER query the subject id itself
+		//     (it is validated and discarded), so the "per-subject" read was never per-subject;
+		//   - so the filter matched nothing, the declared set was empty for every subject, and the
+		//     coverage gate downstream read that emptiness as "coverage unestablished".
+		//
+		// The declared set is TENANT-WIDE by construction. Reading it as such removes the id-type filter
+		// that could only ever be wrong: passing status.IdType instead would assert something false about
+		// a value that is a hash, and passing Hash asserts something false about the registry.
+		// Reads through _store rather than _queryStore: GetAllRegistrationsAsync is on IDataInventoryStore,
+		// and the narrower IDataInventoryQueryStore deliberately exposes only the subject-scoped reads. No
+		// interface is widened for this.
+		var registrations = await _store.GetAllRegistrationsAsync(cancellationToken)
+			.ConfigureAwait(false);
 
 		// Get previously discovered locations
 		var discoveredLocations = await _queryStore.GetDiscoveredLocationsAsync(
@@ -121,10 +142,43 @@ public sealed partial class DataInventoryService : IDataInventoryService
 			}
 		}
 
+		var declaredLocations = registrations
+			.Select(static r => new DataLocationKey(r.TableName, r.FieldName))
+			.Distinct(DataLocationKey.Comparer)
+			.ToList();
+
+		// The category is carried ALONGSIDE the key rather than inside it. The key is a table-and-field
+		// pair on purpose -- that is the granularity a contributor can state honestly -- so folding the
+		// category in would stop the declared and discharged sides matching. The coverage gate's
+		// annotated-category arm needs the categories themselves, and they were being discarded here.
+		// The registered kind travels with the pair so the erasure service can offer a declared obligation
+		// to the contributor that covers its store. Unclassified registrations are deliberately absent:
+		// an Unknown kind is offered to nobody and therefore discharges nothing.
+		var declaredLocationKinds = new Dictionary<DataLocationKey, DataStoreKind>(DataLocationKey.Comparer);
+		foreach (var registration in registrations)
+		{
+			if (registration.StoreKind == DataStoreKind.Unknown)
+			{
+				continue;
+			}
+
+			declaredLocationKinds[new DataLocationKey(registration.TableName, registration.FieldName)]
+				= registration.StoreKind;
+		}
+
+		var declaredCategories = registrations
+			.Select(static r => r.DataCategory)
+			.Where(static c => !string.IsNullOrWhiteSpace(c))
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToList();
+
 		var inventory = new DataInventory
 		{
 			DataSubjectId = _dataSubjectHasher.HashDataSubjectId(dataSubjectId),
 			Locations = locations,
+			DeclaredLocations = declaredLocations,
+			DeclaredLocationKinds = declaredLocationKinds,
+			DeclaredCategories = declaredCategories,
 			AssociatedKeys = keyReferences,
 			DiscoveredAt = DateTimeOffset.UtcNow
 		};

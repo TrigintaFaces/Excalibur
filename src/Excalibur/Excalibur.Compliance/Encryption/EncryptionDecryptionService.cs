@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -10,6 +10,7 @@ using System.Text.Json;
 
 using Excalibur.Compliance.Configuration;
 using Excalibur.Compliance.Diagnostics;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -33,18 +34,32 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 	private readonly ILogger<EncryptionDecryptionService> _logger;
 
 	/// <summary>
+	/// Resolves the tenant of the operation in flight. Consulted PER CALL, never captured, so the tenant
+	/// bound into the AES-GCM Additional Authenticated Data is the tenant of the data rather than a
+	/// process-wide constant.
+	/// </summary>
+	private readonly ITenantContext _tenantContext;
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="EncryptionDecryptionService"/> class.
 	/// </summary>
 	/// <param name="registry">The encryption provider registry.</param>
 	/// <param name="options">The encryption configuration options.</param>
+	/// <param name="tenantContext">
+	/// Resolves the tenant of the operation in flight, so the tenant bound into the authenticated data is
+	/// the tenant of the data rather than a process-wide constant. A caller decrypting records that belong
+	/// to a different tenant than the ambient one supplies <see cref="DecryptionOptions.Context"/> instead.
+	/// </param>
 	/// <param name="logger">The logger for diagnostics.</param>
 	public EncryptionDecryptionService(
 		IEncryptionProviderRegistry registry,
 		IOptions<EncryptionOptions> options,
+		ITenantContext tenantContext,
 		ILogger<EncryptionDecryptionService> logger)
 	{
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
@@ -78,7 +93,9 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 
 			if (batch.Count >= options.BatchSize)
 			{
-				foreach (var decrypted in await DecryptBatchAsync(batch, options, cancellationToken).ConfigureAwait(false))
+				var (decryptedBatch, batchErrors) = await DecryptBatchAsync(batch, options, cancellationToken).ConfigureAwait(false);
+				errorCount += batchErrors;
+				foreach (var decrypted in decryptedBatch)
 				{
 					processedCount++;
 					yield return decrypted;
@@ -91,7 +108,9 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 		// Process remaining items
 		if (batch.Count > 0)
 		{
-			foreach (var decrypted in await DecryptBatchAsync(batch, options, cancellationToken).ConfigureAwait(false))
+			var (decryptedBatch, batchErrors) = await DecryptBatchAsync(batch, options, cancellationToken).ConfigureAwait(false);
+			errorCount += batchErrors;
+			foreach (var decrypted in decryptedBatch)
 			{
 				processedCount++;
 				yield return decrypted;
@@ -117,22 +136,20 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 		}
 
 		var context = options.Context ?? CreateDefaultContext();
-		var encryptedProperties = GetEncryptedProperties<T>();
+		var encryptedProperties = GetDecryptableProperties<T>(out _);
 
 		foreach (var prop in encryptedProperties)
 		{
-			var value = (byte[]?)prop.GetValue(entity);
-			if (value is null || value.Length == 0)
+			if (!EncryptedFieldBinding.TryReadEnvelope(prop, entity, out var value))
 			{
 				continue;
 			}
 
-			if (EncryptedData.IsFieldEncrypted(value))
 			{
 				try
 				{
 					var decrypted = await DecryptFieldAsync(value, options, context, cancellationToken).ConfigureAwait(false);
-					prop.SetValue(entity, decrypted);
+					EncryptedFieldBinding.WritePlaintext(prop, entity, decrypted);
 				}
 				catch (Exception ex) when (options.ContinueOnError)
 				{
@@ -206,13 +223,34 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 		return field;
 	}
 
-	private static PropertyInfo[] GetEncryptedProperties<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>()
+	/// <summary>
+	/// Selects the annotated properties for a DECRYPT path, reporting any annotation that cannot be
+	/// honoured instead of refusing the whole record.
+	/// </summary>
+	/// <remarks>
+	/// Decrypting asks a different question from encrypting, and the two have opposite correct answers.
+	/// Encrypting must REFUSE an unhonourable annotation, because proceeding would leave the field in
+	/// plaintext while the developer believes otherwise. Decrypting must not: the annotation denies this
+	/// framework the ability to write that property, so refusing protects nothing and costs the caller
+	/// every OTHER field on the record, which decrypts perfectly.
+	/// <para>
+	/// It is reported rather than skipped in silence, because "always read-only" is not the only way a
+	/// property reaches this state. One that HAD a setter, stored ciphertext under it, and lost the setter
+	/// in a later release still holds that ciphertext — and handing it back unannounced would return
+	/// ciphertext where the application expects a value, with nothing to indicate it happened.
+	/// </para>
+	/// </remarks>
+	private PropertyInfo[] GetDecryptableProperties<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
+		out int unhonouredCount)
 	{
-		return [.. typeof(T)
-			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-			.Where(p => p.PropertyType == typeof(byte[]) &&
-						p.GetCustomAttribute<EncryptedFieldAttribute>() is not null &&
-						p.CanRead && p.CanWrite)];
+		var properties = EncryptedFieldBinding.Inspect(typeof(T), out var unhonourable);
+		foreach (var reason in unhonourable)
+		{
+			LogEncryptedFieldNotHonouredOnRead(typeof(T).Name, reason);
+		}
+
+		unhonouredCount = unhonourable.Count;
+		return properties;
 	}
 
 	private static EncryptedData DeserializeEncryptedData(byte[] data)
@@ -224,14 +262,16 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 			   ?? throw new EncryptionException(Resources.Encryption_EncryptedDataEnvelopeDeserializeFailed);
 	}
 
-	private async Task<IEnumerable<T>> DecryptBatchAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
+	private async Task<(List<T> Results, int Errors)> DecryptBatchAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
 		List<T> batch,
 		DecryptionOptions options,
 		CancellationToken cancellationToken) where T : class
 	{
 		var results = new List<T>(batch.Count);
+		var errors = 0;
 		var context = options.Context ?? CreateDefaultContext();
-		var encryptedProperties = GetEncryptedProperties<T>();
+		var encryptedProperties = GetDecryptableProperties<T>(out var unhonouredCount);
+		errors += unhonouredCount;
 
 		foreach (var entity in batch)
 		{
@@ -239,28 +279,29 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 			{
 				foreach (var prop in encryptedProperties)
 				{
-					var value = (byte[]?)prop.GetValue(entity);
-					if (value is null || value.Length == 0)
+					if (!EncryptedFieldBinding.TryReadEnvelope(prop, entity, out var value))
 					{
 						continue;
 					}
 
-					if (EncryptedData.IsFieldEncrypted(value))
-					{
-						var decrypted = await DecryptFieldAsync(value, options, context, cancellationToken).ConfigureAwait(false);
-						prop.SetValue(entity, decrypted);
-					}
+					var decrypted = await DecryptFieldAsync(value, options, context, cancellationToken).ConfigureAwait(false);
+					EncryptedFieldBinding.WritePlaintext(prop, entity, decrypted);
 				}
 
-				results.Add(entity);
 			}
 			catch (Exception ex) when (options.ContinueOnError)
 			{
+				// The entity is added below regardless. Dropping it would remove a record from an export
+				// that still reports success, which is a worse outcome than returning it with one field
+				// undecrypted: the caller can see a field it cannot read, and cannot see a record absent.
 				LogDecryptionError(typeof(T).Name, ex);
+				errors++;
 			}
+
+			results.Add(entity);
 		}
 
-		return results;
+		return (results, errors);
 	}
 
 	private async Task<byte[]> DecryptFieldAsync(
@@ -376,7 +417,7 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 		return new EncryptionContext
 		{
 			Purpose = _options.Value.DefaultPurpose,
-			TenantId = _options.Value.DefaultTenantId,
+			TenantId = _tenantContext.TenantId,
 			RequireFipsCompliance = _options.Value.RequireFipsCompliance
 		};
 	}
@@ -388,6 +429,10 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 
 	[LoggerMessage(ComplianceEventId.DecryptionErrorForField, LogLevel.Warning, "Decryption error for field/entity {FieldName}")]
 	private partial void LogDecryptionError(string fieldName, Exception ex);
+
+	[LoggerMessage(ComplianceEventId.EncryptedFieldNotHonouredOnRead, LogLevel.Warning,
+		"[EncryptedField] on {TypeName} could not be honoured while decrypting, so the property was left as stored: {Reason}")]
+	private partial void LogEncryptedFieldNotHonouredOnRead(string typeName, string reason);
 
 	[LoggerMessage(ComplianceEventId.ExportCompleted, LogLevel.Information, "Export completed: {Format} format, {ExportedCount} items")]
 	private partial void LogExportCompleted(string format, int exportedCount);

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance;
 using Excalibur.Dispatch;
@@ -154,7 +154,12 @@ public sealed partial class EventStoreErasureContributor : IErasureContributor
 		}
 
 		LogErasureCompleted(context.RequestId, totalErased, aggregateReferences.Count);
-		return ErasureContributorResult.Succeeded(totalErased);
+
+		// Name the declared pairs this contributor erased. The service already filtered them to the store
+		// kinds this contributor covers, so every pair here is one the erasure above acted on. Reporting
+		// success WITHOUT naming them discharges nothing, which leaves every registered obligation
+		// outstanding and the erasure incompletable.
+		return ErasureContributorResult.Succeeded(totalErased, context.DeclaredLocations);
 	}
 
 	[LoggerMessage(

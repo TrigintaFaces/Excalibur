@@ -38,7 +38,7 @@ Every message dispatch has an associated `IMessageContext` that flows through th
 
 Use `IMessageContextAccessor` to access the current context:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Features;
 

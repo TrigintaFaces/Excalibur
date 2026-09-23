@@ -21,8 +21,6 @@ Excalibur.Security.AuthenticationFailedResult
 Excalibur.Security.AuthenticationFailedResult.AuthenticationFailedResult() -> void
 Excalibur.Security.AuthenticationFailedResult.AuthorizationResult.get -> object?
 Excalibur.Security.AuthenticationFailedResult.AuthorizationResult.set -> void
-Excalibur.Security.AuthenticationFailedResult.CacheHit.get -> bool
-Excalibur.Security.AuthenticationFailedResult.CacheHit.set -> void
 Excalibur.Security.AuthenticationFailedResult.ErrorMessage.get -> string?
 Excalibur.Security.AuthenticationFailedResult.ErrorMessage.set -> void
 Excalibur.Security.AuthenticationFailedResult.ProblemDetails.get -> Excalibur.Dispatch.IMessageProblemDetails?
@@ -313,8 +311,6 @@ Excalibur.Security.RateLimitAlgorithm.Unknown = 0 -> Excalibur.Security.RateLimi
 Excalibur.Security.RateLimitExceededResult
 Excalibur.Security.RateLimitExceededResult.AuthorizationResult.get -> object?
 Excalibur.Security.RateLimitExceededResult.AuthorizationResult.set -> void
-Excalibur.Security.RateLimitExceededResult.CacheHit.get -> bool
-Excalibur.Security.RateLimitExceededResult.CacheHit.set -> void
 Excalibur.Security.RateLimitExceededResult.ErrorMessage.get -> string?
 Excalibur.Security.RateLimitExceededResult.ErrorMessage.set -> void
 Excalibur.Security.RateLimitExceededResult.ProblemDetails.get -> Excalibur.Dispatch.IMessageProblemDetails?

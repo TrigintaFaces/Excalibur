@@ -2,7 +2,7 @@ using Excalibur.Compliance.Soc2.Validators;
 using Excalibur.Compliance.Soc2;
 using Excalibur.Compliance;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Compliance.Tests.Soc2.Validators;
 
@@ -91,8 +91,8 @@ public sealed class BaseControlValidatorShould
 		// Assert
 		result.ControlId.ShouldBe("CTRL-004");
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeTrue();
-		result.EffectivenessScore.ShouldBe(100);
+		result.Outcome.ShouldBe(ControlOutcome.Effective);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldBeEmpty();
 		result.Evidence.ShouldBeEmpty();
 		result.ValidatedAt.ShouldBeGreaterThan(DateTimeOffset.MinValue);
@@ -131,15 +131,15 @@ public sealed class BaseControlValidatorShould
 		var issues = new List<string> { "Missing config", "Invalid setting" };
 
 		// Act
-		var result = validator.InvokeCreateFailureResult("CTRL-006", issues, effectivenessScore: 30);
+		var result = validator.InvokeCreateFailureResult("CTRL-006", issues, effectivenessScore: ControlEffectiveness.ViolationDetected);
 
 		// Assert
 		result.ControlId.ShouldBe("CTRL-006");
 		// Not "because there are issues" any more -- the caller did not claim the mechanism is
 		// present, so it is not reported as present. The complaint count no longer decides it.
 		result.IsConfigured.ShouldBeFalse();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBe(30);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.ViolationDetected);
 		result.ConfigurationIssues.Count.ShouldBe(2);
 		result.Evidence.ShouldBeEmpty();
 	}
@@ -159,8 +159,8 @@ public sealed class BaseControlValidatorShould
 		// evidence that the mechanism is configured. Those are unrelated facts -- a caller can have
 		// nothing to complain about and still be looking at a component that is not there.
 		result.IsConfigured.ShouldBeFalse();
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBe(0);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.MechanismAbsent);
 	}
 
 	[Fact]
@@ -275,7 +275,10 @@ public sealed class BaseControlValidatorShould
 		public override Task<ControlValidationResult> ValidateAsync(
 			string controlId, CancellationToken cancellationToken)
 		{
-			return Task.FromResult(CreateFailureResult(controlId, _issues));
+			// The band is stated. This fixture models a validator reporting a finding, so it names the
+			// band rather than inheriting one -- which is the whole point of removing the default.
+			return Task.FromResult(
+				CreateFailureResult(controlId, _issues, ControlEffectiveness.ViolationDetected));
 		}
 
 		public override ControlDescription? GetControlDescription(string controlId) => null;
@@ -323,7 +326,7 @@ public sealed class BaseControlValidatorShould
 		public ControlValidationResult InvokeCreateFailureResult(
 			string controlId,
 			IReadOnlyList<string> issues,
-			int effectivenessScore = 0,
+			ControlEffectiveness effectivenessScore = ControlEffectiveness.MechanismAbsent,
 			IReadOnlyList<EvidenceItem>? evidence = null)
 			=> CreateFailureResult(controlId, issues, effectivenessScore, evidence);
 

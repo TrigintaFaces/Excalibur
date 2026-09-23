@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using Excalibur.Dispatch.Routing;
@@ -12,7 +12,8 @@ namespace Excalibur.Dispatch;
 public static class MessageResult
 {
 	private static readonly IMessageResult CachedSuccess = new BasicMessageResult(succeeded: true);
-	private static readonly IMessageResult CachedSuccessFromCache = new BasicMessageResult(succeeded: true, cacheHit: true);
+	private static readonly IMessageResult CachedSuccessFromCache =
+		new BasicMessageResult(succeeded: true, disposition: MessageDisposition.ServedFromCache);
 	private static readonly IMessageResult CachedCancelled = new BasicMessageResult(succeeded: false);
 
 	/// <summary>
@@ -34,7 +35,7 @@ public static class MessageResult
 	/// <param name="value"> The cached value to return. </param>
 	/// <returns> A successful message result with value indicating cache hit. </returns>
 	public static IMessageResult<T> SuccessFromCache<T>(T value) =>
-		new BasicMessageResult<T>(succeeded: true, value: value, cacheHit: true);
+		new BasicMessageResult<T>(succeeded: true, value: value, disposition: MessageDisposition.ServedFromCache);
 
 	/// <summary>
 	/// Creates a successful message result with additional parameters.
@@ -42,22 +43,32 @@ public static class MessageResult
 	/// <param name="routingDecision"> The routing decision. </param>
 	/// <param name="validationResult"> The validation result. </param>
 	/// <param name="authorizationResult"> The authorization result. </param>
-	/// <param name="cacheHit"> Whether this was a cache hit. </param>
+	/// <param name="disposition"> Describes how the result was produced. </param>
 	/// <returns> A successful message result. </returns>
 	public static IMessageResult Success(
 			RoutingDecision? routingDecision,
 			object? validationResult,
 			object? authorizationResult,
-			bool cacheHit = false)
+			MessageDisposition disposition = MessageDisposition.Handled)
 	{
 		_ = routingDecision;
 
 		if (validationResult is null && authorizationResult is null)
 		{
-			return cacheHit ? CachedSuccessFromCache : CachedSuccess;
+			// Only the two dispositions with a cached singleton are served from one; anything else
+			// allocates rather than being flattened onto the nearest singleton, which would discard it.
+			switch (disposition)
+			{
+				case MessageDisposition.Handled:
+					return CachedSuccess;
+				case MessageDisposition.ServedFromCache:
+					return CachedSuccessFromCache;
+				default:
+					break;
+			}
 		}
 
-		return new BasicMessageResult(succeeded: true, cacheHit: cacheHit, validationResult: validationResult,
+		return new BasicMessageResult(succeeded: true, disposition: disposition, validationResult: validationResult,
 			authorizationResult: authorizationResult);
 	}
 
@@ -77,21 +88,21 @@ public static class MessageResult
 	/// <param name="routingDecision"> The routing decision. </param>
 	/// <param name="validationResult"> The validation result. </param>
 	/// <param name="authorizationResult"> The authorization result. </param>
-	/// <param name="cacheHit"> Whether this result came from cache. </param>
+	/// <param name="disposition"> Describes how the result was produced. </param>
 	/// <returns> A successful message result with value. </returns>
 	public static IMessageResult<T> Success<T>(
 		T value,
 				RoutingDecision? routingDecision = null,
 				object? validationResult = null,
 				object? authorizationResult = null,
-				bool cacheHit = false)
+				MessageDisposition disposition = MessageDisposition.Handled)
 	{
 		_ = routingDecision;
 
 		return new BasicMessageResult<T>(
 			succeeded: true,
 			value: value,
-			cacheHit: cacheHit,
+			disposition: disposition,
 			validationResult: validationResult,
 			authorizationResult: authorizationResult);
 	}

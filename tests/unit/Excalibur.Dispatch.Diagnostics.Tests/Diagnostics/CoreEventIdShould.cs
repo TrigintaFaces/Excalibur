@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Diagnostics;
 
@@ -881,9 +881,21 @@ public sealed class CoreEventIdShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveBackgroundExceptionNotPropagatedInThreadingRange()
+	public void HaveBackgroundWorkDrainedOnShutdownInThreadingRange()
 	{
-		CoreEventId.BackgroundExceptionNotPropagated.ShouldBe(10915);
+		CoreEventId.BackgroundWorkDrainedOnShutdown.ShouldBe(10916);
+	}
+
+	[Fact]
+	public void HaveBackgroundWorkAbandonedOnShutdownInThreadingRange()
+	{
+		CoreEventId.BackgroundWorkAbandonedOnShutdown.ShouldBe(10917);
+	}
+
+	[Fact]
+	public void HaveBackgroundExecutionNotAcceptedInThreadingRange()
+	{
+		CoreEventId.BackgroundExecutionNotAccepted.ShouldBe(10918);
 	}
 
 	#endregion Threading/Background Tasks Event IDs (10900-10999)
@@ -978,7 +990,9 @@ public sealed class CoreEventIdShould : UnitTestBase
 	{
 		CoreEventId.BackgroundTaskStarted.ShouldBeInRange(10900, 10999);
 		CoreEventId.BackgroundTaskCompleted.ShouldBeInRange(10900, 10999);
-		CoreEventId.BackgroundExceptionNotPropagated.ShouldBeInRange(10900, 10999);
+		CoreEventId.BackgroundWorkDrainedOnShutdown.ShouldBeInRange(10900, 10999);
+		CoreEventId.BackgroundWorkAbandonedOnShutdown.ShouldBeInRange(10900, 10999);
+		CoreEventId.BackgroundExecutionNotAccepted.ShouldBeInRange(10900, 10999);
 	}
 
 	#endregion Event ID Range Validation
@@ -1168,7 +1182,9 @@ public sealed class CoreEventIdShould : UnitTestBase
 			CoreEventId.BackgroundExecutionInvalid,
 			CoreEventId.BackgroundExecutionFailed,
 			CoreEventId.BackgroundExecutionCritical,
-			CoreEventId.BackgroundExceptionNotPropagated
+			CoreEventId.BackgroundWorkDrainedOnShutdown,
+			CoreEventId.BackgroundWorkAbandonedOnShutdown,
+			CoreEventId.BackgroundExecutionNotAccepted
 		];
 	}
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
@@ -435,7 +435,7 @@ public sealed class InboxStoreLeaseArmsBindShould
 		public ValueTask<InboxEntry?> GetEntryAsync(string messageId, string handlerType, CancellationToken cancellationToken) =>
 			throw NotReached(nameof(GetEntryAsync));
 
-		public ValueTask MarkFailedAsync(
+		public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
 			string messageId,
 			string handlerType,
 			string errorMessage,
@@ -499,7 +499,7 @@ public sealed class InboxStoreLeaseArmsBindShould
 		public ValueTask<InboxEntry?> GetEntryAsync(string messageId, string handlerType, CancellationToken cancellationToken) =>
 			throw NotReached(nameof(GetEntryAsync));
 
-		public ValueTask MarkFailedAsync(
+		public ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
 			string messageId,
 			string handlerType,
 			string errorMessage,

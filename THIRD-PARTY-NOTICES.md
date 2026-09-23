@@ -1,7 +1,10 @@
 # THIRD-PARTY NOTICES
 
-This file lists third-party packages referenced by this repository.
-It is generated from project files; licenses remain with their respective owners.
+This file lists every third-party package that the shipping projects in this repository
+declare: the packages their project files reference, plus the transitive dependencies that
+central package pinning promotes into each published package's own dependency list. It is
+generated from those project files and their committed lock files, so it matches what a
+consumer's restore resolves. Licenses remain with their respective owners.
 
 Licenses are recorded per package id in `eng/ci/package-licenses.json`. Most are SPDX
 expressions taken from the package's own metadata. Where a package ships its terms as a
@@ -11,6 +14,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Package | Version | License |
 |---------|---------|---------|
 | AWSSDK.CloudWatch | 4.0.9.4 | Apache-2.0 |
+| AWSSDK.Core | 4.0.3.30 | Apache-2.0 |
 | AWSSDK.DynamoDBStreams | 4.0.4.25 | Apache-2.0 |
 | AWSSDK.DynamoDBv2 | 4.0.17.9 | Apache-2.0 |
 | AWSSDK.EventBridge | 4.0.5.26 | Apache-2.0 |
@@ -40,6 +44,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | AspNetCore.HealthChecks.System | 9.0.0 | Apache-2.0 |
 | Azure.Identity | 1.21.0 | MIT |
 | Azure.Messaging.EventGrid | 5.0.0 | MIT |
+| Azure.Messaging.EventHubs | 5.12.2 | MIT |
 | Azure.Messaging.EventHubs.Processor | 5.12.2 | MIT |
 | Azure.Messaging.ServiceBus | 7.20.1 | MIT |
 | Azure.ResourceManager | 1.14.0 | MIT |
@@ -51,6 +56,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Ben.Demystifier | 0.4.1 | Apache-2.0 |
 | CloudNative.CloudEvents | 2.8.0 | Apache-2.0 |
 | CloudNative.CloudEvents.SystemTextJson | 2.8.0 | Apache-2.0 |
+| Confluent.Kafka | 2.14.0 | Apache-2.0 |
 | Confluent.SchemaRegistry | 2.14.0 | Apache-2.0 |
 | Consul | 1.8.0 | Apache-2.0 |
 | Cronos | 0.12.0 | MIT |
@@ -79,7 +85,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Konscious.Security.Cryptography.Argon2 | 1.3.1 | MIT |
 | KubernetesClient | 19.0.2 | Apache-2.0 |
 | MQTTnet | 5.2.0.1603 | MIT |
-| Marten | 9.12.0 | MIT |
+| Marten | 9.13.0 | MIT |
 | Medo.Uuid7 | 3.2.0 | MIT |
 | MemoryPack | 1.21.4 | MIT |
 | MessagePack | 3.1.7 | MIT |
@@ -96,6 +102,8 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Microsoft.Azure.Functions.Worker.Extensions.ServiceBus | 5.24.0 | MIT |
 | Microsoft.Azure.Functions.Worker.Extensions.Storage.Blobs | 6.8.1 | MIT |
 | Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues | 5.5.4 | MIT |
+| Microsoft.CodeAnalysis.Analyzers | 5.3.0 | MIT |
+| Microsoft.CodeAnalysis.Common | 5.3.0 | MIT |
 | Microsoft.Data.SqlClient | 7.0.0 | MIT |
 | Microsoft.Data.Sqlite | 10.0.7 | MIT |
 | Microsoft.Extensions.Caching.Abstractions | 10.0.10 | MIT |
@@ -125,6 +133,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Microsoft.Extensions.Options.ConfigurationExtensions | 10.0.10 | MIT |
 | Microsoft.Extensions.Options.DataAnnotations | 10.0.10 | MIT |
 | Microsoft.IdentityModel.Tokens | 8.17.0 | MIT |
+| Microsoft.OpenApi | 2.7.5 | MIT |
 | MongoDB.Driver | 3.11.1 | Apache-2.0 |
 | MySqlConnector | 2.5.0 | MIT |
 | NCrontab | 3.4.0 | Apache-2.0 |
@@ -143,28 +152,38 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | OpenTelemetry.Instrumentation.Runtime | 1.15.0 | Apache-2.0 |
 | Oracle.ManagedDataAccess.Core | 23.8.0 | PROPRIETARY - Oracle Free Distribution, Hosting, and Use Terms and Conditions (not an OSI-approved licence) |
 | Polly | 8.6.6 | BSD-3-Clause |
+| Polly.RateLimiting | 8.6.6 | BSD-3-Clause |
 | Quartz | 3.18.0 | Apache-2.0 |
 | Quartz.Extensions.DependencyInjection | 3.18.0 | Apache-2.0 |
 | Quartz.Extensions.Hosting | 3.18.0 | Apache-2.0 |
 | Quartz.Plugins | 3.18.0 | Apache-2.0 |
 | Quartz.Serialization.SystemTextJson | 3.18.0 | Apache-2.0 |
-| QuestPDF | 2026.7.3 | MIT for organisations under USD 1,000,000 annual gross revenue; a paid Professional or Enterprise licence is required above that threshold (https://www.questpdf.com/license/). Reached only through the opt-in `Excalibur.Compliance.Pdf` package. |
+| QuestPDF | 2026.7.3 | Source-available dual licence (QuestPDF Community, or paid Professional/Enterprise) — NOT MIT and not OSI-approved: the shipped licence states that the MIT License does not govern use under the Community License. Community eligibility is assessed per organisation across six categories, not revenue alone — public-sector entities, government agencies and publicly traded companies are ineligible regardless of revenue, and the small-business category requires annual gross revenue under USD 1,000,000 measured on a consolidated basis across entities under common control (https://www.questpdf.com/license/). Reached only through the opt-in `Excalibur.Compliance.Pdf` package. Eligibility attaches to the organisation using the software, so each consumer must qualify on its own account; this project cannot and does not qualify on your behalf. |
 | RabbitMQ.Client | 7.2.1 | Apache-2.0 OR MPL-2.0 |
+| SQLitePCLRaw.bundle_e_sqlite3 | 3.0.3 | Apache-2.0 |
+| SQLitePCLRaw.core | 3.0.3 | Apache-2.0 |
+| SQLitePCLRaw.provider.e_sqlite3 | 3.0.3 | Apache-2.0 |
+| SSH.NET | 2026.0.0 | MIT |
 | Serilog | 4.3.1 | Apache-2.0 |
 | Serilog.AspNetCore | 10.0.0 | Apache-2.0 |
 | Serilog.Extensions.Hosting | 10.0.0 | Apache-2.0 |
+| Serilog.Extensions.Logging | 10.0.0 | Apache-2.0 |
+| Serilog.Settings.Configuration | 10.0.0 | Apache-2.0 |
 | Serilog.Sinks.Console | 6.1.1 | Apache-2.0 |
 | Serilog.Sinks.Debug | 3.0.0 | Apache-2.0 |
 | Serilog.Sinks.File | 7.0.0 | Apache-2.0 |
+| SharpCompress | 0.48.1 | MIT |
 | Shouldly | 4.3.0 | BSD-3-Clause |
 | Snappier | 1.3.1 | BSD-3-Clause |
 | StackExchange.Redis | 2.12.14 | MIT |
 | Swashbuckle.AspNetCore.SwaggerGen | 10.2.3 | MIT |
+| System.Collections.Immutable | 10.0.7 | MIT |
 | System.CommandLine | 2.0.0-beta4.22272.1 | MIT |
 | System.Diagnostics.DiagnosticSource | 10.0.7 | MIT |
 | System.Diagnostics.PerformanceCounter | 10.0.7 | MIT |
 | System.IO.Hashing | 10.0.7 | MIT |
 | System.IdentityModel.Tokens.Jwt | 8.17.0 | MIT |
+| System.Security.Cryptography.Xml | 10.0.10 | MIT |
 | System.Text.Json | 10.0.7 | MIT |
 | System.Threading.Channels | 10.0.7 | MIT |
 | System.Threading.RateLimiting | 10.0.7 | MIT |
@@ -175,4 +194,21 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Testcontainers.RabbitMq | 4.11.0 | MIT |
 | Testcontainers.Redis | 4.11.0 | MIT |
 | VaultSharp | 1.17.5.1 | Apache-2.0 |
+| YamlDotNet | 17.0.1 | MIT |
 | xunit.v3.extensibility.core | 3.2.2 | Apache-2.0 |
+
+## Native components reached through Confluent.Kafka
+
+The `Confluent.Kafka` package contains managed assemblies only. The native Kafka client it
+calls arrives as a separate NuGet package, `librdkafka.redist`, which your restore resolves
+transitively -- no package in this repository declares it, which is why it has no row above.
+
+`librdkafka.redist` ships prebuilt native binaries and states no SPDX license expression.
+Its terms are published as a single `LICENSES.txt` covering librdkafka itself, which is
+BSD-2-Clause, together with the third-party components built into those binaries. At the
+version this repository resolves, that file names fourteen: cjson, crc32c, fnv1a,
+hdrhistogram, lz4, murmur2, nanopb, opentelemetry, pycrc, queue, regexp, snappy, tinycthread
+and wingetopt. Read it at the version your build resolves, not at the package's own license
+link, which points at a moving branch:
+
+    https://github.com/confluentinc/librdkafka/blob/v2.14.0/LICENSES.txt

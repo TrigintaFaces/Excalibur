@@ -1,7 +1,7 @@
 // -----------------------------------------------------------------------
 // <copyright file="PackageReferenceTests.cs" company="Excalibur">
-//     Licensed under the Excalibur License 1.0.
-//     SPDX-License-Identifier: Excalibur-1.0 OR AGPL-3.0-or-later OR Apache-2.0
+//     Licensed under the Excalibur License 1.1.
+//     SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 // </copyright>
 // -----------------------------------------------------------------------
 

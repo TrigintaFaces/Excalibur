@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Security.Cryptography;
 using System.Text;
@@ -31,6 +31,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 {
 	private readonly IErasureStore _erasureStore;
 	private readonly IKeyManagementProvider _keyProvider;
+	private int _cannotConfirmLogged;
 	private readonly IDataInventoryService _inventoryService;
 	private readonly IAuditStore _auditStore;
 	private readonly IOptions<ErasureOptions> _options;
@@ -110,15 +111,15 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 				}
 			}
 
-			var keyIdsToVerify = certificate?.Verification.DeletedKeyIds ?? [];
+			var keyIdsToVerify = certificate?.Payload.Verification.DeletedKeyIds ?? [];
 
 			// a certificate claiming keys were deleted but carrying NO deleted-key IDs is vacuous —
 			// key-deletion verification would otherwise "pass" having checked zero keys. Fail it explicitly.
-			if (certificate is { Summary.KeysDeleted: > 0 } && keyIdsToVerify.Count == 0)
+			if (certificate is { Payload.Summary.KeysDeleted: > 0 } && keyIdsToVerify.Count == 0)
 			{
 				failures.Add(new VerificationFailure
 				{
-					Subject = certificate.CertificateId.ToString(),
+					Subject = certificate.Payload.CertificateId.ToString(),
 					Reason = "Certificate claims keys were deleted but carries no deleted-key IDs; erasure cannot be confirmed (vacuous certificate).",
 					Severity = VerificationSeverity.Critical,
 					FailedMethod = VerificationMethod.KeyManagementSystem
@@ -273,12 +274,12 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 				Passed = certificate is not null,
 				Details = certificate is null
 					? "Certificate not found"
-					: $"Certificate: {certificate.CertificateId}, Keys: {certificate.Verification.DeletedKeyIds.Count}",
+					: $"Certificate: {certificate.Payload.CertificateId}, Keys: {certificate.Payload.Verification.DeletedKeyIds.Count}",
 				Duration = stepStart.Elapsed
 			});
 		}
 
-		var keyIdsToVerify = certificate?.Verification.DeletedKeyIds ?? [];
+		var keyIdsToVerify = certificate?.Payload.Verification.DeletedKeyIds ?? [];
 
 		// Step 3: KMS verification
 		var options = _options.Value;
@@ -366,34 +367,26 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		{
 			LogErasureKeyDeletionVerificationStarted(keyId);
 
-			// Try to get key metadata - should fail or return null if deleted
-			var keyMetadata = await _keyProvider.GetKeyAsync(keyId, cancellationToken)
-				.ConfigureAwait(false);
-
-			// If we get a result, check if it's marked as deleted or destroyed
-			if (keyMetadata is null)
+			// A provider that can answer authoritatively is asked directly. This matters because the lookup below
+			// cannot tell "destroyed" from "deleted but still recoverable" on a backend that reports a recoverable
+			// key as not found -- Azure Key Vault answers a soft-deleted key with 404 for its whole retention
+			// period -- and confirming on that answer would attest an erasure while the key can still be restored.
+			if (_keyProvider.GetService(typeof(IKeyDestructionStatusProvider))
+				is IKeyDestructionStatusProvider destructionStatus)
 			{
-				// Key not found - this indicates deletion
-				LogErasureKeyDeletionConfirmedNotFound(keyId);
-				return true;
+				var destroyed = await destructionStatus.IsKeyDestroyedAsync(keyId, cancellationToken)
+					.ConfigureAwait(false);
+				LogErasureKeyDestructionStatusReported(keyId, destroyed);
+				return destroyed;
 			}
 
-			// Check key status - should be Destroyed or PendingDestruction
-			if (keyMetadata.Status is KeyStatus.Destroyed or KeyStatus.PendingDestruction)
-			{
-				LogErasureKeyDeletionConfirmedStatus(keyId, keyMetadata.Status);
-				return true;
-			}
-
-			LogErasureKeyDeletionNotDeleted(keyId, keyMetadata.Status);
-
+			// A provider that cannot answer is never read as having answered "destroyed". Its key lookup is not a
+			// substitute: "not found" is exactly what a backend with a recovery window says about a key it can
+			// still restore, so confirming on it would certify an erasure while the key is recoverable. The
+			// request stays awaiting destruction instead, and the provider is named once so an operator knows
+			// what to implement.
+			LogKeyProviderCannotConfirmDestructionOnce();
 			return false;
-		}
-		catch (KeyNotFoundException)
-		{
-			// Key not found exception is expected for deleted keys
-			LogErasureKeyDeletionConfirmedException(keyId);
-			return true;
 		}
 		catch (Exception ex)
 		{
@@ -487,35 +480,33 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		"Verifying deletion of key {KeyId}")]
 	private partial void LogErasureKeyDeletionVerificationStarted(string keyId);
 
-	[LoggerMessage(
-		ComplianceEventId.ErasureKeyDeletionConfirmedNotFound,
-		LogLevel.Debug,
-		"Key {KeyId} confirmed deleted (not found)")]
-	private partial void LogErasureKeyDeletionConfirmedNotFound(string keyId);
+	private void LogKeyProviderCannotConfirmDestructionOnce()
+	{
+		if (Interlocked.Exchange(ref _cannotConfirmLogged, 1) == 0)
+		{
+			LogKeyProviderCannotConfirmDestruction(_keyProvider.GetType().FullName ?? _keyProvider.GetType().Name);
+		}
+	}
 
 	[LoggerMessage(
-		ComplianceEventId.ErasureKeyDeletionConfirmedStatus,
-		LogLevel.Debug,
-		"Key {KeyId} confirmed deleted (status: {Status})")]
-	private partial void LogErasureKeyDeletionConfirmedStatus(string keyId, KeyStatus status);
-
-	[LoggerMessage(
-		ComplianceEventId.ErasureKeyDeletionNotDeleted,
+		ComplianceEventId.ErasureKeyProviderCannotConfirmDestruction,
 		LogLevel.Warning,
-		"Key {KeyId} not deleted - current status: {Status}")]
-	private partial void LogErasureKeyDeletionNotDeleted(string keyId, KeyStatus status);
-
-	[LoggerMessage(
-		ComplianceEventId.ErasureKeyDeletionConfirmedException,
-		LogLevel.Debug,
-		"Key {KeyId} confirmed deleted (KeyNotFoundException)")]
-	private partial void LogErasureKeyDeletionConfirmedException(string keyId);
+		"Key provider {ProviderType} does not implement IKeyDestructionStatusProvider, so erasure cannot confirm that "
+		+ "its keys are destroyed. Erasures that depend on it stay AwaitingKeyDestruction and are never certified. "
+		+ "Implement IKeyDestructionStatusProvider on the provider to let them complete.")]
+	private partial void LogKeyProviderCannotConfirmDestruction(string providerType);
 
 	[LoggerMessage(
 		ComplianceEventId.ErasureKeyDeletionError,
 		LogLevel.Error,
 		"Error verifying deletion of key {KeyId}")]
 	private partial void LogErasureKeyDeletionError(string keyId, Exception exception);
+
+	[LoggerMessage(
+		ComplianceEventId.ErasureKeyDestructionStatusReported,
+		LogLevel.Debug,
+		"Key {KeyId} destruction reported by the key-management provider: destroyed = {Destroyed}")]
+	private partial void LogErasureKeyDestructionStatusReported(string keyId, bool destroyed);
 
 	[LoggerMessage(
 		ComplianceEventId.ErasureKeyDeletionExpectedError,
@@ -633,7 +624,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		}
 
 		// Check if we have the expected number of key deletion events
-		var expectedKeyCount = certificate?.Verification.DeletedKeyIds.Count ?? 0;
+		var expectedKeyCount = certificate?.Payload.Verification.DeletedKeyIds.Count ?? 0;
 		if (expectedKeyCount > 0 && keyDeletionEvents.Count < expectedKeyCount)
 		{
 			warnings.Add($"Expected {expectedKeyCount} key deletion events, found {keyDeletionEvents.Count}");
@@ -669,37 +660,20 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		// For each location with an associated key, verify decryption fails
 		foreach (var location in inventory.Locations.Where(l => !string.IsNullOrEmpty(l.KeyId)))
 		{
-			if (deletedKeyIds.Contains(location.KeyId))
+			// A key counts as irrecoverable only when the provider positively confirms its destruction. A key lookup
+			// that finds nothing is not that confirmation: a backend with a recovery window answers "not found" for a
+			// key it can still restore, and passing here on that answer would report the data irrecoverable while its
+			// key can be brought back.
+			if (deletedKeyIds.Contains(location.KeyId)
+				&& !await VerifyKeyDeletionAsync(location.KeyId, cancellationToken).ConfigureAwait(false))
 			{
-				// Key was deleted - verify decryption would fail
-				try
+				failures.Add(new VerificationFailure
 				{
-					// Attempt to get key - should fail or show deleted status
-					var keyMetadata = await _keyProvider.GetKeyAsync(location.KeyId, cancellationToken)
-						.ConfigureAwait(false);
-
-					if (keyMetadata is not null &&
-						keyMetadata.Status != KeyStatus.Destroyed &&
-						keyMetadata.Status != KeyStatus.PendingDestruction)
-					{
-						failures.Add(new VerificationFailure
-						{
-							Subject = $"Location:{location.TableName}.{location.FieldName}",
-							Reason = $"Key {location.KeyId} still accessible - data may still be decryptable",
-							Severity = VerificationSeverity.Critical,
-							FailedMethod = VerificationMethod.DecryptionFailure
-						});
-					}
-				}
-				catch (KeyNotFoundException)
-				{
-					// Expected - key deleted
-				}
-				catch (Exception ex)
-				{
-					LogErasureKeyDeletionExpectedError(location.KeyId, ex);
-					// This is expected - access should fail
-				}
+					Subject = $"Location:{location.TableName}.{location.FieldName}",
+					Reason = $"Key {location.KeyId} is not confirmed destroyed - data may still be decryptable",
+					Severity = VerificationSeverity.Critical,
+					FailedMethod = VerificationMethod.DecryptionFailure
+				});
 			}
 		}
 

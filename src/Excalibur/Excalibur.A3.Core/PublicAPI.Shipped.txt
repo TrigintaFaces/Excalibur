@@ -1,6 +1,6 @@
 #nullable enable
 Excalibur.A3.Authorization.AuthorizationPolicy
-Excalibur.A3.Authorization.AuthorizationPolicy.AuthorizationPolicy(System.Collections.Generic.IDictionary<string!, object!>! grants, System.Collections.Generic.IDictionary<string!, object!>! activityGroups, Excalibur.Dispatch.ITenantContext! tenantContext, string! userId) -> void
+Excalibur.A3.Authorization.AuthorizationPolicy.AuthorizationPolicy(System.Collections.Generic.IDictionary<string!, object!>! grants, System.Collections.Generic.IReadOnlyDictionary<string!, System.Collections.Generic.IReadOnlyCollection<string!>!>! activityGroups, Excalibur.Dispatch.ITenantContext! tenantContext, string! userId) -> void
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant(string! activityName) -> bool
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant(string! resourceType, string! resourceId) -> bool
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant<TActivity>() -> bool

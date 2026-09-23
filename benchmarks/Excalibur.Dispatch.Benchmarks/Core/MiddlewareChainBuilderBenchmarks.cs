@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
@@ -161,7 +161,6 @@ public class MiddlewareChainBuilderBenchmarks
 	{
 		public bool Succeeded { get; init; }
 		public string? ErrorMessage { get; init; }
-		public bool CacheHit { get; init; }
 		public object? ValidationResult { get; init; }
 		public object? AuthorizationResult { get; init; }
 		public IMessageProblemDetails? ProblemDetails { get; init; }

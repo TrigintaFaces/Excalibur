@@ -195,6 +195,9 @@ BEGIN
         LegalBasis            INT              NOT NULL,
         Signature             NVARCHAR(512)    NOT NULL,
         RetainUntil           DATETIMEOFFSET   NOT NULL,
+        Exceptions            NVARCHAR(MAX)    NOT NULL,
+        GeneratedAt           DATETIMEOFFSET   NOT NULL,
+        Version               NVARCHAR(16)     NOT NULL,
         CreatedAt             DATETIMEOFFSET   NOT NULL,
         INDEX IX_ErasureCertificates_RequestId (RequestId),
         INDEX IX_ErasureCertificates_RetainUntil (RetainUntil)
@@ -222,6 +225,10 @@ BEGIN
         DataSubjectIdColumn  NVARCHAR(256)  NOT NULL,
         IdType               INT            NOT NULL,
         KeyIdColumn          NVARCHAR(256)  NOT NULL,
+        -- WHICH KIND OF STORE holds this location. A contributor is offered only the obligations
+        -- whose kind it covers, so an unclassified registration (NULL) reaches no contributor,
+        -- is discharged by nobody, and the erasure refuses to complete.
+        StoreKind            NVARCHAR(64)   NULL,
         -- The NAME of a tenant column in your own table. Nullable because your table may
         -- genuinely have none. This is not a tenant identity -- see TenantId below.
         TenantIdColumn       NVARCHAR(256)  NULL,

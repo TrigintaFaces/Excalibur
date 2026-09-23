@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance;
@@ -124,7 +124,12 @@ public sealed record AuditIntegrityResult
 	/// <summary>
 	/// Creates a result recording that every event in the window was examined and the hash chain held.
 	/// </summary>
-	/// <param name="eventsVerified"> The number of events examined. Must be greater than zero. </param>
+	/// <param name="eventsVerified">
+	/// The number of events examined. May be zero: a violation can be found in a record that lies OUTSIDE the
+	/// examined range. The right-edge pin verifies the record immediately following the range, and it fails
+	/// precisely when records have been deleted from the end — a range truncated to nothing still has a
+	/// successor to check, so the count examined is zero and the finding is real.
+	/// </param>
 	/// <param name="startDate"> The start of the verification period. </param>
 	/// <param name="endDate"> The end of the verification period. </param>
 	/// <param name="isHashChained"> Whether the store's write path chained the records that were verified. </param>
@@ -193,8 +198,10 @@ public sealed record AuditIntegrityResult
 	/// <param name="isHashChained"> Whether the store's write path chained the records that were verified. </param>
 	/// <returns> A result whose <see cref="Outcome"/> is <see cref="AuditIntegrityOutcome.ViolationsDetected"/>. </returns>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="eventsVerified"/> or <paramref name="compromisedChainCount"/> is less than one.
-	/// A violation cannot be detected in an event that was never examined.
+	/// Thrown when <paramref name="eventsVerified"/> is negative or <paramref name="compromisedChainCount"/> is
+	/// less than one. A reported violation always compromises at least one of the store's chaining units, but
+	/// it need not have examined anything: the record whose link is broken may be the one just outside the
+	/// range, which is the case a truncated tail produces and the case this detection exists for.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown when <paramref name="firstViolationEventId"/> or <paramref name="violationDescription"/> is
@@ -209,7 +216,12 @@ public sealed record AuditIntegrityResult
 		int compromisedChainCount,
 		bool isHashChained)
 	{
-		ArgumentOutOfRangeException.ThrowIfLessThan(eventsVerified, 1L);
+		// NOT `>= 1`. That guard read "a violation cannot be detected in an event that was never examined",
+		// which the right-edge pin refutes: it verifies the record immediately FOLLOWING the range, so a range
+		// emptied by a deletion still yields a real finding with nothing examined. Requiring a positive count
+		// made the honest result unconstructible, so the only reachable answer for a fully truncated range was
+		// to report nothing wrong — the guarantee's own detection refused by the type that reports it.
+		ArgumentOutOfRangeException.ThrowIfNegative(eventsVerified);
 		ArgumentException.ThrowIfNullOrWhiteSpace(firstViolationEventId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(violationDescription);
 		ArgumentOutOfRangeException.ThrowIfLessThan(compromisedChainCount, 1);

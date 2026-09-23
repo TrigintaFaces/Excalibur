@@ -1,5 +1,13 @@
 # SOC 2 Certification Readiness Checklist
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../../legal/compliance-disclaimer.md).
+:::
+
 **Framework:** Excalibur
 **Standard:** SOC 2 (Service Organization Control 2) - Trust Services Criteria
 **Categories:** Security (CC1-CC9) + Optional (Availability, Processing Integrity, Confidentiality, Privacy)
@@ -7,6 +15,21 @@
 **Last Updated:** 2026-09-12
 
 ---
+
+:::caution Verify every SSP statement against your own deployment before you adopt it
+
+The **SSP Statement** blocks on this page are written to be copied into your own System Security Plan,
+so treat each one as a draft about *your* system rather than as a finding about it. **A review of these
+statements is in progress and is not complete.**
+
+A statement that has not yet been reviewed may describe a capability that is **opt-in and not active
+unless you register it**, that is configured differently in your deployment, or that the framework does
+not provide. Several controls documented here are inactive until explicitly enabled.
+
+Before pasting any statement into a document an assessor will read, confirm it against the
+configuration you actually run.
+
+:::
 
 ## Overview
 
@@ -46,7 +69,7 @@ This checklist provides step-by-step guidance for SOC 2 certification preparatio
 | **CC6** | Logical Access | ✅ RBAC, encryption, key management | Configure access controls | [Role-based authorization](../../advanced/security.md#role-based-authorization) |
 | **CC7** | System Operations | ✅ Health checks, monitoring | Configure OpenTelemetry | [OpenTelemetry](../../observability/index.md#opentelemetry) |
 | **CC8** | Change Management | ✅ CI/CD pipeline, version control | Review pipeline | [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) |
-| **CC9** | Risk Mitigation | ✅ Security scanning (SAST, DAST) | Review scan results | GitHub Actions runs |
+| **CC9** | Risk Mitigation | ✅ SAST (CodeQL), secrets (Gitleaks), dependency scanning | Review scan results, and add DAST/container scanning if your assessment needs them | [What this pipeline scans](#26-cc9-risk-mitigation-security-scanning) |
 
 ### Availability - A1-A3
 
@@ -427,7 +450,7 @@ The entity implements change management processes to manage changes to the syste
 **Framework Implementation:**
 - Comprehensive CI/CD pipeline with quality gates
 - Automated testing (unit, integration, functional)
-- Security scanning (SAST, DAST, container, secrets)
+- Security scanning (SAST via CodeQL, secrets via Gitleaks, dependency vulnerabilities)
 - SBOM generation on every build
 
 **Consumer Checklist:**
@@ -464,18 +487,32 @@ jobs:
     - Upload artifacts (90-day retention)
 ```
 
-- [ ] Verify all quality gates pass (GitHub Actions workflow runs)
+- [ ] Verify all quality gates pass in **your own** pipeline, and retain those run records — the
+      framework repository's runs are not evidence for your system
 - [ ] Review deployment approval workflow
 - [ ] Document rollback procedures
 
 **Evidence:**
-- [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) - CI/CD pipeline and quality gates
-- GitHub Actions workflow runs (90-day audit trail)
+- [Development process (SA-15)](../fedramp/README.md#development-process-sa-15) - the framework's own CI/CD pipeline, as supply-chain context
+- Workflow run records from **your own** CI, retained per your retention policy, as the audit trail
 - Deployment logs
 - Rollback documentation
 
-**SSP Statement:**
-> "CC8 is satisfied through a comprehensive CI/CD pipeline with automated quality gates. Every code change undergoes unit tests, security scans (SAST, DAST, container), and dependency vulnerability checks before deployment. SBOM artifacts provide supply chain transparency."
+**Statement for your report:**
+
+Write this about **your own** change-management process. CC8 is a control over how *you* authorise,
+test and deploy changes; the framework is a dependency of your system rather than a part of that
+process, so its repository's workflow runs cannot serve as your audit trail. Replace each bracketed
+item with what you actually do:
+
+> "CC8 is satisfied through our change-management process and CI/CD pipeline. Every change to
+> [system name] undergoes [unit and integration tests], [static analysis tool], [secret scanning tool]
+> and [dependency vulnerability scanning] before deployment, and a change that fails any gate is not
+> promoted. Deployments require [approval step], and run records are retained for [retention period]."
+
+**The framework's own scanning and SBOM are evidence about a dependency**, which supports your vendor
+and supply-chain criteria — not CC8. Note also that **no DAST and no container scanning run in the
+framework's pipeline**, so neither can be claimed on the strength of this page.
 
 #### 2.6 CC9: Risk Mitigation (Security Scanning)
 
@@ -503,7 +540,7 @@ The entity identifies, assesses, and manages risks associated with the system.
 - Tabletop exercise documentation
 
 **SSP Statement:**
-> "CC9 is satisfied through comprehensive security scanning in the CI/CD pipeline. SAST, DAST, container scanning, and dependency vulnerability checks run on every build. CRITICAL vulnerabilities block deployment until remediated."
+> "CC9 is satisfied through comprehensive security scanning in the CI/CD pipeline. Static analysis (CodeQL), secret scanning (Gitleaks), and dependency vulnerability checks run on every build. CRITICAL vulnerabilities block deployment until remediated."
 
 ---
 
@@ -848,7 +885,7 @@ public class CreditCard
 Procedures exist to protect information designated as confidential from unauthorized access.
 
 **Framework Implementation:**
-- Field-level encryption for `[PersonalData]` and `[Sensitive]` fields
+- Field-level encryption for `[PersonalData]` fields on records that also carry `[DataSubjectId]`, and for `[EncryptedField]` properties (in every released version `[Sensitive]` classifies and masks only — see the note below before asserting otherwise)
 - AES-256-GCM encryption
 - Integration with Azure Key Vault / AWS KMS
 
@@ -862,7 +899,19 @@ Procedures exist to protect information designated as confidential from unauthor
 - Access control tests
 
 **SSP Statement:**
-> "C2 is satisfied through field-level encryption using AES-256-GCM. `[PersonalData]` fields are encrypted at rest on records that also carry `[DataSubjectId]`, with crypto-shredding registered. (`[Sensitive]` drives masking and classification, not encryption.) Access control prevents unauthorized decryption."
+> "C2 is satisfied through field-level encryption using AES-256-GCM. `[PersonalData]` fields are encrypted at rest on records that also carry `[DataSubjectId]`, with crypto-shredding registered. (In every released version `[Sensitive]` drives masking and classification, not encryption — confirm against the version you hold before adopting this wording.) Access control prevents unauthorized decryption."
+
+:::caution `[Sensitive]` and encryption: check the version you hold
+
+In every published version up to and including `10.0.0-alpha.11`, `[Sensitive]` classifies and masks
+only — it does **not** cause encryption at rest. Confirm this against the package you restored rather
+than against our source, which describes the main branch.
+
+On the main branch `[Sensitive]` also selects a property for encryption at rest, under the configured
+default key purpose. **That change is not in any released version.** When a release carries it, this
+note will name that version; until it names one, do not assert encryption on the strength of
+`[Sensitive]` alone.
+:::
 
 #### 5.3 C3: Data Disposal (Cryptographic Erasure)
 
@@ -872,7 +921,7 @@ Information designated as confidential is disposed of in accordance with the ent
 **Framework Implementation:**
 - `IErasureService` for GDPR-compliant erasure
 - Cryptographic erasure (key deletion)
-- Erasure certificates for compliance proof
+- Erasure certificates as a compliance **record**, not proof of disposal. The `2.0` signature covers the payload in full; the framework ships no verifier for it, and certificates written under format `1.0` signed only three identity fields — see [Known issues](../../known-issues.md)
 
 **Consumer Checklist:**
 
@@ -880,12 +929,41 @@ Information designated as confidential is disposed of in accordance with the ent
 - [ ] Test erasure workflow (request → execution → certificate)
 
 **Evidence:**
+- Your key-management service's own record of each key deletion (for example, its cloud audit trail).
+  This is the evidence that the control operated: the key is what renders the data irrecoverable.
 - Erasure configuration
-- Erasure certificates
+- Erasure certificates, **as an internal record of the request only** — not as evidence that the data
+  was disposed of
 - Conformance results from the arms you wrapped (`ErasureStoreConformanceTestKit`)
 
-**SSP Statement:**
-> "C3 is satisfied through cryptographic erasure using the `IErasureService`. Deletion of encryption keys renders confidential data irrecoverable. Erasure certificates provide cryptographic proof of disposal."
+The framework does not write erasure events to the audit log. If your assessor expects disposal to
+appear in the tamper-evident audit trail, you must record it there yourself.
+
+**Statement for your report:**
+> "C3 is satisfied through cryptographic erasure. Deleting the encryption keys renders the confidential
+> data irrecoverable. The evidence is the key-management service's record of each key deletion. Each
+> erasure also produces an internal record of the request, the data subject and the completion time."
+
+:::danger Do not describe an erasure certificate as cryptographic proof of disposal
+**The certificate is a record, not proof.** Its signature (format `2.0`) does cover the payload in
+full, so the claims on a `2.0` certificate are tamper-evident — but **the framework ships no way to
+verify that signature**, and a signature over a claim is not evidence that the claim is true. What
+evidences disposal is your key-management service's record of each key deletion.
+
+Two further points before you cite one in a report:
+
+- **`Verification.Verified` is weaker than it appears.** It is `DeletedKeyIds.Count == KeysDeleted`,
+  so it reads `true` when both are zero. Read `Payload.Verification.DeletedKeyIds` for what was
+  actually shown gone, and `Payload.Verification.Methods` — it reports `None` when nothing
+  substantiated the erasure.
+- **Certificates written by earlier versions carry a weaker signature.** Format `1.0` signed only the
+  request id, the subject hash and the completion instant, so its claims could be altered while the
+  signature still verified. Check `Payload.Version`.
+
+Full detail on the [Known issues](../../known-issues.md) page. Treat the certificate's authority as
+resting on the custody of your own store, and say so in your report rather than attributing it to
+cryptography.
+:::
 
 ---
 
@@ -1020,11 +1098,11 @@ var report = await _complianceService.GenerateTypeIIReportAsync(
 **Week 7: Automated Validation**
 
 - [ ] Run all built-in validators:
-  - `EncryptionControlValidator` (4 controls)
-  - `AuditLogControlValidator` (4 controls)
-  - `AvailabilityControlValidator` (3 controls)
-  - `ProcessingIntegrityControlValidator` (3 controls)
-  - `ConfidentialityControlValidator` (3 controls)
+  - `EncryptionControlValidator` — SEC-001, SEC-002, SEC-003
+  - `AuditLogControlValidator` — SEC-004, SEC-005
+  - `AvailabilityControlValidator` — AVL-001, AVL-002, AVL-003
+  - `ProcessingIntegrityControlValidator` — INT-001, INT-002, INT-003
+  - `ConfidentialityControlValidator` — CNF-001, CNF-002, CNF-003
 - [ ] Review validation results. **Only SEC-001, SEC-003 and SEC-004 can report EFFECTIVE**; the other eleven controls are reported *unverified* by design, because the framework declines to certify a control it cannot observe from inside itself. Expect that, and supply independent attestation for those.
 - [ ] Document any gaps and remediate
 
@@ -1082,7 +1160,7 @@ var report = await _complianceService.GenerateTypeIIReportAsync(
 - Encryption configuration
 - Health check results
 - CI/CD pipeline runs (90-day retention)
-- Security scan reports (SAST, DAST, container)
+- Security scan reports (CodeQL SAST, Gitleaks secrets, dependency scanning)
 - SBOM artifacts
 
 ### Supporting Documentation

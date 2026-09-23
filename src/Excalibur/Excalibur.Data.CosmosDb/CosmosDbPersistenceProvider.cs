@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -352,33 +352,31 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public async Task<CloudQueryResult<TDocument>> QueryAsync<TDocument>(
-		string queryText,
-		IPartitionKey partitionKey,
-		IDictionary<string, object>? parameters,
-		IConsistencyOptions? consistencyOptions,
+		CloudQueryRequest query,
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
+		ArgumentNullException.ThrowIfNull(query);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = GetContainer();
-		var cosmosPartitionKey = ToCosmosPartitionKey(partitionKey);
+		var cosmosPartitionKey = ToCosmosPartitionKey(query.PartitionKey);
 
-		var queryDefinition = new QueryDefinition(queryText);
-		if (parameters != null)
+		var queryDefinition = new QueryDefinition(query.QueryText);
+		if (query.Parameters != null)
 		{
-			foreach (var param in parameters)
+			foreach (var param in query.Parameters)
 			{
 				queryDefinition = queryDefinition.WithParameter($"@{param.Key}", param.Value);
 			}
 		}
 
-		var queryOptions = new QueryRequestOptions { PartitionKey = cosmosPartitionKey, MaxItemCount = 100 };
+		var queryOptions = new QueryRequestOptions { PartitionKey = cosmosPartitionKey, MaxItemCount = query.MaxItemCount ?? 100 };
 
-		if (consistencyOptions?.ConsistencyLevel == CloudNative.ConsistencyLevel.Session &&
-			!string.IsNullOrEmpty(consistencyOptions.SessionToken))
+		if (query.ConsistencyOptions?.ConsistencyLevel == CloudNative.ConsistencyLevel.Session &&
+			!string.IsNullOrEmpty(query.ConsistencyOptions.SessionToken))
 		{
-			queryOptions.SessionToken = consistencyOptions.SessionToken;
+			queryOptions.SessionToken = query.ConsistencyOptions.SessionToken;
 		}
 
 		var documents = new List<TDocument>();
@@ -386,18 +384,22 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		string? continuationToken = null;
 		string? sessionToken = null;
 
-		var iterator = container.GetItemQueryIterator<TDocument>(queryDefinition, requestOptions: queryOptions);
+		// Resume a previous page. The Cosmos SDK takes the continuation on the iterator itself, so the
+		// token we returned goes straight back in; a null token starts at the first page.
+		var iterator = container.GetItemQueryIterator<TDocument>(
+			queryDefinition,
+			continuationToken: string.IsNullOrWhiteSpace(query.ContinuationToken) ? null : query.ContinuationToken,
+			requestOptions: queryOptions);
 
-		while (iterator.HasMoreResults)
+		if (iterator.HasMoreResults)
 		{
+			// One page per call. The caller advances by passing ContinuationToken back in, which is what
+			// lets it bound its own memory instead of draining the whole result set here.
 			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
 			documents.AddRange(response.Resource);
 			totalRequestCharge += response.RequestCharge;
 			continuationToken = response.ContinuationToken;
 			sessionToken = response.Headers.Session;
-
-			// Break after first batch if continuation is requested
-			break;
 		}
 
 		LogOperationCompleted("Query", totalRequestCharge);

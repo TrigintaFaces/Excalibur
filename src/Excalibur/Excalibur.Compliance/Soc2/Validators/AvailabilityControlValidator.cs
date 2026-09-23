@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance.Soc2.Validators;
@@ -54,7 +54,14 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 			ControlAvl001 => Task.FromResult(ValidateHealthMonitoring()),
 			ControlAvl002 => Task.FromResult(ValidatePerformanceMetrics()),
 			ControlAvl003 => Task.FromResult(ValidateBackupVerification()),
-			_ => Task.FromResult(CreateFailureResult(controlId, [$"Unknown control: {controlId}"]))
+			// NotVerified, never the default score. A control this validator does not support was never
+			// examined, so the honest outcome is "not assessed" -- Deficient means examined-and-failing and
+			// reaches the assessor as a finding against the consumer.
+			_ => Task.FromResult(
+				CreateFailureResult(
+					controlId,
+					[$"Unknown control: {controlId}"],
+					effectivenessScore: ControlEffectiveness.Unverified))
 		};
 	}
 
@@ -115,7 +122,7 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 			[
 				"Health monitoring is performed by the host, typically ASP.NET Core health checks, and is not observable from this framework, so it is unverified here."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence);
 	}
 
@@ -139,7 +146,7 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 				nameof(AvailabilityControlValidator)));
 
 			// Partial score, matching AVL-003: external monitoring MAY exist and cannot be confirmed here.
-			return CreateFailureResult(ControlAvl002, issues, effectivenessScore: Soc2EffectivenessScore.Unverified, evidence);
+			return CreateFailureResult(ControlAvl002, issues, effectivenessScore: ControlEffectiveness.Unverified, evidence);
 		}
 
 		{
@@ -165,7 +172,7 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 				+ "met in this period, so availability is unverified here and requires independent "
 				+ "attestation."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence,
 			isConfigured: true);
 	}
@@ -207,7 +214,7 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 
 			// Partial score: a compensating external backup arrangement MAY exist, but the declared control
 			// is absent and unverifiable here — not a full failure, not a pass.
-			return CreateFailureResult(ControlAvl003, issues, effectivenessScore: Soc2EffectivenessScore.Unverified, evidence);
+			return CreateFailureResult(ControlAvl003, issues, effectivenessScore: ControlEffectiveness.Unverified, evidence);
 		}
 
 		// Backup infrastructure is configured - report positive evidence
@@ -239,7 +246,7 @@ public sealed class AvailabilityControlValidator : BaseControlValidator
 				"Backup infrastructure is configured, but no backup was enumerated or restored in this "
 				+ "period, so the backup control is unverified here and requires independent attestation."
 			],
-			effectivenessScore: Soc2EffectivenessScore.Unverified,
+			effectivenessScore: ControlEffectiveness.Unverified,
 			evidence,
 			isConfigured: true);
 	}

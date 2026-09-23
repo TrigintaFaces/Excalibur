@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -7,11 +7,13 @@ using System.Diagnostics.CodeAnalysis;
 namespace Excalibur.Compliance;
 
 /// <summary>
-/// Certificate proving GDPR Article 17 compliance for an erasure request.
+/// Signed record of a completed GDPR Article 17 erasure request.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Certificates provide cryptographically verifiable proof of data erasure.
+/// A certificate is a record of the request, not proof that the data was disposed of. Its signature does
+/// not cover every claim it carries, and the evidence of disposal is the key-management service's record
+/// of each key deletion.
 /// They are retained for 7 years to support regulatory audits and legal discovery.
 /// </para>
 /// <para>
@@ -25,74 +27,33 @@ namespace Excalibur.Compliance;
 public sealed record ErasureCertificate
 {
 	/// <summary>
-	/// Gets the certificate identifier.
+	/// Gets everything this certificate asserts — and exactly what <see cref="Signature"/> covers.
 	/// </summary>
-	public required Guid CertificateId { get; init; }
+	/// <remarks>
+	/// The signature is computed over a canonical serialization of this payload in full. Nothing outside it
+	/// is signed, and nothing inside it is skipped, so "what the document claims" and "what was signed"
+	/// cannot diverge.
+	/// </remarks>
+	public required ErasureCertificatePayload Payload { get; init; }
 
 	/// <summary>
-	/// Gets the original erasure request ID.
+	/// Gets the HMAC-SHA256 signature over <see cref="Payload"/>.
 	/// </summary>
-	public required Guid RequestId { get; init; }
-
-	/// <summary>
-	/// Gets the anonymized data subject reference (hash of identifier).
-	/// </summary>
-	public required string DataSubjectReference { get; init; }
-
-	/// <summary>
-	/// Gets when the erasure request was received.
-	/// </summary>
-	public required DateTimeOffset RequestReceivedAt { get; init; }
-
-	/// <summary>
-	/// Gets when the erasure was completed.
-	/// </summary>
-	public required DateTimeOffset CompletedAt { get; init; }
-
-	/// <summary>
-	/// Gets the erasure method used.
-	/// </summary>
-	public required ErasureMethod Method { get; init; }
-
-	/// <summary>
-	/// Gets the summary of data erased.
-	/// </summary>
-	public required ErasureSummary Summary { get; init; }
-
-	/// <summary>
-	/// Gets the verification result.
-	/// </summary>
-	public required VerificationSummary Verification { get; init; }
-
-	/// <summary>
-	/// Gets the legal basis for the erasure.
-	/// </summary>
-	public required ErasureLegalBasis LegalBasis { get; init; }
-
-	/// <summary>
-	/// Gets any exceptions where data was retained per Article 17(3).
-	/// </summary>
-	public IReadOnlyList<ErasureException> Exceptions { get; init; } = [];
-
-	/// <summary>
-	/// Gets the cryptographic signature of the certificate.
-	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The signature lives on the envelope rather than on the payload, and that placement is the fix.</b>
+	/// While it sat among the claims it had to be excluded from its own input, and an exclusion is a list
+	/// somebody maintains — the moment a second self-referential field appears, forgetting to exclude it is
+	/// an infinite regress that fails closed only by luck. Here there is no exclusion list to forget.
+	/// </para>
+	/// <para>
+	/// <b>Consumer obligation: a signature authenticates the payload it covers and nothing else.</b> Verify
+	/// it against a canonical serialization of <see cref="Payload"/>, and read
+	/// <see cref="ErasureCertificatePayload.Version"/> from INSIDE the verified payload — never from an
+	/// untrusted envelope — when deciding which scheme to apply.
+	/// </para>
+	/// </remarks>
 	public required string Signature { get; init; }
-
-	/// <summary>
-	/// Gets the certificate generation timestamp.
-	/// </summary>
-	public DateTimeOffset GeneratedAt { get; init; } = DateTimeOffset.UtcNow;
-
-	/// <summary>
-	/// Gets when this certificate should be retained until.
-	/// </summary>
-	public required DateTimeOffset RetainUntil { get; init; }
-
-	/// <summary>
-	/// Gets the certificate version for schema compatibility.
-	/// </summary>
-	public string Version { get; init; } = "1.0";
 }
 
 /// <summary>
@@ -158,8 +119,23 @@ public sealed record ErasureSummary
 public sealed record VerificationSummary
 {
 	/// <summary>
-	/// Gets whether verification passed.
+	/// Gets a value indicating whether the framework positively established the destruction this
+	/// certificate attests.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <see langword="true"/> means established by the framework itself: every identifier in
+	/// <see cref="DeletedKeyIds"/> was reported irrecoverable by the key-management provider, and
+	/// <see cref="Methods"/> names how.
+	/// </para>
+	/// <para>
+	/// <see langword="false"/> means <em>not established</em> — whatever the reason. It is not a claim
+	/// that the erasure failed. The ordinary case is an erasure discharged entirely by record deletion:
+	/// the erasure contributors reported erasing rows, the framework recorded their reports, and it
+	/// verified nothing itself. Read it together with <see cref="Methods"/>, which is
+	/// <see cref="VerificationMethod.None"/> whenever this is <see langword="false"/>.
+	/// </para>
+	/// </remarks>
 	public required bool Verified { get; init; }
 
 	/// <summary>

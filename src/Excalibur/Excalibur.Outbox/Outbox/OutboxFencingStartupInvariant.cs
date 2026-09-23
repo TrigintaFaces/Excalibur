@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
@@ -84,11 +84,16 @@ internal static class OutboxFencingStartupInvariant
 				$"Leader election is configured for the outbox, but the configured store " +
 				$"'{outboxStore.GetType().FullName}' does not implement IFencedOutboxStore and therefore cannot " +
 				"enforce a fencing high-water mark. A superseded leader would be able to claim and complete " +
-				"messages it no longer owns. Use a store that records the high-water durably (e.g. PostgreSQL, Oracle, " +
-				"MongoDB, or the in-memory store), or, if exactly one process drains this outbox, opt out " +
+				"messages it no longer owns. Use a store that fences the whole drain (PostgreSQL, Oracle, SQL Server, " +
+				"or the in-memory store), or, if exactly one process drains this outbox, opt out " +
 				"explicitly with AsSingleWriter() to take responsibility for the single-active-writer guarantee " +
-				"yourself. Some stores (e.g. Elasticsearch) cannot express an atomic fencing high-water mark with " +
-				"their native primitives and always require AsSingleWriter() under a leader election.");
+				"yourself. Several stores cannot fence and always require AsSingleWriter() under a leader " +
+				"election, for two different reasons. Elasticsearch cannot express an atomic fencing high-water " +
+				"mark with its native primitives at all. MongoDB and Redis can express the atomic comparison and " +
+				"cannot keep it DURABLE: a fence also requires the high-water never to decrease across restart, " +
+				"failover or replica promotion, and a value that an asynchronous replica can roll backwards is " +
+				"not a fence. Those two stores therefore do not offer the fenced contract, deliberately rather " +
+				"than by omission.");
 		}
 
 		// COMPLETION-PATH fencing. IFencedOutboxStore fences the mark-SENT transition only, and for a long
@@ -117,7 +122,8 @@ internal static class OutboxFencingStartupInvariant
 				"apply a backoff, or dead-letter a message that the live leader then delivers successfully -- " +
 				"leaving that message both delivered and sitting unreplayed in the dead-letter queue, so an " +
 				"operator draining the queue re-executes work that already succeeded. Use a store that fences " +
-				"the completion path, or, if exactly one process drains this outbox, opt out explicitly with " +
+				"the completion path (PostgreSQL, Oracle, SQL Server, or the in-memory store), or, if exactly one " +
+				"process drains this outbox, opt out explicitly with " +
 				"AsSingleWriter() to take responsibility for the single-active-writer guarantee yourself. This is " +
 				"the same opt-out that stores which cannot express atomic fencing with their native primitives " +
 				"have always required under a leader election.");

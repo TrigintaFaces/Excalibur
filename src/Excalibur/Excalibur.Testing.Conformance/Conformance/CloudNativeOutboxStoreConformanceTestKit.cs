@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Testing;
@@ -90,6 +90,248 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		}
 	}
 
+	#region Contract-member round-trip - reflective enumeration
+
+	/// <summary>
+	/// Every settable member of the message contract, read from the type rather than listed in source.
+	/// </summary>
+	/// <remarks>
+	/// <c>CanWrite</c> is the discriminator between a persisted member and a computed one, and it is
+	/// structural rather than a judgement: <c>IsPublished</c> is <c>=&gt; PublishedAt.HasValue</c> with no
+	/// setter, so it cannot be assigned, cannot be restored, and correctly never appears here.
+	/// </remarks>
+	private static readonly System.Reflection.PropertyInfo[] ContractMembers =
+		[.. typeof(CloudOutboxMessage)
+			.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+			.Where(static p => p.CanWrite)
+			.OrderBy(static p => p.Name, StringComparer.Ordinal)];
+
+	/// <summary>
+	/// The members the staging path carries, and which a conformant store must therefore restore.
+	/// </summary>
+	private static readonly HashSet<string> MembersCarriedByStaging = new(StringComparer.Ordinal)
+	{
+		nameof(CloudOutboxMessage.MessageId),
+		nameof(CloudOutboxMessage.MessageType),
+		nameof(CloudOutboxMessage.Payload),
+		nameof(CloudOutboxMessage.Headers),
+		nameof(CloudOutboxMessage.AggregateId),
+		nameof(CloudOutboxMessage.AggregateType),
+		nameof(CloudOutboxMessage.CorrelationId),
+		nameof(CloudOutboxMessage.CausationId),
+		nameof(CloudOutboxMessage.TenantId),
+		nameof(CloudOutboxMessage.Destination),
+		nameof(CloudOutboxMessage.CreatedAt),
+		nameof(CloudOutboxMessage.RetryCount),
+		nameof(CloudOutboxMessage.LastError),
+		nameof(CloudOutboxMessage.PartitionKeyValue),
+	};
+
+	/// <summary>
+	/// The members the staging path does NOT carry, each against the reason asserting it here would bind a
+	/// property the contract does not state.
+	/// </summary>
+	/// <remarks>
+	/// An entry here is a claim about the CONTRACT, not an allowance for a provider: each names the arm or
+	/// the contract clause that binds the member on the path which does carry it. Adding a member here to
+	/// quiet a failure would certify the drift instead of detecting it.
+	/// </remarks>
+	private static readonly Dictionary<string, string> MembersNotCarriedByStaging = new(StringComparer.Ordinal)
+	{
+		[nameof(CloudOutboxMessage.PublishedAt)] =
+			"a message carrying a publish instant is by definition not pending, so the read under test "
+			+ "excludes it; MarkAsPublishedAsync_ThenGetPending_ExcludesTheMessage binds that property",
+		[nameof(CloudOutboxMessage.ETag)] =
+			"a concurrency token the SERVER assigns on write, not one carried from the caller's message; "
+			+ "asserting a caller-supplied sentinel would require a store to store and hand back a token "
+			+ "its own provider never issued",
+		[nameof(CloudOutboxMessage.LeasedAt)] =
+			"stamped by ICloudNativeOutboxStoreClaim.ClaimPendingAsync and never by staging - the contract "
+			+ "states only claim-implementing stores ever set it; ClaimPendingAsync_StampsLeaseOwnerAndInstant "
+			+ "binds it on the path that does",
+		[nameof(CloudOutboxMessage.LeasedBy)] =
+			"stamped by ICloudNativeOutboxStoreClaim.ClaimPendingAsync and never by staging, exactly as "
+			+ "LeasedAt; ClaimPendingAsync_StampsLeaseOwnerAndInstant binds it on the path that does",
+	};
+
+	/// <summary>
+	/// Builds a message carrying a DISTINCT non-default sentinel in every member the staging path carries.
+	/// </summary>
+	/// <param name="partitionKey">The partition the message is staged into.</param>
+	/// <returns>The sentinel-bearing message.</returns>
+	/// <remarks>
+	/// Distinct values are what make a TRANSPOSITION detectable: a message using one string everywhere
+	/// round-trips identically whether or not a mapping swapped two of its fields.
+	/// <c>PartitionKeyValue</c> is the one member whose sentinel is not free — a store records the
+	/// partition it was ASKED to write to, so the value it must restore is the argument's.
+	/// </remarks>
+	private static CloudOutboxMessage CreateSentinelMessage(IPartitionKey partitionKey) => new()
+	{
+		MessageId = $"sentinel-messageid-{Guid.NewGuid():N}",
+		MessageType = "sentinel-messagetype",
+		Payload = "sentinel-payload"u8.ToArray(),
+		Headers = new Dictionary<string, string>(StringComparer.Ordinal)
+		{
+			["sentinel-headerkey"] = "sentinel-headervalue",
+		},
+		AggregateId = "sentinel-aggregateid",
+		AggregateType = "sentinel-aggregatetype",
+		CorrelationId = "sentinel-correlationid",
+		CausationId = "sentinel-causationid",
+		TenantId = "sentinel-tenantid",
+		Destination = "sentinel-destination",
+		CreatedAt = new DateTimeOffset(2021, 2, 3, 4, 5, 6, 7, TimeSpan.Zero),
+		RetryCount = 9,
+		LastError = "sentinel-lasterror",
+		PartitionKeyValue = partitionKey.Value,
+	};
+
+	/// <summary>
+	/// Asserts the classification is exhaustive and the sentinels usable, then compares every carried
+	/// member of <paramref name="staged"/> against <paramref name="reloaded"/>.
+	/// </summary>
+	/// <param name="staged">The sentinel-bearing message that was written.</param>
+	/// <param name="reloaded">The message as the read path under test reconstituted it.</param>
+	/// <param name="readPath">A description of the read path, named in any failure.</param>
+	private static void AssertEveryContractMemberRoundTripped(
+		CloudOutboxMessage staged,
+		CloudOutboxMessage reloaded,
+		string readPath)
+	{
+		var contractMemberNames = new HashSet<string>(ContractMembers.Select(static p => p.Name), StringComparer.Ordinal);
+
+		// (1) EXHAUSTIVENESS. This is the arm's reason for existing: a member added to the contract and
+		// classified nowhere fails here, by name, before any store is judged.
+		var unclassified = ContractMembers
+			.Where(static p => !MembersCarriedByStaging.Contains(p.Name) && !MembersNotCarriedByStaging.ContainsKey(p.Name))
+			.Select(static p => p.Name)
+			.ToArray();
+
+		Assert(
+			unclassified.Length == 0,
+			$"{unclassified.Length} member(s) of CloudOutboxMessage are classified neither as carried by "
+			+ "staging nor as justifiably absent from it, so nothing in this suite establishes whether a "
+			+ $"store persists and restores them: {string.Join(", ", unclassified)}. Add each to "
+			+ "MembersCarriedByStaging with a distinct sentinel in CreateSentinelMessage, or to "
+			+ "MembersNotCarriedByStaging with the contract reason it cannot be asserted here. This is the "
+			+ "recurrence guard - the last three members added to this contract went unmapped in two "
+			+ "providers precisely because no list knew to mention them.");
+
+		// A classification naming a member the contract no longer has is a stale list pretending to cover
+		// something. Caught here rather than silently reducing the population.
+		var phantom = MembersCarriedByStaging.Concat(MembersNotCarriedByStaging.Keys)
+			.Where(name => !contractMemberNames.Contains(name))
+			.OrderBy(static n => n, StringComparer.Ordinal)
+			.ToArray();
+
+		Assert(
+			phantom.Length == 0,
+			"this suite classifies member(s) that CloudOutboxMessage no longer declares, so the "
+			+ $"classification has drifted from the contract: {string.Join(", ", phantom)}");
+
+		// (2) NON-DEFAULTNESS. Without this a member could be classified as carried and never given a
+		// sentinel, and the comparison below would hold null against null and report a pass.
+		var unsentinelled = ContractMembers
+			.Where(static p => MembersCarriedByStaging.Contains(p.Name))
+			.Where(p => IsDefaultValue(p.GetValue(staged)))
+			.Select(static p => p.Name)
+			.ToArray();
+
+		Assert(
+			unsentinelled.Length == 0,
+			$"{unsentinelled.Length} member(s) are classified as carried by staging but hold a default "
+			+ "value on the staged message, so comparing them proves nothing: "
+			+ $"{string.Join(", ", unsentinelled)}. Give each a distinct non-default sentinel in "
+			+ "CreateSentinelMessage.");
+
+		// (3) DISTINCTNESS. Two members sharing a sentinel cannot distinguish a faithful mapping from one
+		// that transposed them.
+		var collisions = ContractMembers
+			.Where(static p => MembersCarriedByStaging.Contains(p.Name))
+			.GroupBy(p => Render(p.GetValue(staged)), StringComparer.Ordinal)
+			.Where(static g => g.Count() > 1)
+			.Select(static g => $"[{string.Join(" == ", g.Select(static p => p.Name))}]")
+			.ToArray();
+
+		Assert(
+			collisions.Length == 0,
+			$"{collisions.Length} group(s) of members share a sentinel value, so a mapping that transposed "
+			+ $"them would still read back as a match: {string.Join(", ", collisions)}");
+
+		// Only now is the store judged, and every carried member is judged - not a list of them.
+		var dropped = new List<string>();
+		foreach (var member in ContractMembers)
+		{
+			if (!MembersCarriedByStaging.Contains(member.Name))
+			{
+				continue;
+			}
+
+			var expected = member.GetValue(staged);
+			var actual = member.GetValue(reloaded);
+
+			if (!ValuesEqual(expected, actual))
+			{
+				dropped.Add($"{member.Name}: staged '{Render(expected)}', read back '{Render(actual)}'");
+			}
+		}
+
+		Assert(
+			dropped.Count == 0,
+			$"{dropped.Count} of {MembersCarriedByStaging.Count} contract member(s) did not survive the "
+			+ $"round trip through {readPath}. A member that is written and not read back - or never "
+			+ "written - reaches the consumer as a null the message itself was carrying, which mis-routes "
+			+ "or mis-attributes rather than erroring, so nothing downstream reports it. "
+			+ $"{string.Join("; ", dropped)}");
+	}
+
+	/// <summary>Reports whether a member holds its type's default, i.e. carries no sentinel.</summary>
+	/// <param name="value">The member's value on the staged message.</param>
+	/// <returns><see langword="true"/> when the value could not distinguish a drop from a pass.</returns>
+	private static bool IsDefaultValue(object? value) => value switch
+	{
+		null => true,
+		string text => text.Length == 0,
+		byte[] bytes => bytes.Length == 0,
+		IDictionary<string, string> map => map.Count == 0,
+		int number => number == 0,
+		DateTimeOffset instant => instant == default,
+		_ => false,
+	};
+
+	/// <summary>Compares two member values by their own semantics rather than by reference.</summary>
+	/// <param name="left">The staged value.</param>
+	/// <param name="right">The value read back.</param>
+	/// <returns><see langword="true"/> when the member survived the round trip.</returns>
+	private static bool ValuesEqual(object? left, object? right) => (left, right) switch
+	{
+		(null, null) => true,
+		(null, _) or (_, null) => false,
+		(byte[] a, byte[] b) => a.AsSpan().SequenceEqual(b),
+		(IDictionary<string, string> a, IDictionary<string, string> b) =>
+			a.Count == b.Count
+			&& a.All(entry => b.TryGetValue(entry.Key, out var other)
+				&& string.Equals(other, entry.Value, StringComparison.Ordinal)),
+		_ => left.Equals(right),
+	};
+
+	/// <summary>Renders a member value for a failure message and for the distinctness check.</summary>
+	/// <param name="value">The value to render.</param>
+	/// <returns>A stable, human-readable rendering.</returns>
+	private static string Render(object? value) => value switch
+	{
+		null => "(null)",
+		byte[] bytes => Convert.ToBase64String(bytes),
+		IDictionary<string, string> map => string.Join(
+			";",
+			map.OrderBy(static entry => entry.Key, StringComparer.Ordinal)
+				.Select(static entry => $"{entry.Key}={entry.Value}")),
+		IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+		_ => value.ToString() ?? "(null)",
+	};
+
+	#endregion
+
 	#region Core arms - required (ICloudNativeOutboxStore)
 
 	/// <summary>Adding a new message succeeds.</summary>
@@ -116,7 +358,11 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		var message = CreateTestMessage(partitionKey);
 		_ = await store.AddAsync(message, partitionKey, CancellationToken.None).ConfigureAwait(false);
 
-		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => p.Documents.Any(m => m.MessageId == message.MessageId),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
 
 		Assert(
 			pending.Documents.Any(m => m.MessageId == message.MessageId),
@@ -163,8 +409,12 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		_ = await store.AddAsync(first, partitionKey, CancellationToken.None).ConfigureAwait(false);
 		_ = await store.AddAsync(second, partitionKey, CancellationToken.None).ConfigureAwait(false);
 
-		var pending = await store.GetPendingAsync(partitionKey, 100, CancellationToken.None)
-			.ConfigureAwait(false);
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 100, ct),
+			p => p.Documents.Any(m => m.MessageId == first.MessageId)
+				&& p.Documents.Any(m => m.MessageId == second.MessageId),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
 
 		var sawFirst = pending.Documents.Any(m => m.MessageId == first.MessageId);
 		var sawSecond = pending.Documents.Any(m => m.MessageId == second.MessageId);
@@ -176,6 +426,69 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 			+ $"tenant-b={sawSecond}. One publisher serves every tenant on this contract, so a read that "
 			+ "drops a tenant stalls publication for it permanently while the row stays pending and no "
 			+ "other assertion fails.");
+	}
+
+	/// <summary>
+	/// LIVENESS and REPRESENTATION: a message staged with NO tenant is returned by the pending read, and
+	/// is returned carrying the reserved untenanted sentinel rather than an absence.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Liveness first, because it is the one that breaks a deployment.</b> A single-tenant host stages
+	/// every message this way, so a store that drops the untenanted partition delivers nothing at all for
+	/// one — and, as with the cross-tenant arm above, it does so while every other assertion passes.
+	/// </para>
+	/// <para>
+	/// <b>The contract fixes the representation as well as the partition</b>, and this arm binds the same
+	/// one its sibling <c>OutboxStoreConformanceTestKit.UntenantedPartition_MustRoundTripItsOwnMessage</c>
+	/// binds: untenanted is a VALUE, not an absence. When absence has two spellings something has to fold
+	/// between them, and every fold is a place the two can disagree — a consumer handler written as
+	/// <c>msg.TenantId is null</c> must not re-establish a different partition depending on which store is
+	/// underneath it. Fold a caller-supplied null through <c>KeyedTenantPartition.FromStoredValue</c> when
+	/// persisting and again when reading back, and this arm passes; all three cloud-native stores already
+	/// do exactly that on both paths.
+	/// </para>
+	/// <para>
+	/// <b>It varies the MESSAGE, never the host</b> — the same discipline as the cross-tenant arm. Nothing
+	/// here resolves an ambient tenant, and a store is not asked to.
+	/// </para>
+	/// </remarks>
+	public virtual async Task UntenantedPartition_MustRoundTripItsOwnMessage()
+	{
+		RecordArmExecuted(nameof(UntenantedPartition_MustRoundTripItsOwnMessage));
+
+		var store = await CreateStoreAsync().ConfigureAwait(false);
+		var partitionKey = CreatePartitionKey();
+		var message = CreateTestMessage(partitionKey) with { TenantId = null };
+
+		_ = await store.AddAsync(message, partitionKey, CancellationToken.None).ConfigureAwait(false);
+
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => p.Documents.Any(m => m.MessageId == message.MessageId),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
+		var own = pending.Documents.SingleOrDefault(m => m.MessageId == message.MessageId);
+
+		Assert(
+			own is not null,
+			$"the untenanted partition does not round-trip: message '{message.MessageId}' was staged with "
+			+ "no tenant and the pending read did not return it. A single-tenant host stages every message "
+			+ "this way, so this store would never publish anything at all for one.");
+
+		var carried = own!.TenantId is null ? "<null>" : $"'{own.TenantId}'";
+
+		Assert(
+			string.Equals(own.TenantId, Excalibur.Dispatch.TenantScope.UntenantedSentinel, StringComparison.Ordinal),
+			$"a message staged with no tenant was read back carrying tenant {carried}, but the contract "
+			+ $"requires the reserved untenanted partition '{Excalibur.Dispatch.TenantScope.UntenantedSentinel}'. "
+			+ (string.IsNullOrWhiteSpace(own.TenantId)
+				? "This store round-trips absence as an absence, so a consumer cannot tell an untenanted "
+				+ "message from one whose tenant this store simply does not carry, and the same handler "
+				+ "behaves differently against a provider that stores the sentinel."
+				: "This store invented an owner the caller never supplied, and a consumer will "
+				+ "re-establish that fabricated tenant."));
 	}
 
 	/// <summary>
@@ -191,7 +504,17 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		var message = CreateTestMessage(partitionKey);
 		_ = await store.AddAsync(message, partitionKey, CancellationToken.None).ConfigureAwait(false);
 
-		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => p.Documents.Any(m => m.MessageId == message.MessageId),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
+		Assert(
+			pending.Documents.Any(m => m.MessageId == message.MessageId),
+			$"the staged message '{message.MessageId}' was not returned by a pending read of its own "
+			+ "partition, so no field could be compared");
+
 		var reloaded = pending.Documents.Single(m => m.MessageId == message.MessageId);
 
 		Assert(reloaded.MessageType == message.MessageType, "MessageType must round-trip");
@@ -206,6 +529,76 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		Assert(!reloaded.IsPublished, "a freshly-staged message must not read back as published");
 	}
 
+	/// <summary>
+	/// STRUCTURAL round-trip lock. Every member of the message contract is either carried by the staging
+	/// path and asserted here against a distinct sentinel, or named in the justified-absent set with the
+	/// reason it cannot be. A member in neither fails this arm by name.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Why this is not another hand-written field list.</b> The sibling arm
+	/// <see cref="AddAsync_PreservesCanonicalFields_OnRoundTrip"/> asserts nine fields it names in source.
+	/// That certifies the fields which existed the day it was written and is silent about the next one
+	/// added — and this contract has already outlived exactly that defence. Three members (<c>ETag</c>,
+	/// <c>LeasedAt</c>, <c>LeasedBy</c>) were added to the message after its round-trip risk was first
+	/// raised; the audit that followed enumerated the older list, and every genuine mapping gap it
+	/// eventually found lay in one of the three nobody was enumerating. A list cannot notice what is
+	/// missing from itself, so this arm enumerates the type instead.
+	/// </para>
+	/// <para>
+	/// <b>What makes it fail-closed.</b> Three structural properties are asserted before anything is
+	/// asserted about a store. (1) Every settable member is classified — a newly added member appears in
+	/// neither set and fails by name, which is the recurrence this arm exists to prevent. (2) Every member
+	/// classified as carried holds a non-default sentinel — so a member cannot be classified and then left
+	/// unset, which would compare null against null and pass. (3) No two sentinels are equal — so two
+	/// fields transposed in a mapping cannot read back as a match. <c>IsPublished</c> needs no entry in
+	/// either set: it is computed from <c>PublishedAt</c> and has no setter, so the enumeration never sees
+	/// it.
+	/// </para>
+	/// <para>
+	/// <b>The classification is kit-owned and deliberately not overridable.</b> A store that could nominate
+	/// its own justified absentees could excuse precisely the drift this arm detects.
+	/// </para>
+	/// </remarks>
+	public virtual async Task AddAsync_RoundTripsEveryContractMember_OnThePendingRead()
+	{
+		RecordArmExecuted(nameof(AddAsync_RoundTripsEveryContractMember_OnThePendingRead));
+
+		var store = await CreateStoreAsync().ConfigureAwait(false);
+		var partitionKey = CreatePartitionKey();
+		var message = CreateSentinelMessage(partitionKey);
+
+		_ = await store.AddAsync(message, partitionKey, CancellationToken.None).ConfigureAwait(false);
+
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => p.Documents.Any(m => m.MessageId == message.MessageId),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
+		var reloaded = pending.Documents.SingleOrDefault(m => m.MessageId == message.MessageId);
+
+		Assert(
+			reloaded is not null,
+			$"the staged sentinel message '{message.MessageId}' was not returned by a pending read of its "
+			+ "own partition, so not one member could be compared");
+
+		AssertEveryContractMemberRoundTripped(message, reloaded!, "the store's own pending read (GetPendingAsync)");
+	}
+
+
+	/// <summary>
+	/// How long an arm that reads back something it has just written keeps re-reading before it accepts
+	/// what it last saw.
+	/// </summary>
+	/// <remarks>
+	/// A store that orders its pending read through a separately-maintained, eventually-consistent index
+	/// can omit a just-staged message from that read for a brief interval after staging returns. Raise
+	/// this if your provider's index propagates more slowly than the default allows; the arms remain
+	/// correct at any value, because each one still asserts the property it is there to check.
+	/// </remarks>
+	protected virtual TimeSpan PendingReadPropagationTimeout => TimeSpan.FromSeconds(10);
+
 	/// <summary>A partition nothing was ever staged into reads back empty, not an error.</summary>
 	public virtual async Task GetPendingAsync_EmptyPartition_ReturnsEmpty()
 	{
@@ -214,6 +607,9 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		var store = await CreateStoreAsync().ConfigureAwait(false);
 		var partitionKey = CreatePartitionKey();
 
+		// This arm reads ONCE, deliberately, and must not be converted to a bounded poll: nothing is
+		// staged here, so there is no write whose propagation could be awaited. Polling until the read
+		// came back empty would be satisfied by the first attempt and would assert nothing.
 		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
 
 		Assert(pending.Documents.Count == 0, "a never-staged partition must read back empty");
@@ -234,7 +630,14 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 			_ = await store.AddAsync(message, partitionKey, CancellationToken.None).ConfigureAwait(false);
 		}
 
-		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+		// Wait for every staged message to become visible BEFORE judging order: a partial read is ordered
+		// correctly and still fails a whole-sequence comparison, which would report an ordering defect
+		// that is really an incomplete read.
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => staged.TrueForAll(id => p.Documents.Any(m => m.MessageId == id)),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
 
 		Assert(
 			pending.Documents.Select(static m => m.MessageId).SequenceEqual(staged),
@@ -251,11 +654,32 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		var message = CreateTestMessage(partitionKey);
 		_ = await store.AddAsync(message, partitionKey, CancellationToken.None).ConfigureAwait(false);
 
+		// Establish that the message IS pending before publishing it. An absence is only evidence of
+		// exclusion if the thing was once present: on a store whose pending read is ordered through an
+		// eventually-consistent index, a message that has not yet propagated is absent for a reason that
+		// has nothing to do with publishing, and this arm would report success without ever observing
+		// the property it exists to check.
+		var staged = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => p.Documents.Any(m => m.MessageId == message.MessageId),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
+		Assert(
+			staged.Documents.Any(m => m.MessageId == message.MessageId),
+			$"the staged message '{message.MessageId}' never appeared in a pending read, so its later "
+			+ "absence could not show that publishing excluded it");
+
 		var marked = await store.MarkAsPublishedAsync(message.MessageId, partitionKey, CancellationToken.None)
 			.ConfigureAwait(false);
 		Assert(marked.Success, $"marking an existing message as published must succeed. {marked.ErrorMessage}");
 
-		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => !p.Documents.Any(m => m.MessageId == message.MessageId),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
 		Assert(
 			!pending.Documents.Any(m => m.MessageId == message.MessageId),
 			"a published message must not still appear in a pending read of its partition");
@@ -297,7 +721,13 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		var result = await batch.AddBatchAsync(messages, partitionKey, CancellationToken.None).ConfigureAwait(false);
 		Assert(result.Success, "batch-adding valid messages must succeed");
 
-		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+		var staged = messages.Select(static m => m.MessageId).ToHashSet(StringComparer.Ordinal);
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => staged.IsSubsetOf(p.Documents.Select(static m => m.MessageId)),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
 		var pendingIds = pending.Documents.Select(static m => m.MessageId).ToHashSet(StringComparer.Ordinal);
 		var expectedIds = messages.Select(static m => m.MessageId).ToHashSet(StringComparer.Ordinal);
 		Assert(pendingIds.SetEquals(expectedIds), "every message in the batch must be pending after AddBatchAsync");
@@ -319,11 +749,30 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		var messages = Enumerable.Range(0, 3).Select(_ => CreateTestMessage(partitionKey)).ToList();
 		_ = await batch.AddBatchAsync(messages, partitionKey, CancellationToken.None).ConfigureAwait(false);
 
+		// Establish that all three ARE pending before publishing them, for the same reason as the
+		// single-message arm: an empty pending read proves nothing if the batch never became visible.
+		var ids = messages.Select(static m => m.MessageId).ToHashSet(StringComparer.Ordinal);
+		var staged = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => ids.IsSubsetOf(p.Documents.Select(static m => m.MessageId)),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
+		Assert(
+			ids.IsSubsetOf(staged.Documents.Select(static m => m.MessageId)),
+			$"only {staged.Documents.Count} of the {ids.Count} batched messages ever appeared in a pending "
+			+ "read, so an empty read after publishing could not show that publishing removed them");
+
 		var result = await batch.MarkBatchAsPublishedAsync(
 			messages.Select(static m => m.MessageId), partitionKey, CancellationToken.None).ConfigureAwait(false);
 		Assert(result.Success, $"batch-marking existing messages as published must succeed. {result.ErrorMessage}");
 
-		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => p.Documents.Count == 0,
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
 		Assert(pending.Documents.Count == 0, "every batch-marked message must be gone from the pending set");
 	}
 
@@ -353,7 +802,12 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 		// A retention window far longer than "just published" - a correct cleanup must leave this alone.
 		_ = await batch.CleanupOldMessagesAsync(partitionKey, TimeSpan.FromDays(365), CancellationToken.None).ConfigureAwait(false);
 
-		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => p.Documents.Any(m => m.MessageId == unpublished.MessageId),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
 		Assert(
 			pending.Documents.Any(m => m.MessageId == unpublished.MessageId),
 			"cleanup must never delete an unpublished message, regardless of retention window");
@@ -379,7 +833,17 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 			message.MessageId, partitionKey, "transient publish failure", CancellationToken.None).ConfigureAwait(false);
 		Assert(result.Success, "incrementing the retry count on an existing message must succeed");
 
-		var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+		var pending = await ReadUntilAsync(
+			ct => store.GetPendingAsync(partitionKey, 10, ct),
+			p => p.Documents.Any(m => m.MessageId == message.MessageId && m.RetryCount >= 1),
+			PendingReadPropagationTimeout,
+			CancellationToken.None).ConfigureAwait(false);
+
+		Assert(
+			pending.Documents.Any(m => m.MessageId == message.MessageId),
+			$"the staged message '{message.MessageId}' was not returned by a pending read, so the "
+			+ "recorded retry count could not be read");
+
 		var reloaded = pending.Documents.Single(m => m.MessageId == message.MessageId);
 		Assert(reloaded.RetryCount == 1, $"expected RetryCount 1 after one increment, got {reloaded.RetryCount}");
 		Assert(reloaded.LastError == "transient publish failure", "the recorded error message must round-trip");
@@ -411,7 +875,18 @@ public abstract class CloudNativeOutboxStoreConformanceTestKit : ConformanceTest
 			_ = await batch.IncrementRetryCountAsync(
 				message.MessageId, partitionKey, $"failure #{attempt}", CancellationToken.None).ConfigureAwait(false);
 
-			var pending = await store.GetPendingAsync(partitionKey, 10, CancellationToken.None).ConfigureAwait(false);
+			var floor = previous;
+			var pending = await ReadUntilAsync(
+				ct => store.GetPendingAsync(partitionKey, 10, ct),
+				p => p.Documents.Any(m => m.MessageId == message.MessageId && m.RetryCount > floor),
+				PendingReadPropagationTimeout,
+				CancellationToken.None).ConfigureAwait(false);
+
+			Assert(
+				pending.Documents.Any(m => m.MessageId == message.MessageId),
+				$"the staged message '{message.MessageId}' was not returned by a pending read on attempt "
+				+ $"{attempt}, so the retry count could not be read");
+
 			var reloaded = pending.Documents.Single(m => m.MessageId == message.MessageId);
 
 			Assert(

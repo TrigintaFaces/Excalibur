@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance;
@@ -64,7 +64,11 @@ public interface IErasureService
 	/// </summary>
 	/// <param name="requestId">The erasure request tracking ID.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>Compliance certificate with cryptographic proof of erasure.</returns>
+	/// <returns>
+	/// The signed certificate recording the request. It is a record of the request, not proof that the
+	/// data was disposed of: the evidence of disposal is the key-management service's record of each key
+	/// deletion.
+	/// </returns>
 	/// <exception cref="InvalidOperationException">Thrown when request is not completed.</exception>
 	/// <exception cref="KeyNotFoundException">Thrown when request is not found.</exception>
 	Task<ErasureCertificate> GenerateCertificateAsync(

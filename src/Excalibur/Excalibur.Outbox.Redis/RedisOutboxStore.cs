@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -44,7 +44,7 @@ namespace Excalibur.Outbox.Redis;
 /// <c>LeasedAt</c>/<c>LeasedBy</c> claim.
 /// </para>
 /// </remarks>
-public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable, ITenantPartitionedStore
+public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable, ITenantPartitionedStore
 {
 	// Lua script for atomic MarkSent - checks status before updating
 	// Returns plain strings (not {err=...}) to avoid RedisServerException
@@ -59,7 +59,6 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 	                                         local sentAt = ARGV[2]
 	                                         local sentStatus = ARGV[3]
 	                                         local ttlSeconds = tonumber(ARGV[4])
-	                                         local fencingToken = ARGV[5]
 
 	                                         -- Check if message exists
 	                                         local exists = redis.call('EXISTS', key)
@@ -67,29 +66,9 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 	                                         	return 'NOT_FOUND'
 	                                         end
 
-	                                         -- Per-message fence check, IN THE SAME atomic script as the
-	                                         -- mutation below -- closes the round-trip gap between
-	                                         -- EnforceFenceAsync (a separate call, scope-wide) and this write. A
-	                                         -- fresher tenure's claim stamps a higher FencingToken onto this same
-	                                         -- key (see ClaimMessagesLuaScript); if this caller's presented token
-	                                         -- is lower, it has been superseded since its own claim, even though
-	                                         -- its scope-wide check passed on now-stale information.
-	                                         --
-	                                         -- THIS RUNS BEFORE THE ALREADY-SENT CHECK, and the order is load-bearing.
-	                                         -- A superseded tenure arrives with BOTH facts true: a fresher leader has
-	                                         -- already delivered the message AND stamped a higher token. Answering
-	                                         -- 'already sent' there tells the caller its own delivery succeeded, so it
-	                                         -- proceeds to mark a message it does not own -- the refusal has to win.
-	                                         if fencingToken ~= '' then
-	                                         	local storedToken = redis.call('HGET', key, 'FencingToken')
-	                                         	if storedToken and tonumber(storedToken) > tonumber(fencingToken) then
-	                                         		return {'STALE_FENCE', storedToken}
-	                                         	end
-	                                         end
-
 	                                         -- Check current status atomically
 	                                         local currentStatus = redis.call('HGET', key, 'Status')
-	                                         local deadLetteredStatus = ARGV[6]
+	                                         local deadLetteredStatus = ARGV[5]
 	                                         if currentStatus == sentStatus then
 	                                         	return 'ALREADY_SENT'
 	                                         end
@@ -328,44 +307,6 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 	                                             return 'SUCCESS'
 	                                             """;
 
-	// Lua script for atomic lease-claim — due-promotion + crash-reclaim + disjoint claim in ONE
-	// indivisible step.
-	//
-	// Every instant this script decides on comes from redis.call('TIME'), the SERVER's clock, and none of
-	// them is passed in. That is the whole point: a lease is stamped by one poller and judged by another,
-	// so a lease expiry computed on one machine and a cutoff computed on another compare two clocks that
-	// have no reason to agree. Where they disagree by more than the lease timeout, the second poller reads
-	// a live lease as expired and claims a message the first is still delivering. The script's atomicity
-	// does not prevent that — atomicity arbitrates two SIMULTANEOUS claimants, and under skew they are not
-	// simultaneous: the second poller is the only writer at that instant and succeeds on a predicate that
-	// was already wrong. Taking every instant from the one clock all pollers share is what makes the
-	// predicate true rather than merely atomic. TIME is replication-safe here because scripts replicate by
-	// their effects, so a replica records what the master computed rather than re-evaluating the clock.
-	//
-	// Step 0 promotes scheduled ids whose gate has passed (score <= now) into the staged index. That gate
-	// carries both a caller's requested send time and the post-failure retry floor, so it is compared on
-	// the server clock for the same reason the lease is. It runs here rather than as a separate round trip
-	// so promotion and claim cannot interleave.
-	// Step 1 reclaims every expired lease (lease-expiry score <= now) back to the staged index, recomputing
-	// the original staged score from the message's Priority + CreatedAt and clearing its lease fields, so a
-	// poller that crashed mid-delivery cannot strand a message (no data loss).
-	// Scope-wide fencing high-water CAS, mirroring MongoDbOutboxStore.EnforceFenceAsync. GET-then-SET
-	// inside one Lua script is atomic on Redis (single-threaded script execution) — no transaction or
-	// upsert-conflict trick needed, unlike Mongo's single-document findOneAndUpdate approach.
-	// KEYS[1]=fence key. ARGV[1]=presented token.
-	// Returns the high-water AFTER the operation. If it exceeds the presented token, the caller was
-	// superseded (its token did not advance it) — that is the stale signal, not a separate return code.
-	private const string EnforceFenceLuaScript = """
-		local key = KEYS[1]
-		local presented = tonumber(ARGV[1])
-		local current = redis.call('GET', key)
-		current = current and tonumber(current) or 0
-		if presented > current then
-			redis.call('SET', key, presented)
-			return presented
-		end
-		return current
-		""";
 
 	// Step 2 claims up to batchSize staged ids by MOVING each from the staged index to the leased index
 	// (ZREM staged -> ZADD leased with the new lease expiry) and stamping LeasedAt/LeasedBy. Because the
@@ -374,11 +315,6 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 	// with no message hash) are pruned, never leased.
 	// KEYS[1]=staged index, KEYS[2]=leased index, KEYS[3]=scheduled index.
 	// ARGV[1]=batchSize, ARGV[2]=leaseTimeout(ms), ARGV[3]=leasedBy, ARGV[4]=message-key prefix.
-	// ARGV[5]=fencing token (empty string "" when unfenced) — stamped onto each claimed message's hash in
-	// THE SAME atomic step that claims it, so a later mark-sent's per-message check (see
-	// MarkSentLuaScript) can catch a fresher tenure's claim that landed between this claim and that call —
-	// the round-trip gap EnforceFenceAsync alone cannot see, mirroring MongoDbOutboxStore's fencingToken
-	// stamp.
 	private const string ClaimMessagesLuaScript = """
 		local stagedIdx = KEYS[1]
 		local leasedIdx = KEYS[2]
@@ -387,7 +323,6 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 		local leaseTimeoutMs = tonumber(ARGV[2])
 		local leasedBy = ARGV[3]
 		local msgPrefix = ARGV[4]
-		local fencingToken = ARGV[5]
 
 		-- The server's clock, in milliseconds. TIME returns {seconds, microseconds}.
 		local t = redis.call('TIME')
@@ -432,9 +367,6 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 			if redis.call('EXISTS', mkey) == 1 then
 				redis.call('ZADD', leasedIdx, leaseExpiry, id)
 				redis.call('HSET', mkey, 'LeasedAt', now, 'LeasedBy', leasedBy)
-				if fencingToken ~= '' then
-					redis.call('HSET', mkey, 'FencingToken', fencingToken)
-				end
 				claimed[#claimed + 1] = id
 			end
 		end
@@ -605,34 +537,13 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
-		GetUnsentMessagesCoreAsync(batchSize, fencingToken: null, cancellationToken);
+		GetUnsentMessagesCoreAsync(batchSize, cancellationToken);
 
-	/// <inheritdoc/>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, long fencingToken, CancellationToken cancellationToken)
-	{
-		// Fence FIRST (scope-wide CAS): a superseded leader can't even start a claim cycle. Degrades to an
-		// empty claim rather than throwing — the claim path MUST NOT throw on a stale token (would crash-
-		// loop the superseded leader's drain); only mark-sent fails closed. Mirrors
-		// MongoDbOutboxStore.GetUnsentMessagesCoreAsync.
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await EnsureConnectedAsync().ConfigureAwait(false);
-
-		var highWater = (long)await _database!.ScriptEvaluateAsync(
-			EnforceFenceLuaScript, [GetFenceKey()], [fencingToken]).ConfigureAwait(false);
-		if (highWater > fencingToken)
-		{
-			return [];
-		}
-
-		return await GetUnsentMessagesCoreAsync(batchSize, fencingToken, cancellationToken).ConfigureAwait(false);
-	}
 
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesCoreAsync(
-		int batchSize, long? fencingToken, CancellationToken cancellationToken)
+		int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -647,14 +558,10 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 		// No instant is passed in. Every time this claim compares — the scheduled gate, the lease expiry —
 		// is read from the Redis server inside the script, so the decision is made against one clock rather
 		// than against whatever this host happens to believe (see ClaimMessagesLuaScript).
-		//
-		// When fenced, the claiming tenure's token is stamped onto each claimed message in THIS SAME
-		// atomic write — see MarkSentLuaScript for what that closes.
 		var claimResult = await _database!.ScriptEvaluateAsync(
 			ClaimMessagesLuaScript,
 			[GetStagedIndexKey(), GetLeasedIndexKey(), GetScheduledIndexKey()],
-			[batchSize, _options.LeaseTimeoutSeconds * 1000L, GetProcessorId(), GetMessageKeyPrefix(),
-				fencingToken?.ToString(CultureInfo.InvariantCulture) ?? string.Empty]).ConfigureAwait(false);
+			[batchSize, _options.LeaseTimeoutSeconds * 1000L, GetProcessorId(), GetMessageKeyPrefix()]).ConfigureAwait(false);
 
 		if (claimResult.IsNull)
 		{
@@ -709,35 +616,10 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 
 	/// <inheritdoc/>
 	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken) =>
-		MarkSentCoreAsync(messageId, fencingToken: null, cancellationToken);
+		MarkSentCoreAsync(messageId, cancellationToken);
 
-	/// <inheritdoc/>
-	public async ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await EnsureConnectedAsync().ConfigureAwait(false);
 
-		// Fence via the same scope-wide CAS (fail-closed on a superseded token). Separate round trip from
-		// the mutation below — the per-message check inside MarkSentLuaScript is what closes that gap for
-		// a message that WAS claimed under fencing. Mirrors MongoDbOutboxStore.MarkSentCoreAsync.
-		var highWater = (long)await _database!.ScriptEvaluateAsync(
-			EnforceFenceLuaScript, [GetFenceKey()], [fencingToken]).ConfigureAwait(false);
-		if (highWater > fencingToken)
-		{
-			throw new StaleOutboxFencingTokenException(
-				$"The presented outbox fencing token ({fencingToken}) is below the recorded high-water mark " +
-				$"({highWater}) (superseded leader).")
-			{
-				PresentedToken = fencingToken,
-				HighWaterToken = highWater,
-			};
-		}
-
-		await MarkSentCoreAsync(messageId, fencingToken, cancellationToken).ConfigureAwait(false);
-	}
-
-	private async ValueTask MarkSentCoreAsync(string messageId, long? fencingToken, CancellationToken cancellationToken)
+	private async ValueTask MarkSentCoreAsync(string messageId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -753,23 +635,7 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 			[key, GetStagedIndexKey(), GetSentIndexKey(), GetScheduledIndexKey(), GetLeasedIndexKey(), GetFailedIndexKey()],
 			[messageId, sentAt, ((int)OutboxStatus.Sent).ToString(),
 				_options.SentMessageTtlSeconds.ToString(CultureInfo.InvariantCulture),
-				fencingToken?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
 				((int)OutboxStatus.DeadLettered).ToString()]).ConfigureAwait(false);
-
-		// STALE_FENCE is a Lua array reply {status, storedToken} — every other branch is a plain bulk
-		// string, so array-ness alone identifies it without a fragile string comparison.
-		if (result.Resp2Type == ResultType.Array)
-		{
-			var array = (RedisResult[])result!;
-			var storedToken = (long)array[1];
-			throw new StaleOutboxFencingTokenException(
-				$"The presented outbox fencing token ({fencingToken}) is below the token ({storedToken}) a " +
-				$"fresher tenure's claim recorded on message '{messageId}' (superseded leader).")
-			{
-				PresentedToken = fencingToken ?? 0,
-				HighWaterToken = storedToken,
-			};
-		}
 
 		var resultStr = result.ToString();
 		if (resultStr == "NOT_FOUND")
@@ -1313,9 +1179,6 @@ public sealed partial class RedisOutboxStore : IFencedOutboxStore, IOutboxStoreA
 
 	private string GetMessageKeyPrefix() => $"{_options.KeyPrefix}:msg:";
 
-	// One key holds the scope-wide fencing high-water mark, mirroring MongoDbOutboxStore's
-	// separate fence control document (a single Redis key is Redis's equivalent of a single document).
-	private string GetFenceKey() => $"{_options.KeyPrefix}:fence";
 
 	// Resolves the lease-owner identifier once: the configured ProcessorId, or a stable generated id.
 	// Disjoint claim does not depend on this value (the atomic claim script guarantees it); it is recorded

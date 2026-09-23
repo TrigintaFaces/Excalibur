@@ -39,12 +39,16 @@ public sealed class ConfidentialityControlValidatorShould
 		var result = await sut.ValidateAsync("CNF-001", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("CNF-001");
-		// This arm was named "always passes" and required exactly that: IsEffective true at full
+		// This arm was named "always passes" and required exactly that: Effective at full
 		// score from a method that observes nothing. The capability really is shipped, which is
 		// what the Configuration evidence says; whether this deployment operates it is not
 		// observable from here, so the control is unverified rather than effective.
-		result.IsEffective.ShouldBeFalse();
-		result.EffectivenessScore.ShouldBeInRange(1, 99);
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
+		// 1..99 meant "neither absent nor effective". Over a closed band set that is
+		// exactly these two exclusions, and it names the facts excluded rather than
+		// describing a range on a scale the value never lived on.
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.MechanismAbsent);
+		result.EffectivenessScore.ShouldNotBe(ControlEffectiveness.Effective);
 		result.ConfigurationIssues.ShouldNotBeEmpty();
 		result.Evidence.ShouldNotBeEmpty();
 	}
@@ -60,7 +64,7 @@ public sealed class ConfidentialityControlValidatorShould
 		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
 		// longer says is that the CONTROL operated, because nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 	}
 
 	[Fact]
@@ -71,7 +75,7 @@ public sealed class ConfidentialityControlValidatorShould
 		var result = await sut.ValidateAsync("CNF-002", CancellationToken.None).ConfigureAwait(false);
 
 		result.ControlId.ShouldBe("CNF-002");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("not configured"));
 	}
 
@@ -86,7 +90,7 @@ public sealed class ConfidentialityControlValidatorShould
 		// The mechanism is present and the result still says so -- IsConfigured stays true. What it no
 		// longer says is that the CONTROL operated, because nothing here observed it operating.
 		result.IsConfigured.ShouldBeTrue();
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.Evidence.ShouldContain(e => e.Description.Contains("Cryptographic erasure"));
 	}
 
@@ -101,7 +105,7 @@ public sealed class ConfidentialityControlValidatorShould
 		// the declared mechanism is absent, so the result must SURFACE the gap (fail-closed-with-visibility)
 		// rather than launder a PASS on unverifiable manual procedures.
 		result.ControlId.ShouldBe("CNF-003");
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		// The issue must name the missing dependency AND say the declared control is unverified. It must NOT
 		// carry an internal document reference: this text is emitted into the consumer's audit evidence, and
 		// asserting on such a reference here is what kept one in the shipped output.
@@ -110,7 +114,7 @@ public sealed class ConfidentialityControlValidatorShould
 			&& i.Contains("unverified", StringComparison.Ordinal));
 		result.ConfigurationIssues.ShouldNotContain(i => i.Contains("ADR-", StringComparison.Ordinal));
 		// Partial score: compensating manual procedures may exist, but the declared control is unverified.
-		result.EffectivenessScore.ShouldBe(40);
+		result.EffectivenessScore.ShouldBe(ControlEffectiveness.Unverified);
 	}
 
 	[Fact]
@@ -120,7 +124,7 @@ public sealed class ConfidentialityControlValidatorShould
 
 		var result = await sut.ValidateAsync("UNKNOWN", CancellationToken.None).ConfigureAwait(false);
 
-		result.IsEffective.ShouldBeFalse();
+		result.Outcome.ShouldNotBe(ControlOutcome.Effective);
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("Unknown control"));
 	}
 

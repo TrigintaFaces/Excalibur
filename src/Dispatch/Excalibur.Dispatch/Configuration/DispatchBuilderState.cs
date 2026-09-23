@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Transport;
@@ -45,6 +45,9 @@ internal sealed class DispatchBuilderState
 
 	/// <summary> Gets or sets a value indicating whether handler registrations were configured. </summary>
 	public bool HasHandlerRegistrations { get; set; }
+
+	/// <summary> Gets or sets a value indicating whether <c>DispatchBuilder.Build()</c> has run for this composition. </summary>
+	public bool IsBuilt { get; set; }
 
 	/// <summary>
 	/// Returns the state already attached to <paramref name="services"/>, attaching a new one if this is the

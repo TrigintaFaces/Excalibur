@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
-
-using System.Diagnostics.CodeAnalysis;
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance.Diagnostics;
-using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,8 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Compliance.Retention;
 
 /// <summary>
-/// Background service that periodically enforces retention policies by scanning for
-/// and cleaning up expired personal data.
+/// Background service that periodically enforces the host-declared retention policies.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -47,14 +43,6 @@ internal sealed partial class RetentionEnforcementBackgroundService : Background
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:RequiresUnreferencedCode",
-		Justification = "IRetentionEnforcementService.EnforceRetentionAsync scans loaded assemblies for "
-			+ "[PersonalData] annotations, so it is annotated RequiresUnreferencedCode. BackgroundService."
-			+ "ExecuteAsync cannot carry that annotation, so the requirement is surfaced to consumers on the "
-			+ "AddRetentionEnforcement registration instead. Retention enforcement is inert under trimming "
-			+ "unless the annotated types are rooted.")]
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		if (!_options.Value.Enabled)

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -405,14 +405,14 @@ public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewS
 	/// <returns>The identifier confined to the ambient tenant's partition.</returns>
 	private string QualifyWithTenant(string key)
 	{
-		var tenantId = CurrentTenantPartition.TenantId;
-		return string.Create(
-			CultureInfo.InvariantCulture,
-			$"t{tenantId.Length}:{tenantId}:{key}");
+		return TenantScopedKey.Compose(CurrentTenantPartition.TenantId, key);
 	}
 
+	// The view name and id are composed through the injective composer BEFORE being qualified. Pre-joining
+	// them with a bare separator left the tail ambiguous even though the tenant term was self-delimiting:
+	// ("a", "b:c") and ("a:b", "c") produced one document id within a single tenant.
 	private string CreateDocumentId(string viewName, string viewId) =>
-		QualifyWithTenant($"{viewName}:{viewId}");
+		QualifyWithTenant(SegmentedKey.Compose(viewName, viewId));
 
 	/// <summary>
 	/// Builds the checkpoint document identifier for a view, confined to the ambient tenant.

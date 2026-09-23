@@ -23,6 +23,7 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

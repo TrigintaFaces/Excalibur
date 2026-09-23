@@ -104,6 +104,7 @@ public sealed class EncryptionDecryptionServiceShould
 			new EncryptionDecryptionService(
 				null!,
 				Microsoft.Extensions.Options.Options.Create(_encryptionOptions),
+				global::Excalibur.Dispatch.UntenantedContext.Instance,
 				_logger));
 	}
 
@@ -114,6 +115,7 @@ public sealed class EncryptionDecryptionServiceShould
 			new EncryptionDecryptionService(
 				_registry,
 				null!,
+				global::Excalibur.Dispatch.UntenantedContext.Instance,
 				_logger));
 	}
 
@@ -124,6 +126,7 @@ public sealed class EncryptionDecryptionServiceShould
 			new EncryptionDecryptionService(
 				_registry,
 				Microsoft.Extensions.Options.Options.Create(_encryptionOptions),
+				global::Excalibur.Dispatch.UntenantedContext.Instance,
 				null!));
 	}
 
@@ -151,6 +154,7 @@ public sealed class EncryptionDecryptionServiceShould
 		new(
 			_registry,
 			Microsoft.Extensions.Options.Options.Create(_encryptionOptions),
+			global::Excalibur.Dispatch.UntenantedContext.Instance,
 			_logger);
 
 	private static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(params T[] items)

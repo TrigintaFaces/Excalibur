@@ -1,20 +1,24 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable CA2012 // FakeItEasy .Returns() stores ValueTask
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Options.Threading;
 using Excalibur.Dispatch.Threading;
 
 using Microsoft.Extensions.Logging.Abstractions;
+
+using MicrosoftOptions = Microsoft.Extensions.Options.Options;
 
 using Tests.Shared.TestDoubles;
 
 namespace Excalibur.Dispatch.Tests.Middleware;
 
 /// <summary>
-/// Unit tests for <see cref="BackgroundExecutionMiddleware"/> verifying fire-and-forget dispatch,
-/// exception isolation, and cancellation propagation.
+/// Unit tests for <see cref="BackgroundExecutionMiddleware"/> verifying immediate return for background
+/// dispatch and exception isolation. The failure policy and the caller-token contract are bound in
+/// <c>BackgroundExecutionPolicyShould</c>.
 /// Sprint 560 (S560.44).
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -26,7 +30,9 @@ public sealed class BackgroundExecutionMiddlewareShould : UnitTestBase
 
 	public BackgroundExecutionMiddlewareShould()
 	{
-		_middleware = new BackgroundExecutionMiddleware(NullLogger<BackgroundExecutionMiddleware>.Instance);
+		_middleware = new BackgroundExecutionMiddleware(
+			MicrosoftOptions.Create(new BackgroundExecutionOptions()),
+			NullLogger<BackgroundExecutionMiddleware>.Instance);
 		_context = new TestMessageContext
 		{
 			MessageId = Guid.NewGuid().ToString(),
@@ -67,7 +73,8 @@ public sealed class BackgroundExecutionMiddlewareShould : UnitTestBase
 		var result = await _middleware.InvokeAsync(message, _context, Next, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Assert — returns 202 Accepted immediately
+		// Assert. Succeeded only -- what the caller can DISTINGUISH is bound by
+		// ReportTheWorkAsPending_NotAsHandled, below.
 		result.Succeeded.ShouldBeTrue();
 	}
 
@@ -87,6 +94,76 @@ public sealed class BackgroundExecutionMiddlewareShould : UnitTestBase
 		result.Succeeded.ShouldBeFalse();
 		result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe(ProblemDetailsTypes.BackgroundExecution);
+	}
+
+	/// <summary>
+	/// SAFETY. A message handed to a background worker is reported as PENDING, never as handled.
+	/// </summary>
+	/// <remarks>
+	/// The defect this binds: the middleware returned an undifferentiated success for a handler that had
+	/// not run and might never run, so a caller recording completion marked work done that nothing had
+	/// processed. Succeeded stays true -- the dispatch did succeed -- and the disposition is what
+	/// carries the fact that the work is outstanding. RED against restoring MessageResult.Success().
+	/// </remarks>
+	[Fact]
+	public async Task ReportTheWorkAsPending_NotAsHandled()
+	{
+		var message = new TestBackgroundMessage();
+		static ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
+			=> new(MessageResult.Success());
+
+		var result = await _middleware.InvokeAsync(message, _context, Next, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		result.Succeeded.ShouldBeTrue("the dispatch itself succeeded; only the handler is outstanding");
+		result.Disposition.ShouldBe(
+			MessageDisposition.AcceptedForBackgroundExecution,
+			"a caller recording completion cannot tell deferred work from handled work, so it marks as "
+				+ "done a message no handler has processed");
+	}
+
+	/// <summary>
+	/// LIVENESS. A message that is NOT deferred still reports Handled.
+	/// </summary>
+	/// <remarks>
+	/// Without this arm a middleware that reported AcceptedForBackgroundExecution for every message would
+	/// satisfy the safety arm above, while telling every caller in the system that nothing was ever
+	/// handled.
+	/// </remarks>
+	[Fact]
+	public async Task StillReportHandled_WhenTheMessageIsNotDeferred()
+	{
+		var message = A.Fake<IDispatchMessage>();
+		static ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
+			=> new(MessageResult.Success());
+
+		var result = await _middleware.InvokeAsync(message, _context, Next, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		result.Disposition.ShouldBe(MessageDisposition.Handled);
+	}
+
+	/// <summary>
+	/// SAFETY. The discarded 202 problem details do not come back as an error on a successful result.
+	/// </summary>
+	/// <remarks>
+	/// IMessageResult.ProblemDetails is documented as non-null only when the operation FAILS, and
+	/// IMessageProblemDetails is RFC 7807 -- details of ERRORS, with Title defaulting to "Error". A 202
+	/// carried there would make a caller testing ProblemDetails for failure read accepted work as failed.
+	/// </remarks>
+	[Fact]
+	public async Task NotCarryProblemDetailsOnAnAcceptedResult()
+	{
+		var message = new TestBackgroundMessage();
+		static ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
+			=> new(MessageResult.Success());
+
+		var result = await _middleware.InvokeAsync(message, _context, Next, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		result.ProblemDetails.ShouldBeNull(
+			"problem details on a succeeded result contradict the documented contract, so a caller that "
+				+ "branches on them would treat accepted work as failed");
 	}
 
 	[Fact]
@@ -132,14 +209,8 @@ public sealed class BackgroundExecutionMiddlewareShould : UnitTestBase
 	}
 
 	// Test message types
-	private sealed class TestBackgroundMessage : IDispatchMessage, IExecuteInBackground
-	{
-		public bool PropagateExceptions => false;
-	}
+	private sealed class TestBackgroundMessage : IDispatchMessage, IExecuteInBackground;
 
-	private sealed class TestBackgroundActionWithResult : IDispatchAction<string>, IExecuteInBackground
-	{
-		public bool PropagateExceptions => false;
-	}
+	private sealed class TestBackgroundActionWithResult : IDispatchAction<string>, IExecuteInBackground;
 }
 

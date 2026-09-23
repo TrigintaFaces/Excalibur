@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Integration.Tests.Data.Migrations;
@@ -176,7 +176,12 @@ public sealed class SqlServerOutboxFenceClaimsUnderSnapshotShould : IClassFixtur
 			+ "the older committed version instead of claiming. That is the snapshot-read window this "
 			+ "fence is supposed to close.");
 
-		rowsAffected.ShouldBe(
+		// UpdatedCount, not the value itself: MarkMessageSentRequest used to return a bare rowcount and now
+		// returns MarkSentMutationResult, because the statement also has to hand back the high-water it
+		// used and whether the row existed — all three decided inside the one mutating transaction. The
+		// assertion is unchanged in meaning; only the member carrying the rowcount moved. Strengthened, not
+		// relaxed, per the F-5 rule: this still asserts ZERO rows, it does not weaken to "not null".
+		rowsAffected.UpdatedCount.ShouldBe(
 			0,
 			"the superseded tenure's guarded write must match no rows once the fresher advance is visible");
 

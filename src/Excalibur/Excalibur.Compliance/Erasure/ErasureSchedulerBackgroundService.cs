@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Collections.Concurrent;
@@ -113,6 +113,7 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 			try
 			{
 				await ProcessScheduledErasuresAsync(stoppingToken).ConfigureAwait(false);
+				await CompletePendingErasuresAsync(stoppingToken).ConfigureAwait(false);
 				await MaybeCleanupCertificatesAsync(stoppingToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -169,6 +170,32 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 		}
 	}
 
+	/// <summary>
+	/// Revisits requests awaiting a provider's key destruction. Isolated from the execution pass so that a
+	/// failure here (for example a verification service that cannot be resolved) never stops scheduled erasures
+	/// from executing, and vice versa.
+	/// </summary>
+	private async Task CompletePendingErasuresAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			await using var scope = _scopeFactory.CreateAsyncScope();
+			var processor = scope.ServiceProvider.GetService<IErasureCompletionProcessor>();
+			if (processor is not null)
+			{
+				_ = await processor.CompletePendingErasuresAsync(cancellationToken).ConfigureAwait(false);
+			}
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			LogErasureSchedulerCompletionPassError(ex);
+		}
+	}
+
 	private async Task ProcessSingleErasureAsync(
 		ErasureStatus request,
 		IErasureStore erasureStore,
@@ -214,6 +241,26 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 		CancellationToken cancellationToken)
 	{
 		var opts = _options.Value;
+
+		// A request that executed and is now waiting on the provider's key destruction is not a failure and must
+		// NOT be put back to Scheduled: that would execute it again, re-attempting to destroy keys that are
+		// already irreversibly scheduled. It is completed by the completion pass instead.
+		//
+		// Nor is a request another instance has claimed (InProgress), completed, or that was cancelled. The
+		// execution result cannot say "someone else owns this" -- it reports "invalid status" or "concurrent
+		// execution" as a failure -- and resetting such a request to Scheduled hands it back for a second
+		// execution, a second certificate, or a cancellation beside keys that are already being destroyed.
+		var current = await erasureStore.GetStatusAsync(request.RequestId, cancellationToken).ConfigureAwait(false);
+		if (current?.Status is ErasureRequestStatus.AwaitingKeyDestruction
+			or ErasureRequestStatus.InProgress
+			or ErasureRequestStatus.Completed
+			or ErasureRequestStatus.Cancelled)
+		{
+			_ = _retryAttempts.TryRemove(request.RequestId, out _);
+			LogErasureSchedulerNotRescheduledAwaitingDestruction(request.RequestId);
+			return;
+		}
+
 		var attemptCount = _retryAttempts.AddOrUpdate(request.RequestId, 1, static (_, current) => current + 1);
 
 		if (attemptCount < opts.MaxRetryAttempts)
@@ -353,6 +400,18 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 			LogLevel.Information,
 			"Erasure request {RequestId} scheduled for retry (attempt {AttemptCount}/{MaxAttempts}, delay: {Delay})")]
 	private partial void LogErasureSchedulerRetrying(Guid requestId, int attemptCount, int maxAttempts, TimeSpan delay);
+
+	[LoggerMessage(
+			ComplianceEventId.ErasureSchedulerCompletionPassError,
+			LogLevel.Error,
+			"Error in erasure scheduler completion pass for requests awaiting key destruction")]
+	private partial void LogErasureSchedulerCompletionPassError(Exception exception);
+
+	[LoggerMessage(
+			ComplianceEventId.ErasureSchedulerNotRescheduledAwaitingDestruction,
+			LogLevel.Information,
+			"Erasure request {RequestId} is awaiting key destruction, owned by another execution, completed or cancelled; it is not rescheduled for execution")]
+	private partial void LogErasureSchedulerNotRescheduledAwaitingDestruction(Guid requestId);
 
 	[LoggerMessage(
 			ComplianceEventId.ErasureSchedulerCertificatesCleaned,

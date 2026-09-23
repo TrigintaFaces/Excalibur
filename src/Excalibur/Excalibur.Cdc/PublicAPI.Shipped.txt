@@ -33,6 +33,10 @@ Excalibur.Cdc.CdcFatalDecision.Stop.init -> void
 Excalibur.Cdc.CdcFatalErrorHandler<TEvent>
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.CdcFatalErrorOptions() -> void
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.MaxConsecutiveTransientFailures.get -> int?
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.MaxConsecutiveTransientFailures.set -> void
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.MaxReconnectDelay.get -> System.TimeSpan
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.MaxReconnectDelay.set -> void
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.OnFatalError.get -> Excalibur.Cdc.CdcFatalErrorHandler<TEvent!>?
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.OnFatalError.set -> void
 Excalibur.Cdc.CdcFatalGuard
@@ -96,6 +100,12 @@ Excalibur.Cdc.CdcPositionResetEventArgs.Strategy.get -> Excalibur.Cdc.StalePosit
 Excalibur.Cdc.CdcPositionResetEventArgs.Strategy.init -> void
 Excalibur.Cdc.CdcPositionResetHandler
 Excalibur.Cdc.CdcReasonCodes
+Excalibur.Cdc.CdcRetryExhaustedException
+Excalibur.Cdc.CdcRetryExhaustedException.CdcRetryExhaustedException() -> void
+Excalibur.Cdc.CdcRetryExhaustedException.CdcRetryExhaustedException(int consecutiveFailures, System.Exception! lastFailure) -> void
+Excalibur.Cdc.CdcRetryExhaustedException.CdcRetryExhaustedException(string! message) -> void
+Excalibur.Cdc.CdcRetryExhaustedException.CdcRetryExhaustedException(string! message, System.Exception? innerException) -> void
+Excalibur.Cdc.CdcRetryExhaustedException.ConsecutiveFailures.get -> int
 Excalibur.Cdc.CdcStalePositionException
 Excalibur.Cdc.CdcStalePositionException.CdcStalePositionException() -> void
 Excalibur.Cdc.CdcStalePositionException.CdcStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
@@ -121,10 +131,12 @@ Excalibur.Cdc.Diagnostics.CdcActivities
 Excalibur.Cdc.Diagnostics.CdcActivitySource
 Excalibur.Cdc.Diagnostics.CdcHealthState
 Excalibur.Cdc.Diagnostics.CdcHealthState.CdcHealthState() -> void
+Excalibur.Cdc.Diagnostics.CdcHealthState.ConsecutiveTransientFailures.get -> int
 Excalibur.Cdc.Diagnostics.CdcHealthState.IsRunning.get -> bool
 Excalibur.Cdc.Diagnostics.CdcHealthState.LastActivityTime.get -> System.DateTimeOffset?
 Excalibur.Cdc.Diagnostics.CdcHealthState.MarkStarted() -> void
 Excalibur.Cdc.Diagnostics.CdcHealthState.MarkStopped() -> void
+Excalibur.Cdc.Diagnostics.CdcHealthState.RecordConsecutiveTransientFailures(int count) -> void
 Excalibur.Cdc.Diagnostics.CdcHealthState.RecordCycle(int processedCount, int failedCount) -> void
 Excalibur.Cdc.Diagnostics.CdcHealthState.TotalCycles.get -> long
 Excalibur.Cdc.Diagnostics.CdcHealthState.TotalFailed.get -> long

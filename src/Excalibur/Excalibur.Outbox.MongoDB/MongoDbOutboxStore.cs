@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Text.Json;
@@ -33,7 +33,7 @@ namespace Excalibur.Outbox.MongoDB;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class coordinates the MongoDB driver, outbox document mapping, and dispatch metadata/context extraction by design (parity with SqlServerOutboxStore).")]
-public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable, ITenantPartitionedStore
+public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable, ITenantPartitionedStore
 {
 	private readonly MongoDbOutboxOptions _options;
 	private readonly ILogger<MongoDbOutboxStore> _logger;
@@ -42,9 +42,6 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbOutboxDocument>? _collection;
-	// Per-scope fencing control document {_id: "<collection>::fence", highWater}. A single atomic
-	// findOneAndUpdate on THIS doc is the fence CAS (guard+advance in one op) — no read-then-write.
-	private IMongoCollection<BsonDocument>? _fenceCollection;
 	// Serialises first-time initialisation. Without it two concurrent first callers race:
 	// one assigns the client and is still assigning the collection when the other observes a
 	// non-null client, skips the whole block, and dereferences a collection that is still null.
@@ -114,7 +111,6 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 		_timeProvider = timeProvider ?? TimeProvider.System;
 		_database = client.GetDatabase(_options.DatabaseName);
 		_collection = _database.GetCollection<MongoDbOutboxDocument>(_options.CollectionName);
-		_fenceCollection = _database.GetCollection<BsonDocument>(_options.CollectionName + "__fence");
 	}
 
 	/// <inheritdoc/>
@@ -170,15 +166,10 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
-		GetUnsentMessagesCoreAsync(batchSize, fencingToken: null, cancellationToken);
+		GetUnsentMessagesCoreAsync(batchSize, cancellationToken);
 
-	/// <inheritdoc />
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, long fencingToken, CancellationToken cancellationToken) =>
-		GetUnsentMessagesCoreAsync(batchSize, fencingToken, cancellationToken);
 
-	private async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesCoreAsync(int batchSize, long? fencingToken, CancellationToken cancellationToken)
+	private async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesCoreAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -186,24 +177,6 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var leaseTimeoutMs = (long)TimeSpan.FromSeconds(_options.LeaseTimeoutSeconds).TotalMilliseconds;
-
-		// Fence FIRST (atomic control-doc CAS): a superseded leader can't even start a claim cycle.
-		// null token ⇒ no fencing (plain claim). The fenced CLAIM is a SET operation, not a fail-closed
-		// mutation: a superseded leader's stale token must yield ZERO claimable rows — it MUST NOT throw
-		// (throwing would crash-loop the superseded leader's drain). The MARK path keeps throwing (a
-		// fail-closed mutation); only the claim degrades to empty. EnforceFenceAsync still advances the
-		// high-water on a valid token, so the monotonic guarantee is intact.
-		if (fencingToken.HasValue)
-		{
-			try
-			{
-				await EnforceFenceAsync(fencingToken.Value, cancellationToken).ConfigureAwait(false);
-			}
-			catch (StaleOutboxFencingTokenException)
-			{
-				return [];
-			}
-		}
 
 		// Atomically claim up to batchSize staged documents via a per-document FindOneAndUpdate loop.
 		// Each FindOneAndUpdate is atomic on the server, so two concurrent pollers can never claim the
@@ -213,8 +186,7 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 			.Ascending(d => d.Priority)
 			.Ascending(d => d.CreatedAt);
 
-		// Per-message lease claim — the hard at-most-once. The fence high-water lives in the
-		// separate control doc (EnforceFenceAsync above), not per-message.
+		// Per-message lease claim — the hard at-most-once.
 		//
 		// The lease instant is stamped by the SERVER ($$NOW), which is why this is an aggregation pipeline
 		// rather than the update builder. A lease is written by one dispatcher and judged by another, so a
@@ -232,17 +204,6 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 			// a field path rather than as the value it plainly is.
 			{ "leasedBy", new BsonDocument("$literal", _options.ProcessorId) },
 		};
-
-		// Stamp the claiming tenure's token onto the document IN THE SAME atomic claim write, when
-		// fencing is active. This is what lets MarkSentCoreAsync's mutation refuse a superseded mark-sent
-		// atomically (see the fencingToken predicate there) rather than trusting a scope-wide check
-		// performed a round trip earlier: a fresher tenure's claim landing here overwrites this field, so
-		// a paused caller's later mark-sent -- presenting the OLD token -- no longer matches the document
-		// it thinks it still holds.
-		if (fencingToken.HasValue)
-		{
-			claimSetFields["fencingToken"] = new BsonDocument("$literal", fencingToken.Value);
-		}
 
 		var claimUpdate = new PipelineUpdateDefinition<MongoDbOutboxDocument>(
 			PipelineDefinition<MongoDbOutboxDocument, MongoDbOutboxDocument>.Create(
@@ -320,13 +281,10 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 
 	/// <inheritdoc/>
 	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken) =>
-		MarkSentCoreAsync(messageId, fencingToken: null, cancellationToken);
+		MarkSentCoreAsync(messageId, cancellationToken);
 
-	/// <inheritdoc />
-	public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) =>
-		MarkSentCoreAsync(messageId, fencingToken, cancellationToken);
 
-	private async ValueTask MarkSentCoreAsync(string messageId, long? fencingToken, CancellationToken cancellationToken)
+	private async ValueTask MarkSentCoreAsync(string messageId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -336,16 +294,6 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 		var filter = Builders<MongoDbOutboxDocument>.Filter;
 		var now = _timeProvider.GetUtcNow();
 
-		// Fence the mark via the same atomic control-doc CAS (fail-closed on a superseded token). This is
-		// the SCOPE-WIDE check: it is what fences a message that was never claimed under a token at all
-		// (staged then marked sent directly), and it is a SEPARATE round trip from the mutation below.
-		// That round-trip gap is exactly what the per-document fencingToken predicate below closes for a
-		// message that WAS claimed: see its remarks.
-		if (fencingToken.HasValue)
-		{
-			await EnforceFenceAsync(fencingToken.Value, cancellationToken).ConfigureAwait(false);
-		}
-
 		// Use FindOneAndUpdate with status filter for atomic transition
 		// This ensures no race condition: only one caller can successfully transition the status
 		// We use Nin(TerminalStatuses) so that a message in EITHER terminal state -- Sent or
@@ -354,23 +302,6 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 		var atomicFilter = filter.And(
 			filter.Eq(d => d.Id, messageId),
 			filter.Nin(d => d.Status, TerminalStatuses));
-
-		if (fencingToken.HasValue)
-		{
-			// Closes the round-trip gap between EnforceFenceAsync (above) and this mutation: the fence
-			// check and the mutation are two separate network calls, and a fresher tenure's claim can land
-			// in the window between them. The claim's own atomic write (GetUnsentMessagesCoreAsync)
-			// stamps ITS token onto the document, so if this document has since been reclaimed under a
-			// higher token, that is visible here -- IN THE SAME atomic write as the mutation -- even
-			// though the scope check above already passed on stale information. A document never claimed
-			// under fencing carries no fencingToken and is judged by the scope check alone (this predicate
-			// is then a no-op), which is what keeps a message marked sent without a prior claim working.
-			atomicFilter = filter.And(
-				atomicFilter,
-				filter.Or(
-					filter.Eq(d => d.FencingToken, null),
-					filter.Lte(d => d.FencingToken, fencingToken.Value)));
-		}
 
 		var update = Builders<MongoDbOutboxDocument>.Update
 			.Set(d => d.Status, (int)OutboxStatus.Sent)
@@ -385,8 +316,7 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 			new FindOneAndUpdateOptions<MongoDbOutboxDocument> { ReturnDocument = ReturnDocument.Before },
 			cancellationToken).ConfigureAwait(false);
 
-		// If result is null, the message doesn't exist, was already sent, or -- fenced calls only -- was
-		// reclaimed by a fresher tenure since this caller's own claim (the per-document check above).
+		// If result is null, the message doesn't exist or is already in a terminal state.
 		if (result == null)
 		{
 			var current = await _collection!
@@ -395,42 +325,13 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 				.ConfigureAwait(false)
 				?? throw new InvalidOperationException($"Message with ID '{messageId}' not found.");
 
-			// The fence is judged BEFORE the already-sent status, and the order is load-bearing rather than
-			// stylistic. A superseded tenure racing the winner arrives here with BOTH facts true: the
-			// message is sent, and the token it presents is below the one the winner recorded. Only one of
-			// those is the reason it must stop. Reporting "already sent" describes a delivery outcome, so
-			// the caller treats it as a delivery fault and marks the message failed -- the winner's
-			// mark-sent cleared the lease fields, so the ownership guard admits the loser -- or
-			// dead-letters it. A message that WAS delivered is then recorded as failed by the loser of a
-			// leadership race. Reporting the stale token names the actual condition, and the caller stands
-			// down instead.
-			//
-			// With the scope-wide control doc intact this branch is unreachable: that CAS refuses a stale
-			// token a round trip earlier. It becomes reachable exactly when the high-water has been lost
-			// while the messages kept their tokens -- the two live in separate collections, so any restore
-			// or migration that carries one without the other produces it. That is the state in which this
-			// per-document predicate is the only remaining guard, which is why its order decides the answer.
-			if (fencingToken.HasValue && current.FencingToken is { } documentToken && documentToken > fencingToken.Value)
-			{
-				throw new StaleOutboxFencingTokenException(
-					$"The presented outbox fencing token ({fencingToken.Value}) is below the token ({documentToken}) " +
-					$"a fresher tenure's claim recorded on message '{messageId}' (superseded leader).")
-				{
-					PresentedToken = fencingToken.Value,
-					HighWaterToken = documentToken,
-				};
-			}
-
 			if (current.Status == (int)OutboxStatus.Sent)
 			{
 				throw new InvalidOperationException($"Message with ID '{messageId}' is already marked as sent.");
 			}
 
-			// The message exists, is not sent, and (for a fenced call) carries no fencingToken higher than
-			// the one presented -- so neither predicate above explains the miss. This is the same
-			// concurrent-status-change case the pre-fix code reported as "already marked as sent" without
-			// re-checking; kept as a distinct message so a future reader does not conflate it with the
-			// fencing refusal just above.
+			// The message exists and is not sent, so the status predicate alone explains the miss: its status
+			// changed concurrently. Kept distinct from "already marked as sent" so the two are not conflated.
 			throw new InvalidOperationException($"Message with ID '{messageId}' could not be marked sent (status changed concurrently).");
 		}
 
@@ -808,134 +709,6 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 	}
 
 	/// <summary>
-	/// Atomically enforces the per-scope fencing high-water mark via a SINGLE control-doc
-	/// <c>findOneAndUpdate</c> — guard and advance in one server-side op (no read-then-write window).
-	/// The filter matches iff the stored high-water is not greater than the presented token; when a
-	/// successor has advanced it beyond the token the filter misses and the upsert duplicate-keys, both
-	/// of which are the fail-closed rejection signal. A single-document update is atomic on standalone
-	/// MongoDB (no transaction/replica-set required).
-	/// </summary>
-	/// <exception cref="StaleOutboxFencingTokenException">The presented token is below the recorded high-water (superseded leader).</exception>
-	/// <inheritdoc/>
-	public async Task<long?> GetFencingHighWaterAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-		var fenceId = _options.CollectionName + "::fence";
-		var doc = await _fenceCollection!
-			.Find(new BsonDocument("_id", fenceId))
-			.FirstOrDefaultAsync(cancellationToken)
-			.ConfigureAwait(false);
-
-		return doc is not null && doc.TryGetValue("highWater", out var hw) && !hw.IsBsonNull
-			? hw.ToInt64()
-			: null;
-	}
-
-	/// <inheritdoc/>
-	public async Task ResetFencingHighWaterAsync(long newHighWater, bool force, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-		if (force)
-		{
-			var fenceId = _options.CollectionName + "::fence";
-			_ = await _fenceCollection!
-				.UpdateOneAsync(
-					new BsonDocument("_id", fenceId),
-					Builders<BsonDocument>.Update.Set("highWater", newHighWater),
-					new UpdateOptions { IsUpsert = true },
-					cancellationToken)
-				.ConfigureAwait(false);
-			return;
-		}
-
-		// Same filter shape EnforceFenceAsync guards its own advance with: matches (and the update applies)
-		// only when the stored value is not already above newHighWater, or the document is absent (a
-		// never-fenced store, seeded by the upsert). A currently-higher value fails the filter, so the
-		// upsert's insert branch collides on _id and the duplicate-key error IS the refusal.
-		var refusingFilter = new BsonDocument
-		{
-			["_id"] = _options.CollectionName + "::fence",
-			["highWater"] = new BsonDocument("$not", new BsonDocument("$gt", newHighWater)),
-		};
-
-		try
-		{
-			_ = await _fenceCollection!
-				.UpdateOneAsync(
-					refusingFilter,
-					Builders<BsonDocument>.Update.Set("highWater", newHighWater),
-					new UpdateOptions { IsUpsert = true },
-					cancellationToken)
-				.ConfigureAwait(false);
-		}
-		catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
-		{
-			var current = await GetFencingHighWaterAsync(cancellationToken).ConfigureAwait(false);
-			throw new InvalidOperationException(
-				$"Refusing to lower the fencing high-water mark from {current} to {newHighWater} without " +
-				"force: true. Lowering it re-admits a leader whose token is now below the (lowered) " +
-				"high-water, which is the split-brain the fence exists to prevent.");
-		}
-	}
-
-	private async Task EnforceFenceAsync(long presentedToken, CancellationToken cancellationToken)
-	{
-		var fenceId = _options.CollectionName + "::fence";
-
-		// filter: _id == scope AND highWater NOT > token  (matches when highWater <= token, or absent).
-		var filter = new BsonDocument
-		{
-			["_id"] = fenceId,
-			["highWater"] = new BsonDocument("$not", new BsonDocument("$gt", presentedToken)),
-		};
-
-		// update pipeline: advance highWater = max(existing ?? token, token) — monotonic, never decreasing.
-		var setStage = new BsonDocument("$set", new BsonDocument("highWater",
-			new BsonDocument("$max", new BsonArray
-			{
-				new BsonDocument("$ifNull", new BsonArray { "$highWater", presentedToken }),
-				presentedToken,
-			})));
-
-		PipelineDefinition<BsonDocument, BsonDocument> pipeline = new[] { setStage };
-
-		try
-		{
-			_ = await _fenceCollection!
-				.FindOneAndUpdateAsync(
-					filter,
-					Builders<BsonDocument>.Update.Pipeline(pipeline),
-					new FindOneAndUpdateOptions<BsonDocument> { IsUpsert = true, ReturnDocument = ReturnDocument.After },
-					cancellationToken)
-				.ConfigureAwait(false);
-		}
-		catch (MongoCommandException ex) when (ex.Code == 11000)
-		{
-			// Upsert duplicate key: the fence doc exists with highWater > token → the filter missed →
-			// this leader was superseded. Fail closed (never proceed with a stale token).
-			// Read the recorded high-water to report it on the exception (the fencing contract's diagnostic).
-			var fenceDoc = await _fenceCollection!
-				.Find(new BsonDocument("_id", fenceId))
-				.FirstOrDefaultAsync(cancellationToken)
-				.ConfigureAwait(false);
-			long? highWater = fenceDoc is not null && fenceDoc.TryGetValue("highWater", out var hw) && !hw.IsBsonNull
-				? hw.ToInt64()
-				: null;
-
-			throw new StaleOutboxFencingTokenException(
-				$"The presented outbox fencing token ({presentedToken}) is below the recorded high-water mark ({highWater}) for scope '{fenceId}' (superseded leader).")
-			{
-				PresentedToken = presentedToken,
-				HighWaterToken = highWater,
-			};
-		}
-	}
-
-	/// <summary>
 	/// Reads an instant field in whichever of the two durable shapes it is stored in, for use inside an
 	/// aggregation expression.
 	/// </summary>
@@ -1037,7 +810,6 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IFencedOutb
 				_client = new MongoClient(settings);
 				_database = _client.GetDatabase(_options.DatabaseName);
 				_collection = _database.GetCollection<MongoDbOutboxDocument>(_options.CollectionName);
-				_fenceCollection = _database.GetCollection<BsonDocument>(_options.CollectionName + "__fence");
 			}
 
 			// Create indexes

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 
@@ -44,6 +44,10 @@ namespace Excalibur.Outbox.MongoDB;
 /// materialises into this class correctly. What the attribute governs is how an instant is WRITTEN.
 /// </para>
 /// </remarks>
+// Tolerant reader: a document written by an earlier version can carry a field this model no longer maps
+// (a per-document fencing token, for one). Ignoring unknown fields keeps those documents readable instead of
+// failing every read that touches them.
+[BsonIgnoreExtraElements]
 internal sealed class MongoDbOutboxDocument
 {
 	/// <summary>
@@ -195,19 +199,6 @@ internal sealed class MongoDbOutboxDocument
 	/// </summary>
 	[BsonElement("leasedBy")]
 	public string? LeasedBy { get; set; }
-
-	/// <summary>
-	/// Gets or sets the fencing token of the tenure that most recently claimed this document, stamped by
-	/// the SAME atomic write that performs the claim. A fenced mark-sent requires this field to be null or
-	/// no greater than the token it presents, evaluated in the same atomic write as the mark-sent mutation
-	/// itself -- so a claim by a fresher tenure landing after this document's original claimant validated
-	/// its own token, but before that claimant's mark-sent lands, is visible to the mutation and refuses
-	/// it. Null means the document has never been claimed under a fencing token (including every document
-	/// on an unfenced deployment); a mark-sent on such a document is judged by the store's scope-wide
-	/// fencing check alone.
-	/// </summary>
-	[BsonElement("fencingToken")]
-	public long? FencingToken { get; set; }
 
 	/// <summary>
 	/// Creates a document from an <see cref="OutboundMessage"/>.

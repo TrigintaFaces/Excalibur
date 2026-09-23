@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Transport;
 
@@ -72,6 +72,42 @@ public sealed class CloudEventBinding
 	public static CloudEventBinding Kafka { get; } = new("Kafka", CloudEventAttributeMatch.Prefixed, "ce_");
 
 	/// <summary>
+	/// Gets the IBM MQ spelling, which assigns <c>ce_</c> because an IBM MQ property name cannot carry a
+	/// hyphen.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Like <see cref="HouseConvention"/> this is a house spelling and not a protocol binding</b> — the
+	/// specification assigns IBM MQ none, and calling a private convention a binding is the claim this type
+	/// exists to keep honest. It is separate from <see cref="HouseConvention"/> for a platform reason rather
+	/// than a stylistic one: IBM MQ validates a property name as a Java identifier, so the hyphenated
+	/// spelling is not merely unconventional there but <b>unsettable</b> — the queue manager refuses it with
+	/// <c>MQRC_PROPERTY_NAME_ERROR</c> (2442).
+	/// </para>
+	/// <para>
+	/// <b>The refusal is silent by design, which is what made this expensive.</b> Both the sender's
+	/// property loop and a real queue catch that rejection, log it, and carry on — so a hyphenated
+	/// attribute is simply absent from the message rather than failing the send. A binary-mode CloudEvent
+	/// published over a <see cref="HouseConvention"/>-bound IBM MQ transport therefore arrived at a
+	/// consumer of this framework as ordinary traffic, indistinguishable from a message that never carried
+	/// CloudEvents markers.
+	/// </para>
+	/// <para>
+	/// <b>Changing the spelling here breaks nothing, because the old one was never on the wire.</b> The
+	/// platform refused it in both directions: we could not write <c>ce-</c> and no third-party publisher
+	/// could set it either. There is no deployed message carrying the hyphenated names to stay compatible
+	/// with — which is the difference between this and <see cref="Amqp10"/>, where the superseded
+	/// <c>ce-</c> spelling really was emitted and must keep being read.
+	/// </para>
+	/// <para>
+	/// It shares <see cref="Kafka"/>'s underscore for the same class of reason and is declared separately
+	/// anyway: two transports whose prefixes agree by coincidence of platform rules are one edit away from
+	/// disagreeing, and a shared constant would make that edit silent.
+	/// </para>
+	/// </remarks>
+	public static CloudEventBinding IbmMq { get; } = new("IBM MQ (ce_)", CloudEventAttributeMatch.Prefixed, "ce_");
+
+	/// <summary>
 	/// Gets the MQTT binding, which assigns bare attribute names carried as user properties.
 	/// </summary>
 	/// <remarks>
@@ -88,9 +124,17 @@ public sealed class CloudEventBinding
 	/// <remarks>
 	/// <para>
 	/// <b>A documented house convention, not a protocol binding, and it must not be described as one.</b>
-	/// It applies where the specification is silent — AMQP 0-9-1, SQS/SNS, Pub/Sub and IBM MQ — and the
-	/// spelling is borrowed from the HTTP binding because that is what this framework has always written
-	/// there.
+	/// It applies where the specification is silent — AMQP 0-9-1, SQS/SNS and Pub/Sub — and the spelling is
+	/// borrowed from the HTTP binding because that is what this framework has always written there.
+	/// </para>
+	/// <para>
+	/// <b>IBM MQ was in that list and is not any more: it cannot carry this spelling at all.</b> The two
+	/// questions below both assume the wire can hold the name being argued about, and on IBM MQ it cannot —
+	/// a property name is validated as a Java identifier, so the hyphen is refused outright. That is a third
+	/// question, prior to both, and answering only the first two put the transport here for a year: not
+	/// <i>do we write it</i> or <i>can we be sent it</i>, but <b>can this platform express it</b>. Where the
+	/// answer is no, the assignment is unreachable rather than merely unconventional — see
+	/// <see cref="IbmMq"/>.
 	/// </para>
 	/// <para>
 	/// <b>A binding answers two independent questions, and deriving both from one fact is what put

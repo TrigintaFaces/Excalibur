@@ -195,31 +195,34 @@ builder.Services.AddOpenTelemetry()
 
 ### Global Exception Handler
 
+Use the framework's handler rather than writing your own. It is an ASP.NET Core `IExceptionHandler`, so
+it plugs into the standard exception-handling middleware:
+
 ```csharp
-app.UseExceptionHandler(error =>
-{
-    error.Run(async context =>
-    {
-        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+// Package: Excalibur.Hosting.Web
+builder.Services.AddGlobalExceptionHandler();
 
-        logger.LogError(exception, "Unhandled exception");
+var app = builder.Build();
 
-        context.Response.StatusCode = exception switch
-        {
-            ConcurrencyException => StatusCodes.Status409Conflict,
-            ValidationException => StatusCodes.Status400BadRequest,
-            NotFoundException => StatusCodes.Status404NotFound,
-            _ => StatusCodes.Status500InternalServerError
-        };
-
-        await context.Response.WriteAsJsonAsync(new
-        {
-            error = exception?.Message ?? "An error occurred"
-        });
-    });
-});
+app.UseExceptionHandler();
 ```
+
+It returns RFC 9457 Problem Details with a trace ID and an exception ID, and it takes the status code
+from the exception itself — so `ConcurrencyException` (409), `ResourceNotFoundException` (404) and the
+framework's validation exceptions (400, with their errors under `errors`) need no mapping from you.
+**Outside Development it replaces the details of any 5xx response with a generic message**, so an
+internal exception message is never sent to a caller.
+
+For your own exception types, derive from `ApiException` and pass the status code to its constructor, or
+set `exception.Data["StatusCode"]`. The handler does not look for a property named `StatusCode` on other
+exception types. For the full set of options, see
+[Global Exception Handling](./global-exception-handling.md#custom-exception-status-codes).
+
+:::caution Do not write the exception message to the response yourself
+A hand-written handler that returns `exception.Message` sends internal detail — connection strings,
+SQL, file paths, type names — to every caller in every environment. That is the main thing the
+framework handler exists to prevent.
+:::
 
 ## Background Processing
 
@@ -424,7 +427,7 @@ curl -H "Accept: application/x-msgpack" https://api.example.com/orders/123
 
 :::note
 
-Content negotiation requires the Dispatch serialization infrastructure to be configured first via `AddDispatchSerialization()`. The formatters are registered at position 0 in the MVC formatter list, so they take priority over default formatters for matching content types.
+Content negotiation requires the Dispatch serialization infrastructure, registered with `AddPluggableSerialization()`. Registration **order does not matter** — the formatters are constructed when `MvcOptions` is first materialised, after every serializer registration has run, so a serializer added after `AddDispatchContentNegotiation()` is still picked up. The formatters are inserted at position 0 in the MVC formatter list, so they take priority over the default formatters for matching content types.
 :::
 
 ## See Also

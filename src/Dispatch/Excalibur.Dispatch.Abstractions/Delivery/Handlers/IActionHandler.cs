@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch.Delivery;
@@ -69,7 +69,7 @@ public interface IActionHandler<in TAction>
 /// </list>
 /// <para>
 /// For advanced scenarios requiring direct control over <see cref="IMessageResult{TResult}"/>
-/// (e.g., cache hits with <c>CacheHit = true</c>, custom result metadata), use
+/// (e.g., a result served from cache, custom result metadata), use
 /// <see cref="IDispatchHandler{TMessage}"/> instead.
 /// </para>
 /// </remarks>

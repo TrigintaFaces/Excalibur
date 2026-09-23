@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -12,6 +12,8 @@ using Google.Api.Gax;
 using Google.Api.Gax.Grpc;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
+
+using Grpc.Core;
 
 using Microsoft.Extensions.Logging;
 
@@ -109,7 +111,7 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 		catch (Exception ex)
 		{
 			LogSendFailed(message.Id, Destination, ex);
-			return SendResult.Failure(SendError.FromException(ex));
+			return SendResult.Failure(SendError.FromException(ex, IsRetryable(ex, cancellationToken)));
 		}
 	}
 
@@ -164,10 +166,11 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 		{
 			LogBatchSendFailed(Destination, messages.Count, ex);
 
+			var error = SendError.FromException(ex, IsRetryable(ex, cancellationToken));
 			var failedResults = new List<SendResult>(messages.Count);
 			for (var i = 0; i < messages.Count; i++)
 			{
-				failedResults.Add(SendResult.Failure(SendError.FromException(ex)));
+				failedResults.Add(SendResult.Failure(error));
 			}
 
 			return new BatchSendResult
@@ -270,6 +273,58 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 
 		return pubsubMessage;
 	}
+
+	/// <summary>
+	/// Classifies a publish failure as retryable or permanent, so a caller reading
+	/// <see cref="SendError.IsRetryable"/> stops retrying only errors that retrying cannot fix.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Classification follows the Pub/Sub error-code reference. Retrying is documented as useful for
+	/// <c>UNAVAILABLE</c> (transient, retry with exponential backoff), <c>DEADLINE_EXCEEDED</c>,
+	/// <c>INTERNAL</c>, <c>RESOURCE_EXHAUSTED</c> (transient traffic spike) and <c>CANCELLED</c>.
+	/// <c>INVALID_ARGUMENT</c>, <c>PERMISSION_DENIED</c>, <c>UNAUTHENTICATED</c>, <c>ALREADY_EXISTS</c>
+	/// and <c>FAILED_PRECONDITION</c> fail again unchanged and are permanent. <c>NOT_FOUND</c> is
+	/// treated as permanent: the reference makes it retryable only for a topic created moments before,
+	/// which is not distinguishable here and is not the common case for a configured topic.
+	/// </para>
+	/// <para>
+	/// Retryable does not mean the publish did not happen. <c>CANCELLED</c> and
+	/// <c>DEADLINE_EXCEEDED</c> are ambiguous outcomes -- the server may already have accepted the
+	/// message -- so a retry can duplicate it. That is consistent with the at-least-once delivery this
+	/// transport provides; consumers must be idempotent.
+	/// </para>
+	/// </remarks>
+	private static bool IsRetryable(Exception exception, CancellationToken cancellationToken)
+	{
+		// A cancellation the caller asked for is not a broker failure. Whether to try again is the
+		// caller's decision, already made, and reporting it as retryable would invite a retry loop
+		// against a token that is still cancelled.
+		if (cancellationToken.IsCancellationRequested)
+		{
+			return false;
+		}
+
+		for (var current = exception; current is not null; current = current.InnerException)
+		{
+			if (current is RpcException rpc)
+			{
+				return IsRetryableStatus(rpc.StatusCode);
+			}
+		}
+
+		return false;
+	}
+
+	private static bool IsRetryableStatus(StatusCode statusCode) => statusCode switch
+	{
+		StatusCode.Unavailable
+			or StatusCode.DeadlineExceeded
+			or StatusCode.Internal
+			or StatusCode.ResourceExhausted
+			or StatusCode.Cancelled => true,
+		_ => false,
+	};
 
 	private CallSettings CreateCallSettings(CancellationToken cancellationToken)
 	{

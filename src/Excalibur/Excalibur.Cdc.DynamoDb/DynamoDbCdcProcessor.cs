@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Numerics;
 using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
 
@@ -60,12 +61,25 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 	private DateTimeOffset _lastShardDiscovery = DateTimeOffset.MinValue;
 	private volatile bool _disposed;
 
+	// The ONLY initialization guard. It is written last, after every piece of required state has been
+	// obtained, so a failure anywhere in InitializeAsync leaves this false and the next call retries.
+	// _streamArn must never be used for this: it was assigned BEFORE the checkpoint read and the initial
+	// shard discovery, so a single throw from either published a half-built processor that could never be
+	// repaired -- polls found an empty iterator map, returned 0, and reported healthy idleness forever.
+	private volatile bool _initialized;
+
 	// optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
 	// an infinite silent reconnect loop. _onFatalError receives the in-flight event for a
 	// per-event fatal, or null for a connection/poll-level fatal.
 	private readonly CdcFatalErrorHandler<DynamoDbDataChangeEvent>? _onFatalError;
 	private readonly IMessageFailureClassifier? _failureClassifier;
 	private DynamoDbDataChangeEvent? _inFlightEvent;
+	private readonly CdcFatalErrorOptions<DynamoDbDataChangeEvent> _fatalErrorOptions;
+	private readonly TimeProvider _timeProvider;
+	private readonly CdcHealthState? _healthState;
+
+	// The reconnect bound for the current StartAsync call; touched only by that call's consume loop.
+	private CdcTransientFailureBackoff? _backoff;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DynamoDbCdcProcessor"/> class.
@@ -83,6 +97,13 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 	/// Optional shared classifier deciding whether a processing error is fatal (non-retryable) or
 	/// transient. When omitted, a conservative built-in fallback is used.
 	/// </param>
+	/// <param name="timeProvider">
+	/// The clock the reconnect backoff waits on and measures stable connections with; defaults to the
+	/// system clock.
+	/// </param>
+	/// <param name="healthState">
+	/// Where consecutive reconnect failures are reported for the CDC health check, when one is registered.
+	/// </param>
 	public DynamoDbCdcProcessor(
 		IAmazonDynamoDB dynamoClient,
 		IAmazonDynamoDBStreams streamsClient,
@@ -90,7 +111,9 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		IOptions<DynamoDbCdcOptions> options,
 		ILogger<DynamoDbCdcProcessor> logger,
 		IOptions<CdcFatalErrorOptions<DynamoDbDataChangeEvent>>? fatalErrorOptions = null,
-		IMessageFailureClassifier? failureClassifier = null)
+		IMessageFailureClassifier? failureClassifier = null,
+		TimeProvider? timeProvider = null,
+		CdcHealthState? healthState = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
@@ -99,8 +122,11 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		_stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
 		_options = options.Value;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
+		_fatalErrorOptions = fatalErrorOptions?.Value ?? new CdcFatalErrorOptions<DynamoDbDataChangeEvent>();
+		_onFatalError = _fatalErrorOptions.OnFatalError;
 		_failureClassifier = failureClassifier;
+		_timeProvider = timeProvider ?? TimeProvider.System;
+		_healthState = healthState;
 
 		_options.Validate();
 	}
@@ -115,10 +141,19 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		await InitializeAsync(cancellationToken).ConfigureAwait(false);
 		LogStartingCdcProcessor(_options.ProcessorName, _streamArn!);
 
+		_backoff = new CdcTransientFailureBackoff(
+			_options.PollInterval,
+			_fatalErrorOptions.MaxReconnectDelay,
+			_fatalErrorOptions.MaxConsecutiveTransientFailures,
+			_timeProvider,
+			_healthState);
+
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
+				_backoff.BeginAttempt();
+
 				// Discover new shards periodically
 				if (_options.AutoDiscoverShards &&
 					DateTimeOffset.UtcNow - _lastShardDiscovery > _options.ShardDiscoveryInterval)
@@ -128,6 +163,9 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 				var processed = await ProcessBatchInternalAsync(eventHandler, autoConfirm: true, cancellationToken)
 					.ConfigureAwait(false);
+
+				// A poll that completed, with or without records, reached the stream: that ends any run of failures.
+				_backoff.RecordProgress();
 
 				if (processed == 0)
 				{
@@ -149,23 +187,24 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 				// iterator to AFTER the last handled record and durably confirms only that handled prefix
 				// (never the failed record) before re-surfacing. So the checkpoint is never advanced past the
 				// failing change (at-least-once preserved — it is re-delivered on restart).
-				LogFatalError(ex);
-
-				if (_onFatalError is not null)
-				{
-					// In-flight event for a per-event fatal; null for a connection/poll-level fatal.
-					await _onFatalError(ex, _inFlightEvent).ConfigureAwait(false);
-					break; // handler took over → terminal; do not reconnect.
-				}
-
-				throw; // default: fail-loud — propagate and stop.
+				await StopTerminallyAsync(ex).ConfigureAwait(false);
+				break; // the fatal handler took over → terminal; do not reconnect.
 			}
 			catch (Exception ex)
 			{
+				// Transient. Counted BEFORE the in-flight event is cleared, so a limit reached on a poisoned
+				// record still hands that record to the fatal handler.
+				var outcome = _backoff.RecordTransientFailure();
+				if (outcome.Exhausted)
+				{
+					await StopTerminallyAsync(new CdcRetryExhaustedException(outcome.ConsecutiveFailures, ex))
+						.ConfigureAwait(false);
+					break;
+				}
+
 				LogProcessingError(_options.ProcessorName, ex);
 				_inFlightEvent = null;
-				// Wait before retrying
-				await Task.Delay(_options.PollInterval, cancellationToken).ConfigureAwait(false);
+				await Task.Delay(outcome.Delay, _timeProvider, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -249,30 +288,51 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		};
 	}
 
+	/// <summary>
+	/// Brings the processor to a usable state, at most once, and atomically from every caller's point of view.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Initialization is all-or-nothing. The stream ARN, the saved checkpoint and the initial shard
+	/// discovery are each required before this processor can deliver a single record, so readiness is not
+	/// published until all of them have succeeded. A caller that observes the ready flag is therefore
+	/// guaranteed a fully-built processor, and a caller that does not will re-run the whole sequence.
+	/// </para>
+	/// <para>
+	/// The failure this shape exists to prevent is silent: a half-initialized processor has no shard
+	/// iterators, so every later poll iterates an empty map and returns zero. That is indistinguishable
+	/// from an idle stream -- no exception, no log, no gap counter -- while the checkpoint that was never
+	/// read is also never retried.
+	/// </para>
+	/// </remarks>
 	private async Task InitializeAsync(CancellationToken cancellationToken)
 	{
-		if (_streamArn is not null)
+		if (_initialized)
 		{
 			return;
 		}
 
+		// Every concurrent caller awaits the SAME outcome here: the lock is held for the whole sequence,
+		// so a second caller either waits and then observes a complete processor, or -- if the first
+		// attempt threw -- takes its own turn at building one.
 		await _processingLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			if (_streamArn is not null)
+			if (_initialized)
 			{
 				return;
 			}
 
-			// Get or discover stream ARN
-			_streamArn = _options.StreamArn;
-			if (string.IsNullOrWhiteSpace(_streamArn))
+			// Get or discover stream ARN. Held in a local: nothing is published to the instance until the
+			// whole sequence below has succeeded.
+			var streamArn = _options.StreamArn;
+			if (string.IsNullOrWhiteSpace(streamArn))
 			{
 				var tableResponse = await _dynamoClient.DescribeTableAsync(_options.TableName, cancellationToken)
 					.ConfigureAwait(false);
 
-				_streamArn = tableResponse.Table.LatestStreamArn;
-				if (string.IsNullOrEmpty(_streamArn))
+				streamArn = tableResponse.Table.LatestStreamArn;
+				if (string.IsNullOrEmpty(streamArn))
 				{
 					throw new InvalidOperationException($"Table '{_options.TableName}' does not have streams enabled.");
 				}
@@ -282,7 +342,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 			var savedPosition = await _stateStore.GetPositionAsync(_options.ProcessorName, cancellationToken)
 				.ConfigureAwait(false);
 
-			_currentPosition = _options.StartPosition ?? savedPosition ?? DynamoDbCdcPosition.Beginning(_streamArn);
+			var currentPosition = _options.StartPosition ?? savedPosition ?? DynamoDbCdcPosition.Beginning(streamArn);
 
 			// Start-from-now is honoured ONLY here, on a genuinely fresh start, and never again. The two
 			// questions "where does a new deployment begin?" and "where does a resumed consumer pick up an
@@ -296,13 +356,35 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 				&& savedPosition is null;
 
 			// Initialize shard positions from saved position
-			foreach (var kvp in _currentPosition.ShardPositions)
+			foreach (var kvp in currentPosition.ShardPositions)
 			{
 				_shardPositions[kvp.Key] = kvp.Value;
 			}
 
+			// DiscoverShardsAsync and the iterators it opens both read these, so they are assigned here --
+			// but readiness still is not, so a discovery failure below is fully rolled back.
+			_streamArn = streamArn;
+			_currentPosition = currentPosition;
+
 			// Discover initial shards
 			await DiscoverShardsAsync(cancellationToken).ConfigureAwait(false);
+
+			// Everything required succeeded. Publish readiness LAST -- this is the write that makes the
+			// processor usable, and the only one any caller tests.
+			_initialized = true;
+		}
+		catch
+		{
+			// Roll back to the pre-initialization state so the NEXT call is a clean retry rather than a
+			// poll over a half-built processor. Safe to mutate here: readiness never went true, so no
+			// caller has been handed this instance, and any concurrent caller is still blocked on the lock.
+			_streamArn = null;
+			_currentPosition = null;
+			_startFromLatest = false;
+			_lastShardDiscovery = DateTimeOffset.MinValue;
+			_shardIterators.Clear();
+			_shardPositions.Clear();
+			throw;
 		}
 		finally
 		{
@@ -310,38 +392,111 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		}
 	}
 
+	/// <summary>
+	/// Opens an iterator for every shard this consumer still needs, across ALL pages of the stream
+	/// description.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <c>DescribeStream</c> returns a bounded number of shards per response and signals that more remain
+	/// with <c>LastEvaluatedShardId</c>, which the next request echoes as <c>ExclusiveStartShardId</c>.
+	/// Reading only the first page silently caps the processor at that first page: every later shard is
+	/// never opened and its records are never delivered, while the processor goes on reporting healthy
+	/// progress over the shards it did open.
+	/// </para>
+	/// <para>
+	/// The discovery timestamp advances only after the LAST page succeeds, so a failure part-way through
+	/// leaves discovery due again rather than suppressing it for a whole interval.
+	/// </para>
+	/// </remarks>
 	private async Task DiscoverShardsAsync(CancellationToken cancellationToken)
 	{
-		var describeRequest = new DescribeStreamRequest { StreamArn = _streamArn };
-		var response = await _streamsClient.DescribeStreamAsync(describeRequest, cancellationToken)
-			.ConfigureAwait(false);
-
-		var shards = response.StreamDescription.Shards;
 		var newShardCount = 0;
+		var totalShardCount = 0;
+		string? exclusiveStartShardId = null;
 
-		foreach (var shard in shards)
+		do
 		{
-			// Skip shards that have ended (fully processed parent shards)
-			if (shard.SequenceNumberRange?.EndingSequenceNumber is not null &&
-				_shardPositions.ContainsKey(shard.ShardId))
+			var describeRequest = new DescribeStreamRequest
 			{
-				continue;
+				StreamArn = _streamArn,
+				ExclusiveStartShardId = exclusiveStartShardId,
+			};
+
+			var response = await _streamsClient.DescribeStreamAsync(describeRequest, cancellationToken)
+				.ConfigureAwait(false);
+
+			var shards = response.StreamDescription.Shards;
+			totalShardCount += shards.Count;
+
+			foreach (var shard in shards)
+			{
+			// Skip a closed shard ONLY when this consumer has actually read to its end.
+			//
+			// An ending sequence number means the shard is closed to NEW records. It says nothing about
+			// what this consumer has read from it. Treating the mere PRESENCE of a saved position as
+			// proof of completion skipped any shard we had started and not finished -- a parent closed
+			// at 200 with our checkpoint at 100 was never reopened, so records 101-200 were retained by
+			// the stream, never delivered, and the children continued past them.
+			//
+			// The same state arises after an expired iterator is discarded and rediscovery runs, which
+			// is why this cannot be treated as a restart-only edge case.
+				if (shard.SequenceNumberRange?.EndingSequenceNumber is { } endingSequenceNumber &&
+					_shardPositions.TryGetValue(shard.ShardId, out var savedSequenceNumber) &&
+					HasConsumedThroughEnd(savedSequenceNumber, endingSequenceNumber))
+				{
+					continue;
+				}
+
+				if (!_shardIterators.ContainsKey(shard.ShardId))
+				{
+					await InitializeShardIteratorAsync(shard, cancellationToken).ConfigureAwait(false);
+					newShardCount++;
+				}
 			}
 
-			if (!_shardIterators.ContainsKey(shard.ShardId))
-			{
-				await InitializeShardIteratorAsync(shard, cancellationToken).ConfigureAwait(false);
-				newShardCount++;
-			}
+			var nextShardId = response.StreamDescription.LastEvaluatedShardId;
+
+			// A continuation token that does not advance would loop forever while holding the
+			// initialization lock -- a hang rather than an error, and an undiagnosable one. Treat a
+			// repeated token as the end of the description.
+			exclusiveStartShardId = string.Equals(nextShardId, exclusiveStartShardId, StringComparison.Ordinal)
+				? null
+				: nextShardId;
 		}
+		while (!string.IsNullOrEmpty(exclusiveStartShardId));
 
 		if (newShardCount > 0)
 		{
-			LogShardsDiscovered(newShardCount, shards.Count);
+			LogShardsDiscovered(newShardCount, totalShardCount);
 		}
 
 		_lastShardDiscovery = DateTimeOffset.UtcNow;
 	}
+
+	/// <summary>
+	/// Reports whether a saved position has reached the end of a closed shard.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Stream sequence numbers are decimal strings far wider than 64 bits, so they are compared as
+	/// numbers rather than as text: "99" orders AFTER "100" lexicographically and BEFORE it numerically,
+	/// and the shorter-string case is the one that appears when a shard rolls over a digit boundary.
+	/// </para>
+	/// <para>
+	/// <b>Anything unparseable answers "not consumed".</b> That reopens the shard, which redelivers
+	/// records the consumer may already have seen -- and this stream is at-least-once, so handlers are
+	/// required to tolerate that. The opposite default would silently drop records instead, which is the
+	/// failure this guard exists to prevent.
+	/// </para>
+	/// </remarks>
+	/// <param name="savedSequenceNumber">The last sequence number this consumer processed.</param>
+	/// <param name="endingSequenceNumber">The shard's ending sequence number.</param>
+	/// <returns><see langword="true"/> only when the saved position is at or beyond the end.</returns>
+	private static bool HasConsumedThroughEnd(string savedSequenceNumber, string endingSequenceNumber) =>
+		BigInteger.TryParse(savedSequenceNumber, out var saved)
+		&& BigInteger.TryParse(endingSequenceNumber, out var ending)
+		&& saved >= ending;
 
 	private async Task InitializeShardIteratorAsync(Shard shard, CancellationToken cancellationToken)
 	{
@@ -654,4 +809,29 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 	[LoggerMessage(DataDynamoDbEventId.CdcFatalError, LogLevel.Critical,
 		"Fatal (non-retryable) error in DynamoDB CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]
 	private partial void LogFatalError(Exception ex);
+
+	/// <summary>
+	/// Stops the consume loop for good: hands the failure to the fatal-error handler when one is configured,
+	/// or throws it.
+	/// </summary>
+	/// <remarks>
+	/// Shared by a fatal error and an exhausted retry so the two cannot drift apart. Nothing here writes a
+	/// position, so a restarted processor resumes from the last one confirmed.
+	/// </remarks>
+	/// <param name="reason">The fatal error, or the exception describing an exhausted retry.</param>
+	/// <returns>A task that completes only when the fatal-error handler took over.</returns>
+	private async Task StopTerminallyAsync(Exception reason)
+	{
+		LogFatalError(reason);
+
+		if (_onFatalError is not null)
+		{
+			// In-flight event for a per-event failure; null for a connection/poll-level one.
+			await _onFatalError(reason, _inFlightEvent).ConfigureAwait(false);
+			return;
+		}
+
+		// Rethrow preserving the original stack when the reason was thrown; an exhaustion wrapper was not.
+		ExceptionDispatchInfo.Throw(reason);
+	}
 }

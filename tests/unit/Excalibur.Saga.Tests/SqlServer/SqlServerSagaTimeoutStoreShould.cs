@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Saga.Abstractions;
@@ -275,7 +275,7 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task MarkDeliveredAsync_WithNullTimeoutId_ThrowsArgumentException()
+	public async Task MarkDeliveredAsync_WithNullClaim_ThrowsArgumentNullException()
 	{
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
@@ -284,22 +284,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 			new TestTenantContext());
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentException>(
+		_ = await Should.ThrowAsync<ArgumentNullException>(
 			() => store.MarkDeliveredAsync(null!, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task MarkDeliveredAsync_WithEmptyTimeoutId_ThrowsArgumentException()
-	{
-		// Arrange
-		var store = new SqlServerSagaTimeoutStore(
-			connectionString: "Server=localhost;Database=TestDb",
-			_logger,
-			new TestTenantContext());
-
-		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentException>(
-			() => store.MarkDeliveredAsync(string.Empty, CancellationToken.None));
 	}
 
 	#endregion ISagaTimeoutStore Interface Parameter Validation Tests

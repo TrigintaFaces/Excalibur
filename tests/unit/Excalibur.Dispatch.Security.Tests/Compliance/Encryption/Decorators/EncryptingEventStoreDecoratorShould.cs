@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Encryption.Decorators;
@@ -32,7 +32,6 @@ public sealed class EncryptingEventStoreDecoratorShould
 		{
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "EventStore",
-			DefaultTenantId = "test-tenant"
 		};
 
 		// These locks cover the LEGACY whole-blob decrypt path; their fixture payloads are raw bytes, not
@@ -46,7 +45,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 	}
 
 	private EncryptingEventStoreDecorator CreateSut() =>
-		new(_innerStore, _registry, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options));
+		new(_innerStore, _registry, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options), global::Excalibur.Dispatch.UntenantedContext.Instance);
 
 	#region Constructor Tests
 
@@ -54,21 +53,21 @@ public sealed class EncryptingEventStoreDecoratorShould
 	public void ThrowArgumentNullException_WhenInnerStoreIsNull()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(null!, _registry, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options)));
+			new EncryptingEventStoreDecorator(null!, _registry, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options), global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenRegistryIsNull()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(_innerStore, null!, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options)));
+			new EncryptingEventStoreDecorator(_innerStore, null!, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options), global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenOptionsIsNull()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, null!));
+			new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, null!, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]

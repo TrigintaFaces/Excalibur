@@ -29,7 +29,9 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AzureServiceBus" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Google" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.GooglePubSub" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.IbmMq" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Kafka" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Mqtt" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Pulsar" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Unit" />

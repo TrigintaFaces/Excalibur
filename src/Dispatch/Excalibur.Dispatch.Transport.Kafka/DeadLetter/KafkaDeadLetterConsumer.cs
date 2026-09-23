@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Globalization;
 using System.Text;
 
 using Confluent.Kafka;
@@ -99,8 +100,16 @@ internal sealed partial class KafkaDeadLetterConsumer : IDisposable
 	}
 
 	/// <summary>
-	/// Consumes up to <paramref name="maxMessages"/> from the specified dead letter topic.
+	/// Reads up to <paramref name="maxMessages"/> from the specified dead letter topic WITHOUT advancing
+	/// the committed position.
 	/// </summary>
+	/// <remarks>
+	/// Reading does not consume: the group's committed position moves only when the caller reports what it
+	/// has taken ownership of, through <see cref="CommitProcessed"/>. A dead letter queue is the last copy
+	/// of a message, so a caller that throws, crashes or discards the returned list must see those messages
+	/// again on the next read rather than lose them. Committing here would advance the group past every
+	/// message returned before the caller had done anything with any of them.
+	/// </remarks>
 	/// <param name="dlqTopic"> The dead letter topic to consume from. </param>
 	/// <param name="maxMessages"> The maximum number of messages to consume. </param>
 	/// <param name="cancellationToken"> Cancellation token. </param>
@@ -127,14 +136,69 @@ internal sealed partial class KafkaDeadLetterConsumer : IDisposable
 			messages.Add(dlqMessage);
 		}
 
-		if (messages.Count > 0)
-		{
-			_consumer.Commit();
-		}
-
 		LogMessagesRetrieved(_logger, messages.Count, dlqTopic);
 
 		return messages;
+	}
+
+	/// <summary>
+	/// Advances the committed position past the messages the caller has taken ownership of.
+	/// </summary>
+	/// <remarks>
+	/// Commits one explicit position per partition: one past the highest offset among the processed
+	/// messages of that partition. Nothing else is committed, so a message the caller did not process is
+	/// read again. Messages carrying no Kafka position are ignored, since there is nothing to commit for
+	/// them.
+	/// </remarks>
+	/// <param name="processed"> The messages the caller has persisted or acted on. </param>
+	public void CommitProcessed(IEnumerable<DeadLetterMessage> processed)
+	{
+		ArgumentNullException.ThrowIfNull(processed);
+
+		var highestByPartition = new Dictionary<TopicPartition, long>();
+		foreach (var message in processed)
+		{
+			if (!TryGetPosition(message, out var topicPartition, out var offset))
+			{
+				continue;
+			}
+
+			if (!highestByPartition.TryGetValue(topicPartition, out var highest) || offset > highest)
+			{
+				highestByPartition[topicPartition] = offset;
+			}
+		}
+
+		if (highestByPartition.Count == 0)
+		{
+			return;
+		}
+
+		// One past the highest processed offset is the position to resume from.
+		var positions = highestByPartition
+			.Select(entry => new TopicPartitionOffset(entry.Key, new Offset(entry.Value + 1)))
+			.ToList();
+
+		_consumer.Commit(positions);
+	}
+
+	private static bool TryGetPosition(DeadLetterMessage message, out TopicPartition topicPartition, out long offset)
+	{
+		topicPartition = null!;
+		offset = 0;
+
+		if (message is null
+			|| !message.Metadata.TryGetValue("kafka_topic", out var topic)
+			|| !message.Metadata.TryGetValue("kafka_partition", out var partition)
+			|| !message.Metadata.TryGetValue("kafka_offset", out var rawOffset)
+			|| !int.TryParse(partition, CultureInfo.InvariantCulture, out var partitionValue)
+			|| !long.TryParse(rawOffset, CultureInfo.InvariantCulture, out offset))
+		{
+			return false;
+		}
+
+		topicPartition = new TopicPartition(topic, new Partition(partitionValue));
+		return true;
 	}
 
 	/// <summary>
@@ -238,9 +302,10 @@ internal sealed partial class KafkaDeadLetterConsumer : IDisposable
 		{
 			foreach (var header in headers)
 			{
-				if (header.Key.StartsWith("dlq_", StringComparison.Ordinal))
+				// A null-valued header (legal in Kafka) has nothing to record, and decoding it would throw.
+				if (header.Key.StartsWith("dlq_", StringComparison.Ordinal) && header.GetValueBytes() is { } value)
 				{
-					dlqMessage.Metadata[header.Key] = Encoding.UTF8.GetString(header.GetValueBytes());
+					dlqMessage.Metadata[header.Key] = Encoding.UTF8.GetString(value);
 				}
 			}
 		}

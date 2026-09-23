@@ -4,11 +4,19 @@ description: NIST 800-53 Rev 5 technical controls the Excalibur framework provid
 
 # FedRAMP Compliance Documentation
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../../legal/compliance-disclaimer.md).
+:::
+
 > **Disclaimer:** Excalibur is a software framework that provides **technical controls** to assist with FedRAMP compliance. Using this framework does **not** make your application FedRAMP authorized. FedRAMP authorization requires a complete System Security Plan (SSP), third-party assessment (3PAO), and PMO review specific to your deployment. The control statuses below indicate that the framework provides the **technical capability** — your organization must still implement organizational policies, processes, and infrastructure controls to achieve authorization.
 
 **Framework:** Excalibur
 **Standard:** NIST 800-53 Rev 5
-**Status:** 12 of 14 controls satisfied at framework level; 2 partial (SI-7, PM-11)
+**Status:** see the [FedRAMP checklist](../checklists/fedramp.md#control-mapping-table), which is the single place this project asserts control status
 
 ---
 
@@ -24,26 +32,15 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 
 ## Control Status
 
-| Control | Title | Status | Implementation |
-|---------|-------|--------|----------------|
-| **AC-3** | Access Enforcement | ✅ SATISFIED | Declarative authorization (`[RequirePermission]`) |
-| **AC-6** | Least Privilege | ✅ SATISFIED | Role-based access control (RBAC) |
-| **AU-2** | Audit Events | ✅ SATISFIED | `IAuditLogger` interface, structured logging |
-| **AU-3** | Content of Audit Records | ✅ SATISFIED | Comprehensive audit log schema |
-| **AU-9** | Protection of Audit Information | ✅ SATISFIED | Immutable audit logs, tamper detection |
-| **IA-5** | Authenticator Management | ✅ SATISFIED | Argon2id password hashing, key rotation |
-| **SC-8** | Transmission Confidentiality | ✅ SATISFIED | TLS 1.2+ enforcement, encryption pipeline |
-| **SC-13** | Cryptographic Protection | ✅ SATISFIED | `IEncryptionProvider`, AES-256-GCM |
-| **SC-28** | Protection of Information at Rest | ✅ SATISFIED | Field-level encryption (`[PersonalData]`) |
-| **SI-4** | System Monitoring | ✅ SATISFIED | OpenTelemetry integration, health checks |
-| **SI-7** | Software Integrity | ⚠️ PARTIAL | SBOM hash verification, dependency vulnerability scanning; packages are published UNSIGNED |
-| **PM-11** | Mission/Business Process Definition | ⚠️ PARTIAL | Business process — the consumer defines its own mission processes and their security risk |
-| **SA-15** | Development Process | ✅ SATISFIED | CI/CD pipeline, automated quality gates |
-| **CM-8** | Component Inventory | ✅ SATISFIED | SBOM generation (CycloneDX) |
+**The control status table lives in [the FedRAMP checklist](../checklists/fedramp.md), which is the single
+place this project asserts control status.** It carries the same fourteen controls, each with the consumer
+action it requires and the evidence supporting it.
 
-**Status:** 12 satisfied, 2 partial (SI-7 software integrity, PM-11 business process)
-
----
+This page previously repeated that table without the evidence column. A control marked satisfied with no
+evidence behind it is not something we can ask an assessor to accept, and two documents asserting the same
+controls to different standards is a way for one of them to drift unnoticed. The claims now have one owner;
+this page is orientation and supporting detail, and the sections below are among the evidence the checklist
+points at.
 
 ## Control Documentation
 
@@ -66,8 +63,9 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 **Audit Logging (AU-2, AU-3, AU-9):**
 - `IAuditLogger` interface with `IAuditStore` persistence
 - Structured audit logs with correlation IDs
-- Immutable append-only audit trails
-- Tamper detection via cryptographic hashing
+- Append-only writes. **Records are not made immutable by the framework** — store them where the
+  application cannot update or delete them, and restrict that access yourself
+- Tamper *evidence* via a cryptographic hash chain: modification after the fact is detectable, not prevented
 
 **Access Control (AC-3, AC-6):**
 - Declarative authorization (`[RequirePermission]`)
@@ -80,7 +78,7 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 - Multi-platform builds (Ubuntu, Windows, macOS)
 - Unit, integration, and functional tests
 - Requirements traceability validation (RTM)
-- Security scanning (SAST, DAST, container scan)
+- Security scanning (SAST via CodeQL, secrets via Gitleaks, dependency vulnerabilities). No DAST and no container scanning run in this pipeline.
 - SBOM generation (CycloneDX)
 - Code coverage enforcement (44% regression floor; CI fails below it)
 - Dependency vulnerability scanning
@@ -96,11 +94,11 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 ### Component Inventory (CM-8)
 
 **SBOM Generation:**
-- Automated CycloneDX SBOM for all packages
+- Automated CycloneDX SBOM (JSON, spec version 1.7) covering the framework's own packages
 - 90-day artifact retention
 - Package-level granularity with dependency graph
-- GitHub Security tab integration
-- Validation on every CI build
+- One validation check: the job fails if no SBOM file was produced. Schema validity, per-package
+  coverage and license completeness are **not** asserted — validate the artifact yourself
 
 See [CM-8-SBOM.md](./CM-8-SBOM.md) for detailed implementation.
 
@@ -117,10 +115,10 @@ See [CM-8-SBOM.md](./CM-8-SBOM.md) for detailed implementation.
 - CI/CD pipeline — GitHub Actions, in the [framework repository](https://github.com/TrigintaFaces/Excalibur)
 - GitHub Actions workflow runs (audit trail)
 - Test coverage reports (enforced regression floor of 44%)
-- Security scan reports (SAST, DAST, container, secrets)
+- Security scan reports (CodeQL SAST, Gitleaks secrets, dependency scanning)
 
 **Artifact Evidence:**
-- SBOM artifacts (CycloneDX JSON/XML)
+- SBOM artifact (CycloneDX JSON — the pipeline generates JSON only; no XML BOM is produced)
 - NuGet packages (hash-verifiable; published with **no author signature** — do not inherit an author-signing control)
 - Docker images (**not scanned by this pipeline** — no container scanning runs here)
 - RTM reports (requirements traceability)
@@ -175,8 +173,9 @@ Evidence package generation includes:
 gh run download <run-id> -n cyclonedx-sbom
 
 # Download security scan reports
-gh run download <run-id> -n zap-dast-report
-# No container-scan artifact is produced by this pipeline.
+gh run download <run-id> -n codeql-results
+# No DAST and no container-scan artifacts are produced by this pipeline,
+# so there is no zap-dast-report or container-scan artifact to download.
 ```
 
 **Audit Trail:**
@@ -204,12 +203,20 @@ gh run download <run-id> -n zap-dast-report
 
 ### Control Inheritance
 
-Consumers can **inherit** framework controls:
-- **AC-3, AC-6:** Use framework authorization (`[RequirePermission]`)
-- **AU-2, AU-3, AU-9:** Use framework audit logging (`IAuditLogger`)
-- **SC-8, SC-13, SC-28:** Use framework encryption (`IEncryptionProvider`)
-- **SI-4:** Use framework telemetry (OpenTelemetry integration)
-- **CM-8:** Reference framework SBOM in SSP
+A consumer inherits a **mechanism**, and for most of these controls a mechanism is not the control.
+Only the four marked satisfied in the checklist are inherited whole; for the rest the checklist's
+**Consumer Action** column states what you must still do, and your SSP must describe both halves.
+
+- **AC-3, AC-6:** framework authorization (`[RequirePermission]`, RBAC) — satisfied
+- **AU-3:** the audit record schema — satisfied
+- **SC-13:** `IEncryptionProvider` (AES-256-GCM) — satisfied
+- **AU-2, AU-9, IA-5, SC-8, SC-28, SI-4, SI-7, SA-15, CM-8, PM-11:** partial. The framework supplies
+  `IAuditLogger` and its event taxonomy, the hash chain, Argon2id password hashing, TLS-required
+  transports, `[PersonalData]` field encryption in the stores that honour it, OpenTelemetry signals,
+  dependency scanning and an SBOM of its own packages — event selection, storage immutability,
+  credential issuance and MFA, host TLS, everything outside those stores, detection and alerting,
+  your own development process, the rest of your component inventory, and your mission and business
+  processes all remain yours
 
 **Example Inheritance Statement:**
 > "The application inherits SC-13 (Cryptographic Protection) from the Excalibur framework, which implements AES-256-GCM encryption via the `IEncryptionProvider` abstraction. Framework compliance evidence includes AES-256-GCM through the platform's cryptographic provider (FIPS 140-3 validation is a property of the host platform's cryptographic module, not of the framework — assert it only where your deployment runs a validated module in FIPS mode) and continuous vulnerability scanning."
@@ -258,5 +265,5 @@ Consumers can **inherit** framework controls:
 
 ---
 
-**Last Updated:** 2026-09-12
-**Status:** 12 of 14 satisfied, 2 partial
+**Last Updated:** 2026-09-22
+**Status:** asserted only in the [FedRAMP checklist](../checklists/fedramp.md#control-mapping-table)

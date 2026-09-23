@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Outbox.Diagnostics;
 
@@ -252,6 +252,9 @@ internal static class OutboxEventId
 	/// <summary>A fenced dead-letter transition did not apply, so the outbox row was not destroyed.</summary>
 	public const int OutboxFencedDeadLetterRefused = 134009;
 
+	/// <summary>A claim-scoped failure report found the message already sent or dead-lettered.</summary>
+	public const int OutboxFailureReportFoundTerminalMessage = 134010;
+
 	// ========================================
 	// 130200-130299: MessageOutbox
 	// ========================================
@@ -350,7 +353,12 @@ internal static class OutboxEventId
 	/// <summary>Dead letter queue not configured -- failed messages will be discarded.</summary>
 	public const int OutboxDeadLetterQueueNotConfigured = 131224;
 
-	/// <summary>Circuit breaker registry not configured -- transports have no failure protection.</summary>
+	/// <summary>
+	/// RETIRED, number reserved and not reused. The outbox processor's circuit breaker registry is a
+	/// required constructor dependency, so the condition this warned about is no longer reachable: a host
+	/// that omits it fails to compile. Kept so the id cannot be reassigned to a different meaning, which
+	/// would make an archived log line ambiguous.
+	/// </summary>
 	public const int OutboxCircuitBreakerNotConfigured = 131225;
 
 	/// <summary>Message discarded because no dead letter queue is configured.</summary>
@@ -442,7 +450,12 @@ internal static class OutboxEventId
 	/// <summary>Inbox dead letter queue not configured -- failed messages will be discarded.</summary>
 	public const int InboxDeadLetterQueueNotConfigured = 132220;
 
-	/// <summary>Inbox circuit breaker registry not configured -- transports have no failure protection.</summary>
+	/// <summary>
+	/// RETIRED, number reserved and not reused. The inbox processor's circuit breaker registry is a
+	/// required constructor dependency, so the condition this warned about is no longer reachable: a host
+	/// that omits it fails to compile. Kept so the id cannot be reassigned to a different meaning, which
+	/// would make an archived log line ambiguous.
+	/// </summary>
 	public const int InboxCircuitBreakerNotConfigured = 132221;
 
 	/// <summary>Inbox message discarded because no dead letter queue is configured.</summary>
@@ -453,6 +466,15 @@ internal static class OutboxEventId
 
 	/// <summary>Retry drain could not record an outcome because its ownership term had lapsed.</summary>
 	public const int InboxDrainFinalizeLostTerm = 132224;
+
+	/// <summary>Retry drain's transient-short-circuit mark-failed was refused by the store.</summary>
+	public const int InboxDrainLeaveForRetryNotApplied = 132225;
+
+	/// <summary>Retry-drain mark-failed was refused by the store, so the attempt was not recorded.</summary>
+	public const int InboxMarkFailedForRetryNotApplied = 132226;
+
+	/// <summary>Terminal dead-letter mark-failed was refused by the store.</summary>
+	public const int InboxDeadLetterMarkFailedNotApplied = 132227;
 
 	// ========================================
 	// 133200-133299: Cosmos DB Cloud Outbox

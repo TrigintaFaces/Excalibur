@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable CA2213 // Disposable fields should be disposed -- TestMeterFactory is test-scoped
 
@@ -347,7 +347,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Assert - should have deserialized the JsonElement to string
 		result.ShouldNotBeNull();
 		result.Succeeded.ShouldBeTrue();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		var typed = result.ShouldBeAssignableTo<IMessageResult<string>>();
 		typed.ReturnValue.ShouldBe("deserialized-value");
 	}
@@ -513,7 +513,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		var typed = result.ShouldBeAssignableTo<IMessageResult<CustomPayload>>();
 		typed.ReturnValue.ShouldNotBeNull();
 		typed.ReturnValue.Name.ShouldBe("from-scan");
@@ -552,7 +552,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.CacheHit.ShouldBeTrue();
+		result.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		var typed = result.ShouldBeAssignableTo<IMessageResult<Guid>>();
 		typed.ReturnValue.ShouldBe(expectedGuid);
 	}

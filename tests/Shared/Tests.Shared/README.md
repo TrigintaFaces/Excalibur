@@ -17,6 +17,7 @@ UnitTestBase
 ContainerFixtureBase (IAsyncLifetime)
     │
     ├── SqlServerContainerFixture
+    ├── SqlServerCdcContainerFixture
     ├── PostgresContainerFixture
     ├── RedisContainerFixture
     ├── KafkaContainerFixture
@@ -131,12 +132,51 @@ All container fixtures extend `ContainerFixtureBase`, which provides:
 | Fixture | Collection Name | Connection Property |
 |---------|-----------------|---------------------|
 | `SqlServerContainerFixture` | `SqlServer` | `ConnectionString` |
+| `SqlServerCdcContainerFixture` | `SqlServerCdc` | `ConnectionString` |
 | `PostgresContainerFixture` | `Postgres` | `ConnectionString` |
 | `MongoDbContainerFixture` | `MongoDB` | `ConnectionString` |
 | `RedisContainerFixture` | `Redis` | `ConnectionString` |
 | `RabbitMqContainerFixture` | `RabbitMQ` | `ConnectionString` |
 | `KafkaContainerFixture` | `Kafka` | `BootstrapServers` |
 | `ElasticsearchContainerFixture` | `Elasticsearch` | `Uri` |
+
+#### Why there are two SQL Server fixtures
+
+Use `SqlServerContainerFixture` unless you are testing **Change Data Capture**.
+
+`SqlServerCdcContainerFixture` starts the same image with `MSSQL_AGENT_ENABLED=true`. CDC capture is
+driven by SQL Server Agent jobs that `sp_cdc_enable_table` creates, and the `mssql` image ships with the
+Agent **disabled** — so on the ordinary fixture every CDC stored procedure still SUCCEEDS,
+`is_cdc_enabled` still reports `1`, and nothing is ever captured. Setup looks healthy right up to the
+assertion, which is why this is a separate fixture rather than a flag.
+
+It is separate rather than merged because the Agent is a second process inside the container and costs
+start-up time on every suite sharing a fixture; the ordinary one has a large consumer set that does not
+need CDC.
+
+```csharp
+[Collection(ContainerCollections.SqlServerCdc)]
+public class MyCdcTests(SqlServerCdcContainerFixture fixture)
+{
+    [Fact]
+    public async Task CapturesAChange()
+    {
+        // Asserts the Agent is running before enabling CDC, so a misconfigured container
+        // fails with a message naming the container rather than the code under test.
+        var db = await fixture.CreateCdcEnabledDatabaseAsync("MyCdcDb", ct);
+        await SqlServerCdcContainerFixture.EnableTableCaptureAsync(db, "dbo", "Orders", ct);
+
+        // ... write to dbo.Orders ...
+
+        // Polls; never sleeps. The capture job runs on its own schedule, so the write-to-visible
+        // delay is a property of the server, not a constant a test may assume.
+        var captured = await SqlServerCdcContainerFixture.WaitForCapturedRowsAsync(
+            db, "dbo_Orders", minimumRows: 1, TimeSpan.FromSeconds(30), ct);
+
+        captured.ShouldBeTrue();
+    }
+}
+```
 
 ### Usage
 

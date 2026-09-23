@@ -207,6 +207,16 @@ jobs:
               --output ./packages/
           fi
 
+          # The templates package is not in the shipping shard: templates/ is deliberately isolated
+          # from the root build policy by its own Directory.Build.props, so it is not a member of the
+          # solution and cannot be named by a solution filter. It is therefore packed explicitly, into
+          # the same canonical output, with the same version, or it reaches no consumer at all.
+          if [ -n "$VERSION" ]; then
+            dotnet pack templates/Excalibur.Dispatch.Templates.csproj               --configuration Release               --verbosity minimal               -p:PackageVersion="$VERSION"               --output ./packages/
+          else
+            dotnet pack templates/Excalibur.Dispatch.Templates.csproj               --configuration Release               --verbosity minimal               --output ./packages/
+          fi
+
       - name: Validate packages
         shell: pwsh
         run: |

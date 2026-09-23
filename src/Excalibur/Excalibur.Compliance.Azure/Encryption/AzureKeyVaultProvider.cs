@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
 
@@ -33,7 +33,7 @@ namespace Excalibur.Compliance.Azure;
 /// providing maximum security.
 /// </para>
 /// </remarks>
-public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IDisposable
+public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IKeyDestructionStatusProvider, IDisposable
 {
 	private readonly KeyClient _keyClient;
 	private readonly ConcurrentDictionary<string, CryptographyClient> _cryptoClients = new();
@@ -303,6 +303,22 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// Key Vault soft-deletes: a deleted key stays recoverable until the vault purges it at the end of its
+	/// retention period. When <paramref name="retentionDays"/> is <c>0</c> -- immediate destruction, which is what
+	/// an erasure asks for -- the deleted key is also PURGED, and only a purge the vault accepts is reported as
+	/// <see cref="KeyDestructionState.Completed"/>. A vault with purge protection, or a credential without the
+	/// purge permission, refuses; the key is then reported as
+	/// <see cref="KeyDestructionState.ScheduledIrreversible"/> at the vault's scheduled purge date. Any failure of
+	/// the purge falls back to that same outcome: it never reports a completion the vault did not perform, and it
+	/// never turns a key that was deleted into an exception.
+	/// </para>
+	/// <para>
+	/// A key that is already soft-deleted is NOT reported as <see cref="KeyDestructionState.NotFound"/>: it still
+	/// exists and can still be recovered, so it is handled exactly as a key deleted by this call.
+	/// </para>
+	/// </remarks>
 	public async Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -313,12 +329,26 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 		{
 			var keyName = GetKeyName(keyId);
 
-			// Azure Key Vault soft-deletes: the key stays recoverable until its vault-level retention window elapses
-			// (it is NOT irrecoverable on return). Report the disclosed purge instant honestly rather than a false completion.
-			var operation = await _keyClient.StartDeleteKeyAsync(keyName, cancellationToken).ConfigureAwait(false);
+			DeletedKey? deleted;
+			try
+			{
+				var operation = await _keyClient.StartDeleteKeyAsync(keyName, cancellationToken).ConfigureAwait(false);
 
-			// Wait for deletion to complete
-			var deleted = await operation.WaitForCompletionAsync(cancellationToken).ConfigureAwait(false);
+				// Wait for deletion to complete
+				deleted = (await operation.WaitForCompletionAsync(cancellationToken).ConfigureAwait(false)).Value;
+			}
+			catch (RequestFailedException ex) when (ex.Status == 404)
+			{
+				// Not a live key -- but "not live" is not "did not exist". A key soft-deleted earlier (by a previous
+				// attempt at this same erasure, for example) answers 404 here while it is still recoverable, and
+				// reporting it as NotFound would let an erasure attest it as nothing-to-destroy.
+				deleted = await GetDeletedKeyOrNullAsync(keyName, cancellationToken).ConfigureAwait(false);
+				if (deleted is null)
+				{
+					LogKeyNotFoundForDeletion(keyId);
+					return KeyDestructionOutcome.NotFound;
+				}
+			}
 
 			// Invalidate cache
 			InvalidateCache(keyId);
@@ -326,17 +356,60 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 			// Remove crypto client
 			_ = _cryptoClients.TryRemove(keyId, out _);
 
+			if (retentionDays <= 0 && await TryPurgeDeletedKeyAsync(keyName, keyId, cancellationToken).ConfigureAwait(false))
+			{
+				return KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow);
+			}
+
 			LogKeyScheduledForDeletion(keyId);
 
 			// Prefer the vault's disclosed ScheduledPurgeDate; fall back to the requested/90-day window if unavailable.
-			var irreversibleAt = deleted.Value?.ScheduledPurgeDate
+			var irreversibleAt = deleted?.ScheduledPurgeDate
 				?? DateTimeOffset.UtcNow.AddDays(retentionDays > 0 ? retentionDays : 90);
 			return KeyDestructionOutcome.ScheduledAt(irreversibleAt);
 		}
-		catch (RequestFailedException ex) when (ex.Status == 404)
+		finally
 		{
-			LogKeyNotFoundForDeletion(keyId);
-			return KeyDestructionOutcome.NotFound;
+			_ = _rateLimitSemaphore.Release();
+		}
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Asks the vault directly, bypassing the metadata cache: a live key and a soft-deleted key are both
+	/// reported as NOT destroyed, and only a key the vault holds neither live nor in its deleted-keys collection
+	/// is reported as destroyed. The two collections cannot be read atomically, and a recovery moves a key from
+	/// the deleted collection to the live one, so a single pass of "live, then deleted" could miss a key recovered
+	/// between the reads. The deleted collection is therefore read on both sides of the live read: a key is
+	/// destroyed only when it is absent from deleted, live and deleted again, in that order. A soft-deleted key is invisible to <see cref="GetKeyAsync"/>, which is why that
+	/// lookup cannot answer this question for Key Vault. Reading the deleted-keys collection requires the
+	/// <c>keys/get</c> permission; a refusal is thrown, never reported as destroyed.
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			var keyName = GetKeyName(keyId);
+			if (await GetDeletedKeyOrNullAsync(keyName, cancellationToken).ConfigureAwait(false) is not null)
+			{
+				return false;
+			}
+
+			try
+			{
+				_ = await _keyClient.GetKeyAsync(keyName, cancellationToken: cancellationToken).ConfigureAwait(false);
+				return false;
+			}
+			catch (RequestFailedException ex) when (ex.Status == 404)
+			{
+				// Not live either -- unless it was deleted again, or is mid-recovery, since the first read.
+			}
+
+			return await GetDeletedKeyOrNullAsync(keyName, cancellationToken).ConfigureAwait(false) is null;
 		}
 		finally
 		{
@@ -559,6 +632,44 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 
 	private string GetKeyName(string keyId) => $"{_options.KeyNamePrefix}{keyId}";
 
+	private async Task<DeletedKey?> GetDeletedKeyOrNullAsync(string keyName, CancellationToken cancellationToken)
+	{
+		try
+		{
+			return (await _keyClient.GetDeletedKeyAsync(keyName, cancellationToken).ConfigureAwait(false)).Value;
+		}
+		catch (RequestFailedException ex) when (ex.Status == 404)
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Purges a soft-deleted key. Returns <see langword="true"/> only when the vault accepted the purge. Every
+	/// refusal or failure -- purge protection, a missing purge permission, anything else -- returns
+	/// <see langword="false"/>, so the caller reports the key as scheduled rather than destroyed.
+	/// </summary>
+	private async Task<bool> TryPurgeDeletedKeyAsync(string keyName, string keyId, CancellationToken cancellationToken)
+	{
+		try
+		{
+			_ = await _keyClient.PurgeDeletedKeyAsync(keyName, cancellationToken).ConfigureAwait(false);
+			LogKeyPurged(keyId);
+			return true;
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+#pragma warning disable CA1031 // Any purge failure must degrade to "scheduled", never to "destroyed" or to a thrown erasure.
+		catch (Exception ex)
+#pragma warning restore CA1031
+		{
+			LogKeyPurgeRefused(keyId, ex);
+			return false;
+		}
+	}
+
 	private string GetCacheKey(string keyId, int? version = null) =>
 		version.HasValue ? $"akv:{keyId}:v{version}" : $"akv:{keyId}:latest";
 
@@ -648,6 +759,14 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 	[LoggerMessage(AzureKeyVaultEventId.KeyScheduledForDeletion, LogLevel.Warning,
 		"Scheduled Azure Key Vault key {KeyId} for deletion (crypto-shredding). Recoverable during soft-delete period.")]
 	private partial void LogKeyScheduledForDeletion(string keyId);
+
+	[LoggerMessage(AzureKeyVaultEventId.KeyPurged, LogLevel.Warning,
+		"Purged Azure Key Vault key {KeyId}; its material is irrecoverable")]
+	private partial void LogKeyPurged(string keyId);
+
+	[LoggerMessage(AzureKeyVaultEventId.KeyPurgeRefused, LogLevel.Warning,
+		"Azure Key Vault did not purge deleted key {KeyId} (purge protection, or no purge permission); it stays recoverable until the vault purges it")]
+	private partial void LogKeyPurgeRefused(string keyId, Exception exception);
 
 	[LoggerMessage(AzureKeyVaultEventId.KeyNotFoundForDeletion, LogLevel.Warning,
 		"Key {KeyId} not found for deletion")]

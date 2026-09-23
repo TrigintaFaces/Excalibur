@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
@@ -80,7 +80,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 			inboxStore,
 			serviceProvider,
 			serializer,
-			logger));
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -98,7 +99,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 			null!,
 			serviceProvider,
 			serializer,
-			logger));
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -116,7 +118,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 			inboxStore,
 			null!,
 			serializer,
-			logger));
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -134,7 +137,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 			inboxStore,
 			serviceProvider,
 			serializer,
-			null!));
+			null!,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -165,7 +169,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 			inboxStore,
 			serviceProvider,
 			serializer,
-			logger));
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
 	}
 
 	[Fact]
@@ -184,7 +189,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 			inboxStore,
 			serviceProvider,
 			serializer,
-			logger);
+			logger,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -210,7 +216,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 
 			envelopeDeserializer: null,
 			deadLetterQueue: null,
-			circuitBreakerRegistry: null,
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: null,
 			deliveryGuaranteeOptions: null);
 
@@ -464,6 +470,61 @@ public sealed class InboxProcessorShould : UnitTestBase
 
 
 	[Fact]
+	public async Task DispatchPendingMessagesAsync_PassesTheEntrysOwnTenantToTheAdminMark_NotWhateverIsAmbient()
+	{
+		// bd-49x3l2: the administrative mark-failed takes its partition as a PARAMETER, and the only partition
+		// that can be right is the one carried on the entry. The drain's read spans every tenant, so the scope
+		// standing at the call site is unrelated to the entry's -- an operator listing failed entries
+		// estate-wide and then marking one was silently addressing a different population, with nothing in the
+		// signature to say so.
+		//
+		// RED by construction against the pre-fix shape: there was no partition to assert on, and a store that
+		// resolved the ambient tenant would have been handed nothing to be wrong about. It stays RED if the
+		// processor is ever changed to pass the untenanted partition, its own ambient scope, or a partition
+		// re-derived somewhere other than the entry.
+		const string entryTenant = "tenant-carried-on-the-row";
+
+		MessageTypeRegistry.RegisterType<TestInboxDispatchMessage>();
+		var entry = CreateInboxEntryWithSerializedPayload("inbox-tenanted-cb-open", new TestInboxDispatchMessage("inbox-tenanted-cb-open"));
+		entry.TenantId = entryTenant;
+
+		var inboxStore = CreateInboxStore(entry);
+		var serializer = new DispatchJsonSerializer();
+		var dispatcher = CreateDispatcher(DispatchMessageResult.Success());
+		var deadLetterQueue = CreateDeadLetterQueue();
+		var circuitBreaker = A.Fake<ICircuitBreakerPolicy>();
+		A.CallTo(() => circuitBreaker.State).Returns(CircuitState.Open);
+		var registry = A.Fake<ITransportCircuitBreakerRegistry>();
+		A.CallTo(() => registry.GetOrCreate(A<string>._)).Returns(circuitBreaker);
+		var serviceProvider = CreateServiceProvider(dispatcher);
+
+		await using var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 3),
+			inboxStore: inboxStore,
+			serializer: serializer,
+			serviceProvider: serviceProvider,
+			deadLetterQueue: deadLetterQueue,
+			circuitBreakerRegistry: registry);
+		processor.Init("dispatcher-tenanted");
+
+		// Act — a DIFFERENT tenant is ambient at the call site than the one the entry names.
+		using (TenantContextHolder.BeginScope("tenant-standing-at-the-call-site"))
+		{
+			_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+		}
+
+		// Assert — the partition passed is the ENTRY'S, by value.
+		A.CallTo(() => ((IInboxStoreAdmin)inboxStore).MarkFailedAsync(
+				KeyedTenantPartition.Scoped(entryTenant),
+				"inbox-tenanted-cb-open",
+				FixtureHandlerType,
+				A<string>._,
+				A<int>._,
+				A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
 	public async Task DispatchPendingMessagesAsync_LeavesEntryForRetry_WhenCircuitBreakerIsOpenBeforeExecution()
 	{
 		// bd-v9jq1a AC-1 (Inbox CB-open pre-check, non-vacuity): a transient circuit-breaker-OPEN must leave
@@ -491,6 +552,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 
 		// Assert — left for retry via the no-increment IInboxStoreAdmin overload (retryCount preserved)
 		A.CallTo(() => ((IInboxStoreAdmin)scenario.InboxStore).MarkFailedAsync(
+				A<KeyedTenantPartition>._,
 				"inbox-open-circuit",
 				FixtureHandlerType,
 				A<string>._,
@@ -541,7 +603,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			.MustNotHaveHappened();
 		// And it is left for retry via the no-increment overload, never dead-lettered.
 		A.CallTo(() => ((IInboxStoreAdmin)inboxStore).MarkFailedAsync(
-				"inbox-dedup-open", A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
+				A<KeyedTenantPartition>._, "inbox-dedup-open", A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustHaveHappened();
 		A.CallTo(() => deadLetterQueue.EnqueueAsync(
 				A<IInboxMessage>._, DeadLetterReason.CircuitBreakerOpen, A<CancellationToken>._,
@@ -594,7 +656,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 				A<Exception?>._, A<IDictionary<string, string>?>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => ((IInboxStoreAdmin)inboxStore).MarkFailedAsync(
-				"inbox-open-during", A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
+				A<KeyedTenantPartition>._, "inbox-open-during", A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -850,7 +912,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 
 			envelopeDeserializer: envelopeDeserializer,
 			deadLetterQueue: deadLetterQueue,
-			circuitBreakerRegistry: circuitBreakerRegistry,
+			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: backoffCalculator,
 			deduplicationStore: deduplicationStore);
 	}

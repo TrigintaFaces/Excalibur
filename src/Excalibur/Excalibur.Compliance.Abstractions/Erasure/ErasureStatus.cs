@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance;
@@ -128,9 +128,12 @@ public sealed record ErasureStatus
 	public bool CanCancel => Status is ErasureRequestStatus.Pending or ErasureRequestStatus.Scheduled;
 
 	/// <summary>
-	/// Gets whether the erasure has been executed (completed or partially completed).
+	/// Gets whether the erasure has been executed (completed, partially completed, or executed and awaiting the
+	/// key-management provider's destruction of a scheduled key).
 	/// </summary>
-	public bool IsExecuted => Status is ErasureRequestStatus.Completed or ErasureRequestStatus.PartiallyCompleted;
+	public bool IsExecuted => Status is ErasureRequestStatus.Completed
+		or ErasureRequestStatus.PartiallyCompleted
+		or ErasureRequestStatus.AwaitingKeyDestruction;
 
 	/// <summary>
 	/// Gets the days remaining until the GDPR deadline (30 days from request), as of <paramref name="asOf"/>.

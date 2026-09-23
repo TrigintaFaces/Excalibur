@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 using System.Text;
@@ -79,13 +79,13 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 			CategoriesIncluded = categories.ToList(),
 			System = _options.SystemDescription ?? CreateDefaultSystemDescription(),
 			ControlSections = controlSections,
-			Opinion = DetermineOpinion(complianceStatus),
+			OverallLevel = complianceStatus,
 			Exceptions = BuildExceptions(controlSections),
 			GeneratedAt = DateTimeOffset.UtcNow,
 			TenantId = options.TenantId
 		};
 
-		LogGeneratedTypeIReport(report.ReportId, report.Opinion, report.Exceptions.Count);
+		LogGeneratedTypeIReport(report.ReportId, report.OverallLevel, report.Exceptions.Count);
 
 		return report;
 	}
@@ -122,13 +122,13 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 			CategoriesIncluded = categories.ToList(),
 			System = _options.SystemDescription ?? CreateDefaultSystemDescription(),
 			ControlSections = controlSections,
-			Opinion = DetermineOpinion(complianceStatus),
+			OverallLevel = complianceStatus,
 			Exceptions = BuildExceptions(controlSections),
 			GeneratedAt = DateTimeOffset.UtcNow,
 			TenantId = options.TenantId
 		};
 
-		LogGeneratedTypeIIReport(report.ReportId, report.Opinion, report.Exceptions.Count);
+		LogGeneratedTypeIIReport(report.ReportId, report.OverallLevel, report.Exceptions.Count);
 
 		return report;
 	}
@@ -263,16 +263,6 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 		};
 	}
 
-	private static AuditorOpinion DetermineOpinion(ComplianceLevel status) =>
-		status switch
-		{
-			ComplianceLevel.FullyCompliant => AuditorOpinion.Unqualified,
-			ComplianceLevel.SubstantiallyCompliant => AuditorOpinion.Qualified,
-			ComplianceLevel.PartiallyCompliant => AuditorOpinion.Qualified,
-			ComplianceLevel.NonCompliant => AuditorOpinion.Adverse,
-			_ => AuditorOpinion.Disclaimer
-		};
-
 	private static List<ReportException> BuildExceptions(IReadOnlyList<ControlSection> sections)
 	{
 		var exceptions = new List<ReportException>();
@@ -287,8 +277,12 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 			// question. While the verdict was forced into that field every control read as an exception;
 			// once the field said not-tested honestly, a failing criterion produced NO findings at all. The
 			// predicate mirrors the one that set Outcome, so a NotMet section can never be silent.
+			// One clause, not two. This used to also test the band against the met threshold, which was
+			// the same question asked twice: the outcome is now DERIVED from the band, so
+			// "Outcome == Effective" and "band is at or above the threshold" are the same fact and can no
+			// longer drift apart. A second clause that cannot independently fail is not a second check.
 			var failing = section.ValidationResults
-				.Where(r => !r.IsEffective || r.EffectivenessScore < Soc2EffectivenessScore.MetThreshold)
+				.Where(r => r.Outcome != ControlOutcome.Effective)
 				.ToList();
 
 			// A control with real test exceptions is already reported below, with the richer evidence (how
@@ -310,8 +304,11 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 					ControlId = verdict.ControlId,
 					Description = verdict.ConfigurationIssues.Count > 0
 						? string.Join(" ", verdict.ConfigurationIssues)
-						: $"Control {verdict.ControlId} was assessed and did not meet the effectiveness threshold "
-							+ $"(scored {verdict.EffectivenessScore.ToString(CultureInfo.InvariantCulture)}).",
+						// The BAND, not its number. An integer here read as a percentage to whoever received
+						// the report, so "scored 20" invited an assessor to weigh it against 100 as though the
+						// scale were continuous. The band names the fact established.
+						: $"Control {verdict.ControlId} was assessed and did not meet the effectiveness "
+							+ $"threshold ({DescribeBand(verdict.EffectivenessScore)}).",
 					ManagementResponse = null,
 					RemediationPlan = null
 				});
@@ -475,12 +472,12 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 		string? tenantId);
 
 	[LoggerMessage(LogLevel.Information,
-		"Generated Type I report {ReportId} with opinion {Opinion}, {ExceptionCount} exceptions")]
-	private partial void LogGeneratedTypeIReport(Guid reportId, AuditorOpinion opinion, int exceptionCount);
+		"Generated Type I report {ReportId} at compliance level {OverallLevel}, {ExceptionCount} exceptions")]
+	private partial void LogGeneratedTypeIReport(Guid reportId, ComplianceLevel overallLevel, int exceptionCount);
 
 	[LoggerMessage(LogLevel.Information,
-		"Generated Type II report {ReportId} with opinion {Opinion}, {ExceptionCount} exceptions")]
-	private partial void LogGeneratedTypeIIReport(Guid reportId, AuditorOpinion opinion, int exceptionCount);
+		"Generated Type II report {ReportId} at compliance level {OverallLevel}, {ExceptionCount} exceptions")]
+	private partial void LogGeneratedTypeIIReport(Guid reportId, ComplianceLevel overallLevel, int exceptionCount);
 
 	[LoggerMessage(LogLevel.Information, "Stored report {ReportId}")]
 	private partial void LogStoredReport(Guid reportId);
@@ -523,8 +520,11 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 					? CriterionOutcome.NotAssessed
 					// The WORST control, not the mean. Averaging let a fully effective control pay for a failing
 					// one, so a criterion carrying a control scored Unverified still reported Met.
-					: validationResults.All(r => r.IsEffective)
-						&& validationResults.Min(r => r.EffectivenessScore) >= Soc2EffectivenessScore.MetThreshold
+					// The WORST control, not the mean. Averaging let a fully effective control pay for a
+					// failing one, so a criterion carrying an unverified control still reported Met. The
+					// band comparison that used to sit beside this is gone: with the outcome derived from
+					// the band, "every control Effective" already says the worst band is Effective.
+					: validationResults.All(r => r.Outcome == ControlOutcome.Effective)
 							? CriterionOutcome.Met
 							: CriterionOutcome.NotMet;
 
@@ -563,4 +563,21 @@ public sealed partial class Soc2ReportGenerator : ISoc2ReportGenerator
 					days));
 		}
 	}
+
+	/// <summary>
+	/// Renders an effectiveness band as a phrase an external assessor can act on.
+	/// </summary>
+	/// <remarks>
+	/// The report is read by someone outside this codebase, so it says what was established rather than
+	/// naming an enum member. The distinction between an absent mechanism and an examined-and-broken one
+	/// is the reason the band exists and it is carried through to the sentence.
+	/// </remarks>
+	private static string DescribeBand(ControlEffectiveness band) => band switch
+	{
+		ControlEffectiveness.MechanismAbsent => "the mechanism this control depends on is not present",
+		ControlEffectiveness.ViolationDetected => "the control was examined and a violation was found",
+		ControlEffectiveness.Unverified => "the control was not examined, so nothing was established",
+		ControlEffectiveness.Effective => "the control was examined and found to be operating",
+		_ => "the effectiveness band reported is not one this report can describe",
+	};
 }

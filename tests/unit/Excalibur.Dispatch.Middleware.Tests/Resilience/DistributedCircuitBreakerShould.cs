@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
 
@@ -46,10 +46,20 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 
 	private DistributedCircuitBreaker CreateCircuitBreaker(
 		string name = "test-circuit",
-		DistributedCircuitBreakerOptions? options = null)
+		DistributedCircuitBreakerOptions? options = null,
+		CircuitState? sharedState = null)
 	{
 		_cache = A.Fake<IDistributedCache>();
 		_logger = A.Fake<ILogger<DistributedCircuitBreaker>>();
+
+		// Arrange the fake BEFORE the breaker exists. Its constructor starts a sync timer with no initial
+		// delay, whose first cache read runs on the thread pool; configuring a fake while another thread is
+		// calling it is unsupported, and under a loaded full-shard run the rule could be missed by the
+		// breaker's own read.
+		if (sharedState is { } seeded)
+		{
+			SeedSharedState(seeded);
+		}
 		var optionsWrapper = MsOptions.Create(options ?? new DistributedCircuitBreakerOptions());
 
 		_circuitBreaker = new DistributedCircuitBreaker(name, _cache, optionsWrapper, _logger);
@@ -232,8 +242,9 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 		// Asserted through the decision the count drives — a half-open circuit closing — rather than
 		// through a cache write. Counters are per-instance and never leave the process, so a write
 		// assertion would be testing an implementation detail that no longer exists.
-		var cb = CreateCircuitBreaker(options: new DistributedCircuitBreakerOptions { SuccessThresholdToClose = 1 });
-		SeedSharedState(CircuitState.HalfOpen);
+		var cb = CreateCircuitBreaker(
+			options: new DistributedCircuitBreakerOptions { SuccessThresholdToClose = 1 },
+			sharedState: CircuitState.HalfOpen);
 
 		_ = await cb.ExecuteAsync(() => Task.FromResult(42), CancellationToken.None);
 
@@ -286,8 +297,7 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 		{
 			SuccessThresholdToClose = 1,
 			SyncInterval = TimeSpan.FromHours(1),
-		});
-		SeedSharedState(CircuitState.HalfOpen);
+		}, sharedState: CircuitState.HalfOpen);
 
 		// Act
 		await cb.RecordSuccessAsync(CancellationToken.None);

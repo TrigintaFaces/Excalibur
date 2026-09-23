@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Diagnostics.CodeAnalysis;
@@ -188,8 +188,21 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 	public IDispatchBuilder UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>()
 		where TMiddleware : IDispatchMiddleware
 	{
-		_globalMiddleware.Add(typeof(TMiddleware));
-		_ = Services.AddScoped(typeof(TMiddleware));
+		// Idempotent by concrete type, matching how BuildPipeline already deduplicates a middleware
+		// registered both here and as an IDispatchMiddleware. A type appearing twice in the global set runs
+		// twice on every message, which for a short-circuiting middleware is a defect rather than a
+		// preference: a second InboxMiddleware sees the message its own first pass admitted, treats it as a
+		// duplicate, and suppresses the handler entirely. Reachable now that a metapackage places the inbox
+		// and a consumer may also call UseInbox() themselves.
+		if (!_globalMiddleware.Contains(typeof(TMiddleware)))
+		{
+			_globalMiddleware.Add(typeof(TMiddleware));
+		}
+
+		// Transient is not a claim about scope: the pipeline walks the middleware's constructor graph and
+		// opens a per-dispatch scope only when something it depends on is Scoped. TryAdd so a consumer's own
+		// registration keeps the lifetime they declared.
+		Services.TryAddTransient(typeof(TMiddleware));
 		return this;
 	}
 
@@ -255,18 +268,13 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		// guards against a second Build() invocation by short-circuiting before
 		// the builder runs. This guard protects the descriptor graph when
 		// Build() is reached through any future path that bypasses the entry
-		// point.
-		if (Services.Any(static d => d.ServiceType == typeof(DispatchRuntimeState)))
+		// point. Keyed on Build() itself rather than on the deferred composition: the params route
+		// registers that composition WITHOUT building, and a later AddDispatch(configure) over the same
+		// collection must still run the rest of Build().
+		if (_state.IsBuilt)
 		{
-			return new DeferredDispatcher(Services
-				.First(static d => d.ServiceType == typeof(DispatcherHolder))
-				.GetImplementationInstance() is DispatcherHolder holder
-					? holder
-					: new DispatcherHolder());
+			return new DeferredDispatcher(RegisterDeferredComposition());
 		}
-
-		// Register the synthesizer used during runtime construction
-		Services.TryAddSingleton<PipelineProfileSynthesizer>();
 
 		RegisterOptions();
 		RegisterStartupSafetyNets();
@@ -291,12 +299,55 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 
 		foreach (var middlewareType in _globalMiddleware)
 		{
-			_ = Services.AddScoped(middlewareType);
+			Services.TryAddTransient(middlewareType);
 		}
 
+		_state.IsBuilt = true;
+		var dispatcherHolder = RegisterDeferredComposition();
+
+		// PERF: Auto-promote eligible transient handlers to singleton when opted in.
+		if (_options.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton)
+		{
+			HandlerLifetimeAnalyzer.PromoteEligibleHandlers(Services);
+		}
+
+		return new DeferredDispatcher(dispatcherHolder);
+	}
+
+	/// <summary>
+	/// Registers the pipeline composition as factories the container runs when the pipeline is first
+	/// resolved, not now. Idempotent per service collection.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Nothing here reads the middleware set. The runtime state reads the collection-held composition when
+	/// the provider resolves it, so middleware added after this call returns -- by a <c>Use*()</c> chained
+	/// off the builder <c>AddDispatch</c> hands back, from an extension method, or by a second builder over
+	/// the same collection -- is in the pipeline exactly as if it had been added inside the configuration
+	/// callback. There is no point after which a <c>Use*()</c> call is accepted and ignored.
+	/// </para>
+	/// <para>
+	/// Internal, not private: both entry points reach it. <c>AddDispatch(configure)</c> reaches it through
+	/// <see cref="Build"/>; <c>AddDispatch(Assembly[])</c> calls it directly. Without the second call that
+	/// route composed its pipeline only from <see cref="IDispatchMiddleware"/> registrations, so every
+	/// <c>Use*()</c> made on the builder it returned landed in a set nothing read.
+	/// </para>
+	/// </remarks>
+	internal void RegisterPipelineComposition() => _ = RegisterDeferredComposition();
+
+	private DispatcherHolder RegisterDeferredComposition()
+	{
+		if (Services.FirstOrDefault(static d => d.ServiceType == typeof(DispatcherHolder))
+			?.GetImplementationInstance() is DispatcherHolder existing)
+		{
+			return existing;
+		}
+
+		// Register the synthesizer used during runtime construction
+		Services.TryAddSingleton<PipelineProfileSynthesizer>();
+
 		// Register runtime state that materializes pipelines using the caller's provider scope.
-		// Reached at most once per service collection due to the guard above plus the
-		// AddDispatch(configure) entry-point guard.
+		// Reached at most once per service collection due to the guard above.
 		_ = Services.AddSingleton(BuildRuntimeState);
 
 		// Ensure the configured dispatch pipeline and middleware invoker use
@@ -334,13 +385,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 
 		_ = Services.Replace(ServiceDescriptor.Singleton<IDispatcher>(sp => sp.GetRequiredService<CoreDispatcher>()));
 
-		// PERF: Auto-promote eligible transient handlers to singleton when opted in.
-		if (_options.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton)
-		{
-			HandlerLifetimeAnalyzer.PromoteEligibleHandlers(Services);
-		}
-
-		return new DeferredDispatcher(dispatcherHolder);
+		return dispatcherHolder;
 	}
 
 	/// <summary>
@@ -362,15 +407,23 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 	/// <summary>
 	/// Registers <see cref="DispatchOptions"/> validation and the option types it composes. Internal, not
 	/// private: both the builder route (<c>AddDispatch(configure)</c>, via <see cref="Build"/>) and the
-	/// legacy params route (<c>AddDispatch(Assembly[])</c>, which deliberately never calls <see cref="Build"/>
-	/// so later <c>AddDispatchMiddleware&lt;T&gt;()</c> calls stay visible to the legacy
-	/// <c>GetServices&lt;IDispatchMiddleware&gt;()</c> discovery path) must reach this registration — a
-	/// composition assembled through either route is expected to validate at start-up, not just one of them.
+	/// params route (<c>AddDispatch(Assembly[])</c>, which never calls <see cref="Build"/>) must reach this
+	/// registration — a composition assembled through either route is expected to validate at start-up, not
+	/// just one of them.
 	/// </summary>
 	internal void RegisterOptions()
 	{
 		Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
+
+		// InboxMiddleware injects IOptions<InboxConfigurationOptions>, but every writer of those values --
+		// WithInbox(), WithInboxMode(), WithLightMode(), the configuration binder -- writes DispatchOptions.Inbox,
+		// a nested object on a DIFFERENT options type. Without this bridge the middleware resolved a
+		// freshly-constructed default whose Enabled is false, so it forwarded every message untouched and
+		// deduplicated nothing, in every configuration, with no error. Hands it the SAME nested instance the
+		// DispatchOptions pipeline produced, so the two cannot drift.
+		_ = Services.AddSingleton<IOptions<InboxConfigurationOptions>>(static sp =>
+			Microsoft.Extensions.Options.Options.Create(sp.GetRequiredService<IOptions<DispatchOptions>>().Value.Inbox));
 
 		// Enabling the inbox selects durable, store-backed deduplication, but the store lives in a
 		// persistence package this one does not reference and cannot register. Registering the gate here —
@@ -605,14 +658,28 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		// Appended AFTER _globalMiddleware, so an explicit Use<T>() registration wins that tie over a
 		// DI-only one, which was already the effective behavior for _globalMiddleware relative to itself
 		// (registration order) and is the more explicit of the two registration paths.
-		foreach (var middleware in serviceProvider.GetServices<IDispatchMiddleware>())
+		//
+		// Enumerated inside a scope, and registered as a FACTORY rather than as the instance enumerated
+		// here. The provider this method receives is the root (the runtime state is a singleton), so a
+		// middleware registered Scoped cannot be enumerated from it at all under scope validation -- the
+		// container refuses IEnumerable<IDispatchMiddleware> outright. Enumerating in a scope fixes that,
+		// and then the instances belong to a scope that ends with this method: only the TYPE survives it,
+		// and the factory resolves the middleware again from whichever provider the pipeline build or a
+		// dispatch supplies.
+		using (var enumerationScope = serviceProvider.GetService<IServiceScopeFactory>()?.CreateScope())
 		{
-			if (_globalMiddleware.Contains(middleware.GetType()))
-			{
-				continue;
-			}
+			var enumerationProvider = enumerationScope?.ServiceProvider ?? serviceProvider;
 
-			_ = pipelineBuilder.Use(middleware.GetType(), _ => middleware);
+			foreach (var middleware in enumerationProvider.GetServices<IDispatchMiddleware>())
+			{
+				var middlewareType = middleware.GetType();
+				if (_globalMiddleware.Contains(middlewareType))
+				{
+					continue;
+				}
+
+				_ = pipelineBuilder.Use(middlewareType, ResolveFromRegisteredMiddleware(middlewareType));
+			}
 		}
 
 		configure(pipelineBuilder);
@@ -630,6 +697,33 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			pipelineBuilder.ConfiguredMiddlewareTypes,
 			pipelineBuilder.ResolvedMiddleware);
 	}
+
+	/// <summary>
+	/// Resolves one middleware out of the registered <see cref="IDispatchMiddleware"/> set by concrete
+	/// type, from whichever provider the caller supplies.
+	/// </summary>
+	/// <remarks>
+	/// The set is registered as an enumerable, so there is no per-type registration to resolve directly.
+	/// Matching on the concrete type is what makes the entry re-resolvable rather than captured, which is
+	/// what a Scoped registration in that set requires. The documented registration for this path is
+	/// Singleton, and a Singleton entry is resolved once during the pipeline build and held, so this
+	/// enumeration is not on the dispatch path for it.
+	/// </remarks>
+	private static Func<IServiceProvider, IDispatchMiddleware> ResolveFromRegisteredMiddleware(Type middlewareType) =>
+		serviceProvider =>
+		{
+			foreach (var candidate in serviceProvider.GetServices<IDispatchMiddleware>())
+			{
+				if (candidate.GetType() == middlewareType)
+				{
+					return candidate;
+				}
+			}
+
+			throw new InvalidOperationException(
+				$"'{middlewareType.FullName}' was registered as an {nameof(IDispatchMiddleware)} when the dispatch " +
+				"pipeline was composed, but is no longer resolvable from the current scope.");
+		};
 
 	private sealed class DispatcherHolder
 	{

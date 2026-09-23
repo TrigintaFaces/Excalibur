@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Net;
@@ -37,6 +37,12 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 	private readonly CdcFatalErrorHandler<CosmosDbDataChangeEvent>? _onFatalError;
 	private readonly IMessageFailureClassifier? _failureClassifier;
 	private CosmosDbDataChangeEvent? _inFlightEvent;
+	private readonly CdcFatalErrorOptions<CosmosDbDataChangeEvent> _fatalErrorOptions;
+	private readonly TimeProvider _timeProvider;
+	private readonly CdcHealthState? _healthState;
+
+	// The reconnect bound for the current StartAsync call; touched only by that call's consume loop.
+	private CdcTransientFailureBackoff? _backoff;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CosmosDbCdcProcessor"/> class.
@@ -57,13 +63,22 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 	/// Optional shared classifier deciding whether a processing error is fatal (non-retryable) or
 	/// transient. When omitted, a conservative built-in fallback is used.
 	/// </param>
+	/// <param name="timeProvider">
+	/// The clock the reconnect backoff waits on and measures stable connections with; defaults to the
+	/// system clock.
+	/// </param>
+	/// <param name="healthState">
+	/// Where consecutive reconnect failures are reported for the CDC health check, when one is registered.
+	/// </param>
 	public CosmosDbCdcProcessor(
 		CosmosClient client,
 		ICosmosDbCdcStateStore stateStore,
 		IOptions<CosmosDbCdcOptions> options,
 		ILogger<CosmosDbCdcProcessor> logger,
 		IOptions<CdcFatalErrorOptions<CosmosDbDataChangeEvent>>? fatalErrorOptions = null,
-		IMessageFailureClassifier? failureClassifier = null)
+		IMessageFailureClassifier? failureClassifier = null,
+		TimeProvider? timeProvider = null,
+		CdcHealthState? healthState = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(stateStore);
@@ -76,8 +91,11 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		_client = client;
 		_stateStore = stateStore;
 		_logger = logger;
-		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
+		_fatalErrorOptions = fatalErrorOptions?.Value ?? new CdcFatalErrorOptions<CosmosDbDataChangeEvent>();
+		_onFatalError = _fatalErrorOptions.OnFatalError;
 		_failureClassifier = failureClassifier;
+		_timeProvider = timeProvider ?? TimeProvider.System;
+		_healthState = healthState;
 		_currentPosition = _options.ChangeFeed.StartPosition ?? CosmosDbCdcPosition.Beginning();
 	}
 
@@ -93,11 +111,22 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 
 		LogStartingContinuousProcessing(_options.ProcessorName, _options.DatabaseId, _options.ContainerId);
 
+		_backoff = new CdcTransientFailureBackoff(
+			_options.ChangeFeed.PollInterval,
+			_fatalErrorOptions.MaxReconnectDelay,
+			_fatalErrorOptions.MaxConsecutiveTransientFailures,
+			_timeProvider,
+			_healthState);
+
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
+				_backoff.BeginAttempt();
 				var processedCount = await ProcessBatchInternalAsync(eventHandler, cancellationToken).ConfigureAwait(false);
+
+				// A poll that completed, with or without changes, reached the store: that ends any run of failures.
+				_backoff.RecordProgress();
 
 				if (processedCount == 0)
 				{
@@ -122,26 +151,27 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 				if (decision.Stop)
 				{
 					// Fatal (non-retryable) — stop loud, never an infinite silent reconnect.
-					LogFatalError(ex);
-
-					if (_onFatalError is not null)
-					{
-						// In-flight event for a per-event fatal; null for a connection/poll-level fatal.
-						await _onFatalError(ex, _inFlightEvent).ConfigureAwait(false);
-						return; // handler took over → terminal; do not reconnect.
-					}
-
-					throw; // default: fail-loud — propagate and stop.
+					await StopTerminallyAsync(ex).ConfigureAwait(false);
+					return; // the fatal handler took over → terminal; do not reconnect.
 				}
 
-				// Transient (non-fatal: decision.Stop == false) — reconnect and retry from the un-advanced checkpoint.
+				// Transient. Counted BEFORE the in-flight event is cleared, so a limit reached on a poisoned
+				// change still hands that change to the fatal handler.
+				var outcome = _backoff.RecordTransientFailure();
+				if (outcome.Exhausted)
+				{
+					await StopTerminallyAsync(new CdcRetryExhaustedException(outcome.ConsecutiveFailures, ex))
+						.ConfigureAwait(false);
+					return;
+				}
+
+				// Retry from the un-advanced checkpoint.
 				LogProcessingError(_options.ProcessorName, ex);
 				_inFlightEvent = null;
 
-				// Wait before retrying on error
 				try
 				{
-					await Task.Delay(_options.ChangeFeed.PollInterval, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(outcome.Delay, _timeProvider, cancellationToken).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
@@ -375,16 +405,12 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 			? idProp.GetString() ?? string.Empty
 			: string.Empty;
 
-		// Extract partition key if specified
-		string? partitionKey = null;
-		if (!string.IsNullOrEmpty(_options.PartitionKeyPath))
-		{
-			var pkPath = _options.PartitionKeyPath.TrimStart('/');
-			if (root.TryGetProperty(pkPath, out var pkProp))
-			{
-				partitionKey = pkProp.GetString();
-			}
-		}
+		// Extract partition key if specified. The single shared resolver walks every path segment and
+		// accepts every partition-key value type Cosmos supports; both processors in this package use it.
+		var partitionKey = CosmosDbPartitionKeyExtractor.Extract(
+			root,
+			_options.PartitionKeyPath,
+			out var partitionKeyKind);
 
 		// Extract timestamp (_ts is Unix epoch seconds)
 		var timestamp = DateTimeOffset.UtcNow;
@@ -411,13 +437,13 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		return changeType switch
 		{
 			CosmosDbDataChangeType.Insert => CosmosDbDataChangeEvent.CreateInsert(
-				position, documentId, partitionKey, document, timestamp, lsn, etag),
+				position, documentId, partitionKey, document, timestamp, lsn, etag, partitionKeyKind),
 			CosmosDbDataChangeType.Update => CosmosDbDataChangeEvent.CreateUpdate(
-				position, documentId, partitionKey, document, null, timestamp, lsn, etag),
+				position, documentId, partitionKey, document, null, timestamp, lsn, etag, partitionKeyKind),
 			CosmosDbDataChangeType.Delete => CosmosDbDataChangeEvent.CreateDelete(
-				position, documentId, partitionKey, null, timestamp, lsn),
+				position, documentId, partitionKey, null, timestamp, lsn, partitionKeyKind),
 			_ => CosmosDbDataChangeEvent.CreateUpdate(
-				position, documentId, partitionKey, document, null, timestamp, lsn, etag),
+				position, documentId, partitionKey, document, null, timestamp, lsn, etag, partitionKeyKind),
 		};
 	}
 
@@ -492,4 +518,29 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 	[LoggerMessage(DataCosmosDbEventId.CdcFatalError, LogLevel.Critical,
 		"Fatal (non-retryable) error in CosmosDb CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]
 	private partial void LogFatalError(Exception ex);
+
+	/// <summary>
+	/// Stops the consume loop for good: hands the failure to the fatal-error handler when one is configured,
+	/// or throws it.
+	/// </summary>
+	/// <remarks>
+	/// Shared by a fatal error and an exhausted retry so the two cannot drift apart. Nothing here writes a
+	/// position, so a restarted processor resumes from the last one confirmed.
+	/// </remarks>
+	/// <param name="reason">The fatal error, or the exception describing an exhausted retry.</param>
+	/// <returns>A task that completes only when the fatal-error handler took over.</returns>
+	private async Task StopTerminallyAsync(Exception reason)
+	{
+		LogFatalError(reason);
+
+		if (_onFatalError is not null)
+		{
+			// In-flight event for a per-event failure; null for a connection/poll-level one.
+			await _onFatalError(reason, _inFlightEvent).ConfigureAwait(false);
+			return;
+		}
+
+		// Rethrow preserving the original stack when the reason was thrown; an exhaustion wrapper was not.
+		ExceptionDispatchInfo.Throw(reason);
+	}
 }

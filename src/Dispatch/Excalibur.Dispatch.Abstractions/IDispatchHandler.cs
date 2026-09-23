@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Dispatch;
@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch;
 /// Use <see cref="IDispatchHandler{TMessage}"/> only when you need:
 /// </para>
 /// <list type="bullet">
-/// <item><description>Return <c>MessageResult.SuccessFromCache()</c> with <c>CacheHit = true</c></description></item>
+/// <item><description>Return <c>MessageResult.SuccessFromCache()</c>, or state another <see cref="MessageDisposition"/> on the result</description></item>
 /// <item><description>Set <c>ValidationResult</c> or <c>AuthorizationResult</c> on success results</description></item>
 /// <item><description>Return failure without throwing an exception</description></item>
 /// <item><description>Access <see cref="IMessageContext"/> within the handler</description></item>

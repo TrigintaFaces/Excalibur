@@ -25,6 +25,7 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.AwsS3\Excalibur.EventSourcing.AwsS3.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.AzureBlob\Excalibur.EventSourcing.AzureBlob.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Gcs\Excalibur.EventSourcing.Gcs.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

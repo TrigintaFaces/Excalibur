@@ -35,6 +35,7 @@ import sys
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 SRC = os.path.join(REPO_ROOT, "src")
 INVENTORY = os.path.join(REPO_ROOT, "eng", "ci", "aot-annotation-inventory.txt")
+SUPPRESSION_BASELINE = os.path.join(REPO_ROOT, "eng", "ci", "aot-suppression-baseline.json")
 
 ATTR = re.compile(
     r"\[\s*(?:System\.Diagnostics\.CodeAnalysis\.)?Requires(DynamicCode|UnreferencedCode)\s*[\(\]]"
@@ -183,7 +184,9 @@ def _selftest_tree(tmp, annotate_extra):
 DOCS_TABLE = os.path.join(REPO_ROOT, "docs-site", "docs", "advanced", "aot-compatibility.md")
 
 # A published table row: | `Package` | Status | Notes |
-DOC_ROW = re.compile(r"^\|\s*`([A-Za-z0-9_.]+)`\s*\|\s*(AOT-safe|Annotated)\s*\|", re.M)
+DOC_ROW = re.compile(
+    r"^\|\s*`([A-Za-z0-9_.]+)`\s*\|\s*(Clean|Warns you|Doesn't warn you)\s*\|", re.M
+)
 
 
 def packages_with_annotations(inventory_path):
@@ -200,7 +203,27 @@ def packages_with_annotations(inventory_path):
     return packages
 
 
-def check_docs(docs_path=None, inventory_path=None, quiet=False):
+def packages_with_suppressions(baseline_path):
+    """Package names that own at least one BASELINED AOT suppression.
+
+    THE SECOND SOURCE OF EVIDENCE, and the gate was blind without it. An annotated public member
+    warns the consumer at their own call site; a suppression does the opposite -- it guarantees the
+    consumer's build says nothing. Both are reflection. A gate that measured only the first could
+    not see two thirds of what the published table claims, so it anchored a consumer-facing promise
+    to an instrument that cannot observe most of the thing being promised.
+
+    Path shape is identical to the annotation inventory (src/<area>/<Package>/...), so this is the
+    same parse over a different file rather than a new mechanism.
+    """
+    packages = set()
+    with open(baseline_path, encoding="utf-8") as fh:
+        text = fh.read()
+    for match in re.finditer(r"src/[A-Za-z0-9_.]+/([A-Za-z0-9_.]+)/", text):
+        packages.add(match.group(1))
+    return packages
+
+
+def check_docs(docs_path=None, inventory_path=None, quiet=False, baseline_path=None):
     """The published package table must agree with the inventory.
 
     A row calling a package AOT-safe while the inventory records an annotated public member in it
@@ -211,26 +234,51 @@ def check_docs(docs_path=None, inventory_path=None, quiet=False):
     """
     docs_path = docs_path or DOCS_TABLE
     inventory_path = inventory_path or INVENTORY
+    baseline_path = baseline_path or SUPPRESSION_BASELINE
     try:
         annotated = packages_with_annotations(inventory_path)
+        suppressed = packages_with_suppressions(baseline_path)
         text = open(docs_path, encoding="utf-8").read()
     except OSError as exc:
         print("REFUSE: {}. Nothing was checked; this is NOT a pass.".format(exc), file=sys.stderr)
         return 2
 
     rows = DOC_ROW.findall(text)
-    if not rows or not annotated:
-        print("REFUSE: no table rows ({}) or no annotated packages ({}). Nothing was compared."
-              .format(len(rows), len(annotated)), file=sys.stderr)
+    # BOTH sources must be non-empty. An empty suppression baseline would silently disable the
+    # Clean-over-suppressions rule, which is the rule this gate exists for, and a green from a
+    # disabled rule reads exactly like a green from a satisfied one.
+    if not rows or not annotated or not suppressed:
+        print("REFUSE: no table rows ({}), no annotated packages ({}) or no suppressed packages "
+              "({}). Nothing was compared."
+              .format(len(rows), len(annotated), len(suppressed)), file=sys.stderr)
         return 2
 
     wrong = []
     for package, status in rows:
-        has = package in annotated
-        if has and status == "AOT-safe":
-            wrong.append("{}: table says AOT-safe, inventory records annotated members".format(package))
-        elif not has and status == "Annotated":
-            wrong.append("{}: table says Annotated, inventory records none".format(package))
+        annotated_here = package in annotated
+        suppressed_here = package in suppressed
+
+        if status == "Clean" and annotated_here:
+            wrong.append(
+                "{}: table says Clean, but the inventory records annotated public members. A "
+                "consumer WILL see IL2026/IL3050 at their own call site.".format(package))
+        elif status == "Clean" and suppressed_here:
+            # THE RULE THAT WAS MISSING, and it is the one the whole defect turned on. A package
+            # whose reflection is suppressed has no annotated public member, so the old gate's
+            # second rule REQUIRED it to be labelled AOT-safe and went red if anyone labelled it
+            # honestly. The gate did not merely miss the false claim; it compelled it.
+            wrong.append(
+                "{}: table says Clean, but it carries baselined AOT suppressions. The consumer's "
+                "build will be SILENT about reflection that is really there -- which is exactly "
+                "what 'Doesn't warn you' exists to say.".format(package))
+        elif status == "Warns you" and not annotated_here:
+            wrong.append(
+                "{}: table says 'Warns you', but no annotated public member is recorded, so "
+                "nothing will warn the consumer.".format(package))
+        elif status == "Doesn't warn you" and not suppressed_here:
+            wrong.append(
+                "{}: table says \"Doesn't warn you\", but no baselined suppression is recorded. "
+                "If the reflection is gone the row should be Clean.".format(package))
 
     if wrong:
         if not quiet:
@@ -240,12 +288,13 @@ def check_docs(docs_path=None, inventory_path=None, quiet=False):
                 print("  " + line, file=sys.stderr)
         return 1
     if not quiet:
-        print("docs table agrees with the inventory ({} rows, {} annotated packages)"
-              .format(len(rows), len(annotated)))
+        print("docs table agrees with the evidence ({} rows, {} annotated, {} suppressed)"
+              .format(len(rows), len(annotated), len(suppressed)))
     return 0
 
 
 def self_test():
+    arms = 0
     import tempfile
     fails = 0
     with tempfile.TemporaryDirectory() as tmp:
@@ -262,6 +311,7 @@ def self_test():
         print("  PASS  matching inventory passes" if rc == 0
               else "  FAIL  matching inventory returned {}, expected 0".format(rc))
         fails += rc != 0
+        arms += 1
 
         # Arm 2 (liveness): a NEW annotated member must fail. Without this the gate could pass by
         # never detecting anything -- the failure it exists to prevent, applied to itself.
@@ -270,12 +320,14 @@ def self_test():
         print("  PASS  a newly annotated public member fails" if rc == 1
               else "  FAIL  new annotation returned {}, expected 1".format(rc))
         fails += rc != 1
+        arms += 1
 
         # Arm 3 (refusal): a missing inventory must REFUSE, never pass.
         rc = check(src, os.path.join(tmp, "nope.txt"), quiet=True, base=tmp)
         print("  PASS  missing inventory REFUSEs (exit 2)" if rc == 2
               else "  FAIL  missing inventory returned {}, expected 2".format(rc))
         fails += rc != 2
+        arms += 1
 
         # Arm 4 (refusal): an empty tree with an empty inventory must REFUSE, not report clean --
         # a scanner that matches nothing looks exactly like a tree with nothing to find.
@@ -287,36 +339,92 @@ def self_test():
         print("  PASS  empty tree + empty inventory REFUSEs (exit 2)" if rc == 2
               else "  FAIL  empty/empty returned {}, expected 2".format(rc))
         fails += rc != 2
+        arms += 1
 
-        # Arms 5-7 (docs table): the same three states, on the claim rather than the source.
+        # Arms 5-10 (docs table): the claim, checked against BOTH sources of evidence.
+        #
+        # The table's three statuses answer one consumer question -- what will your build tell you? --
+        # so each arm below plants a row that answers it WRONGLY and requires the gate to say so.
         doc_inv = os.path.join(tmp, "docinv.txt")
         with open(doc_inv, "w", encoding="utf-8") as fh:
             fh.write("src/Dispatch/Pkg.Annotated/File.cs::Member\n")
+        # The suppression baseline: a package whose reflection is internal and silenced. It has NO
+        # annotated member by construction -- that is what makes it invisible to the inventory, and
+        # why a gate reading only the inventory could not see it.
+        doc_base = os.path.join(tmp, "docbase.json")
+        with open(doc_base, "w", encoding="utf-8") as fh:
+            fh.write('{"suppressions": [{"file": "src/Excalibur/Pkg.Silent/Thing.cs", "rule": "IL2026"}]}')
+
         agree = os.path.join(tmp, "agree.md")
         with open(agree, "w", encoding="utf-8") as fh:
-            fh.write("## heading, so a first-line-only match cannot carry the arm\n| `Pkg.Annotated` | Annotated | note |\n| `Pkg.Clean` | AOT-safe | |\n")
-        rc = check_docs(agree, doc_inv, quiet=True)
+            fh.write("## heading, so a first-line-only match cannot carry the arm\n"
+                     "| `Pkg.Annotated` | Warns you | note |\n"
+                     "| `Pkg.Silent` | Doesn't warn you | |\n"
+                     "| `Pkg.Clean` | Clean | |\n")
+        rc = check_docs(agree, doc_inv, quiet=True, baseline_path=doc_base)
         print("  PASS  an agreeing docs table passes" if rc == 0
               else "  FAIL  agreeing table returned {}, expected 0".format(rc))
         fails += rc != 0
+        arms += 1
 
         disagree = os.path.join(tmp, "disagree.md")
         with open(disagree, "w", encoding="utf-8") as fh:
-            fh.write("## heading\n| `Pkg.Annotated` | AOT-safe | |\n")
-        rc = check_docs(disagree, doc_inv, quiet=True)
-        print("  PASS  a row claiming AOT-safe over an annotated package fails" if rc == 1
+            fh.write("## heading\n| `Pkg.Annotated` | Clean | |\n| `Pkg.Silent` | Doesn't warn you | |\n")
+        rc = check_docs(disagree, doc_inv, quiet=True, baseline_path=doc_base)
+        print("  PASS  a row claiming Clean over an ANNOTATED package fails" if rc == 1
               else "  FAIL  disagreeing table returned {}, expected 1".format(rc))
         fails += rc != 1
+        arms += 1
 
-        rc = check_docs(os.path.join(tmp, "nope.md"), doc_inv, quiet=True)
+        # THE ARM THE OLD GATE COULD NOT HAVE HAD, and the reason this file changed. Before the
+        # suppression baseline became evidence, a silent package had no annotated member, so the old
+        # second rule REQUIRED its row to read AOT-safe and went RED if anyone labelled it honestly.
+        # The gate did not merely miss the false claim -- it compelled it.
+        silent_lie = os.path.join(tmp, "silent.md")
+        with open(silent_lie, "w", encoding="utf-8") as fh:
+            fh.write("## heading\n| `Pkg.Annotated` | Warns you | |\n| `Pkg.Silent` | Clean | |\n")
+        rc = check_docs(silent_lie, doc_inv, quiet=True, baseline_path=doc_base)
+        print("  PASS  a row claiming Clean over a SUPPRESSED package fails" if rc == 1
+              else "  FAIL  Clean-over-suppressed returned {}, expected 1".format(rc))
+        fails += rc != 1
+        arms += 1
+
+        # The converse, so the new status cannot be applied as a blanket disclaimer to packages that
+        # have nothing to disclaim. A status nobody can be wrong about carries no information.
+        overclaim = os.path.join(tmp, "overclaim.md")
+        with open(overclaim, "w", encoding="utf-8") as fh:
+            fh.write("## heading\n| `Pkg.Annotated` | Warns you | |\n| `Pkg.Clean` | Doesn't warn you | |\n")
+        rc = check_docs(overclaim, doc_inv, quiet=True, baseline_path=doc_base)
+        print("  PASS  a row claiming \"Doesn't warn you\" over a clean package fails" if rc == 1
+              else "  FAIL  overclaim returned {}, expected 1".format(rc))
+        fails += rc != 1
+        arms += 1
+
+        rc = check_docs(os.path.join(tmp, "nope.md"), doc_inv, quiet=True, baseline_path=doc_base)
         print("  PASS  a missing docs table REFUSEs (exit 2)" if rc == 2
               else "  FAIL  missing table returned {}, expected 2".format(rc))
         fails += rc != 2
+        arms += 1
+
+        # An empty suppression baseline silently disables the Clean-over-suppressed rule -- the rule
+        # this gate exists for. A green from a disabled rule is indistinguishable from a green from a
+        # satisfied one, so it must REFUSE rather than pass.
+        empty_base = os.path.join(tmp, "emptybase.json")
+        with open(empty_base, "w", encoding="utf-8") as fh:
+            fh.write("{}")
+        rc = check_docs(agree, doc_inv, quiet=True, baseline_path=empty_base)
+        print("  PASS  an empty suppression baseline REFUSEs (exit 2)" if rc == 2
+              else "  FAIL  empty baseline returned {}, expected 2".format(rc))
+        fails += rc != 2
+        arms += 1
 
     if fails:
         print("self-test: {} arm(s) FAILED".format(fails))
         return 1
-    print("self-test: 7/7 arms pass")
+    # Counted, not hardcoded. The literal said 7 while ten arms printed -- a gate that misreports its
+    # own coverage is the same defect it exists to catch, one level up, and a hardcoded total goes
+    # stale silently the moment anyone adds an arm.
+    print("self-test: {}/{} arms pass".format(arms, arms))
     return 0
 
 

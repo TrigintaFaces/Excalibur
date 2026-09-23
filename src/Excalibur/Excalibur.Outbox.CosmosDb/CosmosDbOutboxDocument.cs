@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 using System.Text.Json;
@@ -14,42 +14,86 @@ namespace Excalibur.Outbox.CosmosDb;
 /// The stored shape of an outbox message in Cosmos DB.
 /// </summary>
 /// <remarks>
-/// Property names are serialized camel-cased by the client the store builds, so <c>Id</c> lands as the
-/// <c>id</c> Cosmos requires and <c>LeasedAt</c> as the <c>leasedAt</c> the claim predicate names. Anything
-/// added here must keep that correspondence with the queries in <see cref="CosmosDbOutboxStore"/>.
+/// <para>
+/// <b>Every persisted property is mapped explicitly, for BOTH serializers, to the exact wire name the
+/// queries in <see cref="CosmosDbOutboxStore"/> name.</b> Anything added here must do the same.
+/// </para>
+/// <para>
+/// This does not depend on a naming policy, and that is the point. The client this store builds configures
+/// System.Text.Json with a camelCase policy, but <c>ICosmosDbOutboxBuilder</c> also lets a consumer supply
+/// their own <c>CosmosClient</c>, which bypasses that configuration entirely and uses the SDK default —
+/// Newtonsoft, PascalCase. Under that shape an unmapped <c>LeasedAt</c> goes to the wire as
+/// <c>LeasedAt</c>, the claim predicate's <c>c.leasedAt</c> is undefined on every document, and
+/// <c>NOT IS_DEFINED(c.leasedAt)</c> is therefore TRUE for every row: every message reads as unclaimed no
+/// matter who holds the lease, so the atomic claim is inert and two instances can publish the same message.
+/// A claim predicate that fails OPEN is a duplicate-delivery defect, not a configuration mistake, so the
+/// correspondence is pinned on the type rather than left to how the client happened to be built.
+/// </para>
 /// </remarks>
 internal sealed class CosmosDbOutboxDocument
 {
+	[System.Text.Json.Serialization.JsonPropertyName("id")]
+	[Newtonsoft.Json.JsonProperty("id")]
 	public required string Id { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("partitionKey")]
+	[Newtonsoft.Json.JsonProperty("partitionKey")]
 	public required string PartitionKey { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("messageType")]
+	[Newtonsoft.Json.JsonProperty("messageType")]
 	public required string MessageType { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("payload")]
+	[Newtonsoft.Json.JsonProperty("payload")]
 	public required string Payload { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("headers")]
+	[Newtonsoft.Json.JsonProperty("headers")]
 	public string? Headers { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("aggregateId")]
+	[Newtonsoft.Json.JsonProperty("aggregateId")]
 	public string? AggregateId { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("aggregateType")]
+	[Newtonsoft.Json.JsonProperty("aggregateType")]
 	public string? AggregateType { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("correlationId")]
+	[Newtonsoft.Json.JsonProperty("correlationId")]
 	public string? CorrelationId { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("causationId")]
+	[Newtonsoft.Json.JsonProperty("causationId")]
 	public string? CausationId { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("tenantId")]
+	[Newtonsoft.Json.JsonProperty("tenantId")]
 	public string? TenantId { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("destination")]
+	[Newtonsoft.Json.JsonProperty("destination")]
 	public string? Destination { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("createdAt")]
+	[Newtonsoft.Json.JsonProperty("createdAt")]
 	public required string CreatedAt { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("publishedAt")]
+	[Newtonsoft.Json.JsonProperty("publishedAt")]
 	public string? PublishedAt { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("isPublished")]
+	[Newtonsoft.Json.JsonProperty("isPublished")]
 	public bool IsPublished { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("retryCount")]
+	[Newtonsoft.Json.JsonProperty("retryCount")]
 	public int RetryCount { get; set; }
 
+	[System.Text.Json.Serialization.JsonPropertyName("lastError")]
+	[Newtonsoft.Json.JsonProperty("lastError")]
 	public string? LastError { get; set; }
 
 	/// <summary>
@@ -73,11 +117,15 @@ internal sealed class CosmosDbOutboxDocument
 	/// Round-trip ("o") format is fixed width, so the claim predicate can compare it against a cutoff with
 	/// the ordinal string comparison Cosmos applies to a string range — no parsing server-side.
 	/// </remarks>
+	[System.Text.Json.Serialization.JsonPropertyName("leasedAt")]
+	[Newtonsoft.Json.JsonProperty("leasedAt")]
 	public string? LeasedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets the claimant holding the current lease.
 	/// </summary>
+	[System.Text.Json.Serialization.JsonPropertyName("leasedBy")]
+	[Newtonsoft.Json.JsonProperty("leasedBy")]
 	public string? LeasedBy { get; set; }
 
 	/// <summary>
@@ -99,6 +147,7 @@ internal sealed class CosmosDbOutboxDocument
 internal sealed class CosmosDbOutboxIdProjection
 {
 	[JsonPropertyName("id")]
+	[Newtonsoft.Json.JsonProperty("id")]
 	public string Id { get; set; } = string.Empty;
 }
 
@@ -111,12 +160,6 @@ internal sealed class CosmosDbOutboxIdProjection
 /// </remarks>
 internal static class CosmosDbOutboxDocumentMap
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false
-	};
-
 	/// <summary>Projects a message onto its stored document.</summary>
 	/// <param name="message">The message to store.</param>
 	/// <param name="partitionKey">The partition the document belongs to.</param>
@@ -128,11 +171,11 @@ internal static class CosmosDbOutboxDocumentMap
 			PartitionKey = partitionKey.Value,
 			MessageType = message.MessageType,
 			Payload = Convert.ToBase64String(message.Payload),
-#pragma warning disable IL2026, IL3050
 			Headers = message.Headers != null
-				? JsonSerializer.Serialize(message.Headers, JsonOptions)
+				? JsonSerializer.Serialize(
+					message.Headers,
+					CosmosDbOutboxSerializerContext.Default.DictionaryStringString)
 				: null,
-#pragma warning restore IL2026, IL3050
 			AggregateId = message.AggregateId,
 			AggregateType = message.AggregateType,
 			CorrelationId = message.CorrelationId,
@@ -155,11 +198,11 @@ internal static class CosmosDbOutboxDocumentMap
 			MessageId = doc.Id,
 			MessageType = doc.MessageType,
 			Payload = Convert.FromBase64String(doc.Payload),
-#pragma warning disable IL2026, IL3050
 			Headers = !string.IsNullOrEmpty(doc.Headers)
-				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.Headers, JsonOptions)
+				? JsonSerializer.Deserialize(
+					doc.Headers,
+					CosmosDbOutboxSerializerContext.Default.DictionaryStringString)
 				: null,
-#pragma warning restore IL2026, IL3050
 			AggregateId = doc.AggregateId,
 			AggregateType = doc.AggregateType,
 			CorrelationId = doc.CorrelationId,

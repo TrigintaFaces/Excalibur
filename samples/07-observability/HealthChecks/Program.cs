@@ -11,6 +11,10 @@
 // - /health/live    - Liveness probe (minimal checks)
 // - /health/ready   - Readiness probe (dependency checks)
 
+// A top-level sample program wires every feature it demonstrates in one place, so it legitimately
+// touches more types than a production class should. Matches the other samples in this tree.
+#pragma warning disable CA1506 // Sample has high coupling by design
+
 using HealthChecks.UI.Client;
 
 using HealthChecksSample.HealthChecks;
@@ -46,7 +50,14 @@ builder.Services.AddHealthChecks()
 		tags: ["ready", "external"],
 		timeout: TimeSpan.FromSeconds(5));
 
+// Unhandled exceptions become a generic RFC 9457 Problem Details 500; the exception message is
+// not written to the response. (Excalibur.Hosting.Web's AddGlobalExceptionHandler() adds status-code
+// mapping for framework exceptions, such as 404 for ResourceNotFoundException.)
+builder.Services.AddProblemDetails();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 // Map health endpoints with different configurations
 
@@ -59,31 +70,11 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 
 // Liveness probe - only checks that indicate the app is alive
 // Used by Kubernetes to know if the container should be restarted
-app.MapHealthChecks("/health/live", new HealthCheckOptions
-{
-	ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
-	Predicate = check => check.Tags.Contains("live"),
-	ResultStatusCodes =
-	{
-		[HealthStatus.Healthy] = StatusCodes.Status200OK,
-		[HealthStatus.Degraded] = StatusCodes.Status200OK,
-		[HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable,
-	},
-});
+app.MapHealthChecks("/health/live", HealthProbeOptions.For("live"));
 
 // Readiness probe - checks dependencies
 // Used by Kubernetes to know if the container can receive traffic
-app.MapHealthChecks("/health/ready", new HealthCheckOptions
-{
-	ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
-	Predicate = check => check.Tags.Contains("ready"),
-	ResultStatusCodes =
-	{
-		[HealthStatus.Healthy] = StatusCodes.Status200OK,
-		[HealthStatus.Degraded] = StatusCodes.Status200OK,
-		[HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable,
-	},
-});
+app.MapHealthChecks("/health/ready", HealthProbeOptions.For("ready"));
 
 // Root endpoint
 app.MapGet("/", () => """
@@ -120,4 +111,12 @@ Console.WriteLine(@"
     periodSeconds: 10
 ");
 
+// Printed once the host is actually listening. A startup failure never reaches this line, so it
+// separates "started and serving" from "died or hung during startup" for anyone -- or anything --
+// watching the output.
+app.Lifetime.ApplicationStarted.Register(static () =>
+	Console.WriteLine("Sample ready: health endpoints listening. Press Ctrl+C to stop."));
+
 app.Run();
+
+#pragma warning restore CA1506

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
 
@@ -131,4 +131,28 @@ public sealed class IbmMqReceiveTuningOptions
 	/// ingress size guard is on by default rather than requiring opt-in.
 	/// </value>
 	public int? MaxPayloadBytes { get; set; } = PayloadSizeGuard.DefaultMaxPayloadBytes;
+
+	/// <summary>
+	/// Gets or sets the queue a message is moved to when it is rejected without requeue, or
+	/// <see langword="null"/> when no such queue is configured.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is IBM MQ's backout-requeue queue — the queue named by the input queue's <c>BOQNAME</c>
+	/// attribute. Rejecting a message <em>without</em> requeue means the caller does not want it delivered
+	/// again, and backing out a syncpoint is the opposite of that: it returns the message to the input queue
+	/// for immediate redelivery. The only way to honour the request is to move the message elsewhere, which
+	/// on IBM MQ is an application's job — the queue manager counts backouts in <c>MQMD.BackoutCount</c> and
+	/// moves nothing by itself.
+	/// </para>
+	/// <para>
+	/// <b>Leaving it unset does not silently degrade to a backout.</b> With no destination configured the
+	/// receiver cannot deliver the outcome that was asked for, so it backs the message out and reports the
+	/// failure rather than returning success for something it did not do. Set this to enable
+	/// rejection-without-requeue; the queue must exist and the connecting identity must be able to put to
+	/// it, neither of which can be established at startup.
+	/// </para>
+	/// </remarks>
+	/// <value>The backout-requeue queue name, or <see langword="null"/> when rejection without requeue is not configured.</value>
+	public string? BackoutQueueName { get; set; }
 }

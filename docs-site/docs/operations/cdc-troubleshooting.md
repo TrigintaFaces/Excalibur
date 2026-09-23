@@ -241,48 +241,31 @@ public class CdcPositionValidator
 
 ## Projection Rebuild
 
-When CDC recovery requires projection rebuild, inject `IProjectionRebuildService` from the framework:
+When CDC recovery requires a projection rebuild, use `IProjectionRebuildService`. Register it with
+`services.AddProjectionRebuild()`. A rebuild replays every event through the projection's handlers and
+replaces the projection's existing state.
 
 ```csharp
-public class CdcProjectionRecoveryHandler
+using Excalibur.EventSourcing.Projections;
+
+public sealed class CdcProjectionRecovery(IProjectionRebuildService rebuild, ILogger<CdcProjectionRecovery> logger)
 {
-    public async Task RebuildAsync(
-        string projectionName,
-        long fromSequence,
-        CancellationToken ct)
+    public async Task RebuildOrdersAsync(CancellationToken cancellationToken)
     {
-        _logger.LogWarning(
-            "Rebuilding projection {Name} from sequence {Sequence}",
-            projectionName, fromSequence);
+        await rebuild.RebuildAsync<OrderSummaryProjection>(cancellationToken);
 
-        // 1. Clear existing projection data
-        await _projectionStore.ClearAsync(projectionName, ct);
-
-        // 2. Replay events from the event store
-        var events = await _eventStore.LoadAsync(
-            aggregateId: "*",
-            aggregateType: projectionName,
-            fromVersion: fromSequence,
-            ct);
-
-        foreach (var @event in events)
+        var status = await rebuild.GetStatusAsync<OrderSummaryProjection>(cancellationToken);
+        if (status.State == ProjectionRebuildState.Failed)
         {
-            var projector = _projectorFactory.GetProjector(projectionName);
-            await projector.ApplyAsync(@event, ct);
+            logger.LogError("Rebuild of {Projection} failed", status.ProjectionName);
         }
-
-        // 3. Update rebuild metadata
-        await _projectionStore.SetLastRebuiltAsync(
-            projectionName,
-            DateTime.UtcNow,
-            ct);
-
-        _logger.LogInformation(
-            "Projection {Name} rebuild complete",
-            projectionName);
     }
 }
 ```
+
+`GetStatusAsync<T>()` reports the projection's `State` (`Idle`, `Rebuilding`, `Completed` or `Failed`), its
+`Progress`, and when it was last rebuilt; `GetAllStatusesAsync()` reports every projection. Reads of the
+projection during a rebuild see partially rebuilt state, so schedule it when that is acceptable.
 
 ## Monitoring and Alerting
 
@@ -389,6 +372,77 @@ services.AddCdcProcessor(cdc =>
 
 In environments where databases are frequently restored from production backups, use `FallbackToEarliest` or `FallbackToLatest` instead of the default `Throw` strategy. Ensure your event handlers are idempotent to safely handle reprocessed events.
 :::
+
+## Stream-Based Providers: DynamoDB, Cosmos DB and MongoDB
+
+The sections above diagnose log-based providers, where a position is a log offset you can inspect.
+Stream-based providers fail differently: their most common symptom is **change delivery stopping with
+no error at all**, because the stream itself is a moving structure rather than a fixed log.
+
+### DynamoDB: delivery stops and nothing is logged
+
+DynamoDB Streams rotates shards as a normal part of operation — a shard closes and a successor takes
+over, with no notification. A subscription that enumerated its shards once at start-up drains the
+shards it knows about, finds them closed, and completes.
+
+**What you would see:** the processor is running and healthy, its last checkpoint is valid, and no new
+changes arrive. Nothing is logged, because from the subscription's point of view it finished normally.
+
+**What the framework does now:** shards are re-enumerated on every poll, closed shards are retired, and
+successors are picked up automatically. Two behaviours are worth knowing because they look surprising:
+
+- **A disabled stream now throws** instead of completing quietly. A stream that has been turned off and
+  a stream with nothing to say used to be the same observation; they are now distinguishable.
+- **Shards discovered after start-up open at `TRIM_HORIZON`**, even when the processor was configured
+  to start from *now*. A successor shard carries every write since its parent closed, so opening it at
+  the latest position would skip exactly the records the rotation was about to deliver.
+
+:::note If you configured "start from now" and see older records after a rotation, this is why
+That is the gap-avoidance rule above, working as intended. It applies only to shards that appear
+*after* the processor started — the initial position is still honoured for the shards present at
+start-up.
+:::
+
+### DynamoDB: a subset of changes arrives, consistently
+
+A single `DescribeStream` or `Scan` returns one page. A processor that treats the first page as the
+whole population silently ignores every shard, and every stored checkpoint, past that boundary — so a
+deployment large enough to page loses an arbitrary, stable subset of its changes.
+
+**What you would see:** some changes flow and others never do, reproducibly, with no error. Often it
+correlates with table growth rather than with any deployment.
+
+**What to check if you suspect it:** compare the number of open shards reported by
+`DescribeStream` against the number your processor is polling, and the number of rows in the CDC state
+table against the number of positions your processor enumerates. A gap in either, on a table large
+enough to page, is this shape.
+
+### MongoDB: the stream never advances past a dropped or renamed collection
+
+A MongoDB change stream that receives an **invalidate** event is finished — its resume token cannot be
+used with `resumeAfter` again. A processor that reopens from its previous checkpoint after a collection
+drop, rename or database drop either fails to resume or resumes at a point it can never move past.
+
+**What you would see:** changes stop at the moment of the schema operation, and a restart does not help
+because the stored position is the one that cannot advance.
+
+**What the framework does now:** the invalidate event is detected, its own token is stored with a resume
+mode of `startAfter` — the only operator that can carry a stream past an invalidate — and the stream is
+reopened after the configured reconnect interval. The mode is persisted with the token, so a cold
+restart reopens correctly too.
+
+:::warning An invalidate means the collection you were watching is gone
+Recovery resumes the *stream*. It does not recreate the collection or replay changes that occurred
+while it did not exist. Treat an invalidate as an operational event worth alerting on, not merely a
+reconnect.
+:::
+
+### Cosmos DB: changes arrive but cannot be addressed to a partition
+
+If a container uses a **numeric** partition key, or a **nested** partition-key path such as
+`/payload/tenantId`, confirm your configured `PartitionKeyPath` matches the container's definition
+exactly. Cosmos treats the number `42` and the string `"42"` as different partition keys, so a
+mismatch produces changes that resolve to no partition rather than an error.
 
 ## Prevention Best Practices
 

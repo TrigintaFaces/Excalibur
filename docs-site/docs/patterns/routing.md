@@ -240,6 +240,20 @@ routing.Transport
         .When((msg, ctx) => ctx.Items.ContainsKey("express")).To("kafka");
 ```
 
+:::note Conditional rules are re-evaluated for every message
+Rules are evaluated in declaration order, and the first match wins. When a message type has **any**
+applicable predicate, the decision depends on the individual message, so it is made fresh on every
+dispatch — the selector never reuses an earlier message's outcome for a later one.
+
+In the example above that is what makes the two rules behave as written: an ordinary `OrderCreated`
+takes the `rabbitmq` fallback, and a high-priority one that arrives afterwards still reaches `kafka`.
+Ordering of traffic does not change the routing anyone gets.
+
+A message type with **no** applicable predicate is routed purely by its type, so that decision is
+cached. You get the cheap path exactly where it is sound, and per-message evaluation exactly where it
+is required.
+:::
+
 ### ITransportSelector Interface
 
 ```csharp

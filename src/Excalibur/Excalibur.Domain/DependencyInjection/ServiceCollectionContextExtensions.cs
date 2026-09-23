@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 using System.Net;
@@ -97,9 +97,18 @@ public static class ServiceCollectionContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		var resolvedTenant = tenant ?? TenantDefaults.DefaultTenantId;
-
-		_ = services.Configure<TenantContextOptions>(o => o.DefaultTenantId = resolvedTenant);
+		// THE FRAMEWORK DEFAULT MUST NEVER OVERWRITE A TENANT THE CONSUMER CONFIGURED.
+		//
+		// Options configuration actions run in registration order and the last write wins, so an
+		// unconditional assignment here silently replaced any default tenant configured before it ran -
+		// including UseTenant(...) inside the AddExcalibur callback, which always runs first. The
+		// null-coalesce used to guard the PARAMETER; it now guards the OPTIONS VALUE. With no tenant
+		// supplied, the framework default is seated only when nothing is configured, so the outcome no
+		// longer depends on registration order: whichever runs first, the consumer's value survives.
+		// A tenant passed to this method explicitly is itself a consumer choice and is assigned as given.
+		_ = tenant is null
+			? services.Configure<TenantContextOptions>(static o => o.DefaultTenantId ??= TenantDefaults.DefaultTenantId)
+			: services.Configure<TenantContextOptions>(o => o.DefaultTenantId = tenant);
 		_ = services.TryAddCorrelationId();
 		_ = services.TryAddETag();
 		_ = localAddress

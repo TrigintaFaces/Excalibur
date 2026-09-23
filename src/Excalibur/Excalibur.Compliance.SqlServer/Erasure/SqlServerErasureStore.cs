@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
@@ -38,10 +38,10 @@ public sealed partial class SqlServerErasureStore
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
 	/// Gets the tenant scope this store runs under, resolved in one place so every statement it builds binds
-	/// the same term. When the deployment is not multi-tenant the store
-	/// deliberately emits no tenant predicate. That decision is stated here
-	/// and nowhere else: a conversion cannot make it on the store's behalf without inventing a tenant
-	/// decision the host never made.
+	/// the same term. The tenant context is required, and the conversion yields either a scoped term or the
+	/// reserved untenanted sentinel &#8212; never an absent one, so there is no state in which the partition is
+	/// undecided. A single-tenant host receives the framework default context and operates as the one canonical
+	/// tenant; it does not cause the predicate to be omitted.
 	/// </summary>
 	private TenantScope CurrentTenantScope =>
 		TenantScope.FromContext(_tenantContext);
@@ -256,7 +256,9 @@ public sealed partial class SqlServerErasureStore
 				ErrorMessage = @ErrorMessage,
 				ExecutedAt = CASE WHEN @Status = {(int)ErasureRequestStatus.InProgress} THEN @Now ELSE ExecutedAt END,
 				UpdatedAt = @Now
-			WHERE RequestId = @RequestId{tenantPredicate}";
+			WHERE RequestId = @RequestId{tenantPredicate}
+			  AND (@Status <> {(int)ErasureRequestStatus.InProgress}
+			       OR Status = {(int)ErasureRequestStatus.Scheduled})";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -289,7 +291,8 @@ public sealed partial class SqlServerErasureStore
 				CertificateId = @CertificateId,
 				CompletedAt = @Now,
 				UpdatedAt = @Now
-			WHERE RequestId = @RequestId{tenantPredicate}";
+			WHERE RequestId = @RequestId{tenantPredicate}
+			  AND Status IN ({(int)ErasureRequestStatus.Scheduled}, {(int)ErasureRequestStatus.InProgress}, {(int)ErasureRequestStatus.AwaitingKeyDestruction})";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -314,7 +317,10 @@ public sealed partial class SqlServerErasureStore
 		if (affected == 0)
 		{
 			throw new KeyNotFoundException(
-				$"No erasure request with id '{requestId}' exists, so its completion cannot be recorded.");
+				$"No erasure request with id '{requestId}' is in a state from which a completion can be "
+				+ "recorded: it does not exist, it belongs to another tenant, or its status changed while "
+				+ "the run was executing. A legal hold or a cancellation recorded mid-run takes the request "
+				+ "out of the run deliberately, and a completion must not overwrite it.");
 		}
 	}
 
@@ -487,10 +493,12 @@ public sealed partial class SqlServerErasureStore
 		var sql = $@"
 			INSERT INTO {_options.FullCertificatesTableName}
 				(CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
-				 Method, Summary, Verification, LegalBasis, Signature, RetainUntil, CreatedAt)
+				 Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
+				 Exceptions, GeneratedAt, Version, CreatedAt)
 			VALUES
 				(@CertificateId, @RequestId, @DataSubjectReference, @RequestReceivedAt, @CompletedAt,
-				 @Method, @Summary, @Verification, @LegalBasis, @Signature, @RetainUntil, @CreatedAt)";
+				 @Method, @Summary, @Verification, @LegalBasis, @Signature, @RetainUntil,
+				 @Exceptions, @GeneratedAt, @Version, @CreatedAt)";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -499,21 +507,26 @@ public sealed partial class SqlServerErasureStore
 		{
 			_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
 		{
-			certificate.CertificateId,
-			certificate.RequestId,
-			certificate.DataSubjectReference,
-			certificate.RequestReceivedAt,
-			certificate.CompletedAt,
-			Method = (int)certificate.Method,
+			certificate.Payload.CertificateId,
+			certificate.Payload.RequestId,
+			certificate.Payload.DataSubjectReference,
+			certificate.Payload.RequestReceivedAt,
+			certificate.Payload.CompletedAt,
+			Method = (int)certificate.Payload.Method,
 			Summary = JsonSerializer.Serialize(
-				certificate.Summary,
+				certificate.Payload.Summary,
 				SqlServerComplianceJsonContext.Default.ErasureSummary),
 			Verification = JsonSerializer.Serialize(
-				certificate.Verification,
+				certificate.Payload.Verification,
 				SqlServerComplianceJsonContext.Default.VerificationSummary),
-			LegalBasis = (int)certificate.LegalBasis,
+			LegalBasis = (int)certificate.Payload.LegalBasis,
 			certificate.Signature,
-			certificate.RetainUntil,
+			certificate.Payload.RetainUntil,
+			Exceptions = JsonSerializer.Serialize(
+				certificate.Payload.Exceptions,
+				SqlServerComplianceJsonContext.Default.IReadOnlyListErasureException),
+			certificate.Payload.GeneratedAt,
+			certificate.Payload.Version,
 			CreatedAt = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 		}
@@ -522,10 +535,10 @@ public sealed partial class SqlServerErasureStore
 			// A certificate is the attestation itself, so silently replacing one would rewrite evidence
 			// that has already been issued. Same narrow filter, and same specific type, as the request
 			// insert.
-			throw DuplicateErasureCertificateException.ForCertificateId(certificate.CertificateId, ex);
+			throw DuplicateErasureCertificateException.ForCertificateId(certificate.Payload.CertificateId, ex);
 		}
 
-		LogSavedCertificate(certificate.CertificateId, certificate.RequestId);
+		LogSavedCertificate(certificate.Payload.CertificateId, certificate.Payload.RequestId);
 	}
 
 	/// <inheritdoc />
@@ -546,7 +559,8 @@ public sealed partial class SqlServerErasureStore
 
 		var sql = $@"
 			SELECT CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
-				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil
+				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
+				   Exceptions, GeneratedAt, Version
 			FROM {_options.FullCertificatesTableName}
 			WHERE RequestId = @RequestId{tenantPredicate}";
 
@@ -576,7 +590,8 @@ public sealed partial class SqlServerErasureStore
 
 		var sql = $@"
 			SELECT CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
-				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil
+				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
+				   Exceptions, GeneratedAt, Version
 			FROM {_options.FullCertificatesTableName}
 			WHERE CertificateId = @CertificateId{tenantPredicate}";
 
@@ -836,7 +851,8 @@ public sealed partial class SqlServerErasureStore
 		(_options.FullCertificatesTableName,
 		[
 			"CertificateId", "RequestId", "DataSubjectReference", "RequestReceivedAt", "CompletedAt",
-			"Method", "Summary", "Verification", "LegalBasis", "Signature", "RetainUntil", "CreatedAt",
+			"Method", "Summary", "Verification", "LegalBasis", "Signature", "RetainUntil",
+			"Exceptions", "GeneratedAt", "Version", "CreatedAt",
 		]),
 	];
 
@@ -912,6 +928,14 @@ public sealed partial class SqlServerErasureStore
 					LegalBasis INT NOT NULL,
 					Signature NVARCHAR(512) NOT NULL,
 					RetainUntil DATETIMEOFFSET NOT NULL,
+					-- Every remaining payload claim gets a column. The signature covers the payload WHOLE, so a
+					-- field with nowhere to live here does not merely go missing on read -- the reassembled
+					-- payload no longer matches what was signed, and the certificate reports as TAMPERED.
+					-- Exceptions is the Article 17(3) record of data lawfully RETAINED; losing it makes the
+					-- certificate attest a more complete erasure than occurred.
+					Exceptions NVARCHAR(MAX) NOT NULL,
+					GeneratedAt DATETIMEOFFSET NOT NULL,
+					Version NVARCHAR(16) NOT NULL,
 					CreatedAt DATETIMEOFFSET NOT NULL,
 					INDEX IX_{_options.CertificatesTableName}_RequestId (RequestId),
 					INDEX IX_{_options.CertificatesTableName}_RetainUntil (RetainUntil)
@@ -997,24 +1021,35 @@ public sealed partial class SqlServerErasureStore
 		public int LegalBasis { get; init; }
 		public string Signature { get; init; } = string.Empty;
 		public DateTimeOffset RetainUntil { get; init; }
+		public string Exceptions { get; init; } = "[]";
+		public DateTimeOffset GeneratedAt { get; init; }
+		public string Version { get; init; } = string.Empty;
 
 		public ErasureCertificate ToCertificate() => new()
 		{
-			CertificateId = CertificateId,
-			RequestId = RequestId,
-			DataSubjectReference = DataSubjectReference,
-			RequestReceivedAt = RequestReceivedAt,
-			CompletedAt = CompletedAt,
-			Method = (ErasureMethod)Method,
-			Summary = JsonSerializer.Deserialize(
+			Payload = new()
+			{
+				CertificateId = CertificateId,
+				RequestId = RequestId,
+				DataSubjectReference = DataSubjectReference,
+				RequestReceivedAt = RequestReceivedAt,
+				CompletedAt = CompletedAt,
+				Method = (ErasureMethod)Method,
+				Summary = JsonSerializer.Deserialize(
 				Summary,
 				SqlServerComplianceJsonContext.Default.ErasureSummary) ?? new ErasureSummary(),
-			Verification = JsonSerializer.Deserialize(
+				Verification = JsonSerializer.Deserialize(
 				Verification,
 				SqlServerComplianceJsonContext.Default.VerificationSummary) ?? CreateDefaultVerificationSummary(),
-			LegalBasis = (ErasureLegalBasis)LegalBasis,
-			Signature = Signature,
-			RetainUntil = RetainUntil
+				LegalBasis = (ErasureLegalBasis)LegalBasis,
+				Exceptions = JsonSerializer.Deserialize(
+					Exceptions,
+					SqlServerComplianceJsonContext.Default.IReadOnlyListErasureException) ?? [],
+				GeneratedAt = GeneratedAt,
+				Version = Version,
+				RetainUntil = RetainUntil
+			},
+			Signature = Signature
 		};
 	}
 }

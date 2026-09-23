@@ -151,9 +151,46 @@ foreach ($project in $projectFiles) {
     # ═══════════════════════════════════════════════════════════════
     # dispatch-no-excalibur: Dispatch MUST NOT reference Excalibur
     # ═══════════════════════════════════════════════════════════════
+    # A COMPOSITION METAPACKAGE bundles both sides on purpose and is exempt, but ONLY while it stays a
+    # bundle. Two conditions, and the second is what stops the exemption becoming a hiding place:
+    #   1. the project declares <CompositionMetapackage>true</CompositionMetapackage> -- a deliberate,
+    #      reviewable act, never inferred from a folder name or a path;
+    #   2. it contributes NO public surface beyond its registration extension. The moment someone adds a
+    #      real type to it, it stops being a bundle, the exemption lapses, and the boundary rule bites
+    #      again. That is the property being exempted -- composition -- not the location of the file.
+    # A bundle that composes at the top is the first-party shape (Microsoft.AspNetCore.App does exactly
+    # this); a package that OWNS behaviour on both sides of the boundary is the thing this rule forbids.
+    $declaresComposition = $false
+    $surfaceIsRegistrationOnly = $true
+    if ($isDispatch) {
+        $declaresComposition =
+            (Get-Content -LiteralPath $projectPath -Raw) -match '<CompositionMetapackage>\s*true\s*</CompositionMetapackage>'
+
+        if ($declaresComposition) {
+            $surfaceRows = @(
+                Get-ChildItem -LiteralPath (Split-Path -Parent $projectPath) -Filter 'PublicAPI.*.txt' -ErrorAction SilentlyContinue |
+                    ForEach-Object { Get-Content -LiteralPath $_.FullName } |
+                    Where-Object { $_.Trim() -ne '' -and $_ -notmatch '^\s*#' }
+            )
+            $surfaceIsRegistrationOnly =
+                ($surfaceRows.Count -eq 0) -or
+                -not ($surfaceRows | Where-Object { $_ -notmatch 'ServiceCollectionExtensions' })
+        }
+    }
+    $isCompositionMetapackage = $declaresComposition -and $surfaceIsRegistrationOnly
+
     if ($isDispatch) {
         foreach ($refName in $projectRefs) {
             if ($refName -match '^Excalibur\.' -and $refName -notmatch '^Excalibur\.Dispatch(\.|$)') {
+                if ($isCompositionMetapackage) {
+                    $allowedRefs += [PSCustomObject]@{
+                        Project   = $projectName
+                        Reference = $refName
+                        Status    = 'Allowed (composition metapackage)'
+                    }
+                    continue
+                }
+
                 $violations += [PSCustomObject]@{
                     Project     = $projectName
                     Rule        = 'dispatch-no-excalibur'

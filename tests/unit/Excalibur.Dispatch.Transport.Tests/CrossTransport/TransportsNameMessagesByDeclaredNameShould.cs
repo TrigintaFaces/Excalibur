@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Options.CloudEvents;
@@ -47,7 +47,11 @@ public sealed class TransportsNameMessagesByDeclaredNameShould
 		var sender = A.Fake<ITransportSender>();
 		TransportMessage? sent = null;
 		_ = A.CallTo(() => sender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
-			.Invokes(call => sent = call.Arguments.Get<TransportMessage>(0));
+			.Invokes(call => sent = call.Arguments.Get<TransportMessage>(0))
+			// The adapter refuses a send the sender reports as rejected. An unconfigured fake returns a
+			// default SendResult, whose IsSuccess is false, so it reads as a refusal and this arm fails
+			// before reaching its assertion. Returning a success keeps the arm about NAMING.
+			.Returns(Task.FromResult(SendResult.Success("cross-transport-naming")));
 
 		using var channel = GrpcChannel.ForAddress("https://localhost:5001");
 		await using var adapter = new GrpcTransportAdapter(
@@ -73,7 +77,11 @@ public sealed class TransportsNameMessagesByDeclaredNameShould
 		var sender = A.Fake<ITransportSender>();
 		TransportMessage? sent = null;
 		_ = A.CallTo(() => sender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
-			.Invokes(call => sent = call.Arguments.Get<TransportMessage>(0));
+			.Invokes(call => sent = call.Arguments.Get<TransportMessage>(0))
+			// The adapter refuses a send the sender reports as rejected. An unconfigured fake returns a
+			// default SendResult, whose IsSuccess is false, so it reads as a refusal and this arm fails
+			// before reaching its assertion. Returning a success keeps the arm about NAMING.
+			.Returns(Task.FromResult(SendResult.Success("cross-transport-naming")));
 
 		using var channel = GrpcChannel.ForAddress("https://localhost:5001");
 		await using var adapter = new GrpcTransportAdapter(

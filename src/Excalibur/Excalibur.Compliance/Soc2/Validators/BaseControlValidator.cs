@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance.Soc2.Validators;
@@ -65,7 +65,7 @@ public abstract class BaseControlValidator : IControlValidator
 				"No sampling was performed. This outcome is the control validation verdict; the item and "
 				+ "exception counts are absent rather than zero because no population was examined.",
 			Evidence = validation.Evidence,
-			Exceptions = validation.IsEffective
+			Exceptions = validation.Outcome == ControlOutcome.Effective
 				? []
 				: [new TestException
 				{
@@ -91,8 +91,7 @@ public abstract class BaseControlValidator : IControlValidator
 		{
 			ControlId = controlId,
 			IsConfigured = true,
-			IsEffective = true,
-			EffectivenessScore = 100,
+			EffectivenessScore = ControlEffectiveness.Effective,
 			ConfigurationIssues = [],
 			Evidence = evidence ?? [],
 			ValidatedAt = DateTimeOffset.UtcNow
@@ -102,10 +101,24 @@ public abstract class BaseControlValidator : IControlValidator
 	/// <summary>
 	/// Creates a failed validation result.
 	/// </summary>
+	/// <param name="controlId">The control this verdict is about.</param>
+	/// <param name="issues">What the validator found, in the consumer's terms.</param>
+	/// <param name="effectivenessScore">
+	/// The band this validation established. <b>Deliberately has no default.</b> The default used to be
+	/// <see cref="ControlEffectiveness.MechanismAbsent" />, so the shortest call a caller could write —
+	/// two arguments — silently asserted that the control's mechanism does not exist, when the caller
+	/// meant only to record an issue. That assertion travels into the document a consumer hands to an
+	/// external assessor, so there is no safe value to assume and the caller states it.
+	/// </param>
+	/// <param name="evidence">Evidence collected while validating, if any.</param>
+	/// <param name="isConfigured">
+	/// Whether the mechanism is configured. Independent of the band: a control may be configured and
+	/// still unverifiable here, and one may be absent locally yet satisfied by an external arrangement.
+	/// </param>
 	protected static ControlValidationResult CreateFailureResult(
 		string controlId,
 		IReadOnlyList<string> issues,
-		int effectivenessScore = 0,
+		ControlEffectiveness effectivenessScore,
 		IReadOnlyList<EvidenceItem>? evidence = null,
 		bool isConfigured = false)
 	{
@@ -122,7 +135,11 @@ public abstract class BaseControlValidator : IControlValidator
 			// external arrangement, while SEC-004 reports Unverified for a mechanism demonstrably
 			// present. Configured-ness and the band are genuinely independent, so the caller states it.
 			IsConfigured = isConfigured,
-			IsEffective = false,
+			// Outcome is NOT set here and cannot be: it is a derived, get-only property of
+			// ControlValidationResult, computed from the band. It used to be derived at this one call
+			// site, which left a consumer's own validator free to state a verdict its own band
+			// contradicts -- and a shipped conformance kit certified exactly that. Deriving it on the
+			// type moved the guarantee from "our factory is careful" to "the pair cannot be written".
 			EffectivenessScore = effectivenessScore,
 			ConfigurationIssues = issues,
 			Evidence = evidence ?? [],

@@ -80,7 +80,8 @@ public sealed class AwsS3ClaimCheckStoreShould : UnitTestBase
 			.Returns(response);
 
 		var sut = CreateSut(s3Client);
-		var reference = new ClaimCheckReference { Id = "cc-retrieve" };
+		var idRetrieve = MintedId();
+		var reference = new ClaimCheckReference { Id = idRetrieve };
 
 		var result = await sut.RetrieveAsync(reference, CancellationToken.None);
 
@@ -98,10 +99,11 @@ public sealed class AwsS3ClaimCheckStoreShould : UnitTestBase
 			});
 
 		var sut = CreateSut(s3Client);
-		var reference = new ClaimCheckReference { Id = "cc-missing" };
+		var idMissing = MintedId();
+		var reference = new ClaimCheckReference { Id = idMissing };
 
 		var ex = await Should.ThrowAsync<KeyNotFoundException>(() => sut.RetrieveAsync(reference, CancellationToken.None));
-		ex.Message.ShouldContain("cc-missing");
+		ex.Message.ShouldContain(idMissing);
 	}
 
 	[Fact]
@@ -112,7 +114,8 @@ public sealed class AwsS3ClaimCheckStoreShould : UnitTestBase
 			.Returns(new DeleteObjectResponse());
 
 		var sut = CreateSut(s3Client);
-		var reference = new ClaimCheckReference { Id = "cc-delete" };
+		var idDelete = MintedId();
+		var reference = new ClaimCheckReference { Id = idDelete };
 
 		var deleted = await sut.DeleteAsync(reference, CancellationToken.None);
 
@@ -127,7 +130,8 @@ public sealed class AwsS3ClaimCheckStoreShould : UnitTestBase
 			.Throws(new AmazonS3Exception("boom"));
 
 		var sut = CreateSut(s3Client);
-		var reference = new ClaimCheckReference { Id = "cc-delete-fail" };
+		var idDeleteFail = MintedId();
+		var reference = new ClaimCheckReference { Id = idDeleteFail };
 
 		var deleted = await sut.DeleteAsync(reference, CancellationToken.None);
 
@@ -310,9 +314,10 @@ public sealed class AwsS3ClaimCheckStoreShould : UnitTestBase
 		// never-stored one does.
 		var s3Client = A.Fake<IAmazonS3>();
 		var sut = CreateSut(s3Client);
+		var idExpired = MintedId();
 		var reference = new ClaimCheckReference
 		{
-			Id = "cc-expired",
+			Id = idExpired,
 			BlobName = "claim-check/cc-expired",
 			ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1)
 		};
@@ -320,7 +325,7 @@ public sealed class AwsS3ClaimCheckStoreShould : UnitTestBase
 		var ex = await Should.ThrowAsync<KeyNotFoundException>(
 			() => sut.RetrieveAsync(reference, CancellationToken.None));
 
-		ex.Message.ShouldContain("cc-expired");
+		ex.Message.ShouldContain(idExpired);
 
 		// The object is never fetched: expiry is decided before the request goes out.
 		A.CallTo(() => s3Client.GetObjectAsync(A<string>._, A<string>._, A<CancellationToken>._))
@@ -354,4 +359,18 @@ public sealed class AwsS3ClaimCheckStoreShould : UnitTestBase
 		A.CallTo(() => logger.IsEnabled(A<LogLevel>._)).Returns(true);
 		return logger;
 	}
+	/// <summary>
+	/// A well-formed identifier of the shape the store mints: the configured prefix, the date partition
+	/// the identifier carries, and a 128-bit body.
+	/// </summary>
+	/// <remarks>
+	/// These arms used descriptive literals such as <c>cc-retrieve</c>. The store now refuses any
+	/// identifier it did not mint, because a claim-check reference arrives on the wire and resolving a
+	/// storage key from one let a publisher name any object in the container. A descriptive literal is
+	/// exactly the shape that is now refused, so the arms mint a real identifier and keep the label in
+	/// the variable name instead.
+	/// </remarks>
+	private static string MintedId() =>
+		$"cc-{DateTimeOffset.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}";
+
 }

@@ -1,5 +1,5 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
 using System.Globalization;
@@ -931,7 +931,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
@@ -941,14 +941,33 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = @TenantId" : string.Empty;
-		// Processed is absorbing: the predicate refuses the transition rather than demoting a
-		// finalized entry to Failed, which would make it re-admittable and run the handler again.
-		// Also clears any lease term: a failed entry has no holder, so it must not keep a term a
-		// later lease comparison (CompleteAsync/FailAsync) could match.
+
+		// THE GUARD SITS IN SET, NOT IN WHERE, AND THAT PLACEMENT IS THE WHOLE POINT.
+		//
+		// Processed is absorbing: the entry must not be demoted to Failed, which would re-admit it to the
+		// drain and run its handler again over side effects already committed. A WHERE-side
+		// "Status <> @ProcessedStatus" enforces that, but it also makes a refused terminal row and an absent
+		// row emit the identical empty result, so the caller cannot tell "already done" from "not there" --
+		// the two diagnoses whose next steps are opposite.
+		//
+		// Guarding the ASSIGNMENT instead leaves the key-only WHERE deciding existence and the CASE deciding
+		// the transition, both inside one statement under one row lock. Every right-hand side reads the row
+		// as it was before the statement, so the refused branch rewrites each column with its own value and
+		// the row is left unchanged -- including RetryCount, which is incremented only on the applied branch,
+		// and LeaseExpiresAtUtc, which is cleared only there because a failed entry has no holder. OUTPUT
+		// inserted.Status then reports the resulting status: no row at all means absent; a resulting
+		// Processed means refused, since nothing on this path ever WRITES Processed; anything else means
+		// applied. One statement decides all three, so no classification is read from outside the window it
+		// describes.
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
-		           SET Status = @FailedStatus, LastError = @LastError, RetryCount = RetryCount + 1, LastAttemptAt = @LastAttemptAt, LeaseExpiresAtUtc = NULL
-		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType{tenantPredicate} AND Status <> @ProcessedStatus
+		           SET Status = CASE WHEN Status = @ProcessedStatus THEN Status ELSE @FailedStatus END,
+		           	LastError = CASE WHEN Status = @ProcessedStatus THEN LastError ELSE @LastError END,
+		           	RetryCount = CASE WHEN Status = @ProcessedStatus THEN RetryCount ELSE RetryCount + 1 END,
+		           	LastAttemptAt = CASE WHEN Status = @ProcessedStatus THEN LastAttemptAt ELSE @LastAttemptAt END,
+		           	LeaseExpiresAtUtc = CASE WHEN Status = @ProcessedStatus THEN LeaseExpiresAtUtc ELSE NULL END
+		           OUTPUT inserted.Status
+		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType{tenantPredicate}
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -968,33 +987,74 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		var resultingStatus = await connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
+
+		if (resultingStatus is null)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (resultingStatus == (int)InboxStatus.Processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedAsync(
+		KeyedTenantPartition tenant,
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
-		// Set RetryCount EXACTLY (no +1) so a transient short-circuit leaves the entry re-admittable
-		// without consuming a delivery attempt. UPDATE-only: same existence semantics as the
-		// incrementing overload (a missing row affects 0 rows).
+		// THE TENANT IS THE CALLER'S, NOT THE AMBIENT ONE. Every other statement in this store binds
+		// TenantTerm off the ambient context; this one binds what it was handed. A caller reading the
+		// estate-wide drain sees entries from every partition, so a mark that silently re-derived the scope
+		// would address a different population than the read that produced the entry, with nothing in
+		// either signature to say so. KeyedTenantPartition has no "ambient" inhabitant, so this statement
+		// cannot be reached without a partition having been named.
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = @TenantId" : string.Empty;
-		// Processed is absorbing: the predicate refuses the transition rather than demoting a
-		// finalized entry to Failed, which would make it re-admittable and run the handler again.
-		// Also clears any lease term: a failed entry has no holder, so it must not keep a term a
-		// later lease comparison (CompleteAsync/FailAsync) could match.
+
+		// THE GUARD SITS IN SET, NOT IN WHERE, AND THAT PLACEMENT IS THE WHOLE POINT.
+		//
+		// Processed is absorbing: the entry must not be demoted to Failed, which would re-admit it to the
+		// drain and run its handler again over side effects already committed. A WHERE-side
+		// "Status <> @ProcessedStatus" enforces that, but it also makes a refused terminal row and an absent
+		// row emit the identical empty result, so the caller cannot tell "already done" from "not there" --
+		// the two diagnoses whose next steps are opposite.
+		//
+		// Guarding the ASSIGNMENT instead leaves the key-only WHERE deciding existence and the CASE deciding
+		// the transition, both inside one statement under one row lock. Every right-hand side reads the row
+		// as it was before the statement, so the refused branch rewrites each column with its own value and
+		// the row is left unchanged -- including LeaseExpiresAtUtc, which is cleared only on the applied
+		// branch because a failed entry has no holder. OUTPUT inserted.Status then reports the resulting
+		// status: no row at all means absent; a resulting Processed means refused, since nothing on this
+		// path ever WRITES Processed; anything else means applied. One statement decides all three, so no
+		// classification is read from outside the window it describes.
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
-		           SET Status = @FailedStatus, LastError = @LastError, RetryCount = @RetryCount, LastAttemptAt = @LastAttemptAt, LeaseExpiresAtUtc = NULL
-		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType{tenantPredicate} AND Status <> @ProcessedStatus
+		           SET Status = CASE WHEN Status = @ProcessedStatus THEN Status ELSE @FailedStatus END,
+		           	LastError = CASE WHEN Status = @ProcessedStatus THEN LastError ELSE @LastError END,
+		           	RetryCount = CASE WHEN Status = @ProcessedStatus THEN RetryCount ELSE @RetryCount END,
+		           	LastAttemptAt = CASE WHEN Status = @ProcessedStatus THEN LastAttemptAt ELSE @LastAttemptAt END,
+		           	LeaseExpiresAtUtc = CASE WHEN Status = @ProcessedStatus THEN LeaseExpiresAtUtc ELSE NULL END
+		           OUTPUT inserted.Status
+		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType{tenantPredicate}
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -1010,18 +1070,31 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 				LastError = errorMessage,
 				RetryCount = retryCount,
 				LastAttemptAt = DateTimeOffset.UtcNow,
-				TenantId = TenantTerm
+				TenantId = tenant.TenantId
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		var resultingStatus = await connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
+
+		if (resultingStatus is null)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (resultingStatus == (int)InboxStatus.Processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkFailedWithBackoffAsync(
+	public async ValueTask<InboxMarkFailedOutcome> MarkFailedWithBackoffAsync(
 		string messageId,
 		string handlerType,
 		string errorMessage,
@@ -1041,14 +1114,20 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 		// mirroring SqlServerOutboxStore.MarkFailedWithBackoffAsync.
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = @TenantId" : string.Empty;
-		// Processed is absorbing, as on the two MarkFailedAsync overloads above: the predicate refuses the
-		// transition rather than demoting a finalized entry to Failed, which would re-admit it for retry
-		// and run the handler again on side effects already committed.
+		// Processed is absorbing, as on the two MarkFailedAsync overloads above, and the guard sits in SET for
+		// the same reason: a WHERE-side refusal is indistinguishable from an absent entry, and the two have
+		// opposite diagnoses. On the refused branch every column is rewritten with its own value -- including
+		// NextAttemptAt, so a completed entry is never given a retry schedule -- and OUTPUT inserted.Status
+		// classifies all three outcomes from inside the statement that performed the write.
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
-		           SET Status = @FailedStatus, LastError = @LastError, RetryCount = @RetryCount,
-		           	LastAttemptAt = @LastAttemptAt, NextAttemptAt = @NextAttemptAt
-		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType{tenantPredicate} AND Status <> @ProcessedStatus
+		           SET Status = CASE WHEN Status = @ProcessedStatus THEN Status ELSE @FailedStatus END,
+		           	LastError = CASE WHEN Status = @ProcessedStatus THEN LastError ELSE @LastError END,
+		           	RetryCount = CASE WHEN Status = @ProcessedStatus THEN RetryCount ELSE @RetryCount END,
+		           	LastAttemptAt = CASE WHEN Status = @ProcessedStatus THEN LastAttemptAt ELSE @LastAttemptAt END,
+		           	NextAttemptAt = CASE WHEN Status = @ProcessedStatus THEN NextAttemptAt ELSE @NextAttemptAt END
+		           OUTPUT inserted.Status
+		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType{tenantPredicate}
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -1070,10 +1149,23 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		var resultingStatus = await connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
+
+		if (resultingStatus is null)
+		{
+			return InboxMarkFailedOutcome.EntryNotFound;
+		}
+
+		if (resultingStatus == (int)InboxStatus.Processed)
+		{
+			return InboxMarkFailedOutcome.AlreadyProcessed;
+		}
+
 		_logger.LogWarning(
 			"Marked inbox entry as failed with backoff for message {MessageId} and handler {HandlerType} (next attempt at {NextAttemptAt:O}): {Error}",
 			messageId, handlerType, nextAttemptAt, errorMessage);
+
+		return InboxMarkFailedOutcome.Applied;
 	}
 
 	/// <inheritdoc/>

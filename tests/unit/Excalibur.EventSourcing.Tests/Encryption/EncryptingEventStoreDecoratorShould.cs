@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Compliance;
@@ -55,9 +55,8 @@ public sealed class EncryptingEventStoreDecoratorShould
 		{
 			Mode = mode,
 			DefaultPurpose = "test",
-			DefaultTenantId = "tenant-1"
 		});
-		return new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options);
+		return new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options, global::Excalibur.Dispatch.UntenantedContext.Instance);
 	}
 
 	private static StoredEvent CreatePlaintextStoredEvent(string eventId, byte[] data, byte[]? metadata = null)
@@ -72,7 +71,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		var options = Options.Create(new EncryptionOptions());
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(null!, _registry, _subjectCryptor, _serializer, options));
+			new EncryptingEventStoreDecorator(null!, _registry, _subjectCryptor, _serializer, options, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]
@@ -80,14 +79,14 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		var options = Options.Create(new EncryptionOptions());
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(_innerStore, null!, _subjectCryptor, _serializer, options));
+			new EncryptingEventStoreDecorator(_innerStore, null!, _subjectCryptor, _serializer, options, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, null!));
+			new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, null!, global::Excalibur.Dispatch.UntenantedContext.Instance));
 	}
 
 	#endregion

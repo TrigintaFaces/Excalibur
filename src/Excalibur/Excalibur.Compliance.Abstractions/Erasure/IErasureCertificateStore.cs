@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
 namespace Excalibur.Compliance;
@@ -26,7 +26,7 @@ public interface IErasureCertificateStore
 	/// <param name="certificate">The certificate to save.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <exception cref="DuplicateErasureCertificateException">
-	/// A certificate with the same <see cref="ErasureCertificate.CertificateId"/> already exists — this
+	/// A certificate with the same <see cref="ErasureCertificatePayload.CertificateId"/> already exists — this
 	/// exception is raised for that condition and for no other. This operation inserts; it does not
 	/// overwrite. A certificate is the erasure attestation itself, so replacing one in place would rewrite
 	/// evidence that has already been issued and may already have been shown to a data subject or an

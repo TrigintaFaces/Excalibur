@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
 
@@ -272,8 +272,8 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 			// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
 			// snapshot taken under the lock keeps the event args consistent (no torn read).
 			var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource));
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource, timestamp: _timeProvider.GetUtcNow()));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource, timestamp: _timeProvider.GetUtcNow()));
 		}
 	}
 
@@ -591,8 +591,8 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 		var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
 		LogBecameLeader(CandidateId, resource);
 
-		BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, CandidateId, resource));
+		BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource, timestamp: _timeProvider.GetUtcNow()));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, CandidateId, resource, timestamp: _timeProvider.GetUtcNow()));
 	}
 
 	private async Task LoseLeadershipAsync()
@@ -616,8 +616,8 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 		// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
 		// snapshot taken under the lock keeps the event args consistent (no torn read).
-		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource));
+		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource, timestamp: _timeProvider.GetUtcNow()));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource, timestamp: _timeProvider.GetUtcNow()));
 
 		if (_connection != null)
 		{

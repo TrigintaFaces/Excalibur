@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 namespace Excalibur.Dispatch.Hosting.AspNetCore;
 
@@ -34,10 +34,4 @@ public sealed class AspNetCoreAuthorizationOptions
 	/// </remarks>
 	public bool RequireAuthenticatedUser { get; set; } = true;
 
-	/// <summary>
-	/// Gets or sets the default authorization policy name to apply when an <c>[Authorize]</c> attribute
-	/// specifies no explicit policy.
-	/// </summary>
-	/// <value>The default policy name, or <see langword="null"/> to use only role/claim checks. The default is <see langword="null"/>.</value>
-	public string? DefaultPolicy { get; set; }
 }

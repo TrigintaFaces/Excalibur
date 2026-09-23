@@ -1,8 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
-
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance.Diagnostics;
 
@@ -12,18 +9,21 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Compliance.Retention;
 
 /// <summary>
-/// Implementation of <see cref="IRetentionEnforcementService"/> that scans types
-/// annotated with <see cref="PersonalDataAttribute"/> and enforces retention policies.
+/// Implementation of <see cref="IRetentionEnforcementService"/> that enforces the retention policies the
+/// host has declared and hands them to the registered <see cref="IRetentionContributor"/> implementations.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This service discovers retention policies from <see cref="PersonalDataAttribute.RetentionDays"/>
-/// annotations at runtime and enforces cleanup of data that has exceeded its retention period.
+/// The policy population is exactly the union of the host's declarations
+/// (<c>AddRetentionPolicies&lt;T&gt;()</c> / <c>AddRetentionPoliciesFromAssembly(Assembly)</c>). It is never
+/// discovered from the assemblies the process happens to have loaded.
 /// </para>
 /// </remarks>
-public sealed partial class RetentionEnforcementService : IRetentionEnforcementService
+internal sealed partial class RetentionEnforcementService : IRetentionEnforcementService
 {
 	private readonly IOptions<RetentionEnforcementOptions> _options;
+	private readonly IReadOnlyList<RetentionPolicy> _policies;
+	private readonly TimeProvider _timeProvider;
 	private readonly ILogger<RetentionEnforcementService> _logger;
 	private readonly IReadOnlyList<IRetentionContributor> _contributors;
 
@@ -31,6 +31,8 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 	/// Initializes a new instance of the <see cref="RetentionEnforcementService"/> class.
 	/// </summary>
 	/// <param name="options">The retention enforcement options.</param>
+	/// <param name="declarations">The host-declared retention scope.</param>
+	/// <param name="timeProvider">The clock enforcement passes are evaluated against.</param>
 	/// <param name="logger">The logger.</param>
 	/// <param name="contributors">
 	/// The registered store-specific retention contributors that perform the actual deletion of expired
@@ -38,16 +40,22 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 	/// </param>
 	public RetentionEnforcementService(
 		IOptions<RetentionEnforcementOptions> options,
+		IEnumerable<RetentionPolicyDeclaration> declarations,
+		TimeProvider timeProvider,
 		ILogger<RetentionEnforcementService> logger,
 		IEnumerable<IRetentionContributor>? contributors = null)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+		ArgumentNullException.ThrowIfNull(declarations);
+		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_contributors = contributors is null ? [] : [.. contributors];
+
+		// Declaring the same type twice (directly and through its assembly) must not double its policies.
+		_policies = [.. declarations.SelectMany(static d => d.Policies).Distinct()];
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
 	public async Task<RetentionEnforcementResult> EnforceRetentionAsync(
 		CancellationToken cancellationToken)
 	{
@@ -56,7 +64,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 
 		try
 		{
-			var policies = DiscoverRetentionPolicies();
+			var policies = _policies;
 
 			// Enforcement is policy-driven by the framework, but the actual data-store deletion is performed
 			// by registered IRetentionContributor implementations (mirrors the IErasureContributor seam).
@@ -71,7 +79,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 					PoliciesEvaluated = policies.Count,
 					RecordsCleaned = 0,
 					IsDryRun = dryRun,
-					CompletedAt = DateTimeOffset.UtcNow,
+					CompletedAt = _timeProvider.GetUtcNow(),
 				};
 			}
 
@@ -79,7 +87,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 			{
 				Policies = policies,
 				DryRun = dryRun,
-				AsOf = DateTimeOffset.UtcNow,
+				AsOf = _timeProvider.GetUtcNow(),
 			};
 
 			var totalRecordsCleaned = 0;
@@ -92,7 +100,13 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 			{
 				try
 				{
-					var result = await contributor.EnforceAsync(context, cancellationToken).ConfigureAwait(false);
+					// A contributor that does not consume declared policies is handed an EMPTY list, so it cannot
+					// act on a population it said it does not use.
+					var contributorContext = contributor.ConsumesDeclaredPolicies
+						? context
+						: context with { Policies = [] };
+
+					var result = await contributor.EnforceAsync(contributorContext, cancellationToken).ConfigureAwait(false);
 
 					if (result.Success)
 					{
@@ -134,7 +148,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 				PoliciesEvaluated = policies.Count,
 				RecordsCleaned = totalRecordsCleaned,
 				IsDryRun = dryRun,
-				CompletedAt = DateTimeOffset.UtcNow,
+				CompletedAt = _timeProvider.GetUtcNow(),
 			};
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
@@ -145,82 +159,8 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
 	public Task<IReadOnlyList<RetentionPolicy>> GetRetentionPoliciesAsync(
-		CancellationToken cancellationToken)
-	{
-		var policies = DiscoverRetentionPolicies();
-		return Task.FromResult<IReadOnlyList<RetentionPolicy>>(policies);
-	}
-
-	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() for runtime type scanning.")]
-	private static List<RetentionPolicy> DiscoverRetentionPolicies()
-	{
-		var policies = new List<RetentionPolicy>();
-
-		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-		{
-			if (assembly.IsDynamic)
-			{
-				continue;
-			}
-
-			try
-			{
-				foreach (var type in GetLoadableTypes(assembly))
-				{
-					foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-					{
-						var attr = TryGetPersonalDataAttribute(property);
-						if (attr is null || attr.RetentionDays <= 0)
-						{
-							continue;
-						}
-
-						policies.Add(new RetentionPolicy
-						{
-							TypeName = type.FullName ?? type.Name,
-							PropertyName = property.Name,
-							Category = attr.Category,
-							RetentionDays = attr.RetentionDays
-						});
-					}
-				}
-			}
-			catch (ReflectionTypeLoadException)
-			{
-				// Skip assemblies that fail to load types
-			}
-		}
-
-		return policies;
-	}
-
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
-	private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
-	{
-		try
-		{
-			return assembly.GetTypes();
-		}
-		catch (ReflectionTypeLoadException ex)
-		{
-			return ex.Types.Where(static t => t is not null)!;
-		}
-	}
-#pragma warning restore IL2026
-
-	private static PersonalDataAttribute? TryGetPersonalDataAttribute(PropertyInfo property)
-	{
-		try
-		{
-			return property.GetCustomAttribute<PersonalDataAttribute>();
-		}
-		catch (TypeLoadException)
-		{
-			return null;
-		}
-	}
+		CancellationToken cancellationToken) => Task.FromResult(_policies);
 
 	[LoggerMessage(
 		ComplianceEventId.RetentionEnforcementStarted,

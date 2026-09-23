@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 // ============================================================================
 // GettingStarted - Minimal Dispatch Template Sample
@@ -28,7 +28,14 @@ builder.Services.AddDispatch(typeof(Program).Assembly);
 // See: docs-site/docs/source-generators/getting-started.md
 builder.Services.AddSingleton<GettingStarted.Handlers.IOrderStore, GettingStarted.Handlers.OrderStore>();
 
+// Unhandled exceptions become a generic RFC 9457 Problem Details 500; the exception message is
+// not written to the response. (Excalibur.Hosting.Web's AddGlobalExceptionHandler() adds status-code
+// mapping for framework exceptions, such as 404 for ResourceNotFoundException.)
+builder.Services.AddProblemDetails();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 // ============================================================================
 // COMMAND endpoint: Create a new order
@@ -94,5 +101,11 @@ app.MapGet("/", () => Results.Ok(new
 	],
 	Documentation = "See README.md for full usage instructions"
 }));
+
+// Printed once the host is actually listening. A startup failure never reaches this line, so it
+// separates "started and serving" from "died or hung during startup" for anyone -- or anything --
+// watching the output.
+app.Lifetime.ApplicationStarted.Register(static () =>
+	Console.WriteLine("Sample ready: Web API listening. Press Ctrl+C to stop."));
 
 app.Run();

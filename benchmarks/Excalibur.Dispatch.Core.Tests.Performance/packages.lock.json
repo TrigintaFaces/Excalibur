@@ -700,6 +700,12 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
+      "excalibur.a3.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
+        }
+      },
       "excalibur.application": {
         "type": "Project",
         "dependencies": {
@@ -784,7 +790,6 @@
           "Excalibur.Dispatch.Patterns": "[1.0.0, )",
           "Excalibur.Domain": "[1.0.0, )",
           "JsonNet.ContractResolvers": "[2.0.0, )",
-          "Microsoft.ApplicationInsights": "[3.1.0, )",
           "Microsoft.Extensions.Caching.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.Caching.Memory": "[10.0.10, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.10, )",
@@ -1088,6 +1093,7 @@
           "AutoFixture": "[4.18.1, )",
           "Azure.Messaging.ServiceBus": "[7.20.1, )",
           "Dapper": "[2.1.72, )",
+          "Excalibur.A3.Abstractions": "[1.0.0, )",
           "Excalibur.Application": "[1.0.0, )",
           "Excalibur.Data.Abstractions": "[1.0.0, )",
           "Excalibur.Dispatch": "[1.0.0, )",

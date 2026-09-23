@@ -216,7 +216,7 @@ saga.SagaShouldHaveState<OrderSagaState>(s => s.OrderId == expectedOrderId);
 
 A test combining the harness, transport test double, and Shouldly assertions:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Testing;
 using Excalibur.Dispatch.Testing.Transport;

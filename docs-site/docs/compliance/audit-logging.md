@@ -6,6 +6,14 @@ description: Tamper-evident audit logging with hash chain integrity, annotations
 
 # Audit Logging
 
+:::warning Not legal advice
+
+This page describes technical features that can **support** your compliance work. It is not legal
+advice, and it does not establish that any system is compliant with any law, regulation or standard.
+You remain responsible for your own compliance assessment, independent testing and validation, and
+review by qualified legal and compliance professionals. See the [Compliance Disclaimer](../legal/compliance-disclaimer.md).
+:::
+
 Dispatch provides tamper-evident audit logging with cryptographic hash chaining for compliance requirements including SOX, HIPAA, and GDPR accountability.
 
 ## Before You Start
@@ -651,10 +659,14 @@ What the script creates, so you know what to expect:
 :::warning `PreviousEventHash` and `EventHash` are not SHA-256 hex digests
 
 They hold a versioned, keyed tag of the form `v1:{keyId}:{base64-encoded HMAC-SHA256}` — at minimum
-49 characters (`v1:` + a one-character key id + `:` + the 44-character base64 MAC), and unbounded on the high end because `{keyId}` is supplied by your key provider (a
-KMS key ARN or Key Vault URI can run well past 100 characters). `NVARCHAR(512)` is the width the
-shipped provisioning script (`Excalibur.AuditLogging.SqlServer/Scripts/001_CreateAuditSchema.sql`)
-actually uses.
+49 characters (`v1:` + a one-character key id + `:` + the 44-character base64 MAC), and unbounded on
+the high end because `{keyId}` comes from your key provider. `NVARCHAR(512)` is the width the shipped
+provisioning script (`Excalibur.AuditLogging.SqlServer/Scripts/001_CreateAuditSchema.sql`) uses.
+
+**The key id must not contain a colon.** The tag is colon-delimited, so a key id carrying one is
+rejected at write time with an `InvalidOperationException`. That rules out a raw AWS KMS key ARN or a
+Key Vault key URI as the id — return a colon-free identifier (a key alias, a GUID, a version label)
+from your `IAuditSigningKeyProvider` and map it to the real key yourself.
 
 **If you provisioned this table by copying an earlier version of this page**, the columns may still
 be `NVARCHAR(64)`, in which case every tag longer than 64 characters is truncated or rejected on

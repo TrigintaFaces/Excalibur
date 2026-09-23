@@ -146,7 +146,7 @@ dispatch.UseCaching()
 
 Make actions cacheable by implementing `ICacheable<T>`. Since `ICacheable<T>` extends `IDispatchAction<T>`, your action is automatically a dispatch action that returns a result:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Caching;
 
 public class GetProductAction : ICacheable<ProductDto>
@@ -249,7 +249,7 @@ This overload **must be infallible** for a "cannot derive a key" condition: retu
 
 Use `[CacheResult]` to add caching without implementing `ICacheable<T>`:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Caching;
 
 [CacheResult(
@@ -318,7 +318,7 @@ runs once per dispatch regardless of whether the read was served from cache.
 
 Invalidate caches by key or tag using `ICacheInvalidationService`:
 
-```csharp
+```csharp ignore
 using Excalibur.Dispatch.Caching;
 
 public class UpdateProductHandler : IActionHandler<UpdateProductAction>

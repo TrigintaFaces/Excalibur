@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
 using Excalibur.Inbox.InMemory;
@@ -105,7 +105,16 @@ public sealed class InboxTerminalTransitionShould
 		{
 			var ct = CancellationToken.None;
 
-			await store.MarkFailedAsync(messageId, Handler, "transient", retryCount: 7, ct);
+			// The refusal is now REPORTED as well as performed. Asserting only the unchanged entry would
+			// certify a store that declined in silence, which is the half of this defect the caller could
+			// not see: the late caller walked away believing it had parked the entry for retry.
+			var outcome = await store.MarkFailedAsync(
+				KeyedTenantPartition.Untenanted, messageId, Handler, "transient", retryCount: 7, ct);
+
+			outcome.ShouldBe(
+				InboxMarkFailedOutcome.AlreadyProcessed,
+				"the entry is present and terminal, which is a different answer from absent -- the two send "
+				+ "the operator in opposite directions");
 
 			(await store.IsProcessedAsync(messageId, Handler, ct)).ShouldBeTrue();
 			var entry = await store.GetEntryAsync(messageId, Handler, ct);
