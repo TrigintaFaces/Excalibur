@@ -1059,7 +1059,7 @@ public abstract class PersistenceProviderConformanceTestKit : ConformanceTestKit
 	/// every provider that latches <c>IsAvailable</c> in its probe rather than in its constructor.
 	/// </para>
 	/// </remarks>
-	public virtual void IsAvailable_AfterDispose_ShouldBeFalse()
+	public virtual async Task IsAvailable_AfterDispose_ShouldBeFalse()
 	{
 		var provider = CreateProvider();
 		var health = TryGetHealth(provider);
@@ -1074,7 +1074,10 @@ public abstract class PersistenceProviderConformanceTestKit : ConformanceTestKit
 		// IsAvailable is LATCHED BY THE HEALTH PROBE rather than set at construction, so it must be probed
 		// before it can report true. Probing here is what makes the true -> false transition observable; it
 		// does not soften the arm, which still fails unless that transition actually happens.
-		var reachable = health.TestConnectionAsync(CancellationToken.None).GetAwaiter().GetResult();
+		// Awaited, never blocked on. A conformance arm that blocks a thread on an async probe can
+		// deadlock on any caller with a synchronization context, and this kit is SHIPPED -- the
+		// consumer chooses the runner, so we do not get to assume it has none.
+		var reachable = await health.TestConnectionAsync(CancellationToken.None).ConfigureAwait(false);
 
 		if (!reachable || !health.IsAvailable)
 		{

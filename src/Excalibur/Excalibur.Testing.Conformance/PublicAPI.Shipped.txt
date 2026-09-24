@@ -1026,7 +1026,7 @@ virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.Exec
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.ExpectedDatabaseType.get -> string?
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.GetMetricsAsync_ShouldContainProviderKey() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.GetMetricsAsync_ShouldReturnNonNullDictionary() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.IsAvailable_AfterDispose_ShouldBeFalse() -> void
+virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.IsAvailable_AfterDispose_ShouldBeFalse() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.Provider_NameShouldBeStableAcrossLifecycle() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.Provider_NameShouldRoundTripEveryConfiguredName() -> void
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.Provider_ShouldHaveExpectedName() -> void
