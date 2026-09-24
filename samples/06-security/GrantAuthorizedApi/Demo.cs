@@ -26,7 +26,20 @@ public static class DemoRunner
 {
 	public static async Task RunAsync(WebApplication app)
 	{
-		var address = app.Urls.First();
+		// The sample calls ITSELF, which makes the choice of endpoint a correctness question rather
+		// than a preference. app.Urls lists the HTTPS endpoint first, and the ASP.NET development
+		// certificate can be GENERATED on any platform but only TRUSTED on Windows and macOS --
+		// `dotnet dev-certs https --trust` is a no-op elsewhere. So on Linux the host binds happily
+		// and this client then rejects its own server with UntrustedRoot, which surfaces as an
+		// unhandled exception and aborts the process.
+		//
+		// Every other web sample only LISTENS, so none of them touches the trust store and none of
+		// them showed the problem. Prefer the plain-HTTP endpoint for the loopback call: it needs no
+		// certificate anywhere, and the HTTPS endpoint stays bound for anyone browsing the sample.
+		var address = app.Urls.FirstOrDefault(
+				static url => url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+			?? app.Urls.First();
+
 		using var client = new HttpClient { BaseAddress = new Uri(address) };
 
 		Console.WriteLine($"Listening on {address}");
