@@ -25,8 +25,8 @@
     "@mdx-js/react": "^3.0.0",
     "clsx": "^2.0.0",
     "prism-react-renderer": "^2.3.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.10.1",
@@ -36,6 +36,7 @@
     "typescript": "~5.9.3"
   },
   "overrides": {
+    "image-size": "^2.0.3",
     "minimatch": "10.2.5",
     "qs": "^6.16.0",
     "serialize-javascript": "7.0.5",

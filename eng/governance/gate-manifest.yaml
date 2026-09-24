@@ -375,6 +375,14 @@ gates:
     published: true
     has_test: false
     has_lock: false
+  - path: "eng/ci/pre-mirror-gates.py"
+    kind: reporter
+    kind_proxy: reporter
+    kind_evidence: "runs other gates and reports their verdicts; enforces nothing of its own"
+    runs_in: nowhere
+    published: true
+    has_test: false
+    has_lock: false
   - path: "eng/ci/gate-manifest-gate.py"
     kind: gate
     kind_proxy: gate

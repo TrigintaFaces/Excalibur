@@ -147,6 +147,17 @@ def derive(root):
     return runnable, deferred, unreadable
 
 
+
+def _tracked_state(root):
+    """`git status --porcelain` lines, or None when git cannot answer."""
+    try:
+        r = subprocess.run(["git", "status", "--porcelain"], cwd=root,
+                           capture_output=True, text=True)
+    except OSError:
+        return None
+    return r.stdout.splitlines() if r.returncode == 0 else None
+
+
 def script_of(cmd):
     m = OURS.search(cmd) or OURS_DIRECT.search(cmd)
     return m.group(1) if m else None
@@ -181,6 +192,16 @@ def check(root, list_only=False):
             print("  DEFERRED   {}   <- {}".format(c, deferred[c]))
         return 0
 
+    # SOME GATES MUTATE THE TREE, and that is not hypothetical: lockfile-drift-gate runs a real
+    # `dotnet restore` in order to detect drift, and a restore here rewrote 74 tracked
+    # packages.lock.json files, injecting a resolved version of "0.0.0-local" that exists only in a
+    # local feed. Committing that would pin a version nobody can restore.
+    #
+    # The run is not prevented from doing it -- a gate that cannot restore cannot detect drift --
+    # but the tree is snapshotted before and after, and anything the run touched is REPORTED. A tool
+    # that quietly edits the tree it was asked to inspect is worse than no tool.
+    before = _tracked_state(root)
+
     failed, passed, skipped = [], [], []
     for cmd in sorted(runnable):
         if cmd in missing:
@@ -194,10 +215,10 @@ def check(root, list_only=False):
             proc = subprocess.run(cmd, shell=True, cwd=root, capture_output=True, text=True)
         if proc.returncode == 0:
             passed.append(cmd)
-            print("  PASS    {}".format(cmd))
+            print("  PASS    {}".format(cmd), flush=True)
         else:
             failed.append((cmd, proc.returncode, (proc.stdout or "") + (proc.stderr or "")))
-            print("  FAIL {}  {}".format(proc.returncode, cmd))
+            print("  FAIL {}  {}".format(proc.returncode, cmd), flush=True)
 
     print("")
     print("EXAMINED: {} gate(s) ran — {} passed, {} failed".format(
@@ -205,6 +226,17 @@ def check(root, list_only=False):
     print("NOT RUN:  {} context-dependent, {} unresolvable".format(len(deferred), len(skipped)))
     for cmd, why in skipped:
         print("    unresolvable: {}  ({})".format(cmd, why), file=sys.stderr)
+
+    touched = sorted(set(_tracked_state(root)) - set(before)) if before is not None else []
+    if touched:
+        print("", file=sys.stderr)
+        print("MUTATED: this run changed {} tracked file(s). Gates that restore or pack rewrite "
+              "files as a side effect; review before committing or copying:".format(len(touched)),
+              file=sys.stderr)
+        for line in touched[:20]:
+            print("    {}".format(line), file=sys.stderr)
+        if len(touched) > 20:
+            print("    ... and {} more".format(len(touched) - 20), file=sys.stderr)
 
     if failed:
         print("", file=sys.stderr)

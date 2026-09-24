@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Collections.Concurrent;
+
 using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBStreams.Model;
 using Amazon.DynamoDBv2;
@@ -271,7 +273,15 @@ public sealed class DynamoDbCdcProcessorInitializationShould
 
 	private sealed class Harness
 	{
-		private readonly HashSet<string> _drainedIterators = new(StringComparer.Ordinal);
+		// EVERY piece of shared state below is touched by TWO CONCURRENT CALLERS by design: the
+		// admit-one-initialization arms start a second ProcessBatchAsync while the first is parked
+		// inside initialization. Plain HashSet/List/int++ are data races there, and the failure they
+		// produce indicts the PRODUCT rather than the fake: two callers both winning Add() delivered
+		// the single seeded record twice, which reads exactly like a broken exactly-once guarantee.
+		private readonly ConcurrentDictionary<string, byte> _drainedIterators = new(StringComparer.Ordinal);
+		private int _checkpointReads;
+		private int _discoveries;
+		private int _tableDescribes;
 
 		public Harness()
 		{
@@ -280,7 +290,7 @@ public sealed class DynamoDbCdcProcessorInitializationShould
 			A.CallTo(() => Streams.DescribeStreamAsync(A<DescribeStreamRequest>._, A<CancellationToken>._))
 				.ReturnsLazily((DescribeStreamRequest _, CancellationToken __) =>
 				{
-					Discoveries++;
+					Interlocked.Increment(ref _discoveries);
 					return Discoveries <= FailDiscoveries
 						? throw new AmazonDynamoDBStreamsException("injected describe-stream failure")
 						: new DescribeStreamResponse
@@ -313,7 +323,7 @@ public sealed class DynamoDbCdcProcessorInitializationShould
 			A.CallTo(() => Streams.GetRecordsAsync(A<GetRecordsRequest>._, A<CancellationToken>._))
 				.ReturnsLazily((GetRecordsRequest request, CancellationToken _) =>
 				{
-					List<StreamsRecord> batch = _drainedIterators.Add(request.ShardIterator)
+					List<StreamsRecord> batch = _drainedIterators.TryAdd(request.ShardIterator, 0)
 						? [MakeRecord(RecordSequence)]
 						: [];
 
@@ -324,7 +334,7 @@ public sealed class DynamoDbCdcProcessorInitializationShould
 			A.CallTo(() => Dynamo.DescribeTableAsync(TableName, A<CancellationToken>._))
 				.ReturnsLazily((string _, CancellationToken __) =>
 				{
-					TableDescribes++;
+					Interlocked.Increment(ref _tableDescribes);
 					return new DescribeTableResponse
 					{
 						Table = new TableDescription { LatestStreamArn = StreamArn },
@@ -338,7 +348,7 @@ public sealed class DynamoDbCdcProcessorInitializationShould
 				// shape is a nullability mismatch the compiler reports. State the contract's type explicitly.
 				.ReturnsLazily(async Task<DynamoDbCdcPosition?> (string _, CancellationToken token) =>
 				{
-					CheckpointReads++;
+					Interlocked.Increment(ref _checkpointReads);
 
 					if (PauseFirstCheckpointRead is { } pause && CheckpointReads == 1)
 					{
@@ -370,15 +380,15 @@ public sealed class DynamoDbCdcProcessorInitializationShould
 
 		public IDynamoDbCdcStateStore StateStore { get; }
 
-		public List<GetShardIteratorRequest> IteratorRequests { get; } = [];
+		public ConcurrentBag<GetShardIteratorRequest> IteratorRequests { get; } = [];
 
-		public List<string> Delivered { get; } = [];
+		public ConcurrentBag<string> Delivered { get; } = [];
 
-		public int CheckpointReads { get; private set; }
+		public int CheckpointReads => Volatile.Read(ref _checkpointReads);
 
-		public int Discoveries { get; private set; }
+		public int Discoveries => Volatile.Read(ref _discoveries);
 
-		public int TableDescribes { get; private set; }
+		public int TableDescribes => Volatile.Read(ref _tableDescribes);
 
 		public int FailCheckpointReads { get; init; }
 

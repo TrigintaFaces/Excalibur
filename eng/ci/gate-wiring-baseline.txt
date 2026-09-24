@@ -152,3 +152,9 @@ staged-secret-scan.sh
 # already check out and build the real commit, which is the thing it approximates. It is documented
 # and used as a manual tool invoked with an explicit --sha, so it has no automated caller by design.
 committed-sha-build-gate.sh
+# pre-mirror-gates.py has NO automated caller BY DESIGN, and wiring it to one would defeat it.
+# It runs the gate commands the workflows invoke, so a CI caller would run every gate twice and a
+# commit-path caller would put the whole battery in front of every commit -- which the standing
+# instruction forbids. It is a manual pre-copy tool: run it by hand before copying to the mirror,
+# when the cost of catching a gate failure early is a few minutes instead of a round trip.
+pre-mirror-gates.py
