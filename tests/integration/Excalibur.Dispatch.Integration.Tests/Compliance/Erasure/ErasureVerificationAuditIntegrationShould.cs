@@ -47,7 +47,10 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 	{
 		_fakeErasureStore = A.Fake<IErasureStore>();
 		_fakeCertStore = A.Fake<IErasureCertificateStore>();
-		_fakeKeyProvider = A.Fake<IKeyManagementProvider>();
+		// The provider must be able to ANSWER the destruction question, not merely fail to find the key.
+		// Verification no longer reads "key lookup returned null" as proof of destruction, because a
+		// backend that soft-deletes reports a still-recoverable key as not found.
+		_fakeKeyProvider = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyDestructionStatusProvider>());
 		_fakeInventoryService = A.Fake<IDataInventoryService>();
 		_auditStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), new TestTenantContext(TenantId));
 		_logger = A.Fake<ILogger<ErasureVerificationService>>();
@@ -408,6 +411,17 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 	{
 		_ = A.CallTo(() => _fakeKeyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
 			.Returns((KeyMetadata?)null);
+
+		// A provider advertises the capability by answering GetService for it, which is how the real
+		// providers do it -- the interface's own default implementation returns itself when it is an
+		// instance of the requested type. Then it reports the key destroyed. Returning null from
+		// GetKeyAsync alone no longer confirms anything, deliberately: attesting an erasure on a
+		// not-found answer would certify destruction of a key that is still restorable.
+		_ = A.CallTo(() => _fakeKeyProvider.GetService(typeof(IKeyDestructionStatusProvider)))
+			.Returns(_fakeKeyProvider);
+		_ = A.CallTo(() => ((IKeyDestructionStatusProvider)_fakeKeyProvider)
+				.IsKeyDestroyedAsync(A<string>._, A<CancellationToken>._))
+			.Returns(true);
 	}
 
 	private void SetupEmptyInventory(ErasureStatus status)

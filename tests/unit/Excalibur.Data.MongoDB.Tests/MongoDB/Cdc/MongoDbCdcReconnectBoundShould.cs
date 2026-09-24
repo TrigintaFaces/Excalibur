@@ -110,17 +110,17 @@ public sealed class MongoDbCdcReconnectBoundShould
 	public async Task HandThePoisonedChangeToTheFatalErrorHandler_WhenTheLimitIsReachedOnIt()
 	{
 		MongoDbDataChangeEvent? handedOver = null;
-		var options = Options();
+		var options = DefaultOptions();
 		var store = A.Fake<IMongoDbCdcStateStore>();
 		_ = A.CallTo(() => store.GetLastPositionAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(MongoDbCdcPosition.Start));
 
 		var processor = new MongoDbCdcProcessor(
 			PoisonedChangeStream(options),
-			Microsoft.Extensions.Options.Options.Create(options),
+			Options.Create(options),
 			store,
 			NullLogger<MongoDbCdcProcessor>.Instance,
-			Microsoft.Extensions.Options.Options.Create(new CdcFatalErrorOptions<MongoDbDataChangeEvent>
+			Options.Create(new CdcFatalErrorOptions<MongoDbDataChangeEvent>
 			{
 				MaxConsecutiveTransientFailures = 2,
 				MaxReconnectDelay = TimeSpan.FromMilliseconds(20),
@@ -140,7 +140,7 @@ public sealed class MongoDbCdcReconnectBoundShould
 		_ = handedOver.ShouldNotBeNull("the change whose handler kept failing must reach the fatal-error handler");
 	}
 
-	private static MongoDbCdcOptions Options() => new()
+	private static MongoDbCdcOptions DefaultOptions() => new()
 	{
 		ProcessorId = "reconnect-bound-probe",
 		DatabaseName = "cdc",

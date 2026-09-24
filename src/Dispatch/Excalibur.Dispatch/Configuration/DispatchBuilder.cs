@@ -620,6 +620,15 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		}
 	}
 
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2072:'target parameter' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The return value of the source method does not have matching annotations.",
+		Justification = "DynamicallyAccessedMembers does not flow through a List<Type>; this is the boundary where it stops, and " +
+			"both sources crossing it are annotated. _globalMiddleware has exactly one insertion -- UseMiddleware<TMiddleware>(), " +
+			"whose TMiddleware carries DynamicallyAccessedMemberTypes.PublicConstructors -- so every element's constructors are " +
+			"preserved. The second source is GetType() on an instance the container already activated, whose implementation type " +
+			"the container annotates the same way (ServiceDescriptor.ImplementationType). Independently of both, the scope walk " +
+			"this feeds fails safe: a type whose constructors it cannot see is classified scope-requiring, never root-safe.")]
 	private PipelineRuntimeEntry BuildPipeline(
 		IServiceProvider serviceProvider,
 		string name,

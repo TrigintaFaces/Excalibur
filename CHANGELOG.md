@@ -213,6 +213,29 @@ everything that exists — the page states the limits of that claim.
 
 ### Fixed
 
+**Service lifetimes**
+
+- **A handler or middleware reached through an interface was resolved from the root container, capturing
+  any scoped service in its dependency graph.** This is the ordinary way dependency injection is written,
+  so it was the common case rather than an edge one: `AddScoped` for a unit of work, `AddTransient` for an
+  interface and its implementation, `AddTransient` for the handler. Dispatch inspects the constructor graph
+  to decide whether a dispatch needs a scope, and it recurses on the *parameter* type — which in that shape
+  is the interface. An interface declares no constructors, so the inspection came back empty and the graph
+  was treated as proven free of scoped services instead of as un-inspectable.
+
+  The effect depended on a container setting. With `ServiceProviderOptions.ValidateScopes` enabled the
+  dispatch threw. With it left at its default of `false` the handler resolved and ran, and the scoped
+  service inside it — a unit of work, a database session — silently became process-lifetime, shared across
+  every dispatch for the life of the process. Nothing reported it.
+
+  A dependency graph that cannot be inspected is now treated as requiring a scope, which is what the
+  documented guarantee always said. **What to do:** nothing, if you were relying on the documented
+  behaviour — this makes it true. Expect a scope per dispatch for handlers registered through a factory
+  delegate, and for any handler whose constructors trimming has removed; both were previously, and
+  incorrectly, resolved from the root. A transient `IDisposable` in such a graph is now disposed with that
+  scope rather than living to process shutdown, and under a request-scoped host the instance joins the
+  active request scope.
+
 **Message loss and duplication**
 
 - Kafka: a routine rebalance committed past messages still in handlers, losing them. A revoke now commits

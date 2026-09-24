@@ -20,6 +20,13 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 	/// Initializes a new instance of the <see cref="PipelineProfile"/> class.
 	/// Creates a new pipeline profile.
 	/// </summary>
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2072:'target parameter' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The return value of the source method does not have matching annotations.",
+		Justification = "DynamicallyAccessedMembers cannot be expressed on IEnumerable<Type>, so it stops at this parameter. The " +
+			"types are supplied by the consumer, who also registers them with the container, and that registration preserves " +
+			"their public constructors. The scope walk that consumes these entries fails safe regardless: a type whose " +
+			"constructors it cannot see is classified scope-requiring, never root-safe.")]
 	public PipelineProfile(
 		string name,
 		string description,

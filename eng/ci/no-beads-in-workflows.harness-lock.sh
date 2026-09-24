@@ -24,7 +24,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WF_DIR="${WORKFLOWS_DIR:-$ROOT/.github/workflows}"
-PRECOMMIT="${PRECOMMIT_HOOK:-$ROOT/eng/hooks/pre-commit}"
+CI_CARRIER="${CI_ENFORCEMENT_CARRIER:-$ROOT/eng/ci/harness-gates-ci.sh}"
 PRE_UNWIND_REF="${PRE_UNWIND_REF:-a1d6041d8}"
 
 # Beads/tracker reference patterns (ERE). A `bd` command, a .beads path, the private gate-script
@@ -64,14 +64,23 @@ else
     printf '%s\n' "$excl_hits" | sed 's/^/         /' >&2
 fi
 
-# --- LIVENESS: the relocated enforcement fires in the dev-only pre-commit hook ---
-# Absence-from-workflows is satisfiable by deleting all enforcement; prove it MOVED to the hook.
-if [ ! -f "$PRECOMMIT" ]; then
-    bad "LIVENESS: pre-commit hook not found at $PRECOMMIT — relocation target missing"
-elif grep -qE '(bd-status-tokens|premise-triage|bd-file|bd sync|bd export|tracker|\.beads)' "$PRECOMMIT"; then
-    ok "LIVENESS: the dev-only pre-commit hook still invokes the relocated tracker/bd enforcement"
+# --- LIVENESS: the relocated enforcement fires in CI ------------------------
+# Absence-from-workflows is satisfiable by deleting all enforcement, so this arm proves the
+# enforcement MOVED rather than vanished.
+#
+# It used to look for the enforcement in a dev-only pre-commit hook. That target no longer exists:
+# the commit-path hooks were removed deliberately, on the standing instruction that no gate may slow
+# a commit down, and the enforcement moved to CI — which verifies the real commit instead of a probe.
+# The arm kept asserting the old location, so it failed for a relocation that had already happened
+# correctly. Pointing it at the CI carrier restores what it was built to prove.
+if [ ! -f "$CI_CARRIER" ]; then
+    bad "LIVENESS: CI enforcement carrier not found at $CI_CARRIER — relocation target missing"
+elif ! grep -qE '(bd-status-tokens|premise-triage|bd-file|bd sync|bd export|tracker|\.beads)' "$CI_CARRIER"; then
+    bad "LIVENESS: the CI carrier invokes NO tracker/bd enforcement — enforcement vanished, not relocated"
+elif ! grep -rqE 'harness-gates-ci' "$WF_DIR" 2>/dev/null; then
+    bad "LIVENESS: no workflow invokes the CI carrier — the enforcement exists but nothing runs it"
 else
-    bad "LIVENESS: pre-commit hook invokes NO tracker/bd enforcement — enforcement vanished, not relocated"
+    ok "LIVENESS: the CI carrier invokes the relocated tracker/bd enforcement, and a workflow runs it"
 fi
 
 # --- NON-VACUITY (hermetic): a planted fixture must RED ----------------------

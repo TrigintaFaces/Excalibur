@@ -119,6 +119,10 @@ internal sealed class ActivityGroupGrantSyncPrerequisiteValidator
 			}
 		}
 
-		return composed?.ImplementationType ?? composed?.ImplementationInstance?.GetType();
+		// Read through the keyed-safe accessors, never the raw getters. ServiceDescriptor's non-keyed
+		// ImplementationType/ImplementationInstance throw for a keyed descriptor on .NET 8.x and mis-read
+		// silently on net9/10 -- and a silent mis-read here reports the wrong composed store on an
+		// authorization path, with nothing to say it happened.
+		return composed?.GetImplementationType() ?? composed?.GetImplementationInstance()?.GetType();
 	}
 }

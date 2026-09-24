@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch;
 
 /// <summary>
@@ -40,7 +42,10 @@ public enum MiddlewareCriticality
 /// <summary>
 /// Declares a single middleware within a pipeline profile, together with whether the built pipeline may omit it.
 /// </summary>
-/// <param name="MiddlewareType"> The middleware implementation type to include in the pipeline. </param>
+/// <param name="MiddlewareType">
+/// The middleware implementation type to include in the pipeline. Its public constructors are preserved under trimming: the type flows into
+/// activation and into the pipeline's scope walk, and a walk that cannot see a constructor cannot classify the type correctly.
+/// </param>
 /// <param name="Criticality">
 /// Whether the entry may be skipped when it cannot be materialized. Callers that use this constructor and omit the argument get
 /// <see cref="MiddlewareCriticality.Required" />, so a profile that declares a middleware without stating a criticality gets the protection
@@ -66,5 +71,7 @@ public enum MiddlewareCriticality
 /// </para>
 /// </remarks>
 public readonly record struct MiddlewareEntry(
+	[param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+	[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	Type MiddlewareType,
 	MiddlewareCriticality Criticality = MiddlewareCriticality.Required);

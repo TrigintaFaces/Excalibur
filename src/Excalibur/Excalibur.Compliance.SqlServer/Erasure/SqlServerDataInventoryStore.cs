@@ -649,7 +649,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		(_options.FullRegistrationsTableName,
 		[
 			"TableName", "FieldName", "DataCategory", "DataSubjectIdColumn", "IdType", "KeyIdColumn",
-			"TenantIdColumn", "TenantId", "Description", "CreatedAt", "UpdatedAt",
+			"TenantIdColumn", "TenantId", "Description", "StoreKind", "CreatedAt", "UpdatedAt",
 		]),
 		(_options.FullDiscoveredLocationsTableName,
 		[
@@ -688,6 +688,12 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
 						CONSTRAINT DF_{_options.RegistrationsTableName}_TenantId DEFAULT '{TenantScope.UntenantedSentinel}',
 					Description NVARCHAR(1000) NULL,
+					-- Every statement this store issues binds StoreKind, so the auto-create path must
+					-- declare it. It did not, and the omission was invisible here: the table was created
+					-- successfully and the first registration write then failed on the missing column.
+					-- Type matches the shipped migration exactly, so a database provisioned by either
+					-- route ends up the same shape.
+					StoreKind NVARCHAR(64) NULL,
 					CreatedAt DATETIMEOFFSET NOT NULL,
 					UpdatedAt DATETIMEOFFSET NOT NULL,
 					-- TenantId is part of the KEY, not merely a column: without it two tenants registering

@@ -65,7 +65,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	internal IReadOnlyList<IDispatchMiddleware> ResolvedMiddleware => _resolvedMiddleware;
 
 	/// <inheritdoc />
-	public IPipelineBuilder Use<TMiddleware>()
+	public IPipelineBuilder Use<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>()
 		where TMiddleware : IDispatchMiddleware
 	{
 		var capturedKinds = _messageKinds;
@@ -111,7 +111,9 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	/// instead, so an unresolvable entry is named in the failure rather than described as
 	/// factory-supplied — which tells a consumer nothing about what to register.
 	/// </remarks>
-	internal IPipelineBuilder Use(Type middlewareType, Func<IServiceProvider, IDispatchMiddleware> middlewareFactory)
+	internal IPipelineBuilder Use(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type middlewareType,
+		Func<IServiceProvider, IDispatchMiddleware> middlewareFactory)
 	{
 		ArgumentNullException.ThrowIfNull(middlewareType);
 		ArgumentNullException.ThrowIfNull(middlewareFactory);
@@ -130,7 +132,8 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	}
 
 	/// <inheritdoc />
-	public IPipelineBuilder UseAt<TMiddleware>(DispatchMiddlewareStage stage)
+	public IPipelineBuilder UseAt<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(
+		DispatchMiddlewareStage stage)
 		where TMiddleware : IDispatchMiddleware
 	{
 		var capturedKinds = _messageKinds;
@@ -147,7 +150,8 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	}
 
 	/// <inheritdoc />
-	public IPipelineBuilder UseWhen<TMiddleware>(Func<IServiceProvider, bool> condition)
+	public IPipelineBuilder UseWhen<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(
+		Func<IServiceProvider, bool> condition)
 		where TMiddleware : IDispatchMiddleware
 	{
 		ArgumentNullException.ThrowIfNull(condition);
@@ -270,12 +274,6 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		}
 	}
 
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2072:'target parameter' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The return value of the source method does not have matching annotations.",
-		Justification = "A middleware type is resolved from DI; its constructors are preserved by its registration. " +
-			"The scope verdict is advisory -- a type the walk cannot inspect is treated as scope-requiring, which " +
-			"is the safe direction -- and AOT consumers use the source-generated dispatcher.")]
 	private IDispatchPipeline BuildFrom(IServiceProvider resolutionProvider)
 	{
 		// Resolve all middleware instances
@@ -450,12 +448,21 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	/// Internal registration for middleware with metadata.
 	/// </summary>
 	private sealed class MiddlewareRegistration(
-		Type? type,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type? type,
 		Func<IServiceProvider, IDispatchMiddleware?> factory,
 		DispatchMiddlewareStage? stage,
 		Func<IServiceProvider, bool>? condition,
 		MiddlewareCriticality criticality)
 	{
+		/// <summary>
+		/// Gets the middleware implementation type, or <see langword="null" /> for a factory registration.
+		/// </summary>
+		/// <remarks>
+		/// Annotated exactly as <c> ServiceDescriptor.ImplementationType </c> is: the type flows into
+		/// activation and into the scope walk, so its public constructors must survive trimming. Without
+		/// this the walk sees a constructor-less type and mis-classifies it.
+		/// </remarks>
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 		public Type? Type { get; } = type;
 
 		public Func<IServiceProvider, IDispatchMiddleware?> Factory { get; } = factory;

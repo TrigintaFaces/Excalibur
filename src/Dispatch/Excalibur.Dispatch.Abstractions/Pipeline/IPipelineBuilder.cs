@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
+using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Dispatch;
 
@@ -19,9 +20,12 @@ public interface IPipelineBuilder
 	/// <summary>
 	/// Adds middleware of the specified type to the pipeline.
 	/// </summary>
-	/// <typeparam name="TMiddleware"> The middleware type. </typeparam>
+	/// <typeparam name="TMiddleware">
+	/// The middleware type. Its public constructors are preserved under trimming so the pipeline can
+	/// activate it and inspect its dependencies.
+	/// </typeparam>
 	/// <returns> The pipeline builder for method chaining. </returns>
-	IPipelineBuilder Use<TMiddleware>()
+	IPipelineBuilder Use<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>()
 		where TMiddleware : IDispatchMiddleware;
 
 	/// <summary>
@@ -34,19 +38,27 @@ public interface IPipelineBuilder
 	/// <summary>
 	/// Adds middleware of the specified type at a specific stage in the pipeline.
 	/// </summary>
-	/// <typeparam name="TMiddleware"> The middleware type. </typeparam>
+	/// <typeparam name="TMiddleware">
+	/// The middleware type. Its public constructors are preserved under trimming so the pipeline can
+	/// activate it and inspect its dependencies.
+	/// </typeparam>
 	/// <param name="stage"> The stage where the middleware should be inserted. </param>
 	/// <returns> The pipeline builder for method chaining. </returns>
-	IPipelineBuilder UseAt<TMiddleware>(DispatchMiddlewareStage stage)
+	IPipelineBuilder UseAt<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(
+		DispatchMiddlewareStage stage)
 		where TMiddleware : IDispatchMiddleware;
 
 	/// <summary>
 	/// Conditionally adds middleware of the specified type to the pipeline.
 	/// </summary>
-	/// <typeparam name="TMiddleware"> The middleware type. </typeparam>
+	/// <typeparam name="TMiddleware">
+	/// The middleware type. Its public constructors are preserved under trimming so the pipeline can
+	/// activate it and inspect its dependencies.
+	/// </typeparam>
 	/// <param name="condition"> The condition function that determines if middleware should be added. </param>
 	/// <returns> The pipeline builder for method chaining. </returns>
-	IPipelineBuilder UseWhen<TMiddleware>(Func<IServiceProvider, bool> condition)
+	IPipelineBuilder UseWhen<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(
+		Func<IServiceProvider, bool> condition)
 		where TMiddleware : IDispatchMiddleware;
 
 	/// <summary>

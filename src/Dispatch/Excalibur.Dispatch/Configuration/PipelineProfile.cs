@@ -84,6 +84,13 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 	/// declares. Entries are <see cref="MiddlewareCriticality.Required" />: a profile that names a middleware has asked for it, and a
 	/// pipeline that cannot materialize it must say so rather than build without it.
 	/// </remarks>
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2072:'target parameter' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The return value of the source method does not have matching annotations.",
+		Justification = "The ordered snapshot is a Type collection, and DynamicallyAccessedMembers does not flow through one. " +
+			"Every type in it was declared through an annotated entry point or supplied by the consumer, who registered it with " +
+			"the container -- which preserves its public constructors. The scope walk that consumes these entries fails safe " +
+			"regardless: a type whose constructors it cannot see is classified scope-requiring, never root-safe.")]
 	public IReadOnlyList<MiddlewareEntry> MiddlewareEntries
 	{
 		get

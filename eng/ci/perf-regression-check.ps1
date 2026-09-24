@@ -179,8 +179,10 @@ if ($resultFiles.Count -eq 0) {
 }
 
 $regressions = @()
+$timingDrift = @()
 $improvements = @()
 $compared = 0
+$allocCompared = 0
 
 foreach ($resultFile in $resultFiles) {
 	try {
@@ -214,11 +216,38 @@ foreach ($resultFile in $resultFiles) {
 			$compared++
 			$change = ($currentMeanNs - $baselineMeanNs) / $baselineMeanNs
 
+			# TIMING IS ADVISORY, ALLOCATION BLOCKS -- and the baselines file says why in its own
+			# measurementCaveat: these means were recorded on a developer workstation while CI compares
+			# ubuntu, windows and macos runs against them, so "a cross-machine delta is not necessarily a
+			# code regression". One commit measured +15%, +34% and +182% on the SAME benchmark across the
+			# three runners; a signal that disagrees with itself by an order of magnitude cannot decide a
+			# build. Failing on it trains everyone to ignore the gate, which costs more than it catches.
+			#
+			# Allocated bytes is the half that survives the move: it counts work the code actually did,
+			# it is identical on every runner, and a real regression -- an extra allocation per dispatch --
+			# shows up in it exactly. So allocation regressions FAIL and timing is reported for a human.
+			# Restore timing to blocking the moment a baseline is re-recorded ON a CI runner.
 			if ($change -gt $RegressionThreshold) {
-				$regressions += @{ Method = $methodName; Change = $change; Baseline = $baselineMeanNs; Current = $currentMeanNs }
+				$timingDrift += @{ Method = $methodName; Change = $change; Baseline = $baselineMeanNs; Current = $currentMeanNs }
 			}
 			elseif ($change -lt -0.05) {
 				$improvements += @{ Method = $methodName; Improvement = -$change }
+			}
+
+			$baselineAlloc = if ($null -ne $baseline.allocatedBytes) { [double]$baseline.allocatedBytes } else { -1 }
+			$currentAlloc = if ($null -ne $benchmark.Memory -and $null -ne $benchmark.Memory.BytesAllocatedPerOperation) {
+				[double]$benchmark.Memory.BytesAllocatedPerOperation
+			} else { -1 }
+
+			if ($baselineAlloc -gt 0 -and $currentAlloc -ge 0) {
+				$allocCompared++
+				$allocChange = ($currentAlloc - $baselineAlloc) / $baselineAlloc
+				if ($allocChange -gt $RegressionThreshold) {
+					$regressions += @{
+						Method = $methodName; Change = $allocChange
+						Baseline = $baselineAlloc; Current = $currentAlloc
+					}
+				}
 			}
 		}
 	}
@@ -240,13 +269,19 @@ foreach ($imp in $improvements) {
 	Write-Host ("  improved {0}: {1}% faster" -f $imp.Method, [math]::Round($imp.Improvement * 100, 1)) -ForegroundColor Green
 }
 
+foreach ($drift in $timingDrift) {
+	Write-Host "::warning::Timing drift in $($drift.Method): +$([math]::Round($drift.Change * 100, 1))% ($([math]::Round($drift.Baseline, 2))ns -> $([math]::Round($drift.Current, 2))ns) -- ADVISORY: the baseline was recorded on a workstation, not this runner."
+}
+
+Write-Host "allocation comparisons: $allocCompared of $compared timed benchmark(s) carried a baseline allocation figure."
+
 if ($regressions.Count -gt 0) {
 	foreach ($reg in $regressions) {
-		Write-Host "::error::Performance regression in $($reg.Method): +$([math]::Round($reg.Change * 100, 1))% ($([math]::Round($reg.Baseline, 2))ns -> $([math]::Round($reg.Current, 2))ns)"
+		Write-Host "::error::Allocation regression in $($reg.Method): +$([math]::Round($reg.Change * 100, 1))% ($([math]::Round($reg.Baseline, 0)) B -> $([math]::Round($reg.Current, 0)) B per operation)"
 	}
-	Write-Verdict -State 'FAIL' -Reason "$($regressions.Count) regression(s) exceed $($RegressionThreshold * 100)% threshold" -Compared $compared -Baselines $baselineLookup.Count -Files $resultFiles.Count
+	Write-Verdict -State 'FAIL' -Reason "$($regressions.Count) allocation regression(s) exceed $($RegressionThreshold * 100)% threshold" -Compared $allocCompared -Baselines $baselineLookup.Count -Files $resultFiles.Count
 	exit $EXIT_FAIL
 }
 
-Write-Verdict -State 'PASS' -Reason "no regression beyond $($RegressionThreshold * 100)% threshold" -Compared $compared -Baselines $baselineLookup.Count -Files $resultFiles.Count
+Write-Verdict -State 'PASS' -Reason "no allocation regression beyond $($RegressionThreshold * 100)% threshold ($($timingDrift.Count) timing drift(s) reported as advisory)" -Compared $allocCompared -Baselines $baselineLookup.Count -Files $resultFiles.Count
 exit $EXIT_PASS

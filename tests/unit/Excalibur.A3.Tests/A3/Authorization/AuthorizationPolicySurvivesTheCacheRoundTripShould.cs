@@ -108,7 +108,7 @@ public sealed class AuthorizationPolicySurvivesTheCacheRoundTripShould
 			options.WriteIndented = defaults.WriteIndented;
 		});
 
-		var json = serializer.Serialize(document, typeof(IReadOnlyDictionary<string, IReadOnlyCollection<string>>));
+		var json = serializer.Serialize<IReadOnlyDictionary<string, IReadOnlyCollection<string>>>(document);
 
 		return serializer.Deserialize<Dictionary<string, IReadOnlyCollection<string>>>(json)
 			?? throw new InvalidOperationException("the cache serializer returned no document");

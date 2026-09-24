@@ -620,7 +620,8 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		(_options.FullRegistrationsTableName,
 		[
 			"table_name", "field_name", "data_category", "data_subject_id_column", "id_type",
-			"key_id_column", "tenant_id_column", "description", "created_at", "updated_at", "tenant_id",
+			"key_id_column", "tenant_id_column", "description", "store_kind", "created_at", "updated_at",
+			"tenant_id",
 		]),
 		(_options.FullDiscoveredLocationsTableName,
 		[
@@ -643,6 +644,12 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 				key_id_column VARCHAR(256) NOT NULL,
 				tenant_id_column VARCHAR(256) NULL,
 				description VARCHAR(1000) NULL,
+				-- Every statement this store issues binds store_kind, so the auto-create path must
+				-- declare it. It did not, and the omission was invisible here: the table was created
+				-- successfully and the first registration write then failed on the missing column.
+				-- Type matches the shipped migration exactly, so a database provisioned by either
+				-- route ends up the same shape.
+				store_kind VARCHAR(64) NULL,
 				created_at TIMESTAMPTZ NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL,
 				tenant_id VARCHAR(64) NOT NULL DEFAULT '{TenantScope.UntenantedSentinel}',

@@ -66,6 +66,13 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 	/// </remarks>
 	public IReadOnlyList<MiddlewareEntry> MiddlewareEntries { get; }
 
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2062:Value passed to parameter of method does not have matching annotations. The source value must declare at least the same requirements as those declared on the target location it is assigned to.",
+		Justification = "DynamicallyAccessedMembers cannot be expressed on a Type[] element, so it stops at this parameter. The " +
+			"array is built from middleware the consumer declared and registered with the container, and that registration " +
+			"preserves their public constructors. The scope walk that consumes these entries fails safe regardless: a type whose " +
+			"constructors it cannot see is classified scope-requiring, never root-safe.")]
 	private static IReadOnlyList<MiddlewareEntry> BuildRequiredEntries(Type[] middlewareTypes)
 	{
 		if (middlewareTypes.Length == 0)

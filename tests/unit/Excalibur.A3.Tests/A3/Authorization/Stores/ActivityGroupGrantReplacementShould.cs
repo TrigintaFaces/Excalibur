@@ -149,7 +149,7 @@ public sealed class ActivityGroupGrantReplacementShould
 	{
 		var ct = TestContext.Current.CancellationToken;
 		await SeedAsync("user-1", "Billing", ct);
-		await SeedAsync("user-1", "Elsewhere", ct, Other);
+		await SeedAsync("user-1", "Elsewhere", Other, ct);
 
 		_ = await ((IActivityGroupGrantReplacement)_store).ReplaceActivityGroupGrantsAsync(
 			GrantType.ActivityGroup,
@@ -194,13 +194,13 @@ public sealed class ActivityGroupGrantReplacementShould
 			"granter");
 
 	private Task SeedAsync(string userId, string qualifier, CancellationToken cancellationToken) =>
-		SeedAsync(userId, qualifier, cancellationToken, GrantType.ActivityGroup);
+		SeedAsync(userId, qualifier, GrantType.ActivityGroup, cancellationToken);
 
 	private Task<int> SeedAsync(
 		string userId,
 		string qualifier,
-		CancellationToken cancellationToken,
-		string grantType) =>
+		string grantType,
+		CancellationToken cancellationToken) =>
 		((IActivityGroupGrantStore)_store).InsertActivityGroupGrantAsync(
 			userId, userId, "acme", grantType, qualifier, null, "granter", cancellationToken);
 }

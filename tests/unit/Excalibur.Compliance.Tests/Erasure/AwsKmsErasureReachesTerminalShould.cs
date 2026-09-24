@@ -88,6 +88,7 @@ public sealed class AwsKmsErasureReachesTerminalShould : IDisposable
 	{
 		_provider.Dispose();
 		_cache.Dispose();
+		_kms.Dispose();
 	}
 
 	[Fact]

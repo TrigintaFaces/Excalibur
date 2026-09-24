@@ -202,8 +202,15 @@ internal sealed class HandlerScopeResolver
     private Requirement Compute([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType)
     {
         // 1. A handler registered Scoped is resolved (when self-registered) honoring that lifetime; from
-        //    the root container that throws the captive-dependency error. Singletons are always root-safe
-        //    (a valid Singleton cannot transitively capture a Scoped — the container forbids that).
+        //    the root container that throws the captive-dependency error.
+        //
+        //    A Singleton yields Root, and the reason is NOT that the container forbids a Singleton from
+        //    capturing a Scoped. It does not: ServiceProviderOptions.ValidateScopes defaults to false and is
+        //    turned on only by the host builder in Development, so in Production that capture is permitted
+        //    and silent. The real reason is simpler and does not depend on a container setting: a Singleton
+        //    resolves to ONE instance owned by the root, whichever provider you ask. No verdict this class
+        //    produces can change its closure, so asking for a scope on its behalf would buy nothing. If it
+        //    does capture a Scoped, that is the Singleton's own defect and a scope here cannot repair it.
         if (_lifetimes!.TryGetLifetime(handlerType, out var lifetime))
         {
             switch (lifetime)
@@ -233,7 +240,10 @@ internal sealed class HandlerScopeResolver
     [UnconditionalSuppressMessage(
         "Trimming",
         "IL2072:'target parameter' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The return value of the source method does not have matching annotations.",
-        Justification = "A constructor parameter type is resolved from DI; its constructors are preserved by registration. The scope verdict is advisory and AOT consumers use the source-generated dispatcher.")]
+        Justification = "The value is a constructor parameter's type, reached by reflection, so DynamicallyAccessedMembers cannot " +
+            "flow to it. Its constructors are preserved by the container registration that makes it injectable in the first place. " +
+            "This is safe without relying on that: a type whose constructors this walk cannot read takes the uninspectable branch " +
+            "and is classified scope-requiring, so a trimmed type degrades to an unnecessary scope, never to a captive dependency.")]
     private Requirement Walk(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type,
         HashSet<Type> visited)
@@ -241,7 +251,33 @@ internal sealed class HandlerScopeResolver
         var ctor = SelectActivatableConstructor(type);
         if (ctor is null)
         {
-            return Requirement.Root; // No public constructor — nothing scoped to capture.
+            // No constructor this walk can inspect. That is an UNCERTAIN branch, not a proven-safe one, so it
+            // yields Scope like every other uncertain branch above.
+            //
+            // It used to yield Root, reasoning "no public constructor means nothing scoped to capture". That
+            // reasoning is false in both ways this branch is reached. A type with genuinely no public
+            // constructor is activated by a factory registration, and a factory closes over whatever it likes,
+            // including a Scoped service the walk cannot see. And under trimming GetConstructors() returns
+            // empty for a type whose constructors were removed, which is indistinguishable here from the first
+            // case -- so the walk would hand back Root for a type it simply could not read.
+            //
+            // The dominant case is NOT an exotic type. Walk recurses on the PARAMETER type, and in an
+            // interface-registered graph -- the ordinary way dependency injection is written -- that
+            // parameter IS an interface, and an interface declares no instance constructors. So a plain
+            // AddScoped<DbSession>() + AddTransient<IRepo, Repo>() + AddTransient<MyHandler>() reached this
+            // branch and was classified root-safe. With ServiceProviderOptions.ValidateScopes left at its
+            // default of false, that resolves silently and the Scoped service becomes process-lifetime.
+            //
+            // Root is the direction that resolves once from the root container and reuses the instance for
+            // every dispatch, which is precisely the captive-dependency bug this walk exists to prevent. The
+            // cost of being wrong the other way is a scope per dispatch for a type that did not need one.
+            //
+            // Two consequences of choosing Scope here, named because they are behaviour changes and not
+            // merely cost: a transient IDisposable in this closure is now disposed with the per-dispatch
+            // scope instead of living to shutdown, and under a request-scoped host the instance joins the
+            // ambient request scope rather than the root. Both are the correct lifetimes; neither is a
+            // no-op.
+            return Requirement.Scope;
         }
 
         foreach (var parameter in ctor.GetParameters())
@@ -256,13 +292,24 @@ internal sealed class HandlerScopeResolver
 
             if (lifetime == ServiceLifetime.Singleton)
             {
-                continue; // Provably root-safe subtree — prune (cannot transitively reach Scoped).
+                // Prune. Again NOT because the container forbids a Singleton capturing a Scoped -- it
+                // permits that silently whenever ValidateScopes is false, which is its default. The prune
+                // is sound because a Singleton is one root-owned instance regardless of which provider
+                // resolves it, so nothing downstream of this walk can alter its closure.
+                continue;
             }
 
             if (lifetime == ServiceLifetime.Transient)
             {
                 // Recurse through the transient intermediary — this is the depth-1 blind spot fixes.
                 // visited.Add returns false on a cycle/diamond, terminating the walk for that branch.
+                //
+                // INVARIANT, load-bearing and easy to destroy: pruning on an already-visited type is sound
+                // ONLY because Scope short-circuits. visited.Add(T) == false implies either T is the seed or
+                // a previous Walk(T) returned Root -- never Scope, because a Scope verdict returns
+                // immediately at every site below rather than being accumulated. Anyone who rewrites this
+                // walk to collect verdicts and decide at the end silently breaks the prune: a pruned branch
+                // could then have been the Scope one.
                 if (visited.Add(parameterType) && Walk(parameterType, visited) == Requirement.Scope)
                 {
                     return Requirement.Scope;

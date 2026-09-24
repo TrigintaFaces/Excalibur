@@ -473,7 +473,7 @@
     {
       "line": 38,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventEncoderAdapter.cs",
-      "justification": "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) — the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
+      "justification": "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) \u2014 the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
       "warningId": "IL2046"
     },
     {
@@ -641,13 +641,13 @@
     {
       "line": 109,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL2026"
     },
     {
       "line": 111,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL3050"
     },
     {
@@ -935,7 +935,7 @@
     {
       "line": 233,
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/HandlerScopeResolver.cs",
-      "justification": "A constructor parameter type is resolved from DI; its constructors are preserved by registration. The scope verdict is advisory and AOT consumers use the source-generated dispatcher.",
+      "justification": "The value is a constructor parameter's type, reached by reflection, so DynamicallyAccessedMembers cannot ",
       "warningId": "IL2072"
     },
     {
@@ -2225,9 +2225,9 @@
       "warningId": "IL2075"
     },
     {
-      "line": 82,
+      "line": 124,
       "file": "src/Excalibur/Excalibur.Compliance/Erasure/PersonalDataAnnotationSource.cs",
-      "justification": "Assembly.GetTypes() over host-loaded assemblies is the erasure-inventory scan itself; ",
+      "justification": "Assembly.GetTypes() over host-loaded assemblies is the erasure-inventory scan itself. ",
       "warningId": "IL2026"
     },
     {
@@ -4599,27 +4599,27 @@
       "warningId": "IL3050"
     },
     {
-      "line": 143,
+      "line": 148,
       "file": "src/Excalibur/Excalibur.Jobs.Cdc/Cdc/CdcJob.cs",
-      "justification": "GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable",
+      "justification": "ConfigurationBinder.Get<T> - see note above",
       "warningId": "IL2026"
     },
     {
-      "line": 143,
+      "line": 148,
       "file": "src/Excalibur/Excalibur.Jobs.Cdc/Cdc/CdcJob.cs",
-      "justification": "GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable",
+      "justification": "ConfigurationBinder.Get<T> - see note above",
       "warningId": "IL3050"
     },
     {
-      "line": 172,
+      "line": 183,
       "file": "src/Excalibur/Excalibur.Jobs.Cdc/Cdc/CdcJob.cs",
-      "justification": "GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable",
+      "justification": "ConfigurationBinder.Get<T> - see note above",
       "warningId": "IL2026"
     },
     {
-      "line": 172,
+      "line": 183,
       "file": "src/Excalibur/Excalibur.Jobs.Cdc/Cdc/CdcJob.cs",
-      "justification": "GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable",
+      "justification": "ConfigurationBinder.Get<T> - see note above",
       "warningId": "IL3050"
     },
     {
@@ -4635,27 +4635,27 @@
       "warningId": "IL3050"
     },
     {
-      "line": 64,
+      "line": 69,
       "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
+      "justification": "ConfigurationBinder.Get<T> - see note above",
       "warningId": "IL2026"
     },
     {
-      "line": 64,
+      "line": 69,
       "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
+      "justification": "ConfigurationBinder.Get<T> - see note above",
       "warningId": "IL3050"
     },
     {
-      "line": 98,
+      "line": 109,
       "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
+      "justification": "ConfigurationBinder.Get<T> - see note above",
       "warningId": "IL2026"
     },
     {
-      "line": 98,
+      "line": 109,
       "file": "src/Excalibur/Excalibur.Jobs.DataProcessing/DataProcessing/DataProcessingJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code",
+      "justification": "ConfigurationBinder.Get<T> - see note above",
       "warningId": "IL3050"
     },
     {
@@ -4680,30 +4680,6 @@
       "line": 50,
       "file": "src/Excalibur/Excalibur.Jobs/Jobs/ProjectionRebuildJob.cs",
       "justification": "This job drives a materialized view rebuild, which serializes view types reflectively. ",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 66,
-      "file": "src/Excalibur/Excalibur.Jobs/Outbox/OutboxJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced code for binding. This is acceptable at startup.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 68,
-      "file": "src/Excalibur/Excalibur.Jobs/Outbox/OutboxJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires dynamic code for binding. This is acceptable at startup.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 97,
-      "file": "src/Excalibur/Excalibur.Jobs/Outbox/OutboxJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced code for binding. This is acceptable at startup.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 99,
-      "file": "src/Excalibur/Excalibur.Jobs/Outbox/OutboxJob.cs",
-      "justification": "GetJobConfiguration uses IConfiguration.Get<T>() which requires dynamic code for binding. This is acceptable at startup.",
       "warningId": "IL3050"
     },
     {
@@ -5765,6 +5741,30 @@
       "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
       "justification": "AotJustification",
       "warningId": "IL3050"
+    },
+    {
+      "line": 623,
+      "file": "src/Dispatch/Excalibur.Dispatch/Configuration/DispatchBuilder.cs",
+      "justification": "DynamicallyAccessedMembers does not flow through a List<Type>; this is the boundary where it stops, and ",
+      "warningId": "IL2072"
+    },
+    {
+      "line": 87,
+      "file": "src/Dispatch/Excalibur.Dispatch/Configuration/PipelineProfile.cs",
+      "justification": "The ordered snapshot is a Type collection, and DynamicallyAccessedMembers does not flow through one. ",
+      "warningId": "IL2072"
+    },
+    {
+      "line": 69,
+      "file": "src/Dispatch/Excalibur.Dispatch/Configuration/SynthesizedPipelineProfile.cs",
+      "justification": "DynamicallyAccessedMembers cannot be expressed on a Type[] element, so it stops at this parameter. The ",
+      "warningId": "IL2062"
+    },
+    {
+      "line": 23,
+      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Pipeline/PipelineProfile.cs",
+      "justification": "DynamicallyAccessedMembers cannot be expressed on IEnumerable<Type>, so it stops at this parameter. The ",
+      "warningId": "IL2072"
     }
   ],
   "description": "AOT suppression baseline for Excalibur.Dispatch. Existing suppressions are grandfathered. New suppressions require justification and approval."

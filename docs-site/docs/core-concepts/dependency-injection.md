@@ -148,6 +148,13 @@ including the context-less `dispatcher.DispatchAsync(message, ct)` overload.
 
 A handler that reaches no scoped dependency does **not** pay for a scope. That determination is made
 once per handler type, not per dispatch.
+
+There is one case where a scope is taken that may not have been needed: when the dependency graph cannot
+be inspected. A type registered through a factory delegate has no constructor to read, and the factory may
+close over anything, so Dispatch cannot prove the closure is free of scoped services. It takes a scope
+rather than assume. The same applies to a type whose constructors have been removed by trimming. The cost
+is one scope per dispatch for that handler; the alternative would be a captive dependency that no error
+ever reports.
 :::
 
 :::note Your registered lifetime is honoured

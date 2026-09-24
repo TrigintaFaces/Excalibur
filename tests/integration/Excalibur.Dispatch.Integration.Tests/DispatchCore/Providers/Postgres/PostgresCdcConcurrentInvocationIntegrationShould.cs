@@ -345,6 +345,10 @@ public sealed class PostgresCdcConcurrentInvocationIntegrationShould : Integrati
 			{
 				// Best-effort cleanup; the container is torn down with the collection.
 			}
+			finally
+			{
+				_stateStore.Dispose();
+			}
 		}
 	}
 }

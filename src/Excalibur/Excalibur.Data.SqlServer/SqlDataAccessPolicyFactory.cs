@@ -18,6 +18,7 @@ public partial class SqlDataAccessPolicyFactory : IDataAccessPolicyFactory
 {
 	private readonly ILogger<SqlDataAccessPolicyFactory> _logger;
 	private readonly IAsyncPolicy _cachedRetryPolicy;
+	private readonly IAsyncPolicy _cachedComprehensivePolicy;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlDataAccessPolicyFactory" /> class.
@@ -27,13 +28,21 @@ public partial class SqlDataAccessPolicyFactory : IDataAccessPolicyFactory
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_cachedRetryPolicy = CreateWaitAndRetryPolicy();
+		_cachedComprehensivePolicy = Policy.WrapAsync(CreateCircuitBreakerPolicy(), _cachedRetryPolicy);
 	}
 
 	/// <summary>
 	/// Gets a comprehensive policy that combines retry and circuit breaker policies.
 	/// </summary>
+	/// <remarks>
+	/// The wrapped policy is built once and shared. A circuit breaker carries the failure state that
+	/// decides whether the circuit is open, so a breaker constructed per call starts closed every time
+	/// and can never trip -- the breaker half of this policy would be decorative. Sharing one instance
+	/// is what makes the circuit actually break, and it removes a per-call allocation on a data-access
+	/// hot path as a side effect rather than as the point.
+	/// </remarks>
 	/// <returns> An asynchronous policy for comprehensive data access resilience. </returns>
-	public IAsyncPolicy GetComprehensivePolicy() => Policy.WrapAsync(CreateCircuitBreakerPolicy(), GetRetryPolicy());
+	public IAsyncPolicy GetComprehensivePolicy() => _cachedComprehensivePolicy;
 
 	/// <summary>
 	/// Gets a retry policy for transient failures.

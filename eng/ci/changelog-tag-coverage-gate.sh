@@ -37,6 +37,8 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 readonly E_PASS=0
 readonly E_FAIL=1
 readonly E_ENV=2
@@ -111,6 +113,12 @@ scan() {
 		fi
 	done
 
+	# Report the denominator BEFORE the verdict, so "0 undocumented" is never read as a green that
+	# examined nothing. The may-be-empty variant is correct HERE and the waiver is deliberate: a broken
+	# tag enumeration is already a REFUSE above ("no release tags found"), so a zero at this point can
+	# only mean every tag sits below the documented floor -- a legitimately empty population, not a
+	# matcher that stopped matching.
+	gate_denominator_may_be_empty "$checked" "release tag(s) at or above $FLOOR"
 	echo "[changelog-tag-coverage] checked $checked tag(s) at or above $FLOOR; $skipped below the floor; $missing undocumented."
 	[ "$missing" -eq 0 ] && return "$E_PASS"
 	return "$E_FAIL"

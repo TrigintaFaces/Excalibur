@@ -187,6 +187,12 @@ for o in sorted(arch_on_disk - declared_arch):
                 "guarantee obliges a rung." % o)
 
 unmet_total = sum(len(s.get("unmet") or []) for s in seams)
+examined = len(seams) + len(arch_on_disk - declared_arch)
+print("EXAMINED: %d seam(s) -- %d declared in the manifest plus %d guarantee doc(s) on disk with no entry"
+      % (examined, len(seams), len(arch_on_disk - declared_arch)))
+if examined == 0:
+    print("\nREFUSE: nothing was examined. A zero here is a broken lookup, never a clean tree.")
+    sys.exit(2)
 print("rigor-ladder: %d seams declared, %d ARCHITECTURE.md on disk, %d rung(s) declared UNVERIFIED."
       % (len(seams), len(arch_on_disk), unmet_total))
 if FAIL:
