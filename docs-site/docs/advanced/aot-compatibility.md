@@ -167,7 +167,7 @@ The column answers one question: **if you publish ahead-of-time, what will your 
 | `Excalibur.Data.MongoDB` | Warns you | Analysis reports 8 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
 | `Excalibur.Data.Redis` | Doesn't warn you | |
 | `Excalibur.Data.ElasticSearch` | Warns you | Analysis reports 76 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
-| `Excalibur.Data.ElasticSearch.Azure` | Doesn't warn you | |
+| `Excalibur.Data.ElasticSearch.Azure` | Warns you | `AddAzureKeyVaultCredentialStorage` is annotated, so the diagnostic surfaces at your call site rather than in this package's own build. |
 | `Excalibur.Data.DataProcessing` | Warns you | Annotated paths: `AddDataProcessing`, `AddProcessorsFromAssembly`, `AddRecordHandlersFromAssembly` and 1 more. The rest of the surface publishes clean. |
 | `Excalibur.Data.CosmosDb` | **Not compatible** | CosmosDB SDK uses `Expression.Compile()` |
 | `Excalibur.Data.DynamoDb` | **Not compatible** | DynamoDB SDK reflection-based marshalling |

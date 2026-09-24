@@ -62,12 +62,6 @@ public interface IActivityGroupStore : IServiceProvider
 	/// <summary>
 	/// Retrieves <paramref name="tenantId"/>'s activity groups.
 	/// </summary>
-	/// <remarks>
-	/// <b>Answers only for the named tenant.</b> The tenant term SELECTS and the composed key still
-	/// IDENTIFIES; both are needed and they do different jobs. Without the selection every caller receives
-	/// the whole estate's catalogue and can read it, and without the composition two tenants' same-named
-	/// groups fuse into one entry whose membership satisfies both.
-	/// </remarks>
 	/// <param name="tenantId">The tenant identifier. Required; must be non-empty. Pass a BARE value.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>
@@ -75,6 +69,12 @@ public interface IActivityGroupStore : IServiceProvider
 	/// carrying the names of the activities in that group. Never another tenant's groups.
 	/// </returns>
 	/// <remarks>
+	/// <para>
+	/// <b>Answers only for the named tenant.</b> The tenant term SELECTS and the composed key still
+	/// IDENTIFIES; both are needed and they do different jobs. Without the selection every caller receives
+	/// the whole estate's catalogue and can read it, and without the composition two tenants' same-named
+	/// groups fuse into one entry whose membership satisfies both.
+	/// </para>
 	/// <para>
 	/// <b>The value is typed, and that is load-bearing.</b> This returned <c>object</c> and was described
 	/// as a "provider-specific projection", so each implementation invented its own shape: the in-memory

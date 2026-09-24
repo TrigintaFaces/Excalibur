@@ -184,7 +184,6 @@ src/Excalibur/Excalibur.A3/Authorization/DispatchBuilderExtensions.cs::AddExcali
 src/Excalibur/Excalibur.Application/ExcaliburApplicationServiceCollectionExtensions.cs::AddActivities
 src/Excalibur/Excalibur.AuditLogging.Postgres/PostgresAuditServiceCollectionExtensions.cs::AddPostgresAuditStore
 src/Excalibur/Excalibur.Caching/Projections/ExcaliburDispatchBuilderExtensions.cs::WithProjectionResolversFromAssembly
-src/Excalibur/Excalibur.Caching/Projections/ProjectionCacheInvalidator.cs::InvalidateCacheAsync
 src/Excalibur/Excalibur.Cdc.CosmosDb/CdcBuilderCosmosDbExtensions.cs::UseCosmosDb
 src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs::AddCosmosDbCdc
 src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs::AddCosmosDbCdcStateStore

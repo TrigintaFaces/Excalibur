@@ -43,11 +43,6 @@ public interface IBackoffSchedulableInboxStore
 	/// Marks an inbox entry as failed for a specific handler and records the time before which it must NOT
 	/// be re-claimed for retry, applying the per-entry backoff schedule.
 	/// </summary>
-	/// <remarks>
-	/// After this call, the entry MUST NOT be returned by the re-admission claim
-	/// (<see cref="IInboxStoreAdmin.GetAllTenantsFailedEntriesAsync"/>) until <paramref name="nextAttemptAt"/> has
-	/// elapsed, so the computed backoff delay genuinely throttles re-delivery.
-	/// </remarks>
 	/// <param name="messageId">The unique identifier of the message that failed.</param>
 	/// <param name="handlerType">The fully qualified type name of the handler that failed.</param>
 	/// <param name="errorMessage">The error description or exception message.</param>
@@ -65,6 +60,11 @@ public interface IBackoffSchedulableInboxStore
 	/// and the transition was refused, in which case no backoff is scheduled either.
 	/// </returns>
 	/// <remarks>
+	/// <para>
+	/// After this call, the entry MUST NOT be returned by the re-admission claim
+	/// (<see cref="IInboxStoreAdmin.GetAllTenantsFailedEntriesAsync"/>) until <paramref name="nextAttemptAt"/> has
+	/// elapsed, so the computed backoff delay genuinely throttles re-delivery.
+	/// </para>
 	/// <para>
 	/// Carries the same three obligations as <see cref="IInboxStore.MarkFailedAsync"/> <b>about the state of
 	/// an entry</b>: an absent entry returns <see cref="InboxMarkFailedOutcome.EntryNotFound"/> rather than

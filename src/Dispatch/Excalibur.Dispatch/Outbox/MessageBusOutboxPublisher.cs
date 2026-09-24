@@ -200,13 +200,14 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// rather than fall through to the unfenced members.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// Checking leadership and then draining is check-then-act, not a fence: a dispatcher that loses its
 	/// tenure while paused resumes, observes its own stale snapshot, and writes. The token is what the store
 	/// compares against its durable high-water, so a drain that cannot present one under an active tenure has
 	/// no way to be refused and must refuse itself. With no election configured a null token is the
 	/// legitimate unfenced path and drains normally.
-	/// </remarks>
-	/// <remarks>
+	/// </para>
+	/// <para>
 	/// <b>CALL THIS ONLY FROM A <c>try</c> WHOSE <c>catch</c> HANDLES
 	/// <see cref="OutboxFenceRefusedException"/>.</b> It refuses by THROWING, and a throw raised from
 	/// inside a <c>catch</c> clause is not eligible for any sibling <c>catch</c> on the same <c>try</c> --
@@ -214,6 +215,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// completion paths that run inside the drain's exception handling therefore REPORT the same refusal
 	/// instead of calling this; see the refusal blocks in the failure and dead-letter members. That
 	/// asymmetry is deliberate and this is the reason for it.
+	/// </para>
 	/// </remarks>
 	private void GuardActiveGateHasFencingToken()
 	{

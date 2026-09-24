@@ -258,18 +258,6 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 	}
 
 	/// <summary>
-	/// Creates the identifier for a single inbound delivery, used as the key of the pending-acknowledgement
-	/// map. Extracted for testability.
-	/// </summary>
-	/// <remarks>
-	/// <b>Unconditionally unique, and that is the whole safety property.</b> The key of the
-	/// pending-acknowledgement map must identify ONE delivery, so anything derived from message content can
-	/// collide and silently replace another delivery's acknowledgement handle. Correlation data in
-	/// particular is shared by related messages by design, so deriving the key from it made collisions
-	/// ordinary traffic rather than an edge case.
-	/// </remarks>
-	/// <returns>A fresh identifier that cannot equal that of any other delivery.</returns>
-	/// <summary>
 	/// Creates the identity of a single delivery. It is unique per delivery and derived from no content.
 	/// </summary>
 	/// <remarks>
@@ -290,6 +278,7 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 	/// <see cref="TransportReceivedMessage.Id"/>.
 	/// </para>
 	/// </remarks>
+	/// <returns>A fresh identifier that cannot equal that of any other delivery.</returns>
 	internal static string CreateDeliveryId() => Guid.NewGuid().ToString("N");
 
 	/// <summary>
