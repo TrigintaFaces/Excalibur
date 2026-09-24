@@ -109,7 +109,7 @@ public sealed class MqttConnectionProviderSubstitutionShould
 		// ReceiveAsync connects and subscribes on the way in, then blocks on an empty buffer until its
 		// token cancels. Nothing publishes here, so the cancellation is EXPECTED: the connect is what this
 		// arm is here for. An unbounded token would hang the run rather than fail it.
-		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: the cancellation is EXPECTED -- the connect is what this arm is for, and an unbounded token hangs the run
 		try
 		{
 			_ = await receiver.ReceiveAsync(maxMessages: 1, bounded.Token);

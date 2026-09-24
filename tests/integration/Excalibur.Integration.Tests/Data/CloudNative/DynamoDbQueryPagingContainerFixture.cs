@@ -94,7 +94,7 @@ public sealed class DynamoDbQueryPagingContainerFixture : ContainerFixtureBase
 				return;
 			}
 
-			await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+			await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false); // delay-ok: poll pacing; the loop exits on TableStatus.ACTIVE, not on elapsed time
 		}
 
 		throw new InvalidOperationException($"Table '{TableName}' did not become ACTIVE.");

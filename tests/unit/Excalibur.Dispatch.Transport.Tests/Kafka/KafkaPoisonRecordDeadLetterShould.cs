@@ -467,7 +467,7 @@ public sealed class KafkaPoisonRecordDeadLetterShould
 
 		// Nothing is waiting on the broker here: the only thing left is the router's own pacing, and with a
 		// fake clock it cannot elapse by itself.
-		await Task.Delay(TimeSpan.FromMilliseconds(50), TimeProvider.System, CancellationToken.None);
+		await Task.Delay(TimeSpan.FromMilliseconds(50), TimeProvider.System, CancellationToken.None); // delay-ok: proves the router PACES -- the pacing runs on a fake clock that cannot elapse, so real time is the only way to observe it has not completed
 		receive.IsCompleted.ShouldBeFalse("the retryable failure must be paced, not handed back at poll speed");
 
 		clock.Advance(TimeSpan.FromSeconds(10));

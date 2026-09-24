@@ -207,7 +207,7 @@ run_gate() {
 # load-bearing ones. Every arm below is a whole synthetic tree run through the real run_gate.
 
 self_test() {
-	local tmp fails=0
+	local tmp fails=0 ran=0 reddening=0
 	tmp="$(mktemp -d)"
 	trap 'rm -rf "$tmp"' RETURN
 
@@ -215,6 +215,11 @@ self_test() {
 		local name="$1" want="$2" root="$3" got
 		run_gate "$root" "kits" >/dev/null 2>&1
 		got=$?
+		# Tallied, never hardcoded. A count written into the summary by hand goes stale on the first
+		# arm anyone adds, and a self-test that misreports its own denominator is the same defect it
+		# exists to catch, one level up.
+		ran=$((ran + 1))
+		[ "$want" -eq 1 ] && reddening=$((reddening + 1))
 		if [ "$got" -ne "$want" ]; then
 			echo "  self-test FAIL: $name -- expected exit $want, got $got" >&2
 			fails=$((fails + 1))
@@ -303,6 +308,16 @@ self_test() {
 	suite_unresolvable "$tmp/nostore"
 	arm "an unresolvable store REFUSES (not a pass)" 2 "$tmp/nostore"
 
+	# ---- FAIL 8b: the same LIE, reached through a TARGET-TYPED `new()`. This is the arm that keeps
+	# the target-typed reader honest, and it is deliberately built on the lie tree rather than the
+	# binds tree: resolving the store is not the point, JUDGING it is. Before the reader existed this
+	# tree exited 2 -- a refusal indicting the suite for its syntax -- so the arm discriminates
+	# between the three outcomes that matter (1 judged, 2 unread, 0 vacuous) rather than merely
+	# proving something happened.
+	cp -r "$tmp/lie" "$tmp/target_typed"
+	suite_target_typed_new "$tmp/target_typed"
+	arm "a store constructed by target-typed new is still JUDGED (fails)" 1 "$tmp/target_typed"
+
 	# ---- PASS 10: a kit whose store factory is SYNCHRONOUS. Most kits expose an awaitable
 	# arm-facing accessor and a reader that knows only that shape is blind to the plain factory some
 	# kits ship instead -- it then refuses over a kit that is perfectly well formed, which is the
@@ -341,7 +356,7 @@ self_test() {
 		echo "self-test: FAILED ($fails arm(s))" >&2
 		return 3
 	fi
-	echo "self-test: PASS (19 arms; four of them fail the gate, which is what proves it can)"
+	echo "self-test: PASS ($ran arms; $reddening of them fail the gate, which is what proves it can)"
 	return 0
 }
 
@@ -508,6 +523,16 @@ probe_beside_real_suite() {
 kit_sync_factory() {
 	sed -i 's|protected abstract Task<IWidgetStore> CreateStoreAsync();|protected abstract IWidgetStore CreateStore();|' \
 		"$1/kits/WidgetStoreConformanceTestKit.cs"
+}
+
+suite_target_typed_new() {
+	# The SAME construction as mk_base's suite, written with a target-typed `new()`. The type is on
+	# the LEFT of the `=`, so a reader looking to the right of `new` for a name finds none and the
+	# suite resolves no store at all -- indicting a well-formed suite for using a language feature.
+	# Deliberately contains no `new SqlWidgetStore(` anywhere, so ONLY the target-typed reader can
+	# resolve it: if that reader regresses, the arm below stops failing and says so.
+	printf '%s
+' 		'public sealed class SqlWidgetStoreConformanceShould : WidgetStoreConformanceTestKit' 		'{' 		'	private readonly SqlWidgetStore _store = new();' 		'' 		'	protected override Task<IWidgetStore> CreateStoreAsync() =>' 		'		Task.FromResult<IWidgetStore>(_store);' 		'}' > "$1/tests/Widget.Tests/SqlWidgetStoreConformanceShould.cs"
 }
 
 suite_unresolvable() {

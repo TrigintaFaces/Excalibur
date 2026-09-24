@@ -100,7 +100,7 @@ public sealed class FirestoreCdcBackpressureIntegrationShould
 		// Let the listener receive the snapshot and run into the full channel. The assertion below does not
 		// depend on this being long enough -- it only makes the blocked state the one under test rather than
 		// a race that resolves before the channel ever fills.
-		await Task.Delay(TimeSpan.FromSeconds(5));
+		await Task.Delay(TimeSpan.FromSeconds(5)); // delay-ok: simulated work -- it makes the BLOCKED state the one under test; the assertion does not depend on the length
 
 		released.SetResult();
 

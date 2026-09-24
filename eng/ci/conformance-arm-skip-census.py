@@ -46,6 +46,29 @@ SKIP = re.compile(
 
 NEW = re.compile(r"\bnew\s+([A-Z][A-Za-z0-9_]*)\s*[(\{<]")
 
+# THE SAME CONSTRUCTION, WITH THE TYPE ON THE OTHER SIDE OF THE `=`.
+#
+# A target-typed `new()` is the identical act -- the suite constructs the store -- written the way C#
+# has preferred since it gained the form, and the reader above cannot see it because it looks to the
+# RIGHT of `new` for a name that is, by construction, on the LEFT:
+#
+#     private readonly PropagationDelayingOutboxStore _store = new(Propagation);
+#                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ here                 ^^^^^ not here
+#
+# Left unread, such a suite resolves no store and the gate REFUSES over it -- a refusal that indicts
+# a well-formed suite for using a language feature, which is the instrument's gap wearing the costume
+# of a finding, exactly as the synchronous-factory gap below was.
+#
+# THIS CANNOT MANUFACTURE A PASS, and the reason is the filter rather than the pattern: a candidate
+# becomes a store only if it names a DECLARED type whose closure contains the contract. A loose
+# capture (`Lock _gate = new();`, `Dictionary<string, Entry> _x = new();`) fails that test and is
+# discarded; a capture that survives it really is a store the suite constructs -- precisely as sound
+# as `new PropagationDelayingOutboxStore(...)`, because it IS that, spelled differently. Unioned
+# rather than used as a fallback, matching the stated intent that a suite constructing several
+# stores is judged over each of them.
+NEW_TARGET_TYPED = re.compile(
+    r"\b([A-Z][A-Za-z0-9_]*)\s*(?:<[^;=()]*>)?\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*new\s*[(\{]")
+
 # A suite may OBTAIN its store through the provider's own registration extension instead of
 # constructing it -- services.AddOracleInboxStore(...) then a keyed resolve. That is not a lesser
 # route: it is the one a consumer actually takes, and a suite exercising it tests more than one that
@@ -295,7 +318,8 @@ def main():
             # on the constructed type is what stops one suite's store being credited to its
             # neighbour. A suite constructing several is judged over each of them, because a store
             # that hides a capability it has is a finding whichever of them it is.
-            candidates = set(NEW.findall(src)) | set(ADDS.findall(src))
+            candidates = (set(NEW.findall(src)) | set(NEW_TARGET_TYPED.findall(src))
+                          | set(ADDS.findall(src)))
             stores = sorted(
                 n for n in candidates
                 if n in decls and contract in (closure(decls, n) | {n})

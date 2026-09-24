@@ -403,7 +403,7 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 			.With(new MqttApplicationMessageReceivedEventArgs(
 				"client-1", message, new MqttPublishPacket(), static (_, _) => Task.CompletedTask));
 
-		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds a receive that blocks on an empty buffer; the message was already raised, so the bound is never reached
 		var received = await sut.ReceiveAsync(maxMessages: 5, bounded.Token);
 
 		received.Count.ShouldBe(1, "one packet produced more than one delivery, so the receive handler is "
@@ -439,7 +439,7 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 		await DeliverAsync("first", "corr-a", acknowledged, RepeatedMessageId, packetIdentifier: 7);
 		await DeliverAsync("second", "corr-b", acknowledged, RepeatedMessageId, packetIdentifier: 7);
 
-		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds a receive whose two deliveries were already raised, so the bound is never reached
 		var received = await _sut.ReceiveAsync(maxMessages: 2, bounded.Token);
 		received.Count.ShouldBe(2, "both deliveries must be buffered before either is settled, or the "
 			+ "collision this arm exists to catch cannot occur.");
@@ -517,7 +517,7 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 		await DeliverAsync("first", SharedCorrelation, acknowledged, target: inner);
 		await DeliverAsync("second", SharedCorrelation, acknowledged, target: inner);
 
-		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds a receive whose two deliveries were already raised, so the bound is never reached
 		var received = await wrapped.ReceiveAsync(maxMessages: 2, bounded.Token);
 		received.Count.ShouldBe(2, "the wrapper dropped a message; it must deliver every message the inner "
 			+ "receiver produced, decodable or not.");

@@ -94,7 +94,7 @@ public sealed class DynamoDbPersistenceProviderContainerFixture : ContainerFixtu
 				throw new InvalidOperationException($"Table '{ConformanceTableName}' did not become ACTIVE.");
 			}
 
-			await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+			await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false); // delay-ok: poll pacing; the loop exits on TableStatus.ACTIVE and is capped by attempt count, not by the clock
 		}
 	}
 

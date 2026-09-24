@@ -103,7 +103,7 @@ public sealed class KubernetesLeaderElectionHonoursTimeProviderShould
 		// advancing a fake here would not move it.
 		for (var attempt = 0; attempt < 100 && !sut.IsLeader; attempt++)
 		{
-			await Task.Delay(20);
+			await Task.Delay(20); // delay-ok: poll pacing over 100 attempts; the loop exits on sut.IsLeader, and the election loop runs on the SYSTEM clock so a fake cannot move it
 		}
 
 		sut.IsLeader.ShouldBeTrue(

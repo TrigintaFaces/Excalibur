@@ -209,7 +209,7 @@ public sealed class RabbitMqTransportConformanceTests
 					reject: null);
 			}
 
-			await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+			await Task.Delay(50, cancellationToken).ConfigureAwait(false); // delay-ok: poll pacing; the loop exits on a message arriving, not on elapsed time
 		}
 
 		return null;

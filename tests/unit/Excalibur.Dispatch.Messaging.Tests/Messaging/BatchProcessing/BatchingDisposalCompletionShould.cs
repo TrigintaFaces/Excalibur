@@ -188,7 +188,7 @@ public sealed class BatchingDisposalCompletionShould
 		IMessageContext context,
 		CancellationToken cancellationToken)
 	{
-		await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+		await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false); // delay-ok: InfiniteTimeSpan is block-until-cancelled -- there is no wall-clock duration here to be flaky
 
 		return MessageResult.Success();
 	}

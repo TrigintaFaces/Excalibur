@@ -42,16 +42,6 @@
       "evidence": "Measured 2026-08-02 on the CI integration shard. The skip reports '[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync'. Corroborated independently by the coverage artifact from the SAME run: MonitoredResilientElasticsearchClient is 0.0% covered, 0 of 614 lines, across all four result files -- so no arm executed anywhere in the shard, not merely in this class. The contrast is the point: Azure Blob's cold store read 85.0% covered while its own suite skipped, which is how that skip was exposed as a false claim of absence. NOT established: why the container is unreachable, or whether these 8 arms pass against a reachable Elasticsearch.",
       "owner": "TestsDeveloper",
       "expires": "2026-10-01"
-    },
-    {
-      "test": "Excalibur.Integration.Tests.OpenSearch.OpenSearchProjectionStoreIntegrationShould",
-      "id": "opensearch-fixture-readiness-unresolved",
-      "match": "class",
-      "count": 5,
-      "reason": "Every arm skips as infrastructure-unavailable, but the fixture reaches that state WITHOUT throwing, so the cause is a failed readiness check rather than a startup exception.",
-      "evidence": "Measured 2026-08-02 on the CI integration shard. The fixture appends the captured exception to its skip reason whenever InitializeAsync throws; this skip message carries no cause, so the availability flag was cleared on the health-check branch instead. The coverage artifact from the same run shows OpenSearchProjectionStore at 23.5%, 94 of 400 lines, so the type is partially exercised elsewhere and the container is not categorically absent. NOT established: why the readiness check fails. This entry records an open question, not a settled one, and the short expiry reflects that.",
-      "owner": "TestsDeveloper",
-      "expires": "2026-09-15"
     }
   ]
 }

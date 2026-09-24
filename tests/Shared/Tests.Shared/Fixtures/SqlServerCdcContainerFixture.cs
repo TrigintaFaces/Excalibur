@@ -232,7 +232,7 @@ public sealed class SqlServerCdcContainerFixture : ContainerFixtureBase, IDataba
 			}
 			catch (SqlException ex) when (IsAgentStillStarting(ex) && DateTimeOffset.UtcNow < deadline)
 			{
-				await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
+				await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false); // delay-ok: retry pacing inside a deadline-bounded catch; the loop exits on the agent starting, not on the clock
 			}
 		}
 	}

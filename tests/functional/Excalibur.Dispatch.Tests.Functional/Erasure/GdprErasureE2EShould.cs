@@ -309,7 +309,7 @@ public sealed class GdprErasureE2EShould
                 return status;
             }
 
-            await Task.Delay(100).ConfigureAwait(false);
+            await Task.Delay(100).ConfigureAwait(false); // delay-ok: poll pacing; the loop exits on a terminal status and throws TimeoutException on the budget
         }
 
         throw new TimeoutException(

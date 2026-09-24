@@ -209,7 +209,7 @@ public sealed class BackgroundExecutionPolicyShould
 			started.SetResult();
 			try
 			{
-				await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+				await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false); // delay-ok: InfiniteTimeSpan is block-until-cancelled -- the arm observes the CANCELLATION, never an elapsed time
 			}
 			catch (OperationCanceledException)
 			{

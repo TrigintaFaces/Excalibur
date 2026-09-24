@@ -139,7 +139,7 @@ public sealed class MqttTransportConformanceTests
         // arrives OR the token cancels, and nothing has been published yet, so this priming call is given a
         // short token and is EXPECTED to cancel: what it is here for is the subscribe it performs on the way
         // in, not a message. Passing CancellationToken.None here hangs the run forever instead of failing it.
-        using (var prime = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+        using (var prime = new CancellationTokenSource(TimeSpan.FromSeconds(5))) // deadline-ok: this priming receive is EXPECTED to cancel -- the subscribe is the point, and an unbounded token hangs the run
         {
             try
             {
@@ -236,7 +236,7 @@ public sealed class MqttTransportConformanceTests
         // arrives OR the token cancels, and nothing has been published yet, so this priming call is given a
         // short token and is EXPECTED to cancel: what it is here for is the subscribe it performs on the way
         // in, not a message. Passing CancellationToken.None here hangs the run forever instead of failing it.
-        using (var prime = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+        using (var prime = new CancellationTokenSource(TimeSpan.FromSeconds(5))) // deadline-ok: this priming receive is EXPECTED to cancel -- the subscribe is the point, and an unbounded token hangs the run
         {
             try
             {
@@ -289,7 +289,7 @@ public sealed class MqttTransportConformanceTests
         // which is strictly worse than a failure because nothing is left to read.
         for (var attempt = 0; attempt < 20 && received.Count < 2; attempt++)
         {
-            using var attemptTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var attemptTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2)); // deadline-ok: per-attempt bound inside a 20-attempt loop; ReceiveAsync blocks on an empty buffer until its token cancels
 
             try
             {

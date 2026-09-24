@@ -343,7 +343,7 @@ public sealed class DynamoDbOutboxStreamsSubscriptionKeyAttributesShould
 				}
 			}
 
-			await Task.Delay(TimeSpan.FromMilliseconds(250), cts.Token).ConfigureAwait(false);
+			await Task.Delay(TimeSpan.FromMilliseconds(250), cts.Token).ConfigureAwait(false); // delay-ok: poll pacing; the loop exits on StreamStatus.ENABLED, not on elapsed time
 		}
 
 		throw new InvalidOperationException(

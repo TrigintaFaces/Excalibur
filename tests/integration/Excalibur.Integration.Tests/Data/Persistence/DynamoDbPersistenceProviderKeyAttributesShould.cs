@@ -240,7 +240,7 @@ public sealed class DynamoDbPersistenceProviderKeyAttributesShould : IAsyncLifet
 			}
 
 			attempt.ShouldBeLessThan(120, $"table '{table}' did not become ACTIVE");
-			await Task.Delay(TimeSpan.FromMilliseconds(250), CancellationToken.None).ConfigureAwait(false);
+			await Task.Delay(TimeSpan.FromMilliseconds(250), CancellationToken.None).ConfigureAwait(false); // delay-ok: poll pacing; the loop exits on TableStatus.ACTIVE and is capped by attempt count, not by the clock
 		}
 
 		return new DynamoDbPersistenceProvider(

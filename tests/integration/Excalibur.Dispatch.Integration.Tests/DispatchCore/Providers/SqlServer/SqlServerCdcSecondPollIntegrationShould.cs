@@ -334,7 +334,7 @@ public sealed class SqlServerCdcSecondPollIntegrationShould : IntegrationTestBas
 					var lsn = Convert.ToHexString(change.Lsn);
 					seen.Add(lsn);
 					handlerRan.Add(lsn);
-					await Task.Delay(hold).ConfigureAwait(false);
+					await Task.Delay(hold).ConfigureAwait(false); // delay-ok: the hold IS the semantic under test -- the consumer must still be holding when the second poll runs
 					throw new InvalidOperationException("deliberate fault after holding the consumer");
 				},
 				TestCancellationToken).ConfigureAwait(false);

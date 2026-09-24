@@ -297,7 +297,7 @@ public sealed class MongoDbCdcInvalidationRecoveryShould : UnitTestBase
 			while (!stop.IsCancellationRequested &&
 				   !stopOnceStored.Saved.Any(p => p.ResumeMode == MongoDbChangeStreamResumeMode.StartAfter))
 			{
-				await Task.Delay(10, CancellationToken.None);
+				await Task.Delay(10, CancellationToken.None); // delay-ok: poll pacing; the loop exits on a StartAfter checkpoint being saved, not on elapsed time
 			}
 
 			await stop.CancelAsync();
