@@ -10,7 +10,7 @@
 #   This gate makes that state loud: any path a gate references must exist in the index.
 #
 # WHAT IT SCANS
-#   Caller scripts:   eng/ci/*.sh  ·  eng/hooks/*  ·  .claude/harness/*.sh
+#   Caller scripts:   eng/ci/*.sh  ·  eng/hooks/*  ·  $TAG_EXTRA_CALLER_GLOBS (empty by default)
 #   Referenced paths: quoted or bare tokens containing '/' that end in a known script or data
 #                     extension, plus the repo-relative directories those gates conventionally read.
 #
@@ -51,7 +51,7 @@ scan() {
 	local callers
 	# 'eng/hooks/*' sweeps in README.md, and a path MENTIONED in documentation is not a path
 	# INVOKED by a caller. Judging a doc reference as a broken invocation is a category error.
-	callers="$(git ls-files 'eng/ci/*.sh' 'eng/hooks/*' '.claude/harness/*.sh' 2>/dev/null \
+	callers="$(git ls-files 'eng/ci/*.sh' 'eng/hooks/*' ${TAG_EXTRA_CALLER_GLOBS:-} 2>/dev/null \
 		| grep -vE '\.(md|txt)$')"
 	if [ -z "$callers" ]; then
 		echo "no caller scripts found — refusing to report a pass over an empty set" >&2
@@ -94,12 +94,11 @@ scan() {
 				# class pointed at itself. Judge those; skip the rest.
 				# The path must ALSO be repo-root-relative and literal. extract_paths strips a
 				# leading '$', so an unexpanded variable arrives as "HARNESS_DIR/foo.sh" or
-				# "REPO/.claude/x.sh" — 68 of those on the first attempt at this arm, which is
+				# "REPO/x.sh" — 68 of those on the first attempt at this arm, which is
 				# precisely the noise the skip-if-absent rule was avoiding. Only a token that
 				# begins with a real top-level directory can be judged as a literal reference.
 				case "$path" in
 					eng/*.sh|eng/*.py|eng/*.ps1|eng/*.bash|\
-					.claude/*.sh|.claude/*.py|.claude/*.ps1|.claude/*.bash|\
 					tests/*.sh|tests/*.py|tests/*.ps1|tests/*.bash)
 						echo "MISSING: $path"
 						echo "    referenced by: $caller"
@@ -165,7 +164,7 @@ self_test() {
 	#
 	# The tracked caller is mutated and restored from a private copy. `git checkout` is never
 	# used here: it restores to HEAD and would destroy any uncommitted work in that file.
-	tmp_target=".claude/harness/.selftest-untracked-target.sh"
+	tmp_target="eng/ci/.selftest-untracked-target.sh"
 	tmp_caller="$(git ls-files 'eng/ci/*.sh' | head -1)"
 
 	if [ -z "$tmp_caller" ]; then
@@ -202,8 +201,8 @@ self_test() {
 
 	# ARM 4 — stated limit, asserted rather than only documented. A runtime-assembled path is
 	# invisible to a static scan. This arm exists so nobody reads a green as full coverage.
-	tmp_caller=".claude/harness/.selftest-dynamic.sh"
-	printf '#!/usr/bin/env bash\nD=.claude/harness\nbash "$D/nonexistent-runtime.sh"\n' > "$tmp_caller"
+	tmp_caller="eng/ci/.selftest-dynamic.sh"
+	printf '#!/usr/bin/env bash\nD=eng/ci\nbash "$D/nonexistent-runtime.sh"\n' > "$tmp_caller"
 	# Assert on the SPECIFIC path, not on the exit code. This arm previously checked rc==0 and
 	# broke the moment the gate started (correctly) reporting something else: planting this
 	# fixture makes `.selftest-dynamic.sh` — which THIS FILE references by name — briefly exist

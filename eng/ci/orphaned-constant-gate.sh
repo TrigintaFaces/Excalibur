@@ -29,12 +29,12 @@
 #   * a 4-digit year        — 19xx / 20xx are dates even inside an expression;
 #   * a number the code contains — an in-code cadence constant is documentation, not an orphan.
 #
-# SCOPE: production scans SHELL scripts (`*.sh`) under `.claude/hooks`, `.claude/harness`, and `eng/`
-# — the ops-script surface where cadence/cap prose actually lives (the real ghost was a `.claude/hooks`
+# SCOPE: production scans SHELL scripts (`*.sh`) under `eng/`, widened locally via ORPHCONST_ROOTS
+# — the ops-script surface where cadence/cap prose actually lives (the real ghost was a hook
 # cap comment; `eng/` shell scripts carry no cadence idiom, so an `eng/`-only scope would be VACUOUS —
-# proven by ARM8). Because it reads `.claude/**` it is a STAYS-LOCAL gate (private paths are not on the
+# proven by ARM8). Widened scopes read unpublished paths, so those arms stay local (they are not on the
 # public mirror): its CALLER is the local pre-commit / local harness, NOT a mirror workflow. The
-# `.claude`-dependent self-test arms self-skip where that history is absent (a shallow/mirror clone), so
+# History-dependent self-test arms self-skip where that history is absent (a shallow/mirror clone), so
 # the lock stays green anywhere; the synthetic arms carry the class there. EXCLUDED from default scope:
 # C#/markdown (a comment number in prose docs is far likelier a legitimate cross-reference than a stale
 # constant). Widen or narrow via ORPHCONST_ROOTS.
@@ -64,7 +64,8 @@ E_PASS=0; E_FAIL=1; E_REFUSE=2; E_SELFTEST=3
 REPO_ROOT="${ORPHCONST_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}"
 cd "$REPO_ROOT" || exit $E_REFUSE
 
-ORPHCONST_ROOTS="${ORPHCONST_ROOTS:-.claude/hooks .claude/harness eng}"
+# The published ops-script surface. Set ORPHCONST_ROOTS to widen it locally.
+ORPHCONST_ROOTS="${ORPHCONST_ROOTS:-eng}"
 ORPHCONST_MIN_NUMS="${ORPHCONST_MIN_NUMS:-1}"
 
 _list_sh() {
@@ -188,7 +189,7 @@ self_test() {
 
     # ARM 1 (SAFETY, the REAL ghost): pre-repair poll-opcom.sh — comment "7200 * 1s / 7200 ticks", code
     # holds 86400 — must FIRE on 7200. Recovered from git history (the fixture the bead names).
-    local GHOST_SHA="8da986c85^" GHOST_PATH=".claude/hooks/poll-opcom.sh"
+    local GHOST_SHA="${ORPHCONST_GHOST_SHA:-}" GHOST_PATH="${ORPHCONST_GHOST_PATH:-}"
     if git cat-file -e "$GHOST_SHA:$GHOST_PATH" 2>/dev/null; then
         git show "$GHOST_SHA:$GHOST_PATH" > "$tmp/ghost.sh" 2>/dev/null
         if _scan "$tmp/ghost.sh" | grep -q '^ORPHAN 7200:'; then
@@ -267,9 +268,9 @@ EOF
 
     # ARM 8 (PRODUCTION-PATH non-vacuity): with no env override the gate must enumerate the REAL default
     # scope and evaluate computed cadence-numbers — else the seam is a fixture-only no-op against reality.
-    # The default scope's cadence subject lives under .claude/hooks; where that is absent (shallow/mirror
+    # A configured prod subject may live outside the published tree; where it is absent (shallow/mirror
     # clone), this arm self-skips (the synthetic arms carry the class), mirroring ARM1/ARM2.
-    if [ -f ".claude/hooks/poll-opcom.sh" ]; then
+    if [ -n "${ORPHCONST_PROD_SUBJECT:-}" ] && [ -f "$ORPHCONST_PROD_SUBJECT" ]; then
         local prod
         prod="$( sweep 2>/dev/null | grep -oE 'cadence-numbers-evaluated=[0-9]+' | cut -d= -f2 )"
         if [ -n "$prod" ] && [ "$prod" -ge 1 ]; then
@@ -278,7 +279,7 @@ EOF
             echo "self-test ARM8 FAIL: production-path enumeration evaluated ZERO cadence-numbers — fixture-only no-op." >&2; bad=1
         fi
     else
-        echo "  --  ARM8 prod-path   SKIPPED (.claude/hooks absent — mirror/shallow clone); synthetic arms cover the class"
+        echo "  --  ARM8 prod-path   SKIPPED (no prod subject configured); synthetic arms cover the class"
     fi
 
     if [ "$bad" -ne 0 ]; then

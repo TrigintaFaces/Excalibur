@@ -2,7 +2,7 @@
 # f5-sweep.test.sh — regression lock for eng/ci/f5-sweep.sh.
 #
 # f5-sweep.sh is the mechanical pre-REVIEW gate for the F-5 cross-project sibling sweep
-# (.claude/rules/process/f5-cross-project-test-sweep.md). This lock proves the gate is
+# (the F-5 cross-project test-sweep rule). This lock proves the gate is
 # NON-VACUOUS: it must flag the real footgun (a stale sibling test in a SECOND project)
 # and must not false-positive on triaged/unrelated/substring matches — and the gate's own
 # built-in --self-test must itself fail when the gate is mutated.

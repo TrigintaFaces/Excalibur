@@ -35,7 +35,11 @@ BEADS_RE='(\bbd |\.beads/|bd-status-tokens|bd-export-comments|premise-triage|p0-
 # to one in a shipped workflow file-not-founds downstream — even a non-beads one. Widening the guard
 # from "beads-scoped" to "mirror-exclusion-scoped" makes a future excluded-dir ref inexpressible at
 # commit, not just a beads one. (PM 28694 item 4.)
-EXCL_RE='(\.claude/|\.dts/|\.beads/)'
+# Any dot-directory reference. .github is the one dot-directory that IS published, so it is
+# filtered separately rather than with a lookahead: this is matched by grep -E (POSIX ERE),
+# which has no lookahead, and the arms below caught that the moment it was tried.
+EXCL_RE='(^|[^A-Za-z0-9_.-])\.[A-Za-z0-9_-]+/'
+excl_scan() { grep -rnE "$EXCL_RE" "$@" 2>/dev/null | grep -vE '\.github/' || true; }
 
 passed=0; failed=0
 ok()  { printf '  ok  : %s\n' "$1"; passed=$((passed + 1)); }
@@ -56,9 +60,9 @@ else
 fi
 
 # --- SAFETY 2: zero private-excluded-dir references (mirror-exclusion scope) --
-excl_hits="$(grep -rnE "$EXCL_RE" "$WF_DIR" 2>/dev/null || true)"
+excl_hits="$(excl_scan "$WF_DIR")"
 if [ -z "$excl_hits" ]; then
-    ok "SAFETY (mirror): no .claude/.dts/.beads reference in any .github/workflows/ file"
+    ok "SAFETY (mirror): no unpublished dot-directory reference in any .github/workflows/ file"
 else
     bad "SAFETY (mirror): a workflow references a mirror-EXCLUDED private dir (file-not-found downstream):"
     printf '%s\n' "$excl_hits" | sed 's/^/         /' >&2
@@ -102,7 +106,7 @@ if grep -qE "$BEADS_RE" "$planted"; then
 else
     bad "NON-VACUITY (beads, hermetic): a planted 'bd' token was NOT caught -> the safety grep is vacuous"
 fi
-if grep -qE "$EXCL_RE" "$planted"; then
+if excl_scan "$planted" | grep -q .; then
     ok "NON-VACUITY (mirror, hermetic): a planted excluded-dir token is caught -> the mirror grep bites"
 else
     bad "NON-VACUITY (mirror, hermetic): a planted excluded-dir token was NOT caught -> the mirror grep is vacuous"
@@ -124,7 +128,7 @@ else
     else
         bad "NON-VACUITY (beads): the pre-unwind ci.yml had NO beads refs -> the safety grep is vacuous (wrong anchor?)"
     fi
-    if grep -qE "$EXCL_RE" "$pre_unwind_file"; then
+    if excl_scan "$pre_unwind_file" | grep -q .; then
         ok "NON-VACUITY (mirror): the pre-unwind ci.yml ($PRE_UNWIND_REF) DID reference an excluded dir -> the grep bites"
     else
         bad "NON-VACUITY (mirror): the pre-unwind ci.yml had NO excluded-dir refs -> the mirror grep is vacuous (wrong anchor?)"

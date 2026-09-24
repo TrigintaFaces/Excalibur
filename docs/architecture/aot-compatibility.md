@@ -164,4 +164,4 @@ If a Windows-specific AOT regression is suspected, re-run the affected sample lo
 - [ADR-050: Namespace Consolidation Strategy](../../management/architecture/ADR-050-Namespace-Consolidation-Strategy.md)
 - [S807 Sprint Plan](../../management/sprints/sprint-807-plan.md)
 - COMPASS msg 2143 (S807 GUIDE)
-- CLAUDE.md §AOT/Trimmer Safety
+- The project AOT/Trimmer safety constraints

@@ -42,7 +42,7 @@ SRC = {
 }
 # Tooling/process/infra signals: the machinery AROUND the code, not shipped.
 TOOL = {
-    "eng/", ".claude", ".github", "ci.yml", "workflow", "gate", "hook", "pre-commit",
+    "eng/", ".github", "ci.yml", "workflow", "gate", "hook", "pre-commit",
     "bd-file", "bd create", "bd list", "bd update", "beads", "daemon", "tracker", "jsonl",
     "opcom", "premise", "premise-triage", "shard", "sprint", "retro", "debrief", "mission",
     "harness", "self-test", "selftest", "denominator", "accounting", "flush", "export",

@@ -83,7 +83,8 @@ EXCLUSIONS = [
     "  nobody has hit yet is still bindable and would read as a phantom. Known incompleteness.",
 ]
 
-SKIP_DIRS = {"node_modules", "bin", "obj", ".git", ".dts", ".claude", "packages", "TestResults"}
+# Build output and package caches by name; every DOT-directory by rule (see docs-csharp-extract).
+SKIP_DIRS = {"node_modules", "bin", "obj", "packages", "TestResults"}
 
 # ---------------------------------------------------------------------------
 # Receiver types this gate must NOT bind
@@ -293,7 +294,8 @@ def build_symbol_table(repo):
         return types, 0
     files = 0
     for dirpath, dirnames, filenames in os.walk(src):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        dirnames[:] = [d for d in dirnames
+                       if d not in SKIP_DIRS and not d.startswith(".")]
         for fn in filenames:
             if not fn.endswith(".cs"):
                 continue

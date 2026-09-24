@@ -51,7 +51,7 @@ param(
     [switch]$LockedMode,
 
     # build --no-incremental. Note this rebuilds the named project, NOT its project references;
-    # see .claude/rules/process/clean-rebuild-before-trusting-locks.md.
+    # A stale impl DLL makes a lock's GREEN or RED a lie; rebuild the impl explicitly.
     [switch]$NoIncremental,
 
     # MSBuild properties, given without the -p: prefix, e.g. --properties CI=true AuditPipeline=true.

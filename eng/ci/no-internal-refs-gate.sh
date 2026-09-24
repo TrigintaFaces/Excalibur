@@ -2,7 +2,7 @@
 # no-internal-refs-gate — public-surface internal-reference scan (preventive gate).
 #
 # Implements the mechanical gate mandated by
-#   .claude/rules/quality/no-internal-refs-in-public-surface.md
+#   the no-internal-refs-in-public-surface rule
 #
 # A NuGet consumer integrates the compiled DLL + its .xml doc file + the published
 # docs site + the shipped samples/README/CHANGELOG. None of those may leak an
@@ -12,7 +12,7 @@
 # the work item that produced it.
 #
 # This gate greps the PUBLIC-SURFACE globs for those tokens and fails if any are
-# found. INTERNAL sinks (commit msgs, .beads/*.jsonl, .claude/**, management/**,
+# found. INTERNAL sinks (commit msgs, tracker exports, unpublished dot-directories, management/**,
 # ADR files, tests/**, PublicAPI*.txt, and internal-visibility `///` comments under
 # an Internal/ folder) are EXEMPT — ids are expected there.
 #
@@ -259,9 +259,10 @@ nir_hits_in_file() {
 #   returns 0 (exempt) if the path is an internal sink that legitimately carries ids.
 nir_is_exempt() {
     case "$1" in
-        .beads/*|*/.beads/*) return 0 ;;
-        .claude/*|*/.claude/*) return 0 ;;
-        .dts/*|*/.dts/*) return 0 ;;
+        # .github is the one dot-directory that IS published, so it is judged like any other
+        # public path. Every other dot-directory is an internal sink.
+        .github/*|*/.github/*) : ;;
+        .*/*|*/.*/*) return 0 ;;
 
         # A GATE SELF-TEST IS NO LONGER EXEMPT BY ITS FILENAME.
         #
@@ -346,7 +347,7 @@ nir_public_pathspecs() {
     printf '%s\n' \
         'docs-site/' 'samples/' 'src/' 'CHANGELOG.md' 'README.md' \
         'eng/' '.github/workflows/' \
-        ':(exclude,glob)**/.claude/**' ':(exclude,glob)**/.dts/**' \
+        ':(exclude,glob)**/.dts/**' \
         ':(exclude,glob)**/bin/**' ':(exclude,glob)**/obj/**' \
         ':(exclude,glob)**/node_modules/**' ':(exclude,glob)**/.docusaurus/**' \
         ':(exclude,glob)**/PublicAPI*.txt' \
@@ -734,7 +735,7 @@ run_gate() {
         echo ""
         cat "$over_report"
         echo ""
-        echo "Per .claude/rules/quality/no-internal-refs-in-public-surface.md: rewrite the"
+        echo "Rewrite the"
         echo "substance and DROP the internal ref. Document the contract/behavior, not the"
         echo "work item. Do NOT raise the baseline to make this pass — it only moves down."
         rm -f "$idset_file" "$report" "$raw" "$over_report" ${staged_set:+"$staged_set"}
@@ -745,7 +746,7 @@ run_gate() {
     echo ""
     cat "$report"
     echo ""
-    echo "Per .claude/rules/quality/no-internal-refs-in-public-surface.md: rewrite the"
+    echo "Rewrite the"
     echo "substance and DROP the internal ref (bd-/S###/Sprint #/ADR-#/callsign). Document"
     echo "the contract/behavior, not the work item. Move ids to an internal sink if needed."
     rm -f "$idset_file" "$report" "$raw" ${staged_set:+"$staged_set"}
@@ -872,7 +873,7 @@ EOF
         "management/sprints/sprint-863-plan.md" \
         "tests/Unit/FooShould.cs" \
         ".beads/issues.jsonl" \
-        ".claude/rules/x.md" \
+        ".internal/rules/x.md" \
         "src/Foo/Internal/Helper.cs" \
         "src/Foo/PublicAPI.Shipped.txt" \
         "docs-site/node_modules/pkg/readme.md" \
@@ -1019,9 +1020,9 @@ EOF
     # each side looked internally consistent. This derives the check FROM the rule rather than a
     # second hand-maintained list: it reads the rule's `src/**/*.<ext>` include entries and asserts
     # nir_keep_line keeps a representative of each. So when the rule gains a public surface, this arm
-    # fails until the gate covers it. Reads a .claude path (absent on the public mirror) → SKIPS there;
+    # fails until the gate covers it. Reads an unpublished path (absent on the mirror) -> SKIPS there;
     # a dev-time coherence guard, not a shipped check.
-    local rule_file=".claude/rules/quality/no-internal-refs-in-public-surface.md"
+    local rule_file="${NIR_RULE_FILE:-}"
     if [ -f "$rule_file" ]; then
         local exts ext repr shape
         exts="$(grep -oE 'path: "src/\*\*/\*\.[a-zA-Z]+"' "$rule_file" | grep -oE '\.[a-zA-Z]+"' | tr -d '"' | sort -u)"

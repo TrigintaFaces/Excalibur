@@ -1,6 +1,6 @@
 # rigor-ladder.yaml — which class of guarantee each declared seam owes.
 #
-# Rule: .claude/rules/quality/rigor-ladder.md          Gate: eng/ci/rigor-ladder-gate.sh
+# Gate: eng/ci/rigor-ladder-gate.sh
 #
 # THE COVERAGE ORACLE IS BIDIRECTIONAL, and that is what makes this non-vacuous:
 #   * every src/**/ARCHITECTURE.md must have an entry here  (declaring a guarantee obliges a rung)

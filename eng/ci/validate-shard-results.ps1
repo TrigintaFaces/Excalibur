@@ -28,7 +28,7 @@
     2  ERROR — the gate could not compute a sound result (no trx, unreadable trx). A total that
                cannot be computed soundly is refused, not printed as zero.
 
-  Proving self-test (safety + liveness arms): .claude/harness/validate-shard-results.test.ps1
+  Proving self-test (safety + liveness arms) lives beside this script, unpublished.
 #>
 [CmdletBinding()]
 param(

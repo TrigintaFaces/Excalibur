@@ -132,7 +132,7 @@ The suite contains classes built on two different BDN configs. **Both must run**
 
 ## Detached run — USE `disown`
 
-BenchmarkDotNet spawns many short-lived child processes (one per iteration for isolation). If the shell that launched the run has job control active and the shell process is reaped (which happens when Claude agents complete their session), **the dotnet children go with it — the BDN suite dies mid-run, writing partial results**.
+BenchmarkDotNet spawns many short-lived child processes (one per iteration for isolation). If the shell that launched the run has job control active and the shell process is reaped (which happens when the launching agent session ends), **the dotnet children go with it — the BDN suite dies mid-run, writing partial results**.
 
 ### The fix
 

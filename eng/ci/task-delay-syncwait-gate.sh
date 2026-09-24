@@ -5,7 +5,7 @@
 # other free: a raw `await Task.Delay(...)` sync-wait, and a short deadline on a
 # CancellationTokenSource that the test must beat. Both were measured failing shards here.
 #
-# Enforces the determinism standard in .claude/rules/quality/testing-patterns.md
+# Enforces the project's test-determinism standard
 # ("Tests MUST be deterministic ... Never depend on wall-clock timing. Poll for a
 # condition with a bounded timeout") and eng/docs/async-test-standards.md:
 # a test that waits for a background/async condition MUST poll it via

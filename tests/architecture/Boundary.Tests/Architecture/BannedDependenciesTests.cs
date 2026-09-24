@@ -47,7 +47,7 @@ public sealed class BannedDependenciesTests
 
         // Dapper is BANNED in Excalibur.Dispatch.Abstractions (the messaging abstraction must stay
         // driver-free), but is INTENTIONAL in Excalibur.Data.Abstractions: IDataRequest is built on
-        // Dapper to enhance it (user-confirmed; CLAUDE.md "Technical Decisions — Dapper ... IDataRequest
+        // Dapper to enhance it (user-confirmed; the project Technical Decisions ("Dapper ... IDataRequest
         // is built on Dapper to enhance it. NOT a compliance violation. Do not remove."). So the Dapper
         // ban is scoped to the Dispatch side only, not applied to the Data.Abstractions scan.
         const string bannedDapper = """
@@ -174,7 +174,7 @@ public sealed class BannedDependenciesTests
     }
 
     // Dapper is intentionally permitted in Excalibur.Data.Abstractions (IDataRequest is built on Dapper
-    // to enhance it — user-confirmed; CLAUDE.md "Technical Decisions"). Only the concrete provider driver
+    // to enhance it — user-confirmed; the project Technical Decisions). Only the concrete provider driver
     // System.Data.SqlClient is banned here (a data-access abstraction must not bind a concrete SQL driver).
     [Fact]
     public void Excalibur_Abstractions_Should_Not_Reference_SystemDataSqlClient()
@@ -263,7 +263,7 @@ public sealed class BannedDependenciesTests
     }
 
     // Dapper usings are intentionally permitted in Excalibur.Data.Abstractions (IDataRequest is built on
-    // Dapper to enhance it — user-confirmed; CLAUDE.md "Technical Decisions"). Only a concrete SQL driver
+    // Dapper to enhance it — user-confirmed; the project Technical Decisions). Only a concrete SQL driver
     // (System.Data.SqlClient) using is banned in the data-access abstraction source.
     [Fact]
     public void Excalibur_Abstractions_Source_Should_Not_Use_SystemDataSqlClient()

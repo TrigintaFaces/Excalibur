@@ -43,7 +43,7 @@ python3 eng/ci/docs-csharp-extract.py --repo /path/to/repo
 | `--gate-lines <file>` | `relpath:linenumber` entries (one per changed line). Gate only blocks whose fenced span intersects a changed line (**hunk** scope). Takes precedence over `--gate-files`. This is what the CI gate uses so editing an unrelated line never re-flags a pre-existing snippet. |
 
 The doc walk covers `docs-site/**/*.md(x)`, `docs/**/*.md`, and repo-wide `**/README*.md`,
-skipping `node_modules`, `bin`, `obj`, `.git`, `.dts`, `.claude`.
+skipping `node_modules`, `bin`, `obj`, and every dot-directory.
 
 ---
 

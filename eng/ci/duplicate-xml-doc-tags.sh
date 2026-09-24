@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # duplicate-xml-doc-tags.sh — fail on duplicate XML doc tags within one /// doc block.
 #
-# HOME: eng/ci/ (moved from .claude/harness — .claude is not published, so a gate living there
+# HOME: eng/ci/ (the published path — a gate living outside it
 #       can never run where CI runs). This gate is the enforcement arm for the defect below.
 #
 # THE DEFECT: the C# compiler emits BOTH tags and warns about NEITHER when a single

@@ -76,8 +76,8 @@ run_gate "$R"
 # If clones counted, a repo with zero real lock files would report PASS on the
 # strength of throwaway copies — coverage theatre.
 R="$(new_repo clones)"
-mkdir -p "$R/.claude/worktrees/agent-x/proj" "$R/.dts/wt-y/proj"
-echo '{}' >"$R/.claude/worktrees/agent-x/proj/packages.lock.json"
+mkdir -p "$R/.agent-worktrees/agent-x/proj" "$R/.dts/wt-y/proj"
+echo '{}' >"$R/.agent-worktrees/agent-x/proj/packages.lock.json"
 echo '{}' >"$R/.dts/wt-y/proj/packages.lock.json"
 git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" add -A >/dev/null 2>&1; git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" commit -qm clones >/dev/null 2>&1
 run_gate "$R"

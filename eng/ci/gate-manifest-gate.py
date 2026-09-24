@@ -51,7 +51,19 @@ RUNS_IN = {"pre-commit", "ci", "pre-commit+ci", "nowhere", "local-only"}
 
 # Scripts that are the gates' own tests/locks/fixtures are not themselves gates.
 EXCLUDE_SUFFIX = re.compile(r"\.(test|harness-lock|fixture)\.(sh|py)$")
-SCAN_GLOBS = ["eng/ci/*.sh", "eng/ci/*.py", ".claude/harness/*.sh", ".claude/harness/*.py"]
+# PUBLISHED PATHS ONLY, and this is a correctness bound rather than a preference.
+#
+# CI runs against the mirrored copy of this repository, which carries eng/** and .github/** and
+# does NOT carry the unpublished tooling tree. Scanning a path that cannot exist there made every unpublished row a
+# DEAD ROW on the mirror and nowhere else: the gate passed locally, failed in CI, and the diff
+# between the two was the environment rather than the tree. A gate whose verdict depends on where
+# it runs is not reporting a property of the tree at all.
+#
+# The manifest already records the boundary as data -- every entry carries `published:` -- so the
+# scan and the comparison are both scoped by it below, and the excluded count is PRINTED rather
+# than silently dropped. Same verdict in both environments; the unpublished gates keep their own
+# local locks next to the things they guard.
+SCAN_GLOBS = ["eng/ci/*.sh", "eng/ci/*.py"]
 
 
 def scan_scripts(repo=None):
@@ -125,6 +137,15 @@ def check(manifest_path=MANIFEST, floor_path=UNREVIEWED_FLOOR, repo=None, quiet=
               "clean tree; it is an instrument that found no subject.", file=sys.stderr)
         return 2
 
+    # Scope to what CI can see, and say how much was excluded -- an unexamined row must not read
+    # as an examined one.
+    unpublished = [e for e in entries if str(e.get("published", "true")).lower() != "true"]
+    entries = [e for e in entries if str(e.get("published", "true")).lower() == "true"]
+    if not entries:
+        print("REFUSE: no published manifest entries remain to compare. An empty comparison "
+              "passes vacuously.", file=sys.stderr)
+        return 2
+
     listed = {e["path"] for e in entries}
     disk = set(on_disk)
     orphans = sorted(disk - listed)
@@ -157,8 +178,12 @@ def check(manifest_path=MANIFEST, floor_path=UNREVIEWED_FLOOR, repo=None, quiet=
     grew = (ferr is None and len(unreviewed) > floor)
 
     if not quiet:
-        print("EXAMINED: {} manifest entr(ies) against {} script(s) on disk".format(
+        print("EXAMINED: {} published manifest entr(ies) against {} script(s) on disk".format(
             len(entries), len(on_disk)))
+        if unpublished:
+            print("EXCLUDED: {} unpublished entr(ies) (unpublished -- not carried by the mirrored "
+                  "copy CI runs against, so CI cannot see their subjects by design). They keep "
+                  "their own locks locally.".format(len(unpublished)))
         if orphans:
             print("ORPHAN scripts (on disk, absent from the manifest -- invisible to every "
                   "consumer of this file):", file=sys.stderr)

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.EventSourcing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Rule:</b> <c>.claude/rules/quality/microsoft-first.md</c> — "Consumer-facing APIs: NEVER
+/// <b>Rule:</b> the Microsoft-first design standard — "Consumer-facing APIs: NEVER
 /// <c>[RequiresUnreferencedCode]</c>" and "Interfaces: NEVER AOT attributes." On the true pre-fix HEAD
 /// (<c>301b4aa62</c>) <c>SerializeEvent</c>/<c>DeserializeEvent</c> carried both
 /// <see cref="RequiresUnreferencedCodeAttribute"/> and <see cref="RequiresDynamicCodeAttribute"/>, and

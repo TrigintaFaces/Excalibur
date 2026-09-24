@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Integration.Tests.KeyManagement;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>.claude/rules/process/verify-against-real-infra-not-mock.md</c> documents a real bug that shipped
+/// The real-infra verification standard documents a real bug that shipped
 /// in this exact seam: a mocked unit test for <c>SuspendKeyAsync</c> asserted only that an option value
 /// was <em>sent</em>, never that Vault <em>accepted</em> it — real Vault rejected the value on its happy
 /// path (bd-vihqw6). This deriver exists to keep the conformance kit's coverage of

@@ -167,7 +167,7 @@ function Get-RuntimeProfileVariables {
 $script:RefusalLogMarkers = @(
     @{
         Pattern = "Found more than one matching project file"
-        Reason  = "more than one Excalibur.Dispatch.Benchmarks.csproj is reachable from the repository root -- a leftover agent worktree under .claude/worktrees/ is the usual cause. BenchmarkDotNet's default (CsProj) toolchain cannot pick one and refuses to generate, so every row of a CsProj-toolchain class reads NA. Classes pinned to InProcessEmitToolchain are unaffected, which is why part of the suite keeps working."
+        Reason  = "more than one Excalibur.Dispatch.Benchmarks.csproj is reachable from the repository root -- a leftover agent worktree is the usual cause. BenchmarkDotNet's default (CsProj) toolchain cannot pick one and refuses to generate, so every row of a CsProj-toolchain class reads NA. Classes pinned to InProcessEmitToolchain are unaffected, which is why part of the suite keeps working."
     },
     @{
         Pattern = "BenchmarkDotNet has failed to build"

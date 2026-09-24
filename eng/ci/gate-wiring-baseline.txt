@@ -133,7 +133,7 @@ config-binder-completeness-gate.py
 
 # converted from an enforcement gate to a MANUAL tool on 2026-09-14, not newly added unwired. It ran on
 # the commit path and was removed there under the standing ruling that a pre-commit hook must be
-# grep-speed (.claude/rules/process/when-to-create-a-gate.md): it built the staged snapshot, costing
+# grep-speed (a pre-commit hook must not invoke a compiler): it built the staged snapshot, costing
 # three to five minutes on every commit. It cannot be re-wired -- at pre-push and in CI the index is
 # empty, so it would exit 0 forever and enforce nothing while appearing to. The property it predicted is
 # verified in CI against the real commit by six workflows that check out and build it. Its own header

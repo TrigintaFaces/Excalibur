@@ -17,7 +17,7 @@
 # Real-defect control (non-vacuity against reality, not a synthetic mutant):
 #   D  the pre-repair poll-opcom.sh (comment "7200 ticks", code 86400) -> gate FAIL(1), names 7200
 #   E  the current poll-opcom.sh (cap comment states no number)        -> gate PASS(0)
-#   D/E SKIP (not fail) when the .claude history blob is unreachable (shallow/mirror) — the hermetic
+#   D/E SKIP (not fail) when the history blob is unreachable (shallow/mirror) — the hermetic
 #   arms A/B/C are the mirror-safe backbone.
 #
 # Noise control (the reason this gate can ship at all):
@@ -77,9 +77,13 @@ rc="$(run_gate "$CD")"
                 || fail "C: empty scan did NOT REFUSE (got $rc, expected 2)"
 
 # ── D/E. REAL historical ghost + its repair (skippable) ──────────────────────
-GHOST_SHA="8da986c85^"; GHOST_PATH=".claude/hooks/poll-opcom.sh"
+# The -n guards below are load-bearing: an EMPTY path is not the same as unset, because
+# `HEAD:` resolves to the ROOT TREE -- a valid object. Without them arm E runs the gate
+# against a directory listing and reports a false positive instead of skipping.
+
+GHOST_SHA="${ORPHCONST_GHOST_SHA:-}"; GHOST_PATH="${ORPHCONST_GHOST_PATH:-}"
 DD="$WORK/d"; mkdir -p "$DD"
-if git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "$GHOST_SHA:$GHOST_PATH" 2>/dev/null; then
+if [ -n "$GHOST_PATH" ] && git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "$GHOST_SHA:$GHOST_PATH" 2>/dev/null; then
     git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" show "$GHOST_SHA:$GHOST_PATH" > "$DD/poll-opcom.sh" 2>/dev/null
     rc="$(run_gate "$DD")"
     [ "$rc" -eq 1 ] && pass "D: pre-repair poll-opcom.sh (comment 7200, code 86400) -> FAIL(1)" \
@@ -88,7 +92,7 @@ else
     skip "D: historical ghost blob unreachable (shallow/mirror) — hermetic arm A covers the class"
 fi
 ED="$WORK/e"; mkdir -p "$ED"
-if git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "HEAD:$GHOST_PATH" 2>/dev/null; then
+if [ -n "$GHOST_PATH" ] && git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "HEAD:$GHOST_PATH" 2>/dev/null; then
     git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" show "HEAD:$GHOST_PATH" > "$ED/poll-opcom.sh" 2>/dev/null
     rc="$(run_gate "$ED")"
     [ "$rc" -eq 0 ] && pass "E: current poll-opcom.sh (cap comment states no number) -> PASS(0)" \

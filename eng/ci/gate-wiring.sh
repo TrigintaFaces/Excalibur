@@ -25,7 +25,7 @@
 #     eng/hooks/pre-commit|pre-push|prepare-commit-msg|post-checkout|post-merge — git hooks
 #     eng/ci/harness-gates-ci.sh        — the CI-authoritative orchestrator (invokes gates via a loop
 #                                         over a list, so a gate's NAME in that list IS its wiring)
-#     .claude/harness/*.harness-lock.sh — locks that invoke a bare gate
+#     $GW_EXTRA_CALLER_GLOBS — additional local caller surfaces, empty by default
 #   A gate's OWN *.test.sh / *.fixture.sh is NOT a caller of it — testing a gate is not running it in
 #   production. That distinction is the whole point: a gate whose only reference is its own test is
 #   still orphaned. Comment-only mentions (a line beginning with #) are not callers either.
@@ -98,13 +98,12 @@ for c in "$GW_ROOT"/.github/workflows/*.yml \
          "$GW_ROOT"/eng/hooks/pre-commit "$GW_ROOT"/eng/hooks/pre-push \
          "$GW_ROOT"/eng/hooks/prepare-commit-msg "$GW_ROOT"/eng/hooks/post-checkout \
          "$GW_ROOT"/eng/hooks/post-merge "$GW_ROOT"/eng/ci/harness-gates-ci.sh \
-         "$GW_ROOT"/.claude/harness/*.harness-lock.sh \
-         "$GW_ROOT"/.claude/skills/*/SKILL.md          "$GW_ROOT"/eng/ci/*-gate.sh ; do
+         ${GW_EXTRA_CALLER_GLOBS:-} "$GW_ROOT"/eng/ci/*-gate.sh ; do
     [ -f "$c" ] && callers+=("$c")
 done
 
 # SCOPE DISCLOSURE. The verdict below is only as wide as the caller set above, and which of those
-# surfaces EXIST is environment-dependent -- .claude/** does not travel to the mirrored copy this
+# surfaces EXIST is environment-dependent -- unpublished caller surfaces do not travel to
 # runs against in CI. An orphan count published without its caller set is unfalsifiable, and working
 # out after the fact which surfaces a past run actually read cost a whole investigation that one
 # printed line would have ended. So the run states what it read, bucketed, every time.

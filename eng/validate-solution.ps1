@@ -21,7 +21,9 @@ $errors = @()
 $warnings = @()
 $repoRoot = (Get-Location).Path
 $slnPath = "Excalibur.sln"
-$ExcludedDirectories = @("labs", "tools", ".claude", "node_modules", "bin", "obj")
+# Named non-shipping roots; every DOT-directory is excluded by rule in Test-IsExcludedPath,
+# so internal tooling directories need not be enumerated here and cannot go stale.
+$ExcludedDirectories = @("labs", "tools", "node_modules", "bin", "obj")
 
 function Convert-ToRepoPath {
     param(
@@ -45,6 +47,15 @@ function Test-IsExcludedPath {
         [Parameter(Mandatory = $true)][string]$PathToCheck,
         [Parameter(Mandatory = $true)][string[]]$Exclusions
     )
+
+    # Any dot-directory segment: build metadata and internal tooling both live under one, and
+    # neither holds a shipping project. A segment test rather than a regex, so no escaping is
+    # involved -- the regex form of this check was written wrong twice before it was replaced.
+    foreach ($seg in $PathToCheck.Replace([char]92, '/').Split('/')) {
+        if ($seg.Length -gt 1 -and $seg[0] -eq '.') {
+            return $true
+        }
+    }
 
     foreach ($ex in $Exclusions) {
         if ($PathToCheck -match "[/\\]$([regex]::Escape($ex))[/\\]") {

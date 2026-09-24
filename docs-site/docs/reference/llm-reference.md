@@ -8,7 +8,7 @@ description: Compact reference for LLM coding agents helping developers use Exca
 
 :::tip For AI Coding Agents
 
-This page is optimized for LLM coding agents (Cursor, Copilot, Claude Code, etc.). It provides the essential information needed to help developers use this framework without reading all documentation pages. For the full docs, see the sidebar navigation.
+This page is optimized for LLM coding agents and AI pair-programming assistants. It provides the essential information needed to help developers use this framework without reading all documentation pages. For the full docs, see the sidebar navigation.
 :::
 
 **Excalibur** is a .NET 10 NuGet package framework (75+ packages) with focused package families:

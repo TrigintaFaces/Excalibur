@@ -45,5 +45,5 @@ but both rows deserve a look before anyone cites them.
 
 `MessageContextBenchmarks` and `CacheOptimizationBenchmarks` use the default (CsProj) toolchain,
 which searches the tree for the benchmark project file, finds a second copy inside a leftover agent
-worktree under `.claude/worktrees/`, and refuses to generate. They were re-run with `--inProcess`.
+an agent worktree, and refuses to generate. They were re-run with `--inProcess`.
 The reports here carry both arms; the `DefaultJob` rows are the failed ones and read `NA`.

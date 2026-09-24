@@ -12,7 +12,7 @@ namespace Excalibur.EventSourcing.Tests.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Rule:</b> <c>.claude/rules/quality/microsoft-first.md</c> — interfaces NEVER carry AOT attributes.
+/// <b>Rule:</b> the Microsoft-first design standard — interfaces NEVER carry AOT attributes.
 /// On the true pre-fix HEAD (<c>301b4aa62</c>) <c>GetByIdAsync</c> and both <c>SaveAsync</c> overloads
 /// carried <see cref="RequiresUnreferencedCodeAttribute"/> and <see cref="RequiresDynamicCodeAttribute"/>,
 /// so a consumer calling the write-side contract through the interface inherited IL2026/IL3050.

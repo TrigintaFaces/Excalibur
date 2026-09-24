@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Integration.Tests.KeyManagement;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Per <c>.claude/rules/process/verify-against-real-infra-not-mock.md</c>, a mocked
+/// Per the real-infra verification standard, a mocked
 /// <see cref="IAmazonKeyManagementService"/> can certify behavior a real KMS service rejects or simply
 /// does not implement the way the framework's <see cref="IKeyManagementProvider"/> contract assumes.
 /// This deriver runs every arm against the real LocalStack KMS API surface, deliberately WITHOUT

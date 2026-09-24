@@ -57,7 +57,7 @@ else
     # an invocation, so scanning the rest is pure cost (541 files -> a handful; 23s -> under a second).
     # This narrows the FILE set, never the RULE — any file the rule could fire on still reaches the loop.
     mapfile -t FILES < <(cd "$REPO_ROOT" && git grep -l --fixed-strings 'dotnet test' -- \
-        'eng/*' '.github/workflows/*' '.claude/skills/*' 'scripts/*' 'docs/*' 2>/dev/null \
+        'eng/*' '.github/workflows/*' 'scripts/*' 'docs/*' 2>/dev/null \
         | grep -E '\.(sh|ps1|yml|yaml|md)$' \
         | grep -vE "(/${SELF}$|\.test\.sh$)" | LC_ALL=C sort)
 fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # WWMD BCL-reinvention smell scanner (ADVISORY — human-triaged, false positives expected).
 # Surfaces candidate bucket-(b) reinventions for the reviewer to run the two-prong test against
-# (.claude/rules/quality/microsoft-first.md → BCL-Reinvention Catalogue). NEVER auto-blocks.
+# (the Microsoft-first BCL-Reinvention Catalogue). NEVER auto-blocks.
 #
 # Usage:
 #   eng/ci/wwmd-reinvention-smells.sh --base origin/main   # scan changed *.cs vs base (CI/PR diff)
@@ -35,8 +35,7 @@ scan_files() { # $@ = files
   # It was advertised in this comment and in microsoft-first.md §B and implemented in neither.
   # A regex cannot see an implementor in another assembly, a generic implementation, or one reached
   # through a base class, so it would return a confident zero. Use the semantic tool instead:
-  #   python3 .claude/tools/csharp-lsp/lsp-query.py --solution Excalibur.sln \
-  #           --control <known-good file:line:col> --query <file:line:col> --method implementation
+  #   the semantic implementation query (LSP), with a mandatory positive control.
   # The --control is mandatory: an empty result is otherwise indistinguishable from an un-indexed server.
   return $hit
 }

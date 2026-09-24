@@ -58,7 +58,9 @@ cd "$REPO_ROOT" || exit $EXIT_REFUSE
 # tooling they do not have -- and it stops being correct the moment those directories are renamed.
 # Override with a space-separated list of repo-relative directory prefixes; the default names the
 # throwaway worktree/clone directories this repository's own tooling creates.
-LOCKFILE_GATE_EXCLUDE_DIRS="${LOCKFILE_GATE_EXCLUDE_DIRS:-.claude/worktrees .dts}"
+# Extra named directories to exclude. Dot-directories are excluded by rule below, so agent
+# worktrees and other internal trees need not be named here.
+LOCKFILE_GATE_EXCLUDE_DIRS="${LOCKFILE_GATE_EXCLUDE_DIRS:-}"
 
 # Match by PATH PREFIX, not by a regex composed from configuration. Building a pattern out of a
 # configured value means every value has to be regex-escaped correctly, and a missed escape fails
@@ -70,6 +72,10 @@ LOCKFILES=()
 mapfile -t ALL_LOCKFILES < <(git ls-files '*packages.lock.json')
 for f in ${ALL_LOCKFILES+"${ALL_LOCKFILES[@]}"}; do
 	excluded=0
+	# Any dot-directory segment: build metadata and internal worktrees both live under one.
+	case "$f" in
+		.*/*|*/.*/*) excluded=1 ;;
+	esac
 	for d in $LOCKFILE_GATE_EXCLUDE_DIRS; do
 		d="${d%/}"
 		[ -n "$d" ] || continue

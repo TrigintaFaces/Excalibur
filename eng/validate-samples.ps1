@@ -408,7 +408,7 @@ foreach ($result in $results | Where-Object { $_.BuildStatus -eq 'PASS' }) {
         # THE RULE ITSELF LIVES IN validate-samples.smoke-verdict.ps1 and is called, not copied.
         # It was inline here, which made every branch unreachable by any test short of building and
         # running a real sample -- so the two dishonest-green branches had no coverage at all. It is
-        # bound by .claude/harness/sample-smoke-verdict.harness-lock.sh, which asserts the full
+        # bound by an unpublished smoke-verdict lock, which asserts the full
         # decision table AND asserts that this file still delegates rather than re-deriving it.
         $successMarker = $null
         $markerProp = $profile.PSObject.Properties['successMarker']

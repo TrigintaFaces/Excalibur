@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
-    <!-- AZURE_FUNCTIONS_SUPPORT DefineConstant removed. Per CLAUDE.md,
+    <!-- AZURE_FUNCTIONS_SUPPORT DefineConstant removed. Per the project constraints,
          conditional compilation is not used for feature gating in this framework; this project
          unconditionally depends on Microsoft.Azure.Functions.Worker so the code is always live. -->
     <RootNamespace>Excalibur.Dispatch.Hosting.AzureFunctions</RootNamespace>

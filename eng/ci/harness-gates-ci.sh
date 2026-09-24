@@ -5,7 +5,7 @@
 #
 # WHY A SCRIPT AND NOT INLINE WORKFLOW STEPS: `.github/workflows/**` is MIRRORED to a public repo and
 # scanned by `no-beads-in-workflows` — which forbids the literal tokens `gate-wiring`, `premise-triage`,
-# `bd-*`, `.beads/`, `.claude/` in any shipped workflow (they name private tracker/gate machinery that
+# any unpublished dot-directory in a shipped workflow (they name private tracker/gate machinery that
 # does not exist downstream). Naming those scripts directly in the YAML freezes EVERY commit (the gate
 # globs the working tree). So the private refs live HERE, in eng/ci/ — which is neither workflow-scanned
 # nor mirror-excluded — and the workflow names only this generic orchestrator. (Learned from a
@@ -246,10 +246,10 @@ done
 #       half of that pairing). Locks needing a live bd daemon are excluded (tracked debt) so CI stays
 #       hermetic. The enumeration below is the point gate-wiring's caller-of-record ARM verifies (guard 2).
 # SCOPE: only locks whose subject is PUBLISHED. This battery runs where CI runs, and CI runs on the
-# mirrored copy of this repository — which carries eng/** and .github/** but NOT .claude/**.
+# mirrored copy of this repository — which carries eng/** and .github/** but not the unpublished tooling tree.
 #
 # Six locks were removed from this list because their SUBJECTS are agent-mesh / internal-process
-# tooling that lives only under .claude/** and is deliberately not published:
+# tooling that lives outside the published tree and is deliberately not shipped:
 #
 #     blocking-bead-gate · reports-gitignore · session-collision-guard
 #     poll-opcom-singleton · session-liveness-probe · ring-repair
@@ -266,15 +266,10 @@ for l in \
     duplicate-xml-doc-tags \
     staged-secret-scan \
     no-beads-in-workflows ; do
-    # Resolve from eng/ci as well as .claude/harness, for BOTH artifact kinds. eng/ci is the
-    # mirrored path; .claude/** is not guaranteed to travel with the source we publish, so a
-    # gate whose lock lives only under .claude/** grades nothing wherever that dir is absent.
-    # The two kinds must stay symmetric: an eng/ci fallback for locks but not for tests means
-    # a lock can be relocated to safety and a test cannot.
-    lock=".claude/harness/$l.harness-lock.sh"
-    [ -f "$lock" ] || lock="eng/ci/$l.harness-lock.sh"
-    test_sh=".claude/harness/$l.test.sh"
-    [ -f "$test_sh" ] || test_sh="eng/ci/$l.test.sh"
+    # Both artifact kinds resolve from eng/ci, the published path. A lock living outside it
+    # grades nothing wherever that tree is absent, which is every environment CI runs in.
+    lock="eng/ci/$l.harness-lock.sh"
+    test_sh="eng/ci/$l.test.sh"
     if [ -f "$lock" ]; then
         run "harness-lock: $l" bash "$lock"
     elif [ -f "$test_sh" ]; then

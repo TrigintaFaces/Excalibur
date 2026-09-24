@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Configuration.Transport;
 /// (already delivered by <see cref="BindingRegistrationValidator"/>; this is a test-only guard, no impl change).
 /// </summary>
 /// <remarks>
-/// The load-bearing product invariant (CLAUDE.md "simple by default / sensible defaults without configuration"):
+/// The load-bearing product invariant (the project design principle "simple by default / sensible defaults without configuration"):
 /// the pure in-process / MediatR-replacement app — handlers, NO transport, zero config — MUST start clean. The
 /// validator fires fail-loud ONLY when a binding explicitly references a transport that was never registered;
 /// it must NEVER false-fail the no-binding app, and must clear once the referenced transport is wired. These

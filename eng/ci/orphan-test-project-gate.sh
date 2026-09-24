@@ -44,7 +44,7 @@ FILTER_FILE="${FILTER_FILE:-${REPO_ROOT}/eng/ci/shards/IntegrationTests.slnf}"
 [ -d "$TESTS_ROOT" ]    || { echo "[orphan-test-project-gate] CANNOT EVALUATE — no tests dir at $TESTS_ROOT." >&2; exit "$E_ENV"; }
 [ -f "$FILTER_FILE" ]   || { echo "[orphan-test-project-gate] CANNOT EVALUATE — no filter at $FILTER_FILE." >&2; exit "$E_ENV"; }
 
-# Enumerate integration test csprojs on disk (skip build output + any worktree copies under .dts/.claude).
+# Enumerate integration test csprojs on disk (skip build output + any worktree copies under a dot-directory).
 orphans=0
 while IFS= read -r csproj; do
     base="$(basename "$csproj")"

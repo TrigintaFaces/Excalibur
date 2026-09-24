@@ -2,7 +2,7 @@
 
 This document codifies the rules for writing deterministic async tests in Excalibur.Dispatch. These patterns were derived from an analysis of flaky test patterns across the repository's worst-offending fixtures.
 
-If this document and `CLAUDE.md` diverge, treat `CLAUDE.md` as authoritative.
+If this document and the root project context diverge, treat the project context as authoritative.
 
 ---
 
@@ -246,5 +246,5 @@ The soak run that established these rules exceeded this requirement: 50/50 conse
 
 ## References
 
-- Test Quality Rules: `CLAUDE.md` (Test Quality Rules section)
+- Test Quality Rules: the root project context
 - WaitHelpers: `tests/Shared/Tests.Shared/Infrastructure/WaitHelpers.cs`

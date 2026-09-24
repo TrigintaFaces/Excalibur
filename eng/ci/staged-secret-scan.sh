@@ -2,7 +2,7 @@
 # staged-secret-scan.sh — BLOCKING staged secret scan.
 #
 # Greps the ADDED lines of the staged diff (`git diff --cached -U0`, `^+` content lines only) against
-# the secret-pattern corpus documented in .claude/rules/security/security-rules.md + security/dotnet.md.
+# the project's documented secret-pattern corpus.
 # No network, no binary, no external tool — self-contained, reuses the existing corpus.
 #
 #   * A staged added line matching any high-confidence secret shape → exit 1 (commit rejected).

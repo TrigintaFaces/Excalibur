@@ -33,7 +33,9 @@ import sys
 # Doc walking / fence extraction
 # ---------------------------------------------------------------------------
 
-SKIP_DIRS = {"node_modules", "bin", "obj", ".git", ".dts", ".claude", ".nuget"}
+# Build output and package caches by name; every DOT-directory by rule. The rule replaces an
+# enumerated list of internal directories, which went stale the moment another one appeared.
+SKIP_DIRS = {"node_modules", "bin", "obj", "packages"}
 DOC_ROOTS = ("docs-site", "docs")  # plus repo-wide README*.md
 CSHARP_LANGS = {"csharp", "cs"}
 FENCE_RE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
@@ -48,7 +50,7 @@ def _iter_markdown_files(root: str):
         if not os.path.isdir(base):
             continue
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
             for fn in filenames:
                 low = fn.lower()
                 is_readme = low.startswith("readme") and low.endswith(".md")
@@ -145,7 +147,7 @@ def build_real_symbols(repo_root: str):
     # 1. Authoritative: PublicAPI*.txt lines (type + member fully-qualified names).
     if os.path.isdir(src):
         for dirpath, dirnames, filenames in os.walk(src):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
             for fn in filenames:
                 if fn.startswith("PublicAPI") and fn.endswith(".txt"):
                     try:
@@ -161,7 +163,7 @@ def build_real_symbols(repo_root: str):
     # 2. Fallback: grep public type declarations across src/**/*.cs.
     if os.path.isdir(src):
         for dirpath, dirnames, filenames in os.walk(src):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
             for fn in filenames:
                 if not fn.endswith(".cs"):
                     continue

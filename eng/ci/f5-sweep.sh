@@ -2,7 +2,7 @@
 # f5-sweep — F-5 cross-project sibling-sweep mechanical pre-REVIEW gate.
 #
 # Implements the mechanical gate mandated by
-#   .claude/rules/process/f5-cross-project-test-sweep.md
+#   the F-5 cross-project test-sweep rule
 #
 # On a type-contract change (a method/property/enum/sentinel/DTO-shape/schema-column
 # change in src/**), tests that assert the OLD contract MUST be swept across the
@@ -357,7 +357,7 @@ run_sweep() {
         echo "    VERDICT — a suppressed-only run still reddens (as 'F-5 UNKNOWN' above). Refine extraction"
         echo "    if any was a real contract token."
     fi
-    echo "    Per .claude/rules/process/f5-cross-project-test-sweep.md: triage EACH before REVIEW —"
+    echo "    Triage EACH before REVIEW —"
     echo "    flip the stale assertion to the new contract (strengthen, never weaken), or document why unaffected."
     rm -f "$changed_list" "$tokens_file" "$hit_report"
 
