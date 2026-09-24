@@ -224,14 +224,6 @@ Excalibur.Dispatch.Transport.Google.ProjectName.ProjectId.set -> void
 Excalibur.Dispatch.Transport.Google.ProjectName.ProjectName() -> void
 Excalibur.Dispatch.Transport.Google.ProjectName.ToProjectName() -> Excalibur.Dispatch.Transport.Google.ProjectName!
 Excalibur.Dispatch.Transport.Google.ProtobufExtensions
-Excalibur.Dispatch.Transport.Google.PubSubBufferOptions
-Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.InitialBufferSize.get -> int
-Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.InitialBufferSize.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.MaxBufferSize.get -> int
-Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.MaxBufferSize.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.MaxBuffersPerBucket.get -> int
-Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.MaxBuffersPerBucket.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.PubSubBufferOptions() -> void
 Excalibur.Dispatch.Transport.Google.PubSubConnectionOptions
 Excalibur.Dispatch.Transport.Google.PubSubConnectionOptions.ProjectId.get -> string!
 Excalibur.Dispatch.Transport.Google.PubSubConnectionOptions.ProjectId.set -> void
@@ -295,11 +287,6 @@ Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.RevisionId.get -> string!
 Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.RevisionId.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.SchemaType.get -> string!
 Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.SchemaType.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions
-Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Buffer.get -> Excalibur.Dispatch.Transport.Google.PubSubBufferOptions!
-Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Buffer.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.PubSubSerializationOptions() -> void
-Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Validate() -> void
 Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions
 Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.DeadLetter.get -> Excalibur.Dispatch.Transport.Google.PubSubDeadLetterOptions!
 Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.DeadLetter.set -> void

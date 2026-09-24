@@ -17,7 +17,6 @@ public sealed class AggregateTestFixtureResult<TAggregate>
 {
 	private readonly TAggregate _aggregate;
 	private readonly Exception? _exception;
-	private readonly bool _executed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AggregateTestFixtureResult{TAggregate}"/> class.
@@ -29,7 +28,6 @@ public sealed class AggregateTestFixtureResult<TAggregate>
 	{
 		_aggregate = aggregate;
 		_exception = exception;
-		_executed = executed;
 	}
 
 	/// <summary>

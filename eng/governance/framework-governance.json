@@ -1171,11 +1171,11 @@
   "governance": {
     "architectureReviewCadence": "Bi-weekly architecture review board with mandatory sign-off for boundary, naming, and lifecycle changes.",
     "raci": {
-      "accountable": "SoftwareArchitect",
+      "accountable": "SystemDeveloper",
       "responsible": [
-        "PlatformDeveloper",
+        "PlatformEngineer",
         "DocsEngineer",
-        "TestsDeveloper"
+        "TestEngineer"
       ],
       "consulted": [
         "ComplianceDeveloper",

@@ -281,9 +281,9 @@ for name, (s, ps) in sorted(hits.items()):
         print("    all rungs to the floor are met. Changing this seam may INVALIDATE them --")
         print("    the model's SCOPE statement and the property suite both bind to behaviour you are changing.")
     print("")
-print("R3 is TestsDeveloper's. R4 is SoftwareArchitect's, at DESIGN time (a model written after the")
-print("implementation restates it instead of checking it). The rung assignment is SoftwareArchitect's,")
-print("ruled at PLAN and written into the bead's acceptance criteria by ProductManager.")
+print("R3 is the test author's. R4 belongs to design time -- a model written after the implementation")
+print("restates it instead of checking it. The rung assignment is made when the work is planned, and")
+print("written into the acceptance criteria before anyone implements against it.")
 PYFF
 }
 

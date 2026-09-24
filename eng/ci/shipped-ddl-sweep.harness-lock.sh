@@ -2,7 +2,7 @@
 # shipped-ddl-sweep.harness-lock.sh — INDEPENDENT (author≠impl) lock for shipped-ddl-sweep.sh
 #
 # Independent enforcement arm for eng/ci/shipped-ddl-sweep.sh: gate implementation and seam design are separate seats.
-# Author: TestsDeveloper — INDEPENDENT of the impl author (per issue-remediation-protocol +
+# Author: INDEPENDENT of the impl author (per the issue-remediation protocol +
 #         forge-integration cl.7: the builder writes the gate + its .test.sh; a DIFFERENT agent writes
 #         the binding lock). The gate's whole thesis is "a gate cannot report a false PASS"; a lock
 #         written by its own author is the weakest possible check of that claim.
@@ -12,7 +12,7 @@
 #   1. It drives the gate as an EXTERNAL PROCESS (`bash shipped-ddl-sweep.sh --sweep`) through the real
 #      arg/exit surface — the .test.sh calls the internal `sweep`/helper functions directly, which
 #      cannot catch a break in the `case`/exit wiring.
-#   2. It adds the GUARD-3 PRODUCTION-PATH arm SoftwareArchitect ruled non-negotiable (32720): run the
+#   2. It adds the GUARD-3 PRODUCTION-PATH arm ruled non-negotiable at review: run the
 #      gate with NO `SHIPPED_DDL_*` env and prove it still enumerates the REAL docs-site/**+samples/**
 #      DDL (checked>=1). The gate's own self-test only ever exercises the FIXTURE path (its ARM6); a
 #      test seam that never runs the production path lets the seam itself become the vacuity hole —

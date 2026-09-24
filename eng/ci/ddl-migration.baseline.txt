@@ -66,7 +66,7 @@ Excalibur.Dispatch:DeadLetterMessages:TENANTID
 # to a regulator that an erasure had no lawful-retention exceptions, when the truth is that none
 # were recorded. The package's own ARCHITECTURE.md already refuses that conflation one field over --
 # "false means NOT ESTABLISHED, for any reason" -- and the migration has to extend the same
-# distinction here. Tracked: Excalibur_Dispatch-ovpiky (ProductManager owns the semantics).
+# distinction here. The backfill semantics are an open decision, tracked internally.
 #
 # This baseline is a SET in both directions: when that migration lands these three lines must be
 # deleted in the same change, or the gate fails them as stale.

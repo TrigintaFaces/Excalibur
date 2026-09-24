@@ -28,8 +28,6 @@ internal sealed class GooglePubSubMetrics : IGooglePubSubMetrics, IDisposable
 	private readonly System.Diagnostics.Metrics.Histogram<double> _processingTime;
 	private readonly System.Diagnostics.Metrics.Histogram<long> _batchSize;
 	private readonly System.Diagnostics.Metrics.Histogram<double> _batchDuration;
-	private readonly ObservableGauge<int> _flowControlPermits;
-	private readonly ObservableGauge<long> _flowControlBytes;
 	private readonly RateCounter _enqueuedCount;
 	private readonly RateCounter _processedCount;
 	private readonly RateCounter _failedCount;
@@ -75,9 +73,9 @@ internal sealed class GooglePubSubMetrics : IGooglePubSubMetrics, IDisposable
 		_batchDuration = _meter.CreateHistogram<double>("pubsub.batch.duration", "ms", "Batch processing duration");
 
 		// Create observable gauges
-		_flowControlPermits = _meter.CreateObservableGauge("pubsub.flow_control.permits", () => _lastPermits, "{permits}",
+		_ = _meter.CreateObservableGauge("pubsub.flow_control.permits", () => _lastPermits, "{permits}",
 			"Available flow control permits");
-		_flowControlBytes =
+		_ =
 			_meter.CreateObservableGauge("pubsub.flow_control.bytes", () => _lastBytes, "By", "Available flow control bytes");
 
 		// High-performance counters for hot paths

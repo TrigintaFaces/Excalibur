@@ -31,7 +31,6 @@ namespace Excalibur.LeaderElection.Diagnostics;
 public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 {
 	private readonly ILeaderElection _inner;
-	private readonly Meter _meter;
 	private readonly Counter<long> _acquisitionsCounter;
 	private readonly Histogram<double> _leaseDurationHistogram;
 	private readonly ActivitySource _activitySource;
@@ -56,7 +55,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 		string providerName)
 	{
 		_inner = inner ?? throw new ArgumentNullException(nameof(inner));
-		_meter = meter ?? throw new ArgumentNullException(nameof(meter));
+		ArgumentNullException.ThrowIfNull(meter);
 		_activitySource = activitySource ?? throw new ArgumentNullException(nameof(activitySource));
 		_providerName = providerName ?? throw new ArgumentNullException(nameof(providerName));
 		_instanceGuard = new TagCardinalityGuard(maxCardinality: 100);
@@ -171,7 +170,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 		_inner.LeaderChanged -= HandleLeaderChanged;
 		_inner.AcquisitionFailed -= HandleAcquisitionFailed;
 
-		// Do not dispose _meter and _activitySource here -- they are owned by
+		// Do not dispose the meter or _activitySource here -- they are owned by
 		// TelemetryLeaderElectionFactory and shared across election instances.
 
 		if (_inner is IAsyncDisposable asyncDisposable)

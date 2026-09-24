@@ -37,7 +37,6 @@ internal sealed class MaterializedViewHealthCheck : IHealthCheck
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<MaterializedViewHealthCheckOptions> _options;
 	private readonly MaterializedViewMetrics _metrics;
-	private readonly TimeProvider _timeProvider;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MaterializedViewHealthCheck"/> class.
@@ -55,7 +54,7 @@ internal sealed class MaterializedViewHealthCheck : IHealthCheck
 		_scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
-		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+		ArgumentNullException.ThrowIfNull(timeProvider);
 	}
 
 	/// <inheritdoc />

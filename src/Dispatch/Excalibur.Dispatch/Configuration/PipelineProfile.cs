@@ -24,7 +24,6 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 
 	private readonly ConcurrentDictionary<Type, MiddlewareRegistration> _middleware = new();
 	private readonly List<MiddlewareRegistration> _orderedMiddleware = [];
-	private IReadOnlyList<Type>? _orderedMiddlewareTypesSnapshot;
 	private MiddlewareRegistration[]? _orderedMiddlewareSnapshot;
 	private long _registrationSequence;
 
@@ -243,19 +242,6 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 			snapshot = _orderedMiddleware.ToArray();
 			_orderedMiddlewareSnapshot = snapshot;
 
-			if (snapshot.Length == 0)
-			{
-				_orderedMiddlewareTypesSnapshot = [];
-				return snapshot;
-			}
-
-			var middlewareTypes = new Type[snapshot.Length];
-			for (var i = 0; i < snapshot.Length; i++)
-			{
-				middlewareTypes[i] = snapshot[i].MiddlewareType;
-			}
-
-			_orderedMiddlewareTypesSnapshot = Array.AsReadOnly(middlewareTypes);
 			return snapshot;
 		}
 	}
@@ -304,7 +290,6 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 	private void InvalidateMiddlewareSnapshots()
 	{
 		_orderedMiddlewareSnapshot = null;
-		_orderedMiddlewareTypesSnapshot = null;
 	}
 
 	private sealed class MiddlewareRegistration

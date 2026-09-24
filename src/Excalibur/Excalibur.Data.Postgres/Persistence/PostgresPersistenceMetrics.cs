@@ -31,7 +31,6 @@ public sealed class PostgresPersistenceMetrics : IDisposable
 	private readonly Histogram<double> _transactionDuration;
 	private readonly Histogram<double> _connectionAcquisitionTime;
 
-	private readonly ObservableGauge<long> _preparedStatementCount;
 
 	private long _currentPreparedStatements;
 
@@ -122,7 +121,7 @@ public sealed class PostgresPersistenceMetrics : IDisposable
 			"ms",
 			"Time to acquire a connection from the pool");
 
-		_preparedStatementCount = _meter.CreateObservableGauge(
+		_ = _meter.CreateObservableGauge(
 			"postgres.prepared.statements",
 			() => _currentPreparedStatements,
 			"{statements}",

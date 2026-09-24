@@ -10,7 +10,7 @@
 # DIFFERENT exit codes for three different scenarios cannot be a constant-verdict no-op.
 #
 # The deeper mutant rigor (always-PASS / always-DRIFT mutants rejected, attribution names the column)
-# lives in the INDEPENDENT author!=impl lock `shipped-ddl-sweep.harness-lock.sh` (TestsDeveloper) —
+# lives in the INDEPENDENT author!=impl lock `shipped-ddl-sweep.harness-lock.sh` —
 # this .test.sh is the fast, wired pre-commit control, deliberately kept to the 3-state behavioral
 # core so it stays affordable (a gate/control too slow to run is a gate nobody runs — this sprint's
 # own inert-gate defect). Every arm drives the gate through the SA-blessed hermetic override

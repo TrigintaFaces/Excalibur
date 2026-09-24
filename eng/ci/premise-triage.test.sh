@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # premise-triage.test.sh -- the independent lock for eng/ci/premise-triage.sh.
 #
-# AUTHORSHIP: written by FrontendDeveloper. The implementation is SoftwareArchitect's.
-# author != impl, by dispatch. Reassigned from ProjectReviewer (terminated session).
+# AUTHORSHIP: this test was written by someone other than the author of the implementation it
+# exercises. Author != implementer is the property; it is assigned deliberately, not incidentally.
 #
 # WHAT THIS LOCK BINDS, and why each arm exists.
 #

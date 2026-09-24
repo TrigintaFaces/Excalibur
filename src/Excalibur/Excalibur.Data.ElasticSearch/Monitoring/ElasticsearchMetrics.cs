@@ -19,8 +19,6 @@ public sealed class ElasticsearchMetrics : IDisposable
 	private readonly Histogram<double> _operationDuration;
 	private readonly Histogram<long> _documentCounter;
 	private readonly UpDownCounter<long> _activeOperationsCounter;
-	private readonly ObservableGauge<int> _circuitBreakerStateGauge;
-	private readonly ObservableGauge<double> _healthStatusGauge;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -86,13 +84,13 @@ public sealed class ElasticsearchMetrics : IDisposable
 			"Number of currently active Elasticsearch operations");
 
 		// Observable gauges for state monitoring
-		_circuitBreakerStateGauge = _meter.CreateObservableGauge(
+		_ = _meter.CreateObservableGauge(
 			"elasticsearch_circuit_breaker_state",
 			() => _circuitBreakerState,
 			"{state}",
 			"Current circuit breaker state (0=Closed, 1=Open, 2=Half-Open)");
 
-		_healthStatusGauge = _meter.CreateObservableGauge(
+		_ = _meter.CreateObservableGauge(
 			"elasticsearch_health_status",
 			() => _lastHealthStatus,
 			"{status}",
@@ -289,8 +287,6 @@ public sealed class ElasticsearchMetrics : IDisposable
 #pragma warning restore CA1034
 	{
 		private readonly ElasticsearchMetrics _metrics;
-		private readonly string _operationType;
-		private readonly string? _indexName;
 		private readonly KeyValuePair<string, object?>[] _baseTags;
 		private readonly DateTimeOffset _startTime;
 		private volatile bool _disposed;
@@ -303,8 +299,6 @@ public sealed class ElasticsearchMetrics : IDisposable
 			KeyValuePair<string, object?>[] baseTags)
 		{
 			_metrics = metrics;
-			_operationType = operationType;
-			_indexName = indexName;
 			_baseTags = baseTags;
 			_startTime = DateTimeOffset.UtcNow;
 		}

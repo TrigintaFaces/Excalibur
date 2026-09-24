@@ -44,8 +44,6 @@ internal sealed class PubSubTelemetryProvider : IDisposable
 	private readonly Counter<long> _messagesNacked;
 	private readonly Histogram<double> _messageAge;
 	private readonly Histogram<double> _ackLatency;
-	private readonly ObservableGauge<int> _activeStreams;
-	private readonly ObservableGauge<double> _throughput;
 	private readonly Lock _throughputLock = new();
 	private MeterProvider? _meterProvider;
 	private TracerProvider? _tracerProvider;
@@ -125,13 +123,13 @@ internal sealed class PubSubTelemetryProvider : IDisposable
 			"ms",
 			"Time taken to acknowledge messages");
 
-		_activeStreams = _meter.CreateObservableGauge(
+		_ = _meter.CreateObservableGauge(
 			"dispatch.pubsub.active_streams",
 			() => _currentActiveStreams,
 			"{streams}",
 			"Number of active streaming pull connections");
 
-		_throughput = _meter.CreateObservableGauge(
+		_ = _meter.CreateObservableGauge(
 			"dispatch.pubsub.throughput",
 			ObserveThroughput,
 			"messages/second",

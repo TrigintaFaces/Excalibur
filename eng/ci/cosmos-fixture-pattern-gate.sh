@@ -16,7 +16,7 @@
 # instance is not the point: the point is fixture number six, added three sprints from now by
 # someone who never read that thread.
 #
-# THE RULED PATTERN (SoftwareArchitect, candidate 2 -- "match the four"):
+# THE RULED PATTERN (candidate 2 -- "match the four"):
 #     _container.GetConnectionString()                    <- not a hand-built AccountEndpoint=
 #     .WithHttpClientFactory(() => _container.HttpClient)  <- present
 #

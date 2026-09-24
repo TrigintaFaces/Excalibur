@@ -2,10 +2,10 @@
 # duplicate-xml-doc-tags.harness-lock.sh — INDEPENDENT (author≠impl) lock for duplicate-xml-doc-tags.sh
 #
 # Independent enforcement arm for eng/ci/duplicate-xml-doc-tags.sh (author is not the gate's implementer).
-# Author: TestsDeveloper — INDEPENDENT of the impl author (who wrote both the gate and its .test.sh).
+# Author: INDEPENDENT of the impl author, who wrote both the gate and its .test.sh. A lock written
 #         This is the author≠impl seat the harness policy requires ("every harness deliverable =
 #         impl + non-vacuous self-test + independent author≠impl *.harness-lock.sh"), carried OPEN
-#         during IMPLEMENT because TestsDeveloper's session was dead. Filled now the seat is live.
+#         by the implementer cannot establish the independence this lock exists to provide.
 #
 # WHY A SEPARATE LOCK, NOT A COPY OF THE SELF-TEST
 #   The .test.sh drives the gate through the ROOT-walk path with dir fixtures. This lock is

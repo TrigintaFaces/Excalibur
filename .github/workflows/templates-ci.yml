@@ -1,6 +1,6 @@
 # Template Validation Workflow
 # Purpose: Validate dotnet new templates produce buildable projects
-# Owner: PlatformDeveloper
+# Owner: SystemDeveloper
 
 name: Templates CI
 

@@ -24,12 +24,10 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 	private readonly IAmazonSQS _sqsClient;
 	private readonly SqsBatchOptions _options;
 	private readonly ILogger<SqsBatchProcessor> _logger;
-	private readonly ArrayPool<byte> _bufferPool;
 
 	/// <summary>
 	/// Receive batching.
 	/// </summary>
-	private readonly ConcurrentQueue<ReceiveBatch> _receiveBatches;
 
 	private readonly SemaphoreSlim _receiveSemaphore;
 
@@ -66,10 +64,8 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		_bufferPool = ArrayPool<byte>.Shared;
 
 		// Initialize queues and semaphores
-		_receiveBatches = new ConcurrentQueue<ReceiveBatch>();
 		_receiveSemaphore = new SemaphoreSlim(_options.MaxConcurrentReceiveBatches);
 
 		_sendBatches = new ConcurrentQueue<SendBatch>();

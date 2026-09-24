@@ -17,7 +17,6 @@ public sealed class SagaTestFixtureResult<TSaga, TSagaState>
 {
 	private readonly TSaga _saga;
 	private readonly Exception? _exception;
-	private readonly bool _executed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SagaTestFixtureResult{TSaga, TSagaState}"/> class.
@@ -29,7 +28,6 @@ public sealed class SagaTestFixtureResult<TSaga, TSagaState>
 	{
 		_saga = saga;
 		_exception = exception;
-		_executed = executed;
 	}
 
 	/// <summary>

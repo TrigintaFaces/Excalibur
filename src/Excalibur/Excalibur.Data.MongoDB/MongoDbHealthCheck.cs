@@ -12,7 +12,6 @@ namespace Excalibur.Data.MongoDB;
 internal sealed class MongoDbHealthCheck : IHealthCheck
 {
 	private readonly MongoDbPersistenceProvider _provider;
-	private readonly MongoDbProviderOptions _options;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MongoDbHealthCheck"/> class.
@@ -24,7 +23,7 @@ internal sealed class MongoDbHealthCheck : IHealthCheck
 		IOptions<MongoDbProviderOptions> options)
 	{
 		_provider = provider ?? throw new ArgumentNullException(nameof(provider));
-		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_ = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	}
 
 	/// <inheritdoc/>

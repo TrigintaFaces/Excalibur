@@ -44,7 +44,6 @@ namespace Excalibur.EventSourcing.SqlServer;
 public sealed class SqlServerCursorMapStore : ICursorMapStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
-	private readonly ILogger<SqlServerCursorMapStore> _logger;
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
 	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
@@ -93,7 +92,6 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_connectionFactory = connectionFactory;
-		_logger = logger;
 		_tenantContext = tenantContext;
 	}
 

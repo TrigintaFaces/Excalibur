@@ -41,7 +41,6 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 
 	private readonly FirestoreDb _db;
 	private readonly FirestoreProjectionStoreOptions _options;
-	private readonly ILogger<FirestoreProjectionStore<TProjection>> _logger;
 	private readonly string _projectionType;
 	private readonly JsonSerializerOptions _jsonOptions;
 
@@ -62,7 +61,6 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 
 		_db = db;
 		_options = options.Value;
-		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
 		_jsonOptions = ProjectionSerializationDefaults.CreateReadModelOptions();
 	}

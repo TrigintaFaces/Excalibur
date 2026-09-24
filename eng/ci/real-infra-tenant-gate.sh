@@ -20,7 +20,7 @@
 # A REFUSE must surface NON-GREEN on the required check. The workflow step MUST NOT wrap this
 # in `|| true` or `continue-on-error: true`.
 #
-# SELECTION (pinned interface with Lane E / TestsDeveloper): the required gate runs the
+# SELECTION (pinned interface with the test authors): the required gate runs the
 # curated, tenant-isolation-critical subset  Category=Integration & Infra=Required  — narrow
 # enough for the push-to-main integration point, while nightly keeps the broad
 # Category=Integration|EndToEnd cadence. Every real-infra tenant lock carries [Trait("Infra","Required")].

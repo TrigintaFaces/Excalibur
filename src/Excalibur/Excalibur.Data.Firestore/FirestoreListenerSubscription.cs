@@ -29,7 +29,6 @@ public sealed partial class FirestoreListenerSubscription<
 {
 	private readonly FirestoreDb _db;
 	private readonly string _collectionPath;
-	private readonly IChangeFeedOptions _options;
 	private readonly ILogger _logger;
 	private readonly CancellationTokenSource _cts = new();
 	private readonly Channel<IChangeFeedEvent<TDocument>> _channel;
@@ -54,7 +53,7 @@ public sealed partial class FirestoreListenerSubscription<
 	{
 		_db = db ?? throw new ArgumentNullException(nameof(db));
 		_collectionPath = collectionPath ?? throw new ArgumentNullException(nameof(collectionPath));
-		_options = options ?? throw new ArgumentNullException(nameof(options));
+		ArgumentNullException.ThrowIfNull(options);
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		SubscriptionId = $"firestore-{collectionPath}-{Guid.NewGuid():N}";

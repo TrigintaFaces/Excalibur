@@ -1,6 +1,6 @@
 # Sample Build Validation Workflow
 # Purpose: Build all samples to catch breaking changes early
-# Owner: PlatformDeveloper
+# Owner: SystemDeveloper
 # Beads ID: 0ppk0
 
 name: Samples CI

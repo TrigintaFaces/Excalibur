@@ -25,7 +25,6 @@ internal sealed class OpenSearchTenantProjectionStoreResolver<TProjection>
 {
 	private readonly ITenantShardMap _shardMap;
 	private readonly ILoggerFactory _loggerFactory;
-	private readonly OpenSearchProjectionStoreOptions _defaultOptions;
 	private readonly ConcurrentDictionary<string, IProjectionStore<TProjection>> _storeCache = new(StringComparer.Ordinal);
 
 	internal OpenSearchTenantProjectionStoreResolver(
@@ -39,7 +38,6 @@ internal sealed class OpenSearchTenantProjectionStoreResolver<TProjection>
 
 		_shardMap = shardMap;
 		_loggerFactory = loggerFactory;
-		_defaultOptions = defaultOptions.CurrentValue;
 	}
 
 	/// <inheritdoc />

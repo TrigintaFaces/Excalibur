@@ -45,7 +45,6 @@ namespace Excalibur.EventSourcing.Postgres;
 public sealed class PostgresCursorMapStore : ICursorMapStore
 {
 	private readonly NpgsqlDataSource _dataSource;
-	private readonly ILogger<PostgresCursorMapStore> _logger;
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
 	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
@@ -94,7 +93,6 @@ public sealed class PostgresCursorMapStore : ICursorMapStore
 		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_dataSource = dataSource;
-		_logger = logger;
 		_tenantContext = tenantContext;
 	}
 
