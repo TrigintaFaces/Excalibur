@@ -101,6 +101,13 @@ internal sealed class PropagationDelayingOutboxStore(TimeSpan propagationDelay) 
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+// A conformance kit arm carries no runner attribute, so an arm this suite never wraps does not run,
+// cannot fail, and reads in the results exactly like one that passed. This suite exists to hold the
+// kit's arms against a store that delays read-after-write visibility; it is not a second full
+// conformance run of the cloud-native outbox contract, and the provider suites that ARE that run
+// each wire all twenty arms against real infrastructure.
+// Declared, so the omission is a recorded decision rather than silence:
+// conformance-partial-suite: full coverage in CosmosDbCloudNativeOutboxStoreKitConformanceShould
 public sealed class CloudNativePendingReadPropagationShould : CloudNativeOutboxStoreConformanceTestKit
 {
 	private static readonly TimeSpan Propagation = TimeSpan.FromMilliseconds(400);
@@ -162,6 +169,11 @@ public sealed class CloudNativePendingReadPropagationShould : CloudNativeOutboxS
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+// Same reasoning as the suite above, and more pointed here: this one exists to prove the staged-read
+// arm FAILS when propagation exceeds its budget, so wrapping the remaining arms would only re-run a
+// contract it is not the subject of.
+// Declared, so the omission is a recorded decision rather than silence:
+// conformance-partial-suite: full coverage in CosmosDbCloudNativeOutboxStoreKitConformanceShould
 public sealed class CloudNativePendingReadBeyondTheBudgetShould : CloudNativeOutboxStoreConformanceTestKit
 {
 	private readonly PropagationDelayingOutboxStore _store = new(TimeSpan.FromSeconds(30));

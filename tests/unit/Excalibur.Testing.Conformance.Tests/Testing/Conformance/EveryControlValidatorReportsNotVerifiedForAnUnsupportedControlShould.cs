@@ -51,23 +51,31 @@ public sealed class EveryControlValidatorReportsNotVerifiedForAnUnsupportedContr
 	private const string UnsupportedControlId = "UNKNOWN-001";
 
 	/// <summary>Every shipped validator, constructed as its DI registration constructs it.</summary>
-	/// <returns>One case per validator, named so a failure identifies the validator without a debugger.</returns>
-	public static TheoryData<string, IControlValidator> AllShippedValidators() =>
-		new()
+	/// <remarks>
+	/// The FACTORY lives here and the theory carries only the name. A theory argument must be serializable
+	/// for the runner to identify a case on its own; a validator instance is not, so passing one makes every
+	/// case indistinguishable to the runner and unrunnable in isolation. The name is the natural key anyway —
+	/// it is what the failure messages below already quote.
+	/// </remarks>
+	private static readonly Dictionary<string, Func<IControlValidator>> Validators =
+		new(StringComparer.Ordinal)
 		{
-			{ nameof(AuditLogControlValidator), new AuditLogControlValidator() },
-			{ nameof(AvailabilityControlValidator), new AvailabilityControlValidator() },
-			{ nameof(ConfidentialityControlValidator), new ConfidentialityControlValidator() },
-			{ nameof(EncryptionControlValidator), new EncryptionControlValidator() },
-			{ nameof(ProcessingIntegrityControlValidator), new ProcessingIntegrityControlValidator() },
+			[nameof(AuditLogControlValidator)] = static () => new AuditLogControlValidator(),
+			[nameof(AvailabilityControlValidator)] = static () => new AvailabilityControlValidator(),
+			[nameof(ConfidentialityControlValidator)] = static () => new ConfidentialityControlValidator(),
+			[nameof(EncryptionControlValidator)] = static () => new EncryptionControlValidator(),
+			[nameof(ProcessingIntegrityControlValidator)] = static () => new ProcessingIntegrityControlValidator(),
 		};
+
+	/// <returns>One case per validator, named so a failure identifies the validator without a debugger.</returns>
+	public static TheoryData<string> AllShippedValidators() => [.. Validators.Keys];
 
 	[Theory]
 	[MemberData(nameof(AllShippedValidators))]
-	public async Task ReportNotVerified_NeverDeficient_ForAControlItDoesNotSupport(
-		string validatorName,
-		IControlValidator validator)
+	public async Task ReportNotVerified_NeverDeficient_ForAControlItDoesNotSupport(string validatorName)
 	{
+		var validator = Validators[validatorName]();
+
 		// Guard the premise before judging the outcome. If a validator ever declares this identifier, the
 		// case below stops being about an UNSUPPORTED control and silently starts asserting something else.
 		validator.SupportedControls.ShouldNotContain(

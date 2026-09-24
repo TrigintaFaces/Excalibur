@@ -49,22 +49,39 @@ namespace Excalibur.Integration.Tests.Data;
 [Trait("Component", "Data")]
 public sealed class StandaloneStoreContractRegistrationShould
 {
-	public static TheoryData<string, Action<IServiceCollection>, Type> StandaloneEntryPoints() => new()
-	{
-		{ "AddSqlServerInboxStore", s => s.AddSqlServerInboxStore(o => o.ConnectionString = "Server=.;Database=d;Integrated Security=true"), typeof(IInboxStore) },
-		{ "AddElasticsearchOutboxStore", s => s.AddElasticsearchOutboxStore(o => o.IndexName = "excalibur-outbox-test"), typeof(IOutboxStore) },
-		{ "AddMartenOutboxStore", s => s.AddMartenOutboxStore(), typeof(IOutboxStore) },
-		{ "AddSqlServerOutboxStore", s => s.AddSqlServerOutboxStore(o => o.ConnectionString = "Server=.;Database=d;Integrated Security=true"), typeof(IOutboxStore) },
-	};
+	/// <summary>
+	/// The entry points under test, keyed by the extension-method name each arm is really identified by.
+	/// </summary>
+	/// <remarks>
+	/// The delegate and the contract type live HERE rather than in the theory data, and the arms below take
+	/// only the name. A theory argument must be serializable for the runner to identify a case on its own —
+	/// an <see cref="Action{T}"/> and a <see cref="Type"/> are not, so passing them makes every case
+	/// indistinguishable to the runner and unrunnable in isolation. The name is the natural key anyway: it is
+	/// what the failure messages already quote.
+	/// </remarks>
+	private static readonly Dictionary<string, (Action<IServiceCollection> Register, Type Contract)> EntryPoints =
+		new(StringComparer.Ordinal)
+		{
+			["AddSqlServerInboxStore"] =
+				(s => s.AddSqlServerInboxStore(o => o.ConnectionString = "Server=.;Database=d;Integrated Security=true"), typeof(IInboxStore)),
+			["AddElasticsearchOutboxStore"] =
+				(s => s.AddElasticsearchOutboxStore(o => o.IndexName = "excalibur-outbox-test"), typeof(IOutboxStore)),
+			["AddMartenOutboxStore"] =
+				(s => s.AddMartenOutboxStore(), typeof(IOutboxStore)),
+			["AddSqlServerOutboxStore"] =
+				(s => s.AddSqlServerOutboxStore(o => o.ConnectionString = "Server=.;Database=d;Integrated Security=true"), typeof(IOutboxStore)),
+		};
+
+	public static TheoryData<string> StandaloneEntryPoints() => [.. EntryPoints.Keys];
 
 	/// <summary>
 	/// SAFETY. The contract the method is named for must be registered unkeyed.
 	/// </summary>
 	[Theory]
 	[MemberData(nameof(StandaloneEntryPoints))]
-	public void RegisterTheNonKeyedContract(string name, Action<IServiceCollection> register, Type contract)
+	public void RegisterTheNonKeyedContract(string name)
 	{
-		ArgumentNullException.ThrowIfNull(register);
+		var (register, contract) = EntryPoints[name];
 
 		var services = new ServiceCollection();
 
@@ -82,10 +99,9 @@ public sealed class StandaloneStoreContractRegistrationShould
 	/// </summary>
 	[Theory]
 	[MemberData(nameof(StandaloneEntryPoints))]
-	public void RegisterTheNonKeyedContractExactlyOnce_WhenCalledTwice(
-		string name, Action<IServiceCollection> register, Type contract)
+	public void RegisterTheNonKeyedContractExactlyOnce_WhenCalledTwice(string name)
 	{
-		ArgumentNullException.ThrowIfNull(register);
+		var (register, contract) = EntryPoints[name];
 
 		var services = new ServiceCollection();
 
@@ -104,9 +120,9 @@ public sealed class StandaloneStoreContractRegistrationShould
 	/// </summary>
 	[Theory]
 	[MemberData(nameof(StandaloneEntryPoints))]
-	public void StillRegisterTheKeyedDefaultView(string name, Action<IServiceCollection> register, Type contract)
+	public void StillRegisterTheKeyedDefaultView(string name)
 	{
-		ArgumentNullException.ThrowIfNull(register);
+		var (register, contract) = EntryPoints[name];
 
 		var services = new ServiceCollection();
 

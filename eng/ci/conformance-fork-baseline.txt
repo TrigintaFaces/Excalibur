@@ -55,4 +55,18 @@ SagaTimeoutStoreConformanceTestBase
 # mechanical move. Tracked.
 MessageBusAdapterConformanceTests
 TransportHealthCheckerConformanceTests
+# Category B, and the argument is a dependency one rather than a scheduling one. No grant-query kit
+# ships: the published set contains 44 kits and none of them is for this family (verified by listing
+# the shipped abstract kit types, not by name-matching). Six suites derive this base, four of them
+# real providers -- Cosmos, DynamoDb, Firestore, MongoDb -- so a consumer writing a fifth has no
+# suite to derive while ours are held to these arms.
+#
+# What blocks the mechanical move, and why this is a product decision: the base binds
+# Excalibur.A3.Authorization, and Excalibur.Testing.Conformance does NOT reference A3. Publishing
+# the kit therefore adds A3 to the dependency closure of the shipped conformance package, so every
+# consumer deriving ANY kit -- outbox, event store, transport -- would pull the authorization stack
+# to get it. The alternatives are a separate grant conformance package or splitting the grant
+# abstractions out of A3, and choosing between those is a packaging decision, not a file move.
+# Entered deliberately rather than assumed, per this file's own rule. Tracked.
+GrantQueryStoreConformanceTestBase
 

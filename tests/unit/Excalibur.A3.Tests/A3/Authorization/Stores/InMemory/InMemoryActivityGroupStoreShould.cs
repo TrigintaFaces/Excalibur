@@ -5,6 +5,8 @@ using Excalibur.A3.Authorization;
 using Excalibur.Dispatch;
 using Excalibur.A3.Authorization.Stores.InMemory;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Tests.A3.Authorization.Stores.InMemory;
 
 /// <summary>
@@ -454,10 +456,15 @@ public sealed class InMemoryActivityGroupStoreShould : UnitTestBase
 		using var stop = new CancellationTokenSource();
 		var torn = 0;
 		var reads = 0;
+		var live = 0;
 
-		var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(
+		const int Readers = 4;
+
+		var readers = Enumerable.Range(0, Readers).Select(_ => Task.Run(
 			async () =>
 			{
+				var counted = false;
+
 				while (!stop.IsCancellationRequested)
 				{
 					var groups = await _sut.FindActivityGroupsAsync("t", _ct);
@@ -467,9 +474,34 @@ public sealed class InMemoryActivityGroupStoreShould : UnitTestBase
 					{
 						_ = Interlocked.Increment(ref torn);
 					}
+
+					if (!counted)
+					{
+						counted = true;
+						_ = Interlocked.Increment(ref live);
+					}
+
+					// The in-memory read completes synchronously, so without this the loop never yields and
+					// four of these monopolise a small runner -- starving the writer whose replacements are
+					// the thing being observed.
+					await Task.Yield();
 				}
 			},
 			_ct)).ToArray();
+
+		// Task.Run QUEUES a reader; it does not start one. On a constrained runner the writer below can
+		// finish all 200 replacements and cancel before any reader is dequeued -- every reader then sees
+		// cancellation on its first loop check and exits having read nothing, and the arm fails on
+		// "reads == 0". That is the assertion behaving correctly and the test observing nothing, which is
+		// a scheduling artifact rather than a defect in the store. So the writer does not start until
+		// every reader has completed a read and is demonstrably in its loop.
+		var allLive = await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref live) == Readers,
+			TimeSpan.FromSeconds(30));
+
+		allLive.ShouldBeTrue(
+			$"only {Volatile.Read(ref live)} of {Readers} readers reached their first read within 30s, so the "
+			+ "tearing window was never actually observed");
 
 		for (var i = 0; i < 200; i++)
 		{

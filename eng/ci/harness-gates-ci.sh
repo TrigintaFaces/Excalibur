@@ -135,6 +135,16 @@ fi
 #       section 3) plants an unwired fixture gate and asserts this detector rejects it.
 run "gate-wiring meta-gate" bash eng/ci/gate-wiring.sh
 
+# ── 1a. The MANIFEST meta-gate, and it is the sibling of the one above rather than a duplicate of it.
+#       gate-wiring answers "does every gate have a caller". This answers "does the manifest still
+#       describe the tree" -- the file every consumer reads to find out which gates exist at all. The
+#       two rot directions are different defects and it checks both: a script on disk with no entry is
+#       invisible to every consumer, and an entry naming a script that is gone reads as an authoritative
+#       answer about something that does not exist. Left unrun it rots exactly like the hand-maintained
+#       lists it replaced, and it rots INVISIBLY, because a drifted membership list still answers.
+#       It is shell plus a YAML read and a directory listing -- no compiler, so it belongs here.
+run "gate-manifest meta-gate" python3 eng/ci/gate-manifest-gate.py
+
 # ── 1b. WALL-CLOCK NESTED DEADLINES. Python, so it cannot live in the bash-only loop below.
 #       Blocks on ONE shape: an inner deadline shorter than a wait in the same method, which cannot
 #       be correct -- the deadline can stop that wait from ever completing, and the test then fails
@@ -211,8 +221,13 @@ for t in \
     "eng/ci/assert-compiled-not-skipped.test.sh" \
     "eng/compliance/collect-evidence.test.sh" \
     "eng/ci/cosmos-liveness-gate.sh --self-test" \
-    "eng/hooks/verify-hooks-current.test.sh" \
-    "eng/hooks/pre-push-significance.test.sh" ; do
+    "eng/hooks/verify-hooks-current.test.sh" ; do
+    # pre-push-significance.test.sh was dropped from this list because the hook it locked was
+    # deleted with the rest of the commit-path hooks. The NAME outlived the FILE, and the battery
+    # went on resolving it -- which is condition 1 below failing in its most complete form: not a
+    # path that exists only in someone's working tree, but one that exists in no tree at all. A
+    # lock whose subject is gone protects nothing; it is an ::error:: on every run, forever.
+    #
     # Two conditions before adding an entry here, both learned the hard way:
     #
     #  1. It MUST be committed. A path that exists only in someone's working tree resolves
@@ -275,12 +290,25 @@ done
 #       --check passes on a current copy and FAILS on drift (non-vacuity). Under CI only (ephemeral
 #       runner) also smoke the REAL installer.
 _installer_assert() {
-    local tmp; tmp="$(mktemp -d)"; local rc
-    cp eng/hooks/pre-commit "$tmp/pre-commit" 2>/dev/null || { echo "cannot copy canonical hook"; rm -rf "$tmp"; return 1; }
-    HOOKS_DEST_DIR="$tmp" bash eng/hooks/verify-hooks-current.sh --check >/dev/null 2>&1; rc=$?
-    if [ "$rc" -ne 0 ]; then echo "verify --check FAILED on a current copy (rc=$rc)"; rm -rf "$tmp"; return 1; fi
-    printf '# planted drift\n' >> "$tmp/pre-commit"
-    HOOKS_DEST_DIR="$tmp" bash eng/hooks/verify-hooks-current.sh --check >/dev/null 2>&1; rc=$?
+    local tmp; tmp="$(mktemp -d)"; local rc hook=""
+    # Do NOT name a hook here. This used to copy eng/hooks/pre-commit by name; that hook was deleted
+    # with the rest of the commit-path hooks, and the assert then failed on a MISSING FILE while
+    # still reporting itself as a drift check. The verifier's own canonical list had already been
+    # updated -- this was a second copy of that list, and only one of the two moved. Pick whichever
+    # canonical hook is on disk so the assert follows the tree instead of a remembered name.
+    for h in eng/hooks/*; do
+        [ -f "$h" ] || continue
+        case "${h##*/}" in
+            README.md|install-hooks.*|verify-hooks-current.*) continue ;;
+        esac
+        hook="${h##*/}"; break
+    done
+    [ -n "$hook" ] || { echo "no canonical hook on disk to assert against"; rm -rf "$tmp"; return 1; }
+    cp "eng/hooks/$hook" "$tmp/$hook" 2>/dev/null || { echo "cannot copy canonical hook: $hook"; rm -rf "$tmp"; return 1; }
+    HOOKS_DEST_DIR="$tmp" HOOKS_LIST="$hook" bash eng/hooks/verify-hooks-current.sh --check >/dev/null 2>&1; rc=$?
+    if [ "$rc" -ne 0 ]; then echo "verify --check FAILED on a current copy of $hook (rc=$rc)"; rm -rf "$tmp"; return 1; fi
+    printf '# planted drift\n' >> "$tmp/$hook"
+    HOOKS_DEST_DIR="$tmp" HOOKS_LIST="$hook" bash eng/hooks/verify-hooks-current.sh --check >/dev/null 2>&1; rc=$?
     rm -rf "$tmp"
     if [ "$rc" -eq 0 ]; then echo "verify --check PASSED on drift — the check is VACUOUS"; return 1; fi
     # CI-only real installer smoke (ephemeral .git/hooks; never run locally where it would clobber)

@@ -333,7 +333,10 @@ public sealed class DynamoDbCdcProcessorInitializationShould
 
 			StateStore = A.Fake<IDynamoDbCdcStateStore>();
 			A.CallTo(() => StateStore.GetPositionAsync(A<string>._, A<CancellationToken>._))
-				.ReturnsLazily(async (string _, CancellationToken token) =>
+				// The lambda's inferred return is Task<DynamoDbCdcPosition> -- non-nullable -- because every
+				// path here yields a value. The contract returns Task<DynamoDbCdcPosition?>, so the inferred
+				// shape is a nullability mismatch the compiler reports. State the contract's type explicitly.
+				.ReturnsLazily(async Task<DynamoDbCdcPosition?> (string _, CancellationToken token) =>
 				{
 					CheckpointReads++;
 

@@ -2,4 +2,4 @@
 # Gate-versus-reporter is not mechanically derivable, so each kind is reviewed by a person
 # one entry at a time. This number may fall and may never rise. Lower it when you review an
 # entry; do NOT clear it by stamping a kind you did not derive.
-105
+104

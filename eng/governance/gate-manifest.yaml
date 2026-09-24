@@ -303,6 +303,14 @@ gates:
     published: true
     has_test: false
     has_lock: false
+  - path: "eng/ci/changelog-tag-coverage-gate.sh"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "$E_FAIL is a finding about the repo (a published tag with no changelog section); $E_ENV is a separate REFUSE for a tagless checkout, so the non-zero space is not overloaded"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
   - path: "eng/ci/ci-sli-report.py"
     kind: UNREVIEWED
     kind_proxy: reporter
@@ -755,6 +763,14 @@ gates:
     kind: UNREVIEWED
     kind_proxy: reporter
     kind_evidence: "no exit-1 / exit $E_* path found"
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
+  - path: "eng/ci/rigor-ladder-gate.sh"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "sys.exit(1) is a finding about the repo (a declared rung whose artifact is missing or vacuous, or a guarantee declared with no rung); sys.exit(2) is a separate REFUSE for an underivable oracle"
     runs_in: ci
     published: true
     has_test: false

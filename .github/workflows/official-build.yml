@@ -211,10 +211,19 @@ jobs:
           # from the root build policy by its own Directory.Build.props, so it is not a member of the
           # solution and cannot be named by a solution filter. It is therefore packed explicitly, into
           # the same canonical output, with the same version, or it reaches no consumer at all.
+          #
+          # "With the same version" is the half a branch build cannot satisfy. There is no explicit
+          # version to pass, and this project carries a fixed version of its own rather than the
+          # one the rest of the build stamped -- so packing it into the release folder puts two
+          # different versions there, and the receipt below refuses the whole set. That refusal is
+          # correct: a folder holding two versions does not describe a single build. It is not a
+          # reason to relax the receipt. So a branch build packs the templates package to prove it
+          # still packs, and keeps it out of the folder that describes the release; a release build,
+          # which does have a version to pass, puts it where consumers get it.
           if [ -n "$VERSION" ]; then
             dotnet pack templates/Excalibur.Dispatch.Templates.csproj               --configuration Release               --verbosity minimal               -p:PackageVersion="$VERSION"               --output ./packages/
           else
-            dotnet pack templates/Excalibur.Dispatch.Templates.csproj               --configuration Release               --verbosity minimal               --output ./packages/
+            dotnet pack templates/Excalibur.Dispatch.Templates.csproj               --configuration Release               --verbosity minimal               --output ./templates-package/
           fi
 
       - name: Validate packages

@@ -139,3 +139,16 @@ config-binder-completeness-gate.py
 # verified in CI against the real commit by six workflows that check out and build it. Its own header
 # now says UNWIRED so nobody reads its presence as enforcement.
 staged-snapshot-coherence.sh
+# The two below lost their caller when the commit-path hooks were removed, and neither can be
+# re-homed anywhere that would run it honestly.
+#
+# staged-secret-scan.sh reads the INDEX. At pre-push and in CI the index is empty, so wiring it
+# there would exit 0 forever and enforce nothing while appearing to -- the same reason
+# staged-snapshot-coherence.sh sits above this line. Note that the security rules still describe
+# this scan as blocking; that description is now ahead of the wiring, which is worth correcting
+# separately rather than papering over by wiring it somewhere it cannot work.
+staged-secret-scan.sh
+# committed-sha-build-gate.sh BUILDS. It cannot go on the commit path, and in CI the workflows
+# already check out and build the real commit, which is the thing it approximates. It is documented
+# and used as a manual tool invoked with an explicit --sha, so it has no automated caller by design.
+committed-sha-build-gate.sh

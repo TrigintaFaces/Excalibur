@@ -54,6 +54,25 @@
 # DELETE THIS ENTRY if that file ever carries a CREATE TABLE again. It is scoped to the file being
 # empty of schema; it forgives nothing about the table itself.
 Excalibur.Dispatch:DeadLetterMessages:TENANTID
+# The three erasure-certificate columns below are a KNOWN gap with a filed decision, not an accepted
+# shape. The shipped 001 declares all three, so a FRESH install is correct; a database provisioned
+# before they were added has the table without them and re-running 001 does not repair it.
+#
+# They are recorded here rather than migrated because the backfill is a compliance decision and not
+# a schema edit. There is no payload blob to recover the values from -- these columns ARE the
+# certificate -- and the row carries a Signature computed over the OLD field set, so populating them
+# with any value yields a signed artifact whose content nobody signed. Exceptions in particular is
+# the Article 17(3) record of data lawfully RETAINED: defaulting it to an empty array would assert
+# to a regulator that an erasure had no lawful-retention exceptions, when the truth is that none
+# were recorded. The package's own ARCHITECTURE.md already refuses that conflation one field over --
+# "false means NOT ESTABLISHED, for any reason" -- and the migration has to extend the same
+# distinction here. Tracked: Excalibur_Dispatch-ovpiky (ProductManager owns the semantics).
+#
+# This baseline is a SET in both directions: when that migration lands these three lines must be
+# deleted in the same change, or the gate fails them as stale.
+Excalibur.Compliance.SqlServer:ErasureCertificates:EXCEPTIONS
+Excalibur.Compliance.SqlServer:ErasureCertificates:GENERATEDAT
+Excalibur.Compliance.SqlServer:ErasureCertificates:VERSION
 refuse:src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerMaterializedViewStore.cs:unresolvable table identity '{_positionTableName}'
 # The schema and table are method PARAMETERS on every statement-building method here, so there is
 # no declaration in this file to resolve them to a name. They come from options whose DEFAULTS are
