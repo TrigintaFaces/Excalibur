@@ -195,7 +195,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Testcontainers.Redis | 4.11.0 | MIT |
 | VaultSharp | 1.17.5.1 | Apache-2.0 |
 | YamlDotNet | 17.0.1 | MIT |
-| xunit.v3.extensibility.core | 3.2.2 | Apache-2.0 |
+| xunit.v3.extensibility.core | 4.0.1 | Apache-2.0 |
 
 ## Native components reached through Confluent.Kafka
 

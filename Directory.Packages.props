@@ -76,9 +76,9 @@
 		<PackageVersion Include="Testcontainers.MongoDb" Version="4.11.0" />
 		<PackageVersion Include="WolverineFx" Version="5.31.1" />
 		<!-- Test frameworks — xUnit v3 (migrated from v2.9.3 in Sprint 836) -->
-		<PackageVersion Include="xunit.v3" Version="3.2.2" />
-		<PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-		<PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
+		<PackageVersion Include="xunit.v3" Version="4.0.1" />
+		<PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+		<PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.1" />
 		<!-- Legacy v2 packages kept for Microsoft.CodeAnalysis.Testing.Verifiers.XUnit 1.1.2 transitive dep -->
 		<PackageVersion Include="xunit.assert" Version="2.9.3" />
 		<PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />

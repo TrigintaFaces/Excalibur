@@ -51,7 +51,10 @@ public sealed class DynamoDbStreamsSubscriptionDocumentIdShould
 	private const string StreamArn = "arn:aws:dynamodb:us-east-1:000000000000:table/orders/stream/x";
 	private const string ShardId = "shardId-00000001700000000000-a1b2c3d4";
 
-	private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI): this budget bounds a wait on real background
+	// work, so a fixed value times out on a loaded runner with nothing actually wrong.
+	private static readonly TimeSpan Timeout =
+		global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30));
 
 	/// <summary>
 	/// THE ARM THAT MATTERS. A table whose key attributes are named anything other than the defaults still

@@ -41,7 +41,10 @@ namespace Excalibur.Dispatch.Tests.Threading;
 [Trait("Component", "Dispatch.Core")]
 public sealed class BackgroundTaskDrainShould
 {
-	private static readonly TimeSpan Settle = TimeSpan.FromSeconds(5);
+	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI): this budget bounds a wait on real background
+	// work, so a fixed value times out on a loaded runner with nothing actually wrong.
+	private static readonly TimeSpan Settle =
+		global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5));
 
 	private static IHostedService CreateDrainService() =>
 		new BackgroundTaskDrainService(NullLogger<BackgroundTaskDrainService>.Instance);

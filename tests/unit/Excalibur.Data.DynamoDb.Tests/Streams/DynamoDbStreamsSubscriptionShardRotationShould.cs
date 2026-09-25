@@ -49,7 +49,10 @@ public sealed class DynamoDbStreamsSubscriptionShardRotationShould
 	private const string FirstShardId = "shardId-00000001700000000000-first";
 	private const string SuccessorShardId = "shardId-00000001700000000001-successor";
 
-	private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI): this budget bounds a wait on real background
+	// work, so a fixed value times out on a loaded runner with nothing actually wrong.
+	private static readonly TimeSpan Timeout =
+		global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30));
 
 	/// <summary>
 	/// THE ARM THAT MATTERS. The shard open at subscribe time closes and a successor takes over; records

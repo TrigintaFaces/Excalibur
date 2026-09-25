@@ -26,7 +26,10 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 [Trait("Component", TestComponents.Messaging)]
 public sealed class ScheduledMessageServiceTimeAwareShould
 {
-	private static readonly TimeSpan ScheduleProcessingTimeout = TimeSpan.FromSeconds(30);
+	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI): this budget bounds a wait on real background
+	// work, so a fixed value times out on a loaded runner with nothing actually wrong.
+	private static readonly TimeSpan ScheduleProcessingTimeout =
+		global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30));
 
 	[Fact]
 	public async Task ProcessDueActionMessageAndPersistUpdatedSchedule()

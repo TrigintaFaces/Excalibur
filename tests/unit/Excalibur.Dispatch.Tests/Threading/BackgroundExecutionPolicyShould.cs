@@ -37,7 +37,11 @@ namespace Excalibur.Dispatch.Tests.Threading;
 [Trait("Component", "Dispatch.Core")]
 public sealed class BackgroundExecutionPolicyShould
 {
-	private static readonly TimeSpan Settle = TimeSpan.FromSeconds(5);
+	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI). These arms wait on real background work, so a
+	// fixed 5s budget times out on a loaded runner even though nothing is wrong -- which is exactly
+	// how it failed there while passing locally.
+	private static readonly TimeSpan Settle =
+		global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5));
 
 	/// <summary>
 	/// SAFETY. Under StopHost, a failing background message stops the host.

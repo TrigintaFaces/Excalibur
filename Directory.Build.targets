@@ -256,4 +256,30 @@
     </PropertyGroup>
   </Target>
 
+  <!-- Every test project in this repository runs through the VSTest adapter
+       (xunit.runner.visualstudio), not the Microsoft Testing Platform runner.
+
+       xunit.v3 4.x marks each test project as an MTP application, and MTP v2 hard-errors when
+       the VSTest MSBuild target is used on the .NET 10 SDK ("Testing with VSTest target is no
+       longer supported by Microsoft.Testing.Platform"), so the two cannot both be left at their
+       defaults. Clearing the flag is the supported opt-out rather than a workaround:
+       Microsoft.Testing.Platform.MSBuild resolves it late precisely so an adapter can clear it,
+       and it is what MSTest does whenever EnableMSTestRunner is unset. xunit.v3 just ships no
+       friendly wrapper around it.
+
+       VSTest is the dialect the entire CI surface speaks: category filter expressions, trx
+       loggers, blame hang timeouts and RunConfiguration.TestSessionTimeout. MTP spells every one
+       of those differently and needs a separate extension package for each, so changing runners
+       is a migration in its own right and is not a prerequisite for sitting on a supported xunit
+       line. Revisit if and when the CI surface moves.
+
+       Applied unconditionally rather than only to $(IsTestProject) projects. MTP flags any project
+       that references xunit.v3, and the shared test libraries under tests/Shared set
+       IsTestProject=false while still referencing it, so a condition on IsTestProject leaves exactly
+       those projects failing the guard. No project in this repository uses the MTP runner, so there
+       is none for which true would be the right value. -->
+  <PropertyGroup>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+  </PropertyGroup>
+
 </Project>
