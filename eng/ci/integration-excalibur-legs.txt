@@ -1,0 +1,28 @@
+# Namespace prefixes that split the Excalibur integration suite across parallel CI legs.
+#
+# WHY THE SUITE IS SPLIT AT ALL. Its xunit.runner.json declares parallelizeTestCollections=false
+# and maxParallelThreads=1, because these tests drive real containers and are not safe to
+# interleave. Run serially, the whole suite exceeds a single job's test-session budget -- so the
+# parallelism moves up a level: several jobs, each still strictly serial inside. That preserves the
+# isolation the runner config asks for instead of trading it away for wall clock.
+#
+# FORMAT: <leg-name>=<namespace prefix, relative to Excalibur.Integration.Tests.>
+# The trailing dot is load-bearing. The filter matches on SUBSTRING, so "Data." without it would
+# also swallow "DataElasticSearch.".
+#
+# THIS FILE IS THE SINGLE SOURCE FOR BOTH HALVES OF THE SPLIT. A leg listed here runs exactly its
+# prefix; the "rest" leg runs the complement of every prefix listed here. Deriving both from one
+# list is what makes a typo harmless -- it moves tests between legs, it cannot lose them. Writing
+# the inclusions and the exclusions out separately is the version of this that silently drops a
+# namespace when the two copies drift.
+#
+# "rest" IS A COMPLEMENT, NOT A LIST, and deliberately so: a namespace added later runs there by
+# default rather than running nowhere. Adding a prefix here only ever moves work OUT of "rest" into
+# a leg of its own.
+#
+# BALANCED ON MEASURED TEST-SECONDS, NOT TEST COUNTS. EventSourcing carries 74 tests that cost more
+# than the 569 in Data.Inbox, so a count-based split would be badly lopsided. Re-balance from a
+# green run's TRX durations, not from intuition.
+eventsourcing=EventSourcing.
+outbox=Data.Outbox.
+inbox=Data.Inbox.
