@@ -107,6 +107,13 @@ seams:
     met: [R1, R2]
     unmet: [R3, R4]
 
+  - name: dispatch-pipeline
+    architecture_md: src/Dispatch/Excalibur.Dispatch/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "A middleware silently skipped or reordered produces no error. An authorization middleware that did not run looks exactly like one that ran and permitted."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
   - name: transport-settlement
     architecture_md: src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/ARCHITECTURE.md
     blast_radius: catastrophic

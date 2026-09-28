@@ -1011,6 +1011,8 @@ Excalibur.Compliance.ErasureCertificatePayload.RetainUntil.get -> System.DateTim
 Excalibur.Compliance.ErasureCertificatePayload.RetainUntil.init -> void
 Excalibur.Compliance.ErasureCertificatePayload.Summary.get -> Excalibur.Compliance.ErasureSummary!
 Excalibur.Compliance.ErasureCertificatePayload.Summary.init -> void
+Excalibur.Compliance.ErasureCertificatePayload.UnreachedData.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.UnreachedDataLocation!>?
+Excalibur.Compliance.ErasureCertificatePayload.UnreachedData.init -> void
 Excalibur.Compliance.ErasureCertificatePayload.Verification.get -> Excalibur.Compliance.VerificationSummary!
 Excalibur.Compliance.ErasureCertificatePayload.Verification.init -> void
 Excalibur.Compliance.ErasureCertificatePayload.Version.get -> string!
@@ -2392,6 +2394,10 @@ Excalibur.Compliance.RegionHealth.Latency.init -> void
 Excalibur.Compliance.RegionHealth.RegionHealth(string! RegionId, bool IsHealthy, System.TimeSpan Latency, System.DateTimeOffset LastChecked, int ConsecutiveFailures, string? ErrorMessage = null, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? Diagnostics = null) -> void
 Excalibur.Compliance.RegionHealth.RegionId.get -> string!
 Excalibur.Compliance.RegionHealth.RegionId.init -> void
+Excalibur.Compliance.RemediationCost
+Excalibur.Compliance.RemediationCost.Online = 1 -> Excalibur.Compliance.RemediationCost
+Excalibur.Compliance.RemediationCost.RequiresReadModelOffline = 2 -> Excalibur.Compliance.RemediationCost
+Excalibur.Compliance.RemediationCost.Unknown = 0 -> Excalibur.Compliance.RemediationCost
 Excalibur.Compliance.ReplicationMode
 Excalibur.Compliance.ReplicationMode.Asynchronous = 1 -> Excalibur.Compliance.ReplicationMode
 Excalibur.Compliance.ReplicationMode.Manual = 2 -> Excalibur.Compliance.ReplicationMode
@@ -2617,8 +2623,6 @@ Excalibur.Compliance.Soc2ReportType
 Excalibur.Compliance.Soc2ReportType.TypeI = 0 -> Excalibur.Compliance.Soc2ReportType
 Excalibur.Compliance.Soc2ReportType.TypeII = 1 -> Excalibur.Compliance.Soc2ReportType
 Excalibur.Compliance.SubjectAccessOptions
-Excalibur.Compliance.SubjectAccessOptions.AutoFulfill.get -> bool
-Excalibur.Compliance.SubjectAccessOptions.AutoFulfill.set -> void
 Excalibur.Compliance.SubjectAccessOptions.ResponseDeadlineDays.get -> int
 Excalibur.Compliance.SubjectAccessOptions.ResponseDeadlineDays.set -> void
 Excalibur.Compliance.SubjectAccessOptions.SubjectAccessOptions() -> void
@@ -2722,6 +2726,16 @@ Excalibur.Compliance.TrustServicesCriterion.P8_MonitoringEnforcement = 25 -> Exc
 Excalibur.Compliance.TrustServicesCriterion.PI1_InputValidation = 12 -> Excalibur.Compliance.TrustServicesCriterion
 Excalibur.Compliance.TrustServicesCriterion.PI2_ProcessingAccuracy = 13 -> Excalibur.Compliance.TrustServicesCriterion
 Excalibur.Compliance.TrustServicesCriterion.PI3_OutputCompleteness = 14 -> Excalibur.Compliance.TrustServicesCriterion
+Excalibur.Compliance.UnreachedDataLocation
+Excalibur.Compliance.UnreachedDataLocation.ControllerObligation.get -> string!
+Excalibur.Compliance.UnreachedDataLocation.ControllerObligation.init -> void
+Excalibur.Compliance.UnreachedDataLocation.LawfulBasisClaimed.get -> bool
+Excalibur.Compliance.UnreachedDataLocation.Mechanism.get -> string!
+Excalibur.Compliance.UnreachedDataLocation.Mechanism.init -> void
+Excalibur.Compliance.UnreachedDataLocation.RemediationCost.get -> Excalibur.Compliance.RemediationCost
+Excalibur.Compliance.UnreachedDataLocation.RemediationCost.init -> void
+Excalibur.Compliance.UnreachedDataLocation.StoreKind.get -> string!
+Excalibur.Compliance.UnreachedDataLocation.StoreKind.init -> void
 Excalibur.Compliance.VerificationFailure
 Excalibur.Compliance.VerificationFailure.Details.get -> string?
 Excalibur.Compliance.VerificationFailure.Details.init -> void

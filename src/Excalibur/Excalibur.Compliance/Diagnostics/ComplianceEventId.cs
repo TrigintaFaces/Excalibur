@@ -346,6 +346,12 @@ internal static class ComplianceEventId
 	/// <summary>Erasure certificate generated.</summary>
 	public const int ErasureCertificateGenerated = 92707;
 
+	/// <summary>
+	/// An erasure completed in part, and its certificate could not be written. The erasure stands; the
+	/// evidence of it does not.
+	/// </summary>
+	public const int ErasurePartialCertificateNotWritten = 92975;
+
 	/// <summary>Erasure key deletion failed.</summary>
 	public const int ErasureKeyDeletionFailed = 92708;
 

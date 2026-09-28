@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Versioning;
@@ -148,7 +149,27 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 				return;
 			}
 
-			var state = new TProjection();
+			var store = _serviceProvider.GetService(typeof(IProjectionStore<TProjection>))
+				as IProjectionStore<TProjection>;
+			var positioned = store is null
+				? null
+				: PositionedProjectionWriter<TProjection>.Resolve(store);
+
+			// PER PROJECTION ID, not one state for the whole run.
+			//
+			// This service used to fold every event of the global stream into a single TProjection and
+			// write it under the literal type name. Every apply path keys by the registered key selector
+			// falling back to the aggregate id, so the two key spaces were disjoint: a rebuild wrote one
+			// document under a key no read path queries and left every row a reader actually loads
+			// exactly as it was -- while reporting Completed. A singleton projection is not a separate
+			// shape to detect; it is a key selector that returns a constant, and it falls out of the
+			// same derivation.
+			//
+			// The fold itself lives in ProjectionReplayFold, which documents the three places a replay
+			// must NOT reuse the live apply path: the seed, the already-folded filter, and the settle
+			// predicate.
+			var fold = new ProjectionReplayFold<TProjection>(projection, store, positioned, _serviceProvider);
+
 			var position = new Queries.GlobalStreamPosition(0, DateTimeOffset.MinValue);
 			var opts = _options.Value;
 			var totalProcessed = 0L;
@@ -160,6 +181,34 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 
 				if (events.Count == 0)
 				{
+					// AN EMPTY READ IS AMBIGUOUS, and guessing wrong here persists a lie.
+					//
+					// The global-stream read delivers only the CONTIGUOUS run from our position and stops at
+					// the first gap, so an empty result means one of two different things: we are genuinely
+					// caught up, or the very next position is absent and everything above it was withheld.
+					// Treating the second as the first ends the replay early and writes the projection under
+					// a position that asserts a complete fold -- a truncated read model reported as Completed,
+					// which is exactly the silent class this service exists to repair.
+					//
+					// The head position separates them: if the stream has advanced beyond us and we were
+					// still handed nothing, the run was withheld rather than exhausted.
+					var head = await globalQuery.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
+					if (head > position.Position)
+					{
+						// HALT, the same way a poison event halts below, and for the same reason: the partial
+						// state must NOT be persisted as Completed. A gap that is merely an in-flight append
+						// clears on its own, so re-running the rebuild is the remedy; a PERMANENT hole needs
+						// the archival backfill applied first, and the caller is told which position to look at.
+						throw new InvalidOperationException(
+							$"Rebuild of projection '{projectionName}' stopped at position {position.Position} "
+							+ $"while the stream head is {head}: the global-stream read returned nothing because "
+							+ $"position {position.Position + 1} is absent, not because the stream was exhausted. "
+							+ "Refusing to persist a partial rebuild as Completed. If that position belongs to an "
+							+ "append still in flight, re-run the rebuild. If it is permanently absent -- a store "
+							+ "archived by a version that DELETED event rows -- apply the archival gap backfill "
+							+ "for your provider first.");
+					}
+
 					break;
 				}
 
@@ -193,13 +242,18 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 
 						domainEvent = TryUpcastEvent(domainEvent);
 
-						// isReplay: true -- this IS the rebuild. A handler that skips notifications during
-						// replay depends on it, and the aggregate identity must survive a rebuild or the
-						// rebuilt projection loses the id a client needs to act on it.
-						projection.Apply(
-							state,
-							domainEvent,
-							new ProjectionContext(isReplay: true, globalPosition: null, storedEvent.AggregateId));
+						// Folded through the shared seam, which derives the projection id the SAME way the
+						// live apply path does, dispatches through ApplyAsync so an asynchronous handler
+						// is not silently dropped, and reproduces the OverrideProjectionId hatch.
+						_ = await fold.FoldAsync(
+								domainEvent,
+								storedEvent.AggregateId,
+								storedEvent.AggregateType,
+								storedEvent.Version,
+								storedEvent.Timestamp,
+								storedEvent.GlobalPosition,
+								cancellationToken)
+							.ConfigureAwait(false);
 					}
 					catch (Exception ex) when (ex is not OperationCanceledException)
 					{
@@ -217,7 +271,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 				// Advance by the GLOBAL stream ordinal (GlobalPosition), not the per-aggregate Version,
 				// which skipped/duplicated events across aggregates during rebuild.
 				position = new Queries.GlobalStreamPosition(
-					events[events.Count - 1].GlobalPosition + 1,
+					events[events.Count - 1].GlobalPosition,
 					events[events.Count - 1].Timestamp);
 
 				LogBatchRebuilt(projectionName, events.Count, totalProcessed);
@@ -228,19 +282,24 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 				}
 			}
 
-			// Persist the rebuilt state via the projection store (P0 fix: previously discarded)
-			var store = _serviceProvider.GetService(typeof(IProjectionStore<TProjection>))
-				as IProjectionStore<TProjection>;
-
-			if (store is not null)
+			if (store is null)
 			{
-				await store.UpsertAsync(projectionName, state, cancellationToken)
-					.ConfigureAwait(false);
-				LogRebuildPersisted(projectionName);
+				LogNoProjectionStoreRegistered(projectionName);
 			}
 			else
 			{
-				LogNoProjectionStoreRegistered(projectionName);
+				var registration =
+					(_serviceProvider.GetService(typeof(IProjectionRegistry)) as IProjectionRegistry)
+						?.GetRegistration(typeof(TProjection));
+
+				await fold.FlushAsync(
+						registration?.SearchTextComputer,
+						registration?.SearchTextSetter,
+						projectionName,
+						cancellationToken)
+					.ConfigureAwait(false);
+
+				LogRebuildPersisted(projectionName);
 			}
 
 			_statuses[projectionName] = new ProjectionRebuildStatus(

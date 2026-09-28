@@ -1,129 +1,104 @@
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance.Portability;
 
-using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Portability;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+namespace Excalibur.Compliance.Tests.Portability;
+
+/// <summary>
+/// The built-in data-portability service REFUSES; it does not report an export it did not make.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>These arms replace eleven that certified a defect.</b> The previous suite asserted
+/// <c>ExportStatus.Completed</c>, an expiry computed from the retention period, and — most plainly —
+/// <c>Export_with_inventory_service_estimates_data_size</c>, which pinned
+/// <c>inventory.Locations.Count * 1024L</c> as the byte count of exported data. Nothing was read,
+/// serialised or written by any of it. Every one of those arms passed, and what they protected was a
+/// GDPR Article 20 response that reported success having done nothing.
+/// </para>
+/// <para>
+/// They are FLIPPED rather than deleted, because the behaviour they described is the behaviour that had
+/// to change: what a caller gets now is a refusal that names the remedy.
+/// </para>
+/// <para>
+/// <b>Why refusing is the right implementation and not a cop-out.</b> The framework cannot perform
+/// Article 20 for a consumer: it does not know their data's shape, how to serialise it, or where the
+/// export should go — <c>DataExportResult</c> carries no payload, path or URI, so there is nowhere for
+/// one to land. Between reporting a completed export that does not exist and refusing loudly, only one
+/// of those is honest to the regulator who eventually reads it.
+/// </para>
+/// </remarks>
 public sealed class DataPortabilityServiceShould
 {
-    private readonly DataPortabilityService _sut;
-    private readonly DataPortabilityOptions _options = new();
+	/// <summary>SAFETY: the export refuses instead of reporting a completed export.</summary>
+	[Fact]
+	public async Task Refuse_to_export_rather_than_report_an_export_it_did_not_make()
+	{
+		var sut = CreateService();
 
-    public DataPortabilityServiceShould()
-    {
-        _sut = new DataPortabilityService(
-            Microsoft.Extensions.Options.Options.Create(_options),
-            NullLogger<DataPortabilityService>.Instance);
-    }
+		var thrown = await Should.ThrowAsync<NotSupportedException>(
+			async () => await sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None));
 
-    [Fact]
-    public async Task Export_data_with_completed_status()
-    {
-        var result = await _sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None);
+		thrown.Message.ShouldContain(
+			"NOT performed",
+			customMessage: "the caller has to be able to tell that nothing happened. A Completed status "
+			+ "with a plausible size is indistinguishable from a real export, and the audience for that "
+			+ "answer is a regulator.");
+	}
 
-        result.ShouldNotBeNull();
-        result.ExportId.ShouldNotBeNullOrWhiteSpace();
-        result.Format.ShouldBe(ExportFormat.Json);
-        result.Status.ShouldBe(ExportStatus.Completed);
-    }
+	/// <summary>The refusal names the remedy, so a consumer can act on it.</summary>
+	/// <remarks>
+	/// A refusal that does not say what to do instead is only marginally better than the lie. The
+	/// registration is <c>TryAdd</c>, so the remedy is genuinely available to them.
+	/// </remarks>
+	[Fact]
+	public async Task Name_the_remedy_in_the_refusal()
+	{
+		var sut = CreateService();
 
-    [Fact]
-    public async Task Set_expiration_based_on_options()
-    {
-        var result = await _sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None);
+		var thrown = await Should.ThrowAsync<NotSupportedException>(
+			async () => await sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None));
 
-        result.ExpiresAt.ShouldNotBeNull();
-    }
+		thrown.Message.ShouldContain("IDataPortabilityService");
+		thrown.Message.ShouldContain("AddDataPortability");
+	}
 
-    [Fact]
-    public async Task Get_export_status()
-    {
-        var exported = await _sut.ExportAsync("user-1", ExportFormat.Csv, CancellationToken.None);
+	/// <summary>The subject id is still validated before anything else.</summary>
+	/// <remarks>
+	/// Refusing is not an excuse to stop checking arguments: a caller passing nothing should be told
+	/// that, not told about the missing exporter.
+	/// </remarks>
+	[Fact]
+	public async Task Still_reject_a_missing_subject_id()
+	{
+		var sut = CreateService();
 
-        var status = await _sut.GetExportStatusAsync(exported.ExportId, CancellationToken.None);
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await sut.ExportAsync("  ", ExportFormat.Json, CancellationToken.None));
+	}
 
-        status.ShouldNotBeNull();
-        status.ExportId.ShouldBe(exported.ExportId);
-    }
+	/// <summary>There are no exports, so there is no status to report.</summary>
+	/// <remarks>
+	/// The honest answer once the export refuses. This arm exists so that a future change which starts
+	/// recording exports has to come back here and say what a status now means.
+	/// </remarks>
+	[Fact]
+	public async Task Report_no_status_because_no_export_can_exist()
+	{
+		var sut = CreateService();
 
-    [Fact]
-    public async Task Return_null_for_unknown_export()
-    {
-        var status = await _sut.GetExportStatusAsync("unknown-id", CancellationToken.None);
+		var status = await sut.GetExportStatusAsync("any-id", CancellationToken.None);
 
-        status.ShouldBeNull();
-    }
+		status.ShouldBeNull();
+	}
 
-    [Fact]
-    public async Task Return_expired_status_for_expired_export()
-    {
-        var shortOptions = new DataPortabilityOptions { RetentionPeriod = TimeSpan.FromMilliseconds(1) };
-        var sut = new DataPortabilityService(
-            Microsoft.Extensions.Options.Options.Create(shortOptions),
-            NullLogger<DataPortabilityService>.Instance);
-
-        var exported = await sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None);
-        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50); // Wait for expiration
-
-        var status = await sut.GetExportStatusAsync(exported.ExportId, CancellationToken.None);
-
-        status.ShouldNotBeNull();
-        status.Status.ShouldBe(ExportStatus.Expired);
-    }
-
-    [Fact]
-    public async Task Throw_when_subject_id_is_null()
-    {
-        await Should.ThrowAsync<ArgumentException>(
-            () => _sut.ExportAsync(null!, ExportFormat.Json, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task Throw_when_getting_status_with_null_id()
-    {
-        await Should.ThrowAsync<ArgumentException>(
-            () => _sut.GetExportStatusAsync(null!, CancellationToken.None));
-    }
-
-    [Fact]
-    public void Throw_when_options_are_null()
-    {
-        Should.Throw<ArgumentNullException>(
-            () => new DataPortabilityService(null!, NullLogger<DataPortabilityService>.Instance));
-    }
-
-    [Fact]
-    public void Throw_when_logger_is_null()
-    {
-        Should.Throw<ArgumentNullException>(
-            () => new DataPortabilityService(Microsoft.Extensions.Options.Options.Create(new DataPortabilityOptions()), null!));
-    }
-
-    [Fact]
-    public async Task Use_data_inventory_when_available()
-    {
-        var inventoryService = A.Fake<IDataInventoryService>();
-        A.CallTo(() => inventoryService.DiscoverAsync(
-            A<string>._, A<DataSubjectIdType>._, A<string?>._, A<CancellationToken>._))
-            .Returns(new DataInventory
-            {
-                DataSubjectId = "hash",
-                Locations = [new DataLocation { TableName = "T", FieldName = "F", DataCategory = "C", RecordId = "r1", KeyId = "k1" }],
-                AssociatedKeys = [],
-                DiscoveredAt = DateTimeOffset.UtcNow
-            });
-
-        var sut = new DataPortabilityService(
-            Microsoft.Extensions.Options.Options.Create(new DataPortabilityOptions()),
-            NullLogger<DataPortabilityService>.Instance,
-            inventoryService);
-
-        var result = await sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None);
-
-        result.DataSize.ShouldBeGreaterThan(0);
-    }
+	private static DataPortabilityService CreateService() =>
+		new(
+			Options.Create(new DataPortabilityOptions()),
+			NullLogger<DataPortabilityService>.Instance,
+			dataInventoryService: null);
 }
-

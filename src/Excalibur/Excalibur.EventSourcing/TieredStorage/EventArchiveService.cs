@@ -196,7 +196,7 @@ internal sealed class EventArchiveService : BackgroundService
 			return;
 		}
 
-		var deleted = await _archiveSource.DeleteEventsUpToVersionAsync(
+		var deleted = await _archiveSource.TombstoneArchivedEventsUpToVersionAsync(
 			tenant,
 			candidate.AggregateId,
 			candidate.AggregateType,

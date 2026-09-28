@@ -55,11 +55,11 @@ public sealed class OracleEventStoreTenantTotalityMigrationShould(OracleEventSto
 		await PrepareLegacyShapeAsync().ConfigureAwait(false);
 
 		await ExecuteAsync(
-			$"INSERT INTO {_fixture.TableName} (EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, VERSION, EVENTTIMESTAMP, TENANTID) "
-			+ "VALUES ('e-legacy', 'agg-legacy', 'T', 'Evt', 0, SYSTIMESTAMP, NULL)").ConfigureAwait(false);
+			$"INSERT INTO {_fixture.TableName} (POSITION, EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, VERSION, EVENTTIMESTAMP, TENANTID) "
+			+ "VALUES (9001, 'e-legacy', 'agg-legacy', 'T', 'Evt', 0, SYSTIMESTAMP, NULL)").ConfigureAwait(false);
 		await ExecuteAsync(
-			$"INSERT INTO {_fixture.TableName} (EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, VERSION, EVENTTIMESTAMP, TENANTID) "
-			+ "VALUES ('e-tenanted', 'agg-tenanted', 'T', 'Evt', 0, SYSTIMESTAMP, 'acme')").ConfigureAwait(false);
+			$"INSERT INTO {_fixture.TableName} (POSITION, EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, VERSION, EVENTTIMESTAMP, TENANTID) "
+			+ "VALUES (9002, 'e-tenanted', 'agg-tenanted', 'T', 'Evt', 0, SYSTIMESTAMP, 'acme')").ConfigureAwait(false);
 
 		await RunShippedMigrationAsync().ConfigureAwait(false);
 
@@ -80,8 +80,8 @@ public sealed class OracleEventStoreTenantTotalityMigrationShould(OracleEventSto
 		await PrepareLegacyShapeAsync().ConfigureAwait(false);
 
 		await ExecuteAsync(
-			$"INSERT INTO {_fixture.TableName} (EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, VERSION, EVENTTIMESTAMP, TENANTID) "
-			+ "VALUES ('e-legacy', 'agg-legacy', 'T', 'Evt', 0, SYSTIMESTAMP, NULL)").ConfigureAwait(false);
+			$"INSERT INTO {_fixture.TableName} (POSITION, EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, VERSION, EVENTTIMESTAMP, TENANTID) "
+			+ "VALUES (9001, 'e-legacy', 'agg-legacy', 'T', 'Evt', 0, SYSTIMESTAMP, NULL)").ConfigureAwait(false);
 
 		await RunShippedMigrationAsync().ConfigureAwait(false);
 		await RunShippedMigrationAsync().ConfigureAwait(false);

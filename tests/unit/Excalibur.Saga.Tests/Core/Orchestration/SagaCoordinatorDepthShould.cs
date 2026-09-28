@@ -104,5 +104,5 @@ public sealed class TestCoordinatorSaga : SagaBase<TestCoordinatorSagaState>
 
 	public override bool HandlesEvent(object eventMessage) => false;
 
-	public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+	public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 }

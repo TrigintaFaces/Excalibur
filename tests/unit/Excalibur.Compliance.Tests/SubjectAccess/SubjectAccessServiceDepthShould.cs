@@ -15,7 +15,6 @@ public sealed class SubjectAccessServiceDepthShould
 	[Fact]
 	public async Task Create_request_with_pending_status_when_auto_fulfill_disabled()
 	{
-		_options.AutoFulfill = false;
 
 		var sut = CreateService();
 		var request = new SubjectAccessRequest
@@ -32,11 +31,25 @@ public sealed class SubjectAccessServiceDepthShould
 		result.RequestId.ShouldNotBeNullOrEmpty();
 	}
 
+	/// <summary>
+	/// A created request is PENDING, and only an explicit fulfilment call can move it.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This arm replaces one that certified the defect.</b> It read
+	/// <c>Create_request_with_fulfilled_status_when_auto_fulfill_enabled</c>, set the AutoFulfill option,
+	/// and asserted the request came back <c>Fulfilled</c> with a <c>FulfilledAt</c> timestamp — at the
+	/// instant of creation, with nothing gathered and nothing sent. It passed, and what it pinned was a
+	/// configuration flag declaring a GDPR Article 15 obligation discharged.
+	/// </para>
+	/// <para>
+	/// The option is gone, so the arm is flipped rather than deleted: fulfilment is an ACT, and the only
+	/// thing that may record it is the call that performs it.
+	/// </para>
+	/// </remarks>
 	[Fact]
-	public async Task Create_request_with_fulfilled_status_when_auto_fulfill_enabled()
+	public async Task Create_a_request_as_pending_and_fulfil_it_only_when_told_to()
 	{
-		_options.AutoFulfill = true;
-
 		var sut = CreateService();
 		var request = new SubjectAccessRequest
 		{
@@ -45,17 +58,28 @@ public sealed class SubjectAccessServiceDepthShould
 			RequestType = SubjectAccessRequestType.Access
 		};
 
-		var result = await sut.CreateRequestAsync(request, CancellationToken.None).ConfigureAwait(false);
+		var created = await sut.CreateRequestAsync(request, CancellationToken.None).ConfigureAwait(false);
 
-		result.Status.ShouldBe(SubjectAccessRequestStatus.Fulfilled);
-		result.FulfilledAt.ShouldNotBeNull();
+		created.Status.ShouldBe(
+			SubjectAccessRequestStatus.Pending,
+			"a request is pending when it is created. No configuration may declare it otherwise, because "
+			+ "nothing has been gathered or sent at that moment.");
+		created.FulfilledAt.ShouldBeNull("nothing was fulfilled, so there is no time at which it was");
+
+		var fulfilled = await sut.FulfillRequestAsync(created.RequestId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		fulfilled.Status.ShouldBe(
+			SubjectAccessRequestStatus.Fulfilled,
+			"the explicit call is what records fulfilment, and it must still work -- otherwise this "
+			+ "change would have removed the lie and the capability together");
+		fulfilled.FulfilledAt.ShouldNotBeNull();
 	}
 
 	[Fact]
 	public async Task Create_request_sets_deadline_from_options()
 	{
 		_options.ResponseDeadlineDays = 30;
-		_options.AutoFulfill = false;
 
 		var sut = CreateService();
 		var requestedAt = DateTimeOffset.UtcNow;
@@ -87,7 +111,6 @@ public sealed class SubjectAccessServiceDepthShould
 	[Fact]
 	public async Task Get_request_status_returns_existing_request()
 	{
-		_options.AutoFulfill = false;
 		var sut = CreateService();
 		var request = new SubjectAccessRequest
 		{
@@ -106,7 +129,6 @@ public sealed class SubjectAccessServiceDepthShould
 	[Fact]
 	public async Task Fulfill_request_changes_status_to_fulfilled()
 	{
-		_options.AutoFulfill = false;
 		var sut = CreateService();
 		var request = new SubjectAccessRequest
 		{
@@ -134,7 +156,6 @@ public sealed class SubjectAccessServiceDepthShould
 	[Fact]
 	public async Task Throw_when_fulfilling_already_fulfilled_request()
 	{
-		_options.AutoFulfill = false;
 		var sut = CreateService();
 		var request = new SubjectAccessRequest
 		{

@@ -14,11 +14,4 @@ public sealed class SubjectAccessOptionsShould
         options.ResponseDeadlineDays.ShouldBe(30);
     }
 
-    [Fact]
-    public void Have_auto_fulfill_disabled_by_default()
-    {
-        var options = new SubjectAccessOptions();
-
-        options.AutoFulfill.ShouldBeFalse();
-    }
 }

@@ -393,7 +393,7 @@ public sealed class StateDefinitionShould
 
 	#region Test Types
 
-	internal sealed class TestSagaData : SagaState
+	internal sealed class TestSagaData : ProcessManagerState
 	{
 		public string? OrderId { get; set; }
 	}

@@ -162,7 +162,7 @@ private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEve
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 
 		await using var provider = BuildProvider(multiTenant: true);
-		var contributor = provider.GetRequiredService<IErasureContributor>();
+		var contributor = provider.EventStoreErasureContributor();
 
 		var aggId = "agg-" + Guid.NewGuid().ToString("N");
 		var store = provider.GetRequiredKeyedService<IEventStore>("default");
@@ -194,7 +194,7 @@ private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEve
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 
 		await using var provider = BuildProvider(multiTenant: true);
-		var contributor = provider.GetRequiredService<IErasureContributor>();
+		var contributor = provider.EventStoreErasureContributor();
 		var store = provider.GetRequiredKeyedService<IEventStore>("default");
 
 		var aggA = "agg-" + Guid.NewGuid().ToString("N");
@@ -229,7 +229,7 @@ private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEve
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 
 		await using var provider = BuildProvider(multiTenant: false);
-		var contributor = provider.GetRequiredService<IErasureContributor>();
+		var contributor = provider.EventStoreErasureContributor();
 		var store = provider.GetRequiredKeyedService<IEventStore>("default");
 
 		var aggId = "agg-" + Guid.NewGuid().ToString("N");
@@ -281,6 +281,24 @@ private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEve
 
 		using var provider = services.BuildServiceProvider();
 		Should.NotThrow(() => provider.GetRequiredService<IStartupValidator>().Validate());
-		provider.GetRequiredService<IErasureContributor>().ShouldNotBeNull();
+		provider.EventStoreErasureContributor().ShouldNotBeNull();
 	}
+}
+
+/// <summary>
+/// Resolves the event-store erasure contributor BY NAME rather than by type.
+/// </summary>
+/// <remarks>
+/// Erasure wiring registers more than one <see cref="IErasureContributor"/>, and
+/// <c>GetRequiredService&lt;IErasureContributor&gt;()</c> returns only the LAST one registered — which is
+/// the projection-gap reporter, not the event-store eraser. That resolution compiles, resolves, and
+/// reports <c>Success = true</c> while tombstoning nothing, so an arm written that way asserts against a
+/// contributor it never meant to exercise and cannot fail for the reason it names. Selecting by the
+/// public <see cref="IErasureContributor.Name"/> is what a consumer has to identify one by, and
+/// <c>Single</c> makes a future third contributor a loud failure rather than a silent substitution.
+/// </remarks>
+internal static class ErasureContributorResolution
+{
+	public static IErasureContributor EventStoreErasureContributor(this IServiceProvider provider) =>
+		provider.GetServices<IErasureContributor>().Single(c => c.Name == "EventStore");
 }

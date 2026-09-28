@@ -307,9 +307,17 @@ public static class EventSourcingBuilderSqlServerExtensions
 		services.TryAddSingleton<IGlobalStreamQuery>(sp =>
 		{
 			var factory = connectionFactory(sp);
-			return new SqlServerGlobalStreamQuery(
+			// The provider is wrapped in ContiguousGlobalStreamQuery HERE rather than left to the
+			// consumer, because a decorator a host can forget to add is a guarantee that silently is
+			// not there. Wrapping is also the assertion that THIS provider allocates positions inside
+			// the appending transaction, which is the precondition that makes waiting on a gap sound.
+			var provider = new SqlServerGlobalStreamQuery(
 				factory,
 				sp.GetRequiredService<IOptions<SqlServerEventSourcingOptions>>());
+
+			return new ContiguousGlobalStreamQuery(
+				provider,
+				sp.GetRequiredService<ILogger<ContiguousGlobalStreamQuery>>());
 		});
 	}
 

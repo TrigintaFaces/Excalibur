@@ -497,6 +497,7 @@
           "Excalibur.Compliance": "[1.0.0, )",
           "Excalibur.Compliance.Abstractions": "[1.0.0, )",
           "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.LeaderElection.Abstractions": "[1.0.0, )",
           "Excalibur.EventSourcing.Abstractions": "[1.0.0, )",
           "Excalibur.Hosting": "[1.0.0, )",
           "Microsoft.Extensions.Configuration.Binder": "[10.0.10, )",

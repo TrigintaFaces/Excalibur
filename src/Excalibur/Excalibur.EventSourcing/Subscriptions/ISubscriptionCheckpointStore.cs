@@ -30,13 +30,47 @@ public interface ISubscriptionCheckpointStore
 	Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Stores the checkpoint position for a named subscription.
+	/// Advances the checkpoint for a named subscription, but only while it still holds the position the
+	/// caller last observed.
 	/// </summary>
 	/// <param name="subscriptionName">The unique subscription identifier.</param>
-	/// <param name="position">The position to checkpoint.</param>
+	/// <param name="expectedPosition">
+	/// The position the caller believes is stored now, or <see langword="null"/> when the caller believes
+	/// no checkpoint exists yet. "No checkpoint" and "a checkpoint of 0" are different states and must
+	/// stay distinguishable, which is why this is nullable rather than a sentinel value.
+	/// </param>
+	/// <param name="newPosition">The position to advance to.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>A task representing the asynchronous operation.</returns>
-	Task StoreCheckpointAsync(string subscriptionName, long position, CancellationToken cancellationToken);
+	/// <returns>
+	/// <see cref="CheckpointAdvanceOutcome.Advanced"/> when the checkpoint moved, or
+	/// <see cref="CheckpointAdvanceOutcome.Superseded"/> when another writer had already moved it, in
+	/// which case NOTHING was written.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// This is a compare-and-set rather than a blind write, and the difference is not defensive tidiness.
+	/// A blind write lets a reader that paused and resumed -- or a second reader of the same subscription
+	/// -- move the checkpoint BACKWARDS to a value it read minutes ago, after which every event between
+	/// the two positions is delivered a second time.
+	/// </para>
+	/// <para>
+	/// Implementations MUST perform the comparison and the write as ONE atomic operation against the
+	/// durable store: a conditional UPDATE, never a read followed by a write. A read-then-write
+	/// implementation reintroduces precisely the interleaving this signature exists to exclude, and it
+	/// does so invisibly -- the signature would still look correct.
+	/// </para>
+	/// <para>
+	/// A refusal is REPORTED, never thrown. Losing the race is an expected outcome for a subscription
+	/// that has been superseded, and the caller's correct response is to stop rather than to retry. An
+	/// operation that can decline has to be able to say so: a method returning nothing here would make
+	/// "it advanced" and "it declined" the same observation.
+	/// </para>
+	/// </remarks>
+	Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
+		string subscriptionName,
+		long? expectedPosition,
+		long newPosition,
+		CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Enumerates every stored subscription checkpoint.
@@ -59,3 +93,25 @@ public interface ISubscriptionCheckpointStore
 /// <param name="SubscriptionName">The unique subscription identifier.</param>
 /// <param name="Position">The last checkpointed global-stream position.</param>
 public readonly record struct SubscriptionCheckpoint(string SubscriptionName, long Position);
+
+/// <summary>
+/// The result of attempting to advance a subscription checkpoint.
+/// </summary>
+public enum CheckpointAdvanceOutcome
+{
+	/// <summary>
+	/// The checkpoint moved to the requested position.
+	/// </summary>
+	Advanced,
+
+	/// <summary>
+	/// Another writer had already moved the checkpoint, so this advance was refused and nothing was
+	/// written.
+	/// </summary>
+	/// <remarks>
+	/// This is the expected outcome for a reader that has been superseded -- a resumed instance, or a
+	/// second reader of the same subscription. The correct response is to stop processing this
+	/// subscription, not to re-read and retry: another reader owns it and is making progress.
+	/// </remarks>
+	Superseded,
+}

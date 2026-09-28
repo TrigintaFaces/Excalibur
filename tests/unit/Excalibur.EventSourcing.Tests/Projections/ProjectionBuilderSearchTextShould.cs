@@ -171,7 +171,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(100m)];
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None)
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -201,7 +201,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(50m)];
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None)
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert — SearchText should remain null (zero overhead)
@@ -242,7 +242,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(75m), CreateOrderShipped()];
 
 		// Act — batch of 2 events, search text computed once after both applied
-		await registration.InlineApply!(events, context, services, CancellationToken.None)
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -281,7 +281,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(100m), CreateOrderPlaced(200m)];
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None)
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert — each projection instance gets its own search text
@@ -322,7 +322,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(500m)];
 
 		// Act
-		await registration.InlineApply!(events, context, sp, CancellationToken.None)
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, sp, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert

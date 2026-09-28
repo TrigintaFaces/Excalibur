@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.Queries;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Oracle;
@@ -12,6 +13,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using global::Oracle.ManagedDataAccess.Client;
+
+using Excalibur.EventSourcing.Subscriptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -60,6 +63,12 @@ public static class OracleEventSourcingServiceCollectionExtensions
 		// Attest the transactional-append capability (OracleEventStore : ITransactionalEventStore) at wire
 		// time so the outbox-staging validator can probe registration without resolving the store.
 		services.TryAddSingleton<TransactionalEventStoreMarker>();
+
+		// The global stream query is what lets projections, materialized views, projection rebuilds and
+		// the lag read-model run on this provider. Without it those features resolve nothing and the
+		// provider is an event store that silently cannot project.
+		services.TryAddSingleton<IGlobalStreamQuery>(
+			_ => new OracleGlobalStreamQuery(connectionFactory, schema, table));
 
 		return services;
 	}
@@ -111,6 +120,57 @@ public static class OracleEventSourcingServiceCollectionExtensions
 		// Attest the transactional-append capability (OracleEventStore : ITransactionalEventStore) at wire
 		// time so the outbox-staging validator can probe registration without resolving the store.
 		services.TryAddSingleton<TransactionalEventStoreMarker>();
+
+		// The global stream query is what lets projections, materialized views, projection rebuilds and
+		// the lag read-model run on this provider. Without it those features resolve nothing and the
+		// provider is an event store that silently cannot project.
+		services.TryAddSingleton<IGlobalStreamQuery>(sp =>
+		{
+			var o = sp.GetRequiredService<IOptions<OracleEventStoreOptions>>().Value;
+			var cs = o.ConnectionString
+				?? throw new InvalidOperationException("Oracle event store ConnectionString is not configured.");
+
+			return new OracleGlobalStreamQuery(() => new OracleConnection(cs), o.Schema, o.Table);
+		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers the Oracle-backed durable subscription checkpoint store.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Register this whenever a catch-up subscription or a global-stream projection runs in a process
+	/// that can restart.</b> Without it the core registers an IN-MEMORY checkpoint store, so every
+	/// subscription replays the stream from position zero on each process start — work that grows
+	/// without bound on an append-only store.
+	/// </para>
+	/// <para>
+	/// The in-memory default is registered with <c>TryAdd</c>, so this registration wins whether it runs
+	/// before or after the core's. Requires the checkpoint table from the shipped schema script.
+	/// </para>
+	/// </remarks>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionFactory">Creates a connection to the checkpoint database.</param>
+	/// <param name="schema">The schema holding the checkpoint table. Default: "EXCALIBUR".</param>
+	/// <param name="table">The checkpoint table name. Default: "SUBSCRIPTIONCHECKPOINTS".</param>
+	/// <returns>The service collection, for chaining.</returns>
+	public static IServiceCollection AddOracleSubscriptionCheckpointStore(
+		this IServiceCollection services,
+		Func<OracleConnection> connectionFactory,
+		string schema = "EXCALIBUR",
+		string table = "SUBSCRIPTIONCHECKPOINTS")
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(connectionFactory);
+
+		services.AddSingleton<ISubscriptionCheckpointStore>(
+			_ => new OracleSubscriptionCheckpointStore(connectionFactory, schema, table));
+
+		// Emitted from the SAME call that wires the store, never separately registerable: a host
+		// that did not wire a durable checkpoint cannot carry a truthful-looking durability marker.
+		services.TryAddSingleton<ISubscriptionCheckpointDurability, SubscriptionCheckpointDurabilityMarker>();
 
 		return services;
 	}

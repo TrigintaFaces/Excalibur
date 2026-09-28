@@ -74,10 +74,14 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		// Act
 		await sut.RebuildAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
 
-		// Assert — rebuilt state persisted via store
-		var persisted = await store.GetByIdAsync("RebuildTestState", CancellationToken.None).ConfigureAwait(false);
+		// Assert — rebuilt state persisted via store, under the key a READER loads. This used to read
+		// "RebuildTestState", the projection type name, which is where the rebuild wrote and where no
+		// read path looks: the arm certified persistence into a document nobody could retrieve.
+		var persisted = await store.GetByIdAsync("agg-1", CancellationToken.None).ConfigureAwait(false);
 		persisted.ShouldNotBeNull();
 		persisted.Count.ShouldBe(1);
+		(await store.GetByIdAsync("RebuildTestState", CancellationToken.None).ConfigureAwait(false))
+			.ShouldBeNull("the projection type name is not a key any reader queries");
 	}
 
 	[Fact]
@@ -185,8 +189,11 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		var status = await sut.GetStatusAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
 		status.State.ShouldBe(ProjectionRebuildState.Failed);
 
-		var persisted = await store.GetByIdAsync("RebuildTestState", CancellationToken.None).ConfigureAwait(false);
-		persisted.ShouldBeNull();
+		// The WHOLE store, for the reason above: a single-key null assertion cannot fail once the
+		// rebuild writes per aggregate id rather than under the projection type name.
+		(await store.CountAsync(null, CancellationToken.None).ConfigureAwait(false)).ShouldBe(
+			0L,
+			"nothing is persisted past the poison event, under any key");
 	}
 
 	[Fact]

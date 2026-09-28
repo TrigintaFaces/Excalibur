@@ -39,7 +39,7 @@ public static class DatabaseInitializer
 		logger.LogInformation(@"
 -- Events table (default: dbo.EventStoreEvents, configurable via SqlServerEventSourcingOptions)
 CREATE TABLE [dbo].[EventStoreEvents] (
-    [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
+    [Position]       BIGINT                NOT NULL,
     [EventId]        NVARCHAR(255)         NOT NULL,
     [AggregateId]    NVARCHAR(255)         NOT NULL,
     [AggregateType]  NVARCHAR(255)         NOT NULL,
@@ -50,12 +50,35 @@ CREATE TABLE [dbo].[EventStoreEvents] (
     [Metadata]       VARBINARY(MAX)        NULL,
     [Version]        BIGINT                NOT NULL,
     [Timestamp]      DATETIMEOFFSET        NOT NULL,
+    -- Set when the payload has been moved to cold storage; the row and its position stay.
+    [ArchivedAt]      DATETIMEOFFSET NULL,
     [TenantId]       NVARCHAR(64)  COLLATE Latin1_General_BIN2         NOT NULL
         CONSTRAINT [DF_EventStoreEvents_TenantId] DEFAULT '__untenanted__',
 
     CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
     CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
 );
+
+-- The global position counter. The store allocates each append's position by UPDATEing this row
+-- inside the appending transaction: the row lock is released only at COMMIT and the increment rolls
+-- back with the transaction, so an aborted append burns no position. The committed positions are
+-- therefore always a contiguous prefix, which is what lets a subscriber treat the highest position
+-- it has seen as a high-water mark. An IDENTITY cannot provide that -- it hands its number out
+-- before COMMIT, so a rollback leaves a permanent hole and two concurrent appends can commit in the
+-- opposite order to their positions.
+CREATE TABLE [dbo].[EventStoreEventsPosition] (
+    -- Singleton by construction: a second counter row would reintroduce gaps.
+    [Id]    TINYINT NOT NULL CONSTRAINT [PK_EventStoreEventsPosition] PRIMARY KEY,
+    [Value] BIGINT  NOT NULL,
+    CONSTRAINT [CK_EventStoreEventsPosition_Singleton] CHECK ([Id] = 1)
+);
+GO
+
+-- Seeded from the table's own high-water mark rather than 0: Position is the PRIMARY KEY, so a
+-- counter seeded at 0 against a table that already holds events would reissue existing values.
+INSERT INTO [dbo].[EventStoreEventsPosition] ([Id], [Value])
+SELECT 1, ISNULL((SELECT MAX([Position]) FROM [dbo].[EventStoreEvents]), 0);
+GO
 CREATE INDEX [IX_EventStoreEvents_AggregateId] ON [dbo].[EventStoreEvents]([AggregateId], [AggregateType]);
 CREATE INDEX [IX_EventStoreEvents_EventType] ON [dbo].[EventStoreEvents]([EventType]);
 

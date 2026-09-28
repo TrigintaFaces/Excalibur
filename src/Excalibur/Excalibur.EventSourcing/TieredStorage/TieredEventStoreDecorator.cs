@@ -30,7 +30,6 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 {
 	private readonly IEventStore _hotStore;
 	private readonly IColdEventStore _coldStore;
-	private readonly ISnapshotStore? _snapshotStore;
 	private readonly ITenantContext _tenantContext;
 	private readonly ILogger<TieredEventStoreDecorator> _logger;
 
@@ -38,8 +37,7 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		IEventStore hotStore,
 		IColdEventStore coldStore,
 		ILogger<TieredEventStoreDecorator> logger,
-		ITenantContext tenantContext,
-		ISnapshotStore? snapshotStore = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(hotStore);
 		ArgumentNullException.ThrowIfNull(coldStore);
@@ -47,7 +45,6 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 
 		_hotStore = hotStore;
 		_coldStore = coldStore;
-		_snapshotStore = snapshotStore;
 		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_logger = logger;
@@ -75,6 +72,18 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Archival moves a payload to cold storage and leaves the ENTRY in the hot store, so the hot read
+	/// already returns every event of the stream in version order. This decorator's only job is to put the
+	/// archived payloads back.
+	/// <para>
+	/// That is why there is no gap detection here any more. The previous implementation inferred archival
+	/// from ABSENCE -- if the hot stream did not start at version 1 it assumed the earlier events had been
+	/// archived, and consulted a snapshot to decide whether the gap was benign. Every one of those
+	/// inferences is unnecessary once the row survives archival, and each was capable of being wrong in a
+	/// direction nothing downstream could detect.
+	/// </para>
+	/// </remarks>
 	public async ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
 		string aggregateId,
 		string aggregateType,
@@ -83,28 +92,7 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		var hotEvents = await _hotStore.LoadAsync(aggregateId, aggregateType, cancellationToken)
 			.ConfigureAwait(false);
 
-		// If hot has events starting from version 0/1, no gap exists
-		if (hotEvents.Count > 0 && hotEvents[0].Version <= 1)
-		{
-			return hotEvents;
-		}
-
-		// If no hot events, check cold
-		if (hotEvents.Count == 0)
-		{
-			return await LoadFromColdAsync(aggregateId, cancellationToken).ConfigureAwait(false);
-		}
-
-		// Gap detected: hot events start after version 1
-		// Check if a snapshot covers the gap
-		if (await IsGapCoveredBySnapshotAsync(aggregateId, aggregateType, hotEvents[0].Version, cancellationToken)
-			.ConfigureAwait(false))
-		{
-			return hotEvents;
-		}
-
-		// Need cold events to fill the gap
-		return await MergeWithColdAsync(aggregateId, hotEvents, 0, cancellationToken)
+		return await HydrateArchivedPayloadsAsync(aggregateId, hotEvents, cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -118,93 +106,73 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		var hotEvents = await _hotStore.LoadAsync(aggregateId, aggregateType, fromVersion, cancellationToken)
 			.ConfigureAwait(false);
 
-		// If we got events and they start right after fromVersion, no gap
-		if (hotEvents.Count > 0 && hotEvents[0].Version <= fromVersion + 1)
-		{
-			return hotEvents;
-		}
-
-		// Gap: need cold events from fromVersion
-		if (hotEvents.Count == 0)
-		{
-			// All events might be in cold storage
-			var coldEvents = await _coldStore.ReadAsync(CurrentTenant, aggregateId, fromVersion, cancellationToken)
-				.ConfigureAwait(false);
-			return coldEvents;
-		}
-
-		return await MergeWithColdAsync(aggregateId, hotEvents, fromVersion, cancellationToken)
+		return await HydrateArchivedPayloadsAsync(aggregateId, hotEvents, cancellationToken)
 			.ConfigureAwait(false);
-	}
-
-	private async Task<IReadOnlyList<StoredEvent>> LoadFromColdAsync(
-		string aggregateId,
-		CancellationToken cancellationToken)
-	{
-		if (!await _coldStore.HasArchivedEventsAsync(CurrentTenant, aggregateId, cancellationToken).ConfigureAwait(false))
-		{
-			return Array.Empty<StoredEvent>();
-		}
-
-		_logger.LoadingFromColdStorage(aggregateId);
-
-		return await _coldStore.ReadAsync(CurrentTenant, aggregateId, cancellationToken).ConfigureAwait(false);
-	}
-
-	private async Task<IReadOnlyList<StoredEvent>> MergeWithColdAsync(
-		string aggregateId,
-		IReadOnlyList<StoredEvent> hotEvents,
-		long fromVersion,
-		CancellationToken cancellationToken)
-	{
-		_logger.LoadingColdAndHotEvents(aggregateId, hotEvents.Count, fromVersion);
-
-		var coldEvents = await _coldStore.ReadAsync(CurrentTenant, aggregateId, fromVersion, cancellationToken)
-			.ConfigureAwait(false);
-
-		if (coldEvents.Count == 0)
-		{
-			return hotEvents;
-		}
-
-		// Merge: cold events first, then hot events (both in version order)
-		var merged = new List<StoredEvent>(coldEvents.Count + hotEvents.Count);
-		merged.AddRange(coldEvents);
-		merged.AddRange(hotEvents);
-		return merged;
-	}
-
-	private async ValueTask<bool> IsGapCoveredBySnapshotAsync(
-		string aggregateId,
-		string aggregateType,
-		long firstHotVersion,
-		CancellationToken cancellationToken)
-	{
-		if (_snapshotStore is null)
-		{
-			return false;
-		}
-
-		var snapshot = await _snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, cancellationToken)
-			.ConfigureAwait(false);
-
-		// Snapshot at version S covers versions 1..S.
-		// If hot events start at S+1 or earlier, the snapshot fills the gap.
-		return snapshot is not null && firstHotVersion <= snapshot.Version + 1;
 	}
 
 	/// <summary>
-	/// Resolves a capability, mediating the hot store's so a caller cannot reach it without the cold tier.
+	/// Replaces the payload of every archived entry with the copy held in cold storage.
 	/// </summary>
-	/// <param name="serviceType">The capability interface being resolved.</param>
-	/// <returns>A tiered view over the capability, or <see langword="null"/> when the hot store lacks it.</returns>
 	/// <remarks>
-	/// The transactional append writes to the hot store, as the ordinary append does, so it can be mediated.
-	/// What must not escape is the capability's inherited read surface: the archive service deletes from hot
-	/// after copying to cold, so a caller loading through the bare hot store would receive a history missing
-	/// everything already archived, and would have no way to tell. The view routes every read back through
-	/// this decorator, which consults both tiers.
+	/// <para>
+	/// An entry is archived exactly when it carries <see cref="StoredEvent.ArchivedAt"/>. That is a fact
+	/// recorded by the archive, not a property inferred from what is missing, so this cannot mistake an
+	/// ERASED event for an archived one -- an erased entry has no payload and no archive stamp, and its
+	/// payload is meant to stay gone.
+	/// </para>
+	/// <para>
+	/// Cold storage is read once for the whole stream and indexed by version, rather than once per archived
+	/// entry: a stream with a thousand archived events would otherwise issue a thousand blob reads.
+	/// </para>
+	/// <para>
+	/// A cold payload that cannot be found is left as-is rather than throwing. The entry keeps its version
+	/// and position, so the stream stays contiguous and the caller sees an event whose payload is absent --
+	/// the same shape as an erased event, and one it must already tolerate. Throwing would take down a read
+	/// of the whole aggregate because one archived payload could not be fetched.
+	/// </para>
 	/// </remarks>
+	private async ValueTask<IReadOnlyList<StoredEvent>> HydrateArchivedPayloadsAsync(
+		string aggregateId,
+		IReadOnlyList<StoredEvent> hotEvents,
+		CancellationToken cancellationToken)
+	{
+		var archivedCount = 0;
+		for (var i = 0; i < hotEvents.Count; i++)
+		{
+			if (hotEvents[i].ArchivedAt is not null)
+			{
+				archivedCount++;
+			}
+		}
+
+		if (archivedCount == 0)
+		{
+			return hotEvents;
+		}
+
+		_logger.LoadingColdAndHotEvents(aggregateId, hotEvents.Count, archivedCount);
+
+		var coldEvents = await _coldStore.ReadAsync(CurrentTenant, aggregateId, cancellationToken)
+			.ConfigureAwait(false);
+
+		var payloadByVersion = new Dictionary<long, byte[]?>(coldEvents.Count);
+		foreach (var cold in coldEvents)
+		{
+			payloadByVersion[cold.Version] = cold.EventData;
+		}
+
+		var hydrated = new List<StoredEvent>(hotEvents.Count);
+		foreach (var hot in hotEvents)
+		{
+			hydrated.Add(
+				hot.ArchivedAt is not null && payloadByVersion.TryGetValue(hot.Version, out var payload)
+					? hot with { EventData = payload }
+					: hot);
+		}
+
+		return hydrated;
+	}
+
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);

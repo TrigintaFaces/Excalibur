@@ -6,7 +6,9 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Sqlite;
+using Excalibur.EventSourcing.Subscriptions;
 using Excalibur.EventSourcing.Sqlite.DependencyInjection;
 
 using Microsoft.Extensions.Configuration;
@@ -26,6 +28,43 @@ public static class SqliteEventSourcingServiceCollectionExtensions
 
 	/// <summary>The service key the core's non-keyed store aliases forward to.</summary>
 	private const string DefaultProviderKey = "default";
+
+	/// <summary>
+	/// Registers the SQLite-backed durable subscription checkpoint store.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Register this whenever a catch-up subscription or a global-stream projection runs in a process
+	/// that can restart.</b> SQLite is embedded, so it is tempting to treat the checkpoint as process
+	/// state — but the process is exactly what restarts. Without this the core registers an IN-MEMORY
+	/// store and every subscription replays the whole stream on each start.
+	/// </para>
+	/// <para>
+	/// The in-memory default is registered with <c>TryAdd</c>, so this registration wins whether it runs
+	/// before or after the core's. Requires the checkpoint table from the shipped schema script.
+	/// </para>
+	/// </remarks>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The connection string for the checkpoint database.</param>
+	/// <param name="table">The checkpoint table name. Default: "SubscriptionCheckpoints".</param>
+	/// <returns>The service collection, for chaining.</returns>
+	public static IServiceCollection AddSqliteSubscriptionCheckpointStore(
+		this IServiceCollection services,
+		string connectionString,
+		string table = "SubscriptionCheckpoints")
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+		services.AddSingleton<ISubscriptionCheckpointStore>(
+			_ => new SqliteSubscriptionCheckpointStore(connectionString, table));
+
+		// Emitted from the SAME call that wires the store, never separately registerable: a host
+		// that did not wire a durable checkpoint cannot carry a truthful-looking durability marker.
+		services.TryAddSingleton<ISubscriptionCheckpointDurability, SubscriptionCheckpointDurabilityMarker>();
+
+		return services;
+	}
 
 	/// <summary>
 	/// Configures SQLite as the event sourcing provider.
@@ -143,6 +182,14 @@ public static class SqliteEventSourcingServiceCollectionExtensions
 			SqliteProviderKey, (sp, _) => sp.GetRequiredService<SqliteSnapshotStore>());
 		builder.Services.TryAddKeyedSingleton<ISnapshotStore>(
 			DefaultProviderKey, (sp, _) => sp.GetRequiredKeyedService<ISnapshotStore>(SqliteProviderKey));
+
+		// The global stream query is what lets projections, materialized views, projection rebuilds and
+		// the lag read-model run on this provider. Without it those features resolve nothing and the
+		// provider is an event store that silently cannot project.
+		builder.Services.TryAddSingleton<IGlobalStreamQuery>(sp => new SqliteGlobalStreamQuery(
+			options.ConnectionString,
+			options.EventStoreTable,
+			sp.GetRequiredService<IOptions<TenantContextOptions>>().Value.RequireTenant));
 
 		return builder;
 	}

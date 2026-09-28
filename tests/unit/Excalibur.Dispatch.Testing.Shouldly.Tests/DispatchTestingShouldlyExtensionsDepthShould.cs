@@ -439,7 +439,7 @@ public sealed class DispatchTestingShouldlyExtensionsDepthShould
 		public bool IsCompleted { get; set; }
 		public TestSagaState State { get; } = sagaState;
 		public bool HandlesEvent(object eventMessage) => false;
-		public Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	#endregion

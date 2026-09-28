@@ -443,11 +443,13 @@ public sealed class ProcessManagerShould
 
 	#region Test Types
 
-	internal sealed class TestOrderData : SagaState
+	internal sealed class TestOrderData : ProcessManagerState
 	{
 		public string? OrderId { get; set; }
 		public string? PaymentId { get; set; }
-		public string CurrentStateName { get; set; } = "Initial";
+		// CurrentStateName now comes from ProcessManagerState, which is where the position lives.
+		// Declaring it here again would HIDE the inherited one, and the hidden copy is the one the
+		// framework would not read -- the same shape as the defect this change removes.
 	}
 
 	internal sealed record OrderPlaced(string OrderId)

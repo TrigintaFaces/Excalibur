@@ -156,10 +156,13 @@ public sealed class OracleAppendReadCommittedLostRaceShould
 					RETURN;
 				END IF;
 
+				-- POSITION is supplied by the STORE now, not by an identity column, so a row written from
+				-- inside a trigger has to supply one too. Offsetting from the row that triggered it keeps it
+				-- unique without colliding with anything the store's own counter will hand out.
 				INSERT INTO {_fixture.TableName}
-					(EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, EVENTDATA, METADATA, VERSION, EVENTTIMESTAMP, TENANTID)
+					(POSITION, EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, EVENTDATA, METADATA, VERSION, EVENTTIMESTAMP, TENANTID)
 				VALUES
-					(:NEW.EVENTID || '-winner', :NEW.AGGREGATEID, :NEW.AGGREGATETYPE, '{WinnerEventType}',
+					(:NEW.POSITION + 1000000, :NEW.EVENTID || '-winner', :NEW.AGGREGATEID, :NEW.AGGREGATETYPE, '{WinnerEventType}',
 					 EMPTY_BLOB(), NULL, :NEW.VERSION, SYSTIMESTAMP, '{tenantId.Replace("'", "''", StringComparison.Ordinal)}');
 				COMMIT;
 			END;

@@ -189,21 +189,61 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-			var defaultId = context.AggregateId;
+			var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
+			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
+			var folded = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
 
-			// Load current state (may be null for new projections -- immutable projections don't require new())
-			var current = await store.GetByIdAsync(defaultId, cancellationToken)
-				.ConfigureAwait(false);
+			// Keyed PER AGGREGATE rather than once per call. A batch can span aggregates, and loading a
+			// single state up front would fold unrelated aggregates into one projection the moment the
+			// caller stops dispatching one aggregate at a time. Keying here makes the apply path
+			// independent of how the caller batches, which is what lets a batch be delivered in stream
+			// order instead of grouped by aggregate.
+			//
+			// Loaded lazily per id so an event with no matching handler cannot create a ghost projection.
+			var loaded = new Dictionary<string, TProjection?>(StringComparer.Ordinal);
+			var touched = new HashSet<string>(StringComparer.Ordinal);
 
-			ProjectionHandlerContext? handlerContext = null;
-
-			foreach (var @event in events)
+			foreach (var projectionEvent in events)
 			{
+				var @event = projectionEvent.Domain;
 				var entry = projection.GetHandler(@event.GetType());
 				if (entry is null)
 				{
 					continue;
 				}
+
+				var id = projectionEvent.AggregateId;
+				if (!loaded.TryGetValue(id, out var current))
+				{
+					// State and position as ONE observation when the store records a position.
+					long? readAt = null;
+					if (positioned is not null)
+					{
+						(current, var readAtPos) = await positioned.GetWithPositionAsync(id, cancellationToken)
+							.ConfigureAwait(false);
+						readAt = readAtPos.ExpectedPositionOrNull;
+					}
+					else
+					{
+						current = await store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+					}
+
+					loaded[id] = current;
+					readPositions[id] = readAt;
+					folded[id] = [];
+				}
+
+				// Skip what is already folded in, or a redelivery recomputes a state the store then
+				// refuses as non-advancing and the reader never gets past the overlap.
+				if (positioned is not null
+					&& readPositions[id] is { } storedAt
+					&& projectionEvent.GlobalPosition is { } eventPos
+					&& eventPos <= storedAt)
+				{
+					continue;
+				}
+
+				folded[id].Add(projectionEvent);
 
 				var handlerEntry = entry.Value;
 
@@ -215,11 +255,10 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 				else if (handlerEntry.TransformingFunc is not null)
 				{
 					// Transform: produce new state from (current + event)
-					// Q1: null current + Transforming = throw
 					if (current is null)
 					{
 						throw new InvalidOperationException(
-							$"Cannot transform projection '{typeof(TProjection).Name}' for aggregate '{defaultId}': " +
+							$"Cannot transform projection '{typeof(TProjection).Name}' for aggregate '{id}': " +
 							$"no existing projection state. Use WhenCreating for the first event.");
 					}
 
@@ -227,23 +266,47 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 				}
 				else if (handlerEntry.AsyncHandler is not null)
 				{
-					// DI handler: receives nullable current, returns new state
-					handlerContext ??= new ProjectionHandlerContext(
-						context.AggregateId,
+					// Built PER EVENT: the aggregate, version and timestamp describe the event being
+					// applied, and a batch spanning aggregates has no single answer for them.
+					var handlerContext = new ProjectionHandlerContext(
+						id,
 						context.AggregateType,
 						context.CommittedVersion,
-						context.Timestamp);
+						context.Timestamp,
+						context.IsReplay);
 
 					current = await handlerEntry.AsyncHandler(
 						current, @event, handlerContext, serviceProvider, cancellationToken)
 						.ConfigureAwait(false);
 				}
+
+				loaded[id] = current;
+				_ = touched.Add(id);
 			}
 
-			// Upsert the final state (only if we processed at least one event)
-			if (current is not null)
+			foreach (var id in touched)
 			{
-				await store.UpsertAsync(defaultId, current, cancellationToken)
+				if (loaded[id] is not { } finalState)
+				{
+					continue;
+				}
+
+				// Nothing folded means nothing to record. An UNPOSITIONED fold is a different case and
+				// is still written -- unconditionally, by the writer. Conflating the two silently
+				// discarded every inline projection on a store that records positions.
+				if (folded[id].Count == 0)
+				{
+					continue;
+				}
+
+				_ = await PositionedProjectionWriter<TProjection>.WriteAsync(
+						store,
+						positioned,
+						id,
+						finalState,
+						readPositions[id],
+						PositionedProjectionWriter<TProjection>.HighestPosition(folded[id]),
+						cancellationToken)
 					.ConfigureAwait(false);
 			}
 		};

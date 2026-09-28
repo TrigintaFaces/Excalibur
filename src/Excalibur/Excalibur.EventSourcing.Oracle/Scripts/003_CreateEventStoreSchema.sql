@@ -40,10 +40,17 @@
 WHENEVER SQLERROR EXIT FAILURE ROLLBACK
 
 CREATE TABLE EVENTSTOREEVENTS (
-    -- The global append position, read back by the INSERT itself via RETURNING POSITION INTO.
-    -- It MUST be an identity column: the store does not supply a value, and it raises an
-    -- invariant-breach error if no position comes back for the first event of an append.
-    POSITION        NUMBER(19)     GENERATED ALWAYS AS IDENTITY,
+    -- The global append position. NOT an identity column, and the difference is the entire
+    -- ordering guarantee. An Oracle identity column is a sequence; a sequence hands its number
+    -- out at INSERT and lets it escape the transaction, so an aborted append burns a value.
+    -- Worse, a sequence defaults to CACHE 20, so each SESSION draws a block and issues from it:
+    -- a pooled session can commit a LOW position long after another session committed a HIGHER
+    -- one. A subscriber that already read the higher position never sees the lower one, and the
+    -- event is committed, durable and permanently invisible to every projection.
+    --
+    -- The store supplies this value explicitly, allocated from EVENTSTOREEVENTSPOSITION inside
+    -- the appending transaction. GENERATED ALWAYS would REJECT that insert outright.
+    POSITION        NUMBER(19)                     NOT NULL,
     EVENTID         VARCHAR2(255)                  NOT NULL,
     AGGREGATEID     VARCHAR2(255)                  NOT NULL,
     AGGREGATETYPE   VARCHAR2(255)                  NOT NULL,
@@ -89,5 +96,41 @@ CREATE TABLE EVENTSTOREEVENTS (
 
 -- Supports the stream read, which selects by aggregate and type above a version and orders by
 -- version ascending.
+-- =============================================================================
+-- GLOBAL POSITION COUNTER -- the seam that makes the stream gapless.
+-- =============================================================================
+-- Positions are allocated by UPDATEing this row inside the appending transaction, never from a
+-- sequence. The row lock is released only at COMMIT and the increment rolls back with the
+-- transaction, so no value is ever burned and no session can hold a block of unissued values.
+-- Therefore:
+--
+--   INVARIANT J: at every instant, the set of committed global positions is a contiguous
+--                prefix {1..k}. There are no gaps, ever.
+--
+-- A subscriber may consequently advance its high-water mark to any position it has observed
+-- committed, and a hole is not a case to handle -- it is a bug to report loudly.
+--
+-- NOCACHE on a sequence is NOT a cheaper alternative: it pays a comparable serialization cost on
+-- SEQ$ and still burns values on rollback, so it costs the same and fixes only half the problem.
+--
+-- COST, stated because it is consumer-visible: appends serialize on this row, so sustained
+-- append throughput is bounded by roughly one commit. That is the intrinsic price of a single
+-- global total order over concurrent writers.
+CREATE TABLE EVENTSTOREEVENTSPOSITION (
+    -- Singleton by construction: the CHECK makes a second counter row unrepresentable rather
+    -- than merely discouraged. Two counters would silently reintroduce gaps.
+    ID    NUMBER(1)  NOT NULL,
+    VALUE NUMBER(19) NOT NULL,
+    CONSTRAINT PK_EVENTSTOREEVENTSPOSITION PRIMARY KEY (ID),
+    CONSTRAINT CK_EVENTSTOREEVENTSPOSITION_ONE CHECK (ID = 1)
+);
+
+-- Seeded from the table's own high-water mark rather than 0: POSITION is the PRIMARY KEY, so a
+-- counter seeded at 0 against a table that already holds events would reissue existing values
+-- and every append would fail on the key. On a fresh install the MAX is NULL and this is 0,
+-- making the first allocated position 1.
+INSERT INTO EVENTSTOREEVENTSPOSITION (ID, VALUE)
+SELECT 1, NVL((SELECT MAX(POSITION) FROM EVENTSTOREEVENTS), 0) FROM DUAL;
+
 CREATE INDEX IX_EVENTSTOREEVENTS_STREAM
     ON EVENTSTOREEVENTS (AGGREGATEID, AGGREGATETYPE, VERSION);

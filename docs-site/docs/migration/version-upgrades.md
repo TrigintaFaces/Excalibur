@@ -249,8 +249,19 @@ each is in the sections above.
 
 ### Which packages ship schema scripts
 
-These packages carry their DDL inside the `.nupkg` under `scripts/`. **They never create tables at
-runtime** — you apply the scripts, so a schema change is always deliberate.
+These packages carry their DDL inside the `.nupkg` under `scripts/`. **By default they never create
+tables at runtime** — you apply the scripts, so a schema change is always deliberate. (The compliance
+stores expose an `AutoCreateSchema` option, default `false`; turning it on moves those packages to
+runtime provisioning.)
+
+:::caution The package is the authority, not this table
+**List the `scripts/` folder of the version you are installing and apply what is actually there.**
+This table is a convenience and it has drifted behind the packages before — a hand-maintained index of
+a growing set will do that again. If a row here disagrees with the folder, the folder is right.
+
+Two packages keep their SQL in a differently-named source folder but still ship it at `scripts/` in the
+package, so the folder listing finds them either way.
+:::
 
 | Package | Scripts |
 |---|---|
@@ -258,17 +269,17 @@ runtime** — you apply the scripts, so a schema change is always deliberate.
 | `Excalibur.AuditLogging.SqlServer` | `001_CreateAuditSchema` |
 | `Excalibur.Cdc.Postgres` | `001_CreateCdcStateSchema` |
 | `Excalibur.Cdc.SqlServer` | `001_CreateCdcStateSchema`, `002_CreateCdcIdempotencySchema` |
-| `Excalibur.Compliance.Postgres` | `001_CreateComplianceSchema` … `004_ConvergeDefaultToUntenanted` |
-| `Excalibur.Compliance.SqlServer` | `001_CreateComplianceSchema` … `007_ConvergeDefaultToUntenanted` (includes `002_CreateKeyEscrowSchema`) |
+| `Excalibur.Compliance.Postgres` | `001_CreateComplianceSchema` … `006_AddRegistrationStoreKind` (6 scripts) |
+| `Excalibur.Compliance.SqlServer` | `001_CreateComplianceSchema` … `010_AddCertificateUnreachedData` (9 scripts) — no `008`; the number was never used |
 | `Excalibur.Data.DataProcessing` | `001_CreateDataProcessingSchema` |
 | `Excalibur.Data.IdentityMap.SqlServer` | `CreateIdentityMapTable` |
-| `Excalibur.Data.Postgres` | `001_CreateDeadLetterSchema`, `002_CreateActivityGroupSchema` |
-| `Excalibur.Data.SqlServer` | `001_CreateDeadLetterSchema`, `002_CreateActivityGroupSchema` |
+| `Excalibur.Data.Postgres` | `001_CreateDeadLetterSchema` … `004_NarrowActivityGroupName` (4 scripts) |
+| `Excalibur.Data.SqlServer` | `001_CreateDeadLetterSchema` … `004_NarrowActivityGroupName` (4 scripts) |
 | `Excalibur.Dispatch` | `schema` (poison-message store) |
-| `Excalibur.EventSourcing.Oracle` | `001_CreateSnapshotSchema` … `006_NarrowSnapshotTenantIdToPortableMaximum` |
-| `Excalibur.EventSourcing.Postgres` | `001_CreateSnapshotSchema` … `008_CreateCursorMapSchema` |
-| `Excalibur.EventSourcing.Sqlite` | `001_CreateEventStoreSchema`, `002_MakeEventAndSnapshotIdentityTenantScoped` |
-| `Excalibur.EventSourcing.SqlServer` | `001_CreateEventStoreSchema` … `009_MakeSnapshotKeyFitTheIndexLimit` |
+| `Excalibur.EventSourcing.Oracle` | `001_CreateSnapshotSchema` … `007_CreateSubscriptionCheckpointSchema` (7 scripts) |
+| `Excalibur.EventSourcing.Postgres` | `001_CreateSnapshotSchema` … `010_AddProjectionLastAppliedPosition` (10 scripts) |
+| `Excalibur.EventSourcing.Sqlite` | `001_CreateEventStoreSchema`, `002_MakeEventAndSnapshotIdentityTenantScoped`, `003_CreateSubscriptionCheckpointSchema` |
+| `Excalibur.EventSourcing.SqlServer` | `001_CreateEventStoreSchema` … `012_BackfillGapsLeftByLegacyArchival` (12 scripts) |
 | `Excalibur.Inbox.Oracle` | `001_CreateInboxSchema` **or** `001_CreateInboxSchema.MultiTenant`, then `002_MigrateToMultiTenant`, `003_NarrowTenantIdToPortableMaximum` |
 | `Excalibur.Inbox.Postgres` | as above |
 | `Excalibur.Inbox.SqlServer` | as above |

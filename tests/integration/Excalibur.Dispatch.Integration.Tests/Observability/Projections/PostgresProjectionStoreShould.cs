@@ -54,10 +54,10 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 	public async ValueTask InitializeAsync()
 	{
 		// Skip if Docker is not available
-		if (!_fixture.DockerAvailable)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS, where this used to `return`. An early return in a [Fact] is an
+		// empty test that genuinely ran -- counted in executed AND passed, indistinguishable from
+		// real work by any counter. The fixture owns the policy and it is hard failure.
+		_fixture.EnsureAvailable();
 
 		// Create the projection table with Postgres schema
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
@@ -70,6 +70,11 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 				data JSONB NOT NULL,
 				created_at TIMESTAMPTZ NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL,
+				-- The store's unconditional write now INVALIDATES the position rather than leaving it
+				-- stale, so this column is part of the contract the store writes against, not an
+				-- optional extra. -1 rather than 0 because zero is a legitimate stream position: a
+				-- zero default would make a brand-new row claim it had already folded the first event.
+				last_applied_position BIGINT NOT NULL DEFAULT -1,
 				-- Composite (id, tenant_id), NOT id alone. Two tenants may legitimately hold the same
 				-- projection id; keying on id alone would let one tenant's upsert overwrite another's row.
 				-- PostgresProjectionStore states this requirement directly at PostgresProjectionStore.cs:177.
@@ -89,12 +94,91 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 			jsonOptions: null);
 	}
 
+	// SAFETY. A row whose position an unconditional write DESTROYED must be distinguishable, in the
+	// stored value itself, from a row that simply never had one. The two need opposite treatment -- the
+	// first must never be adopted, because adoption folds a batch onto a state whose prefix nobody
+	// knows and then stamps a position the state does not justify; the second must be adopted, because
+	// it holds a complete fold. Nothing can tell them apart after the fact, so the distinction has to
+	// be recorded AT WRITE TIME or it is lost for good.
+	[Fact]
+	public async Task Record_that_an_unconditional_write_left_the_state_unplaceable()
+	{
+		var id = $"marker-{Guid.NewGuid():N}";
+
+		var positioned = (IPositionedProjectionStore<TestOrderProjection>)
+			((IServiceProvider)_store!).GetService(
+				typeof(IPositionedProjectionStore<TestOrderProjection>))!;
+
+		_ = await positioned.UpsertAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 7,
+			CancellationToken.None);
+
+		(await ReadPositionAsync(id)).ShouldBe(7, "precondition: the row is positioned");
+
+		// The unconditional surface replaces the state with something not folded from any known prefix.
+		await _store.UpsertAsync(id, new TestOrderProjection { Id = id }, CancellationToken.None);
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			ProjectionPosition.UnplaceableSentinel,
+			"the row must say the state is UNPLACEABLE -- not a fold over any prefix -- rather than "
+			+ "merely unnumbered, which is what the old single sentinel could not express");
+
+		// And the refusal must be visible to a positioned writer, not merely recorded in the row.
+		var refused = await positioned.UpsertAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 9,
+			CancellationToken.None);
+
+		refused.Outcome.ShouldBe(
+			ProjectionAdvanceOutcome.Unplaceable,
+			"adopting this row would make it assert a prefix it does not hold. Reporting Superseded "
+			+ "instead would send the caller back to re-read and retry, forever");
+	}
+
+	// LIVENESS, and it is the arm that stops the one above being satisfied by refusing everything. A
+	// caller that HAS a complete fold but no position number says so, and such a row stays adoptable.
+	[Fact]
+	public async Task Keep_an_unnumbered_complete_fold_adoptable()
+	{
+		var id = $"marker-new-{Guid.NewGuid():N}";
+
+		var positioned = (IPositionedProjectionStore<TestOrderProjection>)
+			((IServiceProvider)_store!).GetService(
+				typeof(IPositionedProjectionStore<TestOrderProjection>))!;
+
+		await positioned.UpsertUnnumberedAsync(
+			id, new TestOrderProjection { Id = id }, CancellationToken.None);
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			ProjectionPosition.UnnumberedSentinel,
+			"a complete fold with no position NUMBER is unnumbered, not unplaceable");
+
+		var adopted = await positioned.UpsertAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 4,
+			CancellationToken.None);
+
+		adopted.Outcome.ShouldBe(
+			ProjectionAdvanceOutcome.Applied,
+			"this row holds a complete fold, so adopting it and stamping the batch's position makes a "
+			+ "TRUE assertion. Refusing here would be the opposite defect -- refusing adoption on "
+			+ "exactly the rows where adoption is correct");
+	}
+
+	private async Task<long> ReadPositionAsync(string id)
+	{
+		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+		await connection.OpenAsync();
+
+		return await connection.ExecuteScalarAsync<long>(
+			$"""SELECT last_applied_position FROM "{TableName}" WHERE id = @Id AND tenant_id = @TenantId""",
+			new { Id = id, TenantId = ProjectionTestTenantId });
+	}
+
 	public async ValueTask DisposeAsync()
 	{
-		if (!_fixture.DockerAvailable)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS, where this used to `return`. An early return in a [Fact] is an
+		// empty test that genuinely ran -- counted in executed AND passed, indistinguishable from
+		// real work by any counter. The fixture owns the policy and it is hard failure.
+		_fixture.EnsureAvailable();
 
 		// Clean up test data
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);

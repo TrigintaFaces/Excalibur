@@ -50,7 +50,7 @@ public sealed partial class OrderFulfillmentSaga(
     }
 
     /// <inheritdoc />
-    public override async Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+    public override async Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
     {
         switch (eventMessage)
         {
@@ -69,7 +69,15 @@ public sealed partial class OrderFulfillmentSaga(
             case PaymentFailed failed:
                 HandlePaymentFailed(failed);
                 break;
+
+            default:
+                // An event this saga does not recognise. Reporting Declined means the coordinator
+                // does NOT record it as processed, so it stays deliverable -- returning Handled
+                // here would retire a message nothing acted on.
+                return SagaEventOutcome.Declined;
         }
+
+        return SagaEventOutcome.Handled;
     }
 
     /// <inheritdoc />

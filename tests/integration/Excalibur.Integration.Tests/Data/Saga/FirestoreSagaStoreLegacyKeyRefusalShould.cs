@@ -56,9 +56,10 @@ public sealed class FirestoreSagaStoreLegacyKeyRefusalShould
 	[Fact]
 	public async Task Refuse_a_collection_holding_a_document_written_without_a_tenant_segment()
 	{
-		_fixture.IsInitialized.ShouldBeTrue(
-			"the Firestore emulator must be available - this arm exists to prove a real collection is "
-			+ "refused, so it is never skipped");
+		// EnsureAvailable() rather than asserting the flag: the FIXTURE owns the availability
+		// policy, and its message carries the RECORDED startup error. Asserting a bool produced
+		// a true-but-useless "expected True" with the actual container failure discarded.
+		_fixture.EnsureAvailable();
 
 		// The shape an earlier release wrote on this provider: the saga identifier and type, no tenant.
 		var legacySagaId = Guid.NewGuid();
@@ -110,9 +111,10 @@ public sealed class FirestoreSagaStoreLegacyKeyRefusalShould
 	[Fact]
 	public async Task Serve_a_collection_whose_documents_all_carry_a_tenant_segment()
 	{
-		_fixture.IsInitialized.ShouldBeTrue(
-			"the Firestore emulator must be available - a correctly-keyed collection must remain fully "
-			+ "usable, so this arm is never skipped");
+		// EnsureAvailable() rather than asserting the flag: the FIXTURE owns the availability
+		// policy, and its message carries the RECORDED startup error. Asserting a bool produced
+		// a true-but-useless "expected True" with the actual container failure discarded.
+		_fixture.EnsureAvailable();
 
 		// Written through the store, so the seeded document carries exactly the identifier this release
 		// composes rather than one the test invented.

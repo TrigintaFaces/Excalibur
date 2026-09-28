@@ -88,15 +88,22 @@ public sealed class DefaultPipelineProfilesShould
 	}
 
 	[Fact]
-	public void CreateDefaultProfileWithMiddleware()
+	public void CreateDefaultProfileThatSeatsNoMiddleware()
 	{
 		// Act
 		var profile = DefaultPipelineProfiles.CreateDefaultProfile();
 
-		// Assert
+		// Assert — EMPTY by design, and this arm pins the decision rather than tolerating it.
+		// A consumer who configures nothing runs nothing. The profile used to seat four middleware
+		// costing about 1,760 ns and 1,720 B per dispatch, and even the last candidate to survive the
+		// cut -- outbox staging, which is semantically inert without a store -- measured +346 ns and
+		// +448 B on a host that does not use an outbox. Behaviour is the consumer's to configure.
 		profile.ShouldNotBeNull();
 		profile.Name.ShouldBe(DefaultPipelineProfiles.Default);
-		profile.MiddlewareEntries.ShouldNotBeEmpty();
+		profile.MiddlewareEntries.ShouldBeEmpty(
+			"The default profile must seat no middleware. If a member is ever added back, it has to "
+			+ "clear two bars together: removing it would break a guarantee the framework already "
+			+ "states, AND it costs nothing measurable when the capability it serves is absent.");
 	}
 
 	[Fact]
@@ -201,9 +208,25 @@ public sealed class DefaultPipelineProfilesShould
 		// makes the profile's declaration honest.
 		profile.MiddlewareEntries.Select(e => e.MiddlewareType).ShouldNotContain(typeof(ContractVersionCheckMiddleware));
 
-		// LIVENESS — this arm must not pass by the profile being empty.
-		profile.MiddlewareEntries.ShouldNotBeEmpty(
-			"An empty profile would satisfy the assertion above while proving nothing.");
+		// The assertion above is now trivially true, because the default profile declares NOTHING by
+		// design. So the property it was protecting is re-aimed at the set that is still non-empty and
+		// where the defect could still live: what AddDispatch() REGISTERS. A middleware registered
+		// without the service it depends on is the same declared-but-inert failure one layer down --
+		// it resolves, or throws, depending on the container's mood.
+		var services = new ServiceCollection();
+		_ = services.AddDispatch();
+
+		var registered = services.Select(static d => d.ServiceType).ToList();
+
+		registered.ShouldNotContain(
+			typeof(ContractVersionCheckMiddleware),
+			"AddDispatch() must not register a middleware whose own dependency it does not supply. "
+			+ "ContractVersionCheckMiddleware needs an IContractVersionService that a bare AddDispatch() "
+			+ "does not register.");
+
+		// LIVENESS — the re-aimed assertion must not pass over an empty set.
+		registered.ShouldNotBeEmpty(
+			"AddDispatch() registered nothing at all, so the exclusion above proves nothing.");
 	}
 
 	[Fact]

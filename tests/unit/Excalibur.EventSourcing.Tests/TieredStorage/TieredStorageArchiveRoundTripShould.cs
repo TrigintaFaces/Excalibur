@@ -67,7 +67,11 @@ public sealed class TieredStorageArchiveRoundTripShould
             SeedHot(hot, 1, 2, 3, 4, 5, 6);
             await ArchiveAndTrimAsync(hot, cold, throughVersion: 3);
 
-            hot.Versions.ShouldBe([4, 5, 6], "the trim must have actually removed the archived versions from the hot tier — otherwise this arm proves nothing about read-through.");
+            // Archival TOMBSTONES: the hot tier keeps every row so the stream has no holes, and loses
+            // only the archived PAYLOADS. Asserting on payloads rather than versions is what makes this
+            // arm discriminating now -- the version list alone no longer changes when archival runs.
+            hot.Versions.ShouldBe([1, 2, 3, 4, 5, 6], "archival must not remove rows from the hot tier — the row is what keeps the stream contiguous.");
+            VersionsWithPayload(hot.Events).ShouldBe([4, 5, 6], "the archived payloads must have actually left the hot tier — otherwise this arm proves nothing about read-through.");
 
             var history = await provider.GetRequiredKeyedService<IEventStore>("default")
                 .LoadAsync(AggregateId, AggregateType, CancellationToken.None);
@@ -88,7 +92,8 @@ public sealed class TieredStorageArchiveRoundTripShould
             SeedHot(hot, 1, 2, 3);
             await ArchiveAndTrimAsync(hot, cold, throughVersion: 3);
 
-            hot.Versions.ShouldBeEmpty("the full trim must leave the hot tier empty.");
+            hot.Versions.ShouldBe([1, 2, 3], "a full archive still leaves every ROW in the hot tier; only the payloads move.");
+            VersionsWithPayload(hot.Events).ShouldBeEmpty("a full archive must move every payload to cold.");
 
             var history = await provider.GetRequiredKeyedService<IEventStore>("default")
                 .LoadAsync(AggregateId, AggregateType, CancellationToken.None);
@@ -140,9 +145,17 @@ public sealed class TieredStorageArchiveRoundTripShould
         var history = await provider.GetRequiredService<IEventStore>()
             .LoadAsync(AggregateId, AggregateType, CancellationToken.None);
 
+        // The unbound path now fails in a MORE deceptive shape than it used to. It returns the COMPLETE
+        // version list, because archival no longer removes rows -- so a caller checking only "did I get
+        // every version?" sees a clean result. What is missing is the PAYLOADS, and only a payload-level
+        // assertion can see it. That is precisely why the liveness arms above assert on payloads.
         Versions(history).ShouldBe(
+            [1, 2, 3, 4, 5, 6],
+            "tombstoning keeps every row, so even an unbound read path returns a complete-looking version list.");
+
+        VersionsWithPayload(history).ShouldBe(
             [4, 5, 6],
-            "an unbound read path returns the post-trim remainder with no error — this arm pins the RED condition the liveness arms detect.");
+            "an unbound read path serves the archived entries with NO payload and reports no error — this arm pins the RED condition the liveness arms detect.");
     }
 
     [Fact]
@@ -203,7 +216,7 @@ public sealed class TieredStorageArchiveRoundTripShould
             throughVersion,
             "the cold tier must confirm the archived range before any hot event is deleted.");
 
-        _ = await ((IEventStoreArchive)hot).DeleteEventsUpToVersionAsync(
+        _ = await ((IEventStoreArchive)hot).TombstoneArchivedEventsUpToVersionAsync(
             KeyedTenantPartition.Untenanted, AggregateId, AggregateType, watermark, CancellationToken.None);
     }
 
@@ -216,6 +229,10 @@ public sealed class TieredStorageArchiveRoundTripShould
     }
 
     private static long[] Versions(IReadOnlyList<StoredEvent> events) => events.Select(e => e.Version).ToArray();
+
+    /// <summary>Versions whose payload is present -- the half archival moves and the decorator restores.</summary>
+    private static long[] VersionsWithPayload(IReadOnlyList<StoredEvent> events) =>
+        events.Where(e => e.EventData is not null).Select(e => e.Version).ToArray();
 
     private static StoredEvent NewEvent(long version) => new(
         EventId: $"evt-{version}",
@@ -237,6 +254,9 @@ public sealed class TieredStorageArchiveRoundTripShould
         private readonly List<StoredEvent> _events = [];
 
         internal long[] Versions => _events.OrderBy(e => e.Version).Select(e => e.Version).ToArray();
+
+        /// <summary>The rows themselves, so an arm can assert on PAYLOAD presence and not only on versions.</summary>
+        internal IReadOnlyList<StoredEvent> Events => _events.OrderBy(e => e.Version).ToList();
 
         internal void Add(StoredEvent stored) => _events.Add(stored);
 
@@ -262,11 +282,23 @@ public sealed class TieredStorageArchiveRoundTripShould
             ArchivePolicy policy, int batchSize, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ArchiveCandidate>>([]);
 
-        public Task<int> DeleteEventsUpToVersionAsync(
+        public Task<int> TombstoneArchivedEventsUpToVersionAsync(
             KeyedTenantPartition tenant, string aggregateId, string aggregateType, long toVersion,
             CancellationToken cancellationToken)
         {
-            var removed = _events.RemoveAll(e => e.AggregateId == aggregateId && e.Version <= toVersion);
+            // Tombstone, mirroring the real providers: the payload goes, the ROW stays with its version
+            // and position. A fake that removed the rows would model an archive semantics the store no
+            // longer has, and every arm built on it would be testing a contract nobody implements.
+            var removed = 0;
+            for (var i = 0; i < _events.Count; i++)
+            {
+                var e = _events[i];
+                if (e.AggregateId == aggregateId && e.Version <= toVersion && e.EventData is not null)
+                {
+                    _events[i] = e with { EventData = null, ArchivedAt = DateTimeOffset.UtcNow };
+                    removed++;
+                }
+            }
             return Task.FromResult(removed);
         }
 

@@ -26,13 +26,13 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 	}
 
 	[Fact]
-	public async Task StoreCheckpointAsync_ThenGetReturnsStoredValue()
+	public async Task AdvanceCheckpointAsync_ThenGetReturnsStoredValue()
 	{
 		// Arrange
 		var store = new InMemorySubscriptionCheckpointStore();
 
 		// Act
-		await store.StoreCheckpointAsync("sub-1", 42, CancellationToken.None);
+		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 42, CancellationToken.None);
 		var result = await store.GetCheckpointAsync("sub-1", CancellationToken.None);
 
 		// Assert
@@ -40,14 +40,14 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 	}
 
 	[Fact]
-	public async Task StoreCheckpointAsync_OverwritesPrevious()
+	public async Task AdvanceCheckpointAsync_MovesForwardWhenExpectedMatches()
 	{
 		// Arrange
 		var store = new InMemorySubscriptionCheckpointStore();
 
 		// Act
-		await store.StoreCheckpointAsync("sub-1", 10, CancellationToken.None);
-		await store.StoreCheckpointAsync("sub-1", 20, CancellationToken.None);
+		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 10, CancellationToken.None);
+		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: 10, 20, CancellationToken.None);
 		var result = await store.GetCheckpointAsync("sub-1", CancellationToken.None);
 
 		// Assert
@@ -61,8 +61,8 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 		var store = new InMemorySubscriptionCheckpointStore();
 
 		// Act
-		await store.StoreCheckpointAsync("sub-1", 10, CancellationToken.None);
-		await store.StoreCheckpointAsync("sub-2", 20, CancellationToken.None);
+		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 10, CancellationToken.None);
+		await store.AdvanceCheckpointAsync("sub-2", expectedPosition: null, 20, CancellationToken.None);
 
 		// Assert
 		(await store.GetCheckpointAsync("sub-1", CancellationToken.None)).ShouldBe(10L);
@@ -86,18 +86,18 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 	}
 
 	[Fact]
-	public async Task StoreCheckpointAsync_ThrowsArgumentException_WhenNameIsNull()
+	public async Task AdvanceCheckpointAsync_ThrowsArgumentException_WhenNameIsNull()
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
 		await Should.ThrowAsync<ArgumentException>(() =>
-			store.StoreCheckpointAsync(null!, 10, CancellationToken.None));
+			store.AdvanceCheckpointAsync(null!, null, 10, CancellationToken.None));
 	}
 
 	[Fact]
-	public async Task StoreCheckpointAsync_ThrowsArgumentException_WhenNameIsEmpty()
+	public async Task AdvanceCheckpointAsync_ThrowsArgumentException_WhenNameIsEmpty()
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
 		await Should.ThrowAsync<ArgumentException>(() =>
-			store.StoreCheckpointAsync("", 10, CancellationToken.None));
+			store.AdvanceCheckpointAsync("", null, 10, CancellationToken.None));
 	}
 }

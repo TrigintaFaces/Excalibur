@@ -8,6 +8,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Fluent;
 
 using Testcontainers.CosmosDb;
+using Excalibur.Integration.Tests.Infrastructure;
 
 namespace Excalibur.Integration.Tests.Data.Saga;
 
@@ -176,6 +177,12 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 			{
 				_ = await client.CreateDatabaseIfNotExistsAsync(DatabaseName, cancellationToken: budget.Token)
 					.ConfigureAwait(false);
+				
+				// Past the handshake, so this cannot be written by a run that never reached the
+				// emulator. CI reads these records to prove the Cosmos suites actually executed --
+				// a counter cannot, because an early return on an availability guard still counts
+				// as executed and passed.
+				CosmosExecutionEvidence.RecordEmulatorReached(nameof(CosmosDbSagaStoreContainerFixture));
 				return;
 			}
 			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.ServiceUnavailable)

@@ -130,9 +130,13 @@ public sealed class PostgresEventStoreRacingConflictClassificationShould : IClas
 		await using var command = connection.CreateCommand();
 		command.Transaction = transaction;
 		command.CommandText =
+			// position is supplied explicitly: it is no longer a BIGSERIAL, because a sequence advances
+			// non-transactionally and would leave a permanent hole when an append rolls back. A row
+			// written directly, bypassing the store, therefore has to choose its own.
 			"INSERT INTO public.events "
-			+ "(event_id, aggregate_id, aggregate_type, event_type, event_data, metadata, version, timestamp, tenant_id) "
-			+ "VALUES (@eventId, @aggregateId, @aggregateType, 'TestDomainEvent', @eventData, NULL, 1, @timestamp, @tenantId)";
+			+ "(position, event_id, aggregate_id, aggregate_type, event_type, event_data, metadata, version, timestamp, tenant_id) "
+			+ "VALUES (@position, @eventId, @aggregateId, @aggregateType, 'TestDomainEvent', @eventData, NULL, 1, @timestamp, @tenantId)";
+		_ = command.Parameters.AddWithValue("position", 900_000L + Random.Shared.Next(1, 90_000));
 		_ = command.Parameters.AddWithValue("eventId", Guid.NewGuid().ToString());
 		_ = command.Parameters.AddWithValue("aggregateId", aggregateId);
 		_ = command.Parameters.AddWithValue("aggregateType", aggregateType);

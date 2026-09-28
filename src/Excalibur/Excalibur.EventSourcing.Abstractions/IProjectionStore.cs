@@ -95,12 +95,36 @@ public interface IProjectionStore<TProjection> : IServiceProvider
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Creates or updates a projection.
+	/// Creates or updates a projection, leaving it with NO PLACEABLE POSITION.
 	/// </summary>
 	/// <param name="id">The projection identifier.</param>
 	/// <param name="projection">The projection to store.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous operation.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This is not a positioned write, and a positioned client must not use it.</b> It replaces the
+	/// state with a value the store cannot relate to the event stream, so on a store that records
+	/// positions the row is left <c>Unplaceable</c>: not a fold over any prefix, and therefore something
+	/// no later positioned write may adopt or advance from. That is recorded explicitly, in the same
+	/// atomic action that writes the state -- never by silently dropping or resetting the position,
+	/// which would make a destroyed position indistinguishable from one that was never established.
+	/// </para>
+	/// <para>
+	/// The two states are not interchangeable and they need opposite treatment: a row that never had a
+	/// position still holds a complete fold and may be adopted, while a row whose position this method
+	/// destroyed may not. A caller that has a complete fold but no position NUMBER wants
+	/// <c>IPositionedProjectionStore&lt;TProjection&gt;.UpsertUnnumberedAsync</c> instead, which says so
+	/// exactly; reaching for this method to express that makes the stronger and wrong claim.
+	/// </para>
+	/// <para>
+	/// <b>Why the specification says this at all.</b> It is this operation, inherited by the positioned
+	/// sub-interface, that can falsify the fold invariant that sub-interface declares -- so a client
+	/// holding the base interface can break the subtype's invariant from outside while staying entirely
+	/// within its rights. Leaving the effect unstated is what let eight implementations agree by
+	/// accident rather than by contract.
+	/// </para>
+	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task UpsertAsync(

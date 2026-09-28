@@ -249,12 +249,51 @@ Verified by `IsolatingEventStoreDecoratorErasureProbeShould`, which asserts both
 non-erasure inner (so the probe cannot over-claim) and the decorator itself over an erasure-capable inner (so
 the erase is reached *through* the decorator rather than around it).
 
-### 4. Projections: rebuild is the erasure path
+### 4. Projections: erasure propagates by REPLAY, and which replay call works depends on the shape
 
 A projection is a read model rolled up from the event stream, not an independently erasable store. It does
 not carry per-subject encryption keys and it has no erase endpoint of its own. **Its erasure guarantee is
 structural: a projection rebuilt after a subject's aggregate has been tombstoned contains no trace of that
 subject, because the rebuild replays the tombstoned stream and never applies the erased events.**
+
+> **A rebuild is ADDITIVE, and for erasure that distinction is the whole story.** A rebuild re-folds
+> every projection id the replayed stream produces and writes each one. It does not remove a row for an
+> id the stream no longer produces, and it cannot: the store contract offers no key enumeration, so the
+> set of rows that exist is not knowable from here.
+>
+> **The consequence, stated rather than left to be discovered.** Erasure tombstones an aggregate's
+> events in place, and the replay skips a tombstone *before* deriving a key from it. For a FULLY erased
+> aggregate every event is a tombstone, so the replay produces **no key for that subject at all** — and
+> an additive rebuild therefore leaves whatever row the live path last wrote for it. A rebuild removes
+> a subject's data from every row it *re-folds*; it does not delete the subject's own row. Use the
+> subject-scoped call in the table below for that.
+>
+> *(Superseded, quoted so a reader who inherited it can recognise it: "UNVERIFIED for a per-aggregate
+> projection … the rebuild service folds the whole stream into ONE state and writes it under the
+> projection's TYPE NAME, while every apply path keys by the projection id. Those key spaces are
+> disjoint." That was true and is now fixed: the rebuild derives the projection id exactly as the apply
+> path does — one shared derivation, `MultiStreamProjection.DeriveProjectionId` — so it writes the keys
+> a reader loads. `ProjectionRebuildKeyingShould` binds it, and the mutation that reddens it is the old
+> behaviour itself.)*
+
+> **Consumer obligation: STOP THE PROJECTION'S PROCESSOR BEFORE REBUILDING IT.** A rebuild reads the
+> whole stream and then writes every key it touched, conditionally on the position each key held when
+> it was first touched. A live writer advancing those rows meanwhile makes the conditional write
+> **refuse**, and the rebuild reports failure rather than completing — deliberately, because a
+> superseded key is a key the rebuild's own fold never landed on. The read model is unavailable for the
+> duration of the rebuild.
+>
+> **This obligation is not enforceable by us and is therefore stated, not checked.** Nothing in the
+> framework can observe whether a consumer's processor is running. What the framework does instead is
+> refuse loudly: a rebuild interrupted this way names the id it stopped on and says the rebuild is
+> incomplete, so ids written before it hold rebuilt state and the rest do not. Re-running from scratch
+> is the recovery, and it is safe — the replay is deterministic.
+
+> **Memory: a rebuild holds every folded projection in memory until it writes.** The bound is the
+> number of DISTINCT projection ids the whole stream produces, multiplied by the size of one projection
+> instance. The framework controls neither factor. Flushing mid-replay is sound but trades this bound
+> for unbounded write amplification and reader-visible intermediate states, so it is not what ships. A
+> data set large enough to exhaust memory here needs the incremental path, not a rebuild.
 
 **Stated so it can be falsified.** Given a projection that has applied at least one event from a data
 subject's aggregate: after that aggregate is erased and the projection is rebuilt from the stream, the
@@ -295,10 +334,111 @@ rather than a silently partial aggregate, and workflow journal replay refuses ou
 entry is the record that stops an activity being executed twice and a hole in it would re-run work that
 already ran.
 
-**Known gap.** A projection updated incrementally (not via full rebuild) between an aggregate's erasure and
-its next rebuild may still reflect the pre-erasure state for that subject until a rebuild runs. Consumers
-with a strict erasure SLA on a given projection should trigger a rebuild as part of handling an erasure
-request rather than relying on the next incremental update to clear it.
+**Known gap.** A projection updated incrementally between an aggregate's erasure and its next replay
+may still reflect the pre-erasure state for that subject. Nothing clears it automatically: the framework
+does not connect erasure to any projection call. **And a rebuild does not close it for the subject's own
+row** — see the additive note above: a fully erased aggregate produces no key, so the rebuild writes
+nothing for it. The subject-scoped call in the table below is the remedy for that row.
+
+**Which call to make depends on what you need cleared, and a rebuild alone is not enough for the
+subject's OWN row.** A rebuild re-folds every id the stream still produces, which removes the subject's
+contributions from every row it shares with others. It does not produce — and so does not overwrite —
+a row for an aggregate that is now entirely tombstones.
+
+> **The root cause worth carrying, because it explains the whole design below.** The positioned-write
+> contract assumes projection state is a function of position, and erasure mutates events IN PLACE.
+> `fold()` changes while every position stays fixed, so **across an erasure no position comparison
+> carries any information about whether a row's state is correct.**
+>
+> An advancing write therefore cannot express what an erasure needs. It requires the new position to
+> exceed the stored one — which is exactly what refuses a redelivered batch — so a caught-up row is
+> refused, and the refusal is indistinguishable from "another writer is already ahead of you". That
+> shape once made this remedy report a successful recovery having written nothing. It is why the
+> operation below exists and why its result is a distinct type.
+
+| what needs clearing | the call |
+|---|---|
+| the subject's OWN row, on a projection keyed per aggregate (the default) | `IProjectionRecovery.ReapplyAsync<TProjection>(aggregateId, aggregateType, ct)` — replays that one aggregate under the key the apply path writes, which for a fully erased aggregate is the empty state. **Requires `UseProjectionRecovery()`**; without it nothing registers `IProjectionRecovery` and the call cannot be resolved |
+| the subject's contributions to rows SHARED with other subjects (a `KeyedBy` projection, a singleton) | a full rebuild — it re-folds every such key from the tombstoned stream |
+| the subject's own row on a `KeyedBy` projection | **no supported call, and recovery now REFUSES rather than guessing.** `ReapplyAsync` replays one aggregate onto a fresh state; writing that under a derived key would overwrite the key with a state missing every *other* aggregate that feeds it. It throws and says to rebuild the whole projection instead. Rebuilding clears the subject's contributions; it cannot delete a key that exists only because of them |
+
+### How the per-aggregate remedy writes, stated so it can be falsified
+
+**Guarantee.** A recovery of an erased aggregate either **writes the re-folded state**, or **fails
+loudly**. It never reports a successful recovery having written nothing.
+
+**How it is achieved.** Recovery reads the row's position before the replay, then chooses by a
+comparison it already holds:
+
+```
+readAt  = the position the row holds, read before the replay
+highest = the highest position the replay APPLIED, or none if it applied nothing
+
+highest > readAt  ->  ADVANCE   UpsertAtPositionAsync(expected: readAt, new: highest)
+                                The row was BEHIND: the replay folded events it had not seen, so the
+                                position genuinely moves.
+otherwise         ->  RE-FOLD   RefoldAtPositionAsync(atPosition: readAt)
+                                The row is caught up, or the erasure SHORTENED the stream (every event
+                                a tombstone yields no position at all). The position is already correct
+                                and it is the STATE that changed.
+readAt is none    ->  CREATE    No position to preserve.
+```
+
+`RefoldAtPositionAsync` rewrites the state at the position the row already holds, without advancing it
+(`IPositionedProjectionStore`). Three properties are load-bearing:
+
+- **It re-folds AT `readAt`, never at the highest surviving position.** The row has folded everything up
+  to `readAt`; after the erasure "everything up to `readAt`" is a smaller set with the same boundary, so
+  the position is still an honest statement about which prefix the state covers. Writing the lower
+  surviving position instead would retreat the position, make the row look behind, and have the next
+  batch re-fold events it already has.
+- **It MUST NOT create a row.** An absent row was deleted, deletion is how erasure removes personal
+  data, and recreating it would reinstate what the erasure removed — while reporting success.
+- **Its result is a SEPARATE type from an advancing write's.** Same outcome names, opposite settle
+  rules: for an advance, a refusal reporting a position at or beyond the one attempted means the work is
+  already done; for a re-fold that is exactly backwards, because the writer who is ahead folded from the
+  PRE-erasure stream. Mixing the two is a compile error rather than a silent compliance failure.
+
+Preserving the position on the fully-erased branch is sound because an erased aggregate's empty state
+IS the true fold for any prefix: the replay skips tombstones structurally, so nothing is missing from it.
+
+**Evidence.** Two service-level arms, `ErasedProjectionRecoveryShould` — one for a partial erasure with a
+caught-up row, one for a full erasure with a positioned row. Each is RED-detecting by construction: the
+mutation that reddens the first is treating any replayed position as an advance, and the mutation that
+reddens the second is writing unconditionally on the re-fold branch. At the store, six arms in the
+positioned-projection conformance kit, inherited by all eight providers and run against real engines:
+the re-fold applies at the held position and does not move it; it is refused when the row advanced after
+the read; it is refused at a position the row does not hold; a row with no established position is
+terminal rather than retryable; a repeated re-fold leaves the row identical; and **a re-fold against an
+absent row reports vanished and creates nothing.** The last is the arm that stops a store resurrecting a
+row an erasure deleted.
+
+**Consumers with a strict erasure SLA must therefore drive this themselves**, and must know which row
+holds the subject. For the third shape that is not currently possible through this framework; treat a
+`KeyedBy` projection carrying personal data as requiring an erasure mechanism of your own until this
+closes.
+
+> **CORRECTED. The previous sentence here named the wrong missing capability.** It read: *"The missing
+> capability in all three rows is the same one — enumerating which rows of a projection exist, keyed the
+> way the apply path keys them — and it is not built."* **Enumeration IS built**: `QueryAsync` returns
+> every row in the ambient tenant, `CountAsync` counts them, and the paged, cursor and distinct-value
+> capabilities all range over the same set.
+>
+> Two things are actually missing, and they are different from each other and from what was written:
+>
+> 1. **No member of the family hands a store KEY back.** Every read returns `TProjection` values, and
+>    every mutating member requires the caller to already know the `string id`. The key exists in every
+>    provider's table — the relational stores select on an `Id` column — but the contract never returns
+>    it, and nothing obliges a projection type to carry its own id (the constraint is only
+>    `where TProjection : class`).
+> 2. **Even a key-returning read would not close the third shape.** For a per-aggregate projection the
+>    id IS the aggregate id the caller already holds, so the key adds nothing. For a `KeyedBy`
+>    projection, the full set of ids does not say which rows a given subject contributed to — that is a
+>    fact about the events that produced each row, not about the rows. Closing it needs a record of
+>    which subjects contributed to which key, written when the fold happens.
+>
+> So the gap is narrower than "enumeration is not built" in one direction and wider in another, and
+> a key-returning read is an API-completeness item rather than the remedy.
 
 ## Consumer obligations
 
@@ -338,7 +478,7 @@ per-partition version arm both go RED against the real emulator, and both return
 | A multi-tenant unscoped erase fails closed (throws, mutates zero rows); a non-MT erase still tombstones; a scoped erase touches only its tenant | event-store erase fail-closed + isolation arms |
 | Erasure resolved through the supported DI composition reaches the store and tombstones (the decoration chain does not strip the capability), for both multi-tenant and non-multi-tenant hosts | event-store erasure real-DI-resolve arms (MT + non-MT) |
 | A rebuild driven through the surface a consumer's host actually rebuilds through never hands an erased subject's event to a projection, still hands another subject's event to it, and runs to completion | `SqlServerProjectionRebuildErasureEndToEndShould` — real SQL Server, the real erasure path, and `IMaterializedViewProcessor` resolved from a container composed the documented way. The property is asserted at the **view builder**, which is where this document states it; a persisted-view assertion cannot tell the event being skipped from a builder that ran and wrote nothing |
-| The same property on the in-process rebuild service | `ProjectionRebuildErasureShould`, paired with `ProjectionPoisonHaltParityShould` (a genuinely corrupt, non-erasure event still halts the rebuild). **Scope: that service is `internal sealed` with no reference in `src/` outside its own declaring file and no registration extension, so no consumer can reach it.** These arms are therefore evidence about a sibling of the consumer path, not about the consumer path itself — which is why the arm above exists |
+| The same property on the in-process rebuild service | `ProjectionRebuildErasureShould`, paired with `ProjectionPoisonHaltParityShould` (a genuinely corrupt, non-erasure event still halts the rebuild). **Scope, CORRECTED: a consumer CAN reach this service.** `AddProjectionRebuild()` is a public registration extension and `IProjectionRebuildService` is a public interface, both at committed HEAD, so a host that calls it resolves and drives this path directly. The superseded wording said the service was unreachable — *“no registration extension, so no consumer can reach it”* — and it is quoted here because it understated the reach of every defect in this service to anyone assessing one. These arms cover a path consumers use, not a sibling of it |
 | The default-tenant identifier is a single canonical reserved value | tenant-defaults unit arms |
 | A SQLite database created before the snapshot table had a tenant column is still readable and writable after upgrading, and one holding the empty-string encoding becomes reachable again | SQLite released-schema upgrade arms + empty-tenant convergence arms |
 | A SQLite table holding both untenanted encodings for one aggregate refuses at startup, naming the table and aggregate, without mutating a row | SQLite convergence collision arm |
@@ -629,3 +769,507 @@ the registry's allow-list: an unregistered type is still refused with the assemb
 - **An event whose type cannot be resolved halts the projection that reads it**, rather than being
   skipped or quarantined. Skipping would silently corrupt an accumulating view, so halting is the safe
   direction, but the diagnostics for it are poor and it does not stop retrying.
+
+# Architecture — Global Stream Ordering
+
+## Guarantee
+
+**Stated so it can be falsified.** At every instant, the set of committed global positions is a
+**contiguous prefix** `1..k`.
+
+> **The sentence that used to follow this one was a NON-SEQUITUR, and it is withdrawn.** It read:
+> *"Consequently no event ever becomes visible at a position below one a subscriber has already read,
+> so a subscriber may advance a high-water mark to the highest position it has observed and never look
+> back."* The first clause above is true. **The second does not follow from it**, and a subscriber that
+> relies on it can silently and permanently skip a committed event.
+>
+> **The prefix property is a predicate on a STATE. A subscriber scan SPANS states.** A
+> `SELECT ... WHERE Position > @cp ORDER BY Position` examines each slot at a different instant and
+> never returns to one it has passed. Nothing in the prefix property relates what a scan saw at one
+> instant to what is committed at another. One writer is enough to lose an event: the scan passes
+> slot 1 while it is uncommitted, slot 1 commits, slot 2 commits, the scan reaches slot 2 and
+> delivers it. The high-water mark is now above a committed event that was never delivered.
+>
+> **The counter row does not save this.** It totally orders commits, so position 2 cannot commit
+> before position 1 — true, and irrelevant, because the scan's READS are interleaved with those
+> commits rather than ordered against them.
+>
+> **CORRECTION, and it reverses the deployment guidance that stood here for part of an hour.**
+> An earlier revision of this note asserted that `READ_COMMITTED_SNAPSHOT` ON (the Azure SQL default)
+> was the EXPOSED configuration and that RCSI OFF was safe. **That is backwards, and it was wrong in
+> the direction that tells a self-hosted operator they are fine.**
+>
+> RCSI gives STATEMENT-level snapshot semantics: one `SELECT` reads the data as of the start of that
+> statement, so it cannot see a position committed mid-scan while missing an earlier one. Plain
+> locking READ COMMITTED has no statement snapshot — it takes and releases shared locks row by row —
+> so a row inserted and committed AHEAD of the scan's current position after the scan began is
+> visible to it. That is the interleaving that skips an event.
+>
+> **The error was naming a CONFIGURATION instead of the PROPERTY**, which is why the correction
+> below states the property first.
+>
+> **The deciding property: the scan must be atomic with respect to concurrent commits.**
+> A `SELECT ... WHERE Position > @cp ORDER BY Position` that is NOT atomic can pass a slot
+> while it is uncommitted and later return a higher position that committed in the meantime.
+> Under statement-level snapshot semantics (SQL Server with RCSI on; PostgreSQL and Oracle
+> READ COMMITTED, which are MVCC) the scan is atomic and this cannot happen. Under SQL
+> Server's locking READ COMMITTED — the default for a self-hosted instance — it is not
+> atomic, and it can.
+>
+> **The fix defends regardless of isolation configuration, and it lives in ONE place:**
+> `ContiguousGlobalStreamQuery`, a decorator over `IGlobalStreamQuery`. It delivers only the
+> CONTIGUOUS run starting at the caller's position + 1 and stops at the first gap. Because
+> committed positions are a contiguous prefix, a position missing from a read belongs to a
+> transaction still in flight rather than to a hole — so stopping DEFERS events rather than
+> dropping them, and the next read takes them in order. It is a decorator rather than a line in
+> each provider because one correctness rule copied five times is a rule the sixth provider will
+> not have.
+>
+> **Applied to SQL Server, deliberately not to the others, and the asymmetry is the point.** The
+> skip is only reachable where the scan is non-atomic. PostgreSQL and Oracle are MVCC, SQLite is
+> serialised, and the in-memory store is in-process — on those the guard would buy nothing and
+> cost something, because it WAITS on a missing position and a database archived by an older
+> version carries permanent holes (archival used to delete event rows; it now tombstones them).
+>
+> **If your stream has such holes**, script
+> `Excalibur.EventSourcing.SqlServer/Scripts/012_BackfillGapsLeftByLegacyArchival.sql` reports
+> them and can insert a tombstone at each missing position, restoring contiguity. It recovers
+> nothing — the events are gone — it makes the stream readable again and marks where the loss
+> happened. Every consumer already skips a null-payload row, so the filler is not a deliverable
+> event.
+>
+> The trade, stated: if a position were permanently absent this stalls rather than skips. That is
+> the correct direction — a stall is loud, a skipped event is silent.
+
+**The test is mechanical.** Append an event and note its position. Force a second append to abort *after*
+it has allocated. Append a third. The third event's position is exactly the first **plus one**. A store
+allocating from an identity column or a sequence gives the first **plus two** — the aborted append burned
+a value that will never be reissued.
+
+**Why a hole is not merely untidy.** A tailing subscriber cannot tell a permanent hole from a slow one. If
+it waits, one rolled-back append stalls every projection forever. If it skips, a slow append is silently
+and permanently lost — committed, durable, and below a mark that has already passed it, with nothing
+downstream able to detect the omission. Making holes impossible removes the choice rather than answering
+it.
+
+## How it is achieved (the seam)
+
+Positions are **not** assigned by an identity column or a sequence. Every provider allocates a contiguous
+block from a single counter row, **inside the appending transaction**:
+
+| Provider | Allocation seam | Mechanism | Issued with the insert? |
+|---|---|---|---|
+| SQL Server | `AllocateAndInsertEventsRequest.cs` | `UPDATE ... WITH (ROWLOCK) SET @First = Value + 1, Value = Value + @AllocCount` | **yes** — one command |
+| PostgreSQL | `AllocateAndInsertEventsRequest.cs` | `UPDATE ... RETURNING` in a data-modifying CTE, insert `CROSS JOIN`s its output | **yes** — one statement |
+| Oracle | `OracleEventStore.cs` | PL/SQL block, `UPDATE ... RETURNING ... INTO` an OUT bind | no — see below |
+| SQLite | `SqliteEventStore.cs` | `UPDATE ... SET Value = Value + @Count ... RETURNING` | no — see below |
+| In-memory | `InMemoryEventStore.cs` | `Interlocked.Add` under the store's append lock | n/a |
+
+**Two providers deliberately do NOT merge the allocation into the insert, and that asymmetry is a
+decision rather than an omission.** Do not "fix" it for consistency without measuring first.
+
+- **SQLite** runs in-process. A round trip there is a function call into the SQLite library, not a
+  network hop, and SQLite already serializes writers at the database level — so there is no contention
+  window to narrow and nothing measurable to recover.
+- **Oracle** binds its insert with ODP.NET array binding (`ArrayBindCount`), which executes the statement
+  once per bound row set. Folding the allocation into that statement would execute the allocation once
+  per row, which is wrong. Doing it correctly needs a PL/SQL block with `FORALL` over associative arrays
+  — a large rewrite to recover one round trip, and unmeasured. Oracle still benefits from the other
+  window-narrowing change: outbox staging runs before the allocation.
+
+Two properties of that row do the work, and both belong to the *transaction* rather than to the counter:
+its exclusive lock is released only at COMMIT, so no second append can allocate while one is in flight;
+and its increment **rolls back with the transaction**, so an aborted append consumes nothing.
+
+Neither the relative ordering of two independent counters nor the lifetime of any transaction enters the
+correctness argument, and that is deliberate. An identity column and a sequence each hand their number out
+at INSERT and let it escape the transaction; on Oracle a sequence additionally defaults to `CACHE 20`, so a
+pooled session can issue a *low* position long after another session committed a *higher* one.
+
+Allocation is the **last** step before the rows are written. Correctness does not depend on that; sustained
+append throughput does, because every other appender blocks on the counter row until this transaction
+commits.
+
+### Archival preserves positions
+
+Archival **tombstones**; it does not delete. The payload moves to cold storage and the row stays, carrying
+its version, its position and an `ArchivedAt` stamp (`TombstoneArchivedEventsRequest.cs:71`). The tiered
+decorator restores archived payloads on read (`TieredEventStoreDecorator.cs:95`).
+
+This is what keeps the guarantee true for the whole lifecycle rather than only until the first archive run.
+Deleting the rows would leave archived events perfectly readable per-aggregate and **invisible to every
+global-stream consumer**, so a projection rebuild would silently produce an incomplete read model.
+
+`ArchivedAt` is also what separates an archived entry from an **erased** one. Both have no payload; an
+archived payload is retrievable and an erased payload is gone. Code that infers "archived" from "payload is
+missing" will resurrect data a data-subject request removed.
+
+## Evidence (conformance)
+
+| Property | Arm |
+|---|---|
+| An aborted append burns no position (SQL Server, real engine) | `SqlServerEventStoreGaplessPositionShould` |
+| Same on PostgreSQL, where sequence advancement is *documented* as non-transactional | `PostgresGlobalStreamPositionShould` |
+| Same on Oracle, plus positional parameter binding and the OUT-bind allocation | `OracleGlobalStreamPositionShould` |
+| Same on SQLite (embedded, so inherently non-skipped), plus counter seeding on a populated database | `SqliteGlobalStreamPositionShould` |
+| Every appended event carries a distinct ascending position; paging never repeats or skips | `InMemoryGlobalStreamQueryShould` |
+| Archived payloads are restored and erased ones are not | `TieredEventStoreDecoratorShould` |
+
+## Consumer obligations
+
+- **Run the shipped schema script.** It creates and seeds the position counter table. The store cannot
+  allocate a position without it, and fails loudly rather than inventing one.
+- **Do not reintroduce an identity column or a sequence** for the position, and do not add a second counter
+  row — the schema's `CHECK` constraint makes the latter unrepresentable on purpose.
+- **Do not DELETE rows from the events table.** Positions form a contiguous prefix because nothing removes
+  them; a retention job that deletes rows reintroduces exactly the hole this design removes.
+- **Expect appends to serialize, and size for it.** Concurrent appends contend on the counter row, which
+  is the intrinsic price of a single global total order over concurrent writers rather than an artifact
+  of this implementation — an identity column only appears to avoid the cost because it does not, in
+  fact, produce a total order.
+
+  Measured, rather than estimated, by `AppendAllocationStrategyBenchmarks`, which runs the same append
+  against tables differing ONLY in how the position is produced:
+
+  | concurrent writers | vs an identity column |
+  |---|---|
+  | 8 | **3.9x** slower (±0.4) |
+  | 32 | **4.9x** slower (±0.5) |
+
+  **The cost RISES with concurrency**, which is the shape a serialization bottleneck has: the counter
+  row's lock is held to COMMIT, so appends proceed one commit at a time while an identity column lets the
+  database group-commit them. In the same run the identity baseline absorbed 32 concurrent appends in
+  28 ms; this store took 138 ms.
+
+  Two things reduce it, and both are the same idea — **narrow the window the lock is held across**, since
+  work inside it is paid by every blocked appender rather than only by the one holding the lock:
+
+  - The allocation is issued **in the same command as the first insert** rather than as a round trip of
+    its own. Measured separately: 5.2x → 3.9x at 8 writers, 6.8x → 4.9x at 32.
+  - Outbox staging, which is one round trip per integration event, runs **before** the allocation rather
+    than after. Measured separately: an append emitting three integration events is **2x faster** under
+    concurrency (0.51x at 8 writers, 0.49x at 32).
+
+  A multi-event append also allocates its whole block in ONE counter update, so the allocation cost
+  amortizes across the batch rather than being paid per event.
+
+  **The single-writer figure is deliberately omitted.** It is dominated by per-append latency rather than
+  by contention, and it did not measure reproducibly here — across runs the uncontended ratio moved
+  between 0.9x and 1.3x with the baseline's own variance as large as the effect. Treat the uncontended
+  cost as "not distinguishable from an identity column on this hardware" and measure it on yours.
+
+  **Absolute figures are NOT quoted.** These came from a containerized SQL Server on a developer
+  workstation, where even the identity baseline took ~9 ms for a single append — that describes the
+  storage, not this design. Re-run the benchmark on representative hardware before planning capacity.
+
+  *(Superseded figures, recorded so a reader who met them elsewhere recognises them: this table once read
+  1.14x / 7.6x / 4.7x at 1 / 8 / 32 writers. Those were measured without truncating between arms, so the
+  comparison table had accumulated twice the rows of the baseline table — the benchmark was partly
+  measuring table growth. The old numbers also showed the cost FALLING from 8 to 32 writers, which is
+  backwards for a serialization bottleneck and was the tell.)*
+
+  A host needing more write throughput than one ordered stream can carry should shard, and accept that
+  there is then no cross-shard global order to read.
+
+## Known gaps
+
+- **Rungs R3 and R4 are UNVERIFIED for this seam.** The arms above are sampling-class: they execute the
+  code for chosen inputs. No property-based suite generates the input space and no model checks the
+  reachable state space. The blast radius is catastrophic, so the honest label is unverified rather than
+  covered — a green suite is not a discharged ladder.
+- **Oracle and SQLite do not implement archival.** They allocate positions the same way, but a host on
+  those providers has no tiered storage, so the archival half of this document does not apply.
+- **A subscriber checkpoint is durable only if one is registered.** The advance is a compare-and-set —
+  the caller states the position it believes is current and the store answers `Advanced` or `Superseded`,
+  so the loser of a race is told rather than silently overwriting the winner. SQL Server, PostgreSQL,
+  Oracle and SQLite each implement it, and each is bound by the shipped checkpoint conformance kit
+  against a real engine. **Registering an event store does not register a checkpoint store**: absent an
+  explicit registration the checkpoint is held in memory, so it is lost on restart and every projection
+  replays the stream from the beginning.
+- **Replaying an async projection from zero is NOT idempotent, so an in-memory checkpoint is a
+  correctness risk and not merely a cost — CLOSED on a store that records positions.** The async apply
+  path loads the persisted projection, applies the event to it, and writes it back. It used to write
+  back unconditionally, with the row carrying no last-applied position, so nothing could detect a second
+  application: an assignment-shaped handler survived it and an accumulating one (`Total++`, appending to
+  a list) silently double-counted on every restart, without bound. A store providing
+  `IPositionedProjectionStore<T>` now refuses that write. **A store that does not provide it still has
+  this gap**, and the framework gives a host **no way to require the capability at startup** — see the
+  positioned-write section below, which states what a host can actually do today.
+- **Two live readers of one subscription can still both apply the same events, though the common case is
+  closed.** Registering leader election makes at most one reader ACTIVE: the others stand by and take
+  over when leadership moves. What that does NOT do is fence the WRITE. A leader paused past its lease
+  and then resumed is a reachable state, and it will apply a batch before it discovers it no longer owns
+  the subscription — because the compare-and-set protects the checkpoint ROW, not the WORK, and a reader
+  applies a whole batch before contesting the mark. **Without leader election registered, a host assumes
+  it is the only instance; running two is the consumer's to prevent.** The sentence that used to end this
+  bullet — *"closing this completely requires the projection write itself to be conditional on a
+  last-applied position"* — is now DONE rather than pending: on a store providing
+  `IPositionedProjectionStore<T>` the second writer's write is refused by the store, so the double
+  application is inexpressible rather than merely unlikely. On a store without that capability the
+  original bullet still stands and handlers must be idempotent.
+- **A reader that loses the compare-and-set now stands by rather than exiting.** It adopts the winning
+  reader's mark, reports itself unhealthy, and keeps polling, so a later drain of the winner leaves a
+  reader able to take over. It used to return from its background service, which meant that after a
+  rolling deploy the surviving process could be the one that had stood down — no reader processing, and
+  the application still reporting healthy.
+
+---
+
+# Architecture — Position-Conditional Projection Writes
+
+## Guarantee
+
+For a projection identified by `x` with stored position `P(x)`:
+
+```
+state(x) = fold(apply, init, { e : pos(e) <= P(x) })
+```
+
+**The position is not a number the writer picks.** It asserts WHICH PREFIX of the global stream is
+folded into the stored state, and every committed write makes that statement true at the instant it
+commits.
+
+**Stated so it can be falsified.** Given a projection whose handler accumulates (`Total++`) and a batch
+of events already folded into it: re-delivering that batch leaves the stored state and the stored
+position unchanged. Given a batch that overlaps the folded prefix and extends past it, only the events
+above the stored position are folded, and the position advances to the highest one applied. Given two
+writers that both read at `P` and both compute a higher position, exactly one write commits.
+
+**What is NOT guaranteed.** A store that does not provide `IPositionedProjectionStore<T>` writes
+unconditionally and has none of the above; the apply path degrades to the previous behaviour and a
+re-delivered batch is folded twice. That degradation is **silent by design of the capability pattern** —
+the write succeeds and reports success, because a capability that is absent is simply not asked for.
+
+**CORRECTED: this paragraph used to say "a host that depends on the guarantee should require it at
+startup", and the framework gives you no way to do that.** There is no registration-time check, no
+options validator, and no exception; asking for the capability is the apply path's own internal decision
+and a host cannot observe it. Telling you to do something the surface does not support is worse than
+saying nothing, so here is what you can actually do:
+
+- **All eight stores the framework ships provide the capability**, so a host using a shipped store has
+  the guarantee. If that is you, no action.
+- **If you supply your own `IProjectionStore<T>`, implement `IPositionedProjectionStore<T>` as well**, or
+  accept that your projections are folded at-least-once and make your handlers assignment-shaped rather
+  than accumulating. An accumulating handler on a store without the capability double-counts on every
+  restart, without bound.
+- **If you DECORATE a shipped store, forward `GetService`.** The capability is discovered by asking the
+  store for it, so a decorator that does not forward the call hides a capability its inner store has —
+  and the degradation above is what you get, silently, from a decorator that looks harmless.
+
+A startup gate that lets a host say "refuse to start without this" is owed and is not yet built.
+
+## The two conjuncts, and why neither substitutes for the other
+
+A committed write requires BOTH:
+
+1. the stored position equals the position the caller read at — this orders concurrent writers;
+2. the new position is strictly greater than the stored one — this refuses a re-delivery.
+
+They are independent, and a store enforcing only one passes for the wrong reason:
+
+- **Monotonicity alone** (which is what an engine's "external version" mode provides) admits a writer
+  holding a stale read that happens to name a high position. Its state was folded without the events in
+  between, and they are lost while the position claims they are present.
+- **Compare-and-set alone** admits a re-delivery, because the caller obtained its expected value BY
+  READING IT, so a replayed batch satisfies the comparison by construction.
+
+This is measured rather than argued. Removing conjunct 2 from the SQL Server statement reddens exactly
+one conformance arm; removing conjunct 1 reddens three, including the exactly-once arm. The two
+mutations redden disjoint sets.
+
+## How it is achieved (the seam)
+
+- The contract: `Excalibur.EventSourcing.Abstractions/IPositionedProjectionStore.cs` — one read returning
+  state and position together, one write taking the position read at and the position being claimed, and
+  an outcome of `Applied`, `Superseded` or `Vanished`.
+- The protocol, in ONE place so four apply factories cannot each get it subtly wrong:
+  `Excalibur.EventSourcing/Projections/PositionedProjectionWriter.cs`.
+- The condition is expressed by the STORE, in a single atomic operation wherever the engine allows one:
+  a guarded `MERGE` on SQL Server, a CTE on PostgreSQL, a condition expression on DynamoDB, a filtered
+  replace on MongoDB, a transaction on Firestore. Cosmos, Elasticsearch and OpenSearch have no
+  single-statement form, so they read a version token and condition the write on it — the position
+  comparison decides admissibility, the token makes the write atomic against a concurrent writer.
+
+**A missing position withdraws the CONDITION, never the WRITE.** On the save path the events are being
+committed now and no global position exists yet, so the write is unconditional. Treating an absent
+position as a reason not to write discards the projection silently, which is why that branch lives in
+the shared writer rather than at each call site.
+
+**A row carrying no position at all is ADOPTED, not refused.** A projection written by a rebuild, a
+recovery, or a version of the store that did not record positions has none. Refusing it would refuse
+every later attempt identically — a silent permanent stall rather than a conflict — so a caller claiming
+no position may create a row or adopt an unpositioned one, and may not overwrite a positioned one.
+
+## Evidence (conformance)
+
+`PositionedProjectionStoreConformanceTestKit` (in the `Excalibur.Testing.Conformance` package) states the
+guarantee as fifteen arms, each of which a consumer can run against their own store. Arms of note:
+
+- `Refuse_a_position_that_does_not_advance` — the re-delivery arm; a monotonicity-only store is the only
+  kind that can fail it.
+- `Refuse_a_stale_expected_position` — the stale-read arm; this is the one an "external version" scheme
+  fails while looking correct.
+- `Admit_exactly_one_of_two_writers_racing_from_one_read` — the exactly-once property, stated directly.
+- `Adopt_a_row_that_carries_no_position` — the liveness arm that distinguishes a correct refusal from a
+  permanent stall.
+- `Read_the_state_and_its_position_as_one_observation` — **weaker than its name**, and the kit says so
+  in the arm itself. It establishes that a read returns one write's state paired with that same write's
+  position, not that the two are fetched atomically; detecting a non-atomic pair needs a writer
+  interleaved between the two fetches, which this contract cannot express against an arbitrary store.
+  The stores that fetch in two round trips (Cosmos, Elasticsearch, OpenSearch) are therefore
+  UNVERIFIED on atomicity specifically, and rely on their version token to make the subsequent WRITE
+  safe rather than the read.
+- `Still_persist_a_fold_that_carries_no_position` (in the apply-path suite) — the arm that catches a
+  store-aware apply path dropping the save path's work.
+
+Six more cover the RE-FOLD, the operation an erasure needs because it changes the fold beneath a fixed
+position. They are a distinct set because the advancing arms above are satisfied by a store that refuses
+every re-fold:
+
+- `Refold_the_state_at_the_position_the_row_already_holds` — the liveness arm for the set. A store that
+  forwards a re-fold to its advancing statement fails here and passes everything else.
+- `Refuse_a_refold_when_the_row_advanced_after_the_read` — proves that dropping monotonicity did not
+  drop the ordering conjunct. A store implementing the re-fold as an unconditional replace fails only
+  this one.
+- `Refuse_a_refold_at_a_position_the_row_does_not_hold` — stale on arrival, as against overtaken in
+  flight; a store comparing the wrong column passes one and fails the other.
+- `Report_requires_rebuild_for_a_row_with_no_established_position` — terminal, not retryable. Answering
+  "superseded" here would loop forever, because nothing about an unpositioned row changes on its own.
+- `Apply_the_same_refold_twice_without_changing_the_result` — what discharges the safety argument for an
+  operation that does not advance. Without it, "repeating a re-fold is harmless" is prose.
+- `Report_a_refold_against_an_absent_row_as_vanished_without_creating_it` — **the highest-value arm in
+  the set.** A store that creates here reinstates a subject's data after an erasure removed it, while
+  reporting success. That is a compliance failure and it is invisible from outside: the row is
+  well-formed and every value in it was written correctly.
+
+The kit's own completeness arm names any arm a derivation forgot, so a new provider cannot present the
+contract with one of these unwired.
+
+The kit is exercised against REAL infrastructure and is never skipped: SQL Server, PostgreSQL, MongoDB,
+DynamoDB, Cosmos DB, Firestore, Elasticsearch and OpenSearch each have a derivation that fails rather
+than skips when its container or emulator is unavailable. Running it is what found that four of those six providers could not execute
+their own conditional write at all — failures no mocked client can reproduce, because a mock returns
+what it was told and never refuses.
+
+## Rigor: which class of guarantee this seam actually carries
+
+A test and a proof are different classes of guarantee, and the evidence above is the sampling class.
+Stated per rung so nothing here reads as more than it is:
+
+- **R1 — met.** Compiler, nullable reference types, analyzers.
+- **R2 — met.** The guarantee above is stated in falsifiable terms, and the conformance arms RED-detect
+  its violation on six real engines.
+- **R3 — PARTIAL, and the seam's rung is still UNMET.** The fold invariant specifically now has a
+  generated-input suite (`PositionedProjectionInvariantShould`): it builds delivery schedules rather
+  than enumerating them — overlapping batches, exact re-deliveries, gaps, repeated batches — checks
+  `state = fold(apply, init, { e : pos(e) <= P })` against each, and on failure shrinks to the shortest
+  schedule that still breaks and prints its seed. It is non-vacuous: changing the already-folded
+  filter from `<=` to `<` reddens both arms and shrinks to a two-batch counterexample. **This covers
+  ONE guarantee of the seam, not the seam**, so the seam's R3 remains unmet and is not claimed.
+- **R4 — UNVERIFIED, and not dischargeable in this repository today.** There is no model checker and
+  no model. The properties that would justify one are temporal and concurrent — exactly TLA+'s
+  subject — and the interleavings that matter here are the ones a generated schedule samples rather
+  than searches. Nothing in this document should be read as a proof.
+
+**The boundary that applies to all of it:** the generated suite draws from the state space; it does not
+search it. A schedule shape the generator cannot produce is a defect it cannot find, and that limit is
+a property of the generator, not of the code under test.
+
+## Consumer obligations
+
+- **Handlers must remain idempotent on a store WITHOUT the capability.** The guarantee above is a
+  property of the store, not of the framework.
+- **The projection table must carry the position column.** On SQL Server and PostgreSQL that is
+  `LastAppliedPosition` / `last_applied_position`, `NOT NULL DEFAULT -1`. Both halves matter: `NOT NULL`
+  keeps a row from existing in a state the condition cannot compare against, and `-1` rather than `0`
+  because zero is a legitimate stream position, so a zero default would make a new row claim it had
+  already folded the first event. The document stores need no schema change.
+- **A projection written before the column existed is adopted on its next write**, and that first
+  adoption re-folds the batch it is given, which over-counts for an accumulating projection. **This is
+  not a one-time cost** — see the known gap below on the adoption cycle — and rebuilding rather than
+  adopting is not currently an available instruction, because no path in this framework rebuilds a
+  projection row the apply path reads.
+
+## Known gaps
+
+- **An unconditional write onto a positioned row starts a cycle that has no bound, and its most
+  reachable trigger is an erasure.** `IProjectionStore.UpsertAsync` replaces the state with something
+  that was not folded from any known prefix, so the store correctly stops claiming a position for it.
+  The next batch then finds an unpositioned row, ADOPTS it, folds itself onto whatever state is there,
+  and stamps a high position — so the row asserts a fold over everything up to that position while
+  holding only the tail.
+  **This is not a one-time cost.** The bound previously stated here — that an accumulating projection
+  double-counts once at adoption — assumed a row becomes positioned exactly once; any later
+  unconditional write returns it to unpositioned and the re-fold recurs. `UpsertAsync` is public
+  surface, so a seed script or an administrative fix-up produces the same state from outside the
+  framework.
+  **The framework no longer produces this state itself.** Recovering a fully erased aggregate used to
+  reach it — the replay yielded no position, so the write took the unconditional path on the key the
+  apply path uses. Recovery now re-folds at the position the row holds instead, so what remains is
+  reachable only from outside: an unconditional write by consumer or operator code.
+  **Refusing adoption is still not implemented**, which is why this is documented rather than closed.
+  Two of the three reasons previously given here no longer hold and are corrected rather than deleted:
+  the rebuild and the apply path now derive the projection id from one shared derivation, so they no
+  longer write disjoint key spaces, and recovery does preserve a position it can honestly keep. What
+  remains true is that recovery is single-aggregate and is driven by nothing in the framework, so there
+  is still no automatic path that rebuilds a projection row the apply path reads. Refusing adoption
+  needs the two unpositioned states told apart first — a row that was never positioned and holds a
+  complete fold, where adoption is correct, versus one whose position was destroyed, where it is not.
+  Refusing both would convert a silent miscount into a permanent stall.
+  **Consumer obligation until this closes:** treat `UpsertAsync` on a projection whose store records
+  positions as an administrative operation, not a routine one, and prefer replaying through the
+  recovery path for a specific aggregate over writing its projection directly.
+
+- **All eight providers now execute the conformance kit against real infrastructure.** SQL Server,
+  PostgreSQL, MongoDB, DynamoDB, Elasticsearch, OpenSearch, Cosmos DB and Firestore each run every arm
+  against a real server or emulator, never a mock, with availability asserted rather than skipped —
+  an arm that passes by being skipped is indistinguishable from one that passed by working, and the
+  property under test is an engine behaviour that cannot be simulated.
+
+  **Five of the eight needed a code fix to reach that state, and none of those defects was visible in a
+  reading of the C#.** Four could not execute their own conditional write at all. The fifth is the one
+  worth knowing about as a consumer, because it failed in the direction that looks like success: the
+  Cosmos read returned its state and its position from one expression whose first half MUTATED the
+  document node, stripping the framework metadata before the position was read from it. Every read
+  therefore reported no stored position. No stored position means adoptable, so every conditional write
+  silently degraded into an unconditional one — the store reported success while providing none of the
+  exclusion it advertised, and two writers racing from one read were both admitted. Nothing about that
+  is visible without executing it against the engine.
+- **The read-then-write providers can refuse spuriously.** On Cosmos, Elasticsearch and OpenSearch any
+  unrelated write moves the version token, so a caller can be told `Superseded` while the position is
+  unchanged. It re-reads and retries, which is correct; the cost is an extra round trip, not a wrong
+  answer.
+- **A deleted projection is RECREATED by the next write, and the paragraph that stood here said the
+  opposite.** The superseded text read: *"a write against a missing row reports `Vanished` and the row
+  is not recreated. A projection deleted for any other reason therefore stops being updated until it is
+  rebuilt."* **That is false, and false in the direction that reassures.**
+
+  `Vanished` is reachable only on the branch where the caller supplies a position it read. Once a row is
+  gone, every caller reads nothing, so every subsequent write carries no expected position and takes the
+  create-or-adopt branch instead. Enumerated across all eight stores, **seven cannot return `Vanished`
+  to a caller that read nothing** — the create-when-absent arm fires first and the write succeeds. Cosmos
+  DB is the lone exception, and only through one sub-path.
+
+  So the real outcome is neither of the two the old text offered, and it is worse than both: the row is
+  **recreated**, folded only from whatever tail the reader delivers next, and stamped with a position
+  asserting a full fold over everything up to it. That is precisely the state this seam exists to make
+  impossible — a row claiming a prefix it does not hold.
+
+  **What this means for you.** Deleting a projection row out of band is not a supported way to reset it.
+  Do not delete rows to force a rebuild, and do not treat a deleted row as a quiescent state; the next
+  batch will resurrect it with a position it has not earned. To reset a projection, replay it through
+  the recovery path for the aggregates concerned. For erasure specifically the exposure is narrower,
+  because erasure also tombstones the source events, so a resurrected row folds tombstones rather than
+  personal data — but the position it claims is still wrong.
+- **A permanently-losing writer redelivers forever rather than losing events, and that trade is
+  deliberate.** When a conditional write is refused AND the store is BEHIND the position the fold tried
+  to reach, the apply path raises rather than returning quietly: those events are in neither the
+  projection nor the stored position, so reporting success would let the reader advance its checkpoint
+  past them and lose them silently. The async host catches that, declines to advance, and the batch is
+  redelivered — which resolves on the next pass in every case we can construct, because the re-read
+  either finds the events already folded (and filters them out) or folds them successfully. If some
+  other writer were to hold the projection behind indefinitely, this becomes a redelivery loop rather
+  than progress. That is a livelock, and it is the failure we chose: it is loud — the fault is logged
+  and recorded against the projection's health on every pass — whereas the alternative is events
+  vanishing from a read model with nothing to indicate it.
+

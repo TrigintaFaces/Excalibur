@@ -285,6 +285,7 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task ConcurrentFirstUse_ShouldNotFault_Test() => ConcurrentFirstUse_ShouldNotFault();
 		public Task AppendAsync_EventTypeTheResolverDoesNotDeclare_ShouldThrowAndWriteNothing_Test() => AppendAsync_EventTypeTheResolverDoesNotDeclare_ShouldThrowAndWriteNothing();
 		public Task AppendAsync_AboveTheAtomicLimit_ShouldRefuseWholeOrAppendAtomically_Test() => AppendAsync_AboveTheAtomicLimit_ShouldRefuseWholeOrAppendAtomically();
+		public Task AppendAsync_LargerThanOneStatement_ShouldRemainContiguousAndOrdered_Test() => AppendAsync_LargerThanOneStatement_ShouldRemainContiguousAndOrdered();
 	}
 
 	private sealed class PartiallyWiredEventStoreProbe : EventStoreConformanceTestKit
@@ -319,6 +320,7 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task ConcurrentFirstUse_ShouldNotFault_Test() => ConcurrentFirstUse_ShouldNotFault();
 		public Task AppendAsync_EventTypeTheResolverDoesNotDeclare_ShouldThrowAndWriteNothing_Test() => AppendAsync_EventTypeTheResolverDoesNotDeclare_ShouldThrowAndWriteNothing();
 		public Task AppendAsync_AboveTheAtomicLimit_ShouldRefuseWholeOrAppendAtomically_Test() => AppendAsync_AboveTheAtomicLimit_ShouldRefuseWholeOrAppendAtomically();
+		public Task AppendAsync_LargerThanOneStatement_ShouldRemainContiguousAndOrdered_Test() => AppendAsync_LargerThanOneStatement_ShouldRemainContiguousAndOrdered();
 	}
 
 	private sealed class FullyWiredSagaStoreProbe : SagaStoreConformanceTestKit

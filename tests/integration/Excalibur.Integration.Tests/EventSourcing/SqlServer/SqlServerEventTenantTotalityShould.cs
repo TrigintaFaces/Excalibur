@@ -41,6 +41,11 @@ namespace Excalibur.Integration.Tests.EventSourcing.SqlServer;
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
 [Trait("Component", "EventStore")]
+	/// <remarks>
+	/// These rows are written DIRECTLY, bypassing the store, so they have to supply [Position]
+	/// themselves: it is no longer an identity column. The store allocates it from a counter row
+	/// inside the appending transaction, which is what keeps committed positions contiguous.
+	/// </remarks>
 public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContainerFixture fixture)
 	: IClassFixture<SqlServerEventStoreContainerFixture>
 {
@@ -68,8 +73,8 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 		await ExecuteAsync(
 			"""
 			INSERT INTO [dbo].[EventStoreEvents]
-				([EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp])
-			VALUES (N'e-1', N'agg-1', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET());
+				([Position], [EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp])
+			VALUES (7001, N'e-1', N'agg-1', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET());
 			""").ConfigureAwait(false);
 
 		var stored = await ScalarAsync<string>(
@@ -100,8 +105,8 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 		await ExecuteAsync(
 			"""
 			INSERT INTO [dbo].[EventStoreEvents]
-				([EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
-			VALUES (N'e-1', N'agg-1', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), N'acme');
+				([Position], [EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
+			VALUES (7002, N'e-1', N'agg-1', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), N'acme');
 			""").ConfigureAwait(false);
 
 		var stored = await ScalarAsync<string>(
@@ -126,8 +131,8 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 		var write = async () => await ExecuteAsync(
 			"""
 			INSERT INTO [dbo].[EventStoreEvents]
-				([EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
-			VALUES (N'e-null', N'agg-1', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), NULL);
+				([Position], [EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
+			VALUES (7003, N'e-null', N'agg-1', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), NULL);
 			""").ConfigureAwait(false);
 
 		_ = await write.ShouldThrowAsync<SqlException>(
@@ -165,10 +170,10 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 		await ExecuteAsync(
 			"""
 			INSERT INTO [dbo].[EventStoreEvents]
-				([EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
+				([Position], [EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
 			VALUES
-				(N'legacy', N'agg-legacy', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), NULL),
-				(N'tenanted', N'agg-tenanted', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), N'acme');
+				(7101, N'legacy', N'agg-legacy', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), NULL),
+				(7102, N'tenanted', N'agg-tenanted', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), N'acme');
 			""").ConfigureAwait(false);
 
 		await RunShippedMigrationAsync().ConfigureAwait(false);
@@ -218,8 +223,8 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 		await ExecuteAsync(
 			"""
 			INSERT INTO [dbo].[EventStoreEvents]
-				([EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
-			VALUES (N'legacy', N'agg-legacy', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), NULL);
+				([Position], [EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
+			VALUES (7004, N'legacy', N'agg-legacy', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), NULL);
 			""").ConfigureAwait(false);
 
 		await RunShippedMigrationAsync().ConfigureAwait(false);
@@ -248,6 +253,13 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 			"""
 			IF OBJECT_ID(N'[dbo].[EventStoreEvents]', 'U') IS NOT NULL
 				DROP TABLE [dbo].[EventStoreEvents];
+
+			-- The position counter goes with it. The shipped script creates it unguarded (it is a
+			-- fresh-install script), so leaving it behind makes the next CREATE fail with "there is
+			-- already an object named EventStoreEventsPosition" and every arm in this class errors in
+			-- setup rather than in the thing it tests.
+			IF OBJECT_ID(N'[dbo].[EventStoreEventsPosition]', 'U') IS NOT NULL
+				DROP TABLE [dbo].[EventStoreEventsPosition];
 			""").ConfigureAwait(false);
 
 		await ShippedEventStoreSchema.EnsureCreatedAsync(_connectionString, CancellationToken.None)

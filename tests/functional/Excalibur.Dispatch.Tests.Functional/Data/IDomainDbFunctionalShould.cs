@@ -45,10 +45,11 @@ public sealed class IDomainDbFunctionalShould : IAsyncLifetime
 
 	public async ValueTask InitializeAsync()
 	{
-		if (!_fixture.DockerAvailable)
-		{
-			return;
-		}
+		// EnsureAvailable() rather than an early return. Returning here left setup undone and
+		// deferred the failure to whichever arm touched the uninitialised field first, which
+		// reports the symptom rather than the cause. The fixture's message carries the RECORDED
+		// container failure.
+		_fixture.EnsureAvailable();
 
 		// Create a unique test table for each test class instance
 		_testTableName = $"Orders_{Guid.NewGuid():N}";

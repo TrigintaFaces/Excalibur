@@ -38,6 +38,7 @@ internal static class SqliteTableInitializer
 
 	private const string EventsRole = "events";
 	private const string SnapshotsRole = "snapshots";
+	private const string CheckpointsRole = "checkpoints";
 
 	// The reserved key for rows that belong to no tenant, read from its single canonical declaration.
 	// Deliberately NOT a const: a const is inlined at compile time, which would reintroduce a second
@@ -66,6 +67,12 @@ internal static class SqliteTableInitializer
 
 			await connection.ExecuteAsync(
 				new CommandDefinition(EventsTableDdl(table, ifNotExists: true), cancellationToken: cancellationToken))
+				.ConfigureAwait(false);
+
+			// The counter the store allocates positions from. Created alongside the events table because a
+			// store that has one without the other cannot append at all.
+			await connection.ExecuteAsync(
+				new CommandDefinition(PositionTableDdl(table), cancellationToken: cancellationToken))
 				.ConfigureAwait(false);
 
 			// An existing table is NOT touched by CREATE TABLE IF NOT EXISTS, so a database created by an
@@ -123,6 +130,67 @@ internal static class SqliteTableInitializer
 		}
 	}
 
+	/// <summary>
+	/// Creates the subscription checkpoint table on first use.
+	/// </summary>
+	/// <remarks>
+	/// Every other store in this package creates its own table on first use, and a checkpoint store that
+	/// did not would be the one SQLite store a consumer had to provision by hand -- failing with "no such
+	/// table" on a path where every sibling simply works. There is no reconcile stage: the table has one
+	/// shape and has never had another.
+	/// </remarks>
+	internal static async Task EnsureCheckpointsTableAsync(
+		SqliteConnection connection,
+		string table,
+		CancellationToken cancellationToken)
+	{
+		var key = BuildKey(connection, table, CheckpointsRole);
+		if (Initialized.ContainsKey(key))
+		{
+			return;
+		}
+
+		await InitLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			if (Initialized.ContainsKey(key))
+			{
+				return;
+			}
+
+			await connection.ExecuteAsync(
+				new CommandDefinition(CheckpointsTableDdl(table), cancellationToken: cancellationToken))
+				.ConfigureAwait(false);
+
+			Initialized[key] = true;
+		}
+		finally
+		{
+			InitLock.Release();
+		}
+	}
+
+	/// <summary>
+	/// The current subscription checkpoint schema. Mirrors
+	/// <c>Scripts/003_CreateSubscriptionCheckpointSchema.sql</c> -- the two are required to stay identical.
+	/// </summary>
+	/// <remarks>
+	/// BINARY collation is load-bearing, not cosmetic: the advance is a compare-and-set keyed on the
+	/// subscription name, and under a case-insensitive collation two subscriptions differing only in case
+	/// would share one checkpoint and each would skip whatever the other had consumed.
+	/// </remarks>
+	internal static string CheckpointsTableDdl(string table) =>
+		$"""
+		CREATE TABLE IF NOT EXISTS [{table}] (
+			SubscriptionName TEXT NOT NULL COLLATE BINARY,
+			-- The last position PROCESSED, never the next to fetch. Global-stream reads are exclusive of
+			-- the cursor, so the two conventions must not be mixed.
+			Position         INTEGER NOT NULL,
+			UpdatedAt        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (SubscriptionName)
+		);
+		""";
+
 	// Distinguishes physical tables AND logical roles: the same table name in two different database
 	// files (or two distinctly-named in-memory DBs) yields two distinct keys, so each is created; and
 	// the same table name used for both events and snapshots yields two distinct keys (different role),
@@ -140,10 +208,37 @@ internal static class SqliteTableInitializer
 	/// new databases get. Mirrors <c>Scripts/001_CreateEventStoreSchema.sql</c> -- the two are required to
 	/// stay identical (see that file's header).
 	/// </summary>
+	/// <summary>
+	/// The position counter that orders this store's global stream.
+	/// </summary>
+	/// <remarks>
+	/// Named after the events table it orders, so two event stores in one database get one counter each
+	/// rather than silently sharing a position space. The CHECK makes a second counter row
+	/// unrepresentable rather than merely discouraged: two counters would reintroduce gaps.
+	/// </remarks>
+	internal static string PositionTableDdl(string table) =>
+		$"""
+		CREATE TABLE IF NOT EXISTS [{table}_Position] (
+			Id INTEGER PRIMARY KEY CHECK (Id = 1),
+			Value INTEGER NOT NULL
+		);
+		-- Seeded from the table's own high-water mark, not from 0. GlobalPosition is the rowid and is
+		-- the PRIMARY KEY, so a counter seeded at 0 against a database that already holds events would
+		-- allocate a position that already exists and every append would fail on the key.
+		INSERT OR IGNORE INTO [{table}_Position] (Id, Value)
+		SELECT 1, COALESCE((SELECT MAX(GlobalPosition) FROM [{table}]), 0);
+		""";
+
 	private static string EventsTableDdl(string table, bool ifNotExists) =>
 		$"""
 		CREATE TABLE {(ifNotExists ? "IF NOT EXISTS " : string.Empty)}[{table}] (
-			GlobalPosition INTEGER PRIMARY KEY AUTOINCREMENT,
+			-- Deliberately NOT AUTOINCREMENT. The store assigns this value from the position counter
+			-- table inside the appending transaction so that an aborted append burns no position and the
+			-- committed stream is always a contiguous prefix. SQLite serializes writers, so it cannot
+			-- commit two appends out of position order the way a server engine can -- but an aborted
+			-- append would still leave a hole, and a subscriber cannot tell a hole it must wait for from
+			-- one it must skip. Allocating here removes the distinction rather than documenting it.
+			GlobalPosition INTEGER PRIMARY KEY,
 			EventId TEXT NOT NULL,
 			AggregateId TEXT NOT NULL,
 			AggregateType TEXT NOT NULL,
@@ -215,15 +310,18 @@ internal static class SqliteTableInitializer
 	/// material difference is <c>GlobalPosition</c>: unlike the snapshots table's surrogate <c>Id</c>
 	/// (never read by any query this store issues), <c>GlobalPosition</c> is the global stream order
 	/// returned to callers via <c>AppendResult.FirstEventPosition</c> and compared across processes. A
-	/// rebuild MUST preserve the exact value for every existing row, and MUST leave SQLite's own
-	/// AUTOINCREMENT high-water mark (<c>sqlite_sequence</c>) at least as high as the largest value
-	/// carried over, or a value freed by the rebuild could be reused by a later append -- precisely the
-	/// hazard the events schema's AUTOINCREMENT choice exists to prevent (see
-	/// <c>Scripts/001_CreateEventStoreSchema.sql</c>). <see cref="RebuildEventsTableWithTenantAsync"/>
-	/// copies <c>GlobalPosition</c> explicitly rather than letting the staging table assign fresh values,
-	/// which is sufficient: an explicit INSERT of a rowid into an AUTOINCREMENT table advances
-	/// <c>sqlite_sequence</c> to that value like any other insert, and SQLite carries the
-	/// <c>sqlite_sequence</c> row over automatically when the table itself is renamed.
+	/// rebuild MUST preserve the exact value for every existing row.
+	/// <see cref="RebuildEventsTableWithTenantAsync"/> copies <c>GlobalPosition</c> explicitly rather than
+	/// letting the staging table assign fresh values, which is what preserves them.
+	/// </para>
+	/// <para>
+	/// This used to also require leaving SQLite's AUTOINCREMENT high-water mark (<c>sqlite_sequence</c>)
+	/// above the largest carried-over value, because a freed rowid could otherwise be reused by a later
+	/// append. That hazard is gone: the store no longer lets SQLite assign <c>GlobalPosition</c> at all.
+	/// It allocates the value from the <c>{table}_Position</c> counter row inside the appending
+	/// transaction, and that counter is seeded from the table's own <c>MAX(GlobalPosition)</c>, so a
+	/// rebuilt table resumes above every value it carried over rather than depending on a side effect of
+	/// the rowid allocator.
 	/// </para>
 	/// <para>
 	/// NO TENANT COLUMN - the table predates tenant-aware event storage. The column cannot be added in

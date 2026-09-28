@@ -6,6 +6,36 @@ using Excalibur.Dispatch;
 namespace Excalibur.EventSourcing.Projections;
 
 /// <summary>
+/// One event as the projection apply path needs to see it: the event itself, the aggregate it came
+/// from, and where it sits in the global stream.
+/// </summary>
+/// <param name="Domain">The deserialized domain event.</param>
+/// <param name="AggregateId">The aggregate this event was appended to.</param>
+/// <param name="GlobalPosition">
+/// Its position in the global stream, or <see langword="null"/> on the save path, where the event is
+/// being committed and no global position has been assigned yet.
+/// </param>
+/// <remarks>
+/// <para>
+/// <b>Why the aggregate id travels PER EVENT rather than once per call.</b> It used to arrive on the
+/// notification context, which forced the caller to dispatch one call per aggregate. That is correct
+/// for a projection keyed by aggregate and WRONG for one keyed by anything else: a keyed projection
+/// maps events from many aggregates onto one projection id, so it was written once per aggregate group,
+/// and group order is not stream order. The same id could therefore be written at position 7 and then
+/// at position 6, in one batch, with no concurrency involved.
+/// </para>
+/// <para>
+/// Carrying the id on the event lets the whole batch be applied in ONE call, in global order, with each
+/// projection id loaded once, folded once and written once.
+/// </para>
+/// </remarks>
+internal readonly record struct ProjectionEvent(
+	IDomainEvent Domain,
+	string AggregateId,
+	long? GlobalPosition);
+
+
+/// <summary>
 /// Represents a registered projection with its mode, event handler dispatch table,
 /// and a pre-bound delegate for AOT-safe inline processing.
 /// </summary>
@@ -16,7 +46,7 @@ internal sealed class ProjectionRegistration
 	/// Captured at registration time when the generic type is known.
 	/// </summary>
 	internal delegate Task InlineApplyDelegate(
-		IReadOnlyList<IDomainEvent> events,
+		IReadOnlyList<ProjectionEvent> events,
 		EventNotificationContext context,
 		IServiceProvider serviceProvider,
 		CancellationToken cancellationToken);

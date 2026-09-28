@@ -366,7 +366,7 @@ public sealed class OrderSaga(
 			or OrderShippedEvent
 			or OrderFailedEvent;
 
-	public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+	public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 	{
 		switch (eventMessage)
 		{
@@ -396,7 +396,7 @@ public sealed class OrderSaga(
 				break;
 		}
 
-		return Task.CompletedTask;
+		return Task.FromResult(SagaEventOutcome.Handled);
 	}
 }
 

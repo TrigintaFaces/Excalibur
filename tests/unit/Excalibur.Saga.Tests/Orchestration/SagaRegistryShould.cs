@@ -170,7 +170,7 @@ public sealed class SagaRegistryShould : UnitTestBase
 		: SagaBase<CapTestSagaState>(initialState, dispatcher, logger)
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	private sealed class TestRegistrySaga(
@@ -180,7 +180,7 @@ public sealed class SagaRegistryShould : UnitTestBase
 		: SagaBase<TestRegistrySagaState>(initialState, dispatcher, logger)
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	private sealed class TestRegistrySaga2(
@@ -190,7 +190,7 @@ public sealed class SagaRegistryShould : UnitTestBase
 		: SagaBase<TestRegistrySagaState2>(initialState, dispatcher, logger)
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	private sealed class TestRegistrySaga3(
@@ -200,7 +200,7 @@ public sealed class SagaRegistryShould : UnitTestBase
 		: SagaBase<TestRegistrySagaState3>(initialState, dispatcher, logger)
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	private sealed class UnregisteredSaga(
@@ -210,7 +210,7 @@ public sealed class SagaRegistryShould : UnitTestBase
 		: SagaBase<TestRegistrySagaState>(initialState, dispatcher, logger)
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	private sealed class TestRegistryStartEvent : ISagaEvent

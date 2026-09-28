@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Data;
+
 using Dapper;
 
 using Excalibur.Dispatch;
@@ -80,11 +82,20 @@ public sealed class EventSourcingSqlServerRequestParameterBindingShould
 	/// </summary>
 	private static readonly Dictionary<string, Func<CommandDefinition>> Builders = new(StringComparer.Ordinal)
 	{
-		["DeleteEventsUpToVersion"] = () => new DeleteEventsUpToVersionRequest(KeyedTenantPartition.Scoped("tenant-1"), AggregateId, AggregateType, 5, Ct).Command,
+		// The transaction is REQUIRED by this request rather than optional: the counter row's lock is what
+		// orders concurrent appends, so an allocation outside the append's transaction would release the
+		// lock before the events commit and silently restore the gap it exists to prevent. The request
+		// also emits the event rows in the same command as the allocation, so the counter's lock is not
+		// held across a round trip.
+		["AllocateAndInsertEvents"] = () => new AllocateAndInsertEventsRequest(
+			[Row()], 1, A.Fake<IDbTransaction>(), TenantScope.Untenanted, Ct).Command,
+		["TombstoneArchivedEvents"] = () => new TombstoneArchivedEventsRequest(KeyedTenantPartition.Scoped("tenant-1"), AggregateId, AggregateType, 5, Ct).Command,
 		["DeleteSnapshots"] = () => new DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.Untenanted, Ct).Command,
 		["DeleteSnapshotsOlderThan"] = () => new DeleteSnapshotsOlderThanRequest(AggregateId, AggregateType, 5, TenantScope.Untenanted, Ct).Command,
 		["EraseEvents"] = () => new EraseEventsRequest(AggregateId, AggregateType, Guid.NewGuid(), TenantScope.Untenanted, Ct).Command,
 		["GetArchiveCandidates"] = () => new GetArchiveCandidatesRequest(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) }, 100, DateTimeOffset.UtcNow, Ct).Command,
+		["GetCommittedAppendOutcome"] = () => new GetCommittedAppendOutcomeRequest(
+			["evt-1", "evt-2"], TenantScope.Scoped("tenant-1"), Ct).Command,
 		["GetCurrentVersion"] = () => new GetCurrentVersionRequest(AggregateId, AggregateType, null, TenantScope.Scoped("tenant-1"), Ct).Command,
 		["GetLatestSnapshot"] = () => new GetLatestSnapshotRequest(AggregateId, AggregateType, TenantScope.Untenanted, Ct).Command,
 		["InsertEventsBatch"] = () => new InsertEventsBatchRequest([Row()], null, TenantScope.Untenanted, Ct).Command,

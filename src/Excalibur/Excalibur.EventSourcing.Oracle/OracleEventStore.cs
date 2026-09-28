@@ -48,6 +48,13 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly string _schema;
 	private readonly string _table;
+
+	/// <summary>
+	/// The position counter table that orders this store's global stream. Named after the events table so
+	/// that two event stores sharing a schema each get their own counter rather than silently sharing one
+	/// position space, which would interleave two unrelated streams.
+	/// </summary>
+	private readonly string _positionTable;
 	private readonly ITenantContext _tenantContext;
 
 	// Cached rather than rebuilt per call: JsonSerializerOptions is expensive to construct, and the
@@ -117,6 +124,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		_hasEventTypeInfoResolver = Excalibur.Dispatch.EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, eventTypeInfoResolver);
 		_schema = schema;
 		_table = table;
+		_positionTable = table + "POSITION";
 		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
@@ -334,11 +342,24 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
+			// Stage outbox messages on the SAME connection + SAME transaction, BEFORE the append.
+			//
+			// Staging is one round trip PER integration event, and the append allocates the global
+			// position from the counter row whose exclusive lock is then held until COMMIT. Staging after
+			// the append put every one of those round trips inside the window in which all other appends
+			// are blocked on that row. The ordering is a throughput property, not a correctness one.
+			//
+			// Legal only because the callback receives the transaction and nothing else -- it cannot
+			// observe the position or version, which are assigned inside InsertEventsAsync below. A
+			// callback that needed either would force this back inside the lock.
+			//
+			// Atomicity is unchanged, and nothing is staged when the append is rejected because the
+			// version-conflict branch above returns before reaching this line.
+			await stageOutbox(transaction, cancellationToken).ConfigureAwait(false);
+
 			var (version, firstPosition) = await InsertEventsAsync(
 					connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 				.ConfigureAwait(false);
-
-			await stageOutbox(transaction, cancellationToken).ConfigureAwait(false);
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -608,38 +629,34 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 				@event.OccurredAt));
 		}
 
-		// Positions are matched to events by version (not by row order) because the follow-up SELECT is
-		// independent of INSERT ALL row order. A null sentinel means no row matched the first version —
-		// a real invariant breach.
-		var firstVersion = currentVersion + 1;
-		long? firstPosition = null;
+		// Reserve this append's block of global positions. Deliberately the LAST thing done before the
+		// rows are written: this takes the counter row's lock, which blocks every other appender until this
+		// transaction commits. Everything above (serialization, metadata) runs outside that window on
+		// purpose -- correctness does not depend on the window being short, but the store's sustained
+		// append throughput is exactly one append per commit through it.
+		var firstPosition = await connection.ResolveAsync(
+				new AllocateGlobalPositionsRequest(rows.Count, transaction, cancellationToken, _schema, _positionTable))
+			.ConfigureAwait(false);
+
+		// The block is contiguous and ordered by version, so position i belongs to the i-th event. There is
+		// nothing to match up afterwards: the previous implementation had to correlate the RETURNING output
+		// array back to input rows by index because an identity column chose the numbers.
+		for (var i = 0; i < rows.Count; i++)
+		{
+			rows[i] = rows[i] with { Position = firstPosition + i };
+		}
 
 		for (var offset = 0; offset < rows.Count; offset += InsertEventsBatchRequest.MaxEventsPerStatement)
 		{
 			var count = Math.Min(InsertEventsBatchRequest.MaxEventsPerStatement, rows.Count - offset);
 			var chunk = rows.GetRange(offset, count);
 
-			var inserted = await connection.ResolveAsync(
+			_ = await connection.ResolveAsync(
 					new InsertEventsBatchRequest(chunk, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
-
-			foreach (var row in inserted)
-			{
-				if (row.Version == firstVersion)
-				{
-					firstPosition = row.Position;
-				}
-			}
 		}
 
-		if (firstPosition is null)
-		{
-			throw new InvalidOperationException(
-				$"Event store append inserted {rows.Count} event(s) but no position was read back for the " +
-				$"first event (version {firstVersion}); the append cannot report a valid first position.");
-		}
-
-		return (version, firstPosition.Value);
+		return (version, firstPosition);
 	}
 
 	private static void RecordAppendTelemetry(string result, TimeSpan elapsed)

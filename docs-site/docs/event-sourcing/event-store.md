@@ -99,9 +99,9 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 
 ```sql
 CREATE TABLE [events].[Events] (
-    -- Assigned by the database and read back via OUTPUT INSERTED.Position.
-    -- Must be IDENTITY: the insert never supplies a value for it.
-    [Position] BIGINT IDENTITY(1,1) NOT NULL,
+    -- Assigned by the STORE, not the database: allocated from the [events].[EventsPosition] counter
+    -- row inside the appending transaction. See that table below for why.
+    [Position] BIGINT NOT NULL,
     [EventId] NVARCHAR(256) NOT NULL,
     [AggregateId] NVARCHAR(256) NOT NULL,
     [AggregateType] NVARCHAR(256) NOT NULL,
@@ -112,6 +112,8 @@ CREATE TABLE [events].[Events] (
     [EventData] VARBINARY(MAX) NULL,
     [Metadata] VARBINARY(MAX) NULL,
     [Timestamp] DATETIMEOFFSET NOT NULL,
+    -- Set when the payload has been moved to cold storage; the row and its position stay.
+    [ArchivedAt] DATETIMEOFFSET NULL,
     -- NOT NULL, and part of the stream key below. Every write binds a tenant term: a
     -- single-tenant (unscoped) host stores the reserved '__untenanted__' sentinel here rather
     -- than omitting the column, so there is exactly one way to say "this event has no tenant"
@@ -132,6 +134,56 @@ CREATE TABLE [events].[Events] (
     CONSTRAINT [UQ_Events_Aggregate_Version]
         UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
 );
+
+-- The global position counter. The store allocates each append's position by UPDATEing this row
+-- inside the appending transaction: the row lock is released only at COMMIT and the increment rolls
+-- back with the transaction, so an aborted append burns no position. The committed positions are
+-- therefore always a contiguous prefix, which is what lets a subscriber treat the highest position
+-- it has seen as a high-water mark. An IDENTITY cannot provide that -- it hands its number out
+-- before COMMIT, so a rollback leaves a permanent hole and two concurrent appends can commit in the
+-- opposite order to their positions.
+CREATE TABLE [events].[EventsPosition] (
+    -- Singleton by construction: a second counter row would reintroduce gaps.
+    [Id]    TINYINT NOT NULL CONSTRAINT [PK_EventsPosition] PRIMARY KEY,
+    [Value] BIGINT  NOT NULL,
+    CONSTRAINT [CK_EventsPosition_Singleton] CHECK ([Id] = 1)
+);
+GO
+
+-- Seeded from the table's own high-water mark rather than 0: Position is the PRIMARY KEY, so a
+-- counter seeded at 0 against a table that already holds events would reissue existing values.
+INSERT INTO [events].[EventsPosition] ([Id], [Value])
+SELECT 1, ISNULL((SELECT MAX([Position]) FROM [events].[Events]), 0);
+GO
+
+
+:::caution What gapless ordering costs you
+
+The counter row buys a contiguous position sequence, and it is not free: it serialises appends. Every
+writer takes the same row lock and holds it until COMMIT, so concurrent appends queue behind one
+another. Measured on SQL Server against a table differing only in how the position is produced:
+
+| Concurrent writers | Events per append | IDENTITY | Counter row (what ships) |
+|---:|---:|---:|---:|
+| 8 | 1 | 8.91 ms | 44.16 ms — **4.96x** |
+| 8 | 5 | 10.97 ms | 48.59 ms — **4.44x** |
+| 32 | 1 | 26.74 ms | 280.28 ms — **10.52x** |
+| 32 | 5 | 43.91 ms | 236.20 ms — **6.08x** |
+
+**The cost rises with concurrency**, which is the shape a serialisation bottleneck has rather than a
+fixed per-append overhead. It also falls as you batch: five events per append costs little more than
+one, so an aggregate that emits several events per command amortises most of it.
+
+**Why you may want to pay it.** Without a contiguous sequence, a subscriber cannot treat the highest
+position it has seen as a high-water mark — a hole that fills in after the subscriber has passed it is
+an event that is never read again, silently and permanently. Competing implementations generally
+tolerate gaps and then ship a timeout that assumes a long-unfilled gap is dead, which is a data-loss
+setting with a reassuring name. This design removes the need for that setting.
+
+These figures are a shape, not a spec: they come from one machine and are dominated by its storage
+latency. Measure your own if the number matters to your capacity plan.
+
+:::
 
 CREATE INDEX [IX_Events_Aggregate] ON [events].[Events] ([AggregateId], [AggregateType], [Version]);
 CREATE INDEX [IX_Events_EventType] ON [events].[Events] ([EventType], [Timestamp]);

@@ -346,17 +346,19 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-			var handlerContext = new ProjectionHandlerContext(
-				context.AggregateId,
-				context.AggregateType,
-				context.CommittedVersion,
-				context.Timestamp);
+			var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
+
+			// The handler context is built PER EVENT inside the loop below, not once here: a batch can
+			// span aggregates, so there is no single aggregate id that describes the whole call.
 
 			// Multi-ID: lazily loaded projection instances keyed by projection ID (D1)
 			var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
+			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
+			var folded = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
 
-			foreach (var @event in events)
+			foreach (var projectionEvent in events)
 			{
+				var @event = projectionEvent.Domain;
 				var entry = projection.GetHandler(@event.GetType());
 				if (entry is null)
 				{
@@ -365,28 +367,71 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 				var handlerEntry = entry.Value;
 
-				// Derive projection ID: KeyedBy selector if registered, else aggregate ID
-				var keySelector = projection.GetKeySelector(@event.GetType());
-				var projectionId = keySelector is not null ? keySelector(@event) : context.AggregateId;
+				// ONE key derivation, shared with the synchronous path, recovery and rebuild. It used to
+				// be written out here and three more times, and the copies did not agree.
+				var projectionId = projection.DeriveProjectionId(projectionEvent);
 
-				if (string.IsNullOrEmpty(projectionId))
+				// Read BEFORE filtering, and that order is the whole point. The filter compares this
+				// event's position against the position the projection was READ at, so the read has to
+				// have happened first. Filtering first leaves the map empty for the FIRST event of every
+				// projection id, which then escapes the filter and is folded a second time -- and that
+				// is not a rare interleaving, it happens on every restart, because the subscription
+				// checkpoint and the projection's own position advance independently.
+				//
+				// Loading here cannot create a ghost projection: an event with no handler already
+				// continued above, so every event reaching this line is one this projection handles.
+				_ = await GetOrLoadAsync(projections, readPositions, store, positioned, projectionId, cancellationToken)
+					.ConfigureAwait(false);
+
+				// Has THIS id already folded this event? Without the answer a redelivered batch
+				// recomputes the same state, the store refuses it as non-advancing, and the reader
+				// stalls on the overlap forever.
+				//
+				// IT DISCARDS THE FOLD. IT DOES NOT SKIP THE DELIVERY, and that distinction is the
+				// whole of the second defect here. This used to `continue`, which is correct for the
+				// primary id and silently wrong for an OVERRIDE id: an event can be owed to two ids
+				// holding different stored positions, and skipping the delivery outright means the
+				// override never learns the event existed. A later event in the same batch then
+				// advances the override past it and nothing re-reads it -- permanent omission, no
+				// upper bound, no signal. The override id is outside this predicate's domain
+				// entirely, so the predicate was answering the wrong question.
+				var primaryAlreadyFolded =
+					positioned is not null
+					&& readPositions.TryGetValue(projectionId, out var alreadyAt)
+					&& alreadyAt is { } storedAt
+					&& projectionEvent.GlobalPosition is { } eventPos
+					&& eventPos <= storedAt;
+
+				// A SYNCHRONOUS handler cannot set an override: the override id is read off the
+				// ProjectionHandlerContext, and neither synchronous shape is handed one. So for a
+				// synchronous handler there is nothing left to discover and the skip stays a skip --
+				// it costs nothing and reaches nothing. The delivery below is only ever paid on the
+				// asynchronous path, which is the only path that can route an event to a second id.
+				if (primaryAlreadyFolded && handlerEntry.AsyncHandler is null)
 				{
-					throw new InvalidOperationException(
-						$"KeyedBy selector for event type {@event.GetType().Name} returned a null or empty projection ID.");
+					continue;
 				}
 
-				// Reset OverrideProjectionId per event
-				handlerContext.OverrideProjectionId = null;
+				// Built PER EVENT: the aggregate identity describes the event being applied, and a batch
+				// spanning aggregates has no single answer for it. Constructing it here also removes the
+				// need to reset OverrideProjectionId, which a reused instance carried between events.
+				var handlerContext = new ProjectionHandlerContext(
+					projectionEvent.AggregateId,
+					context.AggregateType,
+					context.CommittedVersion,
+					context.Timestamp,
+					context.IsReplay);
 
 				if (handlerEntry.SyncAction is not null)
 				{
-					var state = await GetOrLoadAsync(projections, store, projectionId, cancellationToken)
+					var state = await GetOrLoadAsync(projections, readPositions, store, positioned, projectionId, cancellationToken)
 						.ConfigureAwait(false);
 					handlerEntry.SyncAction(state, @event);
+					RecordFold(folded, projectionId, projectionEvent);
 				}
 				else if (handlerEntry.SyncContextAction is not null)
 				{
-					var state = await GetOrLoadAsync(projections, store, projectionId, cancellationToken)
+					var state = await GetOrLoadAsync(projections, readPositions, store, positioned, projectionId, cancellationToken)
 						.ConfigureAwait(false);
 					// Carries the aggregate identity, which the event itself does not have -- the stored
 					// envelope is authoritative for it. Without this a context handler cannot stamp the
@@ -395,24 +440,84 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 					handlerEntry.SyncContextAction(
 						state,
 						@event,
-						new ProjectionContext(isReplay: false, globalPosition: null, context.AggregateId));
+						new ProjectionContext(context.IsReplay, projectionEvent.GlobalPosition, projectionEvent.AggregateId));
+					RecordFold(folded, projectionId, projectionEvent);
 				}
 				else if (handlerEntry.AsyncHandler is not null)
 				{
-					var state = await GetOrLoadAsync(projections, store, projectionId, cancellationToken)
-						.ConfigureAwait(false);
+					// A THROWAWAY instance when the primary has already folded this event. The handler
+					// has to RUN for the override id to be discovered -- there is no way to learn it
+					// without running it -- and it must not run against the primary's real state, which
+					// already contains this event. The throwaway absorbs the fold and is dropped; the
+					// primary is neither mutated nor recorded.
+					//
+					// The cost, stated rather than left to be found: on the overlap window only, an
+					// asynchronous handler is invoked once more than it would have been. That window is
+					// redelivery, not the steady state, and an asynchronous override handler is already
+					// invoked twice per event (once per target). A handler whose side effects live
+					// outside the projection must be idempotent, which is what IsReplay and the
+					// at-least-once delivery contract already require of it.
+					var state = primaryAlreadyFolded
+						? new TProjection()
+						: await GetOrLoadAsync(projections, readPositions, store, positioned, projectionId, cancellationToken)
+							.ConfigureAwait(false);
+
 					await handlerEntry.AsyncHandler(state, @event, handlerContext, serviceProvider, cancellationToken)
 						.ConfigureAwait(false);
+
+					if (!primaryAlreadyFolded)
+					{
+						RecordFold(folded, projectionId, projectionEvent);
+					}
 
 					// OverrideProjectionId escape hatch: if handler set a DIFFERENT key, re-invoke there
 					if (handlerContext.OverrideProjectionId is not null
 						&& !string.Equals(handlerContext.OverrideProjectionId, projectionId, StringComparison.Ordinal))
 					{
 						var customId = handlerContext.OverrideProjectionId;
-						var customState = await GetOrLoadAsync(projections, store, customId, cancellationToken)
+						var customState = await GetOrLoadAsync(projections, readPositions, store, positioned, customId, cancellationToken)
 							.ConfigureAwait(false);
-						await handlerEntry.AsyncHandler(customState, @event, handlerContext, serviceProvider, cancellationToken)
-							.ConfigureAwait(false);
+
+						// THE ALREADY-FOLDED CHECK BELONGS HERE, BEFORE THE HANDLER RUNS -- not before the
+						// `folded` append further down. The filter at the top of this loop is evaluated against
+						// `projectionId`, but a fold can target TWO ids, and the override id is outside that
+						// filter's domain entirely. It answers "has the PRIMARY already folded this event?" when
+						// the load-bearing question for THIS write is "has the TARGET of this fold already
+						// folded it?"
+						//
+						// Gating only the append would look correct and would not be. The handler MUTATES
+						// customState, so a second fold of an already-folded event corrupts the cached state
+						// whether or not this event is recorded in `folded`; the corruption is then persisted the
+						// moment any LATER event legitimately advances customId -- under a position that is
+						// itself truthful. That moves the symptom from "wrong state at this position" to "wrong
+						// state at a later one", which is harder to attribute and no less wrong.
+						//
+						// Reachable on an ordinary overlapping batch, which is normal on restart: C stored at
+						// 100, batch carries 95 and 105 both routed to C. Without this gate 95 is folded twice,
+						// HighestPosition is 105 > 100 and expectedPosition is 100 = stored, so BOTH conjuncts of
+						// the conditional write are satisfied and the store admits it. The position is truthful
+						// and the state is not -- the conditional write has no opinion on double-folding.
+						//
+						// `eventPos` from the primary filter is NOT in scope here: it is declared by that
+						// pattern match inside its own `if`. This needs its own match on GlobalPosition.
+						var overrideAlreadyFolded =
+							positioned is not null
+							&& readPositions.TryGetValue(customId, out var customAt)
+							&& customAt is { } customStoredAt
+							&& projectionEvent.GlobalPosition is { } customEventPos
+							&& customEventPos <= customStoredAt;
+
+						if (!overrideAlreadyFolded)
+						{
+							await handlerEntry.AsyncHandler(customState, @event, handlerContext, serviceProvider, cancellationToken)
+								.ConfigureAwait(false);
+
+							// The overridden id folded this event too, and the write loop keys off `folded`
+							// to decide what to persist and at which position. Without this the overridden
+							// projection is loaded, mutated, and then skipped -- the same silent drop as the
+							// save path, reached by a different route.
+							RecordFold(folded, customId, projectionEvent);
+						}
 					}
 				}
 			}
@@ -429,22 +534,76 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			// Upsert all projection instances that were loaded/modified (D1)
 			foreach (var (id, state) in projections)
 			{
-				await store.UpsertAsync(id, state, cancellationToken)
+				// Nothing folded into this id means nothing to record: writing here would advance its
+				// position past events this call never applied.
+				//
+				// An EMPTY fold is not the same as an UNPOSITIONED one. This skip is for the first case;
+				// the second -- the save path, where events are being committed now and carry no global
+				// position yet -- still has to be written, and the writer does it unconditionally. An
+				// earlier shape conflated them and silently discarded every inline projection.
+				if (!folded.TryGetValue(id, out var applied) || applied.Count == 0)
+				{
+					continue;
+				}
+
+				_ = await PositionedProjectionWriter<TProjection>.WriteAsync(
+						store,
+						positioned,
+						id,
+						state,
+						readPositions.TryGetValue(id, out var readAt) ? readAt : null,
+						PositionedProjectionWriter<TProjection>.HighestPosition(applied),
+						cancellationToken)
 					.ConfigureAwait(false);
 			}
 		};
 
+		// Records that a projection id folded this event. The write loop keys off this map to decide
+		// what to persist and at which position, so an id that folded an event and did not record it is
+		// loaded, mutated and then silently dropped.
+		static void RecordFold(
+			Dictionary<string, List<ProjectionEvent>> folded,
+			string projectionId,
+			ProjectionEvent projectionEvent)
+		{
+			if (!folded.TryGetValue(projectionId, out var foldedHere))
+			{
+				foldedHere = [];
+				folded[projectionId] = foldedHere;
+			}
+
+			foldedHere.Add(projectionEvent);
+		}
+
+		// Loads through the POSITIONED capability when the store has one, so the state and the position
+		// it was read at arrive as a single observation. Reading them separately would let a writer
+		// interleave, after which the expected position certifies a prefix the state does not contain
+		// and the conditional write accepts -- losing every event in the gap.
 		static async Task<TProjection> GetOrLoadAsync(
 			Dictionary<string, TProjection> cache,
+			Dictionary<string, long?> readPositions,
 			IProjectionStore<TProjection> store,
+			IPositionedProjectionStore<TProjection>? positioned,
 			string id,
 			CancellationToken cancellationToken)
 		{
 			if (!cache.TryGetValue(id, out var state))
 			{
-				state = await store.GetByIdAsync(id, cancellationToken)
-					.ConfigureAwait(false) ?? new TProjection();
+				long? readAt = null;
+				if (positioned is not null)
+				{
+					(state, var readAtPos) = await positioned.GetWithPositionAsync(id, cancellationToken)
+						.ConfigureAwait(false);
+					readAt = readAtPos.ExpectedPositionOrNull;
+				}
+				else
+				{
+					state = await store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+				}
+
+				state ??= new TProjection();
 				cache[id] = state;
+				readPositions[id] = readAt;
 			}
 
 			return state;
@@ -468,17 +627,21 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			return async (events, context, serviceProvider, cancellationToken) =>
 			{
 				var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-				var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
+				var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
 
-				foreach (var @event in events)
+				var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
+				var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
+				var folded = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
+
+				foreach (var projectionEvent in events)
 				{
+					var @event = projectionEvent.Domain;
 					if (projection.GetHandler(@event.GetType()) is null)
 					{
 						continue;
 					}
 
-					var keySelector = projection.GetKeySelector(@event.GetType());
-					var id = keySelector is not null ? keySelector(@event) : context.AggregateId;
+					var id = projection.DeriveProjectionId(projectionEvent);
 
 					if (string.IsNullOrEmpty(id))
 					{
@@ -488,17 +651,46 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 					if (!projections.TryGetValue(id, out var state))
 					{
-						state = await store.GetByIdAsync(id, cancellationToken)
-							.ConfigureAwait(false) ?? new TProjection();
+						// State and position read TOGETHER when the store records one: reading them
+						// separately lets a writer interleave, after which the position the caller holds
+						// certifies a prefix its state does not contain and the conditional write accepts.
+						long? readAt = null;
+						if (positioned is not null)
+						{
+							(state, var readAtPos) = await positioned.GetWithPositionAsync(id, cancellationToken)
+								.ConfigureAwait(false);
+							readAt = readAtPos.ExpectedPositionOrNull;
+						}
+						else
+						{
+							state = await store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+						}
+
+						state ??= new TProjection();
 						projections[id] = state;
+						readPositions[id] = readAt;
+						folded[id] = [];
 					}
+
+					// Skip what this projection has already folded in. Without it a redelivered batch
+					// recomputes the same state, the store refuses it as non-advancing, and the reader
+					// stalls on the overlap.
+					if (positioned is not null
+						&& readPositions[id] is { } storedAt
+						&& projectionEvent.GlobalPosition is { } eventPos
+						&& eventPos <= storedAt)
+					{
+						continue;
+					}
+
+					folded[id].Add(projectionEvent);
 
 					// context.AggregateId, NOT id: with a KeyedBy selector registered, `id` is the
 					// projection key (a category, tenant, date...) and is deliberately not the aggregate.
 					projection.Apply(
 						state,
 						@event,
-						new ProjectionContext(isReplay: false, globalPosition: null, context.AggregateId));
+						new ProjectionContext(context.IsReplay, projectionEvent.GlobalPosition, projectionEvent.AggregateId));
 				}
 
 				// Compute search text once per projection instance (after all events applied)
@@ -512,48 +704,127 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 				foreach (var (id, state) in projections)
 				{
-					await store.UpsertAsync(id, state, cancellationToken)
+					// Nothing folded means nothing to record: writing would advance the position past
+					// events this call never applied. An UNPOSITIONED fold is a different case and is
+					// still written -- unconditionally, by the writer.
+					if (folded[id].Count == 0)
+					{
+						continue;
+					}
+
+					_ = await PositionedProjectionWriter<TProjection>.WriteAsync(
+							store,
+							positioned,
+							id,
+							state,
+							readPositions[id],
+							PositionedProjectionWriter<TProjection>.HighestPosition(folded[id]),
+							cancellationToken)
 						.ConfigureAwait(false);
 				}
 			};
 		}
 
-		// Fast path: no key selectors, single projection by aggregate ID.
-		// Lazy-load pattern: defer the store round-trip until the first relevant
-		// event is found, then apply remaining events and upsert once.
-		// This avoids ghost projections from unrelated aggregate events where
-		// Apply() no-ops but the upsert would still fire with default state.
+		// No key selectors: the projection id IS the aggregate id.
+		//
+		// Keyed PER AGGREGATE rather than once per call, deliberately. A batch can span aggregates, and
+		// folding a single state for the whole call would merge unrelated aggregates into one projection
+		// the moment the caller stops dispatching one aggregate at a time. Keying here makes the apply
+		// path independent of how the caller batches, which is what lets the batch be delivered in
+		// stream order instead of grouped.
+		//
+		// Lazy-load is preserved per id: the store is not touched for an aggregate until an event
+		// actually matches a handler, so unrelated events cannot create a ghost projection.
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-			TProjection? state = null;
+			var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
 
-			foreach (var @event in events)
+			var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
+			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
+			var applied = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
+
+			foreach (var projectionEvent in events)
 			{
+				var @event = projectionEvent.Domain;
 				if (projection.GetHandler(@event.GetType()) is null)
 				{
 					continue;
 				}
 
-				// Lazy-load: only hit the store when we know at least one handler matches
-				state ??= await store.GetByIdAsync(context.AggregateId, cancellationToken)
-					.ConfigureAwait(false) ?? new TProjection();
+				// The shared derivation, which on this path resolves to the aggregate id -- no key
+				// selector is registered, or the caller would be on the keyed path above. Routed through
+				// it anyway so an empty aggregate id is refused here exactly as it is everywhere else,
+				// rather than silently writing a row under the empty key.
+				var id = projection.DeriveProjectionId(projectionEvent);
+				if (!projections.TryGetValue(id, out var state))
+				{
+					// When the store records positions, the state and the position are read TOGETHER.
+					// Reading them separately lets a writer interleave, after which the position the
+					// caller holds certifies a prefix its state does not contain -- and the conditional
+					// write then ACCEPTS, losing every event in between.
+					long? readAt = null;
+					if (positioned is not null)
+					{
+						(state, var readAtPos) = await positioned.GetWithPositionAsync(id, cancellationToken)
+							.ConfigureAwait(false);
+						readAt = readAtPos.ExpectedPositionOrNull;
+					}
+					else
+					{
+						state = await store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+					}
+
+					state ??= new TProjection();
+					projections[id] = state;
+					readPositions[id] = readAt;
+					applied[id] = [];
+				}
+
+				// Skip what is already folded in. Without this a redelivered batch recomputes the same
+				// state, the store refuses it as non-advancing, and the reader never progresses.
+				if (positioned is not null
+					&& readPositions[id] is { } stored
+					&& projectionEvent.GlobalPosition is { } pos
+					&& pos <= stored)
+				{
+					continue;
+				}
 
 				projection.Apply(
 					state,
 					@event,
-					new ProjectionContext(isReplay: false, globalPosition: null, context.AggregateId));
+					new ProjectionContext(context.IsReplay, projectionEvent.GlobalPosition, id));
+
+				applied[id].Add(projectionEvent);
 			}
 
-			if (state is not null)
+			if (searchTextComputer is not null && searchTextSetter is not null)
 			{
-				// Compute search text once after all events applied
-				if (searchTextComputer is not null && searchTextSetter is not null)
+				foreach (var (_, state) in projections)
 				{
 					searchTextSetter(state, searchTextComputer(state));
 				}
+			}
 
-				await store.UpsertAsync(context.AggregateId, state, cancellationToken)
+			foreach (var (id, state) in projections)
+			{
+				// Nothing folded means nothing to record: writing here would advance the position past
+				// events this call never applied. An UNPOSITIONED fold is a different case and is still
+				// written -- unconditionally, by the writer.
+				if (applied[id].Count == 0)
+				{
+					continue;
+				}
+
+				_ = await PositionedProjectionWriter<TProjection>.WriteAsync(
+						store,
+						positioned,
+						id,
+						state,
+						readPositions[id],
+						PositionedProjectionWriter<TProjection>.HighestPosition(applied[id]),
+						cancellationToken)
 					.ConfigureAwait(false);
 			}
 		};

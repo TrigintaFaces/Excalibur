@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Dispatch.Middleware.Auth;
+using Excalibur.Dispatch.Middleware.Logging;
+using Excalibur.Dispatch.Middleware.Outbox;
+using Excalibur.Dispatch.Middleware.Timeout;
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Configuration;
@@ -45,20 +49,37 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 [Trait("Component", "Configuration")]
 public sealed class ScopedMiddlewareIsNotCapturedBySingletonPipelineShould
 {
+	/// <summary>
+	/// The scoped middleware AddDispatch registers compose under scope validation rather than being
+	/// skipped as unresolvable.
+	/// </summary>
+	/// <remarks>
+	/// <b>Named explicitly rather than taken from the default profile, and that is the point of the
+	/// change.</b> This arm used to select <c>DefaultPipelineProfiles.Default</c>, which at the time
+	/// declared these four. The default profile now declares NOTHING deliberately -- a consumer who
+	/// configures nothing runs no middleware -- so selecting it here would give an empty pipeline and
+	/// make the liveness assertion below unsatisfiable for a reason that has nothing to do with captive
+	/// dependencies. Naming the middleware directly keeps this arm pointed at the property it is
+	/// actually about, and stops it re-breaking whenever the default profile's membership is revisited.
+	/// </remarks>
 	[Fact]
-	public async Task ComposeTheDefaultProfile_WhenScopeValidationIsOn()
+	public async Task ComposeScopedMiddleware_WhenScopeValidationIsOn()
 	{
 		var handler = new ProbeCommandHandler();
 		var provider = BuildProvider(
 			handler,
 			validateScopes: true,
 			static dispatch => dispatch.ConfigurePipeline(
-				"Default",
-				static pipeline => pipeline.UseProfile(DefaultPipelineProfiles.Default)));
+				"ScopedProbe",
+				static pipeline => pipeline
+					.Use<TenantIdentityMiddleware>()
+					.Use<TimeoutMiddleware>()
+					.Use<MetricsLoggingMiddleware>()
+					.Use<OutboxStagingMiddleware>()));
 
-		// Liveness: the four default-profile middleware must actually be in the composed pipeline.
-		// Pre-fix this is false -- each one fails to resolve from the root under scope validation and
-		// is skipped as Optional, leaving an empty pipeline behind a host that starts cleanly.
+		// Liveness: the four scoped middleware must actually be in the composed pipeline. Pre-fix this
+		// is false -- each one fails to resolve from the root under scope validation and is skipped as
+		// Optional, leaving an empty pipeline behind a host that starts cleanly.
 		var invoker = (DispatchMiddlewareInvoker)provider.GetRequiredService<IDispatchMiddlewareInvoker>();
 		invoker.HasMiddleware.ShouldBeTrue();
 

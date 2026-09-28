@@ -204,7 +204,7 @@ public sealed class AotDualPathDispatchShould : IDisposable
 
 	// -- Test Fixtures --
 
-	internal sealed class TestOrderSagaState : SagaState
+	internal sealed class TestOrderSagaState : ProcessManagerState
 	{
 		public string OrderId { get; set; } = string.Empty;
 	}
@@ -250,7 +250,7 @@ public sealed class AotDualPathDispatchShould : IDisposable
 	{
 		public override bool HandlesEvent(object eventMessage) => eventMessage is TestOrderCreated;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	internal sealed class TestPaymentSaga(
@@ -261,6 +261,6 @@ public sealed class AotDualPathDispatchShould : IDisposable
 	{
 		public override bool HandlesEvent(object eventMessage) => eventMessage is TestOrderCreated;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 }

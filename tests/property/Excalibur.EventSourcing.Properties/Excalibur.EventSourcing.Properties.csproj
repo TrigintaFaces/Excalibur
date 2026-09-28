@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    R3 PROPERTY SUITES for the event-sourcing seam.
+
+    WHY THIS IS ITS OWN PROJECT rather than more files in Excalibur.EventSourcing.Tests. The rigor
+    ladder resolves an R3 artifact at tests/property/**/*Properties.cs and refuses an R3 claim whose
+    artifact does not resolve there (eng/ci/rigor-ladder-gate.sh). That directory did not exist, so a
+    generated-input suite written anywhere else could never discharge the rung it was written for —
+    which is what happened to the first one, landed under tests/unit/ and invisible to the apparatus
+    meant to count it.
+
+    The separation also earns its keep on its own terms: a property suite is a DIFFERENT CLASS of
+    evidence from an example-based test. It draws from the input space rather than enumerating it, and
+    keeping the two in one project makes the distinction a naming convention instead of a structural
+    one. Here they are countable.
+
+    WHAT THIS IS NOT. Property tests are still SAMPLING. They do not search the state space; they draw
+    from it. R3 sits below R4 for exactly that reason, and nothing in this project should be described
+    as a proof.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.EventSourcing.Properties</RootNamespace>
+    <AssemblyName>Excalibur.EventSourcing.Properties</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework comes from Directory.Build.props, as in every other test project. -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

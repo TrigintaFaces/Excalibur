@@ -35,7 +35,8 @@ namespace Excalibur.EventSourcing.Postgres;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed partial class PostgresProjectionStore<TProjection> : IProjectionStore<TProjection>
+public sealed partial class PostgresProjectionStore<TProjection> : IProjectionStore<TProjection>,
+	IPositionedProjectionStore<TProjection>
 	where TProjection : class
 {
 	private readonly NpgsqlDataSource _dataSource;
@@ -162,6 +163,24 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 
 		// Tenant scoping rides the upsert atomically: the tenant discriminator is stamped on INSERT and is
+		// THE POSITION IS INVALIDATED, NOT PRESERVED, AND THAT IS THE WHOLE POINT OF THE -1.
+		//
+		// An unconditional write replaces the state with something this store cannot place in the event
+		// stream: it was not folded from any known prefix. Leaving the old position behind would leave
+		// the row asserting "everything up to P is folded into me" about a state that no longer contains
+		// it, and the next position-conditional write would then FILTER OUT events as already-applied
+		// that are not applied at all. Those events are lost from the projection permanently, and
+		// nothing downstream can detect it.
+		//
+		// Resetting to the sentinel says the honest thing: nobody knows what prefix this state
+		// represents. The next positioned write adopts the row and re-folds the batch it is given, which
+		// over-counts for an accumulating projection and RECURS -- every later unconditional write
+		// returns the row to unpositioned, so this is not a one-time cost. What invalidation buys is
+		// that the row becomes self-describing as "prefix unknown"; preserving the stale position
+		// destroys the only evidence that anything is wrong. The document stores reach the same end state by omitting the
+		// field from a whole-document replacement; this makes the relational stores agree rather than
+		// differ silently.
+		//
 		// part of the ON CONFLICT target, so a tenant-A upsert can never conflict with (and overwrite) a
 		// tenant-B row that shares the same id — they are distinct (id, tenant_id) rows. Tenant-facing write —
 		// fails closed: a null/blank ambient tenant is rejected up front. (Requires a composite UNIQUE
@@ -170,11 +189,22 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		var insertTenantValue = ", @TenantId";
 		var conflictTarget = "(id, tenant_id)";
 
+		// The UPDATE arm records WHY this row has no position. `-1` alone cannot say: the column default
+		// also means `-1`, and that means "never positioned", where adoption is correct. This arm means
+		// "a position was destroyed", where adoption is wrong -- it folds a batch onto a state whose
+		// prefix nobody knows.
+		//
+		// BOTH arms write it, and that is the simplification. This method cannot know whether the state
+		// it was handed is a fold over any prefix, so it records that it does not know -- identically
+		// whether the row is created or replaced. Discriminating create from update would only be needed
+		// in order to GUESS, and four of the document providers cannot do it atomically at all. A caller
+		// that does hold a complete fold says so through UpsertUnnumberedAsync instead.
 		var sql = $"""
-		           INSERT INTO "{_tableName}" (id, data, created_at, updated_at{insertTenantColumn})
-		           VALUES (@Id, @Data::jsonb, @UpdatedAt, @UpdatedAt{insertTenantValue})
+		           INSERT INTO "{_tableName}" (id, data, created_at, updated_at, last_applied_position{insertTenantColumn})
+		           VALUES (@Id, @Data::jsonb, @UpdatedAt, @UpdatedAt, @Unplaceable{insertTenantValue})
 		           ON CONFLICT {conflictTarget}
-		           DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
+		           DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at,
+		                         last_applied_position = EXCLUDED.last_applied_position
 		           """;
 
 		var json = JsonSerializer.Serialize(projection, _jsonOptions);
@@ -184,6 +214,7 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		parameters.Add("@Id", id);
 		parameters.Add("@Data", json);
 		parameters.Add("@UpdatedAt", now);
+		parameters.Add("@Unplaceable", ProjectionPosition.Unplaceable.ToStored());
 		parameters.Add("@TenantId", tenantId);
 
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -465,4 +496,75 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 
 		return "LIMIT @Take OFFSET @Skip";
 	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Delegated so the conditional SQL lives in one place: the statement carries a concurrency
+	/// contract, and a second copy of it is a second chance to get it wrong.
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
+		string id,
+		CancellationToken cancellationToken)
+	{
+		// Materialized HERE, through the same canonical read-model options every other read on this
+		// store uses. The positioned helper owns the conditional SQL and nothing about the wire shape.
+		var (data, position) = await Positioned()
+			.GetWithPositionAsync(id, RequireTenant(), cancellationToken)
+			.ConfigureAwait(false);
+
+		return (data is null ? null : JsonSerializer.Deserialize<TProjection>(data, _jsonOptions), position);
+	}
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task UpsertUnnumberedAsync(
+		string id,
+		TProjection projection,
+		CancellationToken cancellationToken) =>
+		Positioned().UpsertUnnumberedAsync(
+			id, JsonSerializer.Serialize(projection, _jsonOptions), RequireTenant(), cancellationToken);
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
+		string id,
+		TProjection projection,
+		long? expectedPosition,
+		long newPosition,
+		CancellationToken cancellationToken) =>
+		Positioned().UpsertAtPositionAsync(
+			id,
+			JsonSerializer.Serialize(projection, _jsonOptions),
+			expectedPosition,
+			newPosition,
+			RequireTenant(),
+			cancellationToken);
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<ProjectionRefoldResult> RefoldAtPositionAsync(
+		string id,
+		TProjection projection,
+		long atPosition,
+		CancellationToken cancellationToken) =>
+		Positioned().RefoldAtPositionAsync(
+			id,
+			JsonSerializer.Serialize(projection, _jsonOptions),
+			atPosition,
+			RequireTenant(),
+			cancellationToken);
+
+	private PostgresPositionedProjectionStore<TProjection> Positioned() =>
+		new(_dataSource.CreateConnection, _tableName);
+
+	/// <summary>
+	/// The tenant term every statement in this store is partitioned by, resolved exactly as the
+	/// unconditional paths resolve it so a conditional write cannot read one tenant and write another.
+	/// </summary>
+	private string RequireTenant() => TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 }

@@ -63,9 +63,11 @@ public sealed class DynamoDbSagaStoreLegacyKeyRefusalShould
 	[Fact]
 	public async Task Refuse_a_table_holding_an_item_written_without_a_tenant_segment()
 	{
-		_fixture.IsInitialized.ShouldBeTrue(
-			"LocalStack DynamoDB must be available - this arm exists to prove a real table is refused, so it "
-			+ "is never skipped");
+		// EnsureAvailable() rather than asserting the flag: the FIXTURE owns the availability
+		// policy, which is hard failure, and its message carries the RECORDED startup error.
+		// Asserting a bool here produced a true-but-useless "expected True" with the actual
+		// container failure discarded.
+		_fixture.EnsureAvailable();
 
 		await ProvisionTableAsync().ConfigureAwait(false);
 
@@ -120,9 +122,11 @@ public sealed class DynamoDbSagaStoreLegacyKeyRefusalShould
 	[Fact]
 	public async Task Serve_a_table_whose_items_all_carry_a_tenant_segment()
 	{
-		_fixture.IsInitialized.ShouldBeTrue(
-			"LocalStack DynamoDB must be available - a correctly-keyed table must remain fully usable, so "
-			+ "this arm is never skipped");
+		// EnsureAvailable() rather than asserting the flag: the FIXTURE owns the availability
+		// policy, which is hard failure, and its message carries the RECORDED startup error.
+		// Asserting a bool here produced a true-but-useless "expected True" with the actual
+		// container failure discarded.
+		_fixture.EnsureAvailable();
 
 		// Written through the store, so the seeded item carries exactly the partition key this release
 		// composes rather than one the test invented. This is also the empty-table case: a brand-new

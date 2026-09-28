@@ -132,7 +132,7 @@ public sealed class SagaRegistryConcurrencyShould : UnitTestBase
 		: SagaBase<ConcurrencyTestSagaState>(initialState, dispatcher, logger)
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	private sealed class ConcurrencyTestStartEvent : ISagaEvent
@@ -150,7 +150,7 @@ public sealed class SagaRegistryConcurrencyShould : UnitTestBase
 		: SagaBase<ConcurrencyReadTestSagaState>(initialState, dispatcher, logger)
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	private sealed class ConcurrencyReadTestStartEvent : ISagaEvent

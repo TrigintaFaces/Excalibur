@@ -234,7 +234,7 @@ public sealed class ProjectionBuilderShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert
 		var projected = store.Get("order-1");
@@ -384,7 +384,7 @@ public sealed class ProjectionBuilderShould
 		var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- stored under key-resolved ID, not aggregate ID
 		store.Get("order-42").ShouldNotBeNull();
@@ -582,7 +582,7 @@ public sealed class ProjectionBuilderShould
 		};
 		var context = new EventNotificationContext("order-ghost", "Order", 2, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(unrelatedEvents, context, services, CancellationToken.None);
+		await registration.InlineApply!(unrelatedEvents.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- no ghost projection created in the store
 		store.Get("order-ghost").ShouldBeNull();
@@ -613,7 +613,7 @@ public sealed class ProjectionBuilderShould
 		};
 		var context = new EventNotificationContext("order-mix", "Order", 3, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- projection created with only the matched event applied
 		var projected = store.Get("order-mix");
@@ -652,7 +652,7 @@ public sealed class ProjectionBuilderShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- existing Total preserved, new fields updated
 		var projected = store.Get("order-1");
@@ -837,7 +837,7 @@ public sealed class ProjectionBuilderShould
 		var context = new EventNotificationContext("order-ctx", "Order", 1, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- inline apply passes Live context for sync context handlers
 		capturedContext.ShouldNotBeNull();

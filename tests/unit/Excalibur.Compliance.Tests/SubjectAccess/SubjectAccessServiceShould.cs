@@ -50,25 +50,6 @@ public sealed class SubjectAccessServiceShould
         result.Deadline.ShouldNotBeNull();
     }
 
-    [Fact]
-    public async Task Auto_fulfill_when_option_is_enabled()
-    {
-        var options = new SubjectAccessOptions { AutoFulfill = true };
-        var sut = new SubjectAccessService(
-            Microsoft.Extensions.Options.Options.Create(options),
-            NullLogger<SubjectAccessService>.Instance);
-
-        var request = new SubjectAccessRequest
-        {
-            SubjectId = "user-1",
-            RequestType = SubjectAccessRequestType.Access
-        };
-
-        var result = await sut.CreateRequestAsync(request, CancellationToken.None);
-
-        result.Status.ShouldBe(SubjectAccessRequestStatus.Fulfilled);
-        result.FulfilledAt.ShouldNotBeNull();
-    }
 
     [Fact]
     public async Task Get_request_status()

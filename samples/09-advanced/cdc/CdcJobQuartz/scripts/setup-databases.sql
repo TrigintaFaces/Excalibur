@@ -161,7 +161,7 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEvents')
 BEGIN
     CREATE TABLE [dbo].[EventStoreEvents]
     (
-        [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
+        [Position]       BIGINT                NOT NULL,
         [EventId]        NVARCHAR(255)         NOT NULL,
         [AggregateId]    NVARCHAR(255)         NOT NULL,
         [AggregateType]  NVARCHAR(255)         NOT NULL,
@@ -173,6 +173,8 @@ BEGIN
         [Metadata]       VARBINARY(MAX)        NULL,
         [Version]        BIGINT                NOT NULL,
         [Timestamp]      DATETIMEOFFSET        NOT NULL,
+        -- Set when the payload has been moved to cold storage; the row and its position stay.
+        [ArchivedAt]      DATETIMEOFFSET NULL,
         [TenantId]       NVARCHAR(64) COLLATE Latin1_General_BIN2         NOT NULL
             CONSTRAINT [DF_EventStoreEvents_TenantId] DEFAULT '__untenanted__',
 
@@ -184,6 +186,24 @@ BEGIN
     CREATE INDEX [IX_EventStoreEvents_EventType] ON [dbo].[EventStoreEvents]([EventType]);
 
     PRINT 'Created table: dbo.EventStoreEvents';
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEventsPosition')
+BEGIN
+    -- The global position counter. Its row lock is released only at COMMIT and its increment rolls
+    -- back with the transaction, so the committed positions are always a contiguous prefix and a
+    -- subscriber may treat the highest position it has seen as a high-water mark.
+    CREATE TABLE [dbo].[EventStoreEventsPosition] (
+        [Id]    TINYINT NOT NULL CONSTRAINT [PK_EventStoreEventsPosition] PRIMARY KEY,
+        [Value] BIGINT  NOT NULL,
+        CONSTRAINT [CK_EventStoreEventsPosition_Singleton] CHECK ([Id] = 1)
+    );
+
+    -- Seeded from the table's own high-water mark: Position is the PRIMARY KEY, so a counter seeded
+    -- at 0 against a table that already holds events would reissue existing values.
+    INSERT INTO [dbo].[EventStoreEventsPosition] ([Id], [Value])
+    SELECT 1, ISNULL((SELECT MAX([Position]) FROM [dbo].[EventStoreEvents]), 0);
 END
 GO
 

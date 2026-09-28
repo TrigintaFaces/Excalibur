@@ -288,7 +288,7 @@ public sealed class SagaInfoShould : UnitTestBase
 		: SagaBase<TestInfoSagaState>(initialState, dispatcher, logger)
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	private sealed class TestInfoStartEvent : ISagaEvent

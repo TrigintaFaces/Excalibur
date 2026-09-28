@@ -22,7 +22,7 @@
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEvents')
 BEGIN
     CREATE TABLE [dbo].[EventStoreEvents] (
-        [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
+        [Position]       BIGINT                NOT NULL,   -- allocated by the store, see EventStoreEventsPosition
         [EventId]        NVARCHAR(255)         NOT NULL,
         [AggregateId]    NVARCHAR(255)         NOT NULL,
         [AggregateType]  NVARCHAR(255)         NOT NULL,
@@ -34,6 +34,8 @@ BEGIN
         [Metadata]       VARBINARY(MAX)        NULL,
         [Version]        BIGINT                NOT NULL,
         [Timestamp]      DATETIMEOFFSET        NOT NULL,
+        -- Set when the payload has been moved to cold storage; the row and its position stay.
+        [ArchivedAt]      DATETIMEOFFSET NULL,
         -- Tenant discriminator: a component of the stream uniqueness key, so two tenants holding the same
         -- aggregate identifier occupy separate rows instead of colliding. NOT NULL and no default — the store
         -- writes a concrete term on every insert (the resolved tenant, or the '__untenanted__' sentinel when
@@ -57,6 +59,24 @@ BEGIN
     PRINT 'Created dbo.EventStoreEvents table'
 END
 GO
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEventsPosition')
+BEGIN
+    -- The global position counter. Its row lock is released only at COMMIT and its increment rolls
+    -- back with the transaction, so the committed positions are always a contiguous prefix and a
+    -- subscriber may treat the highest position it has seen as a high-water mark.
+    CREATE TABLE [dbo].[EventStoreEventsPosition] (
+        [Id]    TINYINT NOT NULL CONSTRAINT [PK_EventStoreEventsPosition] PRIMARY KEY,
+        [Value] BIGINT  NOT NULL,
+        CONSTRAINT [CK_EventStoreEventsPosition_Singleton] CHECK ([Id] = 1)
+    );
+
+    -- Seeded from the table's own high-water mark: Position is the PRIMARY KEY, so a counter seeded
+    -- at 0 against a table that already holds events would reissue existing values.
+    INSERT INTO [dbo].[EventStoreEventsPosition] ([Id], [Value])
+    SELECT 1, ISNULL((SELECT MAX([Position]) FROM [dbo].[EventStoreEvents]), 0);
+END
+GO
+
 
 -- =====================================================
 -- Snapshot Store Table

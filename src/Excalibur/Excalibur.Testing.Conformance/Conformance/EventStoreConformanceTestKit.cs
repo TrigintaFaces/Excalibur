@@ -336,6 +336,156 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that an append LARGER THAN ONE STATEMENT still produces one contiguous, correctly ordered
+	/// run of versions.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A relational store cannot put an unbounded number of rows in one statement — parameter limits and
+	/// array-bind sizes cap it — so a large append is split into chunks inside the appending transaction.
+	/// The caps differ per provider, so this arm uses a count above every one of them and is therefore
+	/// multi-chunk everywhere it runs.
+	/// </para>
+	/// <para>
+	/// <b>What can go wrong, and why no other arm sees it.</b> A store that reserves its whole block up
+	/// front and then derives each later chunk's position arithmetically has an index calculation that
+	/// only ever executes past the first chunk. Get it wrong and the second chunk either overwrites the
+	/// first's positions or skips a run of them — a duplicate or a permanent hole in the global sequence,
+	/// which is exactly the failure the gapless guarantee exists to prevent. Every other arm in this kit
+	/// appends a handful of events and stays inside one statement, so none of them reach that code at all.
+	/// </para>
+	/// <para>
+	/// The assertions are deliberately about the ORDER and the COUNT rather than absolute positions:
+	/// positions are monotonic for the life of the store, not per test, so only their relationship to the
+	/// versions is meaningful here.
+	/// </para>
+	/// </remarks>
+	public virtual async Task AppendAsync_LargerThanOneStatement_ShouldRemainContiguousAndOrdered()
+	{
+		const int Count = 300;
+
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var aggregateId = GenerateAggregateId();
+
+		AppendResult result;
+		try
+		{
+			result = await store.AppendAsync(
+				aggregateId,
+				DefaultAggregateType,
+				CreateTestEvents(aggregateId, Count),
+				-1,
+				CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (EventBatchTooLargeException)
+		{
+			// A store whose engine caps an atomic write REFUSES the batch, and that is conformant: the
+			// contract is refuse-whole or append-atomically. What would not be conformant is accepting it
+			// and writing part of it, so the refusal is only credible if nothing landed.
+			var afterRefusal = await store
+				.LoadAsync(aggregateId, DefaultAggregateType, CancellationToken.None).ConfigureAwait(false);
+
+			if (afterRefusal.Count != 0)
+			{
+				throw new TestFixtureAssertionException(
+					$"The store refused a {Count}-event append with EventBatchTooLargeException but left "
+					+ $"{afterRefusal.Count} events behind. A refused append must write nothing.");
+			}
+
+			return;
+		}
+
+		if (!result.Success)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected a {Count}-event append to succeed but got: {result.ErrorMessage}");
+		}
+
+		if (result.NextExpectedVersion != Count - 1)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected NextExpectedVersion {Count - 1} but was {result.NextExpectedVersion}");
+		}
+
+		var loaded = await store.LoadAsync(aggregateId, DefaultAggregateType, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (loaded.Count != Count)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected {Count} events to persist but loaded {loaded.Count}. A chunked append must be "
+				+ "all-or-nothing, so a partial count means a chunk was lost inside a committed transaction.");
+		}
+
+		// Versions must be 0..Count-1 with nothing repeated or skipped across the chunk boundaries.
+		var versions = loaded.Select(e => e.Version).OrderBy(v => v).ToList();
+		for (var i = 0; i < versions.Count; i++)
+		{
+			if (versions[i] != i)
+			{
+				throw new TestFixtureAssertionException(
+					$"Versions must be the contiguous run 0..{Count - 1}; index {i} was {versions[i]}. A "
+					+ "break here means the per-chunk version arithmetic diverged past the first chunk.");
+			}
+		}
+
+		// POSITIONS ARE CHECKED THROUGH A FOLLOW-UP APPEND, NOT THROUGH THE LOADED EVENTS.
+		//
+		// LoadAsync exists to rehydrate an aggregate, so it selects the stream's own columns and NOT the
+		// global position; every event it returns carries position 0. An earlier version of this arm read
+		// positions from the loaded events and guarded the comparison with "only check if some position is
+		// non-zero" — which was false on every provider, so the check never ran and the arm passed against
+		// a deliberately corrupted chunk calculation. A guard written to tolerate stores without a global
+		// sequence silently disabled the assertion for the stores that have one.
+		//
+		// The reserved block is observable without reading any row: append ONE more event and see where it
+		// lands. A store that reserved N positions and wrote them correctly hands the next append a
+		// position past the block. A store whose later-chunk arithmetic drifted has written OUTSIDE its own
+		// reserved block, so the next allocation lands on a row that already exists and the append fails on
+		// the primary key. That failure is the detector, and it does not depend on this arm being the only
+		// writer — a concurrent append moves the counter forward, which cannot manufacture a collision.
+		if (result.FirstEventPosition is not { } firstPosition)
+		{
+			// No global sequence on this store. Nothing further to assert, and nothing was silently
+			// skipped: the contract defines a null here as "this store assigns no global positions".
+			return;
+		}
+
+		var followUpId = GenerateAggregateId();
+		var followUp = await store.AppendAsync(
+			followUpId,
+			DefaultAggregateType,
+			CreateTestEvents(followUpId, 1),
+			-1,
+			CancellationToken.None).ConfigureAwait(false);
+
+		if (!followUp.Success)
+		{
+			throw new TestFixtureAssertionException(
+				$"The append after a {Count}-event chunked append failed: {followUp.ErrorMessage}. The "
+				+ "chunked append wrote outside the block it reserved, so the next allocation collided "
+				+ "with a row it had already written. Its later-chunk position arithmetic is wrong.");
+		}
+
+		if (followUp.FirstEventPosition is not { } nextPosition)
+		{
+			throw new TestFixtureAssertionException(
+				"The chunked append reported a global position but the following append did not. A store "
+				+ "either assigns global positions or it does not; reporting one inconsistently leaves a "
+				+ "subscriber unable to order the two.");
+		}
+
+		if (nextPosition <= firstPosition + Count - 1)
+		{
+			throw new TestFixtureAssertionException(
+				$"The {Count}-event append reserved positions {firstPosition}..{firstPosition + Count - 1}, "
+				+ $"but the next append was given {nextPosition}, which is inside that block. Two events "
+				+ "now share a global position, so a subscriber reading in position order sees one of them "
+				+ "twice and the other never.");
+		}
+	}
+
+	/// <summary>
 	/// Verifies that appending with wrong expected version fails with concurrency conflict.
 	/// </summary>
 	public virtual async Task AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict()

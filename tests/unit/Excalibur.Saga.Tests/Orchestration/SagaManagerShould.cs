@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga.StateMachine;
 
 using Excalibur.Saga.Orchestration;
 
@@ -225,7 +226,7 @@ public sealed class SagaManagerShould
 
 	#region Test Doubles
 
-	private sealed class TestSagaState : SagaState
+	private sealed class TestSagaState : ProcessManagerState
 	{
 		public string? LastEventData { get; set; }
 	}
@@ -235,13 +236,13 @@ public sealed class SagaManagerShould
 	{
 		public override bool HandlesEvent(object eventMessage) => eventMessage is TestEvent;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
 			if (eventMessage is TestEvent testEvent)
 			{
 				State.LastEventData = testEvent.Data;
 			}
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 

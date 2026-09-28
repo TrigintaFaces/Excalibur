@@ -226,7 +226,41 @@ public sealed class SqliteEventStore : IEventStore
 			}
 
 			var version = currentVersion;
-			long firstPosition = 0;
+
+			// Reserve this append's block of global positions from the counter row, inside this
+			// transaction. The increment rolls back with the transaction, so an aborted append burns no
+			// position and the committed stream stays a contiguous prefix with no holes for a subscriber
+			// to stall on. last_insert_rowid() cannot provide that: a rolled-back insert still consumes
+			// its rowid when the column is AUTOINCREMENT, and reuses one when it is not.
+			var allocated = await connection.ExecuteScalarAsync<long?>(
+				new CommandDefinition(
+					$"UPDATE [{_table}_Position] SET Value = Value + @Count WHERE Id = 1 RETURNING Value - @Count + 1;",
+					new { Count = eventList.Count },
+					transaction,
+					cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+			// A null here means the UPDATE matched no row, so the counter row is missing -- an unrun
+			// schema script. It THROWS rather than returning a failed result, which is deliberate and
+			// deliberately unlike SQL Server, where the same fault arrives as an exception inside the
+			// allocation batch and is converted to a failed result at the append boundary.
+			//
+			// This store's stated rule is that a failed result means "this could succeed if you try
+			// again", and an unrun schema script cannot. The same rule is what makes an append breaching
+			// its own constraint throw here rather than reporting a conflict. Whether the other providers
+			// should match SQLite or SQLite should match them is a contract decision across all five and
+			// the public interface, not something to settle per-provider; until it is ruled, this stays
+			// consistent with the rest of THIS provider.
+			//
+			// Inserting the counter row lazily is not the alternative: it would race other appenders and
+			// hand out duplicate positions.
+			var firstPosition = allocated
+				?? throw new InvalidOperationException(
+					$"The global position counter row is missing from [{_table}_Position]. The event store "
+					+ "cannot allocate stream positions without it. Run the event store schema script "
+					+ "against this database; it creates the counter table and seeds the single row it "
+					+ "requires.");
+
+			var nextPosition = firstPosition;
 
 			foreach (var (@event, eventTypeName) in eventList.AsNamedEvents())
 			{
@@ -239,16 +273,18 @@ public sealed class SqliteEventStore : IEventStore
 #pragma warning restore IL2026, IL3050
 
 				var sql = $"""
-					INSERT INTO [{_table}] (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, TenantId)
-					VALUES (@EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp, @TenantId);
-					SELECT last_insert_rowid();
+					INSERT INTO [{_table}] (GlobalPosition, EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, TenantId)
+					VALUES (@GlobalPosition, @EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp, @TenantId);
 					""";
 
-				var position = await connection.ExecuteScalarAsync<long>(
+				var position = nextPosition++;
+
+				_ = await connection.ExecuteAsync(
 					new CommandDefinition(
 						sql,
 						new
 						{
+							GlobalPosition = position,
 							@event.EventId,
 							AggregateId = aggregateId,
 							AggregateType = aggregateType,
@@ -262,10 +298,6 @@ public sealed class SqliteEventStore : IEventStore
 						transaction,
 						cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-				if (firstPosition == 0)
-				{
-					firstPosition = position;
-				}
 			}
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

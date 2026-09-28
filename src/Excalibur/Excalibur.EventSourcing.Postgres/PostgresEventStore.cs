@@ -41,7 +41,7 @@ namespace Excalibur.EventSourcing.Postgres;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEventStoreArchive, IEventStoreVersionProbe
+public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEventStoreArchive, IEventStoreVersionProbe, ITransactionalEventStore
 {
 	// Format markers for envelope detection
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -59,6 +59,13 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly string _schema;
 	private readonly string _table;
+
+	/// <summary>
+	/// The position counter table that orders this store's global stream. Named after the events table so
+	/// that two event stores sharing a schema each get their own counter rather than silently sharing one
+	/// sequence, which would interleave two unrelated streams into one position space.
+	/// </summary>
+	private readonly string _positionTable;
 	private readonly ITenantContext _tenantContext;
 	/// <summary>
 	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
@@ -189,6 +196,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		_payloadSerializer = payloadSerializer;
 		_schema = schema;
 		_table = table;
+		_positionTable = table + "_position";
 		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
@@ -324,6 +332,111 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		}
 	}
 
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// The store owns ONE connection and ONE transaction for the whole unit of work, so a
+	/// two-connection split — events committed independently of the outbox rows that announce them — is
+	/// structurally impossible rather than merely avoided.
+	/// </para>
+	/// <para>
+	/// <b>Staging runs BEFORE the events are appended.</b> The global position is allocated from a
+	/// counter row whose lock is held until COMMIT, and staging costs one round trip per integration
+	/// event; performing it after the allocation would place all of those round trips inside the window
+	/// in which every other appender is blocked. The ordering is a throughput property, not a
+	/// correctness one — atomicity is identical either way — and it is only available because the
+	/// callback receives the transaction and nothing else.
+	/// </para>
+	/// </remarks>
+	public async ValueTask<AppendResult> AppendWithOutboxStagingAsync(
+		string aggregateId,
+		string aggregateType,
+		IEnumerable<IDomainEvent> events,
+		long expectedVersion,
+		Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(events);
+		ArgumentNullException.ThrowIfNull(stageOutbox);
+
+		var eventList = events as IReadOnlyCollection<IDomainEvent> ?? [.. events];
+		if (eventList.Count == 0)
+		{
+			return AppendResult.CreateSuccess(expectedVersion, null);
+		}
+
+		try
+		{
+			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+			await using var transaction = await connection.BeginTransactionAsync(
+					IsolationLevel.ReadCommitted, cancellationToken)
+				.ConfigureAwait(false);
+
+			try
+			{
+				var currentVersion = await connection.ResolveAsync(
+						new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
+					.ConfigureAwait(false);
+
+				if (currentVersion != expectedVersion)
+				{
+					// Roll back immediately. Nothing must be staged when the append is rejected, so the
+					// callback is not invoked at all on this path.
+					await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+					return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
+				}
+
+				await stageOutbox(transaction, cancellationToken).ConfigureAwait(false);
+
+				var (version, firstPosition) = await InsertEventsAsync(
+						connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
+					.ConfigureAwait(false);
+
+				await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+				_logger.LogDebug(
+					"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
+					eventList.Count, aggregateType, aggregateId, version);
+
+				return AppendResult.CreateSuccess(version, firstPosition);
+			}
+			catch
+			{
+				await RollbackQuietlyAsync(transaction).ConfigureAwait(false);
+				throw;
+			}
+		}
+		catch (Exception ex) when (ex is NpgsqlException or OperationFailedException)
+		{
+			var currentVersion = await ReadCurrentVersionAfterFailedAppendAsync(
+				aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
+
+			if (IsLostRace(ex, currentVersion, expectedVersion))
+			{
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+			}
+
+			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
+			return AppendResult.CreateFailure(GetFullExceptionMessage(ex));
+		}
+	}
+
+	/// <summary>Rolls back without letting a rollback failure mask the original fault.</summary>
+	private static async Task RollbackQuietlyAsync(Npgsql.NpgsqlTransaction transaction)
+	{
+		try
+		{
+			await transaction.RollbackAsync().ConfigureAwait(false);
+		}
+		catch
+		{
+			// The original fault is the one the caller needs; a rollback failure on an already-completed
+			// or broken transaction must not replace it.
+		}
+	}
+
 	private async ValueTask<AppendResult> ExecuteAppendTransactionAsync(
 		string aggregateId,
 		string aggregateType,
@@ -434,8 +547,35 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// Without it, a lost race whose follow-up read also failed would be demoted to an ordinary failure.
 	/// </para>
 	/// </remarks>
+	/// <remarks>
+	/// <para>
+	/// <b>The re-read is authoritative whenever it succeeds; the SQLSTATE is only a FALLBACK for when it
+	/// does not.</b> The ordering is load-bearing. <c>23505</c> was a total discriminator while
+	/// <c>position</c> came from a sequence — the database chose it, so the stream key was the only unique
+	/// constraint an append could violate. <c>position</c> is now a primary key whose value the
+	/// APPLICATION supplies, from a counter row with an independent lifecycle, so a position collision (a
+	/// counter restored from an older backup than the events table, a hand-seeded counter that skipped the
+	/// <c>SELECT MAX(position)</c> seed, two stores over one table with differently-named counters) raises
+	/// <c>23505</c> exactly like a lost race.
+	/// </para>
+	/// <para>
+	/// Reporting that as a concurrency conflict is harmful rather than merely imprecise: the documented
+	/// remedy is reload-and-retry, the reloaded version still satisfies the precondition because the
+	/// version was never the problem, and the caller retries into the same collision — or appends a
+	/// duplicate once the counter passes the obstruction. The re-read separates them cleanly: a position
+	/// collision leaves the stream exactly where the append required it; a lost race does not.
+	/// </para>
+	/// <para>
+	/// When the re-read itself fails there is nothing better than the SQLSTATE, and the original reasoning
+	/// holds there — a lost race whose follow-up read also failed would otherwise be demoted to an
+	/// ordinary failure. That residual window mis-reports a position collision, which is accepted because
+	/// it requires both faults at once.
+	/// </para>
+	/// </remarks>
 	private static bool IsLostRace(Exception ex, long? currentVersion, long expectedVersion) =>
-		IsStreamUniqueViolation(ex) || (currentVersion is { } version && version != expectedVersion);
+		currentVersion is { } version
+			? version != expectedVersion
+			: IsStreamUniqueViolation(ex);
 
 	/// <inheritdoc />
 	/// <remarks>
@@ -545,27 +685,48 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 				@event.OccurredAt));
 		}
 
-		// The position of the lowest-version event in this append is the append's first position.
-		// RETURNING row order is not guaranteed, so positions are matched to events by version.
-		var firstVersion = currentVersion + 1;
-		long firstPosition = 0;
+		// Reserve this append's block of global positions. Deliberately the LAST thing done before the
+		// rows are written: this takes the counter row's lock, which blocks every other appender until this
+		// transaction commits. Everything above (serialization, metadata) runs outside that window on
+		// purpose -- correctness does not depend on the window being short, but the store's sustained
+		// append throughput is exactly one append per commit through it.
+		// ...and the allocation travels WITH the first insert, in one statement, rather than as a round
+		// trip of its own. The counter's lock is held from that UPDATE until COMMIT, so a round trip
+		// issued between them is paid by every blocked appender rather than only by this one.
+		var firstChunkSize = Math.Min(InsertEventsBatchRequest.MaxEventsPerStatement, rows.Count);
+		var firstPosition = await connection.ResolveAsync(
+				new AllocateAndInsertEventsRequest(
+					rows.GetRange(0, firstChunkSize),
+					rows.Count,
+					transaction,
+					CurrentTenantScope,
+					cancellationToken,
+					_schema,
+					_table,
+					_positionTable))
+			.ConfigureAwait(false);
 
-		for (var offset = 0; offset < rows.Count; offset += InsertEventsBatchRequest.MaxEventsPerStatement)
+		// Any REMAINING chunks — only for an append larger than one statement — are written with positions
+		// derived from the block already reserved above, so the counter row is taken exactly once per
+		// append no matter how many statements the append needs.
+		//
+		// The block is contiguous and ordered by version, so position i belongs to the i-th event. There is
+		// nothing to match up afterwards: the previous implementation had to correlate RETURNING rows back
+		// to events by version because a sequence chose the numbers and RETURNING row order is not
+		// guaranteed. Choosing them here removes that whole correspondence problem.
+		for (var offset = firstChunkSize; offset < rows.Count; offset += InsertEventsBatchRequest.MaxEventsPerStatement)
 		{
 			var count = Math.Min(InsertEventsBatchRequest.MaxEventsPerStatement, rows.Count - offset);
 			var chunk = rows.GetRange(offset, count);
 
-			var inserted = await connection.ResolveAsync(
+			for (var i = 0; i < chunk.Count; i++)
+			{
+				chunk[i] = chunk[i] with { Position = firstPosition + offset + i };
+			}
+
+			_ = await connection.ResolveAsync(
 					new InsertEventsBatchRequest(chunk, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
-
-			foreach (var row in inserted)
-			{
-				if (row.Version == firstVersion)
-				{
-					firstPosition = row.Position;
-				}
-			}
 		}
 
 		return (version, firstPosition);
@@ -790,7 +951,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// service's all-tenant pass, where no ambient tenant exists; resolving one here would delete under an
 	/// arbitrary term while the cold write was confirmed under another.
 	/// </remarks>
-	public async Task<int> DeleteEventsUpToVersionAsync(
+	public async Task<int> TombstoneArchivedEventsUpToVersionAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
 		string aggregateType,
@@ -802,7 +963,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.DeleteEventsUpToVersionRequest(
+			new Requests.TombstoneArchivedEventsRequest(
 				tenant, aggregateId, aggregateType, toVersion, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}

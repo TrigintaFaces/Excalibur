@@ -34,6 +34,16 @@ Excalibur.Testing.Conformance.ConformanceArmSkip.Reason.get -> string!
 Excalibur.Testing.Conformance.ConformanceArmSkip.Reason.init -> void
 Excalibur.Testing.Conformance.ConformanceArmSkip.Suite.get -> string!
 Excalibur.Testing.Conformance.ConformanceArmSkip.Suite.init -> void
+Excalibur.Testing.Conformance.ConformanceAssertionException
+Excalibur.Testing.Conformance.ConformanceAssertionException.ConformanceAssertionException() -> void
+Excalibur.Testing.Conformance.ConformanceAssertionException.ConformanceAssertionException(string! message) -> void
+Excalibur.Testing.Conformance.ConformanceAssertionException.ConformanceAssertionException(string! message, System.Exception! innerException) -> void
+Excalibur.Testing.Conformance.ConformanceProjection
+Excalibur.Testing.Conformance.ConformanceProjection.ConformanceProjection() -> void
+Excalibur.Testing.Conformance.ConformanceProjection.Id.get -> string!
+Excalibur.Testing.Conformance.ConformanceProjection.Id.set -> void
+Excalibur.Testing.Conformance.ConformanceProjection.Total.get -> int
+Excalibur.Testing.Conformance.ConformanceProjection.Total.set -> void
 Excalibur.Testing.Conformance.ConformanceTestKit
 Excalibur.Testing.Conformance.ConformanceTestKit.ConformanceTestKit() -> void
 Excalibur.Testing.Conformance.ConformanceTestKit.RecordArmExecuted(string! arm) -> void
@@ -104,6 +114,9 @@ Excalibur.Testing.Conformance.OutboxStoreConformanceTestKit.OutboxStoreConforman
 Excalibur.Testing.Conformance.OutboxStoreConformanceTestKit.SkipOrFailUnfencedArm(string! arm) -> void
 Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit
 Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.PersistenceProviderConformanceTestKit() -> void
+Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit
+Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.CreatePositionedStoreAsync() -> System.Threading.Tasks.Task<Excalibur.EventSourcing.IPositionedProjectionStore<Excalibur.Testing.Conformance.ConformanceProjection!>!>!
+Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.PositionedProjectionStoreConformanceTestKit() -> void
 Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper
 Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>
 Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.Apply(TProjection! projection, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, string! aggregateId = "test-aggregate") -> TProjection!
@@ -133,6 +146,8 @@ Excalibur.Testing.Conformance.Soc2ReportStoreConformanceTestKit
 Excalibur.Testing.Conformance.Soc2ReportStoreConformanceTestKit.Soc2ReportStoreConformanceTestKit() -> void
 Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit
 Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.StreamingHandlerConformanceTestKit() -> void
+Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit
+Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.SubscriptionCheckpointStoreConformanceTestKit() -> void
 Excalibur.Testing.Conformance.TestDomainEvent
 Excalibur.Testing.Conformance.TestDomainEvent.AggregateId.get -> string!
 Excalibur.Testing.Conformance.TestDomainEvent.AggregateId.init -> void
@@ -248,6 +263,7 @@ abstract Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.
 abstract Excalibur.Testing.Conformance.OutboxStoreConformanceTestKit.CreateStoreAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.IOutboxStore!>!
 abstract Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.CreateProvider(string! providerName) -> Excalibur.Data.Persistence.IPersistenceProvider!
 abstract Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.ExpectedProviderType.get -> string!
+abstract Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.CreateStoreAsync() -> System.Threading.Tasks.Task<Excalibur.EventSourcing.IProjectionStore<Excalibur.Testing.Conformance.ConformanceProjection!>!>!
 abstract Excalibur.Testing.Conformance.RetryPolicyConformanceTestKit.CreateNonRetryableException() -> System.Exception!
 abstract Excalibur.Testing.Conformance.RetryPolicyConformanceTestKit.CreatePolicy(int maxRetryAttempts) -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 abstract Excalibur.Testing.Conformance.RetryPolicyConformanceTestKit.CreateRetryableException() -> System.Exception!
@@ -265,6 +281,7 @@ abstract Excalibur.Testing.Conformance.SnapshotStoreConformanceTestKit.CreateSto
 abstract Excalibur.Testing.Conformance.Soc2ReportGeneratorConformanceTestKit.CreateGenerator() -> Excalibur.Compliance.ISoc2ReportGenerator!
 abstract Excalibur.Testing.Conformance.Soc2ReportStoreConformanceTestKit.CreateStore() -> Excalibur.Compliance.ISoc2ReportStore!
 abstract Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.CreateConsumerHandler() -> (Excalibur.Dispatch.Delivery.IStreamConsumerHandler<Excalibur.Testing.Conformance.TestStreamDocument!>! Handler, System.Func<System.Collections.Generic.IReadOnlyList<Excalibur.Testing.Conformance.TestStreamDocument!>!>! GetProcessed)
+abstract Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.CreateStore() -> Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore!
 abstract Excalibur.Testing.Conformance.TransportConformanceTestKit<TSender, TReceiver>.CreateReceiverAsync() -> System.Threading.Tasks.Task<TReceiver>!
 abstract Excalibur.Testing.Conformance.TransportConformanceTestKit<TSender, TReceiver>.CreateSenderAsync() -> System.Threading.Tasks.Task<TSender>!
 abstract Excalibur.Testing.Conformance.WorkflowConformanceTestKit.CreateEventStore() -> Excalibur.EventSourcing.IEventStore!
@@ -284,6 +301,7 @@ static Excalibur.Testing.Conformance.KeyEscrowServiceConformanceTestKit.CreateKe
 static Excalibur.Testing.Conformance.LeaderElectionConformanceTestKit.StopAndDisposeAsync(params Excalibur.Dispatch.LeaderElection.ILeaderElection![]! elections) -> System.Threading.Tasks.Task!
 static Excalibur.Testing.Conformance.LeaderElectionConformanceTestKit.WaitUntilAsync(System.Func<bool>! condition, System.TimeSpan timeout) -> System.Threading.Tasks.Task<bool>!
 static Excalibur.Testing.Conformance.OutboxStoreConformanceTestKit.SupportsSentTracking(Excalibur.Dispatch.IOutboxStore! store) -> bool
+static Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.NewId() -> string!
 static Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper.For<TProjection>() -> Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection!>!
 static Excalibur.Testing.Conformance.SnapshotStoreConformanceTestKit.ReadState(Excalibur.Domain.Model.ISnapshot! snapshot) -> string!
 static Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.CreateChunkedStream(int count, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Streaming.Chunk<Excalibur.Testing.Conformance.TestStreamDocument!>>!
@@ -665,6 +683,7 @@ virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAndLoad
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_AboveTheAtomicLimit_ShouldRefuseWholeOrAppendAtomically() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_EmptyEvents_ShouldNotChangeVersion() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_EventTypeTheResolverDoesNotDeclare_ShouldThrowAndWriteNothing() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_LargerThanOneStatement_ShouldRemainContiguousAndOrdered() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_NonExistentStream_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_ToNewStream_ShouldSucceed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_UnaddressableAggregateId_ShouldThrow() -> System.Threading.Tasks.Task!
@@ -1043,6 +1062,24 @@ virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.SqlP
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.TestConnectionAsync_ShouldReachTheDatabase_WithoutAnExplicitInitialize() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Admit_exactly_one_of_two_writers_racing_from_one_read() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Adopt_a_row_that_carries_no_position() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Advance_from_the_position_it_read() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Apply_the_same_refold_twice_without_changing_the_result() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Create_when_nothing_is_stored() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Invalidate_the_position_when_an_unconditional_write_replaces_the_state() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Read_the_state_and_its_position_as_one_observation() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refold_the_state_at_the_position_the_row_already_holds() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_late_starter_that_claims_absence() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_negative_position_argument() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_position_that_does_not_advance() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_refold_at_a_position_the_row_does_not_hold() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_refold_when_the_row_advanced_after_the_read() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_stale_expected_position() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Report_a_deleted_projection_as_vanished_without_recreating_it() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Report_a_refold_against_an_absent_row_as_vanished_without_creating_it() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Report_requires_rebuild_for_a_row_with_no_established_position() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.RetryPolicyConformanceTestKit.BaseRetryDelay_ForNonNullPolicy_ShouldBePositive() -> void
 virtual Excalibur.Testing.Conformance.RetryPolicyConformanceTestKit.BaseRetryDelay_ForNullPolicy_ShouldBeZero() -> void
 virtual Excalibur.Testing.Conformance.RetryPolicyConformanceTestKit.BaseRetryDelay_ShouldBeNonNegative() -> void
@@ -1186,6 +1223,14 @@ virtual Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.StreamC
 virtual Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.StreamConsumer_ReceivesDocumentsInOrder() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.StreamConsumer_RespectsCancellation() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.StreamConsumer_SingleDocument_ProcessedCorrectly() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_ExpectingNoCheckpoint_WhenOneExists_ShouldBeSuperseded() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_FromNoCheckpoint_ShouldBeAcceptedAndPersist() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WithMatchingExpectedPosition_ShouldBeAccepted() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WithStaleExpectedPosition_ShouldBeSupersededAndChangeNothing() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Enumerate_ShouldReportStoredCheckpoints() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.GenerateSubscriptionName() -> string!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.GetCheckpoint_ForUnknownSubscription_ShouldReturnNull() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.TransportConformanceTestKit<TSender, TReceiver>.DisposeTransportAsync() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.TransportConformanceTestKit<TSender, TReceiver>.ReceiveTimeout.get -> System.TimeSpan
 virtual Excalibur.Testing.Conformance.TransportConformanceTestKit<TSender, TReceiver>.Should_Handle_Concurrent_Messages() -> System.Threading.Tasks.Task!

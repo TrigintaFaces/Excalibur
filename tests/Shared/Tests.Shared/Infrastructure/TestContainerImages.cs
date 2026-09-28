@@ -30,4 +30,37 @@ public static class TestContainerImages
 	/// cannot disappear, and a suite that cannot start reports nothing useful about the code.
 	/// </remarks>
 	public const string GoogleCloudEmulators = "gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators";
+
+	/// <summary>
+	/// SQL Server 2022, backing every relational integration and compliance fixture.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Was CU26, repeated as a literal in 29 files. It is CU27 for a measured reason.</b> The CU26
+	/// image would not start on at least one development host: <c>sqlservr</c> refused with
+	/// <c>"The file archive [/opt/mssql/lib/system.netfx.sfp] is invalid"</c> and exited 1, taking
+	/// every SQL Server suite with it -- 68 failures in one shard, none of them code.
+	/// </para>
+	/// <para>
+	/// <b>The diagnosis, because the obvious remedies do not work and the next person should not
+	/// repeat them.</b> A prune, <c>rmi -f</c> and re-pull did NOT repair it: the pull reports success
+	/// while reusing a content-addressed blob whose recorded digest still matches, so a corrupt layer
+	/// survives the one remedy everyone tries first. Running as root does not help either -- the file
+	/// is owned by root in CU26 and by mssql in CU14, which looks like the answer and is not.
+	/// </para>
+	/// <para>
+	/// <b>What identified it was a bracketing comparison.</b> The file is 417,853,440 bytes in every
+	/// tag examined, so it is not truncated. CU25 and CU27 -- freshly pulled, either side of CU26 --
+	/// carry an IDENTICAL md5 (<c>c08a56dc…</c>). A payload unchanged across CU25 and CU27 did not
+	/// change at CU26, so CU26 holding a different hash (<c>76a06bfd…</c>) is the anomaly, not a
+	/// version difference. CU14 differs from all three (<c>94ed32d7…</c>), which is why one
+	/// comparison is not enough and two brackets are.
+	/// </para>
+	/// <para>
+	/// CU27 is verified starting on this host in about ten seconds with no error. It is also the
+	/// newest of the three, so this is a forward move rather than a workaround. If CU26 turns out
+	/// sound elsewhere, nothing here needs undoing.
+	/// </para>
+	/// </remarks>
+	public const string SqlServer2022 = "mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04";
 }

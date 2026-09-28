@@ -69,11 +69,12 @@ around, and no reason to duplicate validation inside handlers to defend against 
 calling `WithFluentValidation()` on its own, gives the middleware something to call but never places the
 middleware anywhere — so nothing calls it.
 
-The failure is quiet. `ValidationMiddleware` appears in the default pipeline profile as an **optional**
-entry, which means a container that has not registered it drops that entry while building the pipeline
-and records the skip at `Debug` level. Under a normal production logging configuration nobody sees it.
-The symptom is that validators are constructed, resolve correctly, and are never invoked — invalid
-messages reach handlers and no error is reported anywhere.
+The failure is quiet, and the rule is simple: **no call, no validation.** The default pipeline profile
+seats no middleware at all, so `ValidationMiddleware` is in your pipeline only because you put it
+there. Nothing anywhere will add it on your behalf, and nothing will warn you that it is missing —
+there is no entry to skip and therefore no skip to log. The symptom is that validators are
+constructed, resolve correctly, and are never invoked: invalid messages reach handlers and no error is
+reported anywhere.
 
 If you are unsure whether validation is live, assert it rather than infer it: resolve
 `ValidationMiddleware` from your built container in a test. If it does not resolve, it is not running.

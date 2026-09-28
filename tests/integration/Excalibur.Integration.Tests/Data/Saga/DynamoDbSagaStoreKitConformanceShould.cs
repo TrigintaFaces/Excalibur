@@ -56,8 +56,11 @@ public sealed class DynamoDbSagaStoreKitConformanceShould : SagaStoreConformance
 	/// </remarks>
 	public ValueTask InitializeAsync()
 	{
-		_fixture.IsInitialized.ShouldBeTrue(
-			"LocalStack DynamoDB must be available for real-infra conformance (never skipped).");
+		// EnsureAvailable() rather than asserting the flag: the FIXTURE owns the availability
+		// policy, which is hard failure, and its message carries the RECORDED startup error.
+		// Asserting a bool here produced a true-but-useless "expected True" with the actual
+		// container failure discarded.
+		_fixture.EnsureAvailable();
 
 		return ValueTask.CompletedTask;
 	}

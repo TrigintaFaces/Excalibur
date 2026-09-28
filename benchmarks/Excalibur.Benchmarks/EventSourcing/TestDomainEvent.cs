@@ -7,6 +7,11 @@ namespace Excalibur.Benchmarks.EventSourcing;
 /// <summary>
 /// Test domain event for benchmark scenarios.
 /// </summary>
+// A stored message identity must be DECLARED, not derived from the type name: a derived name
+// changes when the namespace or assembly does, and everything already written under the old
+// one becomes unreadable. Without this the store refuses the append, so every benchmark that
+// writes through it fails before measuring anything.
+[MessageName("Benchmark.EventSourcing.TestDomainEvent")]
 public sealed class TestDomainEvent : IDomainEvent
 {
 	/// <inheritdoc/>

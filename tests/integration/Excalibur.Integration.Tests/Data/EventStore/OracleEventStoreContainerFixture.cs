@@ -183,6 +183,13 @@ public sealed class OracleEventStoreContainerFixture : ContainerFixtureBase
 		await using var command = connection.CreateCommand();
 		command.CommandText = $"DELETE FROM {TableName}";
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+
+		// Reset the position counter with the rows. Positions come from a counter row rather than an
+		// identity column, so deleting the events alone leaves the counter where it was and the next
+		// test continues from the previous one's highest position.
+		await using var resetCommand = connection.CreateCommand();
+		resetCommand.CommandText = $"UPDATE {TableName}POSITION SET VALUE = 0 WHERE ID = 1";
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

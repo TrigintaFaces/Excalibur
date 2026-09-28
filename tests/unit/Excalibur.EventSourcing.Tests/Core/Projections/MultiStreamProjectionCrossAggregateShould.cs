@@ -372,7 +372,7 @@ public sealed class MultiStreamProjectionCrossAggregateShould
 		entry.ShouldNotBeNull();
 
 		var evt = new PaymentReceivedEvent { Amount = 100m };
-		var context = new ProjectionHandlerContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
+		var context = new ProjectionHandlerContext("agg-1", "Order", 1, DateTimeOffset.UtcNow, isReplay: false);
 
 		// Act — invoke the async handler directly
 		await entry.Value.AsyncHandler!(

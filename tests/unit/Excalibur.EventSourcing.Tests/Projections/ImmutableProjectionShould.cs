@@ -40,7 +40,7 @@ public sealed class ImmutableProjectionShould
 		var context = new EventNotificationContext("order-1", "Order", 1, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert
 		var result = store.Get("order-1");
@@ -73,7 +73,7 @@ public sealed class ImmutableProjectionShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- replaced, not merged
 		var result = store.Get("order-1");
@@ -110,7 +110,7 @@ public sealed class ImmutableProjectionShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- new instance with ShippedAt set, Total preserved
 		var result = store.Get("order-1");
@@ -144,7 +144,7 @@ public sealed class ImmutableProjectionShould
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<InvalidOperationException>(
-			() => registration.InlineApply!(events, context, services, CancellationToken.None));
+			() => registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
 		ex.Message.ShouldContain("Cannot transform");
 		ex.Message.ShouldContain("OrderRecord");
 	}
@@ -176,7 +176,7 @@ public sealed class ImmutableProjectionShould
 		};
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		var result = store.Get("order-1");
 		result.ShouldNotBeNull();
@@ -208,7 +208,7 @@ public sealed class ImmutableProjectionShould
 		};
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		var result = store.Get("order-1");
 		result.ShouldNotBeNull();

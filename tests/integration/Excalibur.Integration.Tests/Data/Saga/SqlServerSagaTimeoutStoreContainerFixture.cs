@@ -7,6 +7,7 @@ using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
 using Tests.Shared.Helpers;
+using Tests.Shared.Infrastructure;
 
 #pragma warning disable CA2100 // SQL strings are safe - the DDL is the shipped product script; DELETE targets constant identifiers
 
@@ -44,6 +45,11 @@ public sealed class SqlServerSagaTimeoutStoreContainerFixture : ContainerFixture
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
+			// Pinned, like the other 29 SQL Server fixtures. Without this the builder falls back to the
+			// Testcontainers default, which is thirteen cumulative updates behind what every sibling
+			// suite runs -- so this one suite tested a different engine, and a CU-specific behavioural
+			// difference here would reproduce nowhere else.
+			.WithImage(TestContainerImages.SqlServer2022)
 			.WithBoundedMemory()
 			.WithName($"mssql-sagatimeout-test-{Guid.NewGuid():N}")
 			.WithCleanUp(true)

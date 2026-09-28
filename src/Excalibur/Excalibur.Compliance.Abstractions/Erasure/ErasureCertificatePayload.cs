@@ -63,6 +63,32 @@ public sealed record ErasureCertificatePayload
 	/// <summary>Gets the data that was lawfully retained rather than erased, with the basis for each.</summary>
 	public IReadOnlyList<ErasureException> Exceptions { get; init; } = [];
 
+	/// <summary>
+	/// Places the erasure did NOT reach, for which no lawful basis is claimed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A sibling of <see cref="Exceptions"/> and never mixed with it. <see cref="Exceptions"/> records
+	/// data lawfully retained, each entry carrying its basis; this records data merely not reached. A
+	/// location appears in one or the other, never both.
+	/// </para>
+	/// <para>
+	/// <b>NULL, not empty, and omitted from the signed form when null — this is load-bearing.</b> The
+	/// canonical form is what gets signed, and verification recomputes it from the DESERIALIZED payload.
+	/// The serializer context emits defaulted properties, so a property that always serialized would
+	/// change the canonical bytes of every certificate issued before this property existed and make each
+	/// of them verify as a forgery. Being null-by-default and ignored when null, this property is absent
+	/// from the canonical form of exactly those certificates, so their signatures still verify.
+	/// </para>
+	/// <para>
+	/// Consequence for anyone adding a property here: the same care applies. Defaulting to an empty
+	/// collection would have broken every signature in the field.
+	/// </para>
+	/// </remarks>
+	[System.Text.Json.Serialization.JsonIgnore(
+		Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public IReadOnlyList<UnreachedDataLocation>? UnreachedData { get; init; }
+
 	/// <summary>Gets the instant the certificate was generated.</summary>
 	public DateTimeOffset GeneratedAt { get; init; } = DateTimeOffset.UtcNow;
 

@@ -4,6 +4,7 @@
 
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.InMemory;
+using Excalibur.EventSourcing.Queries;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -71,6 +72,21 @@ public static class InMemoryEventSourcingServiceCollectionExtensions
 		services.AddKeyedSingleton<IEventStore>(storeName, (sp, _) => sp.GetRequiredService<InMemoryEventStore>());
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>(storeName));
+
+		// The global stream query is what lets projections, materialized views, projection rebuilds and
+		// the lag read-model run on this provider. Without it those features resolve nothing and the
+		// provider is an event store that silently cannot project.
+		// Resolves the SAME singleton the event store contract resolves to. A second InMemoryEventStore
+		// would carry its own events and its own position counter, so the stream would read empty.
+		services.TryAddSingleton<IGlobalStreamQuery>(sp =>
+			new InMemoryGlobalStreamQuery(sp.GetRequiredService<InMemoryEventStore>()));
+
+		// A process-lifetime checkpoint is the COHERENT choice here and the consumer should not be asked
+		// to confirm it: this event store does not outlive the process either, so there is no stream left
+		// to replay after a restart and no populated projection for a replay to double-apply to. Stating
+		// it here rather than leaving it to the fallback is what distinguishes a host that chose from one
+		// that silently inherited -- which is the distinction the projection-processing guard checks.
+		_ = services.AllowInMemoryProjectionCheckpoints();
 
 		return services;
 	}

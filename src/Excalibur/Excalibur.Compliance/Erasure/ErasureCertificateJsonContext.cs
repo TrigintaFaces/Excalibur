@@ -44,4 +44,5 @@ namespace Excalibur.Compliance.Erasure;
 	NumberHandling = JsonNumberHandling.Strict,
 	UseStringEnumConverter = true)]
 [JsonSerializable(typeof(ErasureCertificatePayload))]
+[JsonSerializable(typeof(UnreachedDataLocation))]
 internal sealed partial class ErasureCertificateJsonContext : JsonSerializerContext;

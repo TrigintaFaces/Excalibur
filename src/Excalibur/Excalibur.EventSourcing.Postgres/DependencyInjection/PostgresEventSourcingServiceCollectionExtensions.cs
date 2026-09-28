@@ -18,6 +18,8 @@ using Microsoft.Extensions.Logging;
 
 using Npgsql;
 
+using Excalibur.EventSourcing.Subscriptions;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -41,6 +43,53 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </remarks>
 public static class PostgresEventSourcingServiceCollectionExtensions
 {
+	/// <summary>
+	/// Registers the PostgreSQL-backed durable subscription checkpoint store.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Register this whenever a catch-up subscription or a global-stream projection runs in a process
+	/// that can restart.</b> Without it the core registers an IN-MEMORY checkpoint store, and an
+	/// in-memory checkpoint means every subscription replays the stream from position zero on every
+	/// process start — an append-only store makes that work grow without bound, and every projection is
+	/// rebuilt on each restart and each deployment.
+	/// </para>
+	/// <para>
+	/// The in-memory default is registered with <c>TryAdd</c>, so this registration wins whether it runs
+	/// before or after the core's: before, and the core's <c>TryAdd</c> finds a registration already
+	/// present and does nothing; after, and this one is resolved as the later registration of the same
+	/// service type. Ordering relative to <c>AddEventSourcing</c> therefore does not matter.
+	/// </para>
+	/// <para>
+	/// Requires the checkpoint table from the shipped schema script. The store fails loudly rather than
+	/// creating it: a subscription silently starting from zero against a missing table is the failure
+	/// this registration exists to prevent.
+	/// </para>
+	/// </remarks>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionFactory">Creates a connection to the checkpoint database.</param>
+	/// <param name="schema">The schema holding the checkpoint table. Default: "public".</param>
+	/// <param name="table">The checkpoint table name. Default: "subscription_checkpoints".</param>
+	/// <returns>The service collection, for chaining.</returns>
+	public static IServiceCollection AddPostgresSubscriptionCheckpointStore(
+		this IServiceCollection services,
+		Func<NpgsqlConnection> connectionFactory,
+		string schema = "public",
+		string table = "subscription_checkpoints")
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(connectionFactory);
+
+		services.AddSingleton<ISubscriptionCheckpointStore>(
+			_ => new PostgresSubscriptionCheckpointStore(connectionFactory, schema, table));
+
+		// Emitted from the SAME call that wires the store, never separately registerable: a host
+		// that did not wire a durable checkpoint cannot carry a truthful-looking durability marker.
+		services.TryAddSingleton<ISubscriptionCheckpointDurability, SubscriptionCheckpointDurabilityMarker>();
+
+		return services;
+	}
+
 	/// <summary>
 	/// Adds Postgres materialized view store implementation with an NpgsqlDataSource.
 	/// </summary>
@@ -189,6 +238,11 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		});
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("postgres"));
+
+		// Attest the transactional-append capability (PostgresEventStore : ITransactionalEventStore) at
+		// wire time so the outbox-staging validator can probe registration without resolving the store —
+		// it is wrapped in a TelemetryEventStore here, which would defeat an instance check.
+		services.TryAddSingleton<TransactionalEventStoreMarker>();
 	}
 
 	internal static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)

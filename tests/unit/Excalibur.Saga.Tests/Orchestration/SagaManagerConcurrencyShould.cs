@@ -169,14 +169,14 @@ public sealed class SagaManagerConcurrencyShould
 	{
 		public override bool HandlesEvent(object eventMessage) => eventMessage is ConcurrencyTestEvent;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
 			if (eventMessage is ConcurrencyTestEvent testEvent)
 			{
 				State.LastEventData = testEvent.Data;
 			}
 
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 
@@ -248,7 +248,7 @@ public sealed class SagaManagerConcurrencyShould
 				sagaState.Version = newVersion; // EF-style write-back onto the saved instance
 			}
 
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 

@@ -17,12 +17,26 @@ public sealed class GlobalStreamProjectionOptions
 	[Range(1, 100000)]
 	public int CheckpointInterval { get; set; } = 100;
 
+	/// <summary>The name used when a host has not been given one explicitly.</summary>
+	/// <remarks>
+	/// Exposed as a constant so a host can tell "the consumer chose this" from "nobody chose", and derive
+	/// a unique name in the second case. A shared default is not a safe fallback here: two hosts holding
+	/// the same name share one checkpoint row, and the compare-and-set then does exactly what it was told
+	/// on an identifier that names two different subscriptions.
+	/// </remarks>
+	public const string DefaultProjectionName = "AsyncProjectionProcessingHost";
+
 	/// <summary>
 	/// Gets or sets the name of the projection for checkpoint tracking.
-	/// Each projection host instance MUST have a unique name to avoid checkpoint collisions.
 	/// </summary>
-	/// <value>The projection name. Default is "AsyncProjectionProcessingHost".</value>
-	public string ProjectionName { get; set; } = "AsyncProjectionProcessingHost";
+	/// <remarks>
+	/// A checkpoint is keyed by this name, so two hosts sharing it share one mark: the first to advance
+	/// wins and the other is told it was superseded, on a subscription that was never actually contested.
+	/// Hosts that can derive a unique name from their own type do so when this is left at the default;
+	/// set it explicitly when running more than one host of the same type.
+	/// </remarks>
+	/// <value>The projection name. Defaults to <see cref="DefaultProjectionName"/>.</value>
+	public string ProjectionName { get; set; } = DefaultProjectionName;
 
 	/// <summary>
 	/// Gets or sets the maximum number of events to read per batch.

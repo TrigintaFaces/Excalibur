@@ -174,6 +174,9 @@ internal static class EventSourcingEventId
 	/// <summary>Projection checkpoint saved.</summary>
 	public const int ProjectionCheckpointSaved = 113004;
 
+	/// <summary>Projection checkpoint advance refused: another reader owns this subscription.</summary>
+	public const int ProjectionCheckpointSuperseded = 113005;
+
 	// ========================================
 	// 113100-113199: Projection Operations
 	// ========================================
@@ -233,6 +236,15 @@ internal static class EventSourcingEventId
 	/// <summary>Error dispatching events to async projection.</summary>
 	public const int AsyncProjectionDispatchError = 113207;
 
+	/// <summary>The async projection host is running but another instance holds leadership.</summary>
+	public const int AsyncProjectionStandby = 113208;
+
+	/// <summary>Two readers are processing one subscription; the contested span may be applied twice.</summary>
+	public const int AsyncProjectionContested = 113209;
+
+	/// <summary>The global stream head could not be read at startup, so replay cannot be distinguished.</summary>
+	public const int AsyncProjectionHeadUnavailable = 113210;
+
 	// ========================================
 	// 113300-113399: Materialized View Processor
 	// ========================================
@@ -266,6 +278,9 @@ internal static class EventSourcingEventId
 
 	/// <summary>Materialized view routing maps built from registrations.</summary>
 	public const int ViewProcessorRoutingMapsBuilt = 113309;
+
+	/// <summary>The view replay stopped below the stream head because the next position was absent.</summary>
+	public const int ViewProcessorStoppedShortOfHead = 113310;
 
 	// ========================================
 	// 114000-114099: Upcasting Core

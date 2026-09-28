@@ -30,6 +30,23 @@ When implementing a custom provider (e.g., a new database backend for event sour
 | `TransportConformanceTestKit<TSender, TReceiver>` | transport sender/receiver pairs |
 | `DbConformanceTestKit` | `IDb` |
 | `PersistenceProviderConformanceTestKit` | persistence providers |
+| `PositionedProjectionStoreConformanceTestKit` | `IPositionedProjectionStore<T>` |
+
+### Run the positioned-projection kit against real infrastructure
+
+`PositionedProjectionStoreConformanceTestKit` is worth singling out, because the thing it checks is
+decided entirely by your database and not by any C# you can inspect. It states the rule that makes a
+re-delivered event refusable: for a projection with stored position `P`, the stored state is the fold
+of exactly those events at or below `P`. A write must advance FROM the position it read at (which
+orders concurrent writers) AND advance FORWARDS (which refuses a re-delivery), and a store enforcing
+only one of those passes for the wrong reason.
+
+**Do not run it against a mocked client.** Every interesting arm is about what the engine does when two
+writers collide, and a mock returns what it was told. Running these arms against real services found
+four providers that could not execute their own conditional write at all — a parameter the planner
+could not type, an expression value the service rejected, a date type the driver could not map, and a
+JSON type the client could not construct. All four compiled, and all four passed their mocked unit
+tests.
 
 Also included, covering scheduling, CDC, claim-check, caching, deduplication, retry, workflow, key
 management, and compliance surfaces:

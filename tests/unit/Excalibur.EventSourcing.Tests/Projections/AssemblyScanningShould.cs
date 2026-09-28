@@ -137,7 +137,7 @@ public sealed class AssemblyScanningShould
 		};
 		var context = new EventNotificationContext("inv-1", "Inventory", 2, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- both handlers applied
 		var projected = store.Get("inv-1");

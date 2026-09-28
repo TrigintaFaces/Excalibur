@@ -10,6 +10,7 @@ namespace Excalibur.Compliance.SqlServer;
 [JsonSerializable(typeof(ErasureSummary))]
 [JsonSerializable(typeof(VerificationSummary))]
 [JsonSerializable(typeof(IReadOnlyList<ErasureException>))]
+[JsonSerializable(typeof(IReadOnlyList<UnreachedDataLocation>))]
 internal sealed partial class SqlServerComplianceJsonContext : JsonSerializerContext
 {
 }

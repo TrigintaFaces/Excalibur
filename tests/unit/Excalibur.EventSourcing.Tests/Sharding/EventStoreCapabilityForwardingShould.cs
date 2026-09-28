@@ -162,20 +162,32 @@ public sealed class EventStoreCapabilityForwardingShould
 	[Fact]
 	public async Task ReadArchivedEventsThroughTheTieredCapabilityView()
 	{
-		// The sharp case. Versions 1-4 have been archived to cold and deleted from hot. A capability view
-		// that read the bare hot store would return a history missing them, and the caller could not tell.
-		var hot = new TransactionalStore { Events = Versions(5, 6, 7) };
+		// The sharp case. Versions 1-4 have been archived: their PAYLOADS are in cold and the hot rows are
+		// tombstoned. A capability view that read the bare hot store would return all seven entries with
+		// four of them empty -- and because the version list looks complete, the caller could not tell.
+		// That is why the discriminator here is payload presence, not row count.
+		var hot = new TransactionalStore
+		{
+			Events = [
+				.. Versions(1, 2, 3, 4).Select(e => e with { EventData = null, ArchivedAt = DateTimeOffset.UnixEpoch }),
+				.. Versions(5, 6, 7),
+			],
+		};
 		var cold = A.Fake<IColdEventStore>();
-		_ = A.CallTo(() => cold.ReadAsync(A<KeyedTenantPartition>._, "agg-1", 0L, A<CancellationToken>._))
+		_ = A.CallTo(() => cold.ReadAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._))
 			.Returns(Versions(1, 2, 3, 4));
 
 		var view = (IEventStore)Tiered(hot, cold).GetService(typeof(ITransactionalEventStore))!;
 
 		var history = await view.LoadAsync("agg-1", "Agg", TestContext.Current.CancellationToken);
 
-		history.Count.ShouldBe(7, "the view must consult both tiers, not hand back the bare hot store");
+		history.Count.ShouldBe(7, "tombstoning keeps every row, so the whole stream is present either way");
 		history[0].Version.ShouldBe(1);
 		history[^1].Version.ShouldBe(7);
+
+		// The arm that actually discriminates: a view over the bare hot store leaves these four empty.
+		history.Where(e => e.EventData is null).ShouldBeEmpty(
+			"the view must hydrate the archived payloads from cold, not hand back the bare hot store");
 	}
 
 	// -----------------------------------------------------------------------------------------------

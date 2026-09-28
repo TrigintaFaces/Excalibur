@@ -102,10 +102,15 @@ deletion nobody asked for, in a scope nobody can enumerate.
 
 ### An erasure completion certificate — what it asserts, and what it does not
 
-**Guarantee: a completion certificate exists only for a request that reached `Completed`, and `Completed`
+**Guarantee: a COMPLETION certificate exists only for a request that reached `Completed`, and `Completed`
 is reachable only when every one of the following held. Any one of them unmet records an error, and the
-branch that issues the certificate is the only branch that does not run while an error exists
-(`Erasure/ErasureService.cs:546`, `:574`).**
+branch that issues a completion certificate is the only branch that does not run while an error exists.**
+
+> **Amended.** This previously read that *the* certificate-issuing branch is the only branch that does
+> not run while an error exists. That is still true of a **completion** certificate and is no longer true
+> of certificates generally: a request that reached `PartiallyCompleted` now also receives one, and it is
+> issued from a branch where errors exist by definition. The two are different documents making different
+> claims, and the sentence above was correct only while the second did not exist.
 
 - A data-inventory discovery source is registered, or the host explicitly opted into
   `ErasureOptions.KeyShredOnlyErasure`. Coverage that was never looked for is not coverage.
@@ -118,6 +123,51 @@ branch that issues the certificate is the only branch that does not run while an
   lower bound, and an unknown category is indistinguishable from a covered one.
 - Every key destruction the framework attempted was reported irrecoverable *now* by the key-management
   provider. A key merely scheduled for destruction is still recoverable and records an error.
+
+**Guarantee: a request that reached `PartiallyCompleted` also receives a certificate, and that certificate
+records what the erasure did NOT reach, distinctly from what it lawfully retained.**
+
+An erasure that partly succeeded used to receive nothing: the call refused, and because the request is
+terminal it could never be produced afterwards. What the consumer was left with is the status row's error
+text — unsigned, unstructured, mutable, with no retention and no canonical form. Refusing the document
+does not make the failure legible; it destroys the only durable signed record that the work which DID
+happen happened.
+
+The certificate for a partial carries a list of unreached locations, and each entry states four things:
+the kind of store still holding the data, the mechanism by which the erasure did not reach it, an
+**explicit** statement that no lawful basis is claimed for that retention, and the controller's remaining
+obligation together with its operational cost. That list is a sibling of the Article 17(3) exemptions and
+nothing appears in both — an exemption carries a legal basis, and presenting an unmet obligation as one
+would turn a failure into a defensible retention.
+
+Two properties of the surrounding behaviour are part of this guarantee, because without them it is
+unsafe:
+
+- **A partial certificate is the one written on the execution path, never a reconstruction.** The
+  persisted status keeps counts and a single joined error string, so a certificate rebuilt later cannot
+  name which store kind went unreached — it would attest an incomplete erasure while being silent about
+  the incomplete part. Reconstruction of a partial is refused.
+- **Failing to write the certificate cannot fail the erasure.** Writing it signs a payload and resolves a
+  store, so it can throw; that throw is caught and the erasure still reports the keys it destroyed. An
+  erasure that destroyed a key and then reported as never having happened would leave a consumer unable
+  either to redo it — the key is gone and the request is terminal — or to prove it was done. The
+  erasure's outcome is decided by what the erasure did, never by whether the document about it was
+  written.
+
+**Evidence.** `APartlySucceededErasureStillProducesEvidenceShould` — four arms: a certificate is produced
+at all; it names the store not reached; it claims no lawful basis and the unreached store never appears
+among the exemptions; and the keys destroyed are still reported when the certificate write throws. Each
+is RED-detecting: removing the execution-path write reddens the first three, and removing the fail-open
+catch reddens the fourth.
+
+**Consumer obligation.** The remedy named on the certificate takes the affected read model offline for
+its duration and must not be run against a live projection processor — a rebuild interrupted part-way
+leaves the subject cleared from some rows and not others with no record of which.
+
+**Known gap, and the rung.** This makes the EVIDENCE honest. It does not make the erasure reach further:
+erasure still does not propagate to projections, and it remains whole-aggregate. This seam's blast radius
+is catastrophic and its rigor floor is R4; **R3 and R4 are UNVERIFIED** — the arms above are
+sampling-class and say nothing about the state space.
 
 **Guarantee: `Verification.Verified` is `true` only when the framework itself established the destruction
 the certificate attests — every identifier in `Verification.DeletedKeyIds` was reported irrecoverable by
@@ -142,6 +192,38 @@ and field hold it, so it cannot become a data location. It drives a separate arm
 the inventory never located blocks completion — and registration remains an explicit act
 (`IDataInventoryService.RegisterDataLocationAsync`). The obligation set is the whole tenant registry, read
 once per erasure (`Erasure/DataInventoryService.cs:101`), never a subject-scoped slice.
+
+**Guarantee: a host with registered projections cannot reach `Completed`, because the framework cannot
+erase a read model and will not report that it did.** Erasure tombstones event rows in place and notifies
+nothing, so a projection that already folded a subject's events keeps them. That is a real gap and it is
+not closed by this guarantee — what this guarantee closes is the gap being reported as success.
+
+The mechanism reuses the fail-closed path rather than adding one: an erasure contributor covering NO
+store kind reports failure whenever persisted projections are registered, a contributor failure is an
+error, and `Completed` requires zero errors. It stands down in the three cases where reporting a gap
+would be false — no projections registered; only EPHEMERAL projections, which are computed on demand and
+persist nothing, so a tombstoned stream already yields a clean result; and a consumer who has registered
+their own contributor declaring `DataStoreKind.Projection`, who has taken the responsibility on.
+
+**Why this needed saying at all, and it is the coverage guarantee above seen from its blind side.**
+Coverage is judged against locations the CONSUMER registered. Nothing registers a projection store as a
+location, and nothing can — the framework cannot enumerate a consumer's read models. So the coverage gate
+had nothing to fail on, and a certificate over untouched read models was not merely possible, it was the
+default. **A gate that is conservative over the inventory it is given is not conservative about an
+omission from that inventory.**
+
+**Consumer obligation.** Clearing a subject from a read model is yours to drive. For a projection keyed
+per aggregate, `IProjectionRecovery.ReapplyAsync` for the subject's aggregate rewrites that row from the
+tombstoned stream; for rows the subject shares with others, rebuild the projection. Neither is reached by
+the erasure path.
+
+**And a caveat on the first of those, because recommending a call without its known defect is how a
+guarantee document misleads.** For a FULLY erased aggregate the replay yields no position -- every event
+is a tombstone -- so the write falls to the unconditional surface and leaves the row with no established
+position. The compliance outcome is achieved: the subject's data is gone from that row. What follows is
+that the next batch finds an unpositioned row, adopts it, and stamps a position over state it did not
+fold. **Use the call for erasure, then replay or rebuild that projection rather than trusting its stored
+position.** The event-sourcing guarantee document carries the full mechanism.
 
 **Guarantee: an EMPTY registry and an UNREADABLE registry are different facts and are answered
 differently, because only one of them is a misconfiguration.** An empty registry does not fail host start —

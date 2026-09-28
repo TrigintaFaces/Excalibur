@@ -30,6 +30,19 @@ namespace Excalibur.Compliance.Erasure;
 /// 5. Verifying erasure and generating compliance certificate
 /// </para>
 /// </remarks>
+[SuppressMessage(
+	"Design",
+	"CA1506:AvoidExcessiveClassCoupling",
+	Justification =
+		"NAMED AS A TRADE, not waved through. This class orchestrates the whole erasure lifecycle -- "
+		+ "discovery, legal holds, key deletion, contributors, the coverage gate, certificates and "
+		+ "verification -- so it necessarily touches every type in those subsystems, and it sat at the "
+		+ "budget before the partial-certificate work. That work is a compliance correctness fix: "
+		+ "without it a consumer with any persisted projection can never obtain an erasure certificate "
+		+ "at all. Splitting a 1000-line compliance orchestrator days before a release cut is the "
+		+ "larger risk, so the coupling is accepted and the split is tracked as debt. The construction "
+		+ "of the certificate's unreached-data record was extracted to UnreachedDataFactory rather than "
+		+ "added here, which is why this is +2 and not +5.")]
 public sealed partial class ErasureService: IErasureService, IErasureExecutor
 {
 	private static readonly Counter<long> RequestsSubmittedCounter =
@@ -311,7 +324,14 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  RequestNotFoundFormat,
  requestId));
 
- if (status.Status != ErasureRequestStatus.Completed)
+ // A PARTIALLY completed erasure still produces a certificate, and refusing one was a defect
+ // rather than caution. What the consumer otherwise gets is ErrorMessage: an unsigned, unstructured,
+ // mutable string on a status row, with no retention and no canonical form. Refusing the certificate
+ // does not make the failure legible -- it destroys the only durable, signed record that the work
+ // which DID happen happened, and the request is terminal, so it can never be produced later.
+ //
+ // Failed is still refused. There, nothing succeeded, so there is nothing to attest.
+ if (status.Status is not (ErasureRequestStatus.Completed or ErasureRequestStatus.PartiallyCompleted))
  {
  throw new InvalidOperationException(string.Format(
  CultureInfo.CurrentCulture,
@@ -327,6 +347,20 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  if (existingCert is not null)
  {
  return existingCert;
+ }
+
+ // A PARTIAL erasure is evidenced by the certificate written on the execution path, and ONLY by it.
+ // The reconstruction below rebuilds from persisted status, which keeps counts and one joined error
+ // string -- it cannot name which store kind went unreached, so a certificate reconstructed here
+ // would attest a partial erasure while being silent about the part that did not happen. That is the
+ // dishonesty this whole change exists to remove, arriving from the other direction.
+ if (status.Status == ErasureRequestStatus.PartiallyCompleted)
+ {
+ throw new InvalidOperationException(string.Format(
+ CultureInfo.CurrentCulture,
+ CannotGenerateCertificateFormat,
+ requestId,
+ status.Status));
  }
 
  // One completion instant, read once. Every field below that describes WHEN is derived from it rather
@@ -498,7 +532,8 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 
  // Invoke erasure contributors (event stores, snapshot stores, etc.)
  var contributorResults = new List<ErasureContributorResult>();
- var totalRecordsAffected = await InvokeContributorsAsync(requestId, status, discoveredInventory, errors, contributorResults, cancellationToken)
+ var failedContributors = new List<(string Name, string? Error)>();
+ var totalRecordsAffected = await InvokeContributorsAsync(requestId, status, discoveredInventory, errors, contributorResults, failedContributors, cancellationToken)
 .ConfigureAwait(false);
 
  // Amendment 1/1a — STRUCTURAL key-aware coverage gate (computed by EvaluateCoverage).
@@ -543,6 +578,52 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  ? ErasureRequestStatus.PartiallyCompleted
 : ErasureRequestStatus.Failed;
  var errorSummary = string.Join("; ", errors);
+
+ // Persist the certificate BEFORE recording the status, and only when something succeeded.
+ // This is what makes a partial erasure evidenced rather than merely logged: the structured
+ // residue is in hand HERE and nowhere later -- ErasureStatus persists counts and one joined
+ // error string, so a certificate reconstructed after the fact could not name a store kind
+ // without parsing prose back into data.
+ if (hasAnySuccess)
+ {
+ // FAILS OPEN, and this is a correctness requirement rather than defensive coding.
+ //
+ // Writing the certificate signs a payload and resolves a store, so it can throw. Without this
+ // catch the throw reaches the handler at the bottom of this method, which records the request
+ // as Failed and returns a result carrying NO key count -- so an erasure that ACTUALLY DESTROYED
+ // THE KEY reports as never having happened. The key is gone and the request is terminal, so the
+ // consumer cannot redo it and cannot obtain evidence that it was done. That is a worse outcome
+ // than the missing certificate this whole path exists to provide.
+ //
+ // The erasure's outcome is decided by what the erasure DID, never by whether we managed to
+ // write the document about it. Same rule the framework applies to every other cross-cutting
+ // concern: an optional surface skips and logs, it does not take the operation down with it.
+ try
+ {
+ _ = await PersistCompletionCertificateAsync(
+ requestId,
+ status,
+ deletedKeyIds,
+ deletedCount,
+ totalRecordsAffected,
+ coverage.Exemptions,
+ cancellationToken,
+ warnings: null,
+ certificateIdOverride: null,
+ uncoveredStoreKinds: coverage.UncoveredStoreKinds,
+ failedContributors: failedContributors).ConfigureAwait(false);
+ }
+ catch (Exception certificateFailure) when (certificateFailure is not OperationCanceledException)
+ {
+ // Loud, because the consumer now has a partly-completed erasure with no signed evidence of
+ // it and needs to know that rather than discover it at an audit.
+ LogPartialCertificateNotWritten(requestId, certificateFailure);
+ errors.Add(
+ "the erasure completed in part but its certificate could not be written: "
+ + certificateFailure.Message);
+ errorSummary = string.Join("; ", errors);
+ }
+ }
 
  _ = await _store.UpdateStatusAsync(requestId, partialStatus, errorSummary, cancellationToken)
 .ConfigureAwait(false);
@@ -788,6 +869,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 		DataInventory? inventory,
 		List<string> errors,
 		List<ErasureContributorResult> contributorResults,
+		List<(string Name, string? Error)> failedContributors,
 		CancellationToken cancellationToken)
 	{
  var totalRecordsAffected = 0;
@@ -818,12 +900,17 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  else
  {
  errors.Add($"Contributor '{contributor.Name}' failed: {contributorResult.ErrorMessage}");
+
+				// Kept STRUCTURALLY as well as in the joined error string, because the certificate must
+				// name what was not reached and parsing it back out of prose is not a contract.
+ failedContributors.Add((contributor.Name, contributorResult.ErrorMessage));
  LogErasureContributorFailed(contributor.Name, requestId, contributorResult.ErrorMessage ?? "Unknown error");
  }
  }
  catch (Exception ex)
  {
  errors.Add($"Contributor '{contributor.Name}' threw exception: {ex.Message}");
+ failedContributors.Add((contributor.Name, ex.Message));
  LogErasureContributorException(contributor.Name, requestId, ex);
  }
  }
@@ -893,7 +980,9 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  IReadOnlyList<ErasureException> exemptions,
  CancellationToken cancellationToken,
  IReadOnlyList<string>? warnings = null,
- Guid? certificateIdOverride = null)
+ Guid? certificateIdOverride = null,
+ IReadOnlyCollection<string>? uncoveredStoreKinds = null,
+ IReadOnlyList<(string Name, string? Error)>? failedContributors = null)
 	{
  var certificateId = certificateIdOverride ?? Guid.NewGuid();
 
@@ -913,6 +1002,12 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  // there is no field list here to fall out of step with the type.
  var payload = new ErasureCertificatePayload
  {
+ // Null, never an empty list: the canonical form omits a null and a certificate with nothing
+ // outstanding must serialize exactly as it did before this field existed, or every signature
+ // already in the field stops verifying.
+ UnreachedData = uncoveredStoreKinds is null && failedContributors is null
+ ? null
+ : UnreachedDataFactory.Build(uncoveredStoreKinds ?? [], failedContributors ?? []),
  CertificateId = certificateId,
  RequestId = requestId,
  DataSubjectReference = status.DataSubjectIdHash,
@@ -1285,6 +1380,14 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  LogLevel.Warning,
  "Erasure request {RequestId} partially completed with {ErrorCount} error(s). Keys deleted: {KeysDeleted}")]
 	private partial void LogErasurePartiallyCompleted(Guid requestId, int errorCount, int keysDeleted);
+
+	[LoggerMessage(
+		EventId = ComplianceEventId.ErasurePartialCertificateNotWritten,
+		Level = LogLevel.Error,
+		Message =
+			"Erasure {RequestId} completed in part but its certificate could not be written. The erasure "
+			+ "itself stands and its counts are reported; there is no signed evidence of it.")]
+	private partial void LogPartialCertificateNotWritten(Guid requestId, Exception exception);
 
 	[LoggerMessage(
  ComplianceEventId.ErasureExecutionRefusedAwaitingDestruction,

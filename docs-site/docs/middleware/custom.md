@@ -146,7 +146,11 @@ public class CorrelationMiddleware : IDispatchMiddleware
 ### Tenant Resolution
 
 ```csharp
-public class TenantMiddleware : IDispatchMiddleware
+// IEstablishesTenantContext is not decoration. It is how the framework knows this middleware
+// opens the ambient tenant scope, so it can REFUSE at startup any pipeline that would run a
+// tenant-READING middleware before this one. Omit it and that refusal silently does not apply to
+// your pipeline -- you get no error, and a reader ordered too early sees no tenant at runtime.
+public class TenantMiddleware : IDispatchMiddleware, IEstablishesTenantContext
 {
     public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
 
@@ -180,6 +184,43 @@ public class TenantMiddleware : IDispatchMiddleware
     }
 }
 ```
+
+#### Declaring the other half: a middleware that READS the tenant
+
+A middleware that depends on the ambient tenant declares `IRequiresTenantContext`:
+
+```csharp
+// Declaring this gets you a STARTUP failure if this middleware would run before the establisher,
+// instead of a silent read of "no tenant" on every message at runtime.
+public class TenantAuditMiddleware : IDispatchMiddleware, IRequiresTenantContext
+{
+    // LATER than the establisher's PreProcessing. Middleware execute in ASCENDING stage order,
+    // so a reader needs a HIGHER stage than the middleware that establishes the scope.
+    public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Processing;
+
+    public async ValueTask<IMessageResult> InvokeAsync(
+        IDispatchMessage message,
+        IMessageContext context,
+        DispatchRequestDelegate next,
+        CancellationToken ct)
+    {
+        var tenant = context.RequestServices.GetRequiredService<ITenantContext>();
+        // ... audit under the ambient tenant, which is guaranteed to be established by now
+        return await next(message, context, ct);
+    }
+}
+```
+
+**Why both markers matter.** With both declared, a pipeline that would run the reader before the
+establisher fails when the pipeline is first resolved, naming both concrete types. With either one
+missing, the check finds nothing to enforce and stays silent — and a tenant-reading middleware that
+runs outside the ambient scope observes **no tenant**. It raises no error and writes no log, so a
+tenant-scoped read returns the untenanted result rather than failing. The symptom is wrong data, not
+an outage.
+
+The two markers are the only way your own middleware participates in this. The framework cannot infer
+which of your types read or establish tenancy.
+
 
 ### Audit Logging
 

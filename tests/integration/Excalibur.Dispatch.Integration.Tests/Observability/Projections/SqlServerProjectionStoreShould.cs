@@ -56,6 +56,11 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 					Data NVARCHAR(MAX) NOT NULL,
 					CreatedAt DATETIMEOFFSET NOT NULL,
 					UpdatedAt DATETIMEOFFSET NOT NULL,
+					-- The store's unconditional write now INVALIDATES the position rather than leaving it
+					-- stale, so this column is part of the contract the store writes against, not an
+					-- optional extra. -1 rather than 0 because zero is a legitimate stream position: a
+					-- zero default would make a brand-new row claim it had already folded the first event.
+					LastAppliedPosition BIGINT NOT NULL DEFAULT (-1),
 					CONSTRAINT [PK_{TableName}] PRIMARY KEY (TenantId, Id)
 				)
 			END
@@ -78,6 +83,79 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 		public string? TenantId { get; } = tenantId;
 
 		public bool HasTenant => TenantId is not null;
+	}
+
+	// SAFETY. A row whose position an unconditional write DESTROYED must be distinguishable, in the
+	// stored value itself, from one that simply never had a position number. The two need opposite
+	// treatment -- the first must never be adopted, the second must be -- and nothing can tell them
+	// apart after the fact, so the distinction is recorded AT WRITE TIME or it is lost for good.
+	[Fact]
+	public async Task Record_that_an_unconditional_write_left_the_state_unplaceable()
+	{
+		var id = $"marker-{Guid.NewGuid():N}";
+
+		var positioned = (IPositionedProjectionStore<TestOrderProjection>)
+			((IServiceProvider)_store!).GetService(
+				typeof(IPositionedProjectionStore<TestOrderProjection>))!;
+
+		_ = await positioned.UpsertAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 7,
+			CancellationToken.None);
+
+		(await ReadPositionAsync(id)).ShouldBe(7, "precondition: the row is positioned");
+
+		await _store.UpsertAsync(id, new TestOrderProjection { Id = id }, CancellationToken.None);
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			ProjectionPosition.UnplaceableSentinel,
+			"the row must say the state is UNPLACEABLE -- not a fold over any prefix -- rather than "
+			+ "merely unnumbered, which is what the old single sentinel could not express");
+
+		var refused = await positioned.UpsertAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 9,
+			CancellationToken.None);
+
+		refused.Outcome.ShouldBe(
+			ProjectionAdvanceOutcome.Unplaceable,
+			"adopting this row would make it assert a prefix it does not hold. Reporting Superseded "
+			+ "would send the caller back to re-read and retry, forever");
+	}
+
+	// LIVENESS, and it is the arm that stops the one above being satisfied by refusing everything.
+	[Fact]
+	public async Task Keep_an_unnumbered_complete_fold_adoptable()
+	{
+		var id = $"marker-new-{Guid.NewGuid():N}";
+
+		var positioned = (IPositionedProjectionStore<TestOrderProjection>)
+			((IServiceProvider)_store!).GetService(
+				typeof(IPositionedProjectionStore<TestOrderProjection>))!;
+
+		await positioned.UpsertUnnumberedAsync(
+			id, new TestOrderProjection { Id = id }, CancellationToken.None);
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			ProjectionPosition.UnnumberedSentinel,
+			"a complete fold with no position NUMBER is unnumbered, not unplaceable");
+
+		var adopted = await positioned.UpsertAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 4,
+			CancellationToken.None);
+
+		adopted.Outcome.ShouldBe(
+			ProjectionAdvanceOutcome.Applied,
+			"this row holds a complete fold, so adopting it and stamping the batch's position makes a "
+			+ "TRUE assertion -- refusing here would be the opposite defect");
+	}
+
+	private async Task<long> ReadPositionAsync(string id)
+	{
+		await using var connection = new SqlConnection(_fixture.ConnectionString);
+		await connection.OpenAsync();
+
+		return await connection.ExecuteScalarAsync<long>(
+			$"SELECT LastAppliedPosition FROM [{TableName}] WHERE Id = @Id AND TenantId = @TenantId",
+			new { Id = id, TenantId = TestTenantId });
 	}
 
 	public async ValueTask DisposeAsync()

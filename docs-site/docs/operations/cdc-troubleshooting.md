@@ -242,8 +242,24 @@ public class CdcPositionValidator
 ## Projection Rebuild
 
 When CDC recovery requires a projection rebuild, use `IProjectionRebuildService`. Register it with
-`services.AddProjectionRebuild()`. A rebuild replays every event through the projection's handlers and
-replaces the projection's existing state.
+`services.AddProjectionRebuild()`. A rebuild replays every event through the projection's handlers, folding
+each event into the same projection id the live apply path would fold it into, and rewrites every id the
+replay touched.
+
+:::warning Stop the projection's processor first
+A rebuild writes each id conditionally on the position that id held when the rebuild first read it. If a
+live writer advances one of those rows while the replay is running, the write is **refused** and the
+rebuild throws — naming the id it stopped on. Ids written before that one hold rebuilt state and the rest
+do not, so the read model is left half-rebuilt. Re-running from scratch is the recovery and is always safe.
+
+The read model is unavailable for the duration. Nothing in the framework can detect that a processor is
+still running, so this is on you.
+:::
+
+A rebuild is **additive**: it rewrites every id the replayed stream produces, and leaves rows for ids the
+stream no longer produces. That matters for erasure — a fully erased aggregate's events are all tombstones,
+which the replay skips before deriving a key, so a rebuild produces no id for that subject and cannot clear
+its row. Use `IProjectionRecovery.ReapplyAsync` for a single subject's own row.
 
 ```csharp
 using Excalibur.EventSourcing.Projections;
@@ -264,8 +280,12 @@ public sealed class CdcProjectionRecovery(IProjectionRebuildService rebuild, ILo
 ```
 
 `GetStatusAsync<T>()` reports the projection's `State` (`Idle`, `Rebuilding`, `Completed` or `Failed`), its
-`Progress`, and when it was last rebuilt; `GetAllStatusesAsync()` reports every projection. Reads of the
-projection during a rebuild see partially rebuilt state, so schedule it when that is acceptable.
+`Progress`, and when it was last rebuilt; `GetAllStatusesAsync()` reports every projection. `RebuildAsync`
+also **throws** on failure, so the status check above is for a caller that wants the reason without
+catching; a caller that does not catch will see the exception.
+
+Memory: a rebuild holds one instance of the projection per distinct id the stream produces, until it
+writes. For a projection keyed per aggregate over a large store, that is one instance per aggregate.
 
 ## Monitoring and Alerting
 

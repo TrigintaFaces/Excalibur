@@ -394,7 +394,12 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 
 		// Cache the resolved instances so the dispatcher's invoker can reuse this single
 		// resolution path rather than re-resolving (which would re-trigger the throws).
-		_resolvedMiddleware = resolvedMiddleware;
+		// Verify BEFORE publishing the list. Both consumers read this field -- the pipeline, and the
+		// invoker the dispatcher actually executes -- so this is the one point that covers both, and
+		// it does not depend on anyone constructing a DispatchPipeline. Assigning the RESULT is what
+		// makes the check inseparable from the value: removing it removes the expression being
+		// assigned, rather than deleting a statement that reviewers may not miss.
+		_resolvedMiddleware = TenantOrderingRule.Verified(resolvedMiddleware);
 
 		// Create pipeline with resolved middleware
 		return new DispatchPipeline(resolvedMiddleware, _applicabilityStrategy);

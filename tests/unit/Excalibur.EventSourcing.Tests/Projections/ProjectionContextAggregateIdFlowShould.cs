@@ -124,7 +124,7 @@ public sealed class ProjectionContextAggregateIdFlowShould
 		using var provider = services.BuildServiceProvider();
 
 		await registration.InlineApply(
-			[new TestOrderPlaced { Amount = 5m }],
+			[new ProjectionEvent(new TestOrderPlaced { Amount = 5m }, AggregateId, GlobalPosition: null)],
 			new EventNotificationContext(AggregateId, "Customer", 1, DateTimeOffset.UnixEpoch),
 			provider,
 			CancellationToken.None).ConfigureAwait(true);
@@ -208,7 +208,7 @@ public sealed class ProjectionContextAggregateIdFlowShould
 			Timestamp: DateTimeOffset.UnixEpoch);
 
 		await registration.InlineApply(
-			[@event],
+			[new ProjectionEvent(@event, AggregateId, GlobalPosition: null)],
 			context,
 			provider,
 			CancellationToken.None).ConfigureAwait(true);

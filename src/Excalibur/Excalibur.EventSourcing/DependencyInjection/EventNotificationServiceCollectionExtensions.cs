@@ -70,6 +70,11 @@ public static class EventNotificationServiceCollectionExtensions
 				sp.GetRequiredService<IProjectionRegistry>(), projectionBuilder);
 		});
 
+		// Closed over TProjection here, where the type is known, so the startup check needs no
+		// reflection and stays AOT-safe. It costs nothing unless the host requires positioned writes.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IPositionedProjectionProbe, PositionedProjectionProbe<TProjection>>());
+
 		return builder;
 	}
 

@@ -195,7 +195,7 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 	{
 		const string createTableSql = """
 			CREATE TABLE IF NOT EXISTS public.events (
-			    position BIGSERIAL PRIMARY KEY,
+			    position BIGINT PRIMARY KEY,
 			    event_id VARCHAR(255) NOT NULL UNIQUE,
 			    aggregate_id VARCHAR(255) NOT NULL,
 			    aggregate_type VARCHAR(255) NOT NULL,
@@ -204,11 +204,23 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 			    metadata BYTEA,
 			    version BIGINT NOT NULL,
 			    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			    -- Set when the payload has been moved to cold storage; the row and its position stay.
+			    archived_at TIMESTAMPTZ NULL,
 			    -- Row-level tenant discriminator: every event-store read filters on it, and stream
 			    -- uniqueness is per tenant. Without it LoadAsync fails with 42703.
 			    tenant_id VARCHAR(450) NOT NULL DEFAULT '__untenanted__',
 			    CONSTRAINT uq_aggregate_version UNIQUE (tenant_id, aggregate_id, aggregate_type, version)
 			);
+
+			-- Positions are allocated from this counter row inside the appending transaction, so an
+			-- aborted append burns none and the committed stream stays contiguous.
+			CREATE TABLE IF NOT EXISTS events_position (
+			    id    SMALLINT PRIMARY KEY CHECK (id = 1),
+			    value BIGINT NOT NULL
+			);
+			INSERT INTO events_position (id, value)
+			SELECT 1, COALESCE((SELECT MAX(position) FROM events), 0)
+			ON CONFLICT (id) DO NOTHING;
 
 			CREATE INDEX IF NOT EXISTS idx_events_aggregate ON public.events (aggregate_id, aggregate_type, version);
 			""";

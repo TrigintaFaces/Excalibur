@@ -63,7 +63,12 @@ public sealed class AzureServiceBusSessionOrderingIntegrationShould
 	{
 		// NON-SKIPPED: real-infra fidelity is the load-bearing bar (NFR-1). The fixture no longer
 		// degrades gracefully (§8.4) — if the emulator can't start, this fails rather than skips.
-		_fixture.DockerAvailable.ShouldBeTrue("ASB emulator must be available — real-infra session-ordering proof (NFR-1)");
+		// EnsureAvailable(), not DockerAvailable.ShouldBeTrue(). Both refuse to run without the real
+		// emulator -- which is right, and this suite must never skip -- but the bare assertion reports
+		// only "should be True but was False" and DISCARDS the recorded cause. The base class captures
+		// the startup failure in InitializationError precisely so it is not lost, and EnsureAvailable
+		// is what surfaces it. An un-diagnosable red is barely better than a green.
+		_fixture.EnsureAvailable();
 
 		// Arrange — wire the transport with session consumption enabled (ne79ro), via the PUBLIC fluent
 		// builder. RequiresSession is set directly on the processor options.

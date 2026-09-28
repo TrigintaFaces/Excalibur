@@ -73,7 +73,11 @@ public sealed class SqliteSnapshotStoreTenantWiringConvergenceShould : IDisposab
 	public void Dispose()
 	{
 		_keepAlive.Dispose();
-		SqliteConnection.ClearAllPools();
+		// Scoped to this suite's own connection string, never ClearAllPools(): the pool is keyed by
+		// connection string, and the process-global clear disposes handles belonging to every other
+		// Sqlite test running in parallel -- which surfaces in THEM as ObjectDisposedException.
+		using var pooled = new SqliteConnection(_connectionString);
+		SqliteConnection.ClearPool(pooled);
 
 		if (File.Exists(_databasePath))
 		{

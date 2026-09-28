@@ -7,6 +7,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
+using Excalibur.EventSourcing.Queries;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -166,6 +167,13 @@ public static class EventSourcingBuilderPostgresExtensions
 		builder.Services.TryAddSingleton(dataSourceFactory);
 #pragma warning restore CA2000
 		RegisterEventStore(builder.Services, options.EventStoreSchema, options.EventStoreTable);
+
+		// The global stream query is what lets projections, materialized views, projection rebuilds and
+		// the lag read-model run on this provider. Without it those features resolve nothing and the
+		// provider is an event store that silently cannot project.
+		builder.Services.TryAddSingleton<IGlobalStreamQuery>(sp => new PostgresGlobalStreamQuery(
+			sp.GetRequiredService<NpgsqlDataSource>(),
+			sp.GetRequiredService<IOptions<PostgresEventSourcingOptions>>()));
 		RegisterSnapshotStore(builder.Services, options.SnapshotStoreSchema, options.SnapshotStoreTable);
 
 		// Register health checks if enabled and connection string is available

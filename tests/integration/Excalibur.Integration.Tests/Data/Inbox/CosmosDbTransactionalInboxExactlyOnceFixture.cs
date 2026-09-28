@@ -7,6 +7,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Fluent;
 
 using Testcontainers.CosmosDb;
+using Excalibur.Integration.Tests.Infrastructure;
 
 namespace Excalibur.Integration.Tests.Data.Inbox;
 
@@ -127,6 +128,12 @@ public sealed class CosmosDbTransactionalInboxExactlyOnceFixture : IAsyncLifetim
 				var database = await Client.CreateDatabaseIfNotExistsAsync(DatabaseName).ConfigureAwait(false);
 				_ = await database.Database.CreateContainerIfNotExistsAsync(
 					new ContainerProperties(ContainerName, "/handler_type")).ConfigureAwait(false);
+				
+				// Past the handshake, so this cannot be written by a run that never reached the
+				// emulator. CI reads these records to prove the Cosmos suites actually executed --
+				// a counter cannot, because an early return on an availability guard still counts
+				// as executed and passed.
+				CosmosExecutionEvidence.RecordEmulatorReached(nameof(CosmosDbTransactionalInboxExactlyOnceFixture));
 				return;
 			}
 			catch (Exception) when (attempt < maxAttempts)

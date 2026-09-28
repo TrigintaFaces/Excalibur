@@ -16,7 +16,7 @@
 >   -> IEventStoreArchive.GetArchiveCandidatesAsync(ArchivePolicy)
 >   -> IColdEventStore.WriteAsync          (moves old events to S3/Blob/GCS)
 >                                          RETURNS the durable low-water mark
->   -> IEventStoreArchive.DeleteEventsUpToVersionAsync
+>   -> IEventStoreArchive.TombstoneArchivedEventsUpToVersionAsync
 >                                          bounded BY that watermark, never by
 >                                          the version we asked to archive
 >

@@ -130,7 +130,15 @@ public sealed class SqliteTableInitializerKeyedInitShould : IDisposable
 
         try
         {
-            SqliteConnection.ClearAllPools();
+            // Scoped to the connection strings THIS suite created, never ClearAllPools(): the pool is
+            // keyed by connection string, and the process-global clear disposes handles belonging to
+            // every other Sqlite test running in parallel -- which surfaces in THEM as
+            // ObjectDisposedException.
+            foreach (var tracked in _files)
+            {
+                using var pooled = new SqliteConnection($"Data Source={tracked}");
+                SqliteConnection.ClearPool(pooled);
+            }
         }
         catch (Exception)
         {

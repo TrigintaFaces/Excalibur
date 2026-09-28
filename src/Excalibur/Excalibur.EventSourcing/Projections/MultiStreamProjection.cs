@@ -102,6 +102,51 @@ internal sealed class MultiStreamProjection<TProjection>
 	internal bool HasKeySelectors => _keySelectors.Count > 0;
 
 	/// <summary>
+	/// Derives the projection identifier an event folds into: the registered key selector's answer,
+	/// or the aggregate the event came from.
+	/// </summary>
+	/// <param name="projectionEvent">The event, carrying its own aggregate identity.</param>
+	/// <returns>The projection identifier to load, fold and write.</returns>
+	/// <exception cref="InvalidOperationException">The derivation produced a null or empty key.</exception>
+	/// <remarks>
+	/// <para>
+	/// <b>This exists because the derivation was written four times and three of them were wrong.</b>
+	/// The live asynchronous path derived selector-or-aggregate and honored the override hatch; the
+	/// synchronous-only path derived selector-or-aggregate without it; recovery always used the
+	/// aggregate id; and a rebuild always used the projection TYPE NAME — a key space no read path
+	/// queries, so a rebuild wrote one meaningless document and left every row a reader loads
+	/// untouched. Each copy was reasonable where it was written and they did not agree, and a key that
+	/// disagrees with the read path is invisible: everything succeeds and the reader sees stale data.
+	/// </para>
+	/// <para>
+	/// The aggregate identity is taken from the EVENT, never from a batch-level context: a batch spans
+	/// aggregates, so a single per-call aggregate id is wrong for every event but one.
+	/// </para>
+	/// </remarks>
+	internal string DeriveProjectionId(ProjectionEvent projectionEvent)
+	{
+		var keySelector = GetKeySelector(projectionEvent.Domain.GetType());
+		var projectionId = keySelector is not null
+			? keySelector(projectionEvent.Domain)
+			: projectionEvent.AggregateId;
+
+		if (string.IsNullOrEmpty(projectionId))
+		{
+			throw new InvalidOperationException(
+				keySelector is not null
+					? $"The KeyedBy selector registered for event type "
+						+ $"'{projectionEvent.Domain.GetType().Name}' on projection "
+						+ $"'{typeof(TProjection).Name}' returned a null or empty projection id."
+					: $"Event type '{projectionEvent.Domain.GetType().Name}' folding into projection "
+						+ $"'{typeof(TProjection).Name}' carries no aggregate id, and no KeyedBy selector is "
+						+ "registered for it, so there is no key to fold into. Register a KeyedBy selector "
+						+ "for this event type.");
+		}
+
+		return projectionId;
+	}
+
+	/// <summary>
 	/// Gets the handler entry for the specified event type.
 	/// </summary>
 	/// <param name="eventType">The event type to look up.</param>
@@ -160,6 +205,86 @@ internal sealed class MultiStreamProjection<TProjection>
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// Applies an event, invoking a handler of ANY registered shape, including an asynchronous one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Why this exists beside <see cref="Apply(TProjection, IDomainEvent, ProjectionContext)"/>.</b>
+	/// That overload is synchronous, so it can dispatch only the two synchronous handler shapes. An
+	/// entry registered by <c>WhenHandledBy&lt;TEvent, THandler&gt;()</c> carries only an
+	/// <c>AsyncHandler</c>, and the synchronous overload fell through it to <see langword="false"/> --
+	/// which its callers discarded. A rebuild or a recovery of such a projection therefore folded
+	/// NOTHING and reported success.
+	/// </para>
+	/// <para>
+	/// <b>An entry with no delegate at all THROWS rather than returning false.</b> The entry record
+	/// states that exactly one of the three is set, so an entry satisfying none of them is a
+	/// programming error in this class, not a projection that declines to handle the event. Returning
+	/// <see langword="false"/> there is what let the async shape be dropped silently, and it would let
+	/// a FOURTH shape be dropped the same way the day someone adds one. Failing loudly is what makes
+	/// the omission impossible to ship.
+	/// </para>
+	/// </remarks>
+	/// <param name="projection">The projection state to fold into.</param>
+	/// <param name="domainEvent">The event to apply.</param>
+	/// <param name="context">The replay-aware projection context.</param>
+	/// <param name="handlerContext">The handler context asynchronous handlers receive.</param>
+	/// <param name="serviceProvider">Resolves an asynchronous handler's dependencies.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>
+	/// <see langword="true"/> when a handler was found and executed; <see langword="false"/> when no
+	/// handler is registered for the event type, which is a legitimate outcome.
+	/// </returns>
+	/// <exception cref="InvalidOperationException">
+	/// A handler entry exists for the event type but carries no delegate of any known shape.
+	/// </exception>
+	public async Task<bool> ApplyAsync(
+		TProjection projection,
+		IDomainEvent domainEvent,
+		ProjectionContext context,
+		ProjectionHandlerContext handlerContext,
+		IServiceProvider serviceProvider,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(projection);
+		ArgumentNullException.ThrowIfNull(domainEvent);
+		ArgumentNullException.ThrowIfNull(context);
+		ArgumentNullException.ThrowIfNull(handlerContext);
+		ArgumentNullException.ThrowIfNull(serviceProvider);
+
+		if (!_handlers.TryGetValue(domainEvent.GetType(), out var entry))
+		{
+			// No handler for this type. The projection does not care about this event, which is normal.
+			return false;
+		}
+
+		if (entry.SyncAction is not null)
+		{
+			entry.SyncAction(projection, domainEvent);
+			return true;
+		}
+
+		if (entry.SyncContextAction is not null)
+		{
+			entry.SyncContextAction(projection, domainEvent, context);
+			return true;
+		}
+
+		if (entry.AsyncHandler is not null)
+		{
+			await entry.AsyncHandler(projection, domainEvent, handlerContext, serviceProvider, cancellationToken)
+				.ConfigureAwait(false);
+			return true;
+		}
+
+		throw new InvalidOperationException(
+			$"The handler entry registered for event type '{domainEvent.GetType().Name}' on projection "
+			+ $"'{typeof(TProjection).Name}' carries no delegate of any known shape. Exactly one of "
+			+ "SyncAction, SyncContextAction or AsyncHandler must be set. This is a defect in the "
+			+ "projection registration path, not in the projection.");
 	}
 
 	/// <summary>

@@ -945,9 +945,46 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			TenantId = tenantId,
 			CorrelationId = correlationId,
 			CausationId = causationId,
-			PartitionKey = tenantId ?? aggregateId,
+			// THE PARTITION IS THE STREAM, NOT THE TENANT.
+			//
+			// OutboundMessage's own contract says messages sharing a PartitionKey "MUST be delivered in
+			// ascending SequenceNumber order", and the outbox claims order by PartitionKey, then
+			// SequenceNumber, then creation time. Keying on the tenant therefore declared every aggregate a
+			// tenant owns to be ONE ordered partition -- a promise nothing keeps, since SequenceNumber is
+			// left at 0 here (see the note below), so ordering inside it collapsed to CreatedAt across the
+			// whole tenant. It also serialises a tenant's entire event flow onto a single partition on any
+			// transport that honours partition ordering: a Kafka key, a Service Bus session, an SQS message
+			// group.
+			//
+			// The stream is the unit that actually has an order, so the stream is the partition. Qualified by
+			// tenant and type because an aggregate id is only unique within them -- two tenants using the
+			// same id must not share a partition, which is the failure keying on the id ALONE would produce.
+			//
+			// KNOWN GAP, deliberately not fixed in this change: SequenceNumber stays 0, which the contract
+			// defines as "no explicit sequencing requested -- ordering falls back to CreatedAt". The correct
+			// value is the event's stream version, and the arithmetic differs between the two staging call
+			// sites (one holds expectedVersion, the other runs after the append has moved aggregate.Version),
+			// so writing it from here without settling that would produce a WRONG sequence number -- worse
+			// than the documented unsequenced state, because the contract would then be read as honoured.
+			// Narrowing the partition is correct on its own and is strictly better than the tenant-wide
+			// claim it replaces. Tracked separately.
+			PartitionKey = BuildStreamPartitionKey(tenantId, aggregateType, aggregateId),
 		};
 	}
+
+	/// <summary>
+	/// Builds the outbox partition key for an aggregate's event stream.
+	/// </summary>
+	/// <remarks>
+	/// Tenant-qualified because an aggregate id is unique only within its tenant and type: two tenants
+	/// using the same id must land in different partitions. The untenanted case omits the tenant segment
+	/// rather than substituting a blank one, so an untenanted stream cannot collide with a tenant whose
+	/// identifier is empty.
+	/// </remarks>
+	internal static string BuildStreamPartitionKey(string? tenantId, string aggregateType, string aggregateId) =>
+		string.IsNullOrEmpty(tenantId)
+			? $"{aggregateType}/{aggregateId}"
+			: $"{tenantId}/{aggregateType}/{aggregateId}";
 
 	/// <summary>
 	/// Throws appropriate exception if the append result indicates failure.

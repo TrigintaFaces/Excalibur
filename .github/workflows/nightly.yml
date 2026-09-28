@@ -88,11 +88,44 @@ jobs:
 
   # Integration tests (self-contained, single-threaded for Docker stability)
   integration-tests:
-    name: Integration Tests
+    name: Integration Tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
     needs: deterministic-unit-tests
     if: ${{ !inputs.skip_integration_tests }}
-    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # SPLIT, because the union does not fit one budget and never will again. These two shards are
+        # exactly the projects the old catch-all carried, so coverage is unchanged -- what changes is
+        # that each leg gets its own clock. Measured on this runner: the union needed ~54 minutes of
+        # tests against a 60-minute job, and the suite it must carry next is nearly twice the size.
+        #
+        # Both legs genuinely start a Cosmos emulator (34 emulator-starting classes in the Excalibur
+        # project, 3 in the Dispatch one), so BOTH declare emulator-scope 'in' and both must produce
+        # execution evidence. That is why this split could not land until the Excalibur fixtures began
+        # emitting it -- with one evidence writer in the tree, an 'in' leg without it REFUSES.
+        shard:
+          - name: dispatch
+            filter: eng/ci/shards/IntegrationTests-Dispatch.slnf
+          - name: excalibur
+            filter: eng/ci/shards/IntegrationTests-Excalibur.slnf
+    # 120, not 60, and the 60 is why this job failed eight nights running. Measured on the mirror
+    # 2026-09-28: every step passed -- the Cosmos pre-check, the run, the emulator-reached gate, the
+    # results check -- with 3,913 tests across four assemblies and ZERO failures, and the job was then
+    # killed by "exceeded the maximum execution time of 1h0m0s" while saving the NuGet cache. About 54
+    # minutes of tests plus build and setup does not fit in 60.
+    #
+    # This job runs the CATCH-ALL shard serially, where ci.yml splits the same work across seven
+    # parallel legs (eng/ci/integration-excalibur-legs.txt). Matching that split here is the better
+    # fix and is tracked; raising the cap is the one that can be made safely without a trial run,
+    # since a timeout is a ceiling rather than an allocation and standard runners are free on a
+    # public repository.
+    #
+    # Per LEG now, not for the union. Projected from this runner's own measured rates against the
+    # suite about to arrive: dispatch ~24 minutes of tests, excalibur ~56, plus ~5 minutes of setup
+    # and build each. 90 leaves roughly a third of the budget spare on the longer leg while still
+    # bounding a genuine hang at an hour and a half rather than two.
+    timeout-minutes: 90
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -110,7 +143,7 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore and build
-        run: bash ./build.sh --build --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
+        run: bash ./build.sh --build --project ${{ matrix.shard.filter }} --verbosity quiet
 
       # This job is the ONLY place the Cosmos provider is exercised — ci.yml excludes it from the PR
       # path, so a Cosmos regression is caught here or nowhere. The gate moved here with the tests.
@@ -145,7 +178,7 @@ jobs:
           mkdir -p ./TestResults
           bash eng/ci/run-filtered-tests.sh \
             --filter "Category=Integration|Category=EndToEnd" -- \
-            eng/ci/shards/IntegrationTests.slnf \
+            ${{ matrix.shard.filter }} \
             --configuration Release \
             --no-build \
             -m:1 \
@@ -153,7 +186,7 @@ jobs:
             --logger "trx;LogFilePrefix=nightly-integration" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
-            -- RunConfiguration.TestSessionTimeout=1800000
+            -- RunConfiguration.TestSessionTimeout=5400000
 
       # The counter check below is a real check and it is kept, but it cannot see this failure on its
       # own. A skipped test is recorded as NotExecuted and excluded from both executed and passed, so
@@ -233,7 +266,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: nightly-integration
+          name: nightly-integration-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 14
 

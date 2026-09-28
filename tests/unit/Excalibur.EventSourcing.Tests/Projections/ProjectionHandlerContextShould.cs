@@ -20,7 +20,7 @@ public sealed class ProjectionHandlerContextShould
 		var timestamp = DateTimeOffset.UtcNow;
 
 		// Act
-		var context = new ProjectionHandlerContext("agg-42", "OrderAggregate", 7, timestamp);
+		var context = new ProjectionHandlerContext("agg-42", "OrderAggregate", 7, timestamp, isReplay: false);
 
 		// Assert
 		context.AggregateId.ShouldBe("agg-42");
@@ -33,7 +33,7 @@ public sealed class ProjectionHandlerContextShould
 	public void DefaultOverrideProjectionIdToNull()
 	{
 		// Act
-		var context = new ProjectionHandlerContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
+		var context = new ProjectionHandlerContext("agg-1", "Order", 1, DateTimeOffset.UtcNow, isReplay: false);
 
 		// Assert -- OverrideProjectionId defaults to null
 		context.OverrideProjectionId.ShouldBeNull();
@@ -43,7 +43,7 @@ public sealed class ProjectionHandlerContextShould
 	public void AllowSettingOverrideProjectionId()
 	{
 		// Arrange
-		var context = new ProjectionHandlerContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
+		var context = new ProjectionHandlerContext("agg-1", "Order", 1, DateTimeOffset.UtcNow, isReplay: false);
 
 		// Act
 		context.OverrideProjectionId = "custom-id-99";
@@ -56,7 +56,7 @@ public sealed class ProjectionHandlerContextShould
 	public void AllowResettingOverrideProjectionIdToNull()
 	{
 		// Arrange
-		var context = new ProjectionHandlerContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
+		var context = new ProjectionHandlerContext("agg-1", "Order", 1, DateTimeOffset.UtcNow, isReplay: false);
 		context.OverrideProjectionId = "some-id";
 
 		// Act
@@ -71,7 +71,7 @@ public sealed class ProjectionHandlerContextShould
 	{
 		// Arrange
 		var timestamp = new DateTimeOffset(2026, 3, 30, 12, 0, 0, TimeSpan.Zero);
-		var context = new ProjectionHandlerContext("agg-5", "Invoice", 42, timestamp);
+		var context = new ProjectionHandlerContext("agg-5", "Invoice", 42, timestamp, isReplay: false);
 
 		// Act -- mutating OverrideProjectionId should not affect other properties
 		context.OverrideProjectionId = "override-1";

@@ -186,8 +186,17 @@ const config: Config = {
           routeBasePath: 'docs',
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/TrigintaFaces/Excalibur/tree/main/docs-site/',
-          showLastUpdateAuthor: true,
-          showLastUpdateTime: true,
+          // OFF, and not a preference. Docusaurus fetches last-update info with ONE
+          // whole-history `git log --name-status` and buffers it at a hardcoded 20 MB
+          // (@docusaurus/utils/lib/vcs/gitUtils.js, getGitRepositoryFilesInfo). This
+          // repository's history is 21.5 MB of that output across 7,264 commits, so the
+          // call throws MaxBufferError and the ENTIRE SITE BUILD FAILS -- measured
+          // 2026-09-27. There is no env var or option to raise the limit, the buffer is
+          // not per-page, and the number only grows with every commit.
+          // Re-enable when upstream streams the log instead of buffering it; their source
+          // carries the TODO for exactly that.
+          showLastUpdateAuthor: false,
+          showLastUpdateTime: false,
 
           // Version configuration:
           // - Pre-release: only current exists, routed under /docs/next

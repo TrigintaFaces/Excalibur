@@ -32,7 +32,15 @@ namespace Excalibur.Data.MongoDB.Projections;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>, IAsyncDisposable
+[SuppressMessage(
+	"Design",
+	"CA1506:AvoidExcessiveClassCoupling",
+	Justification = "One store implements four contracts over a driver whose document, filter, "
+		+ "serialization and error-category types are separate namespaces. Splitting the positioned "
+		+ "write into its own type would duplicate the document layout, which is the one thing the "
+		+ "conditional and unconditional writes must agree on exactly.")]
+public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>,
+	IPositionedProjectionStore<TProjection>, IAsyncDisposable
 	where TProjection : class
 {
 	/// <summary>
@@ -65,6 +73,15 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	/// registered globally via <see cref="MongoDbConventionInitializer"/>.
 	/// </summary>
 	private const string MetaFieldOrigId = "origId";
+
+	/// <summary>
+	/// The last global-stream position folded into this projection.
+	/// </summary>
+	/// <remarks>
+	/// Under the framework metadata object rather than the document root, so it cannot collide with a
+	/// consumer projection property of the same name.
+	/// </remarks>
+	private const string MetaFieldPosition = "lastAppliedPosition";
 
 	private readonly MongoDbProjectionStoreOptions _options;
 	private readonly ILogger<MongoDbProjectionStore<TProjection>> _logger;
@@ -177,34 +194,54 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		// Serialize projection to flat BsonDocument — properties live at the document root.
-		// Framework metadata is isolated under a nested '_projection' object to prevent
-		// field name collisions with consumer projection properties.
-		var document = projection.ToBsonDocument();
 		var documentId = CreateDocumentId(id);
-
-		// BsonClassMap convention maps the 'Id' property to '_id'. Preserve the original
-		// value so it can be restored during deserialization (see StripProjectionMetadata).
-		var metadata = new BsonDocument
-		{
-			[MetaFieldId] = id,
-			[MetaFieldType] = _projectionType,
-			[MetaFieldUpdatedAt] = BsonValue.Create(DateTimeOffset.UtcNow),
-		};
-
-		if (document.Contains("_id") && document["_id"] != BsonNull.Value)
-		{
-			metadata[MetaFieldOrigId] = document["_id"];
-		}
-
-		document["_id"] = documentId;
-		document[MetadataKey] = metadata;
+		// THE FIELD IS WRITTEN, NOT OMITTED, AND THAT IS THE CHANGE.
+		//
+		// A ReplaceOne swaps the whole document, so a position the row used to carry vanishes with it.
+		// Omitting the field left the row reading back exactly like a row that never had a position --
+		// and those two must be treated OPPOSITELY: a never-positioned row IS a complete fold and is
+		// adoptable, whereas a row whose state was just replaced by a value this store cannot relate to
+		// the stream is not. Adopting the second stamps a position onto a state that does not contain
+		// that prefix, and every event below it is then silently missing from the read model forever.
+		//
+		// The sentinel rides the same single document replace as the state, so there is no window in
+		// which a destroyed position is recorded as a never-established one.
+		var document = BuildDocument(id, projection, ProjectionPosition.Unplaceable);
 
 		var filter = Builders<BsonDocument>.Filter.Eq("_id", documentId);
 		var replaceOptions = new ReplaceOptions { IsUpsert = true };
 
 		_ = await _collection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
 			.ConfigureAwait(false);
+
+		LogUpserted(_projectionType, id);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The same single <c>ReplaceOne</c> upsert as <see cref="UpsertAsync"/>, differing only in what it
+	/// asserts: this state IS a complete fold, so a later positioned writer may adopt the row.
+	/// Unconditional on purpose -- the caller is claiming completeness, not a place in the stream, so
+	/// there is no position for a condition to be written against.
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task UpsertUnnumberedAsync(
+		string id,
+		TProjection projection,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentNullException.ThrowIfNull(projection);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		_ = await _collection!.ReplaceOneAsync(
+			Builders<BsonDocument>.Filter.Eq("_id", CreateDocumentId(id)),
+			BuildDocument(id, projection, ProjectionPosition.Unnumbered),
+			new ReplaceOptions { IsUpsert = true },
+			cancellationToken).ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
 	}
@@ -590,4 +627,294 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 	[LoggerMessage(DataMongoDbEventId.ProjectionDeleted, LogLevel.Debug, "Deleted projection {ProjectionType}/{Id}")]
 	private partial void LogDeleted(string projectionType, string id);
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
+		string id,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// ONE read for both. Reading them separately admits a writer in between, after which the
+		// position the caller holds certifies a prefix its state does not contain -- and the
+		// conditional write below would ACCEPT, losing every event in the gap.
+		var filter = Builders<BsonDocument>.Filter.Eq("_id", CreateDocumentId(id));
+		var document = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken)
+			.ConfigureAwait(false);
+
+		if (document is null)
+		{
+			return (null, ProjectionPosition.Unnumbered);
+		}
+
+		var position = ReadPosition(document);
+		StripProjectionMetadata(document);
+		return (BsonSerializer.Deserialize<TProjection>(document), position);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// One <c>ReplaceOne</c> against a filter carrying the condition, so the state and its position are
+	/// written as a single document update — atomic on one document by construction, with no window in
+	/// which the position is ahead of the state it describes.
+	/// </para>
+	/// <para>
+	/// <b><c>IsUpsert</c> is false, deliberately.</b> An upsert would create the document when the
+	/// filter fails to match, which is exactly the two cases that must NOT create it: a stale expected
+	/// position, and a projection deleted by erasure. The null branch is a separate insert, so absence
+	/// is the condition rather than a side effect.
+	/// </para>
+	/// <para>
+	/// The filter carries BOTH conjuncts: the stored position equals what the caller read, AND the new
+	/// position exceeds it. The second is not redundant — a caller reads its expected value, so on a
+	/// redelivery the first is satisfied by construction and only the forward-only rule refuses it.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
+		string id,
+		TProjection projection,
+		long? expectedPosition,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		ArgumentNullException.ThrowIfNull(projection);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var documentId = CreateDocumentId(id);
+		var document = BuildDocument(id, projection, ProjectionPosition.At(newPosition));
+		var positionField = $"{MetadataKey}.{MetaFieldPosition}";
+
+		if (expectedPosition is { } expected)
+		{
+			var filter = Builders<BsonDocument>.Filter.And(
+				Builders<BsonDocument>.Filter.Eq("_id", documentId),
+				Builders<BsonDocument>.Filter.Eq(positionField, expected),
+				Builders<BsonDocument>.Filter.Lt(positionField, newPosition));
+
+			var result = await _collection!
+				.ReplaceOneAsync(filter, document, new ReplaceOptions { IsUpsert = false }, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (result.MatchedCount > 0)
+			{
+				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition);
+			}
+
+			// Nothing matched. Distinguish "the row moved on" from "the row is gone": recreating a
+			// deleted projection would reinstate data that erasure removed.
+			var current = await ReadCurrentPositionAsync(documentId, cancellationToken).ConfigureAwait(false);
+
+			if (!current.Exists)
+			{
+				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
+			}
+
+			// An unplaceable row is terminal and is reported as such rather than as a supersede. A
+			// superseded caller re-reads and retries; this row yields the same refusal on every
+			// re-read, so reporting Superseded here is an unbounded redelivery loop against a
+			// projection that can only be fixed by rebuilding it.
+			return current.Position.Kind == ProjectionPositionKind.Unplaceable
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
+				: new ProjectionAdvanceResult(
+					ProjectionAdvanceOutcome.Superseded, current.Position.ExpectedPositionOrNull);
+		}
+
+		// The caller read no position. ADOPTION MATCHES EXACTLY ONE OF THE THREE STATES, and the filter
+		// has to name it now that the field is always written:
+		//
+		//   absent                      -> no match, upsert INSERTS              -> Applied
+		//   field missing (legacy)      -> match, REPLACED (adopted)             -> Applied
+		//   unnumbered sentinel         -> match, REPLACED (adopted)             -> Applied
+		//   unplaceable sentinel        -> no match; the upsert's insert hits
+		//                                  the unique _id and is refused         -> Unplaceable
+		//   a real position             -> same refusal                          -> Superseded
+		//
+		// The sentinel disjunct is the new one; the exists-false disjunct is kept for documents
+		// written before the field existed. Both denote a complete fold whose coordinate is merely
+		// unknown, so folding this batch onto them and stamping this batch's position states
+		// something true.
+		//
+		// AN UNPLACEABLE ROW IS NOT IN THE SET, and that is the whole reason the sentinel exists. Its
+		// state is not a fold over any prefix, so stamping a position onto it would assert a prefix
+		// the state does not hold. Before the sentinel such a row was indistinguishable from a legacy
+		// one and was adopted silently.
+		var adoptFilter = Builders<BsonDocument>.Filter.And(
+			Builders<BsonDocument>.Filter.Eq("_id", documentId),
+			Builders<BsonDocument>.Filter.Or(
+				Builders<BsonDocument>.Filter.Exists(positionField, exists: false),
+				Builders<BsonDocument>.Filter.Eq(
+					positionField, ProjectionPosition.Unnumbered.ToStored())));
+
+		try
+		{
+			_ = await _collection!
+				.ReplaceOneAsync(adoptFilter, document, new ReplaceOptions { IsUpsert = true }, cancellationToken)
+				.ConfigureAwait(false);
+
+			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition);
+		}
+		catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+		{
+			// An ordinary outcome, reported rather than thrown: the document the filter would not match
+			// is nonetheless there, so the insert collided with its _id. Which of the two refusals it
+			// is depends on what that document holds -- an unplaceable row can never be adopted, so
+			// telling the caller to retry would spin it forever.
+			var current = await ReadCurrentPositionAsync(documentId, cancellationToken).ConfigureAwait(false);
+			return current.Position.Kind == ProjectionPositionKind.Unplaceable
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
+				: new ProjectionAdvanceResult(
+					ProjectionAdvanceOutcome.Superseded, current.Position.ExpectedPositionOrNull);
+		}
+	}
+
+	/// <summary>
+	/// Builds the stored document, always stamping what it asserts about the prefix folded into it.
+	/// </summary>
+	/// <remarks>
+	/// Shared by the unconditional and positioned writes so the two cannot drift into producing
+	/// documents the other cannot read back.
+	/// </remarks>
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// <c>IsUpsert = false</c>, and that is the load-bearing option. An absent document means the
+	/// projection was DELETED, deletion is how erasure removes personal data, and an upsert here would
+	/// reinstate what the erasure removed.
+	/// </para>
+	/// <para>
+	/// The document is rebuilt carrying the SAME position it is matched on, so the write rewrites the
+	/// state and leaves the position where it was.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionRefoldResult> RefoldAtPositionAsync(
+		string id,
+		TProjection projection,
+		long atPosition,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentOutOfRangeException.ThrowIfNegative(atPosition);
+		ArgumentNullException.ThrowIfNull(projection);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var documentId = CreateDocumentId(id);
+		var positionField = $"{MetadataKey}.{MetaFieldPosition}";
+
+		// Carries atPosition, so the position is written back unchanged rather than dropped.
+		var document = BuildDocument(id, projection, ProjectionPosition.At(atPosition));
+
+		var filter = Builders<BsonDocument>.Filter.And(
+			Builders<BsonDocument>.Filter.Eq("_id", documentId),
+			Builders<BsonDocument>.Filter.Eq(positionField, atPosition));
+
+		var result = await _collection!
+			.ReplaceOneAsync(filter, document, new ReplaceOptions { IsUpsert = false }, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (result.MatchedCount > 0)
+		{
+			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Applied, atPosition);
+		}
+
+		var current = await ReadCurrentPositionAsync(documentId, cancellationToken).ConfigureAwait(false);
+
+		if (!current.Exists)
+		{
+			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
+		}
+
+		// A document with no established position -- unnumbered or unplaceable, and neither can be
+		// matched -- carries nothing a re-fold can be placed against, and re-reading cannot change
+		// that.
+		return current.Position.Kind == ProjectionPositionKind.Positioned
+			? new ProjectionRefoldResult(ProjectionRefoldOutcome.Superseded, current.Position.Value)
+			: new ProjectionRefoldResult(ProjectionRefoldOutcome.RequiresRebuild, null);
+	}
+
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private BsonDocument BuildDocument(string id, TProjection projection, ProjectionPosition position)
+	{
+		// Properties live at the document root; framework metadata is isolated under a nested object
+		// to prevent collisions with consumer projection properties.
+		var document = projection.ToBsonDocument();
+
+		// The BsonClassMap convention maps an 'Id' property to '_id'. Preserve the original value so
+		// StripProjectionMetadata can restore it on the way out.
+		var metadata = new BsonDocument
+		{
+			[MetaFieldId] = id,
+			[MetaFieldType] = _projectionType,
+			// UtcDateTime, not DateTimeOffset. BSON has no offset-carrying date type, and the driver
+			// does not guess: BsonValue.Create(DateTimeOffset) throws ArgumentException, so EVERY write
+			// through this store threw before this line was corrected. Nothing is lost by converting --
+			// the value is UtcNow, so its offset is zero by construction.
+			[MetaFieldUpdatedAt] = BsonValue.Create(DateTimeOffset.UtcNow.UtcDateTime),
+		};
+
+		// Unconditionally, including for the two states that carry no number. An absent field is
+		// indistinguishable from a field nobody wrote, so leaving it out is how "this state cannot be
+		// placed" became "this state was never placed" -- the one distinction a positioned writer has
+		// to act on. The encoding is the shared one, never this provider's own sentinel.
+		metadata[MetaFieldPosition] = position.ToStored();
+
+		if (document.Contains("_id") && document["_id"] != BsonNull.Value)
+		{
+			metadata[MetaFieldOrigId] = document["_id"];
+		}
+
+		document["_id"] = CreateDocumentId(id);
+		document[MetadataKey] = metadata;
+
+		return document;
+	}
+
+	private async Task<(bool Exists, ProjectionPosition Position)> ReadCurrentPositionAsync(
+		BsonValue documentId,
+		CancellationToken cancellationToken)
+	{
+		var document = await _collection!
+			.Find(Builders<BsonDocument>.Filter.Eq("_id", documentId))
+			.FirstOrDefaultAsync(cancellationToken)
+			.ConfigureAwait(false);
+
+		// The position returned alongside Exists=false is not a reading of anything; every caller
+		// tests Exists first.
+		return document is null
+			? (false, ProjectionPosition.Unnumbered)
+			: (true, ReadPosition(document));
+	}
+
+	/// <summary>Decodes the stored field into one of the three states.</summary>
+	/// <remarks>
+	/// An ABSENT field reads as <see cref="ProjectionPositionKind.Unnumbered"/>, which is what
+	/// <see cref="ProjectionPosition.FromStored"/> does with a null. That is correct and deliberate: a
+	/// document written before this field existed IS a complete fold, only its coordinate is unknown,
+	/// so it stays adoptable. Every provider goes through FromStored so the eight of them cannot drift.
+	/// </remarks>
+	private static ProjectionPosition ReadPosition(BsonDocument document)
+	{
+		if (!document.Contains(MetadataKey) || document[MetadataKey] is not BsonDocument meta
+			|| !meta.Contains(MetaFieldPosition))
+		{
+			return ProjectionPosition.Unnumbered;
+		}
+
+		var value = meta[MetaFieldPosition];
+		return value.IsInt64 || value.IsInt32
+			? ProjectionPosition.FromStored(value.ToInt64())
+			: ProjectionPosition.Unnumbered;
+	}
 }

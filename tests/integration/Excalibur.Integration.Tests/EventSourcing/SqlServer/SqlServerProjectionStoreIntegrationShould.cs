@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Tests.Shared.Infrastructure;
 using System.Diagnostics.CodeAnalysis;
 using Tests.Shared.Fixtures;
 
@@ -37,7 +38,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		{
 			_container = new MsSqlBuilder()
 				.WithBoundedMemory()
-				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+				.WithImage(TestContainerImages.SqlServer2022)
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
@@ -332,6 +333,10 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 				Data NVARCHAR(MAX) NOT NULL,
 				CreatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
 				UpdatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+				-- The store's unconditional write now INVALIDATES the position rather than leaving
+				-- it stale, so this column is part of the contract the store writes against. -1, not
+				-- 0, because zero is a legitimate stream position.
+				LastAppliedPosition BIGINT NOT NULL DEFAULT (-1),
 				CONSTRAINT [PK_OrderSummary] PRIMARY KEY (TenantId, Id)
 			)
 			""";

@@ -35,7 +35,8 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
 public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionStore<TProjection>,
-	IPageableProjectionStore<TProjection>
+	IPageableProjectionStore<TProjection>,
+	IPositionedProjectionStore<TProjection>
 	where TProjection : class
 {
 	[GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
@@ -168,6 +169,27 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
 		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 
+		// THE POSITION IS INVALIDATED, NOT PRESERVED, AND THAT IS THE WHOLE POINT OF THE -1.
+		//
+		// An unconditional write replaces the state with something this store cannot place in the event
+		// stream: it was not folded from any known prefix. Leaving the old position behind would leave
+		// the row asserting "everything up to P is folded into me" about a state that no longer contains
+		// it, and the next position-conditional write would then FILTER OUT events as already-applied
+		// that are not applied at all. Those events are lost from the projection permanently, and
+		// nothing downstream can detect it -- the row looks consistent and every individual value was
+		// written correctly.
+		//
+		// Resetting to the sentinel says the honest thing instead: nobody knows what prefix this state
+		// represents. The next positioned write adopts the row and re-folds the batch it is given, which
+		// over-counts for an accumulating projection. Do NOT read that as bounded: a row returns to
+		// unpositioned every time an unconditional write lands on it, so the re-fold recurs rather than
+		// happening once. What invalidation buys is not a small error instead of a large one -- both end
+		// wrong -- it is that the row becomes SELF-DESCRIBING as "prefix unknown". Preserving the stale
+		// position destroys the only evidence that anything is wrong, and that evidence is what any
+		// correct recovery has to start from.
+		// The document stores reach the same end state by omitting the field from a whole-document
+		// replacement; this makes the relational stores agree with them rather than differ silently.
+		//
 		// Tenant scoping rides the MERGE atomically: the tenant discriminator is part of the match key so a
 		// tenant-A upsert can NEVER match (and overwrite) a tenant-B row with the same Id, and the INSERT
 		// stamps the tenant. Tenant-facing write — fails closed: a null/blank ambient tenant is rejected up
@@ -182,10 +204,12 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 			USING (SELECT @Id AS Id, @Data AS Data, @UpdatedAt AS UpdatedAt{sourceTenantSelect}) AS source
 			ON target.Id = source.Id{onTenantPredicate}
 			WHEN MATCHED THEN
-				UPDATE SET Data = source.Data, UpdatedAt = source.UpdatedAt
+				UPDATE SET Data = source.Data, UpdatedAt = source.UpdatedAt,
+						   LastAppliedPosition = @UnplaceableSentinel
 			WHEN NOT MATCHED THEN
-				INSERT (Id, Data, CreatedAt, UpdatedAt{insertTenantColumn})
-				VALUES (source.Id, source.Data, source.UpdatedAt, source.UpdatedAt{insertTenantValue});
+				INSERT (Id, Data, CreatedAt, UpdatedAt, LastAppliedPosition{insertTenantColumn})
+				VALUES (source.Id, source.Data, source.UpdatedAt, source.UpdatedAt,
+						@UnplaceableSentinel{insertTenantValue});
 			""";
 
 		var json = JsonSerializer.Serialize(projection, _jsonOptions);
@@ -196,6 +220,13 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		parameters.Add("@Data", json);
 		parameters.Add("@UpdatedAt", now);
 		parameters.Add("@TenantId", tenantId);
+		// BOTH arms of the MERGE bind this, and that is the simplification. This method cannot know
+		// whether the state it was handed is a fold over any prefix -- so it records that it does not
+		// know, identically whether the row is created or replaced. Discriminating create from update
+		// would be needed only in order to GUESS, and four of the document providers cannot do it
+		// atomically at all. A caller that DOES hold a complete fold says so through
+		// UpsertUnnumberedAsync instead.
+		parameters.Add("@UnplaceableSentinel", ProjectionPosition.Unplaceable.ToStored());
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -523,4 +554,79 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 
 		return "OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
 	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Delegated so the conditional SQL lives in one place rather than being inlined here: the
+	/// statement carries a concurrency contract, and a second copy of it is a second chance to get it
+	/// wrong.
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
+		string id,
+		CancellationToken cancellationToken)
+	{
+		// Materialized HERE, through the same canonical read-model options every other read on this
+		// store uses. The positioned helper owns the conditional SQL and nothing about the wire shape.
+		var (data, position) = await Positioned()
+			.GetWithPositionAsync(id, RequireTenant(), cancellationToken)
+			.ConfigureAwait(false);
+
+		return (data is null ? null : JsonSerializer.Deserialize<TProjection>(data, _jsonOptions), position);
+	}
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task UpsertUnnumberedAsync(
+		string id,
+		TProjection projection,
+		CancellationToken cancellationToken) =>
+		Positioned().UpsertUnnumberedAsync(
+			id, JsonSerializer.Serialize(projection, _jsonOptions), RequireTenant(), cancellationToken);
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
+		string id,
+		TProjection projection,
+		long? expectedPosition,
+		long newPosition,
+		CancellationToken cancellationToken) =>
+		Positioned().UpsertAtPositionAsync(
+			id,
+			JsonSerializer.Serialize(projection, _jsonOptions),
+			expectedPosition,
+			newPosition,
+			RequireTenant(),
+			cancellationToken);
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<ProjectionRefoldResult> RefoldAtPositionAsync(
+		string id,
+		TProjection projection,
+		long atPosition,
+		CancellationToken cancellationToken) =>
+		Positioned().RefoldAtPositionAsync(
+			id,
+			JsonSerializer.Serialize(projection, _jsonOptions),
+			atPosition,
+			RequireTenant(),
+			cancellationToken);
+
+	private SqlServerPositionedProjectionStore<TProjection> Positioned() =>
+		new(_connectionFactory, _tableName);
+
+	/// <summary>
+	/// The tenant term every statement in this store is partitioned by.
+	/// </summary>
+	/// <remarks>
+	/// Resolved the same way the unconditional paths resolve it, so the conditional write cannot end up
+	/// reading one tenant's row and writing another's.
+	/// </remarks>
+	private string RequireTenant() => TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 }

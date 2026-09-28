@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga.StateMachine;
 
 using Excalibur.Saga.Orchestration;
 
@@ -220,7 +221,7 @@ public sealed class InMemorySagaStoreShould
 
 	#region Test Types
 
-	internal sealed class TestSagaState : SagaState
+	internal sealed class TestSagaState : ProcessManagerState
 	{
 		public string? Value { get; set; }
 	}

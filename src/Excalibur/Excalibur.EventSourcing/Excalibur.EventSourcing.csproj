@@ -19,6 +19,10 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
+    <!-- R3 property suites. ProjectionBuilder is internal sealed, so the generated-input suite
+         that drives it needs the same grant the example-based suite already has. Test-only access;
+         no production visibility is widened. -->
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.Properties" />
     <InternalsVisibleTo Include="Excalibur.MultiTenancy" />
     <InternalsVisibleTo Include="Excalibur.Testing.Conformance" />
     <InternalsVisibleTo Include="Excalibur.EventSourcing.SqlServer" />
@@ -69,12 +73,14 @@
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.LeaderElection.Abstractions\Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Compliance\Excalibur.Compliance.csproj" />
     <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.LeaderElection.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Compliance" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Compliance.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>

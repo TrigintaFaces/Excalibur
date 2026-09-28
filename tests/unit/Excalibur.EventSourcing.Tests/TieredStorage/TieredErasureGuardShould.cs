@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 using IEventStore = Excalibur.EventSourcing.IEventStore;
+using System.Linq;
 
 namespace Excalibur.EventSourcing.Tests.TieredStorage;
 
@@ -80,7 +81,17 @@ public sealed class TieredErasureGuardShould
         Should.NotThrow(
             provider.GetRequiredService<IStartupValidator>().Validate,
             "an erasure host with no cold tier composes a store that answers the erasure probe, so the gate must stay silent.");
-        provider.GetRequiredService<IErasureContributor>().ShouldNotBeNull();
+        // By NAME, and the distinction is the whole assertion. Erasure wiring registers more than one
+        // IErasureContributor, and GetRequiredService returns only the LAST -- the projection-gap
+        // reporter, whose factory is a plain constructor call that cannot throw. Resolving that one
+        // proves nothing about the probe: this arm exists to force the EVENT-STORE contributor's
+        // factory to run, because that factory is the thing that throws when the composed store does
+        // not answer the erasure probe. Written the other way the assertion could not fail.
+        provider.GetServices<IErasureContributor>()
+            .Single(c => c.Name == "EventStore")
+            .ShouldNotBeNull(
+                "the event-store contributor's factory probes the composed store and throws when it "
+                + "cannot erase, so resolving it is what proves a no-cold-tier host composes cleanly.");
     }
 
     private sealed class SubjectHashIsAggregateIdMapping : IAggregateDataSubjectMapping

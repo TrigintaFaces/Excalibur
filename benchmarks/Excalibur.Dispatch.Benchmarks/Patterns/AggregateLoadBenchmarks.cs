@@ -184,7 +184,7 @@ public class AggregateLoadBenchmarks
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEvents')
             BEGIN
                 CREATE TABLE EventStoreEvents (
-                    Position BIGINT IDENTITY(1,1) PRIMARY KEY,
+                    Position BIGINT NOT NULL PRIMARY KEY,
                     EventId NVARCHAR(50) NOT NULL UNIQUE,
                     AggregateId NVARCHAR(50) NOT NULL,
                     AggregateType NVARCHAR(100) NOT NULL,
@@ -197,6 +197,19 @@ public class AggregateLoadBenchmarks
                     INDEX IX_AggregateId_Version (AggregateId, Version),
                     INDEX IX_IsDispatched (IsDispatched)
                 );
+            END
+
+            -- The store allocates Position from this counter row inside the appending transaction
+            -- rather than from an IDENTITY, so an aborted append burns no position and the committed
+            -- stream stays contiguous. An IDENTITY column here rejects the store's explicit insert.
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEventsPosition')
+            BEGIN
+                CREATE TABLE EventStoreEventsPosition (
+                    Id TINYINT NOT NULL PRIMARY KEY CHECK (Id = 1),
+                    Value BIGINT NOT NULL
+                );
+                INSERT INTO EventStoreEventsPosition (Id, Value)
+                SELECT 1, ISNULL((SELECT MAX(Position) FROM EventStoreEvents), 0);
             END
             """;
 

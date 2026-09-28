@@ -5,6 +5,7 @@ using System.Reflection;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga.StateMachine;
 using Excalibur.Saga.Handlers;
 using Excalibur.Saga.Orchestration;
 
@@ -558,11 +559,11 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 			CallCount++;
 			LastMessage = message;
 			LastSagaId = sagaId;
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 
-	private sealed class TestSagaState : SagaState
+	private sealed class TestSagaState : ProcessManagerState
 	{
 	}
 
@@ -580,8 +581,12 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
 
-		public override async Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
+		public override async Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		{
 			await SendCommandAsync(new EmittedCommand(), cancellationToken);
+
+			return SagaEventOutcome.Handled;
+		}
 	}
 
 	private sealed class EmittedCommand : IDispatchMessage
@@ -597,8 +602,8 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		public override bool HandlesEvent(object eventMessage) =>
 			eventMessage is TestStartEvent or TestContinuationEvent;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
-			Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
+			Task.FromResult(SagaEventOutcome.Handled);
 	}
 
 	// --- ISagaTimeout test doubles (bd-oe0a2k) ---
@@ -618,13 +623,13 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 
 		public override bool HandlesEvent(object eventMessage) => false; // Timeout bypasses this
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
 			throw new InvalidOperationException("Should not be called — timeout handler should be used instead");
 
 		public Task HandleTimeoutAsync(PaymentTimeoutEvent message, CancellationToken cancellationToken)
 		{
 			TimeoutHandlerInvoked = true;
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 
@@ -642,7 +647,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 	{
 		public override bool HandlesEvent(object eventMessage) => false;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
 			throw new InvalidOperationException("Should not be called — timeout handler should be used");
 
 		public Task HandleTimeoutAsync(PaymentTimeoutEvent message, CancellationToken cancellationToken) =>
@@ -753,7 +758,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 					throw new InvalidOperationException("transient");
 				}
 
-				return Task.CompletedTask;
+				return Task.FromResult(SagaEventOutcome.Handled);
 			},
 			CancellationToken.None);
 

@@ -28,7 +28,7 @@ namespace Excalibur.Saga.StateMachine;
 /// </code>
 /// </remarks>
 public interface IStateDefinition<TData>
-	where TData : SagaState
+	where TData : ProcessManagerState
 {
 	/// <summary>
 	/// Gets the name of this state.

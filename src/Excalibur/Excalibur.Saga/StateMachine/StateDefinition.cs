@@ -12,7 +12,7 @@ namespace Excalibur.Saga.StateMachine;
 /// </summary>
 /// <typeparam name="TData">The type of saga state data that extends <see cref="SagaState"/>.</typeparam>
 internal sealed class StateDefinition<TData> : IStateDefinition<TData>
-	where TData : SagaState
+	where TData : ProcessManagerState
 {
 	private readonly Dictionary<Type, object> _messageHandlers = [];
 	private Action<TData>? _onEnter;

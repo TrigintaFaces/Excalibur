@@ -347,8 +347,24 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
         // Core Dispatch services: IDispatcher, IMessageContextFactory/Accessor, LocalMessageBus.
         services.AddDispatchPipeline();
 
-        // The real default pipeline under test: wires the default profile (incl. OutboxStagingMiddleware).
+        // The real pipeline registration, which seats the middleware types in the container.
         services.AddDefaultDispatchPipelines();
+
+        // Outbox staging is named EXPLICITLY, because the default profile no longer seats it -- or
+        // anything else. That change was made on a measurement: one "inert" staging stage costs
+        // +346 ns and +448 B per dispatch on a host with no outbox, so the framework now seats no
+        // middleware a consumer did not ask for.
+        //
+        // These arms are unaffected in what they prove. Their subject was never "the default profile
+        // happens to contain staging" -- it was that a PROFILE-CONFIGURED pipeline actually RUNS its
+        // middleware end-to-end through the real dispatcher rather than being bypassed
+        // (_canBypassAllMiddleware). Naming the stage here keeps that subject and removes the
+        // dependence on a default whose membership is a separate decision.
+        services.AddDispatch(static builder => builder.ConfigurePipeline(
+            "Default",
+            static pipeline => pipeline
+                .ForMessageKinds(MessageKinds.All)
+                .Use<OutboxStagingMiddleware>()));
 
         services.AddDispatchHandlers();
 

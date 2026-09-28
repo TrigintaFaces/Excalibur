@@ -60,8 +60,9 @@ public sealed class FirestoreProjectionStoreQueryOptionsShould : IAsyncLifetime
 		// Deliberately NOT a graceful skip. An option-dropping defect is invisible by construction, so a
 		// lock that quietly passes when the emulator is missing would restore exactly the silence this
 		// test exists to remove.
-		_fixture.IsInitialized.ShouldBeTrue(
-			"the Firestore emulator must be available for this lock — ordering and offset are executed by the database, so there is no faithful substitute");
+		// EnsureAvailable() rather than asserting a bool: same hard-failure policy, and its message
+		// carries the RECORDED container startup error instead of a bare "expected True".
+		_fixture.EnsureAvailable();
 
 		_store = new FirestoreProjectionStore<TestOrderProjection>(
 			_fixture.Db,

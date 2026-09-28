@@ -151,4 +151,23 @@ public abstract class SagaState
 	/// <param name="eventId">The unique event identifier.</param>
 	/// <returns><see langword="true"/> if the event was newly added; <see langword="false"/> if already processed.</returns>
 	public bool TryMarkEventProcessed(string eventId) => ProcessedEventIds.Add(eventId);
+
+	/// <summary>
+	/// Whether an event has already been processed, WITHOUT recording it.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The coordinator has to ask this question before it knows whether a handler will act, and it must
+	/// not record anything while asking. Using <see cref="TryMarkEventProcessed"/> as the check is what
+	/// caused an event to be marked processed before its handler ran -- so a handler that declined under
+	/// its guard left the event recorded and permanently retired.
+	/// </para>
+	/// <para>
+	/// A query and a command over the same set, kept separate on purpose: the mutating one records that
+	/// work HAPPENED, and only the caller that saw it happen may use it.
+	/// </para>
+	/// </remarks>
+	/// <param name="eventId">The unique event identifier.</param>
+	/// <returns><see langword="true"/> if this id is already in the guard; otherwise <see langword="false"/>.</returns>
+	public bool HasProcessedEvent(string eventId) => ProcessedEventIds.Contains(eventId);
 }

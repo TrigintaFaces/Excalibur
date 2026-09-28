@@ -49,14 +49,15 @@ internal sealed class DeferredOutboxWriter(IMessageContextAccessor contextAccess
 
 		var outboxContext = context.GetItem<OutboxContext>("OutboxContext")
 			?? throw new InvalidOperationException(
-				"This handler wrote to the outbox, but no IOutboxStore is registered for this host, so the " +
-				"write has nowhere to be staged. Register an outbox store for your provider -- " +
-				"AddSqlServerOutbox(), AddPostgresOutbox() or the equivalent for the store you use -- or " +
-				"register your own IOutboxStore implementation. Outbox staging runs on the default pipeline " +
-				"automatically once a store is present, so no further pipeline configuration is needed. This " +
-				"names the registration rather than the middleware deliberately: the middleware is a " +
-				"composition detail you did not choose and cannot find in your own code, whereas the " +
-				"IOutboxStore registration is yours to add.");
+				"This handler wrote to the outbox, but the dispatch pipeline it ran on has no outbox " +
+				"staging stage, so the write has nowhere to be held until the transaction commits. Two " +
+				"things are needed and they are separate: register an IOutboxStore for your provider -- " +
+				"AddSqlServerOutbox(), AddPostgresOutbox(), or your own IOutboxStore implementation -- " +
+				"and add the staging " +
+				"middleware to the pipeline this message dispatches on, with " +
+				"pipeline.Use<OutboxStagingMiddleware>(). Both are yours to add on purpose: this " +
+				"framework seats no middleware you did not ask for, so that a host which does not use " +
+				"an outbox pays nothing for one.");
 
 		outboxContext.AddOutboundMessage(message, destination, scheduledAt);
 

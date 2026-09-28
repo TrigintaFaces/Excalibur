@@ -312,22 +312,35 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		// correlated as children of this one. Previously read from a flow-local static inside the saga.
 		saga.HandlingContext = messageContext;
 
-		// Idempotent replay guard: derive a unique event ID and check if already processed.
-		// The ID is added to the in-memory set BEFORE HandleAsync, but only persisted when SaveAsync succeeds.
-		// If SaveAsync fails or crashes, the ID is lost from the set on reload, allowing correct replay.
+		// DEDUP: ask whether this event was ALREADY processed, but do not record it yet.
+		//
+		// The mark used to be taken here, before the handler ran, and persisted by the SaveAsync below
+		// regardless of what the handler did. A handler guarded by a condition returns without acting
+		// when that condition is false, and the coordinator could not tell that from a handler that
+		// ran -- so a message arriving BEFORE its guard was satisfiable was recorded as processed and
+		// permanently retired. It was never redelivered, no error was raised, and nothing downstream
+		// could detect it.
+		//
+		// An event is now marked processed IF AND ONLY IF a handler acted on it.
 		var eventId = DeriveEventId(evt);
-		if (!sagaState.TryMarkEventProcessed(eventId))
+		if (sagaState.HasProcessedEvent(eventId))
 		{
 			LogDuplicateEventSkipped(evt.SagaId, eventId);
+
 			return;
 		}
 
 		// Check for ISagaTimeout<TEvent> strongly-typed handler first.
 		// If the saga implements ISagaTimeout<T> for this event type, use the timeout handler.
 		// Otherwise, fall through to the general HandleAsync path.
+		SagaEventOutcome outcome;
 		if (TryInvokeTimeoutHandler(saga, evt, cancellationToken, out var timeoutTask))
 		{
 			await timeoutTask.ConfigureAwait(false);
+
+			// A timeout handler that ran to completion acted, by construction: there is no guard on
+			// that path for it to decline under.
+			outcome = SagaEventOutcome.Handled;
 		}
 		else
 		{
@@ -338,8 +351,22 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 				return;
 			}
 
-			await saga.HandleAsync(evt, cancellationToken).ConfigureAwait(false);
+			outcome = await saga.HandleAsync(evt, cancellationToken).ConfigureAwait(false);
 		}
+
+		if (outcome != SagaEventOutcome.Handled)
+		{
+			// The saga declined under its own guard. Nothing was done, so nothing is recorded and
+			// nothing is saved: the event stays deliverable and will be offered again. Deferred, not
+			// discarded.
+			LogEventDeclinedBySaga(evt.SagaId, evt.GetType().Name);
+
+			return;
+		}
+
+		// The handler acted, so the event is now genuinely processed. Recorded here and persisted by
+		// the SaveAsync below, together with the state the handler produced.
+		_ = sagaState.TryMarkEventProcessed(eventId);
 
 		// Store-owns-increment (optimistic concurrency,): SagaState.Version is the loaded token; the
 		// store compares it and persists the bump (writing the new version back), throwing ConcurrencyException if
@@ -451,6 +478,20 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	[LoggerMessage(SagaEventId.SagaStepExecuting, LogLevel.Warning,
 		"Saga {SagaId} does not handle event {EventType}.")]
 	private partial void LogSagaNotHandled(string sagaId, string eventType);
+
+	/// <summary>Records that the saga declined an event under its own guard.</summary>
+	/// <remarks>
+	/// Information, not Warning: declining is a NORMAL outcome for a message that arrived before the
+	/// saga was ready for it, and warning on it would train an operator to ignore the line. It is not
+	/// Debug either, because the default minimum level is Information and this is the only signal that
+	/// the event was deferred rather than handled.
+	/// </remarks>
+	/// <param name="sagaId">The saga that declined.</param>
+	/// <param name="eventType">The event type it declined.</param>
+	[LoggerMessage(SagaEventId.SagaEventDeclined, LogLevel.Information,
+		"Saga {SagaId} declined event {EventType} under its handler guard. The event was NOT recorded as "
+		+ "processed and remains deliverable.")]
+	private partial void LogEventDeclinedBySaga(string sagaId, string eventType);
 
 	[LoggerMessage(SagaEventId.SagaCompensationCompleted, LogLevel.Information,
 		"Saga {SagaId} completed and persisted.")]

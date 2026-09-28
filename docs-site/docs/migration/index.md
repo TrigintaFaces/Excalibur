@@ -41,6 +41,13 @@ package:
   tenant on Cosmos DB, DynamoDB, Firestore, or MongoDB were filed under a reserved literal that is part of
   the partition key or document id. Correcting one is a delete-and-reinsert. Each provider stores grants in
   two containers, and the guide names both.
+- **[The default pipeline no longer seats middleware](default-pipeline-is-empty.md)** -- `AddDispatch()`
+  used to add four middleware to every host; it now adds none, and you name the ones you want. **Almost
+  every host is unaffected.** The one population that must act is narrow and specific: a host that
+  **registers an `IOutboxStore` but never calls `UseOutbox()`**, because the previous version's own
+  error text said a store registration alone was enough. Hosts that call `UseOutbox()` are unaffected,
+  and hosts with no store were already failing the same way before this change.
+- **[Global-stream reads stop at the first gap](global-stream-reads-stop-at-gaps.md)** -- a read of the global event stream now returns only the contiguous run from your position. This closes a silent event-skip, and introduces a stall you need to be able to recognise: a subscriber sitting on a permanently absent position stops advancing and the host still looks healthy. Read this if you run global-stream projections or subscriptions, or if you archived events on an older version.
 - **[Firestore and Elasticsearch inbox keys change shape](inbox-document-id-rekey.md)** -- The document id
   identifying an inbox entry is composed differently, so entries written by an earlier version are not found
   by this one. Drain the inbox before upgrading, or re-key the existing entries.

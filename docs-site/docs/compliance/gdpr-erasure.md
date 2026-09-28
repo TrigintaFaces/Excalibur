@@ -16,6 +16,62 @@ review by qualified legal and compliance professionals. See the [Compliance Disc
 
 GDPR Article 17 ("Right to be Forgotten") requires organizations to delete personal data upon request. Dispatch implements this through cryptographic erasure (crypto-shredding), which renders data irrecoverable by deleting encryption keys.
 
+## What you map is what gets destroyed
+
+:::danger Erasure is whole-aggregate. Mapping the wrong aggregate destroys records you must keep.
+
+`IAggregateDataSubjectMapping` is where you tell the framework which aggregates belong to a data
+subject. **Every event of every aggregate you return is tombstoned** — the payload is nulled and the
+event type is replaced with a reserved marker. Nothing is selective: not by field, not by event type,
+and it cannot be undone.
+
+So if you map a **transaction** aggregate — an order, a sale, a service visit, a loan — you lose the
+transaction, not just the personal data inside it. The amount, the dates, the line items and the
+vehicle or account identifier go with the customer's name. Those are frequently records you are
+separately obliged to keep: tax records, warranty and product-recall traceability, anti-money-laundering
+records with multi-year retention minimums.
+
+:::
+
+### Model for it
+
+Put the identifying data in its own aggregate and have transaction aggregates hold a **reference** to
+it. Then map only the personal-data aggregate:
+
+```csharp
+// Returns the aggregate holding the subject's PERSONAL DATA -- not their orders.
+// Erasing this removes the person; the orders survive, carrying only a customer reference.
+public sealed class CustomerAggregateMapping : IAggregateDataSubjectMapping
+{
+    private readonly ICustomerRepository _repository;
+
+    public CustomerAggregateMapping(ICustomerRepository repository) => _repository = repository;
+
+    public async Task<IReadOnlyList<AggregateReference>> GetAggregatesForDataSubjectAsync(
+        string dataSubjectIdHash,
+        string? tenantId,
+        CancellationToken cancellationToken)
+    {
+        var customerId = await _repository.FindIdByHashAsync(dataSubjectIdHash, cancellationToken);
+
+        return customerId is null
+            ? []
+            : [new AggregateReference(customerId, "Customer")];
+    }
+}
+```
+
+### The case with no supported answer yet
+
+Where personal data is **unavoidably embedded in a transaction event** — the buyer's name printed on an
+invoice event, a free-text note naming the subject — there is **no supported way to erase the name and
+keep the invoice.** Whole-aggregate tombstoning is the only mechanism available, so the choice is to
+destroy the record or to retain the personal data.
+
+The honest workaround today is to map fewer aggregates and handle the embedded case in your own
+retention and redaction process. Finer-grained erasure is planned; it is not in any published version,
+and this page will say so until it is.
+
 ## Before You Start
 
 - **.NET 10.0**

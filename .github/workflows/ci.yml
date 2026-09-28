@@ -871,6 +871,14 @@ jobs:
             leg: inbox
             filter: eng/ci/shards/IntegrationTests-Excalibur.slnf
             probe: tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj
+          - name: excalibur-eventstore
+            leg: eventstore
+            filter: eng/ci/shards/IntegrationTests-Excalibur.slnf
+            probe: tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj
+          - name: excalibur-leaderelection
+            leg: leaderelection
+            filter: eng/ci/shards/IntegrationTests-Excalibur.slnf
+            probe: tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj
           - name: excalibur-rest
             leg: rest
             filter: eng/ci/shards/IntegrationTests-Excalibur.slnf

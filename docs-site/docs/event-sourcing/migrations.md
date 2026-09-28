@@ -216,8 +216,9 @@ The embedded resource names will be `{AssemblyName}.Migrations.20260101_001_Crea
 ```sql
 -- 20260101_001_CreateEventStore.sql
 CREATE TABLE [dbo].[Events] (
-    -- Assigned by the database and read back via OUTPUT INSERTED.Position.
-    [Position] BIGINT IDENTITY(1,1) NOT NULL,
+    -- Assigned by the STORE, not the database: allocated from the [dbo].[EventsPosition] counter
+    -- row inside the appending transaction. See that table below for why.
+    [Position] BIGINT NOT NULL,
     [EventId] NVARCHAR(256) NOT NULL,
     [AggregateId] NVARCHAR(256) NOT NULL,
     [AggregateType] NVARCHAR(256) NOT NULL,
@@ -227,6 +228,8 @@ CREATE TABLE [dbo].[Events] (
     [Metadata] VARBINARY(MAX) NULL,
     [Version] BIGINT NOT NULL,
     [Timestamp] DATETIMEOFFSET NOT NULL,
+    -- Set when the payload has been moved to cold storage; the row and its position stay.
+    [ArchivedAt] DATETIMEOFFSET NULL,
     -- NOT NULL, and part of the stream key below: an unscoped host stores the reserved
     -- '__untenanted__' sentinel rather than omitting the column.
     -- Binary collation: the server default is typically case-insensitive, so without it a
@@ -241,6 +244,27 @@ CREATE TABLE [dbo].[Events] (
         UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
 );
 
+-- The global position counter. The store allocates each append's position by UPDATEing this row
+-- inside the appending transaction: the row lock is released only at COMMIT and the increment rolls
+-- back with the transaction, so an aborted append burns no position. The committed positions are
+-- therefore always a contiguous prefix, which is what lets a subscriber treat the highest position
+-- it has seen as a high-water mark. An IDENTITY cannot provide that -- it hands its number out
+-- before COMMIT, so a rollback leaves a permanent hole and two concurrent appends can commit in the
+-- opposite order to their positions.
+CREATE TABLE [dbo].[EventsPosition] (
+    -- Singleton by construction: a second counter row would reintroduce gaps.
+    [Id]    TINYINT NOT NULL CONSTRAINT [PK_EventsPosition] PRIMARY KEY,
+    [Value] BIGINT  NOT NULL,
+    CONSTRAINT [CK_EventsPosition_Singleton] CHECK ([Id] = 1)
+);
+GO
+
+-- Seeded from the table's own high-water mark rather than 0: Position is the PRIMARY KEY, so a
+-- counter seeded at 0 against a table that already holds events would reissue existing values.
+INSERT INTO [dbo].[EventsPosition] ([Id], [Value])
+SELECT 1, ISNULL((SELECT MAX([Position]) FROM [dbo].[Events]), 0);
+GO
+
 CREATE INDEX [IX_Events_Aggregate] ON [dbo].[Events] ([AggregateId], [AggregateType], [Version]);
 CREATE INDEX [IX_Events_Timestamp] ON [dbo].[Events] ([Timestamp]);
 ```
@@ -250,8 +274,11 @@ CREATE INDEX [IX_Events_Timestamp] ON [dbo].[Events] ([Timestamp]);
 ```sql
 -- 20260101_001_create_event_store.sql
 CREATE TABLE events (
-    -- Assigned by the database and read back via RETURNING position.
-    position BIGSERIAL PRIMARY KEY,
+    -- Assigned by the STORE, not the database: allocated from the events_position counter row
+    -- inside the appending transaction. Deliberately NOT a BIGSERIAL -- PostgreSQL advances a
+    -- sequence non-transactionally, so an aborted append would burn a value and leave a permanent
+    -- hole that a tailing subscriber cannot distinguish from an append still in flight.
+    position BIGINT PRIMARY KEY,
     event_id VARCHAR(256) NOT NULL,
     aggregate_id VARCHAR(256) NOT NULL,
     aggregate_type VARCHAR(256) NOT NULL,
@@ -271,6 +298,20 @@ CREATE TABLE events (
     CONSTRAINT uq_events_aggregate_version
         UNIQUE (aggregate_id, aggregate_type, version, tenant_id)
 );
+
+-- The global position counter. Its row lock is released only at COMMIT and its increment rolls back
+-- with the transaction, so committed positions are always a contiguous prefix with no holes.
+CREATE TABLE events_position (
+    -- Singleton by construction: a second counter row would reintroduce gaps.
+    id    SMALLINT PRIMARY KEY CHECK (id = 1),
+    value BIGINT NOT NULL
+);
+
+-- Seeded from the table's own high-water mark: position is the PRIMARY KEY, so a counter seeded at 0
+-- against a table that already holds events would reissue existing values.
+INSERT INTO events_position (id, value)
+SELECT 1, COALESCE((SELECT MAX(position) FROM events), 0)
+ON CONFLICT (id) DO NOTHING;
 
 CREATE INDEX ix_events_aggregate ON events (aggregate_id, aggregate_type, version);
 CREATE INDEX ix_events_timestamp ON events (timestamp);

@@ -63,6 +63,7 @@
       "tests\\unit\\Excalibur.Security.Tests\\Excalibur.Security.Tests.csproj",
       "tests\\unit\\Excalibur.Testing.Conformance.Tests\\Excalibur.Testing.Conformance.Tests.csproj",
       "tests\\unit\\Excalibur.EventSourcing.Tests\\Excalibur.EventSourcing.Tests.csproj",
+      "tests\\property\\Excalibur.EventSourcing.Properties\\Excalibur.EventSourcing.Properties.csproj",
       "tests\\unit\\Excalibur.LeaderElection.Tests\\Excalibur.LeaderElection.Tests.csproj",
       "tests\\unit\\Excalibur.MultiTenancy.Tests\\Excalibur.MultiTenancy.Tests.csproj",
       "tests\\unit\\Excalibur.Outbox.Tests\\Excalibur.Outbox.Tests.csproj",

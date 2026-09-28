@@ -96,7 +96,11 @@ public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		var truncateSql = $"TRUNCATE TABLE public.{TableName} RESTART IDENTITY";
+		// RESTART IDENTITY is retained for any other owned sequence; the position counter is a plain row
+		// and has to be reset explicitly. See the SQL Server fixture for why this matters.
+		var truncateSql =
+			$"TRUNCATE TABLE public.{TableName} RESTART IDENTITY; "
+			+ $"UPDATE public.{TableName}_position SET value = 0 WHERE id = 1;";
 		await using var command = new NpgsqlCommand(truncateSql, connection);
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}

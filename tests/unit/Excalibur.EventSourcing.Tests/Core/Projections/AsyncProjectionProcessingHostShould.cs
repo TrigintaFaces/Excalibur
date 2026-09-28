@@ -302,7 +302,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	}
 
 	[Fact]
-	public async Task GroupEventsByAggregate_BeforeDispatching()
+	public async Task Dispatch_the_whole_batch_once_in_stream_order_carrying_each_events_own_aggregate()
 	{
 		// Arrange — events from 2 different aggregates in one batch
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();
@@ -337,8 +337,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			new MultiStreamProjection<OrderSummary>(),
 			inlineApply: (events, ctx, sp, ct) =>
 			{
-				// Record which aggregate this apply was for
-				applyCallContexts.Add($"{ctx.AggregateId}:{events.Count}");
+				// Record the aggregate carried by EACH event, in the order delivered.
+				applyCallContexts.Add(string.Join(",", events.Select(static e => e.AggregateId)));
 				return Task.CompletedTask;
 			}));
 
@@ -356,25 +356,36 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		// Poll until both aggregate groups have been applied — avoids fragile fixed-delay timing on CI runners.
 		await WaitHelpers.WaitUntilAsync(
-			() => applyCallContexts.Count >= 2,
+			() => applyCallContexts.Count >= 1,
 			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// Assert — apply was called per-aggregate group (2 groups: order-1 with 2 events, order-2 with 1)
-		applyCallContexts.Count.ShouldBe(2);
-		applyCallContexts.ShouldContain("order-1:2");
-		applyCallContexts.ShouldContain("order-2:1");
+		// ONE call, carrying every event in GLOBAL ORDER, each with its own aggregate.
+		//
+		// This replaces an assertion that the host dispatched once PER AGGREGATE. That grouping was the
+		// defect: a projection keyed by anything other than the aggregate maps events from many
+		// aggregates onto one projection id, so it was written once per group -- and group order is
+		// first-seen order, not stream order. The same id could be written at a later position and then
+		// an earlier one, inside a single batch, with no concurrency involved.
+		//
+		// Strengthened rather than relaxed: the old arm only counted calls, this one pins the ORDER,
+		// which is the property that was actually broken.
+		applyCallContexts.Count.ShouldBe(
+			1,
+			"the batch must be delivered as one ordered fold, not split into per-aggregate calls.");
+		applyCallContexts[0].ShouldBe(
+			"order-1,order-2,order-1",
+			"events must arrive in global stream order, each carrying the aggregate it came from.");
 	}
 
 	[Fact]
 	public async Task RestoreCheckpoint_OnStartup()
 	{
 		// Arrange — store a checkpoint so the host resumes from it
-		await _checkpointStore.StoreCheckpointAsync("AsyncProjectionProcessingHost", 42, CancellationToken.None)
+		await _checkpointStore.AdvanceCheckpointAsync("AsyncProjectionProcessingHost", null, 42, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();
@@ -516,7 +527,9 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 				A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily((GlobalStreamPosition position, int _, CancellationToken _) =>
 				new ValueTask<IReadOnlyList<StoredEvent>>(
-					position.Position <= pendingEvent.GlobalPosition
+					// EXCLUSIVE: served while the cursor has not yet DELIVERED position 1. Under <= the stub
+					// re-serves the event after the host has processed it, and the host loops forever.
+					position.Position < pendingEvent.GlobalPosition
 						? new List<StoredEvent> { pendingEvent }
 						: (IReadOnlyList<StoredEvent>)Array.Empty<StoredEvent>()));
 
@@ -619,7 +632,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			{
 				Interlocked.Increment(ref readCount);
 				return new ValueTask<IReadOnlyList<StoredEvent>>(
-					pos.Position <= 1
+					pos.Position < 1
 						? new List<StoredEvent>
 						{
 							new("e1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow),
@@ -716,10 +729,23 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 				: pos);
 		}
 
-		public Task StoreCheckpointAsync(string subscriptionName, long position, CancellationToken cancellationToken)
+		public Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
+			string subscriptionName,
+			long? expectedPosition,
+			long newPosition,
+			CancellationToken cancellationToken)
 		{
-			_checkpoints[subscriptionName] = position;
-			return Task.CompletedTask;
+			// Honours the compare-and-set the contract requires. A fake that just assigned would let a
+			// host with a stale expected value pass here and fail against every real implementation.
+			var present = _checkpoints.TryGetValue(subscriptionName, out var current);
+			var matches = expectedPosition is null ? !present : present && current == expectedPosition.Value;
+			if (!matches)
+			{
+				return Task.FromResult(CheckpointAdvanceOutcome.Superseded);
+			}
+
+			_checkpoints[subscriptionName] = newPosition;
+			return Task.FromResult(CheckpointAdvanceOutcome.Advanced);
 		}
 
 		public Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(CancellationToken cancellationToken)

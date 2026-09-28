@@ -177,7 +177,40 @@ public sealed class EncryptingProjectionStoreDecorator<
 			return new DecryptingCursorView(this, cursor);
 		}
 
+		// Unlike the two above, this capability is not an optimisation: declining to wrap it sends the
+		// caller to the unconditional write, which is the double application the capability exists to
+		// prevent. It must be mediated, not dropped.
+		if (serviceType == typeof(IPositionedProjectionStore<TProjection>)
+			&& Inner.GetService(typeof(IPositionedProjectionStore<TProjection>))
+				is IPositionedProjectionStore<TProjection> positioned)
+		{
+			return new EncryptingPositionedView(this, positioned);
+		}
+
 		return null;
+	}
+
+	/// <summary>
+	/// Applies the write-side encryption decision, exactly as the unconditional upsert does.
+	/// </summary>
+	/// <remarks>
+	/// Shared rather than duplicated so the positioned write cannot drift from the plain one: a
+	/// decorator that encrypted on one path and not the other would write mixed cleartext and
+	/// ciphertext into the same projection table.
+	/// </remarks>
+	private async Task EncryptForWriteAsync(TProjection projection, CancellationToken cancellationToken)
+	{
+		var mode = _options.Value.Mode;
+
+		if (mode == EncryptionMode.DecryptOnlyReadOnly)
+		{
+			throw new InvalidOperationException(Resources.Encryption_ReadOnlyProjectionStore);
+		}
+
+		if (mode is EncryptionMode.EncryptAndDecrypt or EncryptionMode.EncryptNewDecryptAll)
+		{
+			await EncryptProjectionAsync(projection, cancellationToken).ConfigureAwait(false);
+		}
 	}
 
 	private async Task<List<TProjection>> DecryptAllAsync(
@@ -192,6 +225,92 @@ public sealed class EncryptingProjectionStoreDecorator<
 		}
 
 		return results;
+	}
+
+	/// <summary>
+	/// Encrypts on the way in and decrypts on the way out, while leaving the POSITION untouched.
+	/// </summary>
+	/// <remarks>
+	/// <b>The position stays in cleartext, and that is deliberate.</b> It is a coordination value the
+	/// STORE must compare -- the conditional write succeeds only when the stored position equals the
+	/// one the caller read. An encrypted position is opaque to that comparison, so every write would be
+	/// refused and the projection would never advance again. It carries no personal data: it is an
+	/// ordinal into the event stream, and the events themselves are protected where they live.
+	/// </remarks>
+	private sealed class EncryptingPositionedView(
+		EncryptingProjectionStoreDecorator<TProjection> outer,
+		IPositionedProjectionStore<TProjection> capability)
+		: ProjectionStoreCapabilityView<TProjection>(outer), IPositionedProjectionStore<TProjection>
+	{
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
+			string id,
+			CancellationToken cancellationToken)
+		{
+			var (projection, position) = await capability.GetWithPositionAsync(id, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (projection is null)
+			{
+				return (null, position);
+			}
+
+			var decrypted = await outer.DecryptAllAsync([projection], cancellationToken).ConfigureAwait(false);
+			return (decrypted.Count > 0 ? decrypted[0] : projection, position);
+		}
+
+		/// <inheritdoc />
+		/// <remarks>
+		/// Encrypts before forwarding, exactly as the positioned writes do. A state written with no
+		/// position number is still the subject's data; forwarding it in the clear would write an
+		/// unencrypted row through a decorator whose whole purpose is that it cannot.
+		/// </remarks>
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public async Task UpsertUnnumberedAsync(
+			string id,
+			TProjection projection,
+			CancellationToken cancellationToken)
+		{
+			await outer.EncryptForWriteAsync(projection, cancellationToken).ConfigureAwait(false);
+			await capability.UpsertUnnumberedAsync(id, projection, cancellationToken).ConfigureAwait(false);
+		}
+
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public async Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
+			string id,
+			TProjection projection,
+			long? expectedPosition,
+			long newPosition,
+			CancellationToken cancellationToken)
+		{
+			await outer.EncryptForWriteAsync(projection, cancellationToken).ConfigureAwait(false);
+
+			return await capability.UpsertAtPositionAsync(
+				id, projection, expectedPosition, newPosition, cancellationToken).ConfigureAwait(false);
+		}
+
+		/// <inheritdoc />
+		/// <remarks>
+		/// Encrypts before forwarding, exactly as the advancing write does. A re-fold rewrites the
+		/// same state a normal write would, so it owes the same protection; forwarding it in the clear
+		/// would write an unencrypted row through a decorator whose whole purpose is that it cannot.
+		/// </remarks>
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public async Task<ProjectionRefoldResult> RefoldAtPositionAsync(
+			string id,
+			TProjection projection,
+			long atPosition,
+			CancellationToken cancellationToken)
+		{
+			await outer.EncryptForWriteAsync(projection, cancellationToken).ConfigureAwait(false);
+
+			return await capability.RefoldAtPositionAsync(id, projection, atPosition, cancellationToken)
+				.ConfigureAwait(false);
+		}
 	}
 
 	private sealed class DecryptingPageableView(

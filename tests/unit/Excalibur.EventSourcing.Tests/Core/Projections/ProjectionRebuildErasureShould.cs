@@ -103,11 +103,22 @@ public sealed class ProjectionRebuildErasureShould
 		var status = await service.GetStatusAsync<SubjectTrackingProjection>(CancellationToken.None);
 		status.State.ShouldBe(ProjectionRebuildState.Completed);
 
-		var persisted = await store.GetByIdAsync(nameof(SubjectTrackingProjection), CancellationToken.None);
+		// The row a READER loads, which is keyed the way every apply path keys it. This assertion used
+		// to read nameof(SubjectTrackingProjection) -- the projection TYPE NAME -- because that is where
+		// the rebuild wrote, and no read path queries that key. The erasure guarantee was being checked
+		// against a document nobody could load.
+		var persisted = await store.GetByIdAsync("agg-subject-b", CancellationToken.None);
 		persisted.ShouldNotBeNull();
 
-		// SAFETY: the erased subject's aggregate id never reached the projection.
+		(await store.GetByIdAsync(nameof(SubjectTrackingProjection), CancellationToken.None))
+			.ShouldBeNull("the projection type name is not a key any reader queries");
+
+		// SAFETY: the erased subject's aggregate produced no key at all, so no row holds its data.
 		persisted.SeenAggregateIds.ShouldNotContain("agg-subject-a");
+		(await store.GetByIdAsync("agg-subject-a", CancellationToken.None)).ShouldBeNull(
+			"a fully tombstoned aggregate yields no event to derive a key from, so the rebuild writes "
+			+ "nothing for it -- and, by the same token, cannot CLEAR a row it left behind. That is the "
+			+ "additive-completeness limit stated on the guarantee, not an accident of this fixture");
 
 		// LIVENESS: a different subject's data on the same projection survives the erasure untouched.
 		persisted.SeenAggregateIds.ShouldContain("agg-subject-b");

@@ -255,7 +255,7 @@ public sealed class SqlServerCdcContainerFixture : ContainerFixtureBase, IDataba
 	{
 		_container = new MsSqlBuilder()
 			.WithBoundedMemory()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+			.WithImage(TestContainerImages.SqlServer2022)
 			.WithName($"mssql-cdc-test-{Guid.NewGuid():N}")
 			.WithPassword(SaPassword)
 

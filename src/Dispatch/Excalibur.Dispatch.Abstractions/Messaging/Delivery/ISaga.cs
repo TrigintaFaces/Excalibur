@@ -72,7 +72,13 @@ public interface ISaga
 	/// ensure idempotency where possible and handle duplicate event delivery gracefully. The method should update saga state and coordinate
 	/// any necessary downstream actions based on the business process logic.
 	/// </remarks>
-	Task HandleAsync(object eventMessage, CancellationToken cancellationToken);
+	/// <returns>
+	/// <see cref="SagaEventOutcome.Handled"/> when this saga acted on the event;
+	/// <see cref="SagaEventOutcome.Declined"/> when a handler was found but its condition was not
+	/// met. A declined event is NOT recorded as processed and remains deliverable — returning
+	/// Handled for work that did not happen permanently retires the message.
+	/// </returns>
+	Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken);
 }
 
 /// <summary>

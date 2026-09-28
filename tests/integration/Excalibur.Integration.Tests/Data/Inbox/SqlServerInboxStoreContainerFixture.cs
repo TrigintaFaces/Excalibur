@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Tests.Shared.Infrastructure;
 using Microsoft.Data.SqlClient;
 
 using Testcontainers.MsSql;
@@ -53,7 +54,7 @@ public sealed class SqlServerInboxStoreContainerFixture : ContainerFixtureBase
 	{
 		_container = new MsSqlBuilder()
 			.WithBoundedMemory()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+			.WithImage(TestContainerImages.SqlServer2022)
 			.WithName($"mssql-inboxstore-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
 			.WithCleanUp(true)

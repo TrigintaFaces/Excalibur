@@ -73,12 +73,45 @@ builder.Services.AddDispatch(dispatch =>
 
 ### Default Profile
 
-The standard pipeline profile with canonical middleware ordering. Suitable for most use cases.
+**The `default` profile contains no middleware.** A host that configures nothing dispatches and does
+nothing else.
 
-:::info The default profile runs by default
-`AddDispatch` selects the `default` profile for the standard dispatch path **without any explicit `ConfigurePipeline`/`UseProfile` call**. You configure a profile only to choose a *different* one (e.g. `strict`).
+:::info Nothing runs unless you ask for it
 
-**Selecting a profile is not the same as activating its middleware.** A profile entry runs only if its type is resolvable from the service provider. `AddDispatch` registers the `default` profile's own entries for you, so a zero-config `AddDispatch` runs them; every other profile entry has its own registration call (see the table below) and materializes only once you make it. The `default` profile contains exactly the middleware `AddDispatch` can construct on its own — entries that need infrastructure only you can supply are reached through the `Use…()` call that registers their service, or through a profile you select deliberately.
+`AddDispatch` selects the `default` profile for the standard dispatch path without any explicit
+`ConfigurePipeline`/`UseProfile` call — but that profile is empty, so selecting it costs nothing. Every
+behaviour is yours to add, either by naming middleware on a pipeline or by selecting a profile that
+declares some.
+
+This is deliberate, and it follows the rule ASP.NET Core uses: a registration call seats
+*infrastructure*, never *behaviour*. Two things drove it. The first is cost — the four middleware this
+profile used to seat measured about **1,760 ns and 1,720 B per dispatch**, roughly 25x the entire
+remaining cost of a dispatch, paid by consumers who had asked for none of it. Even a single
+semantically-inert stage measured **+346 ns and +448 B**. The second matters more: two of those four
+changed *behaviour*. A timeout can cancel your work on a deadline you never chose, and tenant-identity
+resolution runs for a host that never asked to be multi-tenant. Behaviour that arrives because you
+called a registration method is behaviour you cannot find in your own code.
+
+To run the middleware this profile used to seat, name them:
+
+```csharp
+services.AddDispatch(builder => builder.ConfigurePipeline("Default", pipeline => pipeline
+    .ForMessageKinds(MessageKinds.All)
+    .Use<TenantIdentityMiddleware>()
+    .Use<TimeoutMiddleware>()
+    .Use<MetricsLoggingMiddleware>()
+    .Use<OutboxStagingMiddleware>()));
+```
+
+`AddDispatch` still **registers** all four, so naming any of them resolves without further work. Note
+`OutboxStagingMiddleware` in particular: if a handler writes to the outbox and the pipeline has no
+staging stage, the write has nowhere to go and the dispatch fails with a message naming both things you
+need — the `IOutboxStore` registration and the stage.
+
+**Selecting a profile is not the same as activating its middleware.** A profile entry runs only if its
+type is resolvable from the service provider. Entries that need infrastructure only you can supply are
+reached through the `Use…()` call that registers their service, or through a profile you select
+deliberately.
 
 Every profile entry declares a **criticality**, and that is what decides the outcome when the entry cannot be constructed. An `Optional` entry is skipped and logged at `Warning` (`InvokerMiddlewareSkipped`, event ID 10024) rather than failing the dispatch. A `Required` entry fails the build instead, naming what is missing. The `default` entries are `Optional`, so a profile entry whose registration you have replaced or removed degrades to a skip rather than a startup failure.
 

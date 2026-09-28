@@ -153,9 +153,4 @@ public sealed class SubjectAccessOptions
 	/// </summary>
 	public int ResponseDeadlineDays { get; set; } = 30;
 
-	/// <summary>
-	/// Gets or sets a value indicating whether requests should be automatically fulfilled.
-	/// Default: false.
-	/// </summary>
-	public bool AutoFulfill { get; set; }
 }

@@ -33,7 +33,8 @@ namespace Excalibur.Data.DynamoDb.Projections;
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
 public sealed class DynamoDbProjectionStore<
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] TProjection>
-	: IProjectionStore<TProjection>, ICursorProjectionStore<TProjection>
+	: IProjectionStore<TProjection>, ICursorProjectionStore<TProjection>,
+		IPositionedProjectionStore<TProjection>
 	where TProjection : class
 {
 	/// <summary>
@@ -68,6 +69,15 @@ public sealed class DynamoDbProjectionStore<
 	/// Restored during deserialization by <see cref="DeserializeItem"/>.
 	/// </summary>
 	private const string MetaFieldOrigPk = "origPk";
+
+	/// <summary>
+	/// The last global-stream position folded into this projection.
+	/// </summary>
+	/// <remarks>
+	/// Kept under the projection metadata document rather than at the item root, so it cannot collide
+	/// with a consumer property of the same name.
+	/// </remarks>
+	private const string MetaFieldPosition = "lastAppliedPosition";
 
 	private readonly IAmazonDynamoDB _client;
 	private readonly DynamoDbProjectionStoreOptions _options;
@@ -166,37 +176,48 @@ public sealed class DynamoDbProjectionStore<
 		ArgumentNullException.ThrowIfNull(projection);
 		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
-		// Serialize projection to JSON, then convert to flat DynamoDB attributes.
-		// Projection properties live at the item root. Framework metadata is isolated
-		// under a nested '_projection' map to prevent field name collisions.
-		var json = JsonSerializer.Serialize(projection, _jsonOptions);
-		var doc = Document.FromJson(json);
-
-		// Framework metadata — nested under '_projection' to avoid collisions
-		var metadata = new Document();
-		metadata[MetaFieldId] = id;
-		metadata[MetaFieldType] = _projectionType;
-		metadata[MetaFieldUpdatedAt] = DateTimeOffset.UtcNow.ToString("O");
-
-		// Preserve the projection's original PK-named property if one exists (collision case).
-		// The partition key name is configurable, so if a consumer's projection happens to
-		// have a property whose camelCase name matches (e.g., "pk"), we must save its value.
-		if (doc.TryGetValue(_options.PartitionKeyName, out var origPk))
-		{
-			metadata[MetaFieldOrigPk] = origPk;
-		}
-
-		// Partition key must be at root level (DynamoDB requirement) — overwrites any
-		// existing projection property with the same name (restored by DeserializeItem).
-		doc[_options.PartitionKeyName] = $"{_projectionType}#{id}";
-		doc[MetadataKey] = metadata;
-
-		var item = doc.ToAttributeMap();
+		// THE FIELD IS WRITTEN, NOT OMITTED, AND THAT IS THE CHANGE.
+		//
+		// A PutItem replaces the whole item, so a position the row used to carry vanishes with it.
+		// Omitting the field left the row reading back exactly like a row that never had a position --
+		// and those two must be treated OPPOSITELY: a never-positioned row IS a complete fold and is
+		// adoptable, whereas a row whose state was just replaced by a value this store cannot relate to
+		// the stream is not. Adopting the second stamps a position onto a state that does not contain
+		// that prefix, and every event below it is then silently missing from the read model forever.
+		//
+		// The sentinel rides the same single PutItem as the state, so there is no window in which a
+		// destroyed position is recorded as a never-established one.
+		var item = BuildItem(id, projection, ProjectionPosition.Unplaceable);
 
 		await _client.PutItemAsync(new PutItemRequest
 		{
 			TableName = _options.TableName,
 			Item = item,
+		}, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The same single <c>PutItem</c> as <see cref="UpsertAsync"/>, differing only in what it asserts:
+	/// this state IS a complete fold, so a later positioned writer may adopt the row. Unconditional on
+	/// purpose -- the caller is claiming completeness, not a place in the stream, so there is no
+	/// position for a condition to be written against.
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task UpsertUnnumberedAsync(
+		string id,
+		TProjection projection,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentNullException.ThrowIfNull(projection);
+		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
+
+		await _client.PutItemAsync(new PutItemRequest
+		{
+			TableName = _options.TableName,
+			Item = BuildItem(id, projection, ProjectionPosition.Unnumbered),
 		}, cancellationToken).ConfigureAwait(false);
 	}
 
@@ -794,5 +815,297 @@ public sealed class DynamoDbProjectionStore<
 		}
 
 		_tableVerified = true;
+	}
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
+		string id,
+		CancellationToken cancellationToken)
+	{
+		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
+
+		// ONE read returns both. Reading the state and the position separately would let a writer
+		// interleave, after which the position the caller holds certifies a prefix its state does not
+		// contain -- and the conditional write below would ACCEPT, losing every event in the gap.
+		var response = await _client.GetItemAsync(
+			new GetItemRequest { TableName = _options.TableName, Key = CreateKey(id) },
+			cancellationToken).ConfigureAwait(false);
+
+		if (response.HttpStatusCode != HttpStatusCode.OK || !response.IsItemSet)
+		{
+			return (null, ProjectionPosition.Unnumbered);
+		}
+
+		return (DeserializeItem(response.Item), ReadPosition(response.Item));
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// A single <c>PutItem</c> with a <c>ConditionExpression</c>. The state and the position are one
+	/// item, so they are written atomically by construction — there is no window in which the position
+	/// is ahead of the state it describes.
+	/// </para>
+	/// <para>
+	/// The condition carries BOTH conjuncts of the contract: the stored position must equal what the
+	/// caller read, AND the new position must exceed it. The second is not redundant — a caller obtains
+	/// its expected position by reading it, so on a redelivery the first is satisfied by construction
+	/// and only the forward-only rule refuses the re-application.
+	/// </para>
+	/// <para>
+	/// <c>ReturnValuesOnConditionCheckFailure</c> hands back the item the condition rejected, so the
+	/// current position comes for free on the losing path rather than costing a second read on exactly
+	/// the path that is already contended.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
+		string id,
+		TProjection projection,
+		long? expectedPosition,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		ArgumentNullException.ThrowIfNull(projection);
+
+		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
+
+		var item = BuildItem(id, projection, ProjectionPosition.At(newPosition));
+
+		// Built per branch, NOT up front, and sent as null rather than empty when the branch uses
+		// none. DynamoDB refuses BOTH shapes -- a value no expression references ("unused in
+		// expressions") and an empty map ("must not be empty") -- and both arrive as
+		// ValidationException, which is not the ConditionalCheckFailedException caught below. Either
+		// one therefore escapes the catch, faults the apply delegate, and halts the whole subscription
+		// at the first projection it touches. Measured against a real service, in both directions.
+		var values = new Dictionary<string, AttributeValue>(StringComparer.Ordinal);
+
+		string condition;
+		if (expectedPosition is { } expected)
+		{
+			// The row must exist AND hold exactly the position the caller read AND be behind the new
+			// one. An absent row must NOT be created here: that would resurrect a projection deleted by
+			// erasure, reported as success.
+			condition =
+				$"attribute_exists(#pk) AND #meta.#pos = :expected AND :new > #meta.#pos";
+			values[":expected"] = new AttributeValue { N = expected.ToString(CultureInfo.InvariantCulture) };
+			values[":new"] = new AttributeValue { N = newPosition.ToString(CultureInfo.InvariantCulture) };
+		}
+		else
+		{
+			// The caller read no position. ADOPTION MATCHES EXACTLY ONE OF THE THREE STATES, and the
+			// disjunction has to name it now that the attribute is always written:
+			//
+			//   absent                      -> first disjunct  -> put            -> Applied
+			//   attribute missing (legacy)  -> second disjunct -> put (adopted)  -> Applied
+			//   unnumbered sentinel         -> third disjunct  -> put (adopted)  -> Applied
+			//   unplaceable sentinel        -> none            -> refused        -> Unplaceable
+			//   a real position             -> none            -> refused        -> Superseded
+			//
+			// The third disjunct is the new one; the second is kept for items written before the
+			// attribute existed. Both denote a complete fold whose coordinate is merely unknown, so
+			// folding this batch onto them and stamping this batch's position states something true.
+			//
+			// AN UNPLACEABLE ROW IS NOT IN THE SET, and that is the whole reason the sentinel exists.
+			// Its state is not a fold over any prefix, so stamping a position onto it would assert a
+			// prefix the state does not hold. Before the sentinel such a row was indistinguishable
+			// from a legacy one and was adopted silently.
+			//
+			// Still never an unconditional put, which would let a late starter reset a projection a
+			// positioned writer is already advancing.
+			condition =
+				"attribute_not_exists(#pk) OR attribute_not_exists(#meta.#pos) OR #meta.#pos = :unnumbered";
+			values[":unnumbered"] = new AttributeValue
+			{
+				N = ProjectionPosition.Unnumbered.ToStored().ToString(CultureInfo.InvariantCulture),
+			};
+		}
+
+		try
+		{
+			_ = await _client.PutItemAsync(new PutItemRequest
+			{
+				TableName = _options.TableName,
+				Item = item,
+				ConditionExpression = condition,
+				ExpressionAttributeNames = new Dictionary<string, string>(StringComparer.Ordinal)
+				{
+					["#pk"] = _options.PartitionKeyName,
+					["#meta"] = MetadataKey,
+					["#pos"] = MetaFieldPosition,
+				},
+				// OMITTED, not empty, when the condition references no values. DynamoDB rejects a
+				// request carrying a value no expression uses ("unused in expressions") AND a request
+				// carrying an empty map ("must not be empty"), so the create/adopt branch -- whose
+				// condition is purely attribute_not_exists -- must send neither.
+				ExpressionAttributeValues = values.Count == 0 ? null : values,
+				ReturnValuesOnConditionCheckFailure =
+					Amazon.DynamoDBv2.ReturnValuesOnConditionCheckFailure.ALL_OLD,
+			}, cancellationToken).ConfigureAwait(false);
+
+			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition);
+		}
+		catch (ConditionalCheckFailedException ex)
+		{
+			// Caught rather than allowed to escape: a new exception type is something no existing client
+			// of this interface learned to handle, and the contract says a refusal is an ORDINARY
+			// outcome reported as a value.
+			if (ex.Item is null || ex.Item.Count == 0)
+			{
+				// The row is gone -- deleted, which is how erasure removes personal data. It must NOT be
+				// recreated from the event stream.
+				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
+			}
+
+			// An unplaceable row is terminal and is reported as such rather than as a supersede. A
+			// superseded caller re-reads and retries; this row yields the same refusal on every
+			// re-read, so reporting Superseded here is an unbounded redelivery loop against a
+			// projection that can only be fixed by rebuilding it.
+			var held = ReadPosition(ex.Item);
+			return held.Kind == ProjectionPositionKind.Unplaceable
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
+				: new ProjectionAdvanceResult(
+					ProjectionAdvanceOutcome.Superseded, held.ExpectedPositionOrNull);
+		}
+	}
+
+	/// <summary>
+	/// Builds the DynamoDB item for a projection, always stamping what it asserts about its prefix.
+	/// </summary>
+	/// <remarks>
+	/// Shared by the unconditional and the positioned writes so the two cannot drift: a builder used by
+	/// only one of them would eventually differ in how it lays out metadata, and the two writes would
+	/// produce items the other could not read back.
+	/// </remarks>
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// The condition requires the item to EXIST and to carry exactly <c>atPosition</c>. There is no
+	/// <c>attribute_not_exists</c> arm, so a deleted item cannot be recreated -- deletion is how
+	/// erasure removes personal data and a re-fold that recreated it would reinstate what was erased.
+	/// </para>
+	/// <para>
+	/// The ALL_OLD item that DynamoDB returns on a condition failure carries the stored position, so
+	/// the four cases are classified without an extra read.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionRefoldResult> RefoldAtPositionAsync(
+		string id,
+		TProjection projection,
+		long atPosition,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentOutOfRangeException.ThrowIfNegative(atPosition);
+		ArgumentNullException.ThrowIfNull(projection);
+
+		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
+
+		// Carries atPosition, so the position is written back unchanged.
+		var item = BuildItem(id, projection, ProjectionPosition.At(atPosition));
+
+		try
+		{
+			_ = await _client.PutItemAsync(new PutItemRequest
+			{
+				TableName = _options.TableName,
+				Item = item,
+				ConditionExpression = "attribute_exists(#pk) AND #meta.#pos = :at",
+				ExpressionAttributeNames = new Dictionary<string, string>(StringComparer.Ordinal)
+				{
+					["#pk"] = _options.PartitionKeyName,
+					["#meta"] = MetadataKey,
+					["#pos"] = MetaFieldPosition,
+				},
+				ExpressionAttributeValues = new Dictionary<string, AttributeValue>(StringComparer.Ordinal)
+				{
+					[":at"] = new() { N = atPosition.ToString(CultureInfo.InvariantCulture) },
+				},
+				ReturnValuesOnConditionCheckFailure =
+					Amazon.DynamoDBv2.ReturnValuesOnConditionCheckFailure.ALL_OLD,
+			}, cancellationToken).ConfigureAwait(false);
+
+			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Applied, atPosition);
+		}
+		catch (ConditionalCheckFailedException ex)
+		{
+			if (ex.Item is null || ex.Item.Count == 0)
+			{
+				return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
+			}
+
+			// An item with no established position -- unnumbered or unplaceable, and neither can be
+			// matched -- has nothing a re-fold can be placed against, and re-reading cannot change
+			// that.
+			var held = ReadPosition(ex.Item);
+			return held.Kind == ProjectionPositionKind.Positioned
+				? new ProjectionRefoldResult(ProjectionRefoldOutcome.Superseded, held.Value)
+				: new ProjectionRefoldResult(ProjectionRefoldOutcome.RequiresRebuild, null);
+		}
+	}
+
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private Dictionary<string, AttributeValue> BuildItem(
+		string id,
+		TProjection projection,
+		ProjectionPosition position)
+	{
+		// Projection properties live at the item root; framework metadata is isolated under a nested
+		// map to prevent field-name collisions.
+		var json = JsonSerializer.Serialize(projection, _jsonOptions);
+		var doc = Document.FromJson(json);
+
+		var metadata = new Document();
+		metadata[MetaFieldId] = id;
+		metadata[MetaFieldType] = _projectionType;
+		metadata[MetaFieldUpdatedAt] = DateTimeOffset.UtcNow.ToString("O");
+
+		// Unconditionally, including for the two states that carry no number. An absent attribute is
+		// indistinguishable from an attribute nobody wrote, so leaving it out is how "this state cannot
+		// be placed" became "this state was never placed" -- the one distinction a positioned writer
+		// has to act on. The encoding is the shared one, never this provider's own sentinel.
+		metadata[MetaFieldPosition] = position.ToStored();
+
+		// Preserve the projection's original PK-named property if one exists (collision case): the
+		// partition key name is configurable, so a consumer property can share it.
+		if (doc.TryGetValue(_options.PartitionKeyName, out var origPk))
+		{
+			metadata[MetaFieldOrigPk] = origPk;
+		}
+
+		// Partition key must be at root level (a DynamoDB requirement); DeserializeItem restores any
+		// consumer property it overwrote.
+		doc[_options.PartitionKeyName] = $"{_projectionType}#{id}";
+		doc[MetadataKey] = metadata;
+
+		return doc.ToAttributeMap();
+	}
+
+	/// <summary>Decodes the stored attribute into one of the three states.</summary>
+	/// <remarks>
+	/// An ABSENT attribute reads as <see cref="ProjectionPositionKind.Unnumbered"/>, which is what
+	/// <see cref="ProjectionPosition.FromStored"/> does with a null. That is correct and deliberate: an
+	/// item written before this attribute existed IS a complete fold, only its coordinate is unknown, so
+	/// it stays adoptable. Every provider goes through FromStored so the eight of them cannot drift.
+	/// </remarks>
+	private static ProjectionPosition ReadPosition(Dictionary<string, AttributeValue> item)
+	{
+		if (!item.TryGetValue(MetadataKey, out var meta) || meta.M is null
+			|| !meta.M.TryGetValue(MetaFieldPosition, out var pos) || pos.N is null)
+		{
+			return ProjectionPosition.Unnumbered;
+		}
+
+		return long.TryParse(pos.N, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+			? ProjectionPosition.FromStored(parsed)
+			: ProjectionPosition.Unnumbered;
 	}
 }

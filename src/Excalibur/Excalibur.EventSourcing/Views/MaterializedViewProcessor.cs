@@ -235,7 +235,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			.ConfigureAwait(false);
 
 		var startPosition = lastPosition.HasValue
-			? new GlobalStreamPosition(lastPosition.Value + 1, DateTimeOffset.MinValue)
+			? new GlobalStreamPosition(lastPosition.Value, DateTimeOffset.MinValue)
 			: GlobalStreamPosition.Start;
 
 		LogCatchUpStarting(viewName, startPosition.Position);
@@ -276,7 +276,23 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 
 			if (storedEvents.Count == 0)
 			{
-				break; // Caught up — no more events
+				// "Caught up" is only ONE of the two things an empty read can mean, and the comment that
+				// stood here asserted the wrong one unconditionally.
+				//
+				// The global-stream read delivers only the contiguous run from our position and withholds
+				// everything above a gap, so empty also means "the next position is absent". Ending the
+				// replay there leaves the view short of the stream while reporting that it finished.
+				//
+				// Unlike a rebuild, this processor is not making a durable completion claim, so the right
+				// response is to STOP THIS PASS without claiming to be caught up. The gap is almost always
+				// an append still in flight, and the next pass picks it up once it commits.
+				var head = await _globalStreamQuery.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
+				if (head > currentPosition.Position)
+				{
+					LogStoppedShortOfHead(currentPosition.Position, head);
+				}
+
+				break;
 			}
 
 			foreach (var storedEvent in storedEvents)
@@ -379,7 +395,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 					+ "The event store's global stream query must stamp each event's global position.");
 			}
 
-			var newPosition = lastEvent.GlobalPosition + 1;
+			var newPosition = lastEvent.GlobalPosition;
 			currentPosition = new GlobalStreamPosition(newPosition, lastEvent.Timestamp);
 
 			// Save position checkpoint after each batch
@@ -604,6 +620,21 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	[LoggerMessage(EventSourcingEventId.ViewProcessorBatchProcessed, LogLevel.Debug,
 		"Materialized view processor batch completed, {ViewCount} views affected, position {Position}")]
 	private partial void LogBatchProcessed(int viewCount, long position);
+
+	/// <summary>Records that the replay stopped below the head because the run was withheld.</summary>
+	/// <remarks>
+	/// Information rather than Debug: the default minimum level in a stock host is Information, so a
+	/// Debug line here would be invisible exactly when someone needs it. Information rather than
+	/// Warning because a single occurrence is the healthy signature of an append that has not
+	/// committed yet, and warning on it would train an operator to ignore the one that persists.
+	/// </remarks>
+	/// <param name="stoppedAt">The position the replay reached.</param>
+	/// <param name="head">The stream head at the time of the check.</param>
+	[LoggerMessage(EventSourcingEventId.ViewProcessorStoppedShortOfHead, LogLevel.Information,
+		"Materialized view replay stopped at position {StoppedAt} while the stream head is {Head}: the "
+		+ "next position is absent, so the remaining run was withheld rather than exhausted. This pass "
+		+ "did not catch up. A gap that persists across passes is not an in-flight append.")]
+	private partial void LogStoppedShortOfHead(long stoppedAt, long head);
 
 	[LoggerMessage(EventSourcingEventId.ViewProcessorRebuildStarting, LogLevel.Information,
 		"Materialized view rebuild starting")]

@@ -58,7 +58,13 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 				EventData: [(byte)i],
 				Metadata: i % 2 == 0 ? null : [(byte)(i + 1)], // mix of null and non-null BLOB, per the array-bind size alignment concern
 				Version: i,
-				Timestamp: DateTimeOffset.UtcNow);
+				Timestamp: DateTimeOffset.UtcNow)
+			{
+				// The store, not Oracle, chooses the position: it is allocated from the position counter
+				// row inside the append transaction. Positions here are deliberately NOT 0..n-1 so that a
+				// misaligned array bind (row i receiving row j's position) cannot coincidentally pass.
+				Position = 1000 + (i * 7),
+			};
 		}
 
 		await using var connection = new OracleConnection(_fixture.ConnectionString);
@@ -70,7 +76,7 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 		var returned = await Excalibur.Data.DbConnectionExtensions.ResolveAsync(connection, req).ConfigureAwait(false);
 		await transaction.CommitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-		returned.Count.ShouldBe(n, "one position must be returned per row in the batch — a wrong count fails regardless of the values.");
+		returned.ShouldBe(n, "the array-bound INSERT must write one row per element — a wrong count fails regardless of the values.");
 
 		// Independent read-back: query by EVENTID, never by trusting the returned list's row order.
 		await using var verifyConnection = new OracleConnection(_fixture.ConnectionString);
@@ -95,18 +101,16 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 		for (var i = 0; i < n; i++)
 		{
 			var row = rows[i];
-			returned.ShouldContain(p => p.Version == row.Version, $"the returned list must carry an entry for version {row.Version}.");
-			var claimed = returned.Single(p => p.Version == row.Version);
-
 			actualByEventId.ShouldContainKey(row.EventId);
 			var actual = actualByEventId[row.EventId];
 
 			actual.Version.ShouldBe(row.Version, $"row {row.EventId}'s persisted VERSION must match what was submitted.");
-			claimed.Position.ShouldBe(
-				actual.Position,
-				$"row {row.EventId}: the POSITION the array-bind returned ({claimed.Position}) must be the SAME "
-				+ $"POSITION Oracle actually assigned to THIS row ({actual.Position}) — not another row's position, "
-				+ "and not a count that merely looks right.");
+			actual.Position.ShouldBe(
+				row.Position,
+				$"row {row.EventId}: the POSITION persisted ({actual.Position}) must be the one the store "
+				+ $"ASSIGNED to THIS row ({row.Position}) — not another row's position. The store allocates "
+				+ "positions itself and binds them as an array, so a misaligned bind would attach row i's "
+				+ "position to row j and silently reorder the global stream.");
 
 			positionsSeen.Add(actual.Position).ShouldBeTrue($"POSITION {actual.Position} must not be duplicated across rows.");
 		}
@@ -133,7 +137,10 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 			EventData: [1],
 			Metadata: null,
 			Version: i,
-			Timestamp: DateTimeOffset.UtcNow)).ToArray();
+			Timestamp: DateTimeOffset.UtcNow)
+		{
+			Position = 5000 + i,
+		}).ToArray();
 
 		await using var connection = new OracleConnection(_fixture.ConnectionString);
 		await connection.OpenAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
@@ -144,7 +151,7 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 		var returned = await Excalibur.Data.DbConnectionExtensions.ResolveAsync(connection, req).ConfigureAwait(false);
 		await transaction.CommitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-		returned.Count.ShouldBe(n);
+		returned.ShouldBe(n);
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 	}
 
@@ -217,10 +224,11 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 
 		const int n = 100;
+		// The baseline must supply POSITION like the real store does: it is no longer an identity column,
+		// so an INSERT omitting it fails ORA-01400. There is correspondingly nothing to RETURN.
 		var insertSql =
-			$"INSERT INTO {_fixture.TableName} (EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, EVENTDATA, METADATA, VERSION, EVENTTIMESTAMP, TENANTID) "
-			+ "VALUES (:EventId, :AggregateId, :AggregateType, :EventType, :EventData, :Metadata, :Version, :Timestamp, :TenantId) "
-			+ "RETURNING POSITION INTO :OutPosition";
+			$"INSERT INTO {_fixture.TableName} (POSITION, EVENTID, AGGREGATEID, AGGREGATETYPE, EVENTTYPE, EVENTDATA, METADATA, VERSION, EVENTTIMESTAMP, TENANTID) "
+			+ "VALUES (:Position, :EventId, :AggregateId, :AggregateType, :EventType, :EventData, :Metadata, :Version, :Timestamp, :TenantId)";
 
 		// OLD SHAPE: one round trip per row (this is what InsertEventsBatchRequest did before i8ghy0 — kept
 		// here, inline, purely as the "before" side of the measurement; production no longer contains it).
@@ -239,6 +247,7 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 #pragma warning restore CA2100
 				command.BindByName = true;
 				command.Transaction = oldTransaction;
+				_ = command.Parameters.Add(new OracleParameter("Position", (long)(900_000 + i)));
 				_ = command.Parameters.Add(new OracleParameter("EventId", $"old-{i}-{Guid.NewGuid():N}"));
 				_ = command.Parameters.Add(new OracleParameter("AggregateId", oldAggregateId));
 				_ = command.Parameters.Add(new OracleParameter("AggregateType", AggregateType));
@@ -248,8 +257,6 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 				_ = command.Parameters.Add(new OracleParameter("Version", (long)i));
 				_ = command.Parameters.Add(new OracleParameter("Timestamp", DateTimeOffset.UtcNow));
 				_ = command.Parameters.Add(new OracleParameter("TenantId", "__untenanted__"));
-				var outPos = new OracleParameter("OutPosition", OracleDbType.Int64) { Direction = ParameterDirection.Output };
-				_ = command.Parameters.Add(outPos);
 				_ = await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 			}
 			await oldTransaction.CommitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
@@ -265,7 +272,10 @@ public sealed class OracleEventStoreArrayBindBatchAppendShould : IClassFixture<O
 
 			var rows = Enumerable.Range(0, n).Select(i => new EventInsertRow(
 				EventId: $"new-{i}-{Guid.NewGuid():N}", AggregateId: newAggregateId, AggregateType: AggregateType,
-				EventType: "PerfProbe", EventData: [1], Metadata: null, Version: i, Timestamp: DateTimeOffset.UtcNow)).ToArray();
+				EventType: "PerfProbe", EventData: [1], Metadata: null, Version: i, Timestamp: DateTimeOffset.UtcNow)
+			{
+				Position = 800_000 + i,
+			}).ToArray();
 
 			await using var newTransaction = newConnection.BeginTransaction(IsolationLevel.ReadCommitted);
 			var req = new InsertEventsBatchRequest(

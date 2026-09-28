@@ -78,11 +78,11 @@ public sealed class OracleTransactionalAppendAtomicityShould : IAsyncLifetime
 					aggId, type, [new TestDomainEvent(aggId, 0)], expectedVersion: -1,
 					async (txn, ct) => await InsertOutboxRowAsync(txn, outboxId, ct).ConfigureAwait(false),
 					CancellationToken.None).ConfigureAwait(false);
-				return (Result: (AppendResult?)result, Exception: (Exception?)null);
+				return (OutboxId: outboxId, Result: (AppendResult?)result, Exception: (Exception?)null);
 			}
 			catch (Exception ex)
 			{
-				return (Result: (AppendResult?)null, Exception: ex);
+				return (OutboxId: outboxId, Result: (AppendResult?)null, Exception: ex);
 			}
 		}).ToArray();
 
@@ -105,6 +105,29 @@ public sealed class OracleTransactionalAppendAtomicityShould : IAsyncLifetime
 
 		(await CountEventsAsync(aggId).ConfigureAwait(false)).ShouldBe(1,
 			"only the single winning writer's event must persist at version 0");
+
+		// The LOSERS' staged rows must have rolled back with their transactions.
+		//
+		// Staging runs BEFORE the events are appended, so every loser here reached stageOutbox, wrote
+		// its outbox row, and only then failed on the stream unique key at INSERT -- the "staged, then
+		// the append failed" shape, which the stageOutbox-throws arm cannot reach because its throw
+		// happens before any event row is attempted.
+		//
+		// RED on any implementation that stages outside the append's transaction: every loser's row
+		// would survive and this would read 8 instead of 1.
+		var survivingOutboxRows = 0;
+		foreach (var outcome in outcomes)
+		{
+			survivingOutboxRows += await CountOutboxAsync(outcome.OutboxId).ConfigureAwait(false);
+		}
+
+		survivingOutboxRows.ShouldBe(1,
+			"exactly one staged outbox row may survive -- the winner's. Every loser staged a row before " +
+			"its append failed on the unique key, and each of those must have rolled back.");
+
+		(await CountOutboxAsync(successes[0].OutboxId).ConfigureAwait(false)).ShouldBe(1,
+			"the surviving outbox row must be the WINNER's -- a count of 1 alone would also be satisfied " +
+			"by the wrong writer's row persisting while the winner's rolled back");
 	}
 
 	private IEventStore CreateEventStore() =>
@@ -119,6 +142,16 @@ public sealed class OracleTransactionalAppendAtomicityShould : IAsyncLifetime
 		await using var command = connection.CreateCommand();
 		command.CommandText = $"SELECT COUNT(*) FROM {_fixture.TableName} WHERE AggregateId = :id";
 		_ = command.Parameters.Add(new OracleParameter("id", aggregateId));
+		return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+	}
+
+	private async Task<int> CountOutboxAsync(string outboxId)
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+		await using var command = connection.CreateCommand();
+		command.CommandText = "SELECT COUNT(*) FROM TestOutbox WHERE Id = :id";
+		_ = command.Parameters.Add(new OracleParameter("id", outboxId));
 		return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
 	}
 

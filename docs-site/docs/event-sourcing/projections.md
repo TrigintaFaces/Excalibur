@@ -374,6 +374,21 @@ public sealed class TierSummaryOnCustomerCreated
 }
 ```
 
+:::info Your handler must be idempotent, and an override makes that concrete
+
+A handler that sets an override writes to **two** projection ids from one event — the aggregate's own
+row and the overridden one — so the framework invokes it **once per target**. Those two rows advance
+independently, and each one decides for itself whether it has already folded a given event.
+
+That means the handler can be invoked for an event one of its targets already holds, so the other
+target can be offered it. On that invocation the projection instance it receives is a throwaway whose
+fold is discarded; anything your handler does **outside** the projection state happens again. Keep
+those effects idempotent, or guard them with `context.IsReplay` where that is the right distinction.
+
+This only affects the redelivery window, not the steady state — but it is a property of the capability,
+not an accident, and `KeyedBy` avoids it entirely because the key is derived without running anything.
+:::
+
 ### ProjectionHandlerContext
 
 Every DI handler receives aggregate metadata:
@@ -748,10 +763,14 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 
 `EnableProjectionProcessing()` registers:
 - A hosted service (`AsyncProjectionProcessingHost`) that polls the global stream via `IGlobalStreamQuery`
-- An in-memory checkpoint store as fallback (providers like SQL Server register durable implementations that take precedence)
+- An in-memory checkpoint store as a fallback, used unless you register a durable one (see below)
 - `ValidateOnStart` for `GlobalStreamProjectionOptions`
+- A startup check that the host has a stream to poll
 
-If no `IGlobalStreamQuery` implementation is registered (e.g., the event store provider doesn't support it), the host logs a warning and exits gracefully.
+If no `IGlobalStreamQuery` is registered, startup fails with a message naming what to register. The query
+comes from the event store provider seam, so this means either no provider is configured or the configured
+one does not support global-stream reads. The host is a background service: were it to start anyway it
+would return immediately, and the application would report healthy while no projection was ever processed.
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -762,59 +781,63 @@ If no `IGlobalStreamQuery` implementation is registered (e.g., the event store p
 
 Async projections are processed by `AsyncProjectionProcessingHost` using checkpoint-based delivery. For CDC-based processing, see [CDC Pattern](../patterns/cdc.md).
 
-### Parallel Catch-Up
+### Register a durable checkpoint store
 
-When catching up from position 0 on a large global stream (100B+ events), sequential processing would take years. Enable parallel catch-up to split the stream into ranges and process them concurrently:
+**The checkpoint store defaults to in-memory. Register a durable one for any process that can restart.**
+
+A checkpoint is how far a projection has processed. Held in memory, it is lost on every restart and
+deployment, so the projection replays the stream from the beginning each time.
+
+:::warning Replaying an async projection is not idempotent
+Replay is not merely slower — it can corrupt the read model. An async projection is applied by loading
+the stored projection, applying the event to it, and writing it back, and the stored projection carries
+no record of the last position applied. So a handler that **assigns** (`p.Status = e.Status`) survives a
+replay, while one that **accumulates** (`p.Total++`, appending to a list) double-counts on every restart,
+without bound and without any error. Register a durable checkpoint store for any process that can
+restart, and make your handlers idempotent regardless.
+:::
+
+:::danger Do not register a durable checkpoint store for `GlobalStreamProjectionHost<TState>`
+That host builds `TState` fresh in memory at startup and never reloads it, while the checkpoint restores
+only the *position*. With a durable checkpoint it resumes partway through the stream holding an empty
+state, and every event before the resume point is silently lost from the projection. Until its state is
+made durable, that host is correct only with the in-memory checkpoint. This warning does not apply to
+`EnableProjectionProcessing()`, which persists each projection through `IProjectionStore`.
+:::
+
+Registering the event store does **not** register a checkpoint store. It is a separate, explicit call:
 
 ```csharp
-services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
-{
-    builder.UseParallelCatchUp(opts =>
-    {
-        opts.Strategy = CatchUpStrategy.RangePartitioned;
-        opts.WorkerCount = Environment.ProcessorCount;
-        opts.BatchSize = 1000;
-        opts.CheckpointInterval = 5000;
-    });
-}));
+// SQL Server
+services.AddSqlServerSubscriptionCheckpointStore(() => new SqlConnection(connectionString));
+
+// PostgreSQL
+services.AddPostgresSubscriptionCheckpointStore(() => new NpgsqlConnection(connectionString));
+
+// Oracle
+services.AddOracleSubscriptionCheckpointStore(() => new OracleConnection(connectionString));
+
+// SQLite
+services.AddSqliteSubscriptionCheckpointStore(connectionString);
 ```
 
-The infrastructure:
+Ordering relative to `AddEventSourcing` does not matter; any of these replaces the in-memory default.
 
-1. **Partitions** the global stream into position ranges via `IGlobalStreamPartitioner`
-2. **Spawns** one worker per range
-3. **Checkpoints** each worker independently
-4. **Merges** cursors using a low-watermark strategy (global position = minimum of all worker checkpoints)
+| Provider | Checkpoint table |
+|---|---|
+| SQL Server | apply `scripts/010_CreateSubscriptionCheckpointSchema.sql` |
+| PostgreSQL | apply `scripts/009_CreateSubscriptionCheckpointSchema.sql` |
+| Oracle | apply `scripts/007_CreateSubscriptionCheckpointSchema.sql` |
+| SQLite | created automatically on first use, like every other SQLite store |
 
-```mermaid
-flowchart LR
-    subgraph Global Stream
-        R1["Range 0..25M"] --> W1[Worker 0]
-        R2["Range 25M..50M"] --> W2[Worker 1]
-        R3["Range 50M..75M"] --> W3[Worker 2]
-        R4["Range 75M..100M"] --> W4[Worker 3]
-    end
+On the three server engines the store fails loudly if the table is missing, rather than starting a
+projection silently from zero.
 
-    W1 & W2 & W3 & W4 --> CP[Low Watermark Checkpoint]
-```
+Advancing a checkpoint is a compare-and-set: the caller states the position it believes is current, and
+the store reports `Advanced` or `Superseded`. That is what makes it safe to run two instances of the same
+projection — the loser of a race is told its progress was not recorded instead of overwriting the
+winner's.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `Strategy` | `Sequential` | `Sequential`, `RangePartitioned`, or `PerShard` |
-| `WorkerCount` | `ProcessorCount` | Number of parallel workers |
-| `BatchSize` | 1000 | Events per batch read |
-| `CheckpointInterval` | 5000 | Events between checkpoints |
-| `MaxRetries` | 3 | Retry attempts for failed workers |
-| `WorkerHeartbeatTimeout` | 60s | Timeout for detecting hung workers |
-
-Parallel processing activates only during catch-up. Once caught up, the host automatically switches to sequential single-worker processing for lower latency.
-
-**Provider support:** SQL Server (indexed `GlobalPosition` range queries). PostgreSQL planned for Phase 2. Providers without range query support fall back to sequential automatically.
-
-:::note Idempotency Requirement
-
-Projections used with parallel catch-up **must** handle duplicate events, since range boundaries may overlap slightly.
-:::
 
 ---
 

@@ -93,7 +93,10 @@ Tables are created on first use. The DDL is also shipped as scripts in the packa
 
 ```sql
 CREATE TABLE IF NOT EXISTS [Events] (
-    GlobalPosition INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- Deliberately NOT AUTOINCREMENT. The store assigns this value from the counter table below,
+    -- inside the appending transaction, so an aborted append burns no position. AUTOINCREMENT
+    -- prevented rowid REUSE but never addressed an aborted append, which still consumed its value.
+    GlobalPosition INTEGER PRIMARY KEY,
     EventId TEXT NOT NULL,
     AggregateId TEXT NOT NULL,
     AggregateType TEXT NOT NULL,
@@ -105,6 +108,16 @@ CREATE TABLE IF NOT EXISTS [Events] (
     TenantId TEXT NOT NULL,
     UNIQUE(AggregateId, AggregateType, Version, TenantId)
 );
+
+-- The global position counter. The store creates this automatically on first use; it is shown here
+-- because the table above is.
+CREATE TABLE IF NOT EXISTS [Events_Position] (
+    Id INTEGER PRIMARY KEY CHECK (Id = 1),
+    Value INTEGER NOT NULL
+);
+
+INSERT OR IGNORE INTO [Events_Position] (Id, Value)
+SELECT 1, COALESCE((SELECT MAX(GlobalPosition) FROM [Events]), 0);
 ```
 
 `CREATE TABLE IF NOT EXISTS` does not alter an existing table, so re-running `001` against a database created by an earlier version runs clean and changes nothing — and the first append then fails with `no such column: TenantId`.

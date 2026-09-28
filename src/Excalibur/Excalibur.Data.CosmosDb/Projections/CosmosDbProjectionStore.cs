@@ -34,9 +34,17 @@ namespace Excalibur.Data.CosmosDb.Projections;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
+[SuppressMessage(
+	"Design",
+	"CA1506:AvoidExcessiveClassCoupling",
+	Justification = "One store implements four contracts over an SDK whose document, query, request-option "
+		+ "and error types are separate namespaces. Splitting the positioned write into its own type would "
+		+ "duplicate the document layout, which is the one thing the conditional and unconditional writes "
+		+ "must agree on exactly.")]
 public sealed partial class CosmosDbProjectionStore<
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] TProjection>
-	: IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>, ICursorProjectionStore<TProjection>, IAsyncDisposable, IDisposable
+	: IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>, ICursorProjectionStore<TProjection>,
+		IPositionedProjectionStore<TProjection>, IAsyncDisposable, IDisposable
 	where TProjection : class
 {
 	/// <summary>
@@ -61,6 +69,12 @@ public sealed partial class CosmosDbProjectionStore<
 	/// deserialization by <see cref="StripAndDeserialize"/>.
 	/// </summary>
 	private const string MetaFieldOrigId = "origId";
+
+	/// <summary>The last global-stream position folded into this projection.</summary>
+	/// <remarks>
+	/// Nested under the framework metadata object so it cannot collide with a consumer property.
+	/// </remarks>
+	private const string MetaFieldPosition = "lastAppliedPosition";
 
 	/// <summary>
 	/// Cosmos DB root-level partition key field. This MUST remain at the document root
@@ -254,44 +268,27 @@ public sealed partial class CosmosDbProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		// Serialize projection to JsonElement — projection properties live at the document root.
-		// Framework metadata is isolated under a nested '_projection' object to prevent
-		// field name collisions with consumer projection properties.
-		var projectionJson = JsonSerializer.SerializeToElement(projection, _jsonOptions);
-		var merged = new Dictionary<string, object?>();
+		// THE FIELD IS WRITTEN, NOT OMITTED, AND THAT IS THE CHANGE.
+		//
+		// This write replaces the whole document, so a position the row used to carry disappears with
+		// it. Omitting the field left the row reading back exactly like a row that never had a position
+		// -- and those two must be treated OPPOSITELY: a never-positioned row IS a complete fold and is
+		// adoptable, whereas a row whose state was just replaced by a value this store cannot relate to
+		// the stream is not. Adopting the second stamps a position onto a state that does not contain
+		// that prefix, and every event below it is then silently missing from the read model forever.
+		//
+		// Writing the unplaceable sentinel makes the row self-describing instead. It rides the same
+		// single document write as the state, so there is no window in which a destroyed position is
+		// recorded as a never-established one.
+		using var payload = Serialize(BuildDocument(id, projection, ProjectionPosition.Unplaceable));
 
-		// Add all projection properties at root level first
-		foreach (var prop in projectionJson.EnumerateObject())
-		{
-			merged[prop.Name] = prop.Value;
-		}
-
-		// Build framework metadata — preserve the projection's original 'id' if present
-		// so it can be restored during deserialization (see StripAndDeserialize).
-		var metadata = new Dictionary<string, object?>
-		{
-			[MetaFieldId] = id,
-			[MetaFieldType] = _projectionType,
-			[MetaFieldUpdatedAt] = DateTimeOffset.UtcNow.ToString("O"),
-		};
-
-		if (merged.TryGetValue("id", out var origId))
-		{
-			metadata[MetaFieldOrigId] = origId;
-		}
-
-		merged[MetadataKey] = metadata;
-
-		// Cosmos DB requires 'id' as document identifier and 'projectionType' as partition key
-		// at the document root — these are database engine requirements, not framework metadata.
-		merged["id"] = CreateDocumentId(id);
-		merged[PartitionKeyField] = _projectionType;
-
-		_ = await _container!.UpsertItemAsync(
-			merged,
+		using var response = await _container!.UpsertItemStreamAsync(
+			payload,
 			new PartitionKey(_projectionType),
-			new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
+			new ItemRequestOptions { EnableContentResponseOnWrite = false },
 			cancellationToken).ConfigureAwait(false);
+
+		response.EnsureSuccessStatusCode();
 
 		LogUpserted(_projectionType, id);
 	}
@@ -888,4 +885,444 @@ public sealed partial class CosmosDbProjectionStore<
 
 	[LoggerMessage(DataCosmosDbEventId.ProjectionDeleted, LogLevel.Debug, "Deleted projection {ProjectionType}/{Id}")]
 	private partial void LogDeleted(string projectionType, string id);
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Reads the document once and returns both halves. The ETag is deliberately NOT surfaced to the
+	/// caller: it is an implementation detail of the write below, and putting a Cosmos concept into a
+	/// provider-neutral contract would make the contract unimplementable elsewhere.
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
+		string id,
+		CancellationToken cancellationToken)
+	{
+		var (projection, position, _) = await ReadWithEtagAsync(id, cancellationToken).ConfigureAwait(false);
+		return (projection, position);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The same single document write as <see cref="UpsertAsync"/>, differing only in what it asserts:
+	/// this state IS a complete fold, so a later positioned writer may adopt the row. Unconditional on
+	/// purpose -- the caller is claiming completeness, not a place in the stream, so there is no
+	/// position for a condition to be written against.
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task UpsertUnnumberedAsync(
+		string id,
+		TProjection projection,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentNullException.ThrowIfNull(projection);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		using var payload = Serialize(BuildDocument(id, projection, ProjectionPosition.Unnumbered));
+
+		using var response = await _container!.UpsertItemStreamAsync(
+			payload,
+			new PartitionKey(_projectionType),
+			new ItemRequestOptions { EnableContentResponseOnWrite = false },
+			cancellationToken).ConfigureAwait(false);
+
+		response.EnsureSuccessStatusCode();
+
+		LogUpserted(_projectionType, id);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// <b>Two round trips, and the signature cannot avoid it.</b> Cosmos conditions a write on an
+	/// ETAG, which is not derivable from a position. So the store reads the document to learn both the
+	/// ETag and the stored position, then writes with IfMatchEtag. The read makes the position
+	/// comparison possible; the ETag makes the write atomic against a concurrent writer.
+	/// </para>
+	/// <para>
+	/// <b>A spurious refusal is possible, and it is safe.</b> Any unrelated write moves the ETag, so a
+	/// caller can be told Superseded while the position is unchanged. It re-reads and retries, which is
+	/// correct: ignoring the ETag instead would accept a write that clobbered the other writer.
+	/// </para>
+	/// <para>
+	/// The null branch is CreateItemAsync, whose 409 IS the refusal. Never an upsert, which would let a
+	/// late starter reset a live projection.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
+		string id,
+		TProjection projection,
+		long? expectedPosition,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		ArgumentNullException.ThrowIfNull(projection);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var document = BuildDocument(id, projection, ProjectionPosition.At(newPosition));
+		var partition = new PartitionKey(_projectionType);
+
+		if (expectedPosition is null)
+		{
+			try
+			{
+				using var payload = Serialize(document);
+
+				using var created = await _container!.CreateItemStreamAsync(payload, partition,
+					new ItemRequestOptions { EnableContentResponseOnWrite = false }, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (created.StatusCode == HttpStatusCode.Conflict)
+				{
+					throw new CosmosException("create conflicted", HttpStatusCode.Conflict, 0, string.Empty, 0);
+				}
+
+				created.EnsureSuccessStatusCode();
+
+				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition);
+			}
+			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+			{
+				// Something is already there. It is either a projection a positioned writer is
+				// advancing -- the late starter this branch exists to refuse -- or a row carrying no
+				// position at all, written by the unconditional path (a rebuild, a recovery, a row
+				// written before this store recorded positions).
+				//
+				// The second case must be ADOPTED, not refused. A caller reading an unpositioned row
+				// has no position to claim, so refusing it would refuse every subsequent attempt
+				// identically: a silent permanent stall rather than a conflict.
+				var (_, conflicting, conflictEtag) = await ReadWithEtagAsync(id, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (conflictEtag is null)
+				{
+					// Deleted between the create and this read. The next attempt creates it.
+					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, null);
+				}
+
+				// ADOPTION MATCHES EXACTLY ONE OF THE THREE STATES. An unnumbered row is a complete
+				// fold whose coordinate is merely unknown, so folding this batch onto it and stamping
+				// this batch's position states something true. The other two are refusals, and they
+				// are refused DIFFERENTLY: a positioned row means a real writer is ahead (re-read and
+				// retry), while an unplaceable row can never be adopted at all, so telling the caller
+				// to retry would spin it forever against a row that will never change.
+				return conflicting.Kind switch
+				{
+					ProjectionPositionKind.Positioned => new ProjectionAdvanceResult(
+						ProjectionAdvanceOutcome.Superseded, conflicting.Value),
+					ProjectionPositionKind.Unplaceable => new ProjectionAdvanceResult(
+						ProjectionAdvanceOutcome.Unplaceable, null),
+					_ => await ReplaceAtEtagAsync(id, document, conflictEtag, newPosition, cancellationToken)
+						.ConfigureAwait(false),
+				};
+			}
+		}
+
+		var (_, storedPosition, etag) = await ReadWithEtagAsync(id, cancellationToken).ConfigureAwait(false);
+
+		if (etag is null)
+		{
+			// Gone: deleted, which is how erasure removes personal data. Re-folding the event stream
+			// would reinstate it, so this is settled rather than retried.
+			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
+		}
+
+		// An unplaceable row is terminal and is reported as such rather than as a supersede. A
+		// superseded caller re-reads and retries; this row yields the same refusal on every re-read,
+		// so reporting Superseded here is an unbounded redelivery loop against a projection that can
+		// only be fixed by rebuilding it.
+		if (storedPosition.Kind == ProjectionPositionKind.Unplaceable)
+		{
+			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
+		}
+
+		// Both conjuncts, checked before the write: the stored position is the one the caller read, and
+		// the new position is ahead of it. The second is not redundant, because the caller obtained its
+		// expected value BY READING IT, so a redelivery satisfies the first by construction.
+		//
+		// ExpectedPositionOrNull renders an unnumbered row as null, which is right here: the caller
+		// arrived with a non-null expectation, so an unnumbered row does not match it and the write is
+		// refused. Adoption is the expectedPosition-is-null branch above, and only that branch.
+		var held = storedPosition.ExpectedPositionOrNull;
+		if (held != expectedPosition || newPosition <= held)
+		{
+			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, held);
+		}
+
+		return await ReplaceAtEtagAsync(id, document, etag, newPosition, cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	/// <summary>Replaces the document only if it still carries the ETag the caller read.</summary>
+	/// <remarks>
+	/// The ETag is what makes the write atomic against a concurrent writer. The position comparison the
+	/// caller already performed is what refuses a re-delivery; neither substitutes for the other.
+	/// </remarks>
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// Reads the document with its ETag, checks the position matches, and replaces under that ETag.
+	/// There is no create path: an absent document means the projection was DELETED, deletion is how
+	/// erasure removes personal data, and recreating it would reinstate what was erased.
+	/// </para>
+	/// <para>
+	/// The ETag makes the replace conditional on the document not having changed between the read and
+	/// the write, so a concurrent writer cannot be overwritten even though the position is unchanged.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionRefoldResult> RefoldAtPositionAsync(
+		string id,
+		TProjection projection,
+		long atPosition,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentOutOfRangeException.ThrowIfNegative(atPosition);
+		ArgumentNullException.ThrowIfNull(projection);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var (_, storedPosition, etag) = await ReadWithEtagAsync(id, cancellationToken).ConfigureAwait(false);
+
+		if (etag is null)
+		{
+			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
+		}
+
+		if (storedPosition.Kind != ProjectionPositionKind.Positioned)
+		{
+			// The document carries no established position -- unnumbered or unplaceable, and neither
+			// can be matched -- so there is nothing a re-fold can be placed against and re-reading
+			// cannot change that.
+			return new ProjectionRefoldResult(ProjectionRefoldOutcome.RequiresRebuild, null);
+		}
+
+		var stored = storedPosition.Value;
+
+		if (stored != atPosition)
+		{
+			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Superseded, stored);
+		}
+
+		// Carries atPosition, so the position is written back unchanged.
+		var document = BuildDocument(id, projection, storedPosition);
+
+		var advanced = await ReplaceAtEtagAsync(id, document, etag, atPosition, cancellationToken)
+			.ConfigureAwait(false);
+
+		// The replace helper speaks the ADVANCE vocabulary. Translating here rather than reusing its
+		// result type is the whole point of the separate type: an advance's Superseded is settled when
+		// the store is ahead, and a re-fold's never is.
+		return advanced.Outcome switch
+		{
+			ProjectionAdvanceOutcome.Applied => new(ProjectionRefoldOutcome.Applied, atPosition),
+			ProjectionAdvanceOutcome.Vanished => new(ProjectionRefoldOutcome.Vanished, null),
+			_ => new(ProjectionRefoldOutcome.Superseded, advanced.CurrentPosition),
+		};
+	}
+
+	private async Task<ProjectionAdvanceResult> ReplaceAtEtagAsync(
+		string id,
+		Dictionary<string, object?> document,
+		string etag,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			using var payload = Serialize(document);
+
+			using var response = await _container!.ReplaceItemStreamAsync(payload, CreateDocumentId(id),
+				new PartitionKey(_projectionType),
+				new ItemRequestOptions { IfMatchEtag = etag, EnableContentResponseOnWrite = false },
+				cancellationToken).ConfigureAwait(false);
+
+			if (response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.NotFound)
+			{
+				throw new CosmosException("conditional replace refused", response.StatusCode, 0, string.Empty, 0);
+			}
+
+			response.EnsureSuccessStatusCode();
+
+			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition);
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed)
+		{
+			var (_, current, _) = await ReadWithEtagAsync(id, cancellationToken).ConfigureAwait(false);
+
+			// Same discrimination as the pre-write check, and it has to be repeated here because the
+			// row can become unplaceable BETWEEN the caller's read and this replace -- an unconditional
+			// upsert landing in that window is exactly what moves the ETag and causes this refusal.
+			return current.Kind == ProjectionPositionKind.Unplaceable
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
+				: new ProjectionAdvanceResult(
+					ProjectionAdvanceOutcome.Superseded, current.ExpectedPositionOrNull);
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		{
+			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
+		}
+	}
+
+	/// <summary>Reads the projection, its stored position and its ETag in one request.</summary>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private async Task<(TProjection? Projection, ProjectionPosition Position, string? ETag)> ReadWithEtagAsync(
+		string id,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			using var response = await _container!.ReadItemStreamAsync(
+				CreateDocumentId(id),
+				new PartitionKey(_projectionType),
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			if (response.StatusCode == HttpStatusCode.NotFound)
+			{
+				return (null, ProjectionPosition.Unnumbered, null);
+			}
+
+			response.EnsureSuccessStatusCode();
+
+			var node = await JsonNode.ParseAsync(response.Content, cancellationToken: cancellationToken)
+				.ConfigureAwait(false);
+
+			// ORDER IS LOAD-BEARING: read the position BEFORE deserializing.
+			//
+			// StripAndDeserialize MUTATES the node -- it removes the framework metadata object so the
+			// remaining properties deserialize cleanly into the projection. C# evaluates tuple elements
+			// left to right, so writing (StripAndDeserialize(node), ReadPosition(node), ...) strips the
+			// metadata and THEN looks for the position inside it, which is always absent by then. The
+			// position read back as null on every read, so every conditional write took the
+			// claims-absence path and the condition it is supposed to enforce never engaged.
+			var position = ReadPosition(node);
+
+			return (StripAndDeserialize(node), position, response.Headers.ETag);
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		{
+			// A null ETag is what says "no document". The position returned alongside it is not a
+			// reading of anything and no caller may act on it -- every branch tests the ETag first.
+			return (null, ProjectionPosition.Unnumbered, null);
+		}
+	}
+
+	/// <summary>
+	/// Builds the stored document: projection properties at the root, framework metadata nested.
+	/// </summary>
+	/// <param name="id">The projection identifier.</param>
+	/// <param name="projection">The projection state.</param>
+	/// <param name="position">
+	/// What this write asserts about the prefix folded into <paramref name="projection"/>. Always
+	/// stored, in all three of its states -- see the remarks.
+	/// </param>
+	/// <remarks>
+	/// One shape for both write paths, deliberately. Two builders would drift, and the drift would be
+	/// a document the other path cannot read back.
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private Dictionary<string, object?> BuildDocument(
+		string id,
+		TProjection projection,
+		ProjectionPosition position)
+	{
+		// Projection properties live at the document root; framework metadata is isolated under a
+		// nested object so it cannot collide with a consumer property.
+		var projectionJson = JsonSerializer.SerializeToElement(projection, _jsonOptions);
+		var merged = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+		foreach (var prop in projectionJson.EnumerateObject())
+		{
+			merged[prop.Name] = prop.Value;
+		}
+
+		var metadata = new Dictionary<string, object?>(StringComparer.Ordinal)
+		{
+			[MetaFieldId] = id,
+			[MetaFieldType] = _projectionType,
+			[MetaFieldUpdatedAt] = DateTimeOffset.UtcNow.ToString("O"),
+		};
+
+		// Unconditionally, including for the two states that carry no number. An absent field is
+		// indistinguishable from a field nobody wrote, so leaving it out is how "this state cannot be
+		// placed" became "this state was never placed" -- the one distinction a positioned writer has
+		// to act on. The encoding is ProjectionPosition's, never this provider's own sentinel.
+		metadata[MetaFieldPosition] = position.ToStored();
+
+		// Preserved so the projection's own 'id' survives the document id overwrite below.
+		if (merged.TryGetValue("id", out var origId))
+		{
+			metadata[MetaFieldOrigId] = origId;
+		}
+
+		merged[MetadataKey] = metadata;
+
+		// Engine requirements, not framework metadata: both must sit at the document root.
+		merged["id"] = CreateDocumentId(id);
+		merged[PartitionKeyField] = _projectionType;
+
+		return merged;
+	}
+
+	/// <summary>
+	/// Serializes a stored document to UTF-8 JSON with THIS store's options.
+	/// </summary>
+	/// <param name="document">The document to write.</param>
+	/// <returns>A stream positioned at the start, for the container's stream API.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>The client's serializer must not touch this document, and that is not a preference.</b> The
+	/// document's values are <see cref="JsonElement"/> instances taken from the projection's own
+	/// serialization. This SDK's default serializer is Newtonsoft, which does not know that type and
+	/// writes it as its PUBLIC PROPERTIES — so a string property lands as
+	/// <c>{"ValueKind":3}</c>, an object where a string belongs. The write succeeds. The read then
+	/// fails, or worse, succeeds with nonsense.
+	/// </para>
+	/// <para>
+	/// Serializing here with the same options the reader uses removes the mismatch entirely, and removes
+	/// the dependence on which serializer a consumer happened to configure on the client they supplied.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private MemoryStream Serialize(Dictionary<string, object?> document)
+	{
+		var buffer = new MemoryStream();
+		JsonSerializer.Serialize(buffer, document, _jsonOptions);
+		buffer.Position = 0;
+		return buffer;
+	}
+
+	/// <summary>Decodes the stored field into one of the three states.</summary>
+	/// <remarks>
+	/// An ABSENT field reads as <see cref="ProjectionPositionKind.Unnumbered"/>, which is what
+	/// <see cref="ProjectionPosition.FromStored"/> does with a null. That is correct and deliberate: a
+	/// document written before this field existed IS a complete fold, only its coordinate is unknown, so
+	/// it stays adoptable. Every provider goes through FromStored so the eight of them cannot drift.
+	/// </remarks>
+	private static ProjectionPosition ReadPosition(JsonNode? node)
+	{
+		var value = node?[MetadataKey]?[MetaFieldPosition];
+		return ProjectionPosition.FromStored(value?.GetValue<long>());
+	}
 }

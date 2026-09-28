@@ -144,11 +144,11 @@ public sealed class SagaEventDedupKeyIsNamespaceQualifiedShould
 		public override bool HandlesEvent(object eventMessage) =>
 			eventMessage is AlphaOrderPlaced or BetaOrderPlaced;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
 			log.Handled.Add(eventMessage.GetType().FullName!);
 
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 }

@@ -65,6 +65,7 @@
       "tests\\unit\\Excalibur.Domain.Tests\\Excalibur.Domain.Tests.csproj",
       "tests\\unit\\Excalibur.EventSourcing.Handlers.Tests\\Excalibur.EventSourcing.Handlers.Tests.csproj",
       "tests\\unit\\Excalibur.EventSourcing.Tests\\Excalibur.EventSourcing.Tests.csproj",
+      "tests\\property\\Excalibur.EventSourcing.Properties\\Excalibur.EventSourcing.Properties.csproj",
       "tests\\unit\\Excalibur.Hosting.Tests\\Excalibur.Hosting.Tests.csproj",
       "tests\\unit\\Excalibur.Jobs.Tests\\Excalibur.Jobs.Tests.csproj",
       "tests\\unit\\Excalibur.LeaderElection.Tests\\Excalibur.LeaderElection.Tests.csproj",

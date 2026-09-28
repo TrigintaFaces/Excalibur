@@ -247,7 +247,7 @@ public class SqlServerEventStoreBenchmarks
 
 			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Events' AND schema_id = SCHEMA_ID('dispatch'))
 			CREATE TABLE [dispatch].[Events] (
-				[Position] BIGINT IDENTITY(1,1) PRIMARY KEY,
+				[Position] BIGINT NOT NULL PRIMARY KEY,
 				[EventId] NVARCHAR(200) NOT NULL,
 				[AggregateId] NVARCHAR(200) NOT NULL,
 				[AggregateType] NVARCHAR(500) NOT NULL,
@@ -275,6 +275,18 @@ public class SqlServerEventStoreBenchmarks
 				-- column, so the benchmark schema must define it or the run fails at the INSERT.
 				[TenantId] NVARCHAR(256) NOT NULL CONSTRAINT [DF_Bench_Snapshots_TenantId] DEFAULT ('')
 			);
+
+			-- The store allocates Position from this counter row inside the appending transaction
+			-- rather than from an IDENTITY, so an aborted append burns no position and the committed
+			-- stream stays contiguous. An IDENTITY column here rejects the store's explicit insert.
+			IF OBJECT_ID(N'[dispatch].[EventsPosition]', 'U') IS NULL
+			CREATE TABLE [dispatch].[EventsPosition] (
+			    Id TINYINT NOT NULL PRIMARY KEY CHECK (Id = 1),
+			    Value BIGINT NOT NULL
+			);
+			IF NOT EXISTS (SELECT 1 FROM [dispatch].[EventsPosition] WHERE Id = 1)
+			INSERT INTO [dispatch].[EventsPosition] (Id, Value)
+			SELECT 1, ISNULL((SELECT MAX(Position) FROM [dispatch].[Events]), 0);
 			""", connection);
 
 		await command.ExecuteNonQueryAsync().ConfigureAwait(false);

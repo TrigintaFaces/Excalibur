@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Tests.Shared.Infrastructure;
 using System.Data;
 using Tests.Shared.Fixtures;
 
@@ -48,7 +49,7 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
         {
             _container = new MsSqlBuilder()
                 .WithBoundedMemory()
-                .WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+                .WithImage(TestContainerImages.SqlServer2022)
                 .Build();
 
             await _container.StartAsync().ConfigureAwait(false);
@@ -112,10 +113,20 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
                 CancellationToken.None)).ConfigureAwait(false);
 
         // Assert — BOTH absent (the whole transaction rolled back).
+        //
+        // READ THE TWO ASSERTIONS DIFFERENTLY; they are no longer equally strong. Staging now runs
+        // BEFORE the events are appended, so when the callback throws no event row was ever attempted
+        // and the events count is 0 for a weaker reason than "it rolled back". The load-bearing
+        // assertion in THIS arm is the outbox one: that row really was written on the supplied
+        // transaction and really must be rolled back.
+        //
+        // The "events roll back after a failure that happens past staging" property is proved by
+        // ClassifyATrueConcurrentRace_AsConcurrencyConflict_NotARawException below, where every loser
+        // stages successfully and then fails at INSERT.
         (await CountEventsAsync(aggId).ConfigureAwait(false))
-            .ShouldBe(0, "events must NOT persist when stageOutbox throws (RED on a two-transaction impl)");
+            .ShouldBe(0, "no event may persist when stageOutbox throws");
         (await CountOutboxAsync(outboxId).ConfigureAwait(false))
-            .ShouldBe(0, "the staged outbox row must roll back with the events");
+            .ShouldBe(0, "the staged outbox row must roll back (RED on a two-transaction impl)");
     }
 
     // -------------------------------------------------------------------------------------------------
@@ -185,11 +196,11 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
                     aggId, type, [new TestDomainEvent(aggId, 0)], expectedVersion: -1,
                     async (txn, ct) => await InsertOutboxRowAsync(txn, outboxId, ct).ConfigureAwait(false),
                     CancellationToken.None).ConfigureAwait(false);
-                return (Result: (AppendResult?)result, Exception: (Exception?)null);
+                return (OutboxId: outboxId, Result: (AppendResult?)result, Exception: (Exception?)null);
             }
             catch (Exception ex)
             {
-                return (Result: (AppendResult?)null, Exception: ex);
+                return (OutboxId: outboxId, Result: (AppendResult?)null, Exception: ex);
             }
         }).ToArray();
 
@@ -214,6 +225,32 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
 
         (await CountEventsAsync(aggId).ConfigureAwait(false)).ShouldBe(1,
             "only the single winning writer's event must persist at version 0");
+
+        // The staged rows of the LOSERS must have rolled back with their transactions.
+        //
+        // This assertion is the one that proves transactional scope still holds for staging, and it is
+        // the arm that has to carry that proof. Staging runs BEFORE the events are appended, so every
+        // loser here reached stageOutbox, wrote its outbox row, and only then failed on the stream
+        // unique key at INSERT. That is precisely the "staged, then the append failed" shape -- and it
+        // is not reachable from the stageOutbox-throws arm above, where the throw happens before any
+        // event row is attempted.
+        //
+        // RED on any implementation that stages outside the append's transaction: every loser's row
+        // would survive and this would read 8 instead of 1.
+        var survivingOutboxRows = 0;
+        foreach (var outcome in outcomes)
+        {
+            survivingOutboxRows += await CountOutboxAsync(outcome.OutboxId).ConfigureAwait(false);
+        }
+
+        survivingOutboxRows.ShouldBe(1,
+            "exactly one staged outbox row may survive -- the winner's. Every loser staged a row before " +
+            "its append failed on the unique key, and each of those must have rolled back with its " +
+            "own transaction.");
+
+        (await CountOutboxAsync(successes[0].OutboxId).ConfigureAwait(false)).ShouldBe(1,
+            "the surviving outbox row must be the WINNER's, not an arbitrary one -- a count of 1 alone " +
+            "would also be satisfied by the wrong writer's row persisting while the winner's rolled back");
     }
 
     // AC-K.4 / EC-K.4 marker-contract assertions are container-independent (pure type checks) and live in

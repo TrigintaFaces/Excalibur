@@ -494,11 +494,11 @@ public sealed partial class SqlServerErasureStore
 			INSERT INTO {_options.FullCertificatesTableName}
 				(CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
 				 Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
-				 Exceptions, GeneratedAt, Version, CreatedAt)
+				 Exceptions, UnreachedData, GeneratedAt, Version, CreatedAt)
 			VALUES
 				(@CertificateId, @RequestId, @DataSubjectReference, @RequestReceivedAt, @CompletedAt,
 				 @Method, @Summary, @Verification, @LegalBasis, @Signature, @RetainUntil,
-				 @Exceptions, @GeneratedAt, @Version, @CreatedAt)";
+				 @Exceptions, @UnreachedData, @GeneratedAt, @Version, @CreatedAt)";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -525,6 +525,16 @@ public sealed partial class SqlServerErasureStore
 			Exceptions = JsonSerializer.Serialize(
 				certificate.Payload.Exceptions,
 				SqlServerComplianceJsonContext.Default.IReadOnlyListErasureException),
+
+			// NULL, never "[]". The signature covers the canonical form, which OMITS this property when
+			// it is null. Storing an empty array would restore a non-null empty list, the canonical form
+			// would then emit it, and a certificate issued before this column existed would verify as a
+			// forgery on its way back out of the store.
+			UnreachedData = certificate.Payload.UnreachedData is null
+				? null
+				: JsonSerializer.Serialize(
+					certificate.Payload.UnreachedData,
+					SqlServerComplianceJsonContext.Default.IReadOnlyListUnreachedDataLocation),
 			certificate.Payload.GeneratedAt,
 			certificate.Payload.Version,
 			CreatedAt = DateTimeOffset.UtcNow
@@ -560,7 +570,7 @@ public sealed partial class SqlServerErasureStore
 		var sql = $@"
 			SELECT CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
 				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
-				   Exceptions, GeneratedAt, Version
+				   Exceptions, UnreachedData, GeneratedAt, Version
 			FROM {_options.FullCertificatesTableName}
 			WHERE RequestId = @RequestId{tenantPredicate}";
 
@@ -591,7 +601,7 @@ public sealed partial class SqlServerErasureStore
 		var sql = $@"
 			SELECT CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
 				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
-				   Exceptions, GeneratedAt, Version
+				   Exceptions, UnreachedData, GeneratedAt, Version
 			FROM {_options.FullCertificatesTableName}
 			WHERE CertificateId = @CertificateId{tenantPredicate}";
 
@@ -852,7 +862,7 @@ public sealed partial class SqlServerErasureStore
 		[
 			"CertificateId", "RequestId", "DataSubjectReference", "RequestReceivedAt", "CompletedAt",
 			"Method", "Summary", "Verification", "LegalBasis", "Signature", "RetainUntil",
-			"Exceptions", "GeneratedAt", "Version", "CreatedAt",
+			"Exceptions", "UnreachedData", "GeneratedAt", "Version", "CreatedAt",
 		]),
 	];
 
@@ -934,6 +944,12 @@ public sealed partial class SqlServerErasureStore
 					-- Exceptions is the Article 17(3) record of data lawfully RETAINED; losing it makes the
 					-- certificate attest a more complete erasure than occurred.
 					Exceptions NVARCHAR(MAX) NOT NULL,
+					-- NULLABLE, unlike Exceptions, and that is load-bearing rather than incidental. The
+					-- signature covers the payload's canonical form, which omits this property when it is
+					-- null. A NOT NULL column defaulting to an empty array would restore an empty list, the
+					-- canonical form would then emit it, and every certificate issued before this column
+					-- existed would come back out of the store verifying as a forgery.
+					UnreachedData NVARCHAR(MAX) NULL,
 					GeneratedAt DATETIMEOFFSET NOT NULL,
 					Version NVARCHAR(16) NOT NULL,
 					CreatedAt DATETIMEOFFSET NOT NULL,
@@ -1022,6 +1038,7 @@ public sealed partial class SqlServerErasureStore
 		public string Signature { get; init; } = string.Empty;
 		public DateTimeOffset RetainUntil { get; init; }
 		public string Exceptions { get; init; } = "[]";
+		public string? UnreachedData { get; init; }
 		public DateTimeOffset GeneratedAt { get; init; }
 		public string Version { get; init; } = string.Empty;
 
@@ -1045,6 +1062,14 @@ public sealed partial class SqlServerErasureStore
 				Exceptions = JsonSerializer.Deserialize(
 					Exceptions,
 					SqlServerComplianceJsonContext.Default.IReadOnlyListErasureException) ?? [],
+
+				// Null stays null. Coercing it to an empty list here is the same forgery bug as storing
+				// "[]" above, arriving from the read side.
+				UnreachedData = UnreachedData is null
+					? null
+					: JsonSerializer.Deserialize(
+						UnreachedData,
+						SqlServerComplianceJsonContext.Default.IReadOnlyListUnreachedDataLocation),
 				GeneratedAt = GeneratedAt,
 				Version = Version,
 				RetainUntil = RetainUntil

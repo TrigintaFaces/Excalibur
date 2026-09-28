@@ -56,7 +56,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		var sql = $"""
 			SELECT event_id AS EventId, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
 			       event_type AS EventType, event_data AS EventData, metadata AS Metadata,
-			       version AS Version, timestamp AS Timestamp
+			       version AS Version, timestamp AS Timestamp, archived_at AS ArchivedAt
 			FROM {qualifiedTable}
 			WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType AND version > @FromVersion{tenantPredicate}
 			ORDER BY version ASC
@@ -74,8 +74,47 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 
 		ResolveAsync = async connection =>
 		{
-			var events = await connection.QueryAsync<StoredEvent>(Command).ConfigureAwait(false);
-			return events.AsList();
+			var rows = await connection.QueryAsync<LoadedEventRow>(Command).ConfigureAwait(false);
+
+			var events = new List<StoredEvent>();
+			foreach (var row in rows)
+			{
+				events.Add(new StoredEvent(
+					row.EventId,
+					row.AggregateId,
+					row.AggregateType,
+					row.EventType,
+					row.EventData,
+					row.Metadata,
+					row.Version,
+					row.Timestamp)
+				{
+					ArchivedAt = row.ArchivedAt,
+				});
+			}
+
+			return events;
 		};
 	}
 }
+
+/// <summary>
+/// Row mapping for Dapper query results.
+/// </summary>
+/// <remarks>
+/// <see cref="StoredEvent"/> cannot be materialized directly once the SELECT carries
+/// <c>ArchivedAt</c>: that member is an <c>init</c> property declared OUTSIDE the positional
+/// constructor, and Dapper matches a result set to a CONSTRUCTOR. Selecting the column without this row
+/// type fails at runtime with "a parameterless default constructor or one matching signature ... is
+/// required", which no compiler can see.
+/// </remarks>
+internal sealed record LoadedEventRow(
+	string EventId,
+	string AggregateId,
+	string AggregateType,
+	string EventType,
+	byte[]? EventData,
+	byte[]? Metadata,
+	long Version,
+	DateTimeOffset Timestamp,
+	DateTimeOffset? ArchivedAt);

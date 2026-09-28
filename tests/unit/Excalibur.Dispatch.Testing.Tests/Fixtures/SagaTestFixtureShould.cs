@@ -384,7 +384,7 @@ public sealed class SagaTestFixtureShould
 
 		public bool HandlesEvent(object eventMessage) => eventMessage is TestEvent;
 
-		public Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
 			if (eventMessage is TestEvent evt)
 			{
@@ -402,7 +402,7 @@ public sealed class SagaTestFixtureShould
 				}
 			}
 
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 

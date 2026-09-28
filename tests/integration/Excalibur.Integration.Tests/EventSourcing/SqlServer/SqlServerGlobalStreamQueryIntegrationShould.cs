@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Tests.Shared.Infrastructure;
 using System.Reflection;
 using Tests.Shared.Fixtures;
 
@@ -46,7 +47,7 @@ public sealed class SqlServerGlobalStreamQueryIntegrationShould : IAsyncLifetime
         {
             _container = new MsSqlBuilder()
                 .WithBoundedMemory()
-                .WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+                .WithImage(TestContainerImages.SqlServer2022)
                 .Build();
 
             await _container.StartAsync().ConfigureAwait(false);
@@ -116,7 +117,8 @@ public sealed class SqlServerGlobalStreamQueryIntegrationShould : IAsyncLifetime
         // each event exactly once, no skip/dup across the boundary.
         var page1 = await query.ReadAllAsync(GlobalStreamPosition.Start, 2, CancellationToken.None);
         page1.Count.ShouldBe(2);
-        var nextPos = new GlobalStreamPosition(page1[^1].GlobalPosition + 1, default);
+        // The cursor IS the last delivered position and the read is exclusive of it -- no arithmetic.
+        var nextPos = new GlobalStreamPosition(page1[^1].GlobalPosition, default);
         var page2 = await query.ReadAllAsync(nextPos, 2, CancellationToken.None);
         page2.Count.ShouldBe(2);
 

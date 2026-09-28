@@ -16,28 +16,5 @@
     "",
     "Adding an entry is a security decision. Justify reachability from evidence, not from intuition."
   ],
-  "exceptions": [
-    {
-      "advisory": "GHSA-w3rx-r6r6-pgpr",
-      "package": "image-size",
-      "directory": "docs-site",
-      "expires": "2026-11-07",
-      "absent_globs": [
-        "docs-site/**/*.icns"
-      ],
-      "reason": "Infinite loop in the ICNS parser (CWE-835, denial of service). NO PATCHED VERSION EXISTS: the advisory covers <=2.0.2 and 2.0.2 is the newest release published, so there is nothing to upgrade to and no override that resolves it. The package is reached only by the documentation site's build-time image loader, which measures the intrinsic size of images referenced from markdown; the documentation site ships in no package and nothing in it runs on a consumer's machine. Its inputs are the files in this repository, and the format this parser mishandles is not among them -- hence the absence check above, which retires this entry the moment such a file appears."
-    },
-    {
-      "advisory": "GHSA-5p2g-fcmc-qvqq",
-      "package": "image-size",
-      "directory": "docs-site",
-      "expires": "2026-11-07",
-      "absent_globs": [
-        "docs-site/**/*.jxl",
-        "docs-site/**/*.heif",
-        "docs-site/**/*.heic"
-      ],
-      "reason": "Infinite loops in the JXL and HEIF parsers (CWE-835, denial of service), in the same package and with the same absence of any patched version. Same reachability: a build-time image loader for the documentation site, over images committed to this repository, and no image of these formats is present. Listed separately from the ICNS advisory rather than folded into it, so that fixing one does not silently carry the other."
-    }
-  ]
+  "exceptions": []
 }

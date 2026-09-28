@@ -62,10 +62,10 @@ public sealed class EncryptingProjectionStoreCiphertextAtRestShould : IClassFixt
 
 	public async ValueTask InitializeAsync()
 	{
-		if (!_fixture.DockerAvailable)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS, where this used to `return`. An early return in a [Fact] is an
+		// empty test that genuinely ran -- counted in executed AND passed, indistinguishable from
+		// real work by any counter. The fixture owns the policy and it is hard failure.
+		_fixture.EnsureAvailable();
 
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
@@ -78,6 +78,10 @@ public sealed class EncryptingProjectionStoreCiphertextAtRestShould : IClassFixt
 				data JSONB NOT NULL,
 				created_at TIMESTAMPTZ NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL,
+				-- The store's unconditional write now INVALIDATES the position rather than leaving
+				-- it stale, so this column is part of the contract the store writes against. -1, not
+				-- 0, because zero is a legitimate stream position.
+				last_applied_position BIGINT NOT NULL DEFAULT -1,
 				PRIMARY KEY (id, tenant_id)
 			)
 			""").ConfigureAwait(false);

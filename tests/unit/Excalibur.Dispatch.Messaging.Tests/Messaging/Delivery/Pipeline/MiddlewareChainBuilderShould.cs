@@ -9,6 +9,7 @@ using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using ShouldlyCase = Shouldly.Case;
 using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
@@ -210,6 +211,150 @@ public sealed class MiddlewareChainBuilderShould : IDisposable
 
 		// Assert
 		executionOrder.ShouldBe(new[] { "First", "Second", "Third", "Final" });
+	}
+
+	/// <summary>
+	/// SAFETY, and the guarantee that until now had no arm on the path a dispatched message takes: a
+	/// middleware declaring a LOWER stage runs before one declaring a higher stage, whatever order they
+	/// were added in.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Why this was missing.</b> Every other fixture in this file declares <c>Stage =&gt; null</c>, so
+	/// each element keys to the same value and the sort is never handed two different keys. Delete the
+	/// body of the comparison loop in <c>SortByStageInPlace</c> and the rest of this file still passes.
+	/// Tests elsewhere do assert cross-stage ordering, but they construct <c>DispatchPipeline</c>
+	/// directly, and no dispatched message reaches that object because the dispatcher consults the
+	/// invoker. So those assertions are aimed at a type the dispatcher does not use.
+	/// </para>
+	/// <para>
+	/// <b>Non-vacuity.</b> The mutant is making <c>SortByStageInPlace</c> a no-op, which leaves
+	/// registration order intact. This arm goes RED; the null-staged arms above stay GREEN, because
+	/// nothing distinguishes their keys. That split is what the mutant proof needs. A mutant that
+	/// reddened everything would only show the chain runs at all.
+	/// </para>
+	/// <para>
+	/// The stages are non-adjacent and registered in exactly reverse order, so a sort that is merely
+	/// unstable, or that compares only neighbouring pairs, cannot produce this sequence by accident.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task ChainExecutor_RunsALowerStageFirst_WhateverOrderTheyWereAddedIn()
+	{
+		// Arrange
+		var executionOrder = new List<string>();
+		var middlewares = new IDispatchMiddleware[]
+		{
+			new StagedTestMiddleware("PostProcessing", DispatchMiddlewareStage.PostProcessing, executionOrder),
+			new StagedTestMiddleware("Processing", DispatchMiddlewareStage.Processing, executionOrder),
+			new StagedTestMiddleware("Authorization", DispatchMiddlewareStage.Authorization, executionOrder),
+			new StagedTestMiddleware("Validation", DispatchMiddlewareStage.Validation, executionOrder),
+			new StagedTestMiddleware("Start", DispatchMiddlewareStage.Start, executionOrder),
+		};
+		var builder = new MiddlewareChainBuilder(middlewares);
+		var chain = builder.GetChain(typeof(TestMessage));
+		var message = new TestMessage();
+		var context = CreateContext();
+
+		DispatchRequestDelegate finalHandler = (msg, ctx, ct) =>
+		{
+			executionOrder.Add("Final");
+			return new ValueTask<IMessageResult>(MessageResult.Success());
+		};
+
+		// Act
+		_ = await chain.InvokeAsync(message, context, finalHandler, CancellationToken.None);
+
+		// Assert
+		executionOrder.ShouldBe(
+			new[] { "Start", "Validation", "Authorization", "Processing", "PostProcessing", "Final" },
+			ShouldlyCase.Sensitive,
+			"stage decides across stages. These were added in reverse stage order, so registration order "
+			+ "surviving anywhere in this sequence means the sort on the executing path is not ordering them.");
+	}
+
+	/// <summary>
+	/// A middleware declaring NO stage runs last, because an absent stage is treated as <c>End</c> and
+	/// not as the place it happened to be added.
+	/// </summary>
+	/// <remarks>
+	/// This is the half a consumer is most likely to get wrong, since an unstaged middleware added first
+	/// looks like it should run first. It is also what makes behaviour predictable when a consumer mixes
+	/// staged framework middleware with their own unstaged ones.
+	/// </remarks>
+	[Fact]
+	public async Task ChainExecutor_RunsAnUnstagedMiddlewareLast_EvenWhenItWasAddedFirst()
+	{
+		// Arrange
+		var executionOrder = new List<string>();
+		var middlewares = new IDispatchMiddleware[]
+		{
+			new TestMiddleware("Unstaged", executionOrder),
+			new StagedTestMiddleware("Start", DispatchMiddlewareStage.Start, executionOrder),
+		};
+		var builder = new MiddlewareChainBuilder(middlewares);
+		var chain = builder.GetChain(typeof(TestMessage));
+		var message = new TestMessage();
+		var context = CreateContext();
+
+		DispatchRequestDelegate finalHandler = (msg, ctx, ct) =>
+		{
+			executionOrder.Add("Final");
+			return new ValueTask<IMessageResult>(MessageResult.Success());
+		};
+
+		// Act
+		_ = await chain.InvokeAsync(message, context, finalHandler, CancellationToken.None);
+
+		// Assert
+		executionOrder.ShouldBe(
+			new[] { "Start", "Unstaged", "Final" },
+			ShouldlyCase.Sensitive,
+			"a middleware declaring no stage is treated as End, so it runs after every staged one however "
+			+ "early it was added.");
+	}
+
+	/// <summary>
+	/// LIVENESS, and the arm that stops the two above being satisfied by a sort that reorders
+	/// everything: two middleware sharing a stage keep the order they were added in.
+	/// </summary>
+	/// <remarks>
+	/// The null-staged arms cover this for the default key. This one covers it for a REAL key, so the
+	/// stability of the sort is bound where the comparison actually runs. The mutant is the strict
+	/// <c>&gt;</c> in <c>SortByStageInPlace</c> becoming <c>&gt;=</c>, which makes the insertion sort
+	/// swap equal keys and reverses this pair.
+	/// </remarks>
+	[Fact]
+	public async Task ChainExecutor_KeepsRegistrationOrder_WithinASingleStage()
+	{
+		// Arrange
+		var executionOrder = new List<string>();
+		var middlewares = new IDispatchMiddleware[]
+		{
+			new StagedTestMiddleware("FirstAdded", DispatchMiddlewareStage.Validation, executionOrder),
+			new StagedTestMiddleware("SecondAdded", DispatchMiddlewareStage.Validation, executionOrder),
+		};
+		var builder = new MiddlewareChainBuilder(middlewares);
+		var chain = builder.GetChain(typeof(TestMessage));
+		var message = new TestMessage();
+		var context = CreateContext();
+
+		DispatchRequestDelegate finalHandler = (msg, ctx, ct) =>
+		{
+			executionOrder.Add("Final");
+			return new ValueTask<IMessageResult>(MessageResult.Success());
+		};
+
+		// Act
+		_ = await chain.InvokeAsync(message, context, finalHandler, CancellationToken.None);
+
+		// Assert
+		executionOrder.ShouldBe(
+			new[] { "FirstAdded", "SecondAdded", "Final" },
+			ShouldlyCase.Sensitive,
+			"within one stage the order belongs to the caller. A sort that swaps equal keys takes away the "
+			+ "only ordering control they have inside a stage. "
+			+ "ordering control they have inside a stage.");
 	}
 
 	[Fact]
@@ -515,6 +660,30 @@ public sealed class MiddlewareChainBuilderShould : IDisposable
 		public object? ValidationResult => null;
 		public object? AuthorizationResult => null;
 		public IMessageProblemDetails? ProblemDetails => null;
+	}
+
+	/// <summary>
+	/// A middleware that DECLARES a stage, so the sort on the executing path is handed two different
+	/// keys. Implements the interface directly, inheriting no first-party base that could supply the
+	/// ordering behaviour under test.
+	/// </summary>
+	private sealed class StagedTestMiddleware(
+		string name,
+		DispatchMiddlewareStage stage,
+		List<string> executionOrder) : IDispatchMiddleware
+	{
+		public DispatchMiddlewareStage? Stage => stage;
+		public MessageKinds ApplicableMessageKinds => MessageKinds.All;
+
+		public async ValueTask<IMessageResult> InvokeAsync(
+			IDispatchMessage message,
+			IMessageContext context,
+			DispatchRequestDelegate nextDelegate,
+			CancellationToken cancellationToken)
+		{
+			executionOrder.Add(name);
+			return await nextDelegate(message, context, cancellationToken);
+		}
 	}
 
 	private sealed class TestMiddleware(string name, List<string> executionOrder) : IDispatchMiddleware

@@ -3,6 +3,7 @@
 
 #pragma warning disable CS8618 // Non-nullable field set in InitializeAsync()
 
+using Tests.Shared.Fixtures;
 using Tests.Shared.Infrastructure;
 using Excalibur.Data.Firestore.Projections;
 using Excalibur.EventSourcing;
@@ -68,10 +69,10 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 
 	public ValueTask InitializeAsync()
 	{
-		if (!_fixture.IsInitialized)
-		{
-			return ValueTask.CompletedTask;
-		}
+		// Was an early return leaving _store null, so every arm then took its own early return and
+		// reported PASS having executed nothing. The fixture owns the policy and it is hard failure.
+		_fixture.EnsureAvailable();
+
 
 		_store = new FirestoreProjectionStore<TestOrderProjection>(
 			_fixture.Db,
@@ -95,10 +96,11 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 	[Fact]
 	public async Task QueryAsync_FiltersByEquality_ReturnsOnlyMatching()
 	{
-		if (!_fixture.IsInitialized)
-		{
-			return; // Docker/emulator unavailable — skip gracefully (matches repo convention).
-		}
+		// EnsureAvailable() THROWS. It used to be `if (!IsInitialized) return;`, which is an empty
+		// test that genuinely ran: it counts in executed AND passed, and no counter anywhere can
+		// tell it from real work. The comment called that the repo convention; the convention is
+		// hard failure, because an un-run lock must not contribute a pass it did not earn.
+		_fixture.EnsureAvailable();
 
 		await SeedAsync();
 		var filters = new Dictionary<string, object> { ["Status"] = "Active" };
@@ -114,10 +116,11 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 	[Fact]
 	public async Task CountAsync_FiltersByEquality_CountsOnlyMatching()
 	{
-		if (!_fixture.IsInitialized)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS. It used to be `if (!IsInitialized) return;`, which is an empty
+		// test that genuinely ran: it counts in executed AND passed, and no counter anywhere can
+		// tell it from real work. The comment called that the repo convention; the convention is
+		// hard failure, because an un-run lock must not contribute a pass it did not earn.
+		_fixture.EnsureAvailable();
 
 		await SeedAsync();
 		var filters = new Dictionary<string, object> { ["Status"] = "Active" };
@@ -131,10 +134,11 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 	[Fact]
 	public async Task QueryAsync_WithMultipleFilters_AndCombinesAllKeys()
 	{
-		if (!_fixture.IsInitialized)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS. It used to be `if (!IsInitialized) return;`, which is an empty
+		// test that genuinely ran: it counts in executed AND passed, and no counter anywhere can
+		// tell it from real work. The comment called that the repo convention; the convention is
+		// hard failure, because an un-run lock must not contribute a pass it did not earn.
+		_fixture.EnsureAvailable();
 
 		await SeedAsync();
 		// Only doc "1" is both Active AND quantity==5.
@@ -150,10 +154,11 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 	[Fact]
 	public async Task QueryAsync_WithNoMatches_ReturnsEmpty()
 	{
-		if (!_fixture.IsInitialized)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS. It used to be `if (!IsInitialized) return;`, which is an empty
+		// test that genuinely ran: it counts in executed AND passed, and no counter anywhere can
+		// tell it from real work. The comment called that the repo convention; the convention is
+		// hard failure, because an un-run lock must not contribute a pass it did not earn.
+		_fixture.EnsureAvailable();
 
 		await SeedAsync();
 		var filters = new Dictionary<string, object> { ["Status"] = "Cancelled" };
@@ -167,10 +172,11 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 	[Fact]
 	public async Task QueryAsync_WithNullFilter_ReturnsAll()
 	{
-		if (!_fixture.IsInitialized)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS. It used to be `if (!IsInitialized) return;`, which is an empty
+		// test that genuinely ran: it counts in executed AND passed, and no counter anywhere can
+		// tell it from real work. The comment called that the repo convention; the convention is
+		// hard failure, because an un-run lock must not contribute a pass it did not earn.
+		_fixture.EnsureAvailable();
 
 		await SeedAsync();
 
@@ -187,10 +193,11 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 	[Fact]
 	public async Task QueryAsync_PreservesDecimalAndDateTimeOffsetFidelity_FromCanonicalBlob()
 	{
-		if (!_fixture.IsInitialized)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS. It used to be `if (!IsInitialized) return;`, which is an empty
+		// test that genuinely ran: it counts in executed AND passed, and no counter anywhere can
+		// tell it from real work. The comment called that the repo convention; the convention is
+		// hard failure, because an un-run lock must not contribute a pass it did not earn.
+		_fixture.EnsureAvailable();
 
 		// More significant digits than a double can hold + a sub-second, non-UTC DateTimeOffset — both
 		// lose precision through Firestore-native field representations (decimal→double, →Timestamp/UTC).
@@ -215,10 +222,11 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 	[Fact]
 	public async Task QueryAsync_WithUntranslatableNestedFilterKey_ThrowsNotSupported()
 	{
-		if (!_fixture.IsInitialized)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS. It used to be `if (!IsInitialized) return;`, which is an empty
+		// test that genuinely ran: it counts in executed AND passed, and no counter anywhere can
+		// tell it from real work. The comment called that the repo convention; the convention is
+		// hard failure, because an un-run lock must not contribute a pass it did not earn.
+		_fixture.EnsureAvailable();
 
 		await SeedAsync();
 		var nestedKey = new Dictionary<string, object> { ["Customer.Region"] = "us" };
@@ -233,61 +241,57 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 /// Firestore emulator container and builds a <see cref="FirestoreDb"/> bound to it. Mirrors the
 /// established emulator-wiring pattern in <c>FirestoreEventStoreTelemetryTestFixture</c>.
 /// </summary>
-public sealed class FirestoreProjectionFilterFixture : IAsyncLifetime
+public sealed class FirestoreProjectionFilterFixture : ContainerFixtureBase
 {
-	private readonly FirestoreContainer _container;
+	private FirestoreContainer? _container;
+	private FirestoreDb? _db;
 
-	public FirestoreProjectionFilterFixture()
+	/// <summary>Gets the emulator-bound Firestore database.</summary>
+	/// <value>The client, once the emulator is up.</value>
+	public FirestoreDb Db
+	{
+		get
+		{
+			EnsureAvailable();
+			return _db!;
+		}
+	}
+
+	public string ProjectId { get; } = "test-project";
+
+	/// <inheritdoc/>
+	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new FirestoreBuilder()
 			.WithImage(TestContainerImages.GoogleCloudEmulators)
 			.WithName($"firestore-projfilter-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();
+
+		// No try/catch: the base owns retry, the budget, and recording the failure.
+		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
+
+		// EmulatorOnly makes the SDK speak EMULATOR semantics; an explicit Endpoint alone leaves it
+		// behaving as though this were a real deployment, so the emulator rejects admin-ish calls with
+		// PermissionDenied "Metadata operations require admin authentication." EmulatorOnly and an
+		// explicit Endpoint/ChannelCredentials are mutually exclusive: the SDK builds its own channel
+		// from FIRESTORE_EMULATOR_HOST and throws from GaxPreconditions.CheckState if given both.
+		Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", _container.GetEmulatorEndpoint());
+
+		var builder = new FirestoreDbBuilder
+		{
+			ProjectId = ProjectId,
+			EmulatorDetection = EmulatorDetection.EmulatorOnly,
+		};
+		_db = await builder.BuildAsync(cancellationToken).ConfigureAwait(false);
 	}
 
-	/// <summary>Gets a value indicating whether the emulator started and the DB is usable.</summary>
-	public bool IsInitialized { get; private set; }
-
-	/// <summary>Gets the emulator-bound Firestore database.</summary>
-	public FirestoreDb Db { get; private set; } = null!;
-
-	public string ProjectId { get; } = "test-project";
-
-	public async ValueTask InitializeAsync()
+	/// <inheritdoc/>
+	protected override async Task DisposeContainerAsync(CancellationToken cancellationToken)
 	{
 		try
 		{
-			await _container.StartAsync().ConfigureAwait(false);
-
-			// EmulatorOnly makes the SDK speak EMULATOR semantics; an explicit Endpoint alone leaves it
-			// behaving as though this were a real deployment, so the emulator rejects admin-ish calls with
-			// PermissionDenied "Metadata operations require admin authentication." EmulatorOnly and an
-			// explicit Endpoint/ChannelCredentials are mutually exclusive: the SDK builds its own channel
-			// from FIRESTORE_EMULATOR_HOST and throws from GaxPreconditions.CheckState if given both.
-			Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", _container.GetEmulatorEndpoint());
-
-			var builder = new FirestoreDbBuilder
-			{
-				ProjectId = ProjectId,
-				EmulatorDetection = EmulatorDetection.EmulatorOnly,
-			};
-			Db = await builder.BuildAsync().ConfigureAwait(false);
-
-			IsInitialized = true;
-		}
-		catch (Exception)
-		{
-			// Docker unavailable (e.g., CI without Docker) — tests skip gracefully.
-			IsInitialized = false;
-		}
-	}
-
-	public async ValueTask DisposeAsync()
-	{
-		try
-		{
-			var disposeTask = _container.DisposeAsync().AsTask();
+			var disposeTask = _container!.DisposeAsync().AsTask();
 			var completed = await Task.WhenAny(disposeTask, Task.Delay(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 			if (completed == disposeTask)
 			{

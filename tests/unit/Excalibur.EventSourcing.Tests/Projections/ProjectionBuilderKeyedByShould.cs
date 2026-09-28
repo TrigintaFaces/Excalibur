@@ -38,7 +38,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events, context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- stored under derived key, NOT aggregate ID
@@ -81,7 +81,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events, context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- OrderPlaced stored under derived key
@@ -125,7 +125,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 2, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events, context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- two distinct projections created
@@ -170,7 +170,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events, context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- new projection created under derived key
@@ -211,7 +211,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events, context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- existing state merged, not replaced
@@ -275,7 +275,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events, context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- stored under derived key, NOT aggregate ID
@@ -307,7 +307,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("order-42", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events, context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- stored under aggregate ID (no KeyedBy registered)
@@ -339,7 +339,7 @@ public sealed class ProjectionBuilderKeyedByShould
 
         // Act & Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(
-            () => registration.InlineApply!(events, context, services, CancellationToken.None));
+            () => registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
         ex.Message.ShouldContain("null or empty projection ID");
     }
 
@@ -367,7 +367,7 @@ public sealed class ProjectionBuilderKeyedByShould
 
         // Act & Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(
-            () => registration.InlineApply!(events, context, services, CancellationToken.None));
+            () => registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
         ex.Message.ShouldContain("null or empty projection ID");
     }
 
@@ -400,7 +400,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 2, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events, context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- only the handled event produced a projection; unhandled event was skipped

@@ -7,6 +7,7 @@ using Microsoft.Azure.Cosmos.Fluent;
 using Testcontainers.CosmosDb;
 
 using Tests.Shared.Fixtures;
+using Excalibur.Integration.Tests.Infrastructure;
 
 namespace Excalibur.Integration.Tests.Data.Persistence;
 
@@ -86,6 +87,12 @@ public sealed class CosmosDbPersistenceProviderContainerFixture : ContainerFixtu
 		// document I/O, so a missing container was invisible until the first arm that actually wrote one.
 		_ = await database.Database.CreateContainerIfNotExistsAsync(
 			ContainerName, "/id", cancellationToken: cancellationToken).ConfigureAwait(false);
+		
+		// Past the handshake, so this cannot be written by a run that never reached the
+		// emulator. CI reads these records to prove the Cosmos suites actually executed --
+		// a counter cannot, because an early return on an availability guard still counts
+		// as executed and passed.
+		CosmosExecutionEvidence.RecordEmulatorReached(nameof(CosmosDbPersistenceProviderContainerFixture));
 	}
 
 	/// <summary>

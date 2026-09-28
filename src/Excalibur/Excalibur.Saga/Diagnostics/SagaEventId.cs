@@ -371,6 +371,9 @@ internal static class SagaEventId
 	/// <summary>Average completion time retrieved.</summary>
 	public const int AverageCompletionTimeRetrieved = 123304;
 
+	/// <summary>A saga declined an event under its own handler guard, so it was not recorded as processed.</summary>
+	public const int SagaEventDeclined = 123305;
+
 	// ========================================
 	// 120500-120599: Multi-Conditional Saga Steps
 	// ========================================

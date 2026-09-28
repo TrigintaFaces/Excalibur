@@ -10,6 +10,7 @@
       "tests\\unit\\Excalibur.Dispatch.Testing.Tests\\Excalibur.Dispatch.Testing.Tests.csproj",
       "tests\\unit\\Excalibur.EventSourcing.Handlers.Tests\\Excalibur.EventSourcing.Handlers.Tests.csproj",
       "tests\\unit\\Excalibur.EventSourcing.Tests\\Excalibur.EventSourcing.Tests.csproj",
+      "tests\\property\\Excalibur.EventSourcing.Properties\\Excalibur.EventSourcing.Properties.csproj",
       "tests\\unit\\Excalibur.Inbox.Oracle.Tests\\Excalibur.Inbox.Oracle.Tests.csproj",
       "tests\\unit\\Excalibur.Outbox.Oracle.Tests\\Excalibur.Outbox.Oracle.Tests.csproj",
       "tests\\unit\\Excalibur.Outbox.Tests\\Excalibur.Outbox.Tests.csproj",

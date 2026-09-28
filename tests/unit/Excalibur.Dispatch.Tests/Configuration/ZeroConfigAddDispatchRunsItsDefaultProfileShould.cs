@@ -108,14 +108,26 @@ public sealed class ZeroConfigAddDispatchRunsItsDefaultProfileShould
 	}
 
 	/// <summary>
-	/// STRUCTURAL: what the default profile DECLARES equals what <c>AddDispatch()</c> REGISTERS.
+	/// STRUCTURAL: nothing the default profile declares can be absent from the container.
 	/// </summary>
 	/// <remarks>
-	/// Computed from the single source, so re-introducing a declaration with no registration fails here.
-	/// This is the arm that makes the divergence inexpressible rather than merely warned about.
+	/// <para>
+	/// <b>The property under test is one-directional, and that is the point.</b> A profile declaring a
+	/// middleware the container never received is the defect: the pipeline warns and does nothing. The
+	/// converse is not a defect at all — a middleware registered and declared by no profile simply costs
+	/// nothing until some profile names it, which is exactly how the default profile is now arranged.
+	/// </para>
+	/// <para>
+	/// This arm used to additionally require the declared set to be NON-EMPTY, on the reasoning that an
+	/// empty one would make it vacuous. That conflated two things. The set being empty is now a
+	/// deliberate design decision — a consumer who configures nothing runs no middleware and pays for
+	/// none — so requiring it to be non-empty would pin a decision this arm has no business pinning.
+	/// Non-vacuity is instead established by the second half below, which checks every REGISTERED entry
+	/// resolves: that set is non-empty, and it is the set whose emptiness would really hide a defect.
+	/// </para>
 	/// </remarks>
 	[Fact]
-	public void Declare_exactly_the_set_that_AddDispatch_registers()
+	public void Never_declare_a_middleware_the_container_did_not_receive()
 	{
 		var services = new ServiceCollection();
 
@@ -131,17 +143,31 @@ public sealed class ZeroConfigAddDispatchRunsItsDefaultProfileShould
 			.Select(static entry => entry.MiddlewareType)
 			.ToList();
 
-		declared.ShouldNotBeEmpty(
-			"An empty declared set would make this arm vacuous — it would pass against a profile that "
-			+ "declares nothing, which is the very state the liveness arm exists to reject.");
-
 		foreach (var middlewareType in declared)
 		{
 			registered.ShouldContain(
 				middlewareType,
 				$"The default profile declares {middlewareType.Name} but AddDispatch() does not register "
-				+ "it. Both are read from DefaultProfileMiddleware, so this can only fail if that single "
-				+ "source has been split back into two lists that can disagree.");
+				+ "it. A declared-but-unregistered middleware is a pipeline stage that warns and does "
+				+ "nothing, which is the defect this arm exists to make inexpressible.");
+		}
+
+		// Non-vacuity, and the stronger half: every middleware AddDispatch registers must actually
+		// RESOLVE. Set membership alone would pass for a descriptor whose own dependencies cannot be
+		// satisfied -- which is how a middleware ends up registered, declared, and still unable to run.
+		DefaultPipelineProfiles.DefaultProfileMiddleware.ShouldNotBeEmpty(
+			"AddDispatch registers no middleware at all, so the resolution check below would examine "
+			+ "nothing. That is the emptiness that would hide a defect.");
+
+		using var provider = services.BuildServiceProvider(validateScopes: true);
+		using var resolutionScope = provider.CreateScope();
+
+		foreach (var entry in DefaultPipelineProfiles.DefaultProfileMiddleware)
+		{
+			resolutionScope.ServiceProvider.GetService(entry.MiddlewareType).ShouldNotBeNull(
+				$"AddDispatch() registers {entry.MiddlewareType.Name}, but it cannot be resolved from a "
+				+ "bare container. A profile that names it would compose a stage that throws at the "
+				+ "first dispatch rather than one that runs.");
 		}
 	}
 }

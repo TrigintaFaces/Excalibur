@@ -152,7 +152,7 @@ The host follows this loop:
 1. **Startup** — Restores last checkpoint position from `ISubscriptionCheckpointStore`
 2. **Poll** — Reads up to `BatchSize` events from the global stream via `IGlobalStreamQuery`
 3. **Apply** — Deserializes each event and calls `ApplyAsync` on your projection
-4. **Checkpoint** — After `CheckpointInterval` events, persists the position of the **last successfully-applied event** (never past an unapplied event)
+4. **Checkpoint** — After `CheckpointInterval` events, persists the position of the **last successfully-applied event** (never past an unapplied event). The stored value IS that position: reads from a checkpoint are **exclusive** of it, so nothing adds or subtracts one
 5. **Idle** — If no events found, waits `IdlePollingInterval` before polling again
 6. **Shutdown** — Persists final checkpoint position on graceful stop
 
@@ -163,10 +163,24 @@ The host **never silently skips a poison event**. A poison event is one that fai
 - **Poison event** — the host **halts the batch at that event**, records it, and marks the projection **unhealthy**. The checkpoint is advanced **only** to the last successfully-applied event, so the poison event is **never skipped and the checkpoint never advances past it**. The host backs off (`IdlePollingInterval`) and re-reads from the unadvanced checkpoint on the next poll: a *transient* failure self-heals on retry, while a *permanent* one keeps the projection unhealthy until an operator intervenes. A `null` deserialization is treated as an error, not a skip.
 - **Batch-level errors** are logged, then the host waits `IdlePollingInterval` before retrying.
 - **Cancellation** triggers graceful shutdown with final checkpoint persistence.
+- **Superseded checkpoint** — the host advances its checkpoint with a compare-and-set. If another reader
+  of the same subscription has moved it in the meantime, the advance is refused, the host logs a warning
+  and **stands down**. It does not retry: the other reader owns the subscription and is making progress,
+  so continuing would process every event twice.
 
 :::warning Behavior change
 
 Earlier versions logged a per-event error and **skipped** the event, advancing the checkpoint past it — silently dropping the event from the read model (a data-loss defect). The host now halts-and-marks-unhealthy instead. If you previously relied on skip-to-continue behavior, route known-bad events to an explicit dead-letter/quarantine sink rather than letting them be silently dropped.
+:::
+
+:::warning Running more than one instance
+
+The checkpoint advance is a compare-and-set, so two hosts on the same subscription cannot silently
+overwrite one another's progress — the loser stands down rather than dragging the checkpoint backwards
+and redelivering everything in between. This makes a duplicate deployment **safe and visible** rather
+than silently wasteful, but it is not a substitute for leader election: use `ILeaderElection` if you want
+exactly one instance to run in the first place.
+
 :::
 
 ## Cursor Map (Multi-Stream Tracking)

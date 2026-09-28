@@ -338,7 +338,7 @@ public sealed class MessageHandlerShould
 
 	#region Test Types & Helpers
 
-	internal sealed class TestSagaData : SagaState
+	internal sealed class TestSagaData : ProcessManagerState
 	{
 		public string? OrderId { get; set; }
 	}

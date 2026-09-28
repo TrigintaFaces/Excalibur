@@ -118,7 +118,18 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 	{
 		// SAFETY. A cache write that cannot complete costs a later re-execution; it must never surface as
 		// an application failure.
-		var backend = new ControllableCache { SetDelay = Deadline * 20 };
+		// The backend delay must be longer than ANY plausible scheduling delay, not merely longer than
+		// the deadline. This was Deadline * 20 -- about four scaled seconds -- and it asserted a race
+		// between two timers: under thread-pool starvation the 200ms deadline callback fired LATER than
+		// the four-second backend delay, so the delay completed, the write landed, and the arm failed
+		// having observed the behaviour it exists to forbid. Measured: 261ms in isolation, 7s under the
+		// full deterministic shard.
+		//
+		// A write the backend cannot finish inside the test lifetime removes the race entirely: the only
+		// way the value can appear now is the decorator genuinely failing to abandon it, which is the
+		// defect under test. The arm still completes in milliseconds, because the DEADLINE is what
+		// releases the caller.
+		var backend = new ControllableCache { SetDelay = TimeSpan.FromMinutes(10) };
 		var cache = Create(backend);
 
 		await Should.NotThrowAsync(
@@ -580,7 +591,15 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 
 		_ = await cache.GetAsync("k", CancellationToken.None);
 
-		var recorded = await WaitHelpers.WaitUntilAsync(() => breaker.Failures == 1, TestTimeouts.Scale(TimeSpan.FromSeconds(2)));
+		// The window is DERIVED from the delay it must outlast, not chosen. The abandoned execution
+		// records its failure only after the backend call finishes, so the wait has to exceed the
+		// backend's own delay. It previously waited Scale(2s) against a backend delay of Deadline * 20
+		// = Scale(4s) -- HALF the worst case -- and passed only because cooperative cancellation
+		// normally cuts the delay short at the deadline. Under full-suite load that propagation is not
+		// prompt and the arm failed. Expressing the window as a multiple of the delay keeps the two
+		// from silently inverting again if either is retuned.
+		var recordingWindow = backend.GetDelay * 3;
+		var recorded = await WaitHelpers.WaitUntilAsync(() => breaker.Failures == 1, recordingWindow);
 		recorded.ShouldBeTrue(
 			"a backend that missed its deadline is unhealthy, and this decorator is the only component that "
 			+ "can observe it -- above here the timeout looks like a cache miss");

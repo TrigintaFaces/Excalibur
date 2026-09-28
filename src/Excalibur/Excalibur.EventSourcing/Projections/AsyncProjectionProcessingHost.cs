@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing.Diagnostics;
+using Excalibur.Dispatch.LeaderElection;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;
 
@@ -41,6 +42,12 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	private readonly ProjectionObservability? _observability;
 	private readonly ProjectionHealthState? _healthState;
 
+	// Optional single-active-processor coordination, resolved the same way the CDC processor resolves it.
+	// Null in a single-instance deployment, where the host runs unconditionally. When present, only the
+	// leader applies events -- two live readers of one subscription would otherwise each apply a whole
+	// batch before either contested the checkpoint, and the checkpoint guards the mark, not the work.
+	private readonly ILeaderElection? _leaderElection;
+
 	private GlobalStreamPosition _currentPosition = GlobalStreamPosition.Start;
 	private long _eventsSinceCheckpoint;
 
@@ -64,6 +71,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 
 		_observability = serviceProvider.GetService(typeof(ProjectionObservability)) as ProjectionObservability;
 		_healthState = serviceProvider.GetService(typeof(ProjectionHealthState)) as ProjectionHealthState;
+		_leaderElection = serviceProvider.GetService(typeof(ILeaderElection)) as ILeaderElection;
 	}
 
 	/// <inheritdoc />
@@ -93,12 +101,43 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 			_currentPosition = new GlobalStreamPosition(lastCheckpoint.Value, DateTimeOffset.MinValue);
 		}
 
+		// The last position seen DURABLY, tracked separately from _currentPosition because the
+		// compare-and-set has to distinguish "no checkpoint yet" (null) from "a checkpoint of 0".
+		var durableCheckpoint = lastCheckpoint;
+
+		// The stream head AT START. Every event at or below it was committed before this host began
+		// tailing, so delivering it is a catch-up over history, not live delivery. Handlers that suppress
+		// side effects on replay rely on being told which one they are seeing, and hard-coding the answer
+		// defeats exactly the guard that exists for this case.
+		long headAtStart;
+		try
+		{
+			headAtStart = await globalStreamQuery.GetHeadPositionAsync(stoppingToken).ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			// The head is an optimisation for honesty, never a precondition for processing. If it cannot
+			// be read, report every event as a replay: that is the conservative answer, because a handler
+			// guarding on replay will then suppress rather than double-apply.
+			LogAsyncProjectionHeadUnavailable(ex);
+			headAtStart = long.MaxValue;
+		}
+
 		LogAsyncProjectionHostStarted(asyncRegistrations.Count);
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
 			try
 			{
+				// STANDBY, not exit. A host that is not the leader must keep running and keep asking:
+				// leadership moves on a deploy, and a process that stopped asking would never take over.
+				if (_leaderElection is not null && _leaderElection.CurrentLeadership is null)
+				{
+					LogAsyncProjectionStandby();
+					await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
+					continue;
+				}
+
 				var events = await globalStreamQuery.ReadAllAsync(
 					_currentPosition,
 					opts.BatchSize,
@@ -163,26 +202,43 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 					processedCount++;
 				}
 
-				// Dispatch only the good prefix (events before any poison), grouped by aggregate so each
-				// apply delegate receives a coherent batch with the correct EventNotificationContext.
+				// Dispatch the good prefix (events before any poison) as ONE call, in GLOBAL ORDER.
+				//
+				// It used to be grouped by aggregate, which was wrong for any projection not keyed by the
+				// aggregate. A keyed projection maps events from many aggregates onto one projection id,
+				// so grouping wrote that id once per group -- and group order is first-seen order, not
+				// stream order. One batch could therefore write a projection at position 7 and then at
+				// position 6, with one reader, no concurrency and no crash. A store that refuses a
+				// non-advancing write would then reject the second and drop the event entirely, which is
+				// the worse failure: grouping had to go before the position could be enforced.
+				//
+				// Delivering the batch whole is only correct because the apply path now derives the
+				// projection id and the handler context PER EVENT rather than per call.
 				var applyFaultEncountered = false;
 				if (deserialized.Count > 0)
 				{
-					foreach (var group in GroupByAggregate(deserialized))
+					var batch = new List<ProjectionEvent>(deserialized.Count);
+					foreach (var item in deserialized)
 					{
-						var context = new EventNotificationContext(
-							group.AggregateId,
-							group.AggregateType,
-							group.LastVersion,
-							group.LastTimestamp);
-
-						var groupFaulted = await DispatchToProjectionsAsync(
-							asyncRegistrations, group.DomainEvents, context, stoppingToken).ConfigureAwait(false);
-						if (groupFaulted)
-						{
-							applyFaultEncountered = true;
-						}
+						batch.Add(new ProjectionEvent(
+							item.Domain, item.Stored.AggregateId, item.Stored.GlobalPosition));
 					}
+
+					var last = deserialized[^1].Stored;
+
+					// The batch-level context describes the LAST event in the batch. Its aggregate-scoped
+					// members are no longer used for identity -- every apply reads those off the event --
+					// so they are carried for handlers that still want the batch's high-water mark.
+					var context = new EventNotificationContext(
+						last.AggregateId,
+						last.AggregateType,
+						last.Version,
+						last.Timestamp,
+						IsReplay: last.GlobalPosition <= headAtStart,
+						GlobalPosition: last.GlobalPosition);
+
+					applyFaultEncountered = await DispatchToProjectionsAsync(
+						asyncRegistrations, batch, context, stoppingToken).ConfigureAwait(false);
 				}
 
 				// HALT-at-failure: when any projection's apply faulted, DO NOT advance the checkpoint past
@@ -198,14 +254,55 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 				{
 					// Advance ONLY to the last processed event's GLOBAL ordinal (GlobalPosition), never the
 					// per-aggregate Version. The poison event (and everything after it) stays unread/unskipped.
-					_currentPosition = new GlobalStreamPosition(lastProcessed.GlobalPosition + 1, lastProcessed.Timestamp);
+					_currentPosition = new GlobalStreamPosition(lastProcessed.GlobalPosition, lastProcessed.Timestamp);
 					_eventsSinceCheckpoint += processedCount;
 
 					// Checkpoint when threshold reached (only ever the last-good position; never past a poison event).
 					if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
 					{
-						await _checkpointStore.StoreCheckpointAsync(
-							checkpointName, _currentPosition.Position, stoppingToken).ConfigureAwait(false);
+						// Compare-and-set, not a blind write: if another reader of this subscription has
+						// moved the checkpoint since we last saw it, writing ours would drag the mark
+						// BACKWARDS and redeliver everything between the two positions.
+						var outcome = await _checkpointStore.AdvanceCheckpointAsync(
+							checkpointName, durableCheckpoint, _currentPosition.Position, stoppingToken)
+							.ConfigureAwait(false);
+
+						if (outcome == CheckpointAdvanceOutcome.Superseded)
+						{
+							// RESUME FROM THE WINNER'S MARK. Do not exit.
+							//
+							// Exiting is only safe if the winner is guaranteed to keep running, and nothing
+							// guarantees that: after a rolling deploy the surviving process would be the one
+							// that stood down, no reader would be processing, and the application would still
+							// report healthy. A permanent exit converts a transient overlap into a permanent
+							// stall, which is the worse failure because nothing downstream can detect it.
+							//
+							// Adopting the winner's mark also stops this reader re-reading the span the
+							// winner already covered.
+							LogAsyncProjectionCheckpointSuperseded(_currentPosition.Position);
+
+							var winnersMark = await _checkpointStore
+								.GetCheckpointAsync(checkpointName, stoppingToken).ConfigureAwait(false);
+
+							durableCheckpoint = winnersMark;
+							if (winnersMark is { } mark)
+							{
+								_currentPosition = new GlobalStreamPosition(mark, DateTimeOffset.MinValue);
+							}
+
+							_eventsSinceCheckpoint = 0;
+
+							// Mark the host unhealthy. A contested subscription means two readers applied
+							// the same span, and that is a condition an operator must see rather than a
+							// line in a log nobody is tailing at the time.
+							_healthState?.RecordInlineError(nameof(AsyncProjectionProcessingHost));
+							LogAsyncProjectionContested();
+
+							await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
+							continue;
+						}
+
+						durableCheckpoint = _currentPosition.Position;
 						LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
 						_eventsSinceCheckpoint = 0;
 					}
@@ -238,9 +335,21 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		{
 			try
 			{
-				await _checkpointStore.StoreCheckpointAsync(
-					checkpointName, _currentPosition.Position, CancellationToken.None).ConfigureAwait(false);
-				LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
+				var shutdownOutcome = await _checkpointStore.AdvanceCheckpointAsync(
+					checkpointName, durableCheckpoint, _currentPosition.Position, CancellationToken.None)
+					.ConfigureAwait(false);
+
+				if (shutdownOutcome == CheckpointAdvanceOutcome.Superseded)
+				{
+					// Nothing to stop -- we are already shutting down. Recorded because a superseded
+					// shutdown write means another reader took the subscription over while we ran.
+					LogAsyncProjectionCheckpointSuperseded(_currentPosition.Position);
+				}
+				else
+				{
+					durableCheckpoint = _currentPosition.Position;
+					LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
+				}
 			}
 #pragma warning disable CA1031 // Catch general exceptions -- shutdown must not throw
 			catch (Exception ex)
@@ -302,35 +411,6 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	}
 
 	/// <summary>
-	/// Groups deserialized events by (AggregateId, AggregateType) to create coherent
-	/// batches for projection apply delegates, preserving global order within each aggregate.
-	/// </summary>
-	private static List<AggregateEventGroup> GroupByAggregate(List<DeserializedEvent> events)
-	{
-		var groups = new Dictionary<string, AggregateEventGroup>(StringComparer.Ordinal);
-
-		foreach (var e in events)
-		{
-			var stored = e.Stored;
-			var key = string.Concat(stored.AggregateType, ":", stored.AggregateId);
-			if (!groups.TryGetValue(key, out var group))
-			{
-				group = new AggregateEventGroup(stored.AggregateId, stored.AggregateType);
-				groups[key] = group;
-			}
-
-			group.DomainEvents.Add(e.Domain);
-
-			// Global order is ascending, so the last event seen for an aggregate carries its latest
-			// version/timestamp for the notification context.
-			group.LastVersion = stored.Version;
-			group.LastTimestamp = stored.Timestamp;
-		}
-
-		return [.. groups.Values];
-	}
-
-	/// <summary>
 	/// Dispatches domain events to all async projection registrations concurrently.
 	/// </summary>
 	/// <returns>
@@ -341,7 +421,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	/// </returns>
 	private async Task<bool> DispatchToProjectionsAsync(
 		IReadOnlyList<ProjectionRegistration> registrations,
-		List<IDomainEvent> domainEvents,
+		List<ProjectionEvent> domainEvents,
 		EventNotificationContext context,
 		CancellationToken cancellationToken)
 	{
@@ -400,7 +480,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 
 	private async Task ApplyInScopeAsync(
 		ProjectionRegistration registration,
-		List<IDomainEvent> domainEvents,
+		List<ProjectionEvent> domainEvents,
 		EventNotificationContext context,
 		CancellationToken cancellationToken)
 	{
@@ -413,18 +493,6 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	/// A stored event paired with its successfully-deserialized domain event.
 	/// </summary>
 	private readonly record struct DeserializedEvent(StoredEvent Stored, IDomainEvent Domain);
-
-	/// <summary>
-	/// Groups deserialized events belonging to a single aggregate.
-	/// </summary>
-	private sealed class AggregateEventGroup(string aggregateId, string aggregateType)
-	{
-		public string AggregateId { get; } = aggregateId;
-		public string AggregateType { get; } = aggregateType;
-		public List<IDomainEvent> DomainEvents { get; } = [];
-		public long LastVersion { get; set; }
-		public DateTimeOffset LastTimestamp { get; set; }
-	}
 
 	#region Logging
 
@@ -448,6 +516,11 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		"Async projection checkpoint saved at position {Position}.")]
 	private partial void LogAsyncProjectionCheckpointSaved(long position);
 
+	[LoggerMessage(EventSourcingEventId.ProjectionCheckpointSuperseded, LogLevel.Warning,
+		"Async projection host could not advance its checkpoint to {Position}: another reader has moved "
+		+ "it. This host is standing down; the other reader owns the subscription.")]
+	private partial void LogAsyncProjectionCheckpointSuperseded(long position);
+
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionEventError, LogLevel.Error,
 		"Poison event {EventId} halted the async projection host; checkpoint not advanced past it.")]
 	private partial void LogAsyncProjectionEventError(string eventId, Exception ex);
@@ -459,6 +532,21 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionHostError, LogLevel.Error,
 		"Async projection processing host encountered an error.")]
 	private partial void LogAsyncProjectionHostError(Exception ex);
+
+	[LoggerMessage(EventSourcingEventId.AsyncProjectionHeadUnavailable, LogLevel.Warning,
+		"Could not read the global stream head at startup, so every event this host delivers is reported "
+		+ "as a replay. Handlers that suppress side effects on replay will suppress them.")]
+	private partial void LogAsyncProjectionHeadUnavailable(Exception ex);
+
+	[LoggerMessage(EventSourcingEventId.AsyncProjectionContested, LogLevel.Error,
+		"Another reader advanced this subscription's checkpoint, so two readers are processing one "
+		+ "subscription and events in the contested span may have been applied twice. Register leader "
+		+ "election, or run a single instance of this host.")]
+	private partial void LogAsyncProjectionContested();
+
+	[LoggerMessage(EventSourcingEventId.AsyncProjectionStandby, LogLevel.Debug,
+		"Async projection processing is on standby: another instance holds leadership for this subscription.")]
+	private partial void LogAsyncProjectionStandby();
 
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionNoGlobalStreamQuery, LogLevel.Warning,
 		"No IGlobalStreamQuery registered. Async projection processing cannot start. " +

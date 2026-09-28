@@ -417,7 +417,7 @@ public sealed class MaterializedViewProcessorShould
     }
 
     [Fact]
-    public async Task CatchUpAsync_ReadFromLastPositionPlusOne()
+    public async Task CatchUpAsync_ReadExclusivelyFromTheLastDeliveredPosition()
     {
         // Arrange
         var builder = new OrderSummaryViewBuilder();
@@ -431,8 +431,11 @@ public sealed class MaterializedViewProcessorShould
         // Act
         await processor.CatchUpAsync("OrderSummary", CancellationToken.None);
 
-        // Assert — should read from position 51 (last + 1)
-        _globalStreamQuery.FirstRequestedPosition.ShouldBe(51);
+        // Assert — the cursor is the LAST DELIVERED position and the read is exclusive of it, so the
+        // processor asks from 50 and the store returns events after it. Under the previous convention
+        // the caller added one here and the query used >=; the two had to agree, and at six call sites
+        // they did not.
+        _globalStreamQuery.FirstRequestedPosition.ShouldBe(50);
     }
 
     [Fact]
@@ -1140,7 +1143,8 @@ public sealed class MaterializedViewProcessorShould
             }
 
             var result = _events
-                .Where(e => e.GlobalPosition >= position.Position)
+                // EXCLUSIVE, matching every real provider: the cursor IS the last delivered position.
+                .Where(e => e.GlobalPosition > position.Position)
                 .OrderBy(e => e.GlobalPosition)
                 .Take(maxCount)
                 .ToList();

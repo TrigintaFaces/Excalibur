@@ -93,6 +93,10 @@ public sealed class MongoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDis
 	/// </summary>
 	public bool IsInitialized { get; private set; }
 
+	/// <summary>Gets the recorded container-startup failure, when initialisation did not succeed.</summary>
+	/// <value>The exception text, or <see langword="null"/> if initialisation was not attempted or succeeded.</value>
+	public string? InitError { get; private set; }
+
 	/// <inheritdoc/>
 	public async ValueTask InitializeAsync()
 	{
@@ -103,9 +107,14 @@ public sealed class MongoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDis
 			// We don't need to pre-create indexes here
 			IsInitialized = true;
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
-			// Container may fail to start if Docker is not available
+			// RECORD the cause. Discarding it is what turns a container failure into an
+			// undiagnosable secondary error: the accessor below then reports that the fixture is
+			// not initialised, which is the symptom, while the reason the container refused to
+			// start is gone. Measured cost of the same shape elsewhere: 19 failures whose actual
+			// cause could not be recovered from the run output.
+			InitError = ex.ToString();
 			IsInitialized = false;
 		}
 	}
@@ -117,7 +126,9 @@ public sealed class MongoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDis
 	{
 		if (!IsInitialized)
 		{
-			throw new InvalidOperationException("Test fixture not initialized. MongoDB container may not be available.");
+			throw new InvalidOperationException(
+				"Test fixture not initialized. MongoDB container may not be available. Underlying startup failure: "
+				+ (InitError ?? "(none recorded -- InitializeAsync did not run)"));
 		}
 
 		var options = MsOptions.Create(new MongoDbEventStoreOptions

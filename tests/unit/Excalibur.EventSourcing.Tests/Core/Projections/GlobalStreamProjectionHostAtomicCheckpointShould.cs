@@ -42,7 +42,7 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 	// would be stored MUST NOT leave the checkpoint advanced ahead of the cursor map. The post-fix
 	// contract is "cursor map is the source of truth / saved first" — so the checkpoint is persisted
 	// ONLY once the cursor map has been durably saved. Equivalently: there must NEVER be a successful
-	// StoreCheckpointAsync without a preceding successful SaveCursorMapAsync for the same flush.
+	// AdvanceCheckpointAsync without a preceding successful SaveCursorMapAsync for the same flush.
 	[Fact]
 #pragma warning disable CA1506 // Avoid excessive class coupling - regression lock requires multiple fakes
 	public async Task NotAdvanceCheckpointAheadOfCursorMapWhenCursorSaveFails()
@@ -100,10 +100,10 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 		// Assert — the cursor-map save was attempted and FAILED (never durably saved). Therefore the
 		// checkpoint MUST NOT have been persisted: persisting it would advance the checkpoint past the
 		// (failed) cursor map, the exact divergence FR-P3.2 forbids. Pre-fix code stores the checkpoint
-		// FIRST then throws on cursor save → StoreCheckpointAsync happened → this assertion is RED.
+		// FIRST then throws on cursor save → AdvanceCheckpointAsync happened → this assertion is RED.
 		A.CallTo(() => _cursorMapStore.SaveCursorMapAsync(A<string>._, A<IReadOnlyDictionary<string, long>>._, A<CancellationToken>._))
 			.MustHaveHappened();
-		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 

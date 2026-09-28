@@ -119,6 +119,26 @@ the opposite failure direction from the bounded window above — the window's fa
 an idempotent step absorbs; a collision's failure is zero execution, which no consumer obligation on this
 page covers and which emits the same log line a correct dedup emits.
 
+**KNOWN GAP, and it is the same failure direction as the collision above: WITH NO STEP ID, TWO DISTINCT
+EVENTS OF ONE TYPE COLLAPSE ONTO ONE KEY.** `StepId` is nullable. When it is not set, the key is
+`{Type.FullName}:{SagaId}` — which is the same key for every event of that type reaching that saga. The
+first is processed; every later one is discarded as a duplicate and **never executes**, silently, and the
+log line it emits says "skipped duplicate event", which is the opposite of what happened.
+
+That is a real and reachable loss, not a corner: nothing enforces `StepId`. It is a nullable property on a
+public interface with no analyzer, no validation and no registration-time check, so a saga that omits it
+compiles, runs, and drops events.
+
+**Consumer obligation for this gap, until it is fixed in the framework:** set `ISagaEvent.StepId` to a value
+that is unique per delivery you want deduplicated separately — the step name is enough when a saga handles
+each type once, and is NOT enough when it handles the same type more than once. **Idempotency does not cover
+this one.** Idempotency protects against a step running twice; this failure is a step running zero times, and
+no amount of idempotence in your handler recovers an event that was never handed to it.
+
+The fix is to stop deriving replay identity from business fields and use the identity the delivery already
+carries. It is specified and not yet shipped, and it is a breaking change to the persisted key format, so it
+is stated here as a gap rather than implied to be absent.
+
 **Consumer obligation:** saga steps **MUST be idempotent**. If a saga can process more than 1000 events, or you
 need dedup with no bound, place the transactional inbox in front of the saga — the saga's own set is not a
 substitute for it.

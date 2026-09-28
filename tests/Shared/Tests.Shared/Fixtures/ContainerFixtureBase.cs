@@ -38,7 +38,7 @@ namespace Tests.Shared.Fixtures;
 ///     {
 ///         _container = new MsSqlBuilder()
 ///             .WithBoundedMemory()
-///             .WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+///             .WithImage(TestContainerImages.SqlServer2022)
 ///             .Build();
 ///         await _container.StartAsync(cancellationToken);
 ///     }

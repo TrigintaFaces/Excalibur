@@ -77,10 +77,10 @@ public sealed class PostgresProjectionStoreSqlInjectionShould : IClassFixture<Po
 
 	public async ValueTask DisposeAsync()
 	{
-		if (!_fixture.DockerAvailable)
-		{
-			return;
-		}
+		// EnsureAvailable() THROWS, where this used to `return`. An early return in a [Fact] is an
+		// empty test that genuinely ran -- counted in executed AND passed, indistinguishable from
+		// real work by any counter. The fixture owns the policy and it is hard failure.
+		_fixture.EnsureAvailable();
 
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync();

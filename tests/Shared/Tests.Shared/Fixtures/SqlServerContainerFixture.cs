@@ -1,3 +1,4 @@
+using Tests.Shared.Infrastructure;
 using System.Data;
 
 using Microsoft.Data.SqlClient;
@@ -30,7 +31,7 @@ public sealed class SqlServerContainerFixture : ContainerFixtureBase, IDatabaseC
 	{
 		_container = new MsSqlBuilder()
 			.WithBoundedMemory()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+			.WithImage(TestContainerImages.SqlServer2022)
 			.WithName($"mssql-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
 			.WithCleanUp(true)

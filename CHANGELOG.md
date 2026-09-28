@@ -5,11 +5,11 @@ All notable changes to Excalibur and Excalibur.Dispatch are documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **How to read this file.** `10.0.0` has not been released. `[Unreleased]` collects what has landed
-> since the `10.0.0-alpha.11` pre-release; each `[10.0.0-alpha.*]` section below records what shipped in
-> that pre-release. Releases earlier than `10.0.0-alpha.8` are not documented individually — if you are on
-> one of those, move to the newest and read every section from yours forward; that is the upgrade path we
-> support.
+> **How to read this file.** `10.0.0` has not been released. Each `[10.0.0-alpha.*]` section records what
+> shipped in that pre-release; `[Unreleased]` collects what has landed since the newest of them and is
+> empty immediately after one is cut. Releases earlier than `10.0.0-alpha.8` are not documented
+> individually — if you are on one of those, move to the newest and read every section from yours
+> forward; that is the upgrade path we support.
 >
 > `[3.0.0-alpha]` is the previous line, summarised cumulatively for the same reason: nothing in it
 > shipped as a separately-documented release. Moving from `3.0.0-alpha` to `10.0.0` is one step,
@@ -17,7 +17,150 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Changes landed since `10.0.0-alpha.11`. **BREAKING** marks a change that will not compile, or that
+Nothing yet.
+
+## [10.0.0-alpha.13] - 2026-09-28
+
+What shipped in this pre-release, relative to `10.0.0-alpha.12`. **BREAKING** marks a change that will
+not compile, or that changes behaviour silently; this line is pre-RC, so they are frequent and are the
+first thing to read. Everything needing action from you is in **Before you upgrade** below, with the
+migration page for each, and is also collected on the
+[What's New](https://docs.excalibur-dispatch.dev/docs/whats-new) page.
+
+This release is mostly one theme: **where the framework used to report success without having done the
+thing, it now either does it or tells you it could not.** That is why so much of it reads as Fixed
+rather than Added.
+
+### Known Issues
+
+Defects classified as affecting this pre-release, and the action each one requires of you, are on the
+[Known issues](https://docs.excalibur-dispatch.dev/docs/known-issues) page. They are kept there and
+**not repeated here**, so the two cannot drift apart. That list reflects what we have classified, not
+everything that exists — the page states the limits of that claim.
+
+### Before you upgrade
+
+Three changes need a decision from you. Each has a migration page.
+
+| change | who is affected | page |
+|---|---|---|
+| The `default` pipeline profile no longer seats any middleware | hosts that register an `IOutboxStore` but never call `UseOutbox()`; hosts relying on the default timeout or on tenant identity being resolved for every message | [The default pipeline no longer seats middleware](https://docs.excalibur-dispatch.dev/docs/migration/default-pipeline-is-empty) |
+| Global-stream reads stop at the first gap | anyone consuming the global event stream — a permanently absent position now **stalls** a subscriber instead of being skipped past | [Global-stream reads stop at gaps](https://docs.excalibur-dispatch.dev/docs/migration/global-stream-reads-stop-at-gaps) |
+| Ten new schema scripts across the event-sourcing and compliance packages | anyone on SQL Server, PostgreSQL, Oracle or SQLite | [Migrations](https://docs.excalibur-dispatch.dev/docs/event-sourcing/migrations) |
+
+### Changed
+
+**Projections**
+
+- **BREAKING: a projection's position now has three states, not two.** A row carrying no position was
+  one value meaning two incompatible things, and a positioned writer has to do the **opposite** thing
+  with each. A complete fold over a prefix that has no global number is safe to adopt. A position
+  **destroyed** by an unconditional write is not — adopting it makes the row assert a prefix it does
+  not hold, and every event below that position is then silently absent from your read model while the
+  row claims otherwise.
+
+  | Old | Replaced by |
+  |---|---|
+  | a nullable position, where null meant both "never numbered" and "overwritten" | `ProjectionPosition`: `Positioned(P)` / `Unnumbered` / `Unplaceable`, one canonical encoding so eight providers cannot quietly disagree |
+  | `UpsertAsync`, documented in full as "Creates or updates a projection" | unchanged in signature, but it now **states** that it leaves the row unplaceable and that a positioned client must not use it |
+  | *(no way to say "complete fold, no number")* | `IPositionedProjectionStore.UpsertUnnumberedAsync` |
+  | `ProjectionAdvanceOutcome` with a catch-all arm in `IsSettled` | adds `Unplaceable`; the catch-all is **deleted**, so a future outcome is a compile error rather than a silent fall-through into retry-forever |
+
+  `ProjectionPosition.Value` **throws** rather than hand back a coordinate for a state that has none.
+  **No migration is needed on the relational stores** — the column is already `BIGINT`.
+
+**Pipeline**
+
+- **BREAKING: `AddDispatch()` no longer seats middleware on the `default` profile.** It used to seat
+  `TenantIdentityMiddleware`, `TimeoutMiddleware`, `MetricsLoggingMiddleware` and
+  `OutboxStagingMiddleware`. The `default` profile is now empty; a host that configures nothing
+  dispatches and does nothing else. All four are still **registered**, so naming any of them on a
+  pipeline resolves without extra work — what changed is what runs by default, not what is available.
+  The affected population is narrow and the migration page opens with a table you can check yourself
+  against.
+
+**Event sourcing**
+
+- **BREAKING: a read of the global event stream returns only the contiguous run from your position**,
+  and stops at the first missing position. Previously it returned whatever the query found. The trade
+  is stated rather than discovered: a permanently absent position now **stalls** a subscriber instead
+  of skipping past it. That is the correct direction — a stall is loud, a skipped event is silent and
+  unrecoverable — but it is a behaviour change you must be able to recognise, which is what the
+  migration page is for. `ReadByEventTypeAsync` passes through unfiltered and says why: a type-filtered
+  stream is sparse by construction, so a gap there carries no information.
+- **Global positions are allocated inside the appending transaction**, from a singleton counter row,
+  rather than from `IDENTITY`/`SERIAL` — which hands out the number *before* commit. Committed
+  positions are now always a contiguous prefix `1..k`. Schema, stores and conformance arms across SQL
+  Server, PostgreSQL, Oracle, SQLite and in-memory.
+
+### Added
+
+- **`RefoldAtPositionAsync`** — rewriting a projection when the events beneath it changed, with the
+  advance-vs-refold rule pinned rather than left to each caller.
+- **An erasure certificate can now report a partial erasure as partial**, rather than reporting
+  `Completed` or nothing. Writing the certificate cannot fail the erasure it is evidence of.
+- **Ten schema scripts**: subscription-checkpoint schema for SQL Server, PostgreSQL, Oracle and SQLite;
+  projection last-applied-position for SQL Server and PostgreSQL; the erasure-execution claim lease and
+  the certificate's unreached-data column for the compliance stores; and
+  `012_BackfillGapsLeftByLegacyArchival.sql` for SQL Server. **Step 2 of 012 ships commented out
+  deliberately** — it is content you apply by hand to your own system of record.
+
+### Fixed
+
+Each of these was a disclosed defect on the [Known issues](https://docs.excalibur-dispatch.dev/docs/known-issues)
+page. That page now names this release against each one, and says where we have **not** got a test that
+would catch a regression — two of the entries below are in that position and say so.
+
+**Event sourcing**
+
+- **A subscriber reading the global event stream could permanently skip a committed event.** See the
+  breaking entries above — this is what the allocation and contiguous-read changes are for. **Needs a
+  migration.**
+- **An append that was committed could be reported as a conflict, and the documented reload-and-retry
+  then wrote the event twice.** The store re-reads the events table by the batch's client-generated
+  event ids before classifying a failure, and reports success when the rows are durably there. **SQL
+  Server only** — PostgreSQL and Oracle have no equivalent reconciliation — and **no test exercises it**,
+  so treat it as present but unverified.
+- **A gap-truncated read was treated as end-of-stream by two callers.**
+
+**Projections**
+
+- **A rebuild or recovery folded nothing at all for any projection using `WhenHandledBy`.**
+- **A rebuild wrote one document under the projection type name**, a key no reader queries.
+- **An event routed to a lagging override id was never delivered to it, permanently.**
+- **The conditional write enforced the position and had no opinion on double-folding**, so a projection
+  could hold a truthful position over wrong state. The override path now carries its own already-folded
+  gate.
+- **Every projection write failed on MongoDB.** The store handed the driver a `DateTimeOffset`, which
+  BSON cannot represent and the driver refuses to guess at, so every upsert threw. It now converts
+  first. **No test exercises this write path** — an arm needs a live MongoDB — so this one is present
+  but unverified by us. The original failure was loud, so you will know either way.
+- **A negative position is refused once** rather than defended in four places out of eight.
+
+**Compliance**
+
+- **An erasure reported `Completed` while every read model still held the subject's data.** It now
+  reports **partial**, and the certificate carries a list of what the erasure did not reach, separate
+  from data lawfully retained and never mixed with it. **The underlying gap is unchanged and is still
+  disclosed:** erasure does not reach read models, and clearing them remains your step.
+- **`ReapplyAsync` could not produce a row for an aggregate whose every event was a tombstone**, which
+  is exactly the fully-erased case it existed to serve. It now skips tombstones structurally and writes
+  the empty state.
+- **GDPR data-portability and subject-access requests reported success having done nothing.** The fix is
+  a deliberate breaking change rather than a silent repair: the built-in exporter now **refuses** with an
+  error naming the remedy, and `AutoFulfill` is **removed** so a request can only become `Fulfilled`
+  through an explicit call recording an act you actually performed.
+
+**Pipeline**
+
+- **The startup check meant to refuse a mis-ordered tenant pipeline could never fire.** It read the
+  capability from the pipeline entry rather than from the type the entry represents, so three layers of
+  wrapping hid it. The rule now has its own seam and is exercised through a real container.
+
+
+## [10.0.0-alpha.12] - 2026-09-24
+
+What shipped in this pre-release, relative to `10.0.0-alpha.11`. **BREAKING** marks a change that will not compile, or that
 changes behaviour silently; this line is pre-RC, so they are frequent and are the first thing to read.
 Anything needing action from you is also collected under **Before you upgrade** on the
 [What's New](https://docs.excalibur-dispatch.dev/docs/whats-new) page.
@@ -2816,6 +2959,11 @@ The 3.0.0 alpha series represents a complete ground-up redesign of the Excalibur
 - 8 `dotnet new` templates: dispatch-api, dispatch-minimal-api, dispatch-worker, dispatch-serverless, excalibur-ddd, excalibur-cqrs, excalibur-saga, excalibur-outbox
 - 68 sample projects across 13 categories
 
-[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.8...HEAD
+[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.13...HEAD
+[10.0.0-alpha.13]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.12...v10.0.0-alpha.13
+[10.0.0-alpha.12]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.11...v10.0.0-alpha.12
+[10.0.0-alpha.11]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.10...v10.0.0-alpha.11
+[10.0.0-alpha.10]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.9...v10.0.0-alpha.10
+[10.0.0-alpha.9]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.8...v10.0.0-alpha.9
 [10.0.0-alpha.8]: https://github.com/TrigintaFaces/Excalibur/compare/v3.0.0-alpha.216...v10.0.0-alpha.8
 [3.0.0-alpha]: https://github.com/TrigintaFaces/Excalibur/releases/tag/v3.0.0-alpha.216

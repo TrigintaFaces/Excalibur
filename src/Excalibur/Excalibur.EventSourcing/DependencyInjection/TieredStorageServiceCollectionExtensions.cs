@@ -101,8 +101,7 @@ public static class TieredStorageServiceCollectionExtensions
 				sp.GetRequiredKeyedService<IEventStore>(EventArchiveService.RawHotEventStoreKey),
 				sp.GetRequiredService<IColdEventStore>(),
 				sp.GetRequiredService<Logging.ILogger<TieredEventStoreDecorator>>(),
-				sp.GetRequiredService<ITenantContext>(),
-				sp.GetService<ISnapshotStore>()));
+				sp.GetRequiredService<ITenantContext>()));
 
 		// Default IEventStoreArchive = the RAW hot store ("tiered-hot"), never the decorated "default".
 		// Fail-fast if the hot store can't archive — never a silent no-op archive.

@@ -136,6 +136,63 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
  return LoadAsync(aggregateId, aggregateType, -1, cancellationToken);
 	}
 
+	/// <summary>
+	/// Reads the global event stream in position order, across every aggregate and every tenant.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Lives on the store rather than on the query type because the traversal has to observe the store's
+	/// own locking discipline: the outer lock first, then each stream's list lock, in that order. Taking
+	/// them the other way round against a concurrent append would deadlock, and that ordering is not
+	/// something a separate type should have to know.
+	/// </para>
+	/// <para>
+	/// Events are held per stream, so a global read flattens and sorts. That is linear in the store's
+	/// size, which is acceptable precisely because this store is an in-memory one -- it exists for tests,
+	/// samples and single-process hosts, and a consumer whose stream is large enough for this to matter
+	/// needs a persistent provider for other reasons already.
+	/// </para>
+	/// </remarks>
+	/// <param name="fromPosition">The inclusive position to start reading at.</param>
+	/// <param name="maxCount">The maximum number of events to return.</param>
+	/// <param name="eventType">When supplied, only events of this type are returned.</param>
+	internal IReadOnlyList<StoredEvent> ReadGlobalStream(long fromPosition, int maxCount, string? eventType)
+	{
+		var matched = new List<StoredEvent>();
+
+		lock (_lock)
+		{
+			foreach (var stream in _events.Values)
+			{
+				lock (stream)
+				{
+					foreach (var stored in stream)
+					{
+						if (stored.GlobalPosition > fromPosition
+							&& (eventType is null || string.Equals(stored.EventType, eventType, StringComparison.Ordinal)))
+						{
+							matched.Add(stored);
+						}
+					}
+				}
+			}
+		}
+
+		matched.Sort(static (left, right) => left.GlobalPosition.CompareTo(right.GlobalPosition));
+
+		return matched.Count <= maxCount ? matched : matched.GetRange(0, maxCount);
+	}
+
+	/// <summary>
+	/// Gets the highest global position allocated by this store, or 0 when nothing has been appended.
+	/// </summary>
+	/// <remarks>
+	/// Read from the allocation counter rather than scanned from the events, which is exact here because
+	/// positions are allocated under the same lock that adds the events and the version check that can
+	/// reject an append runs BEFORE any allocation -- so no allocated position is ever abandoned.
+	/// </remarks>
+	internal long GetHeadPosition() => Interlocked.Read(ref _position);
+
 	/// <inheritdoc />
 	public ValueTask<long> GetMaxVersionAsync(
 		string aggregateId,
@@ -288,21 +345,28 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
  return new ValueTask<AppendResult>(AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion));
  }
 
- // Append events
- long firstPosition = 0;
+ // SERIALIZE EVERYTHING FIRST, ALLOCATE SECOND, MUTATE THIRD. The ordering carries the
+ // guarantee and is not stylistic.
+ //
+ // A lock provides mutual exclusion, not rollback. If serialization throws partway through
+ // a batch after the block has been reserved, the events written so far stay in the list,
+ // the counter is never restored, and the remainder of the block becomes a permanent hole
+ // -- exactly the defect the persistent providers use a transaction to make impossible.
+ // The enclosing lock cannot stand in for that transaction, and an earlier comment here
+ // claimed it could.
+ //
+ // Serialization is the only step that can throw, so hoisting it above the allocation makes
+ // the partial-append state unrepresentable: nothing is reserved until every row exists, and
+ // the steps after the allocation are list appends that cannot fail. This mirrors the
+ // persistent providers, which build every row before taking the counter lock.
  var version = currentVersion;
+ var prepared = new List<StoredEvent>(eventList.Count);
 
  foreach (var (@event, eventTypeName) in eventList.AsNamedEvents())
  {
  version++;
- var position = Interlocked.Increment(ref _position);
 
- if (firstPosition == 0)
- {
- firstPosition = position;
- }
-
- var storedEvent = new StoredEvent(
+ prepared.Add(new StoredEvent(
  EventId: @event.EventId,
  AggregateId: aggregateId,
  AggregateType: aggregateType,
@@ -312,7 +376,18 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
  Metadata: @event.Metadata != null ? SerializeMetadata(@event.Metadata): null,
 #pragma warning restore IL2026, IL3050
  Version: version,
- Timestamp: @event.OccurredAt);
+ Timestamp: @event.OccurredAt));
+ }
+
+ var firstPosition = Interlocked.Add(ref _position, eventList.Count) - eventList.Count + 1;
+ var nextPosition = firstPosition;
+
+ foreach (var row in prepared)
+ {
+  // Without this the in-memory store cannot host a global-stream projection at all:
+  // GlobalPosition is an init property outside the positional constructor, so every
+  // stored event silently carried 0 and the stream had no order to be read by.
+ var storedEvent = row with { GlobalPosition = nextPosition++ };
 
  aggregateEvents.Add(storedEvent);
  _eventsById[(key.TenantId, storedEvent.EventId)] = storedEvent;

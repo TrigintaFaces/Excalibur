@@ -573,3 +573,13 @@ eng/docs/api/obj/
 
 # graphify knowledge-graph artifacts (generated, ~1GB)
 graphify-out/
+
+# TLA+ model checking: TLC writes a trace binary per violated invariant and a states/
+# directory on every run. Four of five arms violate by design, so these regenerate constantly.
+spec/tla/states/
+spec/tla/*_TTrace_*.bin
+spec/tla/*_TTrace_*.tla
+spec/tla/_Arm_*
+
+# Runtime lock for the local full-CI driver. Holds a live PID; never source.
+.claude/.full-ci-run.lock

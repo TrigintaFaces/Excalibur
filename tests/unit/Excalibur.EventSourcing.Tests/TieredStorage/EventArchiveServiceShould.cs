@@ -45,7 +45,7 @@ public sealed class EventArchiveServiceShould
 		// Cold store confirms the full range durable (watermark = 5), so hot delete is authorized up to 5.
 		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-1", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(5L);
-		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-1", "Order", 5, A<CancellationToken>._))
+		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-1", "Order", 5, A<CancellationToken>._))
 			.Returns(5);
 
 		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) });
@@ -56,7 +56,7 @@ public sealed class EventArchiveServiceShould
 		// Assert
 		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-1", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-1", "Order", 5, A<CancellationToken>._))
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-1", "Order", 5, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -76,7 +76,7 @@ public sealed class EventArchiveServiceShould
 			.Returns(events);
 		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-p", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(3L);
-		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", A<long>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(3);
 
 		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) });
@@ -84,10 +84,10 @@ public sealed class EventArchiveServiceShould
 		await InvokeArchiveCycleAsync(service);
 
 		// LIVENESS: the confirmed prefix (<= 3) IS deleted — the archive still makes progress.
-		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", 3, A<CancellationToken>._))
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", 3, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		// SAFETY: nothing is deleted beyond the durable watermark.
-		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", 5, A<CancellationToken>._))
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", 5, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -111,7 +111,7 @@ public sealed class EventArchiveServiceShould
 
 		await InvokeArchiveCycleAsync(service);
 
-		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-n", "Order", A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-n", "Order", A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -129,7 +129,7 @@ public sealed class EventArchiveServiceShould
 			.Returns(CreateEvents("agg-z", 1, 2, 3));
 		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-z", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(3L);
-		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-z", "Order", A<long>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-z", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(0);
 
 		var logger = new CapturingLogger();
@@ -151,7 +151,7 @@ public sealed class EventArchiveServiceShould
 			.Returns(CreateEvents("agg-y", 1, 2, 3));
 		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-y", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(3L);
-		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-y", "Order", A<long>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-y", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(3);
 
 		var logger = new CapturingLogger();
@@ -193,7 +193,7 @@ public sealed class EventArchiveServiceShould
 			.Returns(events);
 		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "ok-agg", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(2L);
-		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "ok-agg", "Order", 2, A<CancellationToken>._))
+		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "ok-agg", "Order", 2, A<CancellationToken>._))
 			.Returns(2);
 
 		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(1) });

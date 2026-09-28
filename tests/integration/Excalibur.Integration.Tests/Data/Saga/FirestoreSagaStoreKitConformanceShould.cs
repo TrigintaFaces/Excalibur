@@ -55,8 +55,10 @@ public sealed class FirestoreSagaStoreKitConformanceShould : SagaStoreConformanc
 	/// </remarks>
 	public ValueTask InitializeAsync()
 	{
-		_fixture.IsInitialized.ShouldBeTrue(
-			"The Firestore emulator must be available for real-infra conformance (never skipped).");
+		// EnsureAvailable() rather than asserting the flag: the FIXTURE owns the availability
+		// policy, and its message carries the RECORDED startup error. Asserting a bool produced
+		// a true-but-useless "expected True" with the actual container failure discarded.
+		_fixture.EnsureAvailable();
 
 		return ValueTask.CompletedTask;
 	}

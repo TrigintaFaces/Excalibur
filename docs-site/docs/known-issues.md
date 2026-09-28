@@ -416,7 +416,7 @@ recommends took the exact opposite precaution to the one that would have helped,
 reason not to go looking for missing changes. **If you followed our CDC guidance, you are the reader
 this entry is for.**
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** We can prove that bound rather than assert it. The published version list for `Excalibur.Cdc.SqlServer` has 82
+**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. We can prove that bound rather than assert it. The published version list for `Excalibur.Cdc.SqlServer` has 82
 entries and the most recent is `10.0.0-alpha.11`, whose package predates the correction by three days —
 so **no published version can contain it**, and that is the complete published set rather than the
 subset we happen to hold. We are deliberately **not**
@@ -539,7 +539,7 @@ available:
   reading the code rather than from a test we have run** — verify it in your own deployment before
   relying on it.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** The correction is complete in our source — the seam no longer carries the weakly-typed value at all, so the defect is not expressible there rather than merely absent. Until a release ships, the mitigation above is the only remedy available to you.
+**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The correction is complete in our source — the seam no longer carries the weakly-typed value at all, so the defect is not expressible there rather than merely absent. Until a release ships, the mitigation above is the only remedy available to you.
 
 :::info What we have not established
 **We do not know which published versions execute the broken path, and we are not going to guess.**
@@ -553,9 +553,11 @@ publish one.
 version you actually have, which is the only version that matters to you.
 :::
 
-### Every published `Excalibur.Outbox.Marten` brings in a Marten with a critical SQL-injection advisory
+### `Excalibur.Outbox.Marten` before `10.0.0-alpha.12` brings in a Marten with a critical SQL-injection advisory
 
-`Excalibur.Outbox.Marten` declares a dependency on **Marten 9.12.0**, which carries
+**FIXED IN `10.0.0-alpha.12`, published 2026-09-25. Upgrade to it — you do not need to override
+anything.** Versions `10.0.0-alpha.4` through `10.0.0-alpha.11` declare a dependency on
+**Marten 9.12.0**, which carries
 **CVE-2026-75513 / GHSA-rfx3-98h7-v3xp, CVSS 9.1**
 (`CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:L`). Marten interpolates a runtime, potentially
 attacker-influenced value into generated SQL as a single-quoted string literal, without escaping or
@@ -591,11 +593,19 @@ have not established.**
 version you get *by default*. **But if you have overridden Marten to any version from `7.0.0` onward, you
 are still affected** — pinning *backwards*, or to any 8.x, does not help. Only `9.13.0` or later does.
 
-**Our source has since moved to `9.13.0`, and that does not help you yet.** The fix reaches you only when
-we publish a release carrying it; until then every installable version still brings the vulnerable
-library, and overriding the Marten version yourself is the remedy that exists today.
+**The remedy is now a version, not a workaround: upgrade to `10.0.0-alpha.12` or later.** We verified
+this against the published manifest rather than our own source — `alpha.12` declares
+`<dependency id="Marten" version="9.13.0" />` and `alpha.11` declares `9.12.0`.
 
-**This is in every version we have published.** We checked each one's manifest on nuget.org rather than
+> **This paragraph previously said the opposite, and said it for a day.** It read: *"Our source has
+> since moved to `9.13.0`, and that does not help you yet … overriding the Marten version yourself is
+> the remedy that exists today."* That was true when written and became false when `alpha.12` was
+> published on 2026-09-25. It is quoted here rather than deleted because it erred in the direction
+> that keeps you on a vulnerable library: it told you no fixed version existed while one did. If you
+> pinned Marten manually on the strength of it, that override is no longer needed, though it is
+> harmless provided you pinned forward to `9.13.0` or later.
+
+**This was in every version we had published up to and including `alpha.11`.** We checked each one's manifest on nuget.org rather than
 inferring it from our source:
 
 | Package | Versions | Declares |
@@ -753,7 +763,7 @@ already stored. **Do not treat an example — of either shape — as evidence th
 are fine.** Anyone who annotated a `string` under a released version is still in plaintext and still has
 no signal.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** **That fix will not reach the values you
+**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. **That fix will not reach the values you
 already stored:** nothing was ever encrypted, so there is nothing to decrypt, and any fix can only encrypt
 new writes. **Before you migrate a `string` property to `byte[]` to work around this, check which version
 you are on** — that schema change is not required on a release that honours the annotation.
@@ -818,7 +828,7 @@ every verification.
 documentation file in every earlier package we hold — `alpha.8`, `alpha.7`, `alpha.5` and the `3.0.0`
 line — and the sentence is **not** present in any of them. It entered between `alpha.8` and `alpha.9`.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** The *behaviour* was never wrong and
+**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The *behaviour* was never wrong and
 does not change; only the description of it does.
 
 ### A container holding the timeout middleware cannot be disposed synchronously
@@ -864,14 +874,14 @@ our development head.
 **We have not established the first affected version**, and we would rather say so than name one we have
 not opened. If you are on a version not listed above, assume you are affected and use `await using`.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** The fix removes `DisposeAsync()`
+**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The fix removes `DisposeAsync()`
 from this type entirely and stops it implementing `IAsyncDisposable`: the method released nothing — the
 only state the middleware held was a process-lifetime `ActivitySource` — so the interface was a claim on
 resources the type did not have. If you have been calling `DisposeAsync()` on it directly, that call has
 never done anything.
 
-When a release carries the fix, this entry will name that version. Until it does, there is no upgrade that
-resolves this for you, and the `await using` form above is the remedy.
+`10.0.0-alpha.11` carries the fix, so upgrading resolves this. On earlier versions the `await using`
+form above is the remedy.
 
 ### The SOC 2 evidence package is fabricated, and its chain-of-custody hash is the same value every time
 
@@ -914,7 +924,7 @@ from your own systems of record: your audit log store, your configuration manage
 for every format and every period — also present in `10.0.0-alpha.10`. That one at least announces itself: an
 empty file is visibly empty. The evidence package above is the dangerous one, because it is well-formed.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** The correct behaviour for a capability that cannot produce a value
+**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The correct behaviour for a capability that cannot produce a value
 is to refuse rather than to return a confident empty one, so both members now throw rather than hand
 back a fabricated package or an empty export. **Plan for that:** code that calls either one today should not
 be written to depend on a successful return.
@@ -993,10 +1003,10 @@ the result type has no way to represent "not assessed". A two-state met/not-met 
 unexamined control as *not met*, and a non-optional timestamp must be filled with *something*. The code is
 not careless; **the type left no honest option**.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** The remedy was a contract change rather than a patch — the result
+**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The remedy was a contract change rather than a patch — the result
 had to be able to say "not assessed" before anything downstream could stop treating it as a failure, and it
-now can. **No released version behaves differently**; when a release carries the fix, this entry will also
-say what changes in a generated report.
+now can. `10.0.0-alpha.11` and `10.0.0-alpha.10` behave as described above; `10.0.0-alpha.12` and later
+report the control as not assessed rather than as a failure against you.
 
 ### SOC 2 controls can report as satisfied without the framework having assessed them
 
@@ -1074,11 +1084,11 @@ mechanism it names is actually present in your deployment.
 
 **Which versions are affected — all of them.** Both behaviours were written before this package was ever
 published: AVL-002 on 2025-11-26 and AVL-003 on 2026-01-19, while the earliest published
-`Excalibur.Compliance` is `3.0.0-alpha.157`, published 2026-04-20. **There is no released version without
-them**, so there is no upgrade within the current line that removes the behaviour and no lower bound worth
-stating. If you have this package at all, this entry applies to you.
+`Excalibur.Compliance` is `3.0.0-alpha.157`, published 2026-04-20. Every release up to and including `10.0.0-alpha.11` contains
+them, and `10.0.0-alpha.12` is the first that does not, so there is no lower bound worth stating but
+there is now an upgrade that removes the behaviour. If you have this package at all, this entry applies to you.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** It will also say which controls the fix covers. Until this entry
+**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. It will also say which controls the fix covers. Until this entry
 names a release, there is no upgrade that changes what your report says.
 
 **Scope.** Plain `AddSoc2Compliance()` does not register the built-in validators, so on its own it is
@@ -1401,7 +1411,7 @@ and the guarded ones are upgrade scripts you reach later, if at all.
 The counts above describe `10.0.0-alpha.10` specifically, because that is the artefact you installed and the
 only one you can act on.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** Until it names one, there is no upgrade that resolves this for you.
+**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore.
 
 ### Rejecting a message with `requeue: true` does not arrange redelivery — it waits for your consumer to stop
 
@@ -1461,9 +1471,10 @@ like a send-path loss. Nothing in the framework raised an error, because from th
 writing one property and writing twenty are the same successful operation.
 
 **Which versions are affected.** The transport has carried this since it was first added, and every
-pre-release of it up to and including `10.0.0-alpha.10` contains it. **The repair is not in
-`10.0.0-alpha.10` or any earlier release**; it is on the main branch and unreleased. **When a release carries the fix, this entry
-will name that version**, and until it names one there is no upgrade that resolves this for you.
+pre-release of it up to and including `10.0.0-alpha.10` contains it. **The repair is not in `10.0.0-alpha.10` or any earlier
+release** — but it IS in `10.0.0-alpha.11` and later, so upgrading resolves this. **This paragraph
+previously said the repair was on the main branch and unreleased; that stopped being true when
+`10.0.0-alpha.11` shipped.**
 
 **How to confirm it on the version you hold.** Do not check this by reading our source — that tells you
 about the current main branch, not about the package you have restored. Check it against your own queue
@@ -1487,7 +1498,7 @@ every message, and any decision it made is worth re-examining rather than assume
 Nothing you can configure changes this on a released version; the properties are discarded before the
 message reaches the queue manager.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** The sender now forwards the properties you set. Until this entry
+**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The sender now forwards the properties you set. Until this entry
 names a release, the workaround above is what you have.
 
 ---
@@ -1503,11 +1514,12 @@ so the topic looks healthy and your application has no signal to act on.
 You are most likely to meet it under the conditions that make a batch fill: large payloads, many messages
 published in one operation, or a message whose size grows after enrichment.
 
-**No configuration avoids this on a released version.** On the version you have installed there is one
-send path and it discards. A second, refusing path exists on the main branch, but it was added after the
-most recent release — so if you have read elsewhere that enabling CloudEvents avoids this, that is true of
-our development branch and **not of anything you can install today.** Do not spend effort reconfiguring to
-escape it; there is no configuration that does.
+**On `10.0.0-alpha.11` and later, both send paths refuse.** **This paragraph previously said the
+refusing path was CloudEvents-only and had been added after the most recent release, so no released
+version could escape the defect. That was wrong.** Both the standard and the CloudEvents send path carry
+the size check and throw at `10.0.0-alpha.11`, `10.0.0-alpha.12` and on main; batching happens in one
+place, and there is no third path that discards. On versions **before** `10.0.0-alpha.11` the original
+statement holds: no configuration avoids it, and CloudEvents does not help.
 
 **What you must do.** Until you are on a version carrying the fix, do not treat a successful return from
 this transport as proof of delivery. If you need that assurance now, either publish messages individually
@@ -1519,17 +1531,21 @@ about the current main branch, not the package you restored. Publish a batch who
 comfortably larger than your namespace's maximum event size, then count the events that arrive on the
 hub. If fewer arrive than you sent and the call reported success, your version carries this defect.
 
-**Is it fixed?** The repair exists on the main branch: both send paths now refuse an over-large message
-with an exception instead of discarding it. **It is not yet in any released version.** When a release
-carries it, this entry will name that version — until it names one, there is no upgrade that resolves
-this for you, and the workarounds above are what you have.
+**Is it fixed? Yes — in `10.0.0-alpha.11` and later.** Both send paths refuse an over-large message with
+an exception instead of discarding it. **This entry previously said the repair was "not yet in any
+released version" — that was wrong, and it stayed wrong through two releases.** If you are on
+`10.0.0-alpha.11` or later you already have the fix; on anything earlier, upgrading resolves it and the
+workarounds above are no longer your only option. Not yet confirmed by reading the published assembly —
+verify against the package you actually restore.
 
-**Which versions are affected — all of them.** This has been present since before the transport reached
-its current package name, and every published version contains it. **We are deliberately not naming a
+**Which versions are affected — every version before `10.0.0-alpha.11`.** This has been present since
+before the transport reached its current package name. **This section previously said every published
+version contains it; that is no longer true and was already untrue when `10.0.0-alpha.11` shipped.** **We are deliberately not naming a
 first-affected version**: the code has passed through more than one mass-rename commit, and a
 path-scoped history search reports the rename rather than the original change — twice while investigating
 this, that error made the defect look months younger than it is. Rather than publish a date we would have
-to correct upward, we are telling you the safe thing, which is that no released version is free of it.
+to correct upward, we are naming no first-affected version. The *first fixed* version we can name, and
+have measured against the repository at both tags, is `10.0.0-alpha.11`.
 
 ### A Kafka rebalance commits past messages still running in your handlers, so they are never redelivered
 
@@ -1963,7 +1979,7 @@ where a profile was selected is something we can place only at `alpha.11` and la
 established the first affected version** for the `UseMiddleware<T>()` half and would rather say so than
 name one we have not opened; if you are on a version not listed above, assume you are affected.
 
-**Is it fixed?** **Fixed in our source, and not yet in any released version. When a release carries the fix, this entry will name that release.** That is measured by opening the shipped
+**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. That is measured by opening the shipped
 assemblies: the types the fix introduces are absent from both `alpha.10` and `alpha.11`. The fix keeps the
 composed pipeline a singleton and stops it holding the middleware: a stage the container would serve fresh
 per scope is resolved per dispatch instead, from your request scope where you have one and from a scope
@@ -1982,6 +1998,428 @@ This affects what you restore and audit, not what you run: nothing in the framew
 Later versions do not carry it, and the packaging pipeline now fails the build if any shipped package declares a dependency from a category that cannot be correct at your runtime — benchmarking harnesses, test frameworks, mocking and assertion libraries, analyzers, and the compiler platform among them.
 
 ---
+
+---
+
+### A GDPR erasure reported as completed leaves the personal data in every read model
+
+:::danger An erasure certificate does not mean the data is gone
+Erasure removes the payload from the event store. It does **not** reach projections, so any read model
+built from those events keeps the personal data indefinitely — and the certificate you produce for a
+regulator does not say so.
+:::
+
+**What happens.** Erasure operates on the event store: it forgets the event payload there. Projections
+are separate documents or rows, written by the apply path as events arrive, and nothing in the erasure
+path revisits them. So after a successful erasure the personal data remains in every projection derived
+from the erased events, in whatever store holds them, for as long as that store keeps it.
+
+**Are you affected?** You are affected if you both (a) build projections or read models from events, and
+(b) rely on the framework's erasure to satisfy a subject's deletion request. You are not affected if you
+do not use projections, or if you already erase your read models yourself by some other means.
+
+**What that exposes.** A deletion request you have reported as fulfilled is not fulfilled. The data
+remains queryable through exactly the surfaces your application reads from — usually the ones serving
+user-facing features — and it will be rebuilt into any projection replayed from a source that still
+holds it. Treat any erasure performed through the framework as covering the event store only.
+
+**What to do now.** Erase the corresponding projection documents or rows yourself as part of your
+erasure workflow, and do not treat an erasure certificate as evidence that read models were cleared. If
+you have already issued certificates on this basis, they overstate what was done.
+
+:::warning A retraction published here was wrong about your version. It is withdrawn.
+
+**Read this if you saw the earlier text.** A revision of this page briefly told you that
+`IProjectionRecovery.ReapplyAsync` does not clear the subject's row and reports success anyway, and
+that there was no version-level workaround. **That statement was about our unreleased source, not
+about any version you can install, and it should not have been published unscoped.**
+
+**For every published 10.x version, `ReapplyAsync` clears the row as originally described.** The
+conditional write that produced the defect does not exist in the published line: the type that
+introduces it has never been present on the branch our packages are built from, and the recovery path
+there writes unconditionally. If you held back an erasure remediation on the strength of the retracted
+text, you can proceed.
+
+The defect was real in work that has not shipped, and it is fixed there: recovery now either writes the
+re-folded state at the position the row already holds, or fails loudly. It never reports a successful
+recovery having written nothing.
+
+**This does not change the gap described above.** Erasure still does not reach projections
+automatically. `ReapplyAsync` could not produce a row for an aggregate whose every event is a
+tombstone in any published version; **`10.0.0-alpha.13` corrects that half** — it now skips tombstones
+structurally and writes the empty state for a fully erased aggregate. The projection gap itself remains
+open and is described in the next paragraph.
+:::
+
+**What still works, and what does not.** A full projection rebuild re-folds rows from the tombstoned
+stream and does clear the subject's contributions from rows shared with other subjects. It does **not**
+produce a row for an aggregate whose every event is now a tombstone, so it cannot clear that subject's
+own row. `ReapplyAsync` is the call intended for that row: given the aggregate id it re-folds the
+tombstoned stream and writes the result, which for a fully erased aggregate is the empty state.
+
+Both are calls **you** must make. Neither is triggered by the erasure itself, so an erasure you have
+reported as completed has not touched any read model unless you invoked one of them. Treat clearing
+projections as your own step in the erasure workflow until the erasure path reaches them.
+
+**What changes in `10.0.0-alpha.13`.** An erasure on a host with registered projections reports
+**partial** rather than `Completed`, and **the certificate you receive says so in a form built to be
+read by an auditor**. Nothing about the erasure itself changes — the same rows are tombstoned and the
+same read models keep the data. What changes is that the certificate stops implying otherwise.
+
+Concretely, the certificate gains a list of what the erasure did **not** reach, separate from the list
+of data lawfully retained and never mixed with it. Each entry names the kind of store still holding the
+data, describes in one sentence why the erasure did not reach it, states explicitly that **no lawful
+basis is claimed** for that retention, and tells you that discharging it remains your obligation and
+that doing so **takes the affected read model offline for the duration**. That last point matters
+operationally: the remedy must not be run against a live projection processor, because a rebuild
+interrupted part-way leaves the subject cleared from some rows and not others with no record of which.
+
+A certificate with nothing outstanding is unchanged, byte for byte, so certificates you have already
+been issued continue to verify.
+
+If you have built your own projection erasure, register an `IErasureContributor` declaring
+`DataStoreKind.Projection` and the framework stands down.
+
+**Which versions are affected.** Every published 10.x version. This is a capability that was never
+built rather than one that broke, so there is no earlier unaffected version: the projection apply path
+and the erasure path have never been connected. We have not assessed the older 3.x line — do not read
+that as clean.
+
+**Is there a fixed version?** **Partly, in `10.0.0-alpha.13`.** That release stops the erasure
+reporting `Completed` when registered projections still hold the subject: it reports **partial** and the
+certificate carries the unreached-data list described above. **The gap itself is not fixed and is not
+scheduled** — erasure still does not reach read models, and clearing them remains your step. What
+changed is that the certificate no longer implies otherwise.
+
+Not yet confirmed against the published package: we name the release that carries the fix, and we
+confirm it by reading the shipped assembly once it is published. Verify against the package you
+actually restore.
+
+---
+
+### An append that was committed can be reported as a conflict, and retrying it writes the event twice
+
+:::danger The documented response to a conflict makes this worse, not better
+The store reports a concurrency conflict. The documented response is reload-and-retry. Retrying appends
+the same business event a second time, at the next version, and nothing rejects it.
+:::
+
+**What happens.** When the SQL Server event store commits an append, it catches database exceptions
+raised by the commit itself and treats them as evidence that the append lost a concurrency race — the
+reasoning being that a failed transaction was rolled back and therefore wrote nothing. That reasoning
+does not hold when **the server committed successfully and the acknowledgement was lost**: a dropped
+connection, a command timeout, or a pause longer than the client timeout. This is routine against a
+managed cloud database.
+
+In that case the rollback does nothing, because the transaction is already committed. The store
+re-reads the stream version, finds it has moved — because *this* writer moved it — and concludes another
+writer won. It returns a conflict for an append that is durably on disk.
+
+**Are you affected?** You are affected if you use the SQL Server event store and a commit acknowledgement
+can be lost between your application and the database. That is any deployment where the two are
+separated by a network, and especially a managed database that pauses or fails over. A purely local
+database makes it unlikely but not impossible.
+
+**What that exposes.** Your aggregate's history contains the same business event twice, at two different
+versions. Because the versions differ, the stream's uniqueness constraint does not reject it. Every
+replay applies the event twice, so any state derived by folding events — balances, counters, totals,
+state machines — is silently wrong, and stays wrong for the life of the stream.
+
+**What to do now.** Do not retry an append blindly on a conflict. Before re-appending, re-read the stream
+and check whether the event you are about to write is already present, using an identifier your own
+application controls. The framework does not currently give you an idempotency key that would make this
+check unnecessary.
+
+**Which versions are affected.** Every published 10.x version. The handling has been in place since late
+July 2026, before the first 10.x release. We have not assessed the older 3.x line — do not read that as
+clean.
+
+**Is there a fixed version?** **`10.0.0-alpha.13`, on SQL Server.** Before classifying a failure as a
+conflict, the store now re-reads the events table by the client-generated event ids of the batch and
+reports success when the rows are durably there, so an append that actually committed is no longer
+reported as a conflict.
+
+**This supersedes what this entry previously said** — that a correct fix required an idempotency
+constraint on the events table, and therefore a schema change that could not reach a deployed database
+through a package upgrade. That was wrong: the event ids were already stored, so **no schema change is
+needed** and the fix does reach you through the package.
+
+Two limits, both of which should affect how much weight you put on this. **It is SQL Server only** —
+the PostgreSQL and Oracle event stores have no equivalent reconciliation, and this entry does not claim
+one for them. And **no test exercises the reconciliation**: removing it leaves our suite green, so the
+fix is present but unverified by us. Not yet confirmed against the published package either.
+
+---
+
+### A subscriber reading the global event stream can permanently skip a committed event
+
+:::danger A skipped event is never redelivered
+The subscriber advances past the missing position and no later read from that checkpoint revisits it.
+There is no error, no retry, and nothing downstream learns that the event was missed.
+:::
+
+**What happens.** Global stream positions are allocated by the database's own identity or sequence
+mechanism, which hands out the number **before** the transaction commits. Two appends can therefore
+commit out of position order: position 6 can become visible while position 5 is still in flight.
+
+A subscriber reads the stream with an ordered range query and advances a high-water mark. If its read
+observes 6 while 5 is uncommitted, it returns 6, the subscriber advances past 5, and 5 — which commits a
+moment later — is never read from that checkpoint again.
+
+**Are you affected?** You are affected if you consume the global event stream (projections driven by the
+global stream, subscriptions, or any reader that tracks a position and advances it) **and** more than one
+writer can append concurrently. A strictly single-writer deployment is not exposed. The window is small
+but it is not rare under concurrent load, and it widens with transaction duration.
+
+**What that exposes.** Silent, permanent event loss from the point of view of every downstream consumer.
+A projection built by a subscriber that skipped an event is missing that event's effect forever, and a
+rebuild from the same stream produces a different — correct — answer, so the two disagree with no
+indication of which is right.
+
+**What to do now.** If you can, serialise appends so only one transaction writes at a time; that removes
+the interleaving entirely, at a cost in throughput. Otherwise treat a projection built from the global
+stream as reconstructible and rebuild it periodically rather than trusting its incremental state. A
+rebuild reads committed data and is not exposed to the in-flight window.
+
+**Which versions are affected.** Every published 10.x version. We have not assessed the older 3.x line —
+do not read that as clean.
+
+**Is there a fixed version?** **`10.0.0-alpha.13`, and it needs a migration from you — a package
+upgrade alone is not enough.** Two things changed together. Positions are now allocated from a
+singleton counter row **inside the appending transaction** rather than from `IDENTITY`/`SERIAL`, which
+hands out the number before commit; that makes the committed positions a contiguous prefix. And a read
+of the global stream now returns only the contiguous run from your position, stopping at the first gap,
+because the allocation change alone does not close this — a scan spans states, so a subscriber could
+still pass a slot while it was uncommitted.
+
+**This introduces a failure mode you need to recognise before you upgrade.** A permanently absent
+position now **stalls** a subscriber instead of being skipped past. That is the correct direction — a
+stall is loud, a skipped event is silent and unrecoverable — but it is a behaviour change, and legacy
+archival deleted rows, which is exactly what leaves a permanent hole. `012_BackfillGapsLeftByLegacyArchival.sql`
+backfills those holes as tombstones; **its second step ships commented out deliberately**, because it is
+content you apply by hand to your own system of record. See
+[Global-stream reads stop at gaps](./migration/global-stream-reads-stop-at-gaps.md).
+
+**Two limits you must read before treating this as closed.** The schema change was made by rewriting
+`001_CreateEventStoreSchema.sql` in place, and **there is no `ALTER` migration** — nothing converts a
+deployed `IDENTITY` column into the counter row, so **a package-only upgrade leaves you with the
+defect**. The supported path is to recreate the store, or to apply `001` and then `012` by hand. And the
+contiguous-read decorator is wired for **SQL Server only**, deliberately: the skip it prevents needs a
+non-atomic scan, which is a property of SQL Server's locking `READ COMMITTED`. The other four providers
+rest on the gapless-allocation invariant alone.
+
+Not yet confirmed against the published package.
+
+---
+
+### Rebuilding a projection appears to succeed and changes nothing your application reads
+
+**What happens.** The rebuild writes its result to a single row keyed by the projection's **type name**.
+Every other path that maintains a projection — the live apply path used as events arrive, and recovery —
+writes **one row per aggregate**, keyed by the aggregate's identifier. Those are different keys, so the
+rebuild populates a row no reader looks at and leaves every row a reader *does* look at untouched.
+
+**Are you affected?** You are affected if you call the rebuild service to repair or re-derive a
+projection. The live apply path is keyed correctly and is not affected.
+
+**What that exposes.** A rebuild is the remedy you reach for when a projection is known to be wrong: a
+bad deployment, a corrected handler, a missed event. Running it reports success, takes as long as a real
+rebuild, and leaves the incorrect data in place. Anyone reading the projection afterwards sees the same
+wrong answer and has been told it was repaired.
+
+**What to do now.** Do not rely on the rebuild service to correct a projection. To re-derive one, clear
+the projection's rows yourself and replay the events through the normal apply path.
+
+**Which versions are affected.** Every published 10.x version. The rebuild has written its result this
+way since February 2026, before the first 10.x release. We have not assessed the older 3.x line — do not
+read that as clean.
+
+**Is there a fixed version?** **`10.0.0-alpha.13`.** A rebuild or recovery now folds the handlers a
+projection declares through `WhenHandledBy`, and a rebuild writes each document under the key a reader
+actually queries rather than one document under the projection type name.
+
+**A rebuild now throws rather than reporting `Completed`** when the global-stream read stops at a gap.
+If your store carries holes left by legacy archival, the rebuild fails until migration `012` is applied
+— which is the intended direction, but it is a new failure you will see.
+
+Not yet confirmed against the published package.
+
+---
+
+### A saga silently discards every event of a type after the first, unless you set a step id
+
+:::danger The log line says the opposite of what happened
+Each discarded event is reported as `skipped duplicate event`. It was not a duplicate. It was a
+distinct event that was never handled, and nothing else records that.
+:::
+
+**What happens.** A saga remembers which events it has already processed so a redelivery does not run
+a step twice. The identifier it remembers is built from the event's type name, the saga's id, and
+`ISagaEvent.StepId`. `StepId` is optional. When it is not set, the identifier is the same for **every
+event of that type reaching that saga** — so the first is processed and every later one is treated as
+a redelivery of the first and dropped.
+
+**Are you affected?** You are affected if a saga of yours handles the same event type more than once
+during its lifetime and the events carry no `StepId`. Concretely: an order saga that receives
+`ShipmentDispatched` for three parcels, an approval saga that receives `ApprovalGranted` from several
+approvers, a batch saga that receives one `ItemCompleted` per item. You are not affected if every
+event type reaches a given saga at most once, or if you already set a distinct `StepId` per delivery.
+
+**What that exposes.** The saga advances on the first event and then stops responding to the rest,
+while appearing healthy. The workflow stalls part-way with no error: no exception, no failed status,
+and a log line that affirmatively reports correct deduplication. Downstream systems waiting on the
+saga's later steps wait indefinitely. Because the discarded events are never handed to a handler,
+**making your handlers idempotent does not help** — idempotency protects against a step running twice,
+and this is a step running zero times.
+
+**What to do now.** Set `ISagaEvent.StepId` to a value that distinguishes the deliveries you want
+treated as distinct. The step name is enough only when the saga handles that type once; when it can
+handle the type repeatedly, use something unique per delivery — the parcel id, the approver id, the
+item id. Nothing enforces this, so check every saga you have rather than the ones you remember.
+
+If a saga has already stalled this way, the dropped events are still in your stream and were never
+applied: re-deliver them with distinct step ids, or advance the saga by hand.
+
+**Which versions are affected.** Every published 10.x version, and the older 3.x line broadly. The
+identifier has been derived this way since before the 10.x line began.
+
+**Is there a fixed version?** No. No released version corrects this. The fix changes the format of an
+identifier that is already persisted inside saved saga state, so it is a breaking change and will
+arrive with the migration guidance it needs rather than quietly.
+
+---
+
+### Every projection write fails on MongoDB
+
+**What happens.** The MongoDB projection store stamps each written document with an "updated at" value
+taken as a `DateTimeOffset`. The MongoDB driver has no mapping from `DateTimeOffset` to a BSON value and
+raises an error rather than converting it, so the write throws before the document is stored. The field
+is written on every upsert, so **every** projection write through this store fails.
+
+**Are you affected?** You are affected if you use the MongoDB projection store. Our other projection
+stores are not affected. The failure is loud rather than silent — you will see the error — so if you are
+using this store successfully today, you are not on the affected path.
+
+**What that exposes.** No projection state is written on MongoDB. Nothing is silently corrupted; the
+capability does not work.
+
+**What to do now.** On `10.0.0-alpha.13` and later this is fixed. On earlier versions, use another
+projection store or write the projection documents through your own MongoDB code.
+
+**Which versions are affected.** Every published 10.x version. The value has been written as a
+`DateTimeOffset` since February 2026, before the first 10.x release. We have not assessed the older 3.x
+line — do not read that as clean.
+
+**Is there a fixed version?** **`10.0.0-alpha.13`.** The store now converts the timestamp before
+handing it to the driver — it writes `DateTimeOffset.UtcNow.UtcDateTime`, because BSON has no
+offset-carrying date type and the driver throws rather than guessing
+(`Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs`).
+
+The arm that covers it is `MongoDbPositionedProjectionConformanceTests`, which is **integration-only and
+container-gated**: it does not run without a MongoDB container, so a green unit build is not evidence
+about this path. The original failure was loud, so you will know either way. Not yet confirmed against
+the published package.
+
+---
+
+### The startup check that is supposed to refuse a mis-ordered tenant pipeline never runs
+
+:::warning This is a guarantee that does not fire, not a behaviour that is wrong
+If your pipeline is correctly ordered, nothing here affects you. If it is mis-ordered, you were
+promised a startup failure and you will not get one — you get silent, tenant-less execution instead.
+:::
+
+**What happens.** The framework documents that a pipeline in which a tenant-*reading* middleware would
+run before the last tenant-*establishing* middleware is refused at composition, with an error naming
+both types. The check identifies each by asking whether the pipeline entry implements the corresponding
+marker interface.
+
+By the time middleware reach that check they are frequently not the middleware themselves. A middleware
+registered as `Scoped` is represented by a per-dispatch stand-in that holds no instance at all; using
+`UseAt<T>(stage)` wraps it; scoping it to message kinds wraps it again. None of those wrappers carries
+the marker interfaces, so the check concludes that nothing establishes tenant context and returns
+without examining the ordering.
+
+The framework's own tenant-establishing middleware is registered `Scoped`, so in any application built
+on the generic host this check has never been able to fire.
+
+**Are you affected?** You are affected if you rely on that refusal to catch a mis-ordered pipeline. You
+are **not** harmed by this on its own: a correctly ordered pipeline behaves correctly. What you have
+lost is the guard, not the behaviour.
+
+**What that exposes.** If your pipeline *is* mis-ordered — your own tenant-reading middleware placed at
+an earlier stage than the middleware that establishes tenancy — that middleware runs outside the ambient
+tenant scope and observes **no tenant**. It raises no error and writes no log. A tenant-scoped read
+inside it returns the untenanted result rather than failing, so the symptom is wrong data rather than an
+outage, and nothing marks which requests were affected.
+
+**What to do now.** Check the ordering yourself rather than relying on the refusal. Any middleware of
+yours that reads tenant context must declare a later `DispatchMiddlewareStage` than the middleware that
+establishes it, or be registered after it within the same stage. If you have a middleware that reads
+tenant identity and you have never seen a startup error, that is not evidence the ordering is right.
+
+**Which versions are affected.** Every published 10.x version. We have not assessed the older 3.x line —
+do not read that as clean.
+
+**Is there a fixed version?** **`10.0.0-alpha.13`.** The corrected check reads the capability from the
+type each pipeline entry represents rather than from the entry itself, which sees through all three
+wrappers. The rule now lives in its own seam (`Excalibur.Dispatch/Delivery/Pipeline/TenantOrderingRule.cs`)
+and is exercised through a real container rather than a constructed pipeline. That distinction is the
+whole defect: the five older arms pass undecorated test doubles straight to the pipeline constructor, so
+they stay green against the broken code and **cannot fail for this defect at all**. Only the
+real-container arms detect it.
+
+One residual, stated rather than left for you to find: the rule still returns silently when nothing in
+the pipeline establishes tenant context. It refuses a mis-ordering; it does not require that a tenant be
+established in the first place.
+
+Not yet confirmed against the published package.
+
+---
+
+### GDPR data-portability and subject-access requests report success having done nothing
+
+:::danger These produce evidence a regulator may read
+The built-in Article 20 export returns `Completed` — with a data size — having read, serialised and
+written nothing. The built-in Article 15 request can be marked `Fulfilled` at the instant it is
+created. Neither is detectable from outside: a completed export with a plausible size looks exactly
+like a real one.
+:::
+
+**What happens.** Two GDPR services ship as the default behind public registration calls.
+
+`AddDataPortability()` registers an Article 20 exporter whose `ExportAsync` returns
+`Status = ExportStatus.Completed` unconditionally. Nothing is read from any store, nothing is
+serialised, and nothing is written — the result type carries no payload, path or URI, so there is
+nowhere an export could be placed even in principle. The `DataSize` field, documented as the byte count
+of the exported data, is filled with the number of discovered data locations multiplied by 1024.
+
+`AddSubjectAccessRequests()` registers an Article 15 service with an `AutoFulfill` option. With it set,
+a request is created with `Status = Fulfilled` and `FulfilledAt = ` the current time, in the same
+operation that creates it — before anything could have been gathered or sent.
+
+**Are you affected?** You are affected if you call either registration and treat its result as evidence
+that a data-subject request was satisfied. You are not affected if you registered your own
+implementation of either interface: both use `TryAdd`, so yours takes precedence and the built-in one
+is never constructed.
+
+**What that exposes.** A subject-access or portability response recorded as fulfilled when no data was
+produced. The consequence is not a runtime fault — it is a compliance record that overstates what was
+done, and the audience for it is a regulator or an auditor reviewing your controls.
+
+**What to do now.** Register your own `IDataPortabilityService` and `ISubjectAccessService` before
+calling the `Add*` methods, and treat any completion these services previously recorded as unverified.
+Only you can decide what to export, in what shape, and where it goes.
+
+**Which versions are affected.** Every published 10.x version. We have not assessed the older 3.x line
+— do not read that as clean.
+
+**Is there a fixed version?** **`10.0.0-alpha.13`**, and the fix is a deliberate breaking change rather
+than a silent repair: the built-in exporter now **refuses** with an
+error naming the remedy instead of reporting a completed export, and the `AutoFulfill` option is
+**removed** so a request is always created `Pending` and can only become `Fulfilled` through the
+explicit `FulfillRequestAsync` call that records an act you actually performed. If you relied on
+`AutoFulfill`, that reliance was on a value that never reflected any work.
 
 ---
 

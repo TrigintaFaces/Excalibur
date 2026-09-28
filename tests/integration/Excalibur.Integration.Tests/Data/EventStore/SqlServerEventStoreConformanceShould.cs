@@ -113,6 +113,14 @@ public sealed class SqlServerEventStoreConformanceShould : EventStoreConformance
 	public Task AppendAsync_ToNewStream_ShouldSucceed_Test() =>
 		AppendAsync_ToNewStream_ShouldSucceed();
 
+	/// <summary>
+	/// An append larger than one statement stays one contiguous, correctly ordered run across the
+	/// chunk boundary. No other arm reaches the per-chunk position arithmetic.
+	/// </summary>
+	[Fact]
+	public Task AppendAsync_LargerThanOneStatement_ShouldRemainContiguousAndOrdered_Test() =>
+		AppendAsync_LargerThanOneStatement_ShouldRemainContiguousAndOrdered();
+
 	/// <summary>An append at the stream's current version succeeds and advances it.</summary>
 	[Fact]
 	public Task AppendAsync_WithCorrectExpectedVersion_ShouldSucceed_Test() =>

@@ -100,7 +100,7 @@ public sealed class ProjectionPoisonHaltParityShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert — the checkpoint must NEVER be persisted past the unapplied poison event.
-		A.CallTo(() => checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -169,9 +169,12 @@ public sealed class ProjectionPoisonHaltParityShould
 		}
 
 		// Assert — the rebuild must NOT persist a "complete" rebuilt state past the poison, nor report Completed.
-		var persisted = await store.GetByIdAsync(nameof(RebuildPoisonProjection), CancellationToken.None)
-			.ConfigureAwait(false);
-		persisted.ShouldBeNull("the rebuild must halt at the poison event and not persist a completed projection");
+		// The WHOLE store, not one key. Asserting a single key is null cannot fail once the rebuild
+		// stopped writing under the projection type name -- it would pass against a rebuild that
+		// persisted every aggregate past the poison, under their own keys.
+		(await store.CountAsync(null, CancellationToken.None).ConfigureAwait(false)).ShouldBe(
+			0L,
+			"the rebuild must halt at the poison event and persist NOTHING -- under any key");
 
 		var status = await service.GetStatusAsync<RebuildPoisonProjection>(CancellationToken.None)
 			.ConfigureAwait(false);
@@ -251,7 +254,7 @@ public sealed class ProjectionPoisonHaltParityShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert — the checkpoint must NEVER be persisted past the event whose apply faulted.
-		A.CallTo(() => checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 

@@ -40,12 +40,23 @@ public interface ITransactionalEventStore : IEventStore
 	/// <remarks>
 	/// <para>
 	/// The store opens one connection and one transaction, performs the optimistic-concurrency
-	/// version check, appends the events, invokes <paramref name="stageOutbox"/> on the same
-	/// transaction, then commits. On a concurrency conflict the store rolls back and does
+	/// version check, invokes <paramref name="stageOutbox"/> on the same transaction, appends the
+	/// events, then commits. On a concurrency conflict the store rolls back and does
 	/// <b>not</b> invoke <paramref name="stageOutbox"/>. On any failure (a conflict or a throw from
 	/// <paramref name="stageOutbox"/>) the entire transaction is rolled back, so neither the events
 	/// nor the outbox rows persist. The store owns the connection and transaction lifetime
 	/// (begin/commit/rollback/dispose).
+	/// </para>
+	/// <para>
+	/// <b>Staging runs before the events are appended, and the callback must not depend on anything
+	/// the append produces.</b> A provider with a global event position allocates it from a shared
+	/// counter whose lock is held until commit, so every appender in the process is blocked for as
+	/// long as that transaction runs. Staging is one round trip per message, so performing it after
+	/// the append would place all of those round trips inside that window. The ordering is therefore
+	/// a throughput property, not a correctness one — atomicity is identical either way — and it is
+	/// only available because the callback receives the transaction and nothing else. Do not widen
+	/// the callback to expose the assigned version or position: that would force staging back inside
+	/// the window and reduce sustained append throughput for every consumer of the provider.
 	/// </para>
 	/// <para>
 	/// <b>A concurrency conflict is classified the same way whether it is caught by the in-transaction
@@ -64,8 +75,9 @@ public interface ITransactionalEventStore : IEventStore
 	/// <param name="events">The events to append.</param>
 	/// <param name="expectedVersion">The expected current version (-1 for a new aggregate).</param>
 	/// <param name="stageOutbox">
-	/// A callback that stages outbox messages on the supplied transaction. It is invoked after a
-	/// successful append and before commit, and only when the version check succeeds.
+	/// A callback that stages outbox messages on the supplied transaction. It is invoked only when
+	/// the version check succeeds, before the events are appended and before commit. It must not
+	/// depend on the version or global position the append assigns; neither is available to it.
 	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The result of the append operation.</returns>

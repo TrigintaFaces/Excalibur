@@ -17,6 +17,7 @@ using Shouldly;
 using Xunit;
 
 using SagaState = Excalibur.Dispatch.Messaging.SagaState;
+using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Patterns.Tests.Sagas.Timeouts;
 
@@ -279,9 +280,9 @@ public sealed class SagaTimeoutMethodsShould
 
 		public override bool HandlesEvent(object eventMessage) => true;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 

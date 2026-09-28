@@ -50,6 +50,7 @@ public sealed class EveryPayloadClaimHasSomewhereToLiveShould
 		nameof(ErasureCertificatePayload.Verification),
 		nameof(ErasureCertificatePayload.LegalBasis),
 		nameof(ErasureCertificatePayload.Exceptions),
+		nameof(ErasureCertificatePayload.UnreachedData),
 		nameof(ErasureCertificatePayload.GeneratedAt),
 		nameof(ErasureCertificatePayload.RetainUntil),
 		nameof(ErasureCertificatePayload.Version),

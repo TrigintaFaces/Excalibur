@@ -257,7 +257,7 @@ public sealed class GlobalStreamProjectionHostShould
 	public async Task PersistCheckpointAfterProcessingBatch()
 	{
 #pragma warning restore CA1506
-		// Arrange - T.8 regression: host must call StoreCheckpointAsync after processing events
+		// Arrange - T.8 regression: host must call AdvanceCheckpointAsync after processing events
 		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
@@ -279,11 +279,11 @@ public sealed class GlobalStreamProjectionHostShould
 		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(domainEvent);
 		A.CallTo(() => _projection.ApplyAsync(domainEvent, A<GlobalStreamTestState>._, A<CancellationToken>._))
 			.Returns(Task.CompletedTask);
-		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.ReturnsLazily((_) =>
 			{
 				checkpointStored.TrySetResult();
-				return Task.CompletedTask;
+				return Task.FromResult(CheckpointAdvanceOutcome.Advanced);
 			});
 
 		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
@@ -306,7 +306,7 @@ public sealed class GlobalStreamProjectionHostShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert - checkpoint must have been persisted (not just logged)
-		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -362,7 +362,7 @@ public sealed class GlobalStreamProjectionHostShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert — the checkpoint must NEVER be persisted past the unapplied poison event.
-		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 

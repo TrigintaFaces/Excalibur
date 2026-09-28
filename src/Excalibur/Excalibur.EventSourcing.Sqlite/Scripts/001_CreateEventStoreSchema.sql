@@ -58,11 +58,15 @@
 -- ---------------------------------------------------------------------------------------
 -- 1) Events — the append-only event store.
 --
---    GlobalPosition is INTEGER PRIMARY KEY AUTOINCREMENT: in SQLite that aliases the rowid, and
---    AUTOINCREMENT additionally forbids REUSE of a deleted row's value. That is load-bearing for
---    an event store read by global position — a reader that has consumed up to position N must
---    never see a NEW event appear at a position below N, which is exactly what rowid reuse would
---    produce after a delete.
+--    GlobalPosition is INTEGER PRIMARY KEY, which in SQLite aliases the rowid — but the store
+--    never lets SQLite assign it. The value is allocated from the Events_Position counter row
+--    inside the appending transaction (see section 2 below).
+--
+--    It used to be AUTOINCREMENT, to forbid REUSE of a deleted row's value: a reader that has
+--    consumed up to position N must never see a NEW event appear below N, which rowid reuse after
+--    a delete would produce. Explicit allocation covers that case and one AUTOINCREMENT never
+--    could — an ABORTED append still consumes its AUTOINCREMENT value, leaving a permanent hole
+--    that a subscriber cannot distinguish from an append still in flight.
 --
 --    EventData and Metadata are BLOB because the configured serializer may be binary (MemoryPack
 --    is a package dependency, not only JSON). Metadata is nullable: an event carrying no metadata
@@ -97,7 +101,7 @@
 --    same shape PostgreSQL converges to in 005_MakeEventStreamIdentityTenantScoped.sql.
 -- ---------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS [Events] (
-    GlobalPosition INTEGER PRIMARY KEY AUTOINCREMENT,
+    GlobalPosition INTEGER PRIMARY KEY,
     EventId TEXT NOT NULL,
     AggregateId TEXT NOT NULL,
     AggregateType TEXT NOT NULL,
@@ -121,6 +125,30 @@ CREATE TABLE IF NOT EXISTS [Events] (
 -- then here.
 CREATE INDEX IF NOT EXISTS IX_Events_AggregateId
     ON [Events] (AggregateId, AggregateType, Version);
+
+-- ---------------------------------------------------------------------------------------
+-- 1b) Events_Position — the global position counter.
+--
+--    Positions are allocated by UPDATEing this row inside the appending transaction. The
+--    increment rolls back with the transaction, so an aborted append burns no position and the
+--    committed stream is always a contiguous prefix {1..k} with no holes. A subscriber may
+--    therefore advance its high-water mark to any position it has observed committed, and a hole
+--    is not a case to handle — it is a bug to report loudly.
+--
+--    The CHECK makes a second counter row unrepresentable: two counters would reintroduce gaps.
+--    The seed reads the table's own high-water mark rather than 0, because GlobalPosition is the
+--    PRIMARY KEY — a counter seeded at 0 against a database that already holds events would
+--    reissue existing values and every append would fail on the key.
+--
+--    This mirrors SqliteTableInitializer.PositionTableDdl; the two must stay identical.
+-- ---------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS [Events_Position] (
+    Id INTEGER PRIMARY KEY CHECK (Id = 1),
+    Value INTEGER NOT NULL
+);
+
+INSERT OR IGNORE INTO [Events_Position] (Id, Value)
+SELECT 1, COALESCE((SELECT MAX(GlobalPosition) FROM [Events]), 0);
 
 -- ---------------------------------------------------------------------------------------
 -- 2) Snapshots — the latest materialized aggregate state, one row per (aggregate, tenant).

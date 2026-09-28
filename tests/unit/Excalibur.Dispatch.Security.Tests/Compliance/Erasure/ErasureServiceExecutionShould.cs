@@ -294,19 +294,28 @@ public sealed class ErasureServiceExecutionShould
 	}
 
 	/// <summary>
-	/// Regression test for Sprint 672 B.1: GenerateCertificateAsync must reject
-	/// PartiallyCompleted status. Previously, code used IsExecuted (which includes
-	/// PartiallyCompleted) as the gate, allowing compliance certificates for
-	/// partially completed erasures. The fix checks for Completed explicitly.
+	/// A partial erasure is evidenced by the certificate written on the EXECUTION path, and only by it.
+	/// When no such certificate exists, this method must refuse rather than RECONSTRUCT one: the
+	/// reconstruction rebuilds from persisted status, which carries counts and one joined error string
+	/// and cannot name which store kind went unreached -- so a reconstructed certificate would attest a
+	/// partial erasure while being silent about the part that did not happen.
 	/// </summary>
+	/// <remarks>
+	/// The null stub below is load-bearing, not arrangement noise. An unconfigured fake returns a DUMMY
+	/// certificate rather than null, which satisfies the "already issued" branch and makes this arm pass
+	/// without ever reaching the refusal it is named for. Stating "no certificate was written" is what
+	/// puts the arm on the predicate it claims to test.
+	/// </remarks>
 	[Fact]
 	public async Task GenerateCertificateAsync_ThrowsInvalidOperationException_WhenPartiallyCompleted()
 	{
-		// Arrange -- PartiallyCompleted is NOT eligible for certificate generation
+		// Arrange -- PartiallyCompleted, and NOTHING was written on the execution path
 		var requestId = Guid.NewGuid();
 		var status = CreateErasureStatus(requestId, ErasureRequestStatus.PartiallyCompleted);
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
+		A.CallTo(() => _certStore.GetCertificateAsync(requestId, A<CancellationToken>._))
+			.Returns(Task.FromResult<ErasureCertificate?>(null));
 
 		// Act & Assert -- must throw, not silently generate a cert for partial erasure
 		var ex = await Should.ThrowAsync<InvalidOperationException>(
@@ -334,6 +343,11 @@ public sealed class ErasureServiceExecutionShould
 		var status = CreateErasureStatus(requestId, nonCompletedStatus);
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
+		// No certificate was written on the execution path. An unconfigured fake would hand back a DUMMY
+		// certificate, which the already-issued branch returns -- so without this the PartiallyCompleted
+		// case never reaches the refusal and the row passes vacuously.
+		A.CallTo(() => _certStore.GetCertificateAsync(requestId, A<CancellationToken>._))
+			.Returns(Task.FromResult<ErasureCertificate?>(null));
 
 		// Act & Assert
 		await Should.ThrowAsync<InvalidOperationException>(

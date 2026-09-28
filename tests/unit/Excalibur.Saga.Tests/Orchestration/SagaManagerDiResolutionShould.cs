@@ -188,14 +188,14 @@ public sealed class SagaManagerDiResolutionShould : UnitTestBase
 	{
 		public override bool HandlesEvent(object eventMessage) => eventMessage is DiTestEvent;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
 			if (eventMessage is DiTestEvent evt)
 			{
 				State.ProcessedData = evt.Data;
 			}
 
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 
@@ -211,11 +211,11 @@ public sealed class SagaManagerDiResolutionShould : UnitTestBase
 	{
 		public override bool HandlesEvent(object eventMessage) => true;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
 			// Logger should not be null — verify it was injected
 			logger.LogInformation("DiLoggerTestSaga handled event");
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 

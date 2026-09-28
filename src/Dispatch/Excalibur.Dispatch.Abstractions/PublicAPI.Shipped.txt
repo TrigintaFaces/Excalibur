@@ -1292,7 +1292,7 @@ Excalibur.Dispatch.Messaging.IMessageContextPool.Rent() -> Excalibur.Dispatch.IM
 Excalibur.Dispatch.Messaging.IMessageContextPool.Rent(Excalibur.Dispatch.IDispatchMessage! message) -> Excalibur.Dispatch.IMessageContext!
 Excalibur.Dispatch.Messaging.IMessageContextPool.ReturnToPool(Excalibur.Dispatch.IMessageContext! context) -> void
 Excalibur.Dispatch.Messaging.ISaga
-Excalibur.Dispatch.Messaging.ISaga.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Messaging.ISaga.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Messaging.SagaEventOutcome>!
 Excalibur.Dispatch.Messaging.ISaga.HandlesEvent(object! eventMessage) -> bool
 Excalibur.Dispatch.Messaging.ISaga.Id.get -> System.Guid
 Excalibur.Dispatch.Messaging.ISaga.IsCompleted.get -> bool
@@ -1338,6 +1338,9 @@ Excalibur.Dispatch.Messaging.MessageContext.ValidationResult.get -> Excalibur.Di
 Excalibur.Dispatch.Messaging.MessageContext.ValidationResult.set -> void
 Excalibur.Dispatch.Messaging.MessageContext.VersionMetadata.get -> Excalibur.Dispatch.IMessageVersionMetadata!
 Excalibur.Dispatch.Messaging.MessageContext.VersionMetadata.set -> void
+Excalibur.Dispatch.Messaging.SagaEventOutcome
+Excalibur.Dispatch.Messaging.SagaEventOutcome.Declined = 0 -> Excalibur.Dispatch.Messaging.SagaEventOutcome
+Excalibur.Dispatch.Messaging.SagaEventOutcome.Handled = 1 -> Excalibur.Dispatch.Messaging.SagaEventOutcome
 Excalibur.Dispatch.Messaging.SagaInfo
 Excalibur.Dispatch.Messaging.SagaInfo.GetHandledEvents() -> System.Collections.Generic.IEnumerable<System.Type!>!
 Excalibur.Dispatch.Messaging.SagaInfo.Handles<TEvent>() -> Excalibur.Dispatch.Messaging.SagaInfo!
@@ -1376,6 +1379,7 @@ Excalibur.Dispatch.Messaging.SagaState.Completed.get -> bool
 Excalibur.Dispatch.Messaging.SagaState.Completed.set -> void
 Excalibur.Dispatch.Messaging.SagaState.CompletedAt.get -> System.DateTimeOffset?
 Excalibur.Dispatch.Messaging.SagaState.CompletedAt.set -> void
+Excalibur.Dispatch.Messaging.SagaState.HasProcessedEvent(string! eventId) -> bool
 Excalibur.Dispatch.Messaging.SagaState.ProcessedEventIds.get -> System.Collections.Generic.ISet<string!>!
 Excalibur.Dispatch.Messaging.SagaState.ProcessedEventIds.init -> void
 Excalibur.Dispatch.Messaging.SagaState.SagaId.get -> System.Guid

@@ -59,7 +59,11 @@ namespace Excalibur.Saga.StateMachine;
 ///}
 /// </code>
 /// <para>
-/// The <see cref="CurrentState" /> is automatically persisted as part of the saga state via the <see cref="CurrentStateName" /> property
+/// The <see cref="CurrentState" /> IS persisted, because it lives in the saga state: <typeparamref name="TData" />
+/// derives from <see cref="ProcessManagerState" />, which carries the position. Earlier releases claimed this
+/// was automatic while holding the position in a field that was re-initialised on every delivery, so a
+/// multi-state process manager resumed at "Initial" on its second message. There is now one representation
+/// of the position and the type system requires it
 /// which should be added to your TData class.
 /// </para>
 /// </remarks>
@@ -70,47 +74,20 @@ public abstract class ProcessManager<TData>(
 	TData initialState,
 	IDispatcher dispatcher,
 	ILogger logger) : Orchestration.SagaBase<TData>(initialState, dispatcher, logger)
-	where TData : SagaState
+	where TData : ProcessManagerState
 {
 	private const int MaxCacheEntries = 1024;
 
 	private static readonly ConcurrentDictionary<Type, HandlerReflectionInfo> HandlerReflectionCache = new();
 
 	private readonly Dictionary<string, StateDefinition<TData>> _states = new(StringComparer.OrdinalIgnoreCase);
-	private string _currentState = "Initial";
 
 	/// <summary>
 	/// Gets the name of the current state in the state machine.
 	/// </summary>
 	/// <value> The current state name. </value>
-	public string CurrentState => _currentState;
+	public string CurrentState => State.CurrentStateName;
 
-	/// <summary>
-	/// Gets or sets the name of the current state for persistence purposes.
-	/// </summary>
-	/// <value> The current state name to be persisted with saga data. </value>
-	/// <remarks>
-	/// <para> To persist the state machine position, add a property to your TData class: </para>
-	/// <code>
-	///public class OrderData : SagaState
-	///{
-	///public string CurrentStateName { get; set; } = "Initial";
-	///}
-	/// </code>
-	/// <para> Then override this property to read/write from that field: </para>
-	/// <code>
-	///protected override string CurrentStateName
-	///{
-	///get =&gt; State.CurrentStateName;
-	///set =&gt; State.CurrentStateName = value;
-	///}
-	/// </code>
-	/// </remarks>
-	protected virtual string CurrentStateName
-	{
-		get => _currentState;
-		set => _currentState = value;
-	}
 
 	/// <inheritdoc />
 	public override bool HandlesEvent(object eventMessage)
@@ -118,7 +95,7 @@ public abstract class ProcessManager<TData>(
 		ArgumentNullException.ThrowIfNull(eventMessage);
 
 		// Check if current state has a handler for this message type
-		if (!_states.TryGetValue(_currentState, out var state))
+		if (!_states.TryGetValue(State.CurrentStateName, out var state))
 		{
 			return false;
 		}
@@ -131,25 +108,25 @@ public abstract class ProcessManager<TData>(
 		Justification = "Process manager fundamentally requires reflection for state machine handler invocation")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Process manager fundamentally requires runtime code generation for state machine handler invocation")]
-	public override async Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+	public override async Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(eventMessage);
 
-		if (!_states.TryGetValue(_currentState, out var state))
+		if (!_states.TryGetValue(State.CurrentStateName, out var state))
 		{
-			throw new InvalidStateTransitionException(_currentState, _currentState, eventMessage.GetType());
+			throw new InvalidStateTransitionException(State.CurrentStateName, State.CurrentStateName, eventMessage.GetType());
 		}
 
 		// Get handler for this message type using reflection to call the generic method
 		var messageType = eventMessage.GetType();
 		var handler = state.GetHandlerForType(messageType)
 					  ?? throw new InvalidStateTransitionException(
-						  _currentState,
-						  _currentState,
+						  State.CurrentStateName,
+						  State.CurrentStateName,
 						  messageType);
 
 		// Use reflection to invoke the handler since we don't know TMessage at compile time
-		await InvokeHandlerAsync(handler, eventMessage, cancellationToken).ConfigureAwait(false);
+		return await InvokeHandlerAsync(handler, eventMessage, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -180,18 +157,17 @@ public abstract class ProcessManager<TData>(
 
 		if (!_states.TryGetValue(stateName, out var targetState))
 		{
-			throw new InvalidStateTransitionException(_currentState, stateName, null);
+			throw new InvalidStateTransitionException(State.CurrentStateName, stateName, null);
 		}
 
 		// Invoke OnExit on current state if defined
-		if (_states.TryGetValue(_currentState, out var currentStateDefinition))
+		if (_states.TryGetValue(State.CurrentStateName, out var currentStateDefinition))
 		{
 			currentStateDefinition.InvokeOnExit(State);
 		}
 
 		// Transition to new state
-		_currentState = stateName;
-		CurrentStateName = stateName;
+		State.CurrentStateName = stateName;
 
 		// Invoke OnEnter on new state
 		targetState.InvokeOnEnter(State);
@@ -255,7 +231,7 @@ public abstract class ProcessManager<TData>(
 
 	[RequiresDynamicCode("Process manager uses MakeGenericType and Activator.CreateInstance to wire state machine handlers at runtime")]
 	[RequiresUnreferencedCode("Process manager uses reflection (GetMethod, GetProperty, Invoke) to wire state machine handlers at runtime")]
-	private async Task InvokeHandlerAsync(object handler, object message, CancellationToken cancellationToken)
+	private async Task<SagaEventOutcome> InvokeHandlerAsync(object handler, object message, CancellationToken cancellationToken)
 	{
 		// Get the generic types from the handler
 		var handlerType = handler.GetType();
@@ -283,7 +259,11 @@ public abstract class ProcessManager<TData>(
 
 		if (!shouldHandle)
 		{
-			return; // Condition not met, skip this handler
+			// DECLINED, and reported as such. This used to be a bare `return`, which the coordinator
+			// could not distinguish from the handler having run -- so it recorded the event as processed
+			// and persisted that record, permanently retiring a message no handler had touched. A message
+			// arriving before its guard is satisfiable is DEFERRED, not discarded.
+			return SagaEventOutcome.Declined;
 		}
 
 		// Execute actions
@@ -304,6 +284,10 @@ public abstract class ProcessManager<TData>(
 		{
 			await MarkCompletedAsync(cancellationToken).ConfigureAwait(false);
 		}
+
+		// The actions ran, so the event WAS acted on. Only this path reports Handled, and only a
+		// Handled event is recorded as processed.
+		return SagaEventOutcome.Handled;
 	}
 
 	/// <summary>

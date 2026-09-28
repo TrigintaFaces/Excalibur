@@ -62,6 +62,17 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	// rolls _currentPosition back to this so it resumes from the durable checkpoint and reprocesses the
 	// un-checkpointed events — the checkpoint, not the in-memory position, is the source of truth.
 	private GlobalStreamPosition _checkpointedPosition = GlobalStreamPosition.Start;
+
+	/// <summary>
+	/// The position this host last saw DURABLY stored, or null when it has never stored one.
+	/// </summary>
+	/// <remarks>
+	/// Kept separately from <see cref="_checkpointedPosition"/> because that field cannot express "no
+	/// checkpoint yet" -- it defaults to position 0, which is also a legitimate stored value. The
+	/// compare-and-set needs those two states distinguished: a host that believes no checkpoint exists
+	/// must lose to a writer that has since created one.
+	/// </remarks>
+	private long? _durableCheckpoint;
 	private long _eventsSinceCheckpoint;
 
 	/// <summary>
@@ -116,6 +127,28 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		return _upcastingPipeline.Upcast(domainEvent) as IDomainEvent ?? domainEvent;
 	}
 
+	/// <summary>
+	/// The checkpoint key for this host, derived from <typeparamref name="TState"/> unless the consumer
+	/// named it explicitly.
+	/// </summary>
+	/// <remarks>
+	/// A checkpoint is keyed by name, so two hosts sharing a name share one mark. This type is generic and
+	/// is registered once per state type, so the state type is a name that is unique by construction —
+	/// deriving it makes the collision inexpressible rather than merely discouraged. An explicit name
+	/// still wins, which is what a consumer running two hosts over the same state type needs.
+	/// </remarks>
+	private string SubscriptionName
+	{
+		get
+		{
+			var configured = _options.Value.ProjectionName;
+			return string.IsNullOrWhiteSpace(configured)
+				|| string.Equals(configured, GlobalStreamProjectionOptions.DefaultProjectionName, StringComparison.Ordinal)
+					? "GlobalStreamProjection:" + typeof(TState).FullName
+					: configured;
+		}
+	}
+
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("AOT", "IL3050",
 		Justification = "Event deserialization is inherently dynamic; projection host requires runtime type resolution.")]
@@ -131,7 +164,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		await using (var restoreScope = _scopeFactory.CreateAsyncScope())
 		{
 			var restoreCheckpointStore = restoreScope.ServiceProvider.GetRequiredService<ISubscriptionCheckpointStore>();
-			lastCheckpoint = await restoreCheckpointStore.GetCheckpointAsync(opts.ProjectionName, stoppingToken)
+			lastCheckpoint = await restoreCheckpointStore.GetCheckpointAsync(SubscriptionName, stoppingToken)
 				.ConfigureAwait(false);
 		}
 
@@ -141,7 +174,9 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			_checkpointedPosition = _currentPosition;
 		}
 
-		LogProjectionHostStarted(opts.ProjectionName);
+		_durableCheckpoint = lastCheckpoint;
+
+		LogProjectionHostStarted(SubscriptionName);
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
@@ -204,7 +239,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 						}
 
 						lastGoodPosition = new GlobalStreamPosition(
-							storedEvent.GlobalPosition + 1,
+							storedEvent.GlobalPosition,
 							storedEvent.Timestamp);
 						_eventsSinceCheckpoint++;
 						continue;
@@ -226,7 +261,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					{
 						// Poison event: record + mark unhealthy, then HALT this batch at the failed event.
 						// We do NOT advance past it (no silent skip, no checkpoint past an unapplied event).
-						LogEventProcessingError(opts.ProjectionName, storedEvent.EventId, ex);
+						LogEventProcessingError(SubscriptionName, storedEvent.EventId, ex);
 						try
 						{
 							_observability?.RecordError(typeof(TState).Name, ex.GetType().Name);
@@ -258,7 +293,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					}
 
 					lastGoodPosition = new GlobalStreamPosition(
-						storedEvent.GlobalPosition + 1,
+						storedEvent.GlobalPosition,
 						storedEvent.Timestamp);
 					_eventsSinceCheckpoint++;
 				}
@@ -287,19 +322,49 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					if (cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 					{
 						await cursorMapStore.SaveCursorMapAsync(
-								opts.ProjectionName, _pendingCursorUpdates, stoppingToken)
+								SubscriptionName, _pendingCursorUpdates, stoppingToken)
 							.ConfigureAwait(false);
 						_pendingCursorUpdates.Clear();
 					}
 
-					await checkpointStore.StoreCheckpointAsync(
-							opts.ProjectionName, _currentPosition.Position, stoppingToken)
+					// Compare-and-set, not a blind write. If another reader of this subscription has moved
+					// the checkpoint since we last saw it, writing ours would drag the mark BACKWARDS and
+					// the whole span between the two positions would be delivered again.
+					var outcome = await checkpointStore.AdvanceCheckpointAsync(
+							SubscriptionName, _durableCheckpoint, _currentPosition.Position, stoppingToken)
 						.ConfigureAwait(false);
 
+					if (outcome == CheckpointAdvanceOutcome.Superseded)
+					{
+						// STAND BY, DO NOT EXIT. Returning here ends the background service permanently,
+						// and that is only safe if the winner is guaranteed to keep running. Nothing
+						// guarantees it: after a rolling deploy the surviving process would be the one
+						// that stood down, no reader would be processing this subscription, and the
+						// application would still report healthy. A permanent exit turns a transient
+						// overlap into a permanent stall, which is the worse failure precisely because
+						// nothing downstream can detect it.
+						LogCheckpointSuperseded(SubscriptionName, _currentPosition.Position);
+
+						// Adopt the winner's mark so this reader stops re-reading the span already
+						// covered, then keep polling. If the winner stops, this reader takes over.
+						_durableCheckpoint = await checkpointStore
+							.GetCheckpointAsync(SubscriptionName, stoppingToken).ConfigureAwait(false);
+
+						if (_durableCheckpoint is { } winnersMark)
+						{
+							_currentPosition = new GlobalStreamPosition(winnersMark, DateTimeOffset.MinValue);
+							_checkpointedPosition = _currentPosition;
+						}
+
+						_eventsSinceCheckpoint = 0;
+						continue;
+					}
+
 					// The checkpoint is now durable — record it as the rollback target.
+					_durableCheckpoint = _currentPosition.Position;
 					_checkpointedPosition = _currentPosition;
 
-					LogCheckpointSaved(opts.ProjectionName, _currentPosition.Position);
+					LogCheckpointSaved(SubscriptionName, _currentPosition.Position);
 					_eventsSinceCheckpoint = 0;
 				}
 
@@ -313,7 +378,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					/* swallow */
 				}
 
-				LogBatchProcessed(opts.ProjectionName, events.Count, _currentPosition.Position);
+				LogBatchProcessed(SubscriptionName, events.Count, _currentPosition.Position);
 
 				// On a poison event, back off before re-reading so we don't tight-loop on a permanent
 				// failure; the next read resumes from the unadvanced checkpoint (reprocess, not skip).
@@ -328,7 +393,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			}
 			catch (Exception ex)
 			{
-				LogProjectionHostError(opts.ProjectionName, ex);
+				LogProjectionHostError(SubscriptionName, ex);
 
 				// Roll back to the last durably-checkpointed position and discard the pending cursor updates
 				// for the un-checkpointed batch. A failed flush (cursor-map OR checkpoint write) must never
@@ -361,26 +426,37 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				if (cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 				{
 					await cursorMapStore.SaveCursorMapAsync(
-							opts.ProjectionName, _pendingCursorUpdates, CancellationToken.None)
+							SubscriptionName, _pendingCursorUpdates, CancellationToken.None)
 						.ConfigureAwait(false);
 					_pendingCursorUpdates.Clear();
 				}
 
-				await checkpointStore.StoreCheckpointAsync(
-						opts.ProjectionName, _currentPosition.Position, CancellationToken.None)
+				var shutdownOutcome = await checkpointStore.AdvanceCheckpointAsync(
+						SubscriptionName, _durableCheckpoint, _currentPosition.Position, CancellationToken.None)
 					.ConfigureAwait(false);
 
-				_checkpointedPosition = _currentPosition;
+				if (shutdownOutcome == CheckpointAdvanceOutcome.Superseded)
+				{
+					// We are shutting down anyway, so there is nothing to stop. Record it: a superseded
+					// shutdown write means another reader took this subscription over while we ran, which
+					// is worth knowing when reconciling what each instance processed.
+					LogCheckpointSuperseded(SubscriptionName, _currentPosition.Position);
+				}
+				else
+				{
+					_durableCheckpoint = _currentPosition.Position;
+					_checkpointedPosition = _currentPosition;
 
-				LogCheckpointSaved(opts.ProjectionName, _currentPosition.Position);
+					LogCheckpointSaved(SubscriptionName, _currentPosition.Position);
+				}
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
-				LogProjectionHostError(opts.ProjectionName, ex);
+				LogProjectionHostError(SubscriptionName, ex);
 			}
 		}
 
-		LogProjectionHostStopped(opts.ProjectionName);
+		LogProjectionHostStopped(SubscriptionName);
 	}
 
 	#region Logging
@@ -396,6 +472,11 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	[LoggerMessage(EventSourcingEventId.ProjectionCheckpointSaved, LogLevel.Debug,
 		"Checkpoint saved for {ProjectionName} at position {Position}")]
 	private partial void LogCheckpointSaved(string projectionName, long position);
+
+	[LoggerMessage(EventSourcingEventId.ProjectionCheckpointSuperseded, LogLevel.Warning,
+		"Projection {ProjectionName} could not advance its checkpoint to {Position}: another reader has "
+		+ "moved it. This host is standing down; the other reader owns the subscription.")]
+	private partial void LogCheckpointSuperseded(string projectionName, long position);
 
 	[LoggerMessage(EventSourcingEventId.ProjectionBatchProcessed, LogLevel.Debug,
 		"Batch of {EventCount} events processed for {ProjectionName}, position now at {Position}")]

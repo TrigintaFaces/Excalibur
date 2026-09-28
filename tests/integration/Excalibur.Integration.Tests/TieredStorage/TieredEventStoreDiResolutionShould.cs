@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Tests.Shared.Infrastructure;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.EventSourcing;
@@ -65,7 +66,7 @@ public sealed class TieredEventStoreDiResolutionShould : IAsyncLifetime
 		{
 			_sqlContainer = new MsSqlBuilder()
 				.WithBoundedMemory()
-				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+				.WithImage(TestContainerImages.SqlServer2022)
 				.WithName($"mssql-tiered-di-{Guid.NewGuid():N}")
 				.WithPassword("Test@Pass123")
 				.WithCleanUp(true)
@@ -176,19 +177,27 @@ public sealed class TieredEventStoreDiResolutionShould : IAsyncLifetime
 		var tenant = KeyedTenantPartition.FromContext(provider.GetRequiredService<ITenantContext>());
 		_ = await coldStore.WriteAsync(tenant, AggregateId, hotEvents, CancellationToken.None).ConfigureAwait(false);
 
-		// 3. Trim the hot tier - mirrors what EventArchiveService does after a durable cold write. Deleted on
-		// the RAW SQL Server table directly (the hot store's own contract has no delete operation).
+		// 3. Tombstone the hot tier - mirrors what EventArchiveService does after a durable cold write.
+		// Archival moves the PAYLOAD and leaves the ROW, so the global stream keeps no holes; a DELETE
+		// here would model an archive semantics the store no longer has, and this arm would be proving
+		// read-through for a situation that cannot arise.
 		await using (var connection = new SqlConnection(_sqlConnectionString))
 		{
 			await connection.OpenAsync().ConfigureAwait(false);
 			await using var command = new SqlCommand(
-				"DELETE FROM [dbo].[EventStoreEvents] WHERE AggregateId = @AggregateId", connection);
+				"UPDATE [dbo].[EventStoreEvents] SET EventData = NULL, ArchivedAt = SYSDATETIMEOFFSET() "
+				+ "WHERE AggregateId = @AggregateId AND EventData IS NOT NULL",
+				connection);
 			_ = command.Parameters.AddWithValue("@AggregateId", AggregateId);
 			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 
-		(await rawHot.LoadAsync(AggregateId, AggregateType, CancellationToken.None).ConfigureAwait(false))
-			.Count.ShouldBe(0, "the hot tier must be empty after the trim, or this arm proves nothing about cold read-through");
+		var trimmed = await rawHot.LoadAsync(AggregateId, AggregateType, CancellationToken.None)
+			.ConfigureAwait(false);
+		trimmed.Count.ShouldBe(3, "archival keeps every ROW; only the payload moves to cold");
+		trimmed.ShouldAllBe(
+			e => e.EventData == null,
+			"every payload must have left the hot tier, or this arm proves nothing about cold read-through");
 
 		// 4. LIVENESS: the DI-resolved decorator still returns all 3 events - read through to the REAL cold
 		// store. A DI factory that dropped IColdEventStore, or a wiring bug that bound the RAW hot store to

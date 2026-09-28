@@ -10,6 +10,7 @@ using Microsoft.Azure.Cosmos.Fluent;
 using Testcontainers.CosmosDb;
 
 using Tests.Shared.Fixtures;
+using Excalibur.Integration.Tests.Infrastructure;
 
 namespace Excalibur.Integration.Tests.Data.Snapshots;
 
@@ -139,6 +140,12 @@ public sealed class CosmosDbSnapshotStoreContainerFixture : ContainerFixtureBase
 			{
 				_ = await _client!.CreateDatabaseIfNotExistsAsync(DatabaseName, cancellationToken: cancellationToken)
 					.ConfigureAwait(false);
+				
+				// Past the handshake, so this cannot be written by a run that never reached the
+				// emulator. CI reads these records to prove the Cosmos suites actually executed --
+				// a counter cannot, because an early return on an availability guard still counts
+				// as executed and passed.
+				CosmosExecutionEvidence.RecordEmulatorReached(nameof(CosmosDbSnapshotStoreContainerFixture));
 				return;
 			}
 			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.ServiceUnavailable)

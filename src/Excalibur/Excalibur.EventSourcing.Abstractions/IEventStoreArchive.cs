@@ -83,7 +83,7 @@ public interface IEventStoreArchive
 	/// archived.
 	/// </para>
 	/// </remarks>
-	Task<int> DeleteEventsUpToVersionAsync(
+	Task<int> TombstoneArchivedEventsUpToVersionAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
 		string aggregateType,

@@ -8,7 +8,7 @@ using Dapper;
 using Excalibur.Data;
 using Excalibur.Dispatch;
 
-namespace Excalibur.EventSourcing.SqlServer.Requests;
+namespace Excalibur.EventSourcing.Postgres.Requests;
 
 /// <summary>
 /// Data request that deletes hot-tier events up to and including a version, for one tenant's aggregate.
@@ -21,45 +21,59 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// by aggregate identifier alone would remove every tenant's events for that identifier, destroying events
 /// this run never archived.
 /// </remarks>
-public sealed class DeleteEventsUpToVersionRequest : DataRequestBase<IDbConnection, int>
+public sealed class TombstoneArchivedEventsRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>
-	/// Initializes a new instance of the <see cref="DeleteEventsUpToVersionRequest"/> class.
+	/// Initializes a new instance of the <see cref="TombstoneArchivedEventsRequest"/> class.
 	/// </summary>
 	/// <param name="tenant">The tenant partition whose events are to be deleted.</param>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="toVersion">The version up to which events are deleted (inclusive).</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	/// <param name="schema">The schema name for the event store table. Default: "dbo".</param>
-	/// <param name="table">The event store table name. Default: "EventStoreEvents".</param>
-	public DeleteEventsUpToVersionRequest(
+	/// <param name="schema">The schema name for the event store table. Default: "public".</param>
+	/// <param name="table">The event store table name. Default: "event_store_events".</param>
+	public TombstoneArchivedEventsRequest(
 		KeyedTenantPartition tenant,
 		string aggregateId,
 		string aggregateType,
 		long toVersion,
 		CancellationToken cancellationToken,
-		string schema = "dbo",
-		string table = "EventStoreEvents")
+		string schema = "public",
+		string table = "event_store_events")
 	{
 		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
-		var qualifiedTable = SqlTableName.Format(schema, table);
+		var qualifiedTable = PgTableName.Format(schema, table);
 
-		// The tenant predicate is emitted unconditionally and is NULL-safe on the column side: a legacy NULL
-		// tenant (a pre-migration untenanted row not yet backfilled) folds to the reserved sentinel, matching
-		// the erase and load siblings. A bare `= @TenantId` would skip those rows and leave them undeleted
-		// after their events were archived; an omitted predicate would delete across every tenant.
-		const string tenantPredicate = " AND COALESCE(TenantId, @UntenantedSentinel) = @TenantId";
+		// Unconditional and NULL-safe on the column side: a legacy NULL tenant (a pre-migration untenanted
+		// row not yet backfilled) folds to the reserved sentinel, matching the erase and load siblings. A
+		// bare `= @TenantId` would skip those rows and leave their payloads in the hot store
+		// after they were archived; an omitted predicate would tombstone across every tenant.
+		const string tenantPredicate = " AND COALESCE(tenant_id, @UntenantedSentinel) = @TenantId";
 
-#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		// TOMBSTONE, not DELETE. The payload goes; the row, its version and its position stay, so the
+		// global stream keeps no holes and a projection rebuild still sees every event in order.
+		//
+		// `event_data IS NOT NULL` is load-bearing rather than an optimisation. A row whose payload is
+		// already NULL was ERASED under a data-subject request, and stamping archived_at on it would
+		// claim the payload is retrievable from cold storage when it is gone forever. It also makes
+		// this statement idempotent: re-running it tombstones nothing twice.
+		//
+		// The timestamp comes from the DATABASE clock, not the application's. It records when the row
+		// was tombstoned in the store's own timeline, so it cannot disagree with the row's other
+		// timestamps because an app server's clock drifted.
 		var sql = $"""
-			DELETE FROM {qualifiedTable}
-			WHERE AggregateId = @AggregateId
-			  AND AggregateType = @AggregateType
-			  AND Version <= @ToVersion{tenantPredicate}
+			UPDATE {qualifiedTable}
+			SET event_data = NULL,
+			    archived_at = now()
+			WHERE aggregate_id = @AggregateId
+			  AND aggregate_type = @AggregateType
+			  AND version <= @ToVersion
+			  AND event_data IS NOT NULL{tenantPredicate}
 			""";
 #pragma warning restore CA2100
 

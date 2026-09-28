@@ -49,7 +49,7 @@ internal static class SagaContextFactoryRegistry
 	/// <typeparam name="TData">The saga state data type.</typeparam>
 	/// <typeparam name="TMessage">The message type.</typeparam>
 	internal static void Register<TData, TMessage>()
-		where TData : SagaState
+		where TData : ProcessManagerState
 		where TMessage : class
 	{
 		if (_frozen)

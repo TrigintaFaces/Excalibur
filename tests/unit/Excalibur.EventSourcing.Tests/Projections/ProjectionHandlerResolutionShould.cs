@@ -41,7 +41,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-1", "Order", 1, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert
 		var projected = store.Get("order-1");
@@ -75,7 +75,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-1", "Order", 1, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert
 		var projected = store.Get("order-1");
@@ -115,7 +115,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert
 		var projected = store.Get("order-1");
@@ -149,7 +149,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- only the handled event was applied
 		var projected = store.Get("order-1");
@@ -183,7 +183,7 @@ public sealed class ProjectionHandlerResolutionShould
 
 		// Act & Assert -- exception propagates, not swallowed
 		var ex = await Should.ThrowAsync<InvalidOperationException>(
-			() => registration.InlineApply!(events, context, services, CancellationToken.None));
+			() => registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
 		ex.Message.ShouldContain("Handler failed intentionally");
 	}
 
@@ -210,7 +210,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-1", "Order", 3, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- both default and overridden IDs should have projections
 		var defaultProjection = store.Get("order-1");
@@ -329,7 +329,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert
 		var projected = store.Get("order-1");
@@ -364,7 +364,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-1", "Order", 3, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- last event wins on Total, all 3 incremented EventCount
 		var projected = store.Get("order-1");
@@ -402,7 +402,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- default ID projection has both events applied
 		var defaultProjection = store.Get("order-1");
@@ -453,7 +453,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-99", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- no projection should exist (store was never written to)
 		store.Get("order-99").ShouldBeNull();
@@ -485,7 +485,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-empty", "Order", 0, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- no projection should exist
 		store.Get("order-empty").ShouldBeNull();
@@ -524,7 +524,7 @@ public sealed class ProjectionHandlerResolutionShould
 		var context = new EventNotificationContext("order-50", "Order", 3, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events, context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- only the one handled event should have been applied
 		var projected = store.Get("order-50");

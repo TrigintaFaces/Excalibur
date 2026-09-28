@@ -57,7 +57,7 @@ public class ProjectionHandlerBenchmarks
 			EventType = "BenchEvent",
 			Amount = 42m
 		};
-		_context = new ProjectionHandlerContext("agg-1", "Bench", 1, DateTimeOffset.UtcNow);
+		_context = new ProjectionHandlerContext("agg-1", "Bench", 1, DateTimeOffset.UtcNow, isReplay: false);
 
 		// Tier 1: Sync lambda projection (via public API)
 		_syncProjection = new MultiStreamProjection<BenchProjection>();

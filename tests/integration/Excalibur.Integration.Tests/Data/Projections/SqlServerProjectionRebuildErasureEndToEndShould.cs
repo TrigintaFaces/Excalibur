@@ -185,7 +185,7 @@ public sealed class SqlServerProjectionRebuildErasureEndToEndShould
 
 		// The real erasure path, through the real contributor - the tombstone is whatever production writes,
 		// not a marker this arm hand-builds.
-		var erasure = await provider.GetRequiredService<IErasureContributor>()
+		var erasure = await provider.EventStoreErasureContributor()
 			.EraseAsync(
 				new ErasureContributorContext
 				{

@@ -52,11 +52,19 @@ public sealed partial class SubjectAccessService : ISubjectAccessService
 		var result = new SubjectAccessResult
 		{
 			RequestId = requestId,
-			Status = _options.Value.AutoFulfill
-				? SubjectAccessRequestStatus.Fulfilled
-				: SubjectAccessRequestStatus.Pending,
+			// A request is PENDING when it is created. Always.
+			//
+			// This used to read the AutoFulfill option and, when set, report Fulfilled with FulfilledAt =
+			// UtcNow at the instant of creation -- nothing gathered, nothing sent, an Article 15 obligation
+			// declared discharged by a configuration flag. The audience for that answer is a regulator.
+			//
+			// Fulfilment is an ACT, and the consumer performs it: they gather the data, send it, and then
+			// call FulfillRequestAsync to record that it happened. That method already exists and already
+			// refuses to fulfil twice, so nothing is lost by removing the flag -- only the ability to claim
+			// an outcome nobody produced.
+			Status = SubjectAccessRequestStatus.Pending,
 			Deadline = deadline,
-			FulfilledAt = _options.Value.AutoFulfill ? DateTimeOffset.UtcNow : null
+			FulfilledAt = null
 		};
 
 		_requests[requestId] = result;

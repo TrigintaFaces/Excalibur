@@ -24,17 +24,54 @@ public sealed class ProjectionHandlerContext
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="committedVersion">The aggregate version after commit.</param>
 	/// <param name="timestamp">The UTC timestamp of the notification.</param>
+	/// <param name="isReplay">
+	/// <see langword="true"/> when this event is being re-applied by a rebuild or a recovery rather
+	/// than delivered live.
+	/// </param>
 	public ProjectionHandlerContext(
 		string aggregateId,
 		string aggregateType,
 		long committedVersion,
-		DateTimeOffset timestamp)
+		DateTimeOffset timestamp,
+		bool isReplay)
 	{
 		AggregateId = aggregateId;
 		AggregateType = aggregateType;
 		CommittedVersion = committedVersion;
 		Timestamp = timestamp;
+		IsReplay = isReplay;
 	}
+
+	/// <summary>
+	/// Gets a value indicating whether this event is being RE-APPLIED rather than delivered live.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A rebuild or a recovery re-runs every handler over history. An asynchronous handler is
+	/// arbitrary code with arbitrary side effects -- it may send mail, call a payment provider, or
+	/// publish a message -- and without this flag it cannot tell a replay from a first delivery, so it
+	/// performs those effects again.
+	/// </para>
+	/// <para>
+	/// It is a REQUIRED constructor parameter rather than an optional one with a default. A default of
+	/// <see langword="false"/> is correct for the common case and wrong for the dangerous one, and the
+	/// dangerous one is the path nobody is looking at when they add a call site.
+	/// </para>
+	/// <para>
+	/// <b>This deliberately diverges from the sibling <c>EventNotificationContext</c></b>, which
+	/// carries the same flag with a default of <see langword="false"/>. That type is a record with
+	/// init-only members constructed in many places, where the default buys real ergonomics. This one
+	/// has two construction sites in the framework, so the ergonomic saving is nil and the safety is
+	/// not. The divergence is a choice, not an oversight.
+	/// </para>
+	/// <para>
+	/// <b>Consumer obligation:</b> a handler with side effects outside the projection state MUST check
+	/// this and skip them when it is <see langword="true"/>. Folding into the projection state itself
+	/// is always correct and needs no guard.
+	/// </para>
+	/// </remarks>
+	/// <value><see langword="true"/> during a rebuild or recovery; otherwise <see langword="false"/>.</value>
+	public bool IsReplay { get; }
 
 	/// <summary>
 	/// Gets the unique identifier of the aggregate that produced the events.

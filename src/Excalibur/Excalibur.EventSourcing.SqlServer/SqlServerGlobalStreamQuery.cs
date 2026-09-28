@@ -3,12 +3,15 @@
 
 using Dapper;
 
+using Excalibur.Data;
+
 using Excalibur.Dispatch.Extensions;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 using Excalibur.EventSourcing.SqlServer.Requests;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.SqlServer;
@@ -23,6 +26,13 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// provider is configured. Uses the same schema/table settings as the event store.
 /// </para>
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"The global stream is cross-aggregate and cross-tenant by definition: it is the substrate that " +
+	"cross-tenant projections, materialized views, projection rebuilds and the lag read-model are built " +
+	"from. Its result carries each event's own tenant on the row, so a consumer that needs confinement " +
+	"filters there. Adding a tenant predicate here would not harden the statement -- it would silently " +
+	"narrow the stream to one partition and make every projection built on it incomplete.")]
 internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 {
 	private readonly Func<SqlConnection> _connectionFactory;
@@ -57,9 +67,9 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		var sql = $"""
 			SELECT TOP (@MaxCount)
 			       EventId, AggregateId, AggregateType, EventType,
-			       EventData, Metadata, Version, Timestamp, Position
+			       EventData, Metadata, Version, Timestamp, Position, ArchivedAt
 			FROM {_qualifiedTable}
-			WHERE Position >= @Position
+			WHERE Position > @Position
 			ORDER BY Position
 			""";
 #pragma warning restore CA2100
@@ -70,6 +80,10 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 				new { Position = position.Position, MaxCount = maxCount },
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
+		// NOTE: the contiguity guard that used to live here is now ContiguousGlobalStreamQuery, applied
+		// as a decorator by this provider's registration. It is one correctness rule over an interface
+		// with several implementations, and a copy per provider is how the next provider comes to lack
+		// it. Do not reintroduce it here.
 		var result = new List<StoredEvent>();
 		foreach (var row in rows)
 		{
@@ -84,6 +98,7 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 				row.Timestamp)
 			{
 				GlobalPosition = row.Position,
+				ArchivedAt = row.ArchivedAt,
 			});
 		}
 
@@ -106,9 +121,9 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		var sql = $"""
 			SELECT TOP (@MaxCount)
 			       EventId, AggregateId, AggregateType, EventType,
-			       EventData, Metadata, Version, Timestamp, Position
+			       EventData, Metadata, Version, Timestamp, Position, ArchivedAt
 			FROM {_qualifiedTable}
-			WHERE Position >= @Position AND EventType = @EventType
+			WHERE Position > @Position AND EventType = @EventType
 			ORDER BY Position
 			""";
 #pragma warning restore CA2100
@@ -119,6 +134,11 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 				new { Position = position.Position, MaxCount = maxCount, EventType = eventType },
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
+		// NOT PROTECTED BY THE CONTIGUITY RULE APPLIED IN ReadAllAsync, and it cannot be: filtering
+		// by event type returns a legitimately SPARSE set of positions, so a gap here carries no
+		// information about whether a transaction is in flight. A caller that advances a high-water
+		// mark from this read is exposed to the same skip ReadAllAsync now defends against. Tracked;
+		// do not assume parity with the unfiltered read.
 		var result = new List<StoredEvent>();
 		foreach (var row in rows)
 		{
@@ -133,6 +153,7 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 				row.Timestamp)
 			{
 				GlobalPosition = row.Position,
+				ArchivedAt = row.ArchivedAt,
 			});
 		}
 
@@ -165,5 +186,8 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		byte[]? Metadata,
 		long Version,
 		DateTimeOffset Timestamp,
-		long Position);
+		long Position,
+		DateTimeOffset? ArchivedAt);
+
+
 }

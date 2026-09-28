@@ -192,7 +192,7 @@ public sealed class SagaContextFactoryRegistryShould : IDisposable
 
 	#region Test Fixtures
 
-	internal sealed class TestSagaState : SagaState
+	internal sealed class TestSagaState : ProcessManagerState
 	{
 		public string CustomerId { get; set; } = string.Empty;
 	}

@@ -134,6 +134,18 @@ public sealed class TenantScopedProjectionStore<TProjection> : IsolatingProjecti
 			return new TenantScopedCursorView(this, cursor);
 		}
 
+		// The positioned capability is NOT an optimisation, and failing to wrap it is not the same kind
+		// of miss as failing to wrap the three above. Those compute what the base surface computes,
+		// faster, so declining them costs a round trip. Declining THIS one sends the caller to the
+		// unconditional write, which is the double application it exists to prevent -- so it must be
+		// mediated here rather than quietly dropped.
+		if (serviceType == typeof(IPositionedProjectionStore<TProjection>)
+			&& Inner.GetService(typeof(IPositionedProjectionStore<TProjection>))
+				is IPositionedProjectionStore<TProjection> positioned)
+		{
+			return new TenantScopedPositionedView(this, positioned);
+		}
+
 		return null;
 	}
 
@@ -149,6 +161,81 @@ public sealed class TenantScopedProjectionStore<TProjection> : IsolatingProjecti
 	/// </remarks>
 	/// <exception cref="TenantRequiredException">The context resolves no tenant.</exception>
 	private void RequireTenant() => _ = TenantScope.FromContext(_tenantContext);
+
+	/// <summary>
+	/// Mediates the positioned capability so a shard-scoped caller cannot reach an unscoped store.
+	/// </summary>
+	/// <remarks>
+	/// The stored position is a coordination value the store must be able to COMPARE, so it is never
+	/// transformed on the way through — a position the store cannot compare turns every conditional
+	/// write into a permanent refusal.
+	/// </remarks>
+	private sealed class TenantScopedPositionedView(
+		TenantScopedProjectionStore<TProjection> outer,
+		IPositionedProjectionStore<TProjection> capability)
+		: ProjectionStoreCapabilityView<TProjection>(outer), IPositionedProjectionStore<TProjection>
+	{
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
+			string id,
+			CancellationToken cancellationToken)
+		{
+			outer.RequireTenant();
+			return capability.GetWithPositionAsync(id, cancellationToken);
+		}
+
+		/// <inheritdoc />
+		/// <remarks>
+		/// Requires the ambient tenant before forwarding, exactly as the positioned writes do. A
+		/// write that skipped the tenant check would land in whatever partition happened to be
+		/// ambient.
+		/// </remarks>
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public Task UpsertUnnumberedAsync(
+			string id,
+			TProjection projection,
+			CancellationToken cancellationToken)
+		{
+			outer.RequireTenant();
+			return capability.UpsertUnnumberedAsync(id, projection, cancellationToken);
+		}
+
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
+			string id,
+			TProjection projection,
+			long? expectedPosition,
+			long newPosition,
+			CancellationToken cancellationToken)
+		{
+			outer.RequireTenant();
+			return capability.UpsertAtPositionAsync(
+				id, projection, expectedPosition, newPosition, cancellationToken);
+		}
+
+		/// <inheritdoc />
+		/// <remarks>
+		/// Requires the ambient tenant before forwarding, exactly as the advancing write does. A
+		/// re-fold rewrites a row, so it is a write, and a write that skipped the tenant check would
+		/// be reachable from an unscoped context through a decorator that exists to make that
+		/// impossible.
+		/// </remarks>
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public Task<ProjectionRefoldResult> RefoldAtPositionAsync(
+			string id,
+			TProjection projection,
+			long atPosition,
+			CancellationToken cancellationToken)
+		{
+			outer.RequireTenant();
+
+			return capability.RefoldAtPositionAsync(id, projection, atPosition, cancellationToken);
+		}
+	}
 
 	private sealed class TenantScopedPageableView(
 		TenantScopedProjectionStore<TProjection> outer,

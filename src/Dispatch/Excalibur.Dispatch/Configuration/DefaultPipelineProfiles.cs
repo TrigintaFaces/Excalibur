@@ -70,12 +70,33 @@ public static class DefaultPipelineProfiles
 		// would silently no-op when a consumer selects "Default" without wiring auth — a silent authorization
 		// bypass. Authorization is opt-in via the Strict profile, which the consumer deliberately selects.
 		// Every entry states its criticality EXPLICITLY, for the same reason as the strict profile: a
-		// shipped profile must not depend on the MiddlewareEntry default. See DefaultProfileMiddleware
-		// below for the membership, the criterion that decides it, and why all entries are Optional.
-		foreach (var entry in DefaultProfileMiddleware)
-		{
-			profile.AddMiddleware(entry.MiddlewareType, entry.Order, entry.Criticality);
-		}
+		// DELIBERATELY EMPTY. A consumer who configures nothing runs nothing and pays for nothing.
+		//
+		// This profile used to seat four middleware, and the measured cost on the warm path was about
+		// 1,760 ns and 1,720 B per dispatch -- roughly 25x the entire remaining cost of a dispatch, on
+		// a host that had asked for none of it. Two of the four also changed BEHAVIOUR rather than
+		// merely costing: the timeout middleware can cancel work on a deadline the consumer never
+		// chose, and the tenant-identity middleware resolves an identity for a host that never asked to
+		// be multi-tenant.
+		//
+		// OUTBOX STAGING WAS THE LAST CANDIDATE TO SURVIVE, AND IT WAS REMOVED ON A MEASUREMENT.
+		// The argument for keeping it was that it carries a correctness obligation and is "inert when
+		// no store is registered" -- its factory asks GetService, so the reasoning went that a consumer
+		// without an outbox pays for a reference check. That reasoning was wrong, and the benchmark is
+		// what refuted it: seating this one middleware and nothing else costs 419.5 ns and 688 B
+		// against 73.8 ns and 240 B for an empty profile. An "inert" stage costs +346 ns and +448 B per
+		// dispatch, which is 5.7x the whole bare pipeline, and it is paid by every consumer who does
+		// not use an outbox. Semantically inert is not the same as free.
+		//
+		// So the framework follows the ASP.NET Core rule rather than approximating it: infrastructure
+		// is seated by registration, BEHAVIOUR is seated by the consumer. Outbox staging is opt-in --
+		// add it to a pipeline explicitly, or select a profile that names it. The error a handler gets
+		// when it writes to the outbox with no staging stage now says exactly that, instead of
+		// promising an automatic default that no longer exists.
+		//
+		// The bar for ever adding a member here: removing it would break a guarantee the framework
+		// already states, AND it costs nothing measurable when the capability it serves is absent.
+		// Nothing has met the second half.
 
 		return profile;
 	}
@@ -102,6 +123,12 @@ public static class DefaultPipelineProfiles
 	/// Each entry registers itself through an explicit closed generic rather than a reflected
 	/// <see cref="Type"/>, so the set stays trim-safe and ahead-of-time friendly.
 	/// </para>
+	/// </remarks>
+	/// <remarks>
+	/// <b>These are REGISTERED, not seated.</b> The default profile names none of them -- see
+	/// <see cref="CreateDefaultProfile"/> for why. This list exists so that a profile which DOES name
+	/// one resolves it, which is the half of the original defect worth keeping: a profile must never
+	/// declare a middleware the container cannot supply.
 	/// </remarks>
 	internal static readonly DefaultMiddlewareEntry[] DefaultProfileMiddleware =
 	[

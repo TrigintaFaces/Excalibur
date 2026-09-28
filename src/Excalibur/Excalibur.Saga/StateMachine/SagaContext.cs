@@ -24,5 +24,5 @@ public sealed record SagaContext<TData, TMessage>(
 	TData Data,
 	TMessage Message,
 	ProcessManager<TData> ProcessManager)
-	where TData : SagaState
+	where TData : ProcessManagerState
 	where TMessage : class;

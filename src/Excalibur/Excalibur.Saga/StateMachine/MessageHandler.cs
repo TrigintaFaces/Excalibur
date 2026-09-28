@@ -13,7 +13,7 @@ namespace Excalibur.Saga.StateMachine;
 /// <typeparam name="TData">The type of saga state data that extends <see cref="SagaState"/>.</typeparam>
 /// <typeparam name="TMessage">The type of message being handled.</typeparam>
 internal sealed class MessageHandler<TData, TMessage> : IMessageHandler<TData, TMessage>
-	where TData : SagaState
+	where TData : ProcessManagerState
 	where TMessage : class
 {
 	private readonly List<Action<SagaContext<TData, TMessage>>> _actions = [];

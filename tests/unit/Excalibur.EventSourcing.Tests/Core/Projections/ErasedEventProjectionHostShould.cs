@@ -140,9 +140,9 @@ public sealed class ErasedEventAsyncProjectionHostShould
 			.Throws(new InvalidOperationException("the serializer must never be asked to resolve a tombstone"));
 
 		var checkpointed = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-		_ = A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
-			.Invokes((string _, long position, CancellationToken _) => checkpointed.TrySetResult(position))
-			.Returns(Task.CompletedTask);
+		_ = A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+			.Invokes((string _, long? _, long position, CancellationToken _) => checkpointed.TrySetResult(position))
+			.Returns(Task.FromResult(CheckpointAdvanceOutcome.Advanced));
 
 		var host = CreateHost();
 		using var cts = new CancellationTokenSource();
@@ -157,8 +157,10 @@ public sealed class ErasedEventAsyncProjectionHostShould
 
 		// Assert - the checkpoint landed PAST the last tombstone. Pre-fix the host halted on the first
 		// tombstone and no checkpoint was ever written, so awaiting one times out: RED.
+		// The cursor IS the last delivered position and reads are exclusive of it, so an all-tombstone
+		// batch whose last entry sits at TombstoneGlobalPosition + 1 checkpoints at exactly that.
 		position.ShouldBe(
-			TombstoneGlobalPosition + 2,
+			TombstoneGlobalPosition + 1,
 			"the checkpoint must advance past an all-tombstone batch, or the same batch is re-read forever");
 
 		A.CallTo(() => _eventSerializer.ResolveType(ErasedEventMarker.EventType)).MustNotHaveHappened();
@@ -190,7 +192,7 @@ public sealed class ErasedEventAsyncProjectionHostShould
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - nothing checkpointed: the poison event stays unread for the next poll.
-		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 }
@@ -296,9 +298,9 @@ public sealed class ErasedEventGlobalStreamProjectionHostShould
 			.Returns(Task.CompletedTask);
 
 		var checkpointed = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-		_ = A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
-			.Invokes((string _, long position, CancellationToken _) => checkpointed.TrySetResult(position))
-			.Returns(Task.CompletedTask);
+		_ = A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+			.Invokes((string _, long? _, long position, CancellationToken _) => checkpointed.TrySetResult(position))
+			.Returns(Task.FromResult(CheckpointAdvanceOutcome.Advanced));
 
 		var host = CreateHost();
 		using var cts = new CancellationTokenSource();
@@ -313,8 +315,10 @@ public sealed class ErasedEventGlobalStreamProjectionHostShould
 
 		// Assert - checkpoint advanced past the tombstone. Pre-fix the host treated it as poison, broke
 		// out of the batch with lastGoodPosition still null, and never checkpointed: RED.
+		// Exclusive cursor: the checkpoint is the tombstone's own position, and the next read starts
+		// after it.
 		position.ShouldBe(
-			TombstoneGlobalPosition + 1,
+			TombstoneGlobalPosition,
 			"the checkpoint must advance past an all-tombstone batch");
 
 		// ... and the per-stream cursor advanced WITH it. Advancing the checkpoint alone leaves the
@@ -357,7 +361,7 @@ public sealed class ErasedEventGlobalStreamProjectionHostShould
 		await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - neither surface advanced: the poison event stays unread for the next poll.
-		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => _cursorMapStore.SaveCursorMapAsync(
 				A<string>._, A<IReadOnlyDictionary<string, long>>._, A<CancellationToken>._))

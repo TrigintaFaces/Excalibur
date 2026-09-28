@@ -99,7 +99,7 @@ public sealed class ProjectionLagReadModelShould : IClassFixture<SqlServerEventS
 		// head = 5 (five events appended → MAX(Position) = 5); checkpoint behind at 2 → lag = 3.
 		await AppendEventsAsync(store, 5).ConfigureAwait(false);
 		var checkpoints = provider.GetRequiredService<ISubscriptionCheckpointStore>();
-		await checkpoints.StoreCheckpointAsync("subscription-1", 2, CancellationToken.None).ConfigureAwait(false);
+		await checkpoints.AdvanceCheckpointAsync("subscription-1", null, 2, CancellationToken.None).ConfigureAwait(false);
 
 		var readModel = provider.GetRequiredService<IProjectionLagReadModel>();
 		var lags = await readModel.GetLagAsync(CancellationToken.None).ConfigureAwait(false);
@@ -121,7 +121,7 @@ public sealed class ProjectionLagReadModelShould : IClassFixture<SqlServerEventS
 		// head = 3, checkpoint seeded past the head at 10 → structural Math.Max(0, head − cp) clamps lag to 0.
 		await AppendEventsAsync(store, 3).ConfigureAwait(false);
 		var checkpoints = provider.GetRequiredService<ISubscriptionCheckpointStore>();
-		await checkpoints.StoreCheckpointAsync("ahead-of-head", 10, CancellationToken.None).ConfigureAwait(false);
+		await checkpoints.AdvanceCheckpointAsync("ahead-of-head", null, 10, CancellationToken.None).ConfigureAwait(false);
 
 		var readModel = provider.GetRequiredService<IProjectionLagReadModel>();
 		var lags = await readModel.GetLagAsync(CancellationToken.None).ConfigureAwait(false);

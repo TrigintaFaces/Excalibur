@@ -147,7 +147,16 @@ internal sealed class InlineProjectionProcessor
 		CancellationToken cancellationToken)
 	{
 		await using var scope = _scopeFactory.CreateAsyncScope();
-		await registration.InlineApply!(events, context, scope.ServiceProvider, cancellationToken)
+		// The save path has no global position: these events are being committed now, and the store
+		// assigns positions inside that transaction. A null position means this apply cannot participate
+		// in a position-conditional write, which is correct -- there is nothing yet to be conditional on.
+		var projectionEvents = new List<ProjectionEvent>(events.Count);
+		foreach (var domainEvent in events)
+		{
+			projectionEvents.Add(new ProjectionEvent(domainEvent, context.AggregateId, GlobalPosition: null));
+		}
+
+		await registration.InlineApply!(projectionEvents, context, scope.ServiceProvider, cancellationToken)
 			.ConfigureAwait(false);
 	}
 }

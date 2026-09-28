@@ -123,10 +123,11 @@ public sealed class ManualArchiveRunner
 				continue;
 			}
 
-			// Remove archived events from hot store. The tiered decorator will
+			// Tombstone the archived events in the hot store. They are not removed: the row stays and
+			// its payload is cleared, so the stream's shape is preserved and the tiered decorator can
 			// transparently stitch hot + cold on the next read.
-			var deleted = await _archiveSource
-				.DeleteEventsUpToVersionAsync(
+			var tombstoned = await _archiveSource
+				.TombstoneArchivedEventsUpToVersionAsync(
 					_tenant,
 					candidate.AggregateId,
 					candidate.AggregateType,
@@ -135,14 +136,14 @@ public sealed class ManualArchiveRunner
 				.ConfigureAwait(false);
 
 			aggregates++;
-			events += deleted;
+			events += tombstoned;
 
 			_logger.LogInformation(
 				"Archived aggregate {AggregateId} ({AggregateType}): moved {Count} events to cold store up to v{Version} "
 					+ "(requested up to v{RequestedVersion})",
 				candidate.AggregateId,
 				candidate.AggregateType,
-				deleted,
+				tombstoned,
 				deleteUpToVersion,
 				candidate.ArchivableUpToVersion);
 		}

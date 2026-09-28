@@ -35,3 +35,27 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 ## License
 
 This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.
+
+## Database schema
+
+**This package does not create its tables.** The DDL ships inside the `.nupkg` under `scripts/`, and
+you apply it — so a schema change to your database is always something you did deliberately, never
+something a version upgrade did to you while you were not looking.
+
+| Script |
+|---|
+| `scripts/001_CreateAuditSchema.sql` |
+
+Apply them in filename order before starting the application, and again — for any new ones — before
+starting a new version after an upgrade.
+
+The `scripts/` folder lives inside the package, not in your build output. To read it:
+
+```bash
+# the package folder, then the scripts inside it
+dotnet nuget locals global-packages --list
+ls ~/.nuget/packages/excalibur.auditlogging.sqlserver/<version>/scripts/
+```
+
+**The folder is authoritative.** If any list of scripts — including this one — disagrees with what is
+actually in the package you installed, the package is right.

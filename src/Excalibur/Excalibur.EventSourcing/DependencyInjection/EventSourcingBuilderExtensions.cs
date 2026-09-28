@@ -239,7 +239,13 @@ public static class EventSourcingBuilderExtensions
 		Microsoft.Extensions.DependencyInjection.TenantScopedStoreServiceCollectionExtensions
 			.AddTenantScopingCapability<IEventStoreErasure>(builder.Services);
 
-		_ = builder.Services.AddSingleton<global::Excalibur.Compliance.IErasureContributor>(sp =>
+		// TryAddEnumerable, not AddSingleton: this is a multi-implementation service, so a plain Add
+		// registers a SECOND copy when a composed host calls this method twice -- the same aggregate is
+		// then tombstoned twice and the certificate counts it twice. The sibling registrations in this
+		// method are already idempotent; this makes the contributors match them. The generic
+		// implementation-type argument is what lets TryAddEnumerable de-duplicate a factory registration.
+		builder.Services.TryAddEnumerable(ServiceDescriptor
+			.Singleton<global::Excalibur.Compliance.IErasureContributor, Erasure.EventStoreErasureContributor>(sp =>
 		{
 			var eventStore = sp.GetRequiredKeyedService<IEventStore>("default");
 			// Ask the store, do not test its type: the resolved store is the decorated one, and a decorator
@@ -254,7 +260,19 @@ public static class EventSourcingBuilderExtensions
 				sp.GetRequiredService<Erasure.IAggregateDataSubjectMapping>(),
 				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Erasure.EventStoreErasureContributor>>(),
 				sp.GetKeyedService<ISnapshotStore>("default"));
-		});
+		}));
+
+		// Fail-closed for the surface the framework CANNOT erase. Erasure tombstones event rows in place
+		// and notifies nothing, so a projection that already folded the subject's events keeps them --
+		// and the coverage gate could not see that, because coverage is judged over locations the
+		// consumer's own inventory discovered and nothing declares a projection store as one. The
+		// certificate therefore read Completed with every read model untouched. This contributor reports
+		// the gap on every erasure so the outcome is PARTIAL by construction rather than by the
+		// consumer's diligence; it stands down when no projections are registered, and when a consumer
+		// registers their own contributor covering projections.
+		builder.Services.TryAddEnumerable(ServiceDescriptor
+			.Singleton<global::Excalibur.Compliance.IErasureContributor, Erasure.ProjectionErasureGapContributor>(
+				sp => new Erasure.ProjectionErasureGapContributor(sp)));
 
 		// Fail-closed startup gate: GDPR event-store erasure composed with tenant-sharding is not yet
 		// supported — the tenant-routing store does not route erasure to per-tenant shards, so an erase would
@@ -320,6 +338,7 @@ public static class EventSourcingBuilderExtensions
 	/// }));
 	/// </code>
 	/// </example>
+	
 	public static IEventSourcingBuilder EnableProjectionProcessing(
 		this IEventSourcingBuilder builder,
 		Action<GlobalStreamProjectionOptions>? configure = null)
@@ -354,6 +373,14 @@ public static class EventSourcingBuilderExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, AsyncProjectionProcessingHost>());
 
+		// A processing host with no stream to poll returns immediately, so the application would start,
+		// report healthy, and process nothing forever. Turn that silence into a startup failure — the same
+		// precondition, and the same argument, as AddProjectionRebuild().
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, ProjectionProcessingPrerequisiteValidator>());
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ProjectionProcessingPrerequisiteValidator>());
+
 		return builder;
 	}
 
@@ -374,5 +401,42 @@ public static class EventSourcingBuilderExtensions
 		}
 
 		services.Add(descriptor);
+	}
+
+	/// <summary>
+	/// Requires every registered projection to be written through a store that records how far the
+	/// projection has been folded, so a re-delivered event cannot be applied twice.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>What this buys.</b> A projection is applied by loading it, mutating it and writing it back,
+	/// and without a recorded position nothing can tell that an event is being applied a second time. A
+	/// handler that assigns a value survives that; one that accumulates — incrementing a total,
+	/// appending to a list — double-counts on every redelivery, silently and without bound. The
+	/// framework cannot tell the two apart, which is why this is a choice the host makes rather than a
+	/// default the framework guesses.
+	/// </para>
+	/// <para>
+	/// <b>It fails at startup rather than degrading.</b> A store without the capability is refused by
+	/// name, with the projections that cannot be served. Falling back to the unconditional write would
+	/// hand back exactly the defect this prevents, reported as success.
+	/// </para>
+	/// <para>
+	/// Requires the last-applied-position migration for your provider, shipped alongside its other
+	/// schema scripts.
+	/// </para>
+	/// </remarks>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <returns>The builder, for chaining.</returns>
+	public static IEventSourcingBuilder RequirePositionedProjectionWrites(this IEventSourcingBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, PositionedProjectionWriteValidator>());
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, PositionedProjectionWriteValidator>());
+
+		return builder;
 	}
 }

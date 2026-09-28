@@ -223,7 +223,7 @@ public sealed class SagaTestHarnessShould
 
 		public bool HandlesEvent(object eventMessage) => eventMessage is TestSagaEvent;
 
-		public Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
 			if (eventMessage is TestSagaEvent evt)
 			{
@@ -234,7 +234,7 @@ public sealed class SagaTestHarnessShould
 				}
 			}
 
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 

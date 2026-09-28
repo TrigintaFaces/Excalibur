@@ -14,28 +14,18 @@ using Excalibur.Dispatch;
 namespace Excalibur.EventSourcing.SqlServer.Requests;
 
 /// <summary>
-/// The position and version of a single event inserted by <see cref="InsertEventsBatchRequest"/>.
-/// </summary>
-/// <remarks>
-/// The <see cref="Version"/> is carried back from the <c>OUTPUT</c> clause so callers can restore the
-/// per-event ordering — the order of rows returned by an <c>OUTPUT</c> clause is not guaranteed to match
-/// the order of the <c>VALUES</c> tuples, so positions must be matched by version, not by row index.
-/// </remarks>
-internal readonly record struct EventInsertPosition(long Position, long Version);
-
-/// <summary>
 /// Data request that inserts a batch of events into the event store with a <strong>single</strong>
 /// multi-row <c>INSERT ... OUTPUT ... VALUES</c> statement, returning each inserted event's position and
 /// version. Replaces the per-event insert loop so an append is one round-trip and one atomic statement.
 /// </summary>
-internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, IReadOnlyList<EventInsertPosition>>
+internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>
 	/// The maximum number of events per statement. SQL Server caps a command at 2100 parameters and each
-	/// event binds 8, so 256 events (2048 parameters) stays safely under the limit; larger appends are
+	/// event binds 9, so 227 events (2043 parameters) stays safely under the limit; larger appends are
 	/// chunked by the caller within the same transaction.
 	/// </summary>
-	internal const int MaxEventsPerStatement = 256;
+	internal const int MaxEventsPerStatement = 227;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InsertEventsBatchRequest"/> class.
@@ -100,7 +90,8 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 			}
 
 			_ = valuesBuilder
-				.Append("(@EventId").Append(p)
+				.Append("(@Position").Append(p)
+				.Append(",@EventId").Append(p)
 				.Append(",@AggregateId").Append(p)
 				.Append(",@AggregateType").Append(p)
 				.Append(",@EventType").Append(p)
@@ -111,6 +102,7 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 				.Append(tenantValue)
 				.Append(')');
 
+			parameters.Add("@Position" + p, row.Position);
 			parameters.Add("@EventId" + p, row.EventId);
 			parameters.Add("@AggregateId" + p, row.AggregateId);
 			parameters.Add("@AggregateType" + p, row.AggregateType);
@@ -123,19 +115,18 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
 		var sql = $"""
-			INSERT INTO {qualifiedTable} (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp{tenantColumn})
-			OUTPUT INSERTED.Position, INSERTED.Version
+			INSERT INTO {qualifiedTable} (Position, EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp{tenantColumn})
 			VALUES {valuesBuilder}
 			""";
 #pragma warning restore CA2100
 
 		Command = CreateCommand(sql, parameters, transaction, cancellationToken: cancellationToken);
 
-		ResolveAsync = async connection =>
-		{
-			var result = await connection.QueryAsync<EventInsertPosition>(Command).ConfigureAwait(false);
-			return result.AsList();
-		};
+		// Positions are assigned by the caller from the store's position counter before this request is
+		// built, so there is nothing to read back: no OUTPUT clause, and no need to match returned rows to
+		// events by version. The previous implementation recovered IDENTITY values here, which is precisely
+		// the allocation strategy the position counter replaces.
+		ResolveAsync = connection => connection.ExecuteAsync(Command);
 	}
 }
 
@@ -150,4 +141,16 @@ internal readonly record struct EventInsertRow(
 	byte[] EventData,
 	byte[]? Metadata,
 	long Version,
-	DateTimeOffset Timestamp);
+	DateTimeOffset Timestamp)
+{
+	/// <summary>
+	/// Gets the global stream position assigned to this event.
+	/// </summary>
+	/// <remarks>
+	/// Set by the caller from the block reserved by <see cref="AllocateAndInsertEventsRequest"/>, never by
+	/// the database. Declared outside the positional constructor so that building a row and assigning its
+	/// position stay separate steps: rows are built while the append does its serialization work, and
+	/// positions are stamped immediately before the insert, which keeps the counter's lock window short.
+	/// </remarks>
+	public long Position { get; init; }
+}

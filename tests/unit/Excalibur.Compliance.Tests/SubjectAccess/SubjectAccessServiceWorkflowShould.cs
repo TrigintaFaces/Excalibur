@@ -53,22 +53,6 @@ public sealed class SubjectAccessServiceWorkflowShould
 		rectification.Status.ShouldBe(SubjectAccessRequestStatus.Pending);
 	}
 
-	[Fact]
-	public async Task Auto_fulfill_creates_fulfilled_request()
-	{
-		// Arrange
-		var options = new SubjectAccessOptions { AutoFulfill = true };
-		var sut = CreateService(options);
-
-		// Act
-		var result = await sut.CreateRequestAsync(
-			new SubjectAccessRequest { SubjectId = "u1", RequestType = SubjectAccessRequestType.Access },
-			CancellationToken.None);
-
-		// Assert
-		result.Status.ShouldBe(SubjectAccessRequestStatus.Fulfilled);
-		result.FulfilledAt.ShouldNotBeNull();
-	}
 
 	[Fact]
 	public async Task Fulfill_pending_request_manually()

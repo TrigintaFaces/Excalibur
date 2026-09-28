@@ -30,12 +30,27 @@ internal sealed class InMemorySubscriptionCheckpointStore : ISubscriptionCheckpo
 	}
 
 	/// <inheritdoc />
-	public Task StoreCheckpointAsync(string subscriptionName, long position, CancellationToken cancellationToken)
+	public Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
+		string subscriptionName,
+		long? expectedPosition,
+		long newPosition,
+		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(subscriptionName);
 
-		_checkpoints[subscriptionName] = position;
-		return Task.CompletedTask;
+		// TryAdd and TryUpdate are the atomic primitives ConcurrentDictionary offers. An indexer
+		// assignment would be the blind write the contract forbids, and a TryGetValue-then-assign would
+		// reintroduce the interleaving while still satisfying the signature.
+		//
+		// The null case is TryAdd rather than TryUpdate because "no checkpoint yet" is a distinct prior
+		// state: a caller that believes there is none must LOSE the race against a writer that has since
+		// created one, which is exactly what TryAdd does.
+		var advanced = expectedPosition is null
+			? _checkpoints.TryAdd(subscriptionName, newPosition)
+			: _checkpoints.TryUpdate(subscriptionName, newPosition, expectedPosition.Value);
+
+		return Task.FromResult(
+			advanced ? CheckpointAdvanceOutcome.Advanced : CheckpointAdvanceOutcome.Superseded);
 	}
 
 	/// <inheritdoc />

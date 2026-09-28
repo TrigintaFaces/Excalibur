@@ -377,8 +377,8 @@ public sealed class SagaBaseShould : UnitTestBase
 
 		public override bool HandlesEvent(object eventMessage) => true;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
-			Task.CompletedTask;
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
+			Task.FromResult(SagaEventOutcome.Handled);
 
 		public void CallMarkCompleted() => MarkCompleted();
 

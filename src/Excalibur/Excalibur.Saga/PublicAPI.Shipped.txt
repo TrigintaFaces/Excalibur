@@ -144,6 +144,10 @@ Excalibur.Saga.StateMachine.ProcessManager<TData>.Finally(System.Action<Excalibu
 Excalibur.Saga.StateMachine.ProcessManager<TData>.Initially(System.Action<Excalibur.Saga.StateMachine.IStateDefinition<TData!>!>! configure) -> void
 Excalibur.Saga.StateMachine.ProcessManager<TData>.ProcessManager(TData! initialState, Excalibur.Dispatch.IDispatcher! dispatcher, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Saga.StateMachine.ProcessManager<TData>.TransitionTo(string! stateName) -> void
+Excalibur.Saga.StateMachine.ProcessManagerState
+Excalibur.Saga.StateMachine.ProcessManagerState.CurrentStateName.get -> string!
+Excalibur.Saga.StateMachine.ProcessManagerState.CurrentStateName.set -> void
+Excalibur.Saga.StateMachine.ProcessManagerState.ProcessManagerState() -> void
 Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>
 Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.Data.get -> TData!
 Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.Data.init -> void
@@ -162,13 +166,13 @@ Microsoft.Extensions.DependencyInjection.SagaExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SagaTelemetryExtensions
 Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions
-abstract Excalibur.Saga.Orchestration.SagaBase<TSagaState>.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+abstract Excalibur.Saga.Orchestration.SagaBase<TSagaState>.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Messaging.SagaEventOutcome>!
 abstract Excalibur.Saga.Orchestration.SagaBase<TSagaState>.HandlesEvent(object! eventMessage) -> bool
 const Excalibur.Saga.SagaActivitySource.SourceName = "Excalibur.Dispatch.Sagas" -> string!
 const Excalibur.Saga.SagaActivitySource.SourceVersion = "1.0.0" -> string!
 const Excalibur.Saga.Telemetry.SagaMetrics.MeterName = "Excalibur.Dispatch.Sagas" -> string!
 const Excalibur.Saga.Telemetry.SagaMetrics.MeterVersion = "1.0.0" -> string!
-override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Messaging.SagaEventOutcome>!
 override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandlesEvent(object! eventMessage) -> bool
 static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaInfo(System.Type! sagaType) -> Excalibur.Dispatch.Messaging.SagaInfo?
 static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaTypeForEvent(System.Type! eventType) -> System.Type?
@@ -208,5 +212,3 @@ static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExte
 static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDeliveryService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDeliveryService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.SagaTimeoutOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SerializeTimeoutData<T>(T data) -> byte[]!
-virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.get -> string!
-virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.set -> void

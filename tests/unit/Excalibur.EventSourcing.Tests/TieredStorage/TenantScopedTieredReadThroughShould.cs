@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Linq;
+
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
@@ -102,7 +104,13 @@ public sealed class TenantScopedTieredReadThroughShould
     {
         var hotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>());
         var coldStore = A.Fake<IColdEventStore>();
-        _ = A.CallTo(() => hotStore.LoadAsync("agg-1", "Order", A<CancellationToken>._)).Returns(new List<StoredEvent>());
+        // Archival TOMBSTONES: the hot store keeps the rows (version and position intact) with the
+        // payload moved to cold and an ArchivedAt stamp. That stamp -- not an empty hot result -- is
+        // what tells the decorator to read through, so this is the shape production actually produces.
+        var tombstoned = CreateEvents("agg-1", 1, 2, 3)
+            .Select(e => e with { EventData = null, ArchivedAt = DateTimeOffset.UnixEpoch })
+            .ToList();
+        _ = A.CallTo(() => hotStore.LoadAsync("agg-1", "Order", A<CancellationToken>._)).Returns(tombstoned);
         _ = A.CallTo(() => coldStore.HasArchivedEventsAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._)).Returns(true);
         _ = A.CallTo(() => coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._)).Returns(CreateEvents("agg-1", 1, 2, 3));
 

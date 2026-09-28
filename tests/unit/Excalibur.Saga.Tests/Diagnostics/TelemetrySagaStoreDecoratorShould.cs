@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga.StateMachine;
 
 using Excalibur.Saga.Diagnostics;
 
@@ -64,7 +65,7 @@ public sealed class TelemetrySagaStoreDecoratorShould : IDisposable
         _sut.Dispose();
     }
 
-    private sealed class TestSagaState : SagaState
+    private sealed class TestSagaState : ProcessManagerState
     {
     }
 

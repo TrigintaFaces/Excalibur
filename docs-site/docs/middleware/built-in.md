@@ -602,7 +602,7 @@ services.AddDispatch(dispatch =>
 });
 ```
 
-Calling `UseOutbox()` states that this host stages, so it **requires an `IOutboxStore`**: register one for your provider alongside this call, or the host refuses to start and names the registration it is missing. You do not need `UseOutbox()` to get staging on the default pipeline — registering a store is enough there, and a host with no store simply has no outbox. Reach for `UseOutbox()` when you want the missing store reported at startup, or when you need the cascade step it also adds.
+Calling `UseOutbox()` states that this host stages, so it **requires an `IOutboxStore`**: register one for your provider alongside this call, or the host refuses to start and names the registration it is missing. Staging does **not** happen on its own. The default pipeline seats no middleware at all, so a host needs both halves: an `IOutboxStore` registered for its provider, and the staging stage present on the pipeline the message dispatches through — either `UseOutbox()`, or `pipeline.Use<OutboxStagingMiddleware>()` if you want the stage without the startup check and the cascade step. A handler that writes to the outbox with no staging stage fails at dispatch and the error names both halves; it does not drop the write.
 
 Messages are persisted to the outbox store within the current transaction and delivered asynchronously by a background processor.
 

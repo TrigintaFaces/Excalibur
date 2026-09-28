@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Tests.Shared.Infrastructure;
 using System.Diagnostics.CodeAnalysis;
 using Tests.Shared.Fixtures;
 
@@ -57,7 +58,7 @@ public sealed class SqlServerCoLocatedTenantIsolationShould : IAsyncLifetime
 		{
 			_container = new MsSqlBuilder()
 				.WithBoundedMemory()
-				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+				.WithImage(TestContainerImages.SqlServer2022)
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
@@ -161,7 +162,7 @@ public sealed class SqlServerCoLocatedTenantIsolationShould : IAsyncLifetime
 		command.CommandText = """
 			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EventStoreEvents' AND xtype='U')
 			CREATE TABLE EventStoreEvents (
-				Position BIGINT IDENTITY(1,1) PRIMARY KEY,
+				Position BIGINT NOT NULL PRIMARY KEY,
 				EventId NVARCHAR(255) NOT NULL UNIQUE,
 				AggregateId NVARCHAR(255) NOT NULL,
 				AggregateType NVARCHAR(255) NOT NULL,
@@ -173,9 +174,24 @@ public sealed class SqlServerCoLocatedTenantIsolationShould : IAsyncLifetime
 				Metadata VARBINARY(MAX) NULL,
 				Version BIGINT NOT NULL,
 				Timestamp DATETIMEOFFSET NOT NULL,
+				-- Set when the payload has been moved to cold storage; the row and its position stay.
+				ArchivedAt DATETIMEOFFSET NULL,
 				TenantId NVARCHAR(255) NULL,
 				INDEX IX_EventStoreEvents_Aggregate (AggregateId, AggregateType, Version)
 			)
+
+			
+			-- The store allocates Position from this counter row inside the appending transaction
+			-- rather than from an IDENTITY, so an aborted append burns no position and the
+			-- committed stream stays contiguous. Mirrors shipped 001.
+			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EventStoreEventsPosition' AND xtype='U')
+			CREATE TABLE EventStoreEventsPosition (
+				Id TINYINT NOT NULL PRIMARY KEY CHECK (Id = 1),
+				Value BIGINT NOT NULL
+			);
+			IF NOT EXISTS (SELECT 1 FROM EventStoreEventsPosition WHERE Id = 1)
+			INSERT INTO EventStoreEventsPosition (Id, Value)
+			SELECT 1, ISNULL((SELECT MAX(Position) FROM EventStoreEvents), 0);
 			""";
 		await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}

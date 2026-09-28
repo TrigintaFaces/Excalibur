@@ -34,7 +34,7 @@ namespace Excalibur.Saga.StateMachine;
 /// </code>
 /// </remarks>
 public interface IMessageHandler<TData, TMessage>
-	where TData : SagaState
+	where TData : ProcessManagerState
 	where TMessage : class
 {
 	/// <summary>

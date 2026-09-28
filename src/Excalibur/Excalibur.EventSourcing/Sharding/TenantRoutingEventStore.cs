@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Data;
+
 using Excalibur.Data.Sharding;
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.Decorators;
 
 namespace Excalibur.EventSourcing.Sharding;
 
@@ -131,7 +134,59 @@ internal sealed class TenantRoutingEventStore : IEventStore, IEventStoreErasure
 			return ResolveStore().GetService(serviceType) is null ? null : this;
 		}
 
+		// The transactional append+outbox capability must be forwarded, not dropped. Answering null here
+		// does not degrade the caller loudly: EventSourcedRepository falls back to staging the outbox on
+		// its own connection, so the events and the outbox rows stop sharing a transaction and integration
+		// events are silently lost whenever the append commits and the staging does not. Over a sharded
+		// deployment that is every tenant, on providers that do support the capability.
+		//
+		// Nothing upstream catches it either. The startup validator probes the DI REGISTRATION rather than
+		// the resolved store, and the registration is present because the shard's provider registers it —
+		// so startup passes while the resolved chain has lost the capability.
+		//
+		// The view re-resolves the shard on EVERY call rather than closing over one, which is the whole
+		// difference between this router and the decorators it sits beside: they wrap ONE inner store, and
+		// the shard this router delegates to is a function of the ambient tenant. Capturing a shard here
+		// would pin the first tenant's shard into a capability the next tenant then uses.
+		if (serviceType == typeof(ITransactionalEventStore))
+		{
+			return ResolveStore().GetService(serviceType) is null ? null : new TenantRoutingTransactionalView(this);
+		}
+
 		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
+	/// <summary>
+	/// Routes a transactional append+outbox to the ambient tenant's shard, resolving the shard per call.
+	/// </summary>
+	/// <remarks>
+	/// Every member other than the transactional append defers to the router, so the routing and the
+	/// fail-closed tenant check stay in one place.
+	/// </remarks>
+	private sealed class TenantRoutingTransactionalView(TenantRoutingEventStore outer)
+		: EventStoreCapabilityView(outer), ITransactionalEventStore
+	{
+		public ValueTask<AppendResult> AppendWithOutboxStagingAsync(
+			string aggregateId,
+			string aggregateType,
+			IEnumerable<IDomainEvent> events,
+			long expectedVersion,
+			Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+			CancellationToken cancellationToken)
+		{
+			var shard = outer.ResolveStore();
+
+			// Resolved fresh with the shard, for the same reason the shard itself is: a capability captured
+			// at construction would belong to whichever tenant happened to resolve first.
+			return shard.GetService(typeof(ITransactionalEventStore)) is ITransactionalEventStore transactional
+				? transactional.AppendWithOutboxStagingAsync(
+					aggregateId, aggregateType, events, expectedVersion, stageOutbox, cancellationToken)
+				: throw new NotSupportedException(
+					$"The resolved shard's event store ({shard.GetType().Name}) does not support "
+					+ "transactional outbox staging (ITransactionalEventStore). The capability probe "
+					+ "answered for a different shard, so the shards backing this deployment do not agree "
+					+ "on it.");
+		}
 	}
 
 	private static IEventStoreErasure RequireErasure(IEventStore resolvedShard)

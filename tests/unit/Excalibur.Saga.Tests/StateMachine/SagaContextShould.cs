@@ -3,7 +3,9 @@
 
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.StateMachine;
-using SagaStateBase = Excalibur.Dispatch.Messaging.SagaState;
+// A process manager keeps its position in its state, so the alias points at the state type
+// that carries it. Aliased rather than written out, to keep this file as it was.
+using SagaStateBase = Excalibur.Saga.StateMachine.ProcessManagerState;
 
 namespace Excalibur.Saga.Tests.StateMachine;
 

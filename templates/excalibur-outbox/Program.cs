@@ -12,6 +12,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    // REQUIRED. AddDispatch() seats no behavioural middleware, so registering an outbox STORE is
+    // not enough on its own -- the staging stage has to be named. Without this line a handler that
+    // writes to the outbox throws at dispatch, because there is no stage to stage it.
+    dispatch.UseOutbox();
 #if (UseKafka)
     dispatch.UseKafka(kafka =>
     {

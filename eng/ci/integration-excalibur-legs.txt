@@ -20,9 +20,41 @@
 # default rather than running nowhere. Adding a prefix here only ever moves work OUT of "rest" into
 # a leg of its own.
 #
-# BALANCED ON MEASURED TEST-SECONDS, NOT TEST COUNTS. EventSourcing carries 74 tests that cost more
-# than the 569 in Data.Inbox, so a count-based split would be badly lopsided. Re-balance from a
-# green run's TRX durations, not from intuition.
+# BALANCE ON FIXTURE COUNT, NOT ON TEST-SECONDS. This is the part that is easy to get wrong, and
+# getting it wrong is what produced the first version of this split.
+#
+# A leg's wall clock is dominated by how many DISTINCT CONTAINER FIXTURES it touches, not by how
+# long its tests run. Measured: the first cut made "rest" the complement of three prefixes, so it
+# inherited every provider nobody else had claimed -- the cheapest leg by test-seconds and by far
+# the most expensive in practice, because it paid container startup a dozen times over.
+#
+#     first cut   rest   592 test-seconds   1589s wall   overhead x2.68   (26m19s)
+#     whole suite        1958 test-seconds  3291s wall   overhead x1.68   (54m40s)
+#
+# Pulling the two widest fixture families (Data.EventStore, LeaderElection -- the latter alone
+# spans Postgres, MongoDb, Redis, SqlServer, Consul and Kubernetes classes) out of "rest" cut it
+# from 26m19s to 15m39s while moving only 502 of its 2362 tests. Test count moved a fifth; wall
+# clock moved by 41%.
+#
+# Measured per leg, each run in isolation, developer machine, 2026-09-24:
+#     rest           1860 tests   15m39s
+#     inbox           569 tests   12m02s
+#     outbox          545 tests   11m35s
+#     eventsourcing   129 tests    8m06s
+#     eventstore      324 tests    5m38s
+#     leaderelection  178 tests    4m06s
+#     (whole suite in one job: 54m40s)
+#
+# A CI runner is slower per test, so treat these as a SHAPE, not a budget. What stays true as tests
+# are added is the spread between legs and which leg is worst; the absolute minutes do not.
+#
+# RE-BALANCE FROM A SERIAL RUN'S TRX, NEVER A PARALLEL ONE. Durations recorded while several tests
+# ran at once are inflated by their own contention, and unevenly -- the parallel numbers ranked
+# these legs in a different order than the serial ones did. Measure the way the legs actually
+# execute, which is one test at a time. And confirm a re-balance by RUNNING the legs: the wall
+# clock of a leg cannot be projected from its test-seconds, as the numbers above show.
 eventsourcing=EventSourcing.
 outbox=Data.Outbox.
 inbox=Data.Inbox.
+eventstore=Data.EventStore.
+leaderelection=LeaderElection.

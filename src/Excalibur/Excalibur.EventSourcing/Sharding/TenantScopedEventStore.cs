@@ -193,7 +193,7 @@ public sealed class TenantScopedEventStore : IsolatingEventStoreDecorator
 			return capability.GetArchiveCandidatesAsync(policy, batchSize, cancellationToken);
 		}
 
-		public Task<int> DeleteEventsUpToVersionAsync(
+		public Task<int> TombstoneArchivedEventsUpToVersionAsync(
 			KeyedTenantPartition tenant,
 			string aggregateId,
 			string aggregateType,
@@ -201,7 +201,7 @@ public sealed class TenantScopedEventStore : IsolatingEventStoreDecorator
 			CancellationToken cancellationToken)
 		{
 			outer.RequireTenant();
-			return capability.DeleteEventsUpToVersionAsync(
+			return capability.TombstoneArchivedEventsUpToVersionAsync(
 				tenant, aggregateId, aggregateType, toVersion, cancellationToken);
 		}
 	}

@@ -126,14 +126,14 @@ public sealed class SagaEventDedupWindowShould
 	{
 		public override bool HandlesEvent(object eventMessage) => eventMessage is CountingEvent;
 
-		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
+		public override Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken)
 		{
 			if (eventMessage is CountingEvent countingEvent && countingEvent.StepId is { } stepId)
 			{
 				log.HandledSteps.Add(stepId);
 			}
 
-			return Task.CompletedTask;
+			return Task.FromResult(SagaEventOutcome.Handled);
 		}
 	}
 }

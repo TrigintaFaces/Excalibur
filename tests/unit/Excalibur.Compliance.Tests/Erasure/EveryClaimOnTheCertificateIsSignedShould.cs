@@ -70,6 +70,11 @@ public sealed class EveryClaimOnTheCertificateIsSignedShould
 				Verification = new VerificationSummary { Verified = false, Methods = VerificationMethod.None, VerifiedAt = Fixed },
 			},
 			["ErasureCertificatePayload.Exceptions"] = p => p with { Exceptions = [Exception("a-different-category")] },
+			["ErasureCertificatePayload.UnreachedData"] = p => p with { UnreachedData = [Unreached()] },
+			["UnreachedDataLocation.StoreKind"] = p => p with { UnreachedData = [Unreached() with { StoreKind = "SearchIndex" }] },
+			["UnreachedDataLocation.Mechanism"] = p => p with { UnreachedData = [Unreached() with { Mechanism = "a different mechanism entirely" }] },
+			["UnreachedDataLocation.ControllerObligation"] = p => p with { UnreachedData = [Unreached() with { ControllerObligation = "a different obligation" }] },
+			["UnreachedDataLocation.RemediationCost"] = p => p with { UnreachedData = [Unreached() with { RemediationCost = RemediationCost.Online }] },
 
 			// ErasureSummary — how much was destroyed
 			["ErasureSummary.KeysDeleted"] = p => p with { Summary = p.Summary with { KeysDeleted = p.Summary.KeysDeleted + 1 } },
@@ -192,6 +197,21 @@ public sealed class EveryClaimOnTheCertificateIsSignedShould
 				continue;
 			}
 
+			// A leaf with NO setter cannot have a mutator, because a mutator is a `with` expression and
+			// there is nothing to assign. Skipping it is not a hole: a value fixed by construction is the
+			// same on every payload, so there is no second value for a signature to have to distinguish.
+			// Tampering with it in the stored JSON is still caught -- verification recomputes the canonical
+			// form from the DESERIALIZED payload, where the property reverts to its constructed value, so
+			// an edited byte changes the stored text and not the recomputed tag, and the two stop matching.
+			//
+			// This is narrow on purpose. It exempts a property from needing a MUTATOR; it does not exempt
+			// it from being SIGNED, which AddingACertificateFieldMustNotBreakIssuedSignaturesShould asserts
+			// directly by looking for the name in the canonical form.
+			if (property.SetMethod is null)
+			{
+				continue;
+			}
+
 			var nested = ClaimRecordIn(property.PropertyType);
 
 			if (nested is null)
@@ -228,6 +248,16 @@ public sealed class EveryClaimOnTheCertificateIsSignedShould
 				: null;
 	}
 
+
+	// LawfulBasisClaimed is not mutable and so cannot be a mutator: it is get-only and always false by
+	// construction, which is the point -- the document cannot be made to claim a basis it does not have.
+	private static UnreachedDataLocation Unreached() => new()
+	{
+		StoreKind = "Projection",
+		Mechanism = "erasure does not notify read models",
+		ControllerObligation = "the controller must clear the read model",
+		RemediationCost = RemediationCost.RequiresReadModelOffline,
+	};
 	private static ErasureException Exception(string dataCategory = "billing-records") =>
 		new()
 		{

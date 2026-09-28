@@ -94,7 +94,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <param name="eventMessage"> The event message to process. </param>
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> A task that represents the asynchronous operation. </returns>
-	public abstract Task HandleAsync(object eventMessage, CancellationToken cancellationToken);
+	public abstract Task<SagaEventOutcome> HandleAsync(object eventMessage, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Schedules a timeout message to be delivered to this saga after the specified delay.

@@ -1,6 +1,7 @@
 ﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Tests.Shared.Infrastructure;
 using Microsoft.Data.SqlClient;
 
 using Testcontainers.MsSql;
@@ -51,7 +52,7 @@ public sealed class SqlServerEventStoreContainerFixture : ContainerFixtureBase
 	{
 		_container = new MsSqlBuilder()
 			.WithBoundedMemory()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
+			.WithImage(TestContainerImages.SqlServer2022)
 			.WithName($"mssql-eventstore-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
 			.WithCleanUp(true)
@@ -116,14 +117,23 @@ public sealed class SqlServerEventStoreContainerFixture : ContainerFixtureBase
 	public SqlConnection CreateConnection() => new(ConnectionString);
 
 	/// <summary>
-	/// Cleans up all rows from the events table between tests.
+	/// Cleans up all rows from the events table between tests, and resets the position counter with them.
 	/// </summary>
+	/// <remarks>
+	/// Resetting the counter is what keeps positions comparable across tests. Positions are allocated
+	/// from a counter row rather than an identity column, so truncating the events table alone leaves the
+	/// counter where it was and the next test's first append continues from the previous test's highest
+	/// position. An arm asserting an absolute position then passes alone and fails in a batch -- which is
+	/// exactly how this was found.
+	/// </remarks>
 	public async Task CleanupTableAsync()
 	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		var truncateSql = $"TRUNCATE TABLE [{SchemaName}].[{TableName}]";
+		var truncateSql =
+			$"TRUNCATE TABLE [{SchemaName}].[{TableName}]; "
+			+ $"UPDATE [{SchemaName}].[{TableName}Position] SET [Value] = 0 WHERE [Id] = 1;";
 		await using var command = new SqlCommand(truncateSql, connection);
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}

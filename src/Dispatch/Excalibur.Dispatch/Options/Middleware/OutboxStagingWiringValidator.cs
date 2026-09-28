@@ -23,11 +23,15 @@ namespace Excalibur.Dispatch.Options.Middleware;
 /// </para>
 /// <para>
 /// <b>Why it is registered by <c>UseOutbox()</c> and not unconditionally.</b> The deliberate call IS the
-/// signal. A host that never asked for outbox staging may have it seated by the default pipeline, and for that
-/// host the absence of a store is not a misconfiguration -- it simply has no outbox, and staging stays inert.
-/// Registering this validator unconditionally would fail every zero-configuration host, which is the defect
-/// this arrangement exists to avoid. One constructor cannot tell those two populations apart; the registration
-/// site can, because only one of them calls <c>UseOutbox()</c>.
+/// signal. Registering this validator unconditionally would fail every host that has no outbox, which is the
+/// defect this arrangement exists to avoid. One constructor cannot tell a host that meant to stage from one
+/// that never had an outbox; the registration site can, because only the first calls <c>UseOutbox()</c>.
+/// <para>
+/// This paragraph previously read that a host which never asked for staging "may have it seated by the
+/// default pipeline", and that staging then "stays inert". Both were true of an earlier arrangement and are
+/// not true now: the default profile seats no middleware, so a stage is present only because someone named
+/// it. The distinction the registration site draws is unchanged; the reason it matters is simpler.
+/// </para>
 /// </para>
 /// <para>
 /// <b>The predicate matches what the middleware actually receives.</b> It asks the container for a plain
@@ -73,7 +77,7 @@ internal sealed class OutboxStagingWiringValidator : IValidateOptions<OutboxStag
 			"outbox store for your provider -- for example AddSqlServerOutbox(), AddPostgresOutbox() or the " +
 			"equivalent for the store you use -- alongside the UseOutbox() call that seated this middleware. " +
 			"If you did not intend to use the outbox, remove the UseOutbox() call or set OutboxStagingOptions." +
-			"Enabled to false; the default pipeline leaves staging inert when no store is present, so no " +
-			"registration is required for a host that does not stage.");
+			"Enabled to false. A host that does not stage needs neither: the default pipeline seats no " +
+			"middleware at all, so nothing is running unless you asked for it.");
 	}
 }

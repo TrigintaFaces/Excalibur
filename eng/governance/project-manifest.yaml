@@ -2131,6 +2131,7 @@ projects:
     framework_owner: Excalibur
 
   - path: tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj
+  - path: tests/property/Excalibur.EventSourcing.Properties/Excalibur.EventSourcing.Properties.csproj
     classification: Test
     in_solution: true
     category: Unit
