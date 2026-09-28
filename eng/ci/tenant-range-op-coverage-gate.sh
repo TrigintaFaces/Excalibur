@@ -51,6 +51,12 @@ RANGE_DESTRUCTIVE=(
     "DeleteSnapshotsRequest.cs"
     "DeleteSnapshotsOlderThanRequest.cs"
     "EraseEventsRequest.cs"
+    # Archival tombstone: the row SURVIVES with its identity and position, only the payload
+    # is nulled. That is still a range UPDATE over an aggregate's history, so it isolates the
+    # same way EraseEventsRequest does -- it takes a KeyedTenantPartition and interpolates
+    #     AND COALESCE(TenantId, @UntenantedSentinel) = @TenantId
+    # into the UPDATE. Basename keys both the SqlServer and Postgres copies.
+    "TombstoneArchivedEventsRequest.cs"
     "PurgeCompletedSagasRequest.cs"
     # Isolates by a WHERE tenant predicate, exactly as this list requires: it takes a
     # KeyedTenantPartition and interpolates
@@ -58,7 +64,6 @@ RANGE_DESTRUCTIVE=(
     # into its DELETE (EventSourcing.SqlServer and .Postgres both — the manifest keys on basename,
     # so this one entry accounts for both). Uncurated until now ONLY because the gate could not see
     # its isolation type; recognising the type is what surfaced it for curation.
-    "DeleteEventsUpToVersionRequest.cs"
 )
 # KEYED_UPSERT: tenant column is part of the MERGE match / ON CONFLICT key -> isolation is
 # structural in the key. Not a range predicate; listed so discovery is fully accounted for.
@@ -117,11 +122,37 @@ TENANT_STORE_PKG_RE='Excalibur\.(EventSourcing|Saga)\.(SqlServer|Postgres|Oracle
 # Empty today: every range mutation in these packages' request files flows a TenantScope.
 NON_PARTITIONED_EXEMPT=(
     # e.g. "SomeProjectionCheckpointRequest.cs"  # derived read-model position, no tenant column
+
+    # THE GLOBAL POSITION COUNTER. The range UPDATE these files contain is
+    #     UPDATE <events>_Position SET Value = Value + @n WHERE Id = 1
+    # against a SINGLETON row addressed by its primary key, in a table that has no tenant column
+    # and deliberately holds ONE counter per event store: the global stream is global ACROSS
+    # tenants, which is the whole point of a gapless global position.
+    #
+    # A tenant term here would be a defect rather than defence-in-depth. The statement already
+    # addresses at most one row by its key, so a predicate cannot admit a foreign row -- its only
+    # reachable effect is turning the correct row into zero rows, which is how a uniformly-applied
+    # tenant sweep once stopped the outbox marking messages it had already claimed.
+    #
+    # These files are DISCOVERED because they also carry the events INSERT, which does reference
+    # the tenant column. The insert is not a range mutation; the counter update is, and it is the
+    # one classified here.
+    "AllocateAndInsertEventsRequest.cs"
+    "AllocateGlobalPositionsRequest.cs"
 )
 
 is_curated() {
     local base="$1" name
-    for name in "${RANGE_DESTRUCTIVE[@]}" "${KEYED_UPSERT[@]}"; do
+    # NON_PARTITIONED_EXEMPT counts as curated HERE too, not only in the backstop pass below.
+    # Discovery flags a file that contains a range mutation AND references a tenant column, which
+    # is one file and can be two different statements: the range UPDATE may target a table with no
+    # tenant column at all, while the tenant reference comes from an INSERT in the same file. That
+    # shape fits neither curated class -- it is not isolated by a WHERE tenant predicate and it is
+    # not a tenant-keyed upsert -- and forcing it into RANGE_DESTRUCTIVE would assert the statement
+    # OUGHT to carry a tenant predicate. For a singleton row addressed by its primary key that
+    # assertion is false and the predicate would be a defect, so the third class has to be sayable
+    # on this axis as well. It carries the same bar: an explicit entry with a written reason.
+    for name in "${RANGE_DESTRUCTIVE[@]}" "${KEYED_UPSERT[@]}" "${NON_PARTITIONED_EXEMPT[@]}"; do
         [ "$base" = "$name" ] && return 0
     done
     return 1
@@ -160,6 +191,52 @@ discover() {
                 printf '%s\n' "$f"
             fi
         done | sort -u
+}
+
+# Manifest integrity -- a property of THIS repository's curated list, not of whatever tree is being
+# scanned. Deliberately NOT part of run_gate: the self-test drives run_gate over synthetic trees in
+# which these names correctly do not exist, so folding these in there made the gate's own liveness
+# arm fail. Same reason the discovery pass is parameterised by root and this is not.
+check_manifest_integrity() {
+    local src_root="$1" tests_root="$2" status=0 base
+    # A CURATED NAME THAT NAMES NOTHING. The pass above only catches a discovered file that is
+    # missing from the manifest -- it cannot see the opposite rot, a manifest entry whose file is
+    # gone. That is not hypothetical: this list carried DeleteEventsUpToVersionRequest.cs long after
+    # archival stopped DELETING rows and started tombstoning them, so a dead name sat in a curated
+    # set that reads as coverage. Enforced as a SET in both directions, exactly as the baselines
+    # elsewhere in eng/ci are.
+    local -a phantom=()
+    for base in "${RANGE_DESTRUCTIVE[@]}" "${KEYED_UPSERT[@]}" "${NON_PARTITIONED_EXEMPT[@]}"; do
+        find "$src_root" -name "$base" -print -quit 2>/dev/null | grep -q . || phantom+=("$base")
+    done
+    if [ "${#phantom[@]}" -gt 0 ]; then
+        echo "FAIL: curated manifest entr(ies) naming a file that no longer exists:" >&2
+        printf '  %s
+' "${phantom[@]}" >&2
+        echo "Delete the line. A curated set that keeps dead names reads as coverage it does not have." >&2
+        status=1
+    fi
+
+    # RANGE_DESTRUCTIVE PROMISES A CONFORMANCE SUITE, so check the promise rather than trusting it.
+    # The class means "isolation is a WHERE predicate, and the conformance test asserts the emitted
+    # predicate". Nothing verified the second half, so a request could be curated into this class and
+    # be asserted by nothing -- the advertised-but-unwired shape, inside the very gate meant to prove
+    # the conformance set is complete. Suites live in more than one project, so this looks across the
+    # whole test tree rather than at one file.
+    local -a unasserted=()
+    for base in "${RANGE_DESTRUCTIVE[@]}"; do
+        grep -rlq "${base%.cs}" "$tests_root" --include='*Conformance*.cs' 2>/dev/null || unasserted+=("$base")
+    done
+    if [ "${#unasserted[@]}" -gt 0 ]; then
+        echo "FAIL: RANGE_DESTRUCTIVE entr(ies) that no conformance suite names:" >&2
+        printf '  %s
+' "${unasserted[@]}" >&2
+        echo "This class asserts its tenant predicate is covered. Add an arm to a *Conformance*.cs" >&2
+        echo "suite that binds the emitted predicate, or move the entry to the class that fits." >&2
+        status=1
+    fi
+
+    return "$status"
 }
 
 run_gate() {
@@ -352,7 +429,7 @@ main() {
             exit 2
         }
         cd "$2" || exit 2
-        run_gate "."
+        run_gate "." && check_manifest_integrity "." "tests"
         exit $?
     fi
     if [ $# -gt 0 ]; then
@@ -360,7 +437,7 @@ main() {
         exit 2
     fi
     cd "$REPO_ROOT" || exit 2
-    run_gate "$SEARCH_ROOT_DEFAULT"
+    run_gate "$SEARCH_ROOT_DEFAULT" && check_manifest_integrity "$SEARCH_ROOT_DEFAULT" "tests"
     exit $?
 }
 

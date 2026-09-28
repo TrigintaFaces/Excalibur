@@ -389,7 +389,6 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'migration/authorization-tenant-required' },
             { type: 'doc', id: 'migration/default-pipeline-is-empty' },
             { type: 'doc', id: 'migration/global-stream-reads-stop-at-gaps' },
-            { type: 'doc', id: 'migration/erasure-registration-store-kind' },
             { type: 'doc', id: 'migration/inbox-document-id-rekey' },
             { type: 'doc', id: 'migration/compat-mediatr-disclaimer' },
             { type: 'doc', id: 'migration/mongodb-outbox-instant-format' },

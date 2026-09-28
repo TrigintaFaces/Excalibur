@@ -30,6 +30,7 @@ When implementing a custom provider (e.g., a new database backend for event sour
 | `TransportConformanceTestKit<TSender, TReceiver>` | transport sender/receiver pairs |
 | `DbConformanceTestKit` | `IDb` |
 | `PersistenceProviderConformanceTestKit` | persistence providers |
+
 | `PositionedProjectionStoreConformanceTestKit` | `IPositionedProjectionStore<T>` |
 
 ### Run the positioned-projection kit against real infrastructure

@@ -117,3 +117,24 @@ IOutboxStore:EncryptingMultiTransportStore
 IEventStore:EncryptingTransactionalView
 IEventStore:TenantScopedTransactionalView
 IEventStore:TieredTransactionalView
+
+# A PRIVATE NESTED CAPABILITY VIEW, not a backend a consumer can write.
+#
+# TenantRoutingTransactionalView is a `private sealed class` inside TenantRoutingEventStore. It
+# stores nothing: it resolves the shard for the ambient tenant, probes that shard for
+# ITransactionalEventStore, forwards the append, and refuses when the shards backing a deployment do
+# not agree on the capability. Nothing outside its enclosing class can construct or register it, so
+# the reason this gate exists -- that we impose conformance arms on consumers who write their own
+# provider while shipping our own unverified -- does not reach it. It is the same shape as the
+# routing and decorating entries already listed above.
+#
+# Its behaviour is covered, by name rather than by assertion:
+# tests/unit/Excalibur.EventSourcing.Tests/Sharding/EventStoreCapabilityForwardingShould.cs
+# resolves the capability off the decorated store and exercises the forward
+# (PerformTheTransactionalAppendThroughTheDecorator), the shard-lacks-the-capability refusal
+# (NotAdvertiseTheTransactionalCapabilityOverAStoreThatLacksIt) and the no-ambient-tenant
+# fail-closed path (StillFailClosedOnTheTransactionalCapabilityWhenNoTenantIsAmbient).
+#
+# DELETE THIS ENTRY if the view ever becomes public, gains its own registration extension, or starts
+# storing rather than forwarding -- at that point it is a backend and owes the kit like any other.
+IEventStore:TenantRoutingTransactionalView

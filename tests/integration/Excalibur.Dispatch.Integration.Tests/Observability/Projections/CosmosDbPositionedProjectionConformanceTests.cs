@@ -30,6 +30,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 /// </para>
 /// </remarks>
 [IntegrationTest]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Infrastructure", TestInfrastructure.CosmosDb)]
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait(TraitNames.Component, TestComponents.Core)]

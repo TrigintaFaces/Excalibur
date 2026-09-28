@@ -206,6 +206,78 @@ public sealed class TenantRangeOpPredicateConformanceShould
 			$"{provider} scoped erase must name the tenant column exactly as the table declares it");
 	}
 
+	// ---- TombstoneArchivedEvents: archival tombstoning, keyed partition (category 1) --------------
+
+	[Theory]
+	[InlineData("SqlServer", "TenantId", "EventData = NULL")]
+	[InlineData("Postgres", "tenant_id", "event_data = NULL")]
+	public void TombstoneArchivedEvents_EmitsTheSanctionedPredicate_OnBothPaths(
+		string provider, string column, string payloadNulling)
+	{
+		// ARCHIVAL TOMBSTONING is still a RANGE UPDATE across an aggregate's history: it matches every row
+		// up to a version, so it must isolate by tenant exactly as the erase does. The row survives with its
+		// identity and its global position — only the payload is nulled — but an omitted predicate would
+		// null the payload of EVERY tenant's rows for this aggregate identifier, destroying events this
+		// archive run never archived and leaving no trace that it did.
+		var scoped = EmittedTombstone(provider, KeyedTenantPartition.Scoped("tenant-1")).CommandText;
+		var untenanted = EmittedTombstone(provider, KeyedTenantPartition.Untenanted).CommandText;
+
+		// LIVENESS on the SUBJECT, before the predicate. IsFailClosedFragment is already false over an empty
+		// string, so a blank CommandText reddens on its own — but a fail-closed predicate on the WRONG
+		// statement would pass, and this arm is worthless unless the text under assertion really is the
+		// tombstone. Nulling the payload is the op's defining act, so it is what identifies it.
+		scoped.ShouldContain(payloadNulling, Case.Sensitive,
+			$"{provider} tombstone must null the payload — if this text is some other statement, every " +
+			"predicate assertion below is about the wrong request");
+
+		IsFailClosedFragment(scoped, column).ShouldBeTrue(
+			$"{provider} scoped tombstone must emit a fail-closed tenant predicate; got: {scoped}");
+
+		IsFailClosedFragment(untenanted, column).ShouldBeTrue(
+			$"{provider} unscoped tombstone must emit the sanctioned predicate TOO, never drop it on the " +
+			$"unscoped path; got: {untenanted}");
+
+		scoped.ShouldContain(column, Case.Sensitive,
+			$"{provider} tombstone must name the tenant column exactly as the table declares it");
+	}
+
+	[Theory]
+	[InlineData("SqlServer")]
+	[InlineData("Postgres")]
+	public void TombstoneArchivedEvents_BindsTheUntenantedSentinel_OnTheUnscopedPath(string provider)
+	{
+		// The half the SQL text cannot express, for the same reason as the snapshot twin above: this
+		// predicate is emitted UNCONDITIONALLY, so the statement is byte-identical on both paths and the
+		// text-only arm above would pass against an implementation that bound an empty term and folded
+		// every tenant's legacy-NULL rows onto it.
+		//
+		// What fails this closed is the VALUE. KeyedTenantPartition has no empty inhabitant, so the unscoped
+		// path binds the reserved '__untenanted__' sentinel. The literal is asserted rather than the internal
+		// constant deliberately: this term is written into and matched against persisted rows, so it is a
+		// wire value and a change to it must redden a lock rather than pass silently.
+		BoundTenantTerm(EmittedTombstone(provider, KeyedTenantPartition.Untenanted), "@TenantId").ShouldBe(
+			"__untenanted__",
+			$"{provider}: an unscoped tombstone must bind the reserved sentinel — never an empty term, " +
+			"which is how a destructive statement ends up matching every tenant's rows.");
+
+		// LIVENESS pair: the two paths must bind DIFFERENT terms. An implementation that bound the sentinel
+		// unconditionally would satisfy the assertion above while isolating nothing.
+		BoundTenantTerm(EmittedTombstone(provider, KeyedTenantPartition.Scoped("tenant-1")), "@TenantId")
+			.ShouldBe(
+				"tenant-1",
+				$"{provider}: a scoped tombstone must bind the caller's own tenant term, so it reaches that " +
+				"tenant's rows and no others.");
+
+		// The COALESCE fold has TWO operands, and the whitelist above only reads the statement text. If the
+		// sentinel bound here drifted from the one the erase and load siblings write, a legacy NULL tenant
+		// row would fold to a term that matches nothing and its payload would survive the archive silently.
+		BoundTenantTerm(EmittedTombstone(provider, KeyedTenantPartition.Untenanted), "@UntenantedSentinel")
+			.ShouldBe(
+				"__untenanted__",
+				$"{provider}: the column-side fold must use the same reserved sentinel the rows are written " +
+				"with, or a pre-migration NULL tenant row is never matched and keeps its payload.");
+	}
+
 	// ---- Non-vacuity: the whitelist rejects a leaky fragment --------------------------------------
 
 	[Fact]
@@ -246,6 +318,26 @@ public sealed class TenantRangeOpPredicateConformanceShould
 		"Oracle" => new EsOra.EraseEventsRequest(AggregateId, AggregateType, ErasureRequestId, Scoped, default).Command.CommandText,
 		_ => throw new ArgumentOutOfRangeException(nameof(provider)),
 	};
+
+	/// <summary>
+	/// Builds the emitted tombstone command for a provider and tenant partition.
+	/// </summary>
+	/// <remarks>
+	/// TWO providers, not three, and the omission is deliberate rather than an oversight: there is no
+	/// Oracle <c>TombstoneArchivedEventsRequest</c> in the tree, so an Oracle case here could only throw.
+	/// Verified against <c>src/Excalibur/Excalibur.EventSourcing.Oracle/Requests/</c>, which ships
+	/// <c>EraseEventsRequest</c> and no tombstone. If one is added later, the coverage gate lists it as a
+	/// range op and this switch is where it joins.
+	/// </remarks>
+	private static Dapper.CommandDefinition EmittedTombstone(string provider, KeyedTenantPartition tenant) =>
+		provider switch
+		{
+			"SqlServer" => new EsSql.TombstoneArchivedEventsRequest(
+				tenant, AggregateId, AggregateType, 5, default).Command,
+			"Postgres" => new EsPg.TombstoneArchivedEventsRequest(
+				tenant, AggregateId, AggregateType, 5, default).Command,
+			_ => throw new ArgumentOutOfRangeException(nameof(provider)),
+		};
 
 	private static EsSql.EventInsertRow SqlRow() =>
 		new("e1", AggregateId, AggregateType, "Created", [1], null, 0, DateTimeOffset.UnixEpoch);
