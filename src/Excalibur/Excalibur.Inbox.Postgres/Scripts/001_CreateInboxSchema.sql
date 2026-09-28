@@ -24,7 +24,7 @@
 -- 001_CreateInboxSchema.MultiTenant.sql instead — it adds a NOT NULL tenant_id column to
 -- the key. The store verifies at startup that the physical schema matches the registered
 -- mode and FAILS FAST on a mismatch. To grow from single- to multi-tenant later, run the
--- expand-contract migration script (002_MigrateToMultiTenant.sql).
+-- multi-tenant create script (001_CreateInboxSchema.MultiTenant.sql); there is no in-place conversion.
 
 CREATE TABLE IF NOT EXISTS public.inbox_messages (
     message_id       TEXT         NOT NULL,

@@ -37,8 +37,6 @@ public sealed class ShippedSchemaScriptShould
 	private static readonly string[] OracleScriptPaths =
 	[
 		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/001_CreateOutboxSchema.sql",
-		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/002_MakeOutboxTenantTotal.sql",
-		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/003_CarryTenantOnDeadLetters.sql",
 	];
 
 	/// <summary>

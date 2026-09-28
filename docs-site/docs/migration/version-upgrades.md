@@ -265,34 +265,34 @@ package, so the folder listing finds them either way.
 
 | Package | Scripts |
 |---|---|
-| `Excalibur.AuditLogging.Postgres` | `001_CreateAuditSchema`, `002_NarrowTenantIdToPortableMaximum` |
+| `Excalibur.AuditLogging.Postgres` | `001_CreateAuditSchema` |
 | `Excalibur.AuditLogging.SqlServer` | `001_CreateAuditSchema` |
 | `Excalibur.Cdc.Postgres` | `001_CreateCdcStateSchema` |
 | `Excalibur.Cdc.SqlServer` | `001_CreateCdcStateSchema`, `002_CreateCdcIdempotencySchema` |
-| `Excalibur.Compliance.Postgres` | `001_CreateComplianceSchema` … `007_LeaseTheErasureExecutionClaim` (7 scripts) |
-| `Excalibur.Compliance.SqlServer` | `001_CreateComplianceSchema` … `011_LeaseTheErasureExecutionClaim` (10 scripts) — no `008`; the number was never used |
+| `Excalibur.Compliance.Postgres` | `001_CreateComplianceSchema` |
+| `Excalibur.Compliance.SqlServer` | `001_CreateComplianceSchema`, `002_CreateKeyEscrowSchema` |
 | `Excalibur.Data.DataProcessing` | `001_CreateDataProcessingSchema` |
 | `Excalibur.Data.IdentityMap.SqlServer` | `CreateIdentityMapTable` |
-| `Excalibur.Data.Postgres` | `001_CreateDeadLetterSchema` … `004_NarrowActivityGroupName` (4 scripts) |
-| `Excalibur.Data.SqlServer` | `001_CreateDeadLetterSchema` … `004_NarrowActivityGroupName` (4 scripts) |
+| `Excalibur.Data.Postgres` | `001_CreateDeadLetterSchema`, `002_CreateActivityGroupSchema`, `003_CreateGrantSchema` |
+| `Excalibur.Data.SqlServer` | `001_CreateDeadLetterSchema`, `002_CreateActivityGroupSchema`, `003_CreateGrantSchema` |
 | `Excalibur.Dispatch` | `schema` (poison-message store) |
-| `Excalibur.EventSourcing.Oracle` | `001_CreateSnapshotSchema` … `007_CreateSubscriptionCheckpointSchema` (7 scripts) |
-| `Excalibur.EventSourcing.Postgres` | `001_CreateSnapshotSchema` … `010_AddProjectionLastAppliedPosition` (10 scripts) |
-| `Excalibur.EventSourcing.Sqlite` | `001_CreateEventStoreSchema`, `002_MakeEventAndSnapshotIdentityTenantScoped`, `003_CreateSubscriptionCheckpointSchema` |
-| `Excalibur.EventSourcing.SqlServer` | `001_CreateEventStoreSchema` … `012_BackfillGapsLeftByLegacyArchival` (12 scripts) |
-| `Excalibur.Inbox.Oracle` | `001_CreateInboxSchema` **or** `001_CreateInboxSchema.MultiTenant`, then `002_MigrateToMultiTenant`, `003_NarrowTenantIdToPortableMaximum` |
-| `Excalibur.Inbox.Postgres` | as above |
-| `Excalibur.Inbox.SqlServer` | as above |
+| `Excalibur.EventSourcing.Oracle` | `001_CreateSnapshotSchema`, `002_CreateEventStoreSchema`, `003_CreateSubscriptionCheckpointSchema` |
+| `Excalibur.EventSourcing.Postgres` | `001_CreateSnapshotSchema`, `002_CreateEventStoreSchema`, `003_CreateCursorMapSchema`, `004_CreateSubscriptionCheckpointSchema` |
+| `Excalibur.EventSourcing.Sqlite` | `001_CreateEventStoreSchema`, `002_CreateSubscriptionCheckpointSchema` |
+| `Excalibur.EventSourcing.SqlServer` | `001_CreateEventStoreSchema`, `002_CreateSnapshotSchema`, `003_CreateCursorMapSchema`, `004_CreateSubscriptionCheckpointSchema` |
+| `Excalibur.Inbox.Oracle` | `001_CreateInboxSchema` **or** `001_CreateInboxSchema.MultiTenant` — pick one at provisioning time |
+| `Excalibur.Inbox.Postgres` | `001_CreateInboxSchema` **or** `001_CreateInboxSchema.MultiTenant` — pick one at provisioning time |
+| `Excalibur.Inbox.SqlServer` | `001_CreateInboxSchema` **or** `001_CreateInboxSchema.MultiTenant` — pick one at provisioning time |
 | `Excalibur.Jobs.SqlServer` | `001_CreateJobCoordinationSchema` |
 | `Excalibur.LeaderElection.Postgres` | `001_CreateLeaderElectionHealthSchema` |
 | `Excalibur.LeaderElection.SqlServer` | `001_CreateLeaderElectionHealthSchema` |
-| `Excalibur.Outbox.Oracle` | `001_CreateOutboxSchema`, `002_MakeOutboxTenantTotal`, `003_CarryTenantOnDeadLetters` |
-| `Excalibur.Outbox.Postgres` | `001_CreateOutboxSchema`, `002_MakeOutboxTenantTotal`, `003_CarryTenantOnDeadLetters` |
-| `Excalibur.Outbox.SqlServer` | `001_CreateOutboxSchema`, `002_NarrowTenantIdToPortableMaximum` |
-| `Excalibur.Saga.Oracle` | `01-SagaSchema`, `01-SagaSchema.Upgrade`, `SagaTimeouts`, `SagaTimeouts.Upgrade` |
-| `Excalibur.Saga.Postgres` | `01-SagaSchema`, `02-NarrowTenantIdToPortableMaximum` |
-| `Excalibur.Saga.SqlServer` | `01-SagaSchema`, `02-SagaCorrelationIndex`, `02-SagaMonitoringSchema`, `03-NarrowTenantIdToPortableMaximum`, `SagaTimeouts`, `SagaTimeouts.Upgrade` |
-| `Excalibur.Workflows.SqlServer` | `001_CreateWorkflowSignalInboxSchema`, `002_MakeWorkflowSignalInboxTenantTotal` |
+| `Excalibur.Outbox.Oracle` | `001_CreateOutboxSchema` |
+| `Excalibur.Outbox.Postgres` | `001_CreateOutboxSchema` |
+| `Excalibur.Outbox.SqlServer` | `001_CreateOutboxSchema` |
+| `Excalibur.Saga.Oracle` | `01-SagaSchema`, `SagaTimeouts` |
+| `Excalibur.Saga.Postgres` | `01-SagaSchema` |
+| `Excalibur.Saga.SqlServer` | `01-SagaSchema`, `02-SagaCorrelationIndex`, `02-SagaMonitoringSchema`, `SagaTimeouts` |
+| `Excalibur.Workflows.SqlServer` | `001_CreateWorkflowSignalInboxSchema` |
 
 **The inbox scripts are a choice, not a sequence.** Apply `001_CreateInboxSchema.sql` for a
 single-tenant deployment or `001_CreateInboxSchema.MultiTenant.sql` for a multi-tenant one. Applying the

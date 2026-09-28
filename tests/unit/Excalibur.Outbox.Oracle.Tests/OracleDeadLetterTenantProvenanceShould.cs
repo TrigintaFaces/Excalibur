@@ -13,7 +13,7 @@ namespace Excalibur.Outbox.Oracle.Tests;
 
 /// <summary>
 /// Locks the TENANT PROVENANCE of a dead-lettered message on Oracle, against a real database, for the
-/// fresh-install schema, the upgrade script, and both move paths.
+/// shipped schema and both move paths.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -38,10 +38,16 @@ namespace Excalibur.Outbox.Oracle.Tests;
 /// constraint that is meant to make the term total. Only a real Oracle confirms the round trip.
 /// </description></item>
 /// <item><description>
-/// The upgrade script is PL/SQL, and Oracle treats NULLs as DISTINCT in a unique index — the reason the
-/// column is closed before the key is widened. Both are server-checked and nothing else.
+/// Oracle treats NULLs as DISTINCT in a unique index, which is why the shipped column is closed and the
+/// key carries the tenant. That is server-checked and nothing else.
 /// </description></item>
 /// </list>
+/// <para>
+/// There is no upgrade path to lock. The package ships one CREATE script per provider, already at the
+/// final shape, so the only database these arms can meaningfully describe is the one a consumer actually
+/// provisions. Arms that asserted about converting a legacy database were removed with the migration
+/// scripts rather than left asserting against a path that no longer exists.
+/// </para>
 /// <para>
 /// Both arms are present deliberately. "An untenanted message stores the reserved key" is satisfied by a
 /// move that stamps EVERY entry with that key, which would destroy tenant identity completely while
@@ -130,97 +136,38 @@ public sealed class OracleDeadLetterTenantProvenanceShould(OracleOutboxStoreCont
 	}
 
 	/// <summary>
-	/// UPGRADE: an entry written before the column existed converges onto the reserved key, the column ends
-	/// up closed, and the key ends up carrying the tenant.
+	/// THE KEY ARM: the shipped dead-letter unique key carries the tenant term, not the message id alone.
 	/// </summary>
 	/// <remarks>
-	/// The reserved key on such a row records "no tenant was captured", which is NOT the claim that the
-	/// message had no tenant — its real tenant was never written anywhere and the outbox row it could have
-	/// been read from is gone. This arm locks that the convergence happens at all, since a column left
-	/// nullable would preserve the very ambiguity the reserved key exists to remove.
+	/// <para>
+	/// Read from the LIVE CATALOGUE rather than from the script text, and that matters more on this engine
+	/// than on Postgres: the shipped script creates this table from inside a PL/SQL block via
+	/// <c>EXECUTE IMMEDIATE</c>, so the constraint is assembled at run time and the file says only what we
+	/// intended, never what the server ended up with.
+	/// </para>
+	/// <para>
+	/// Both columns are asserted, and the message-id half is the liveness arm. "TENANT_ID is in this set"
+	/// is satisfied vacuously by an EMPTY set, which is exactly what a renamed table or a constraint of a
+	/// different type produces. Asserting the id too makes an empty result RED instead of green.
+	/// </para>
 	/// </remarks>
 	[Fact]
-	public async Task ConvergeAPreExistingDeadLetterOntoTheReservedKey()
-	{
-		await RequireDockerAndFreshSchemaAsync();
-		await ShippedOracleOutboxSchema.RemoveDeadLetterTenantColumnToLegacyShapeAsync(ConnectionString, Ct);
-
-		(await HasDeadLetterTenantColumnAsync()).ShouldBeFalse(
-			"the legacy shape must actually be re-established, or the migration below proves nothing");
-
-		await ExecuteAsync(
-			"""
-			INSERT INTO OUTBOX_DEAD_LETTERS (message_id, message_type, occurred_on, attempts)
-			VALUES ('legacy-dl', 'T', SYSTIMESTAMP, 4)
-			""");
-
-		await ShippedOracleOutboxSchema.RunDeadLetterMigrationAsync(ConnectionString, Ct);
-
-		(await StoredTenantOfAsync("legacy-dl")).ShouldBe(
-			Sentinel,
-			"an entry that predates the column must hold a value after the upgrade, because the column is "
-			+ "now total — on that row the value records 'not captured', not 'known untenanted'");
-
-		(await IsDeadLetterTenantNullableAsync()).ShouldBeFalse(
-			"the upgrade must close the column, not merely put a value in it");
-
-		(await UniqueKeyIncludesTenantAsync()).ShouldBeTrue(
-			"the upgrade must widen the key, or a later write could drop the tenant and still satisfy the "
-			+ "constraint");
-	}
-
-	/// <summary>
-	/// UPGRADE, liveness: after the upgrade the move works and a real tenant is stored verbatim.
-	/// </summary>
-	/// <remarks>
-	/// This is the arm that fails if the upgrade produces a schema the shipped PL/SQL cannot write to — a
-	/// column of the wrong width, a key the INSERT violates, a bind that no longer lines up. An upgrade
-	/// that converges the data and then rejects every subsequent write is worse than no upgrade, and the
-	/// convergence arm above cannot see it.
-	/// </remarks>
-	[Fact]
-	public async Task AcceptRealTraffic_AfterTheUpgrade()
-	{
-		await RequireDockerAndFreshSchemaAsync();
-		await ShippedOracleOutboxSchema.RemoveDeadLetterTenantColumnToLegacyShapeAsync(ConnectionString, Ct);
-		await ShippedOracleOutboxSchema.RunDeadLetterMigrationAsync(ConnectionString, Ct);
-
-		await StageAsync("m-post-upgrade", tenantId: "fabrikam");
-		await MoveToDeadLetterAsync("m-post-upgrade");
-
-		(await StoredTenantOfAsync("m-post-upgrade")).ShouldBe(
-			"fabrikam",
-			"an upgraded database must accept the same traffic a fresh one does, with the tenant intact");
-	}
-
-	/// <summary>
-	/// UPGRADE: the script is safe to run twice, and against an already-converged database.
-	/// </summary>
-	/// <remarks>
-	/// Deployment scripts get re-run — by a retried pipeline, or by an operator who cannot tell whether the
-	/// first attempt finished. A migration that is only correct once is one that will be wrong in production.
-	/// </remarks>
-	[Fact]
-	public async Task BeSafeToRunTheUpgradeTwiceAndOnAFreshInstall()
+	public async Task CarryTheTenantTermInTheShippedDeadLetterKey()
 	{
 		await RequireDockerAndFreshSchemaAsync();
 
-		await StageAsync("m-already", tenantId: "acme");
-		await MoveToDeadLetterAsync("m-already");
+		var keyColumns = await UniqueKeyColumnsAsync();
 
-		await ShippedOracleOutboxSchema.RunDeadLetterMigrationAsync(ConnectionString, Ct);
-		await ShippedOracleOutboxSchema.RunDeadLetterMigrationAsync(ConnectionString, Ct);
+		keyColumns.ShouldContain(
+			"MESSAGE_ID",
+			"the dead-letter key must address a message at all — an empty column set here would make the "
+			+ "tenant assertion below vacuously true");
 
-		(await StoredTenantOfAsync("m-already")).ShouldBe(
-			"acme",
-			"running the upgrade against a converged database must not rewrite a real tenant to the "
-			+ "reserved key — the backfill touches only rows that hold no value");
-
-		(await ScalarAsync<decimal>("SELECT COUNT(*) FROM OUTBOX_DEAD_LETTERS")).ShouldBe(
-			1m, "a second run must not duplicate or drop rows");
-
-		(await IsDeadLetterTenantNullableAsync()).ShouldBeFalse("the column must remain closed");
-		(await UniqueKeyIncludesTenantAsync()).ShouldBeTrue("the key must remain widened");
+		keyColumns.ShouldContain(
+			"TENANT_ID",
+			"without the tenant term in the key, two tenants' dead letters carrying the same message id "
+			+ "collide on ONE row: the second write overwrites the first, and the only surviving record of "
+			+ "that message — the row an operator attributes and a redrive reads — is destroyed");
 	}
 
 	private async Task StageAsync(string messageId, string? tenantId)
@@ -301,21 +248,27 @@ public sealed class OracleDeadLetterTenantProvenanceShould(OracleOutboxStoreCont
 		ScalarAsync<string>(
 			$"SELECT TENANT_ID FROM OUTBOX_DEAD_LETTERS WHERE MESSAGE_ID = '{messageId}'");
 
-	private async Task<bool> HasDeadLetterTenantColumnAsync() =>
-		await ScalarAsync<decimal>(
-			"SELECT COUNT(*) FROM USER_TAB_COLUMNS "
-			+ "WHERE TABLE_NAME = 'OUTBOX_DEAD_LETTERS' AND COLUMN_NAME = 'TENANT_ID'") > 0m;
+	/// <summary>
+	/// Reads the dead-letter table's UNIQUE key column set from the live catalogue.
+	/// </summary>
+	/// <remarks>
+	/// Selected by constraint TYPE rather than by name, so renaming the constraint does not silently turn
+	/// this into a query that matches nothing. Returns the COMPOSITION rather than a boolean, so the
+	/// caller can tell a key that is missing the tenant term from a query that found no key at all.
+	/// Oracle folds unquoted identifiers to upper case, which is why the caller asserts upper-case names.
+	/// </remarks>
+	private async Task<IReadOnlyList<string>> UniqueKeyColumnsAsync()
+	{
+		await using var connection = new OracleConnection(ConnectionString);
+		await connection.OpenAsync(Ct);
 
-	private async Task<bool> IsDeadLetterTenantNullableAsync() =>
-		await ScalarAsync<string>(
-			"SELECT NULLABLE FROM USER_TAB_COLUMNS "
-			+ "WHERE TABLE_NAME = 'OUTBOX_DEAD_LETTERS' AND COLUMN_NAME = 'TENANT_ID'") == "Y";
+		var columns = await connection.QueryAsync<string>(
+			"SELECT ucc.COLUMN_NAME FROM USER_CONS_COLUMNS ucc "
+			+ "JOIN USER_CONSTRAINTS uc ON uc.CONSTRAINT_NAME = ucc.CONSTRAINT_NAME "
+			+ "WHERE ucc.TABLE_NAME = 'OUTBOX_DEAD_LETTERS' AND uc.CONSTRAINT_TYPE = 'U'");
 
-	private async Task<bool> UniqueKeyIncludesTenantAsync() =>
-		await ScalarAsync<decimal>(
-			"SELECT COUNT(*) FROM USER_CONS_COLUMNS "
-			+ "WHERE TABLE_NAME = 'OUTBOX_DEAD_LETTERS' "
-			+ "  AND CONSTRAINT_NAME = 'UQ_OUTBOX_DLQ_MESSAGE_ID' AND COLUMN_NAME = 'TENANT_ID'") > 0m;
+		return columns.ToList();
+	}
 
 	private async Task ExecuteAsync(string sql)
 	{

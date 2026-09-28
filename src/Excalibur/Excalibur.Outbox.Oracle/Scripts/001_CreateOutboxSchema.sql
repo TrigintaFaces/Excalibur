@@ -64,8 +64,6 @@ BEGIN
     -- DEFAULT precedes NOT NULL: that is Oracle's required order for an inline column
     -- constraint, and it matches occurred_on and attempts below.
     --
-    -- Databases created while this column was nullable are converged by
-    -- 002_MakeOutboxTenantTotal.sql.
     tenant_id           VARCHAR2(64)  DEFAULT '__untenanted__' NOT NULL,
     destination         VARCHAR2(500),
     correlation_id      VARCHAR2(255),
@@ -115,10 +113,8 @@ END;
 -- definition's first token, so the two cannot drift apart.
 --
 -- TENANT_ID arrives NOT NULL carrying the reserved untenanted key as its default, so existing rows
--- are anchored to that key by the ADD itself. That is the same value 002_MakeOutboxTenantTotal.sql
--- converges to, and 002 then correctly finds nothing to do. 002 raises ORA-20002 telling the
--- operator to run this script first; before this block existed that instruction pointed at a script
--- that aborted on the first object it found, so it could not be followed.
+-- are anchored to that key by the ADD itself, which is the same reserved value a fresh
+-- provisioning writes.
 --
 -- OCCURRED_ON carries SYSTIMESTAMP as its default, so if it is genuinely absent every existing row
 -- is stamped with the instant of the upgrade rather than when the message was produced. There is no

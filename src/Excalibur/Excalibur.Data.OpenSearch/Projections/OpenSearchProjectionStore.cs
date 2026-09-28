@@ -496,14 +496,6 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			.ConfigureAwait(false);
 	}
 
-	/// <summary>
-	/// Writes the document only if it still carries the optimistic-concurrency pair the caller read.
-	/// </summary>
-	/// <remarks>
-	/// The sequence pair is what makes the write atomic against a concurrent writer. The position
-	/// comparison the caller already performed is what refuses a re-delivery; neither substitutes for
-	/// the other.
-	/// </remarks>
 	/// <inheritdoc />
 	/// <remarks>
 	/// <para>
@@ -569,6 +561,14 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		};
 	}
 
+	/// <summary>
+	/// Writes the document only if it still carries the optimistic-concurrency pair the caller read.
+	/// </summary>
+	/// <remarks>
+	/// The sequence pair is what makes the write atomic against a concurrent writer. The position
+	/// comparison the caller already performed is what refuses a re-delivery; neither substitutes for
+	/// the other.
+	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task<ProjectionAdvanceResult> WriteAtSequenceAsync(

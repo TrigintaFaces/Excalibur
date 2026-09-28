@@ -39,8 +39,6 @@
 -- deployment. So the key is declared NONCLUSTERED, where 1700 bytes gives it room, and the table
 -- is clustered on the widest prefix that fits. The uniqueness guarantee is identical either way.
 --
--- 009_MakeSnapshotKeyFitTheIndexLimit.sql applies the same change to a table that already exists.
---
 -- TENANT COLLATION
 -- ----------------
 -- TenantId is pinned to a binary collation. SQL Server's server default is typically

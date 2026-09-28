@@ -566,8 +566,8 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					$"Table '{tableName}' exists but has no 'TenantId' column, so it cannot record which tenant a "
 					+ "row belongs to. This is the shape created before the tenant discriminator was introduced; "
 					+ "enabling automatic schema creation will NOT repair it, because that path only creates tables "
-					+ "that are absent. Run the shipped migration script "
-					+ "'004_MakeDataInventoryTenantTotal.sql' against this database, then restart. Until then every "
+					+ "that are absent. Re-provision this table from the shipped create script -- "
+					+ "there is no in-place upgrade from the pre-tenant shape. Until then every "
 					+ "read would be unable to distinguish one tenant's registrations from another's.");
 			}
 		}
@@ -630,8 +630,8 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
 					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
 					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
-					+ "that path only creates tables that are absent. Run the shipped migration script "
-					+ "'004_MakeDataInventoryTenantTotal.sql' against this database, then restart.");
+					+ "that path only creates tables that are absent. Re-provision this table from the shipped create script -- "
+					+ "there is no in-place upgrade from the pre-tenant shape.");
 			}
 		}
 	}

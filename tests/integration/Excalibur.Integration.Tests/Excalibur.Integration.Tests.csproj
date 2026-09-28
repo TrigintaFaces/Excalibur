@@ -84,7 +84,6 @@
       copy in the test would let the shipped script rot behind a green suite, which is the
       exact gap the create-script link exists to close.
     -->
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Scripts\004_MakeEventTenantTotal.sql" Link="Schema\004_MakeEventTenantTotal.sql" />
     <!--
       Same rule for the SINGLE-TENANT inbox DDL. The turnkey-composition E2E needs the single-tenant
       shape (PK (MessageId, HandlerType), no TenantId) while the shared inbox fixture is deliberately
@@ -99,8 +98,6 @@
       shipped script and the store surfaces here rather than on a consumer database.
     -->
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Scripts\001_CreateOutboxSchema.sql" Link="Schema\001_CreatePostgresOutboxSchema.sql" />
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Scripts\002_MakeOutboxTenantTotal.sql" Link="Schema\002_MakePostgresOutboxTenantTotal.sql" />
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Scripts\003_CarryTenantOnDeadLetters.sql" Link="Schema\003_CarryPostgresDeadLetterTenant.sql" />
     <!--
       Migration-drift fixtures. Three renderings of ONE migration id, which is what lets a test
       distinguish an EDITED migration (must be refused) from the SAME migration checked out with

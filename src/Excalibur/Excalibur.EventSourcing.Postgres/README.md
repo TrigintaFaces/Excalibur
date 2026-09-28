@@ -65,7 +65,7 @@ The canonical DDL ships in the package:
 | script | creates |
 | --- | --- |
 | `scripts/001_CreateSnapshotSchema.sql` | `public.event_store_snapshots` |
-| `scripts/004_CreateEventStoreSchema.sql` | `public.events` |
+| `scripts/002_CreateEventStoreSchema.sql` | `public.events` |
 
 Defaults: schema `public`, tables `events` and `event_store_snapshots`, all configurable via
 `PostgresEventSourcingOptions`. Without the event-store table the first append fails with

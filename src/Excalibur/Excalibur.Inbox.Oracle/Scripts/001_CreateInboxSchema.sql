@@ -27,7 +27,7 @@
 -- 001_CreateInboxSchema.MultiTenant.sql instead — it adds a NOT NULL TenantId column to
 -- the key. The store verifies at startup that the physical schema matches the registered
 -- mode and FAILS FAST on a mismatch. To grow from single- to multi-tenant later, run the
--- expand-contract migration script (002_MigrateToMultiTenant.sql).
+-- multi-tenant create script (001_CreateInboxSchema.MultiTenant.sql); there is no in-place conversion.
 
 -- This script creates schema. Without the directive below SQL*Plus exits 0 even when a statement
 -- fails -- ORA-00955 on an object that already exists, or an insufficient-privilege error -- so an

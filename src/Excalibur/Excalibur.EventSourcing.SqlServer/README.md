@@ -58,28 +58,17 @@ running the scripts shipped inside this package under `scripts/`:
 |---|---|---|
 | `scripts/001_CreateEventStoreSchema.sql` | `dbo.EventStoreEvents` | Yes — this is the event store itself |
 | `scripts/002_CreateSnapshotSchema.sql` | `dbo.EventStoreSnapshots` | Only if you enable snapshots |
-| `scripts/003_MigrateToMultiTenant.sql` | — | Upgrade only, see below |
-| `scripts/004_MakeEventTenantTotal.sql` | — | Upgrade only, see below |
+| `scripts/003_CreateCursorMapSchema.sql` | `dbo.ProjectionCursorMaps` | Only if a projection resumes from per-stream positions |
+| `scripts/004_CreateSubscriptionCheckpointSchema.sql` | `dbo.SubscriptionCheckpoints` | Only if you run catch-up subscriptions |
 
-Both create scripts are guarded, so re-running them against an existing database is a no-op.
+Every script is guarded, so re-running one against an existing database is a no-op.
 
-### Upgrading an existing database
+`EventStoreEvents.TenantId` is created `NOT NULL`, and an untenanted event stores the reserved
+`__untenanted__` sentinel rather than `NULL`, so an untenanted event is a value rather than a missing
+one and the stream-identity constraint binds it like any other.
 
-Run these in order; each is guarded and safe to run against a database that is already converged.
-
-`003_MigrateToMultiTenant.sql` grows a store created before tenancy existed into the current
-schema. Without it, an existing deployment fails on the first append with
-`Invalid column name 'TenantId'`.
-
-`004_MakeEventTenantTotal.sql` then backfills `EventStoreEvents.TenantId` from `NULL` to the
-reserved `__untenanted__` sentinel and makes the column `NOT NULL`, so an untenanted event is a
-value rather than a missing one, and an upgraded database ends up in the same shape as a fresh one.
-It is not needed for a fresh install — `001` already creates the column that way. Its pre-flight
-step reports any stream version that already holds both a `NULL` and a literal sentinel row;
-resolve those before continuing, because only you can decide which append survives.
-
-Both upgrade scripts rebuild a unique constraint on the system of record, so run them in a
-maintenance window with the store stopped, against a backup you have restored at least once.
+A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it from
+these scripts.
 
 ## Related Packages
 

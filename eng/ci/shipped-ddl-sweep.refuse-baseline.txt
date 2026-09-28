@@ -28,3 +28,20 @@
 # Adding a line here is still the reviewable act it always was: a table ENTERING the REFUSE set
 # fails the gate until someone maps it, or records it here with a written reason and a filed
 # issue. Do not add one to clear a red.
+
+# THE GLOBAL POSITION COUNTER TABLES.
+#
+# One counter per event store, the seam that makes the global stream gapless. The sweep RUNS against
+# each and cannot evaluate it: the counter is written by
+#   UPDATE <counter> SET Value = Value + @Count WHERE Id = 1 RETURNING Value
+# and the column extractor recognises only an INSERT column list, so it reports src-written-cols=0.
+# Mapping them does not clear it -- a mapped table whose write cannot be parsed refuses just the same.
+#
+# This is a gap in the EXTRACTOR, not in the shipped DDL: every create script and every shipped sample
+# declares the counter with both of its columns (Id and Value). DELETE THESE LINES once the extractor
+# reads an UPDATE ... SET column list, at which point all five evaluate on every run.
+Events_Position
+events_position
+dbo.EventsPosition
+events.EventsPosition
+dbo.EventStoreEventsPosition

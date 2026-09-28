@@ -8,8 +8,7 @@ using Npgsql;
 namespace Excalibur.Integration.Tests.Data.Outbox;
 
 /// <summary>
-/// Provisions the Postgres outbox tables from the DDL the package actually ships, and runs the
-/// upgrade script the package actually ships.
+/// Provisions the Postgres outbox tables from the DDL the package actually ships.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,30 +20,26 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 /// </para>
 /// <para>
 /// This type closes that gap for the properties that are decided by the SCHEMA rather than by the
-/// store: whether a <c>DEFAULT</c> fires on an omitted column, whether the column refuses NULL, and
-/// whether the upgrade script converges an older database. None of those can be answered by a copy of
-/// the DDL — only by the file itself.
+/// store: whether a <c>DEFAULT</c> fires on an omitted column, and whether the column refuses NULL.
+/// Neither can be answered by a copy of the DDL — only by the file itself.
 /// </para>
 /// <para>
-/// Both scripts are embedded from <c>src/</c> by the test project rather than copied here, for the
-/// same reason: a copy would let the shipped script rot behind a green suite.
+/// The script is embedded from <c>src/</c> by the test project rather than copied here, for the same
+/// reason: a copy would let the shipped script rot behind a green suite.
+/// </para>
+/// <para>
+/// There is no upgrade script to run. The package ships one CREATE script per provider, already at the
+/// final shape, and a consumer holding an older database re-provisions from it.
 /// </para>
 /// </remarks>
 internal static class ShippedPostgresOutboxSchema
 {
 	private const string CreateScriptFileName = "001_CreatePostgresOutboxSchema.sql";
-	private const string MigrationScriptFileName = "002_MakePostgresOutboxTenantTotal.sql";
-	private const string DeadLetterMigrationScriptFileName = "003_CarryPostgresDeadLetterTenant.sql";
 
 	/// <summary>
 	/// Gets the shipped fresh-install DDL.
 	/// </summary>
 	public static string CreateDdl { get; } = LoadShipped(CreateScriptFileName);
-
-	/// <summary>
-	/// Gets the shipped tenant-totality upgrade script.
-	/// </summary>
-	public static string MigrationDdl { get; } = LoadShipped(MigrationScriptFileName);
 
 	/// <summary>
 	/// Drops the outbox tables and recreates them from the shipped fresh-install script.
@@ -64,72 +59,6 @@ internal static class ShippedPostgresOutboxSchema
 
 		await ExecuteAsync(connectionString, CreateDdl, cancellationToken).ConfigureAwait(false);
 	}
-
-	/// <summary>
-	/// Runs the shipped tenant-totality upgrade script.
-	/// </summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task RunMigrationAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(connectionString, MigrationDdl, cancellationToken);
-
-	/// <summary>
-	/// Gets the shipped dead-letter tenant-provenance upgrade script.
-	/// </summary>
-	public static string DeadLetterMigrationDdl { get; } = LoadShipped(DeadLetterMigrationScriptFileName);
-
-	/// <summary>
-	/// Runs the shipped dead-letter tenant-provenance upgrade script.
-	/// </summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task RunDeadLetterMigrationAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(connectionString, DeadLetterMigrationDdl, cancellationToken);
-
-	/// <summary>
-	/// Re-opens the dead-letter table to its pre-wave shape: no tenant column, and a primary key on the
-	/// message id alone.
-	/// </summary>
-	/// <remarks>
-	/// Reconstructed from the CURRENT shipped schema rather than hand-written, for the same reason as the
-	/// outbox equivalent below: it creates today's table and then removes the one column, which is exactly
-	/// the state a database provisioned before this wave is in. Dropping the column takes the composite key
-	/// with it, so the single-column key is restored explicitly under Postgres's implicit name — the name an
-	/// older create script would have produced, which is what makes the migration's drop-by-real-name step
-	/// non-trivial rather than a formality.
-	/// </remarks>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task RemoveDeadLetterTenantColumnToLegacyShapeAsync(
-		string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(
-			connectionString,
-			"""
-			ALTER TABLE public.outbox_dead_letters DROP COLUMN tenant_id;
-			ALTER TABLE public.outbox_dead_letters
-			    ADD CONSTRAINT outbox_dead_letters_pkey PRIMARY KEY (message_id);
-			""",
-			cancellationToken);
-
-	/// <summary>
-	/// Re-opens the tenant column to its pre-wave shape: nullable, with no default.
-	/// </summary>
-	/// <remarks>
-	/// The legacy shape is reconstructed from the CURRENT shipped schema rather than hand-written, so
-	/// this cannot drift from the product: it creates today's table and then re-opens the one column,
-	/// which is exactly the state a database created before this wave is in.
-	/// </remarks>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task ReopenTenantColumnToLegacyShapeAsync(
-		string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(
-			connectionString,
-			"""
-			ALTER TABLE public.outbox ALTER COLUMN tenant_id DROP NOT NULL;
-			ALTER TABLE public.outbox ALTER COLUMN tenant_id DROP DEFAULT;
-			""",
-			cancellationToken);
 
 	private static async Task ExecuteAsync(string connectionString, string sql, CancellationToken cancellationToken)
 	{

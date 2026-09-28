@@ -67,8 +67,6 @@ something a version upgrade did to you while you were not looking.
 |---|
 | `scripts/001_CreateInboxSchema.MultiTenant.sql` |
 | `scripts/001_CreateInboxSchema.sql` |
-| `scripts/002_MigrateToMultiTenant.sql` |
-| `scripts/003_NarrowTenantIdToPortableMaximum.sql` |
 
 Apply them in filename order before starting the application, and again — for any new ones — before
 starting a new version after an upgrade.

@@ -25,8 +25,6 @@
       a consumer database — and the PL/SQL in the upgrade is syntax-checked by a real Oracle.
     -->
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Oracle\Scripts\001_CreateOutboxSchema.sql" Link="Schema\001_CreateOracleOutboxSchema.sql" />
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Oracle\Scripts\002_MakeOutboxTenantTotal.sql" Link="Schema\002_MakeOracleOutboxTenantTotal.sql" />
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Oracle\Scripts\003_CarryTenantOnDeadLetters.sql" Link="Schema\003_CarryOracleDeadLetterTenant.sql" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Oracle\Excalibur.Outbox.Oracle.csproj" />

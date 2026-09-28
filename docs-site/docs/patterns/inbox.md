@@ -200,7 +200,7 @@ CREATE TABLE [dbo].[inbox_messages] (
 
 A genuinely untenanted system row (or a row anchored during a single-tenant→multi-tenant migration) binds the reserved sentinel `'__untenanted__'`. The framework rejects that exact identifier as a tenant id, so the sentinel can never collide with a tenant literal.
 
-To grow an existing single-tenant table into the multi-tenant key, run the shipped expand-contract migration (`002_MigrateToMultiTenant.sql`) during a maintenance window with the store stopped: it adds `TenantId NOT NULL DEFAULT '__untenanted__'` (anchoring existing rows to the sentinel) and rebuilds the primary key as `(MessageId, HandlerType, TenantId)`. After it completes, register multi-tenancy and restart — the startup handshake then confirms the triple key.
+Provision the multi-tenant shape from `001_CreateInboxSchema.MultiTenant.sql`, the second create script shipped in the provider package, rather than from `001_CreateInboxSchema.sql`. There is no in-place upgrade from a table created on the single-tenant key — re-provision it from the multi-tenant script, then register multi-tenancy and start: the startup handshake confirms the triple key.
 :::
 
 :::warning `LeaseExpiresAtUtc` is required

@@ -542,8 +542,8 @@ services.AddSqlServerMaterializedViewStore(opts =>
 
 `Id` is a surrogate identity used as the clustered key. The natural key is enforced by a UNIQUE
 constraint instead, because at these column widths it exceeds SQL Server's 900-byte clustered index
-key limit. The store creates both tables in this shape via `EnsureSchemaAsync`; an existing database
-is converted by the `005_MakeMaterializedViewsTenantTotal.sql` script shipped in the package.
+key limit. The store creates both tables in this shape via `EnsureSchemaAsync`. A database
+provisioned by an earlier prerelease has no in-place upgrade path; re-provision it.
 
 ### PostgreSQL
 
@@ -559,8 +559,8 @@ services.AddPostgresMaterializedViewStore(opts => opts.ConnectionString = connec
 - `materialized_view_positions` (tenant_id, view_name, position, created_at, updated_at) —
   primary key (tenant_id, view_name)
 
-The `003_MakeMaterializedViewsTenantTotal.sql` script shipped in the package creates both tables in
-this shape, and converts them if they already exist in the older un-partitioned form.
+The store issues no DDL — provision both tables in the shape above before the first projection runs.
+A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it.
 
 ### MongoDB
 

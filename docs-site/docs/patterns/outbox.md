@@ -396,7 +396,6 @@ Those files are the authority for this schema — the store's own statements are
 | Script | What it does |
 |--------|--------------|
 | `001_CreateOutboxSchema.sql` | Creates `OutboxMessages`, `OutboxMessageTransports`, `DeadLetterQueue` and `OutboxFence`. Also carries a guarded additive step that converges a legacy table whose `TenantId` is still nullable. |
-| `002_NarrowTenantIdToPortableMaximum.sql` | Narrows `TenantId` to `NVARCHAR(64)` on the three tables `001` owns. Refuses atomically, changing nothing, if any identifier exceeds 64 characters. |
 
 ```bash
 # The scripts sit alongside lib/ in the package folder your restore populated.
@@ -409,27 +408,13 @@ silently and carries no upgrade path; the packaged scripts are the single copy k
 code, and the only copy that is numbered. Provision from them rather than from any restatement.
 :::
 
-:::caution Upgrading a database created by an earlier version
+:::caution A database provisioned by an earlier prerelease
 
-`TenantId` is declared `NVARCHAR(64)`. Databases provisioned by earlier releases of this package
-declare it wider, and **re-running the create script above does not narrow it** — the script skips
-any table that already exists, so an upgraded database keeps the wider column while a fresh install
-gets the narrower one.
-
-Nothing breaks at runtime as a result: the collation and nullability are unchanged, and reads and
-writes behave identically on both shapes. The divergence matters when the two shapes meet — a
-restore, a replica, or a move to another provider, all of which use the narrower column. Two tenant
-identifiers that differ only after the 64th character are distinct in the wider column and identical
-in the narrower one, and `TenantId` is part of the dead-letter primary key.
-
-If your tenant identifiers are all 64 characters or shorter — which they are unless you set them
-before this limit was introduced — you are unaffected in practice. **The narrowing script ships:**
-`002_NarrowTenantIdToPortableMaximum.sql`, packed inside `Excalibur.Outbox.SqlServer` under
-`scripts/`. It narrows `TenantId` on all three tables `001` owns, and it **refuses and changes
-nothing** — atomically, across every table, having counted first — if any identifier exceeds 64
-characters, rather than truncating a value that identifies a tenant. The refusal is raised as a
-severity-16 error, so run it with a client that stops on error: a refused migration reported as a
-success leaves the column un-narrowed while the operator believes otherwise.
+`TenantId` is declared `NVARCHAR(64)`, and a create script skips any table that already exists, so a
+database provisioned by an earlier prerelease keeps whatever width it was given. There is no in-place
+upgrade path — re-provision it from the script above. Two tenant identifiers that differ only after
+the 64th character are distinct in a wider column and identical in this one, and `TenantId` is part
+of the dead-letter primary key.
 :::
 
 :::note Ordering and retry-backoff columns
@@ -573,9 +558,8 @@ is reproduced above. It is packed inside the NuGet package under `scripts/`.
 **It provisions and it upgrades.** The table and index statements are `CREATE ... IF NOT EXISTS`, so
 they do nothing against objects that already exist; the script then runs a guarded
 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for every outbox column, so a table created by an earlier
-revision gains whichever columns it is missing. When upgrading, run the packaged scripts in order —
-`001`, then `002_MakeOutboxTenantTotal.sql`, then `003_CarryTenantOnDeadLetters.sql` — rather than
-hand-writing the DDL.
+revision gains whichever columns it is missing. Run the packaged script rather than hand-writing the
+DDL.
 
 Two columns are deliberately left out of the additive step. `message_type` and `message_body` are
 `NOT NULL` with no default, so adding them to a table that already has rows would fail outright, and
@@ -585,9 +569,9 @@ but a name collision with something else, and failing loudly is the right outcom
 If your table was created from an earlier revision of this page it has a `SERIAL` `id` column and a
 `UNIQUE` constraint on `message_id` instead of a primary key on it. That shape still works -- the
 store addresses rows by `message_id`, which is unique either way -- but the surrogate key is never
-read. A `tenant_id` declared `VARCHAR(255)` is also wider than the store will ever write; narrowing
-it is optional, and `002_MakeOutboxTenantTotal.sql` converges a table whose `tenant_id` is still
-nullable.
+read. A `tenant_id` declared `VARCHAR(255)` is also wider than the store will ever write. A database
+provisioned by an earlier prerelease has no in-place upgrade path onto the current shape;
+re-provision it from the packaged script.
 :::
 
 :::note Leader-elected (fenced) deployments need a fence control table
@@ -605,43 +589,23 @@ The table name defaults to `outbox_fence` (override via `PostgresOutboxStoreOpti
 **The SQL Server outbox uses a durable `OutboxFence` control table.** Like every other table this store uses, it is **not** created at runtime — the store auto-creates nothing. The packaged schema script (`001_CreateOutboxSchema.sql`, shipped inside the NuGet package) creates it for you if you run that script; if you instead copy the DDL from the SQL Server schema section above, `OutboxFence` is included in that block and you must create it along with the others. It is required even for a single-instance deployment that never uses fencing, because the drain references it unconditionally and SQL Server binds object names before the runtime predicate can short-circuit. It holds one monotonic high-water mark per scope that outbox cleanup never touches, so a demoted leader's stale-token drain/mark is rejected even after the outbox has been cleaned up or drained empty. The table name defaults to `OutboxFence` (override via `SqlServerOutboxOptions.Tables.FenceTableName`, qualified by `Tables.SchemaName`). See [Multi-Instance (Leader-Fenced) Processing](#multi-instance-leader-fenced-processing).
 :::
 
-:::note Upgrading an existing Postgres outbox schema
-If you already run an earlier `outbox` schema, run the packaged `001_CreateOutboxSchema.sql` first —
-otherwise staged messages fail with `column "tenant_id" does not exist` or
-`column "destination" does not exist`. Its additive step adds every column your table is missing,
-including those two, and does nothing to the ones it already has. There is no hand-written DDL to
-apply here any more; the script is the upgrade.
-
-Then converge `tenant_id` onto its total form by running the packaged
-`002_MakeOutboxTenantTotal.sql` (shipped inside the NuGet package). It backfills every `NULL` and
-blank tenant to the reserved `__untenanted__` value and then applies `NOT NULL DEFAULT`, so an
+:::note A database provisioned by an earlier prerelease
+There is no in-place upgrade path onto the current shape; re-provision from the packaged
+`001_CreateOutboxSchema.sql`. `tenant_id` arrives `NOT NULL DEFAULT '__untenanted__'`, so an
 untenanted message is stored as a value rather than as the absence of one — which is what lets a
-tenant predicate compare like with like. It is guarded and safe to re-run.
-
-**Deploy this package version before running it, and run it with the processor stopped.** The
-staging path binds the reserved value; an older package binds a raw null tenant and would fail the
-new constraint.
+tenant predicate compare like with like.
 
 If you run a leader-elected (fenced) outbox, add the `outbox_fence` control table shown above as well.
 :::
 
-:::caution Upgrading an existing dead-letter table: the tenant of entries already in it is unrecoverable
-Earlier versions of `outbox_dead_letters` had no tenant column, and the move that fills that table
-deletes the outbox row it copied from. So for a dead letter that is already in your table, the
-tenant that produced it exists nowhere — not in this table, not in the outbox, not anywhere the
-store can reach.
-
-Run the packaged `003_CarryTenantOnDeadLetters.sql` (Postgres and Oracle, shipped inside the NuGet
-package) before deploying this version. Without it, every dead-letter move fails with
-`column "tenant_id" does not exist`, and a message that has exhausted its retries stays in the
-outbox being retried forever.
-
-The script backfills existing rows to the reserved `__untenanted__` value, because the column is
-being made total. **On a pre-existing row that value records "no tenant was captured" — it is not
-evidence the message was untenanted.** Do not redrive such an entry assuming it belongs to the
-untenanted partition; a message that really belonged to a tenant would re-enter the wrong one. The
-script's pre-flight prints the instant that separates the two populations — record it, and treat
-rows with an earlier `moved_on` as unattributable.
+:::caution A dead-letter table provisioned by an earlier prerelease cannot be carried forward
+`outbox_dead_letters` carries the producing tenant, and the move that fills it deletes the outbox row
+it copied from — so for an entry already sitting in a table that predates the tenant column, the
+tenant that produced it exists nowhere the store can reach. There is no in-place upgrade path that
+could recover it. Re-provision from the packaged `001_CreateOutboxSchema.sql`, and do not redrive an
+entry carried over by hand: stamping it untenanted records "no tenant was captured" rather than
+evidence the message was untenanted, and a message that really belonged to a tenant would re-enter
+the wrong one.
 
 If those entries matter to you, drain, redrive, or export them **before** upgrading, while their
 tenant is still implied by your own operational records.

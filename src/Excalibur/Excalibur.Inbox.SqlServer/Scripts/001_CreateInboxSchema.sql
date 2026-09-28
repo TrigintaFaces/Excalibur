@@ -27,7 +27,7 @@
 -- column to the key. The store verifies at startup that the physical schema matches the
 -- registered mode and FAILS FAST on a mismatch (a multi-tenant store can never silently
 -- run against this single-tenant schema). To grow from single- to multi-tenant later,
--- run the expand-contract migration script (002_MigrateToMultiTenant.sql).
+-- provision from 001_CreateInboxSchema.MultiTenant.sql instead; there is no in-place conversion.
 
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[inbox_messages]') AND type = N'U')
 BEGIN

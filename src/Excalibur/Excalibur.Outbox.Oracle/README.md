@@ -69,10 +69,8 @@ rename the corresponding objects in the script to match.
 - The sentinel is deliberately non-empty. Oracle folds the empty string to `NULL`, so an
   empty-string sentinel would collapse straight back into the `NULL` the column exists to
   eliminate.
-- A database created while `tenant_id` was nullable is converged by
-  `002_MakeOutboxTenantTotal.sql`, which backfills `NULL` to the sentinel before applying the
-  constraint. **Run it with the processor stopped, and deploy this package version first** — the
-  older package binds a raw null tenant and would fail the new constraint with ORA-01400.
+- A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it
+  from the shipped schema script.
 
 ## Driver license
 

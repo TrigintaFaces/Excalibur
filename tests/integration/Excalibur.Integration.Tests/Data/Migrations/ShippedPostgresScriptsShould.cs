@@ -46,28 +46,19 @@ public sealed class ShippedPostgresScriptsShould
 				"Excalibur.AuditLogging.Postgres",
 				[
 					"src/Excalibur/Excalibur.AuditLogging.Postgres/Scripts/001_CreateAuditSchema.sql",
-					"src/Excalibur/Excalibur.AuditLogging.Postgres/Scripts/002_NarrowTenantIdToPortableMaximum.sql",
 				]
 			},
 			{
 				"Excalibur.Compliance.Postgres",
 				[
 					"src/Excalibur/Excalibur.Compliance.Postgres/Scripts/001_CreateComplianceSchema.sql",
-					"src/Excalibur/Excalibur.Compliance.Postgres/Scripts/002_MakeComplianceTenantTotal.sql",
-					"src/Excalibur/Excalibur.Compliance.Postgres/Scripts/003_MakeDataInventoryTenantTotal.sql",
-					"src/Excalibur/Excalibur.Compliance.Postgres/Scripts/004_ConvergeDefaultToUntenanted.sql",
 				]
 			},
 			{
 				"Excalibur.EventSourcing.Postgres",
 				[
 					"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/001_CreateSnapshotSchema.sql",
-					"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/002_MigrateSnapshotsToKeyedSentinel.sql",
-					"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/003_MakeMaterializedViewsTenantTotal.sql",
-					"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/004_CreateEventStoreSchema.sql",
-					"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/005_MakeEventStreamIdentityTenantScoped.sql",
-					"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/006_ConvergeUntenantedToDefaultTenant.sql",
-					"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/007_NarrowSnapshotTenantIdToPortableMaximum.sql",
+					"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/002_CreateEventStoreSchema.sql",
 				]
 			},
 		};

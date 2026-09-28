@@ -473,7 +473,7 @@
     {
       "line": 38,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventEncoderAdapter.cs",
-      "justification": "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) — the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
+      "justification": "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) \u2014 the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
       "warningId": "IL2046"
     },
     {
@@ -641,13 +641,13 @@
     {
       "line": 109,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL2026"
     },
     {
       "line": 111,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL3050"
     },
     {
@@ -4191,18 +4191,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 46,
-      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRecoveryService.cs",
-      "justification": "Event deserialization is inherently dynamic; projection recovery requires runtime type resolution.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 48,
-      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRecoveryService.cs",
-      "justification": "Event deserialization requires type metadata; consumers must preserve event types.",
-      "warningId": "IL2026"
-    },
-    {
       "line": 77,
       "file": "src/Excalibur/Excalibur.EventSourcing/Services/MaterializedViewRefreshService.cs",
       "justification": "Bucket D: the refresh work is trim-unsafe, but BackgroundService.ExecuteAsync is a BCL member that cannot carry the annotation and this type is internal, so no consumer signal is reachable from here. Tracked for a trim-safe view-serialization seam.",
@@ -5779,38 +5767,6 @@
       "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRecoveryService.cs",
       "justification": "Projection persistence requires type metadata; the interface this implements cannot carry the requirement, so consumers preserve their projection types.",
       "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 179,
-      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionReplayFold.cs",
-      "justification": "Projection persistence goes through IProjectionStore, which consumers configure with preserved types.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 181,
-      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionReplayFold.cs",
-      "justification": "Projection persistence goes through IProjectionStore, which consumers configure.",
-      "warningId": "IL3050",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 274,
-      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionReplayFold.cs",
-      "justification": "Projection loading goes through IProjectionStore, which consumers configure with preserved types.",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 276,
-      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionReplayFold.cs",
-      "justification": "Projection loading goes through IProjectionStore, which consumers configure.",
-      "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
     }

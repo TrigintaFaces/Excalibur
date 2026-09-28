@@ -8,49 +8,74 @@ using Npgsql;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Postgres;
 
 /// <summary>
-/// Provisions, regresses, and migrates the Postgres compliance schema using the DDL the package ships.
+/// Provisions the Postgres compliance schema using the DDL the package ships, and can put the two
+/// inventory tables back into the pre-tenant shape an upgrading consumer still holds.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The SQL Server twin of this type carries the full rationale; the same two rules apply here. Nothing
 /// restates a <c>CREATE TABLE</c>, so a suite built on this cannot pass against a schema no consumer will
-/// provision. And <see cref="RegressToLegacyAsync"/> DERIVES the pre-migration shape by reversing exactly
-/// the properties the migration establishes, rather than keeping a second copy of the old definition that
-/// would then be free to drift from what upgrading consumers actually hold.
+/// provision. And <see cref="RegressDataInventoryToPreTenantAsync"/> DERIVES the pre-tenant shape by
+/// reversing exactly the properties the create script establishes, rather than keeping a second copy of
+/// the old definition that would then be free to drift from what upgrading consumers actually hold.
 /// </para>
 /// <para>
 /// The reversal is shorter than the SQL Server one, and the difference is real rather than an oversight:
-/// this dialect's migration attaches a constraint and a default but does not rewrite the column type, so
-/// there is no index to drop and no collation to restore.
+/// this dialect's keys fit its index limits directly, so there is no surrogate column and no hashed
+/// natural key to undo.
 /// </para>
 /// </remarks>
 internal static class ShippedCompliancePostgresSchema
 {
 	private const string CreateScript = "Postgres.001_CreateComplianceSchema.sql";
-	private const string MigrateScript = "Postgres.002_MakeComplianceTenantTotal.sql";
-	private const string MigrateDataInventoryScript = "Postgres.003_MakeDataInventoryTenantTotal.sql";
 
-	/// <summary>Runs the shipped data-inventory tenant-totality migration.</summary>
+	/// <summary>Creates the compliance schema in its shipped, fresh-install shape.</summary>
 	/// <param name="connectionString">The target database.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task MigrateDataInventoryAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(connectionString, LoadShipped(MigrateDataInventoryScript), cancellationToken);
+	public static Task EnsureCreatedAsync(string connectionString, CancellationToken cancellationToken) =>
+		ExecuteAsync(connectionString, LoadShipped(CreateScript), cancellationToken);
 
 	/// <summary>
-	/// Returns the two inventory tables to the pre-migration shape every upgrading consumer holds: no
-	/// tenant_id column at all, and the narrow primary keys that let one tenant's registration overwrite
-	/// another's.
+	/// Drops the two inventory tables and re-provisions them from the shipped create script.
 	/// </summary>
 	/// <remarks>
-	/// The shape this recreates is not hypothetical. The tenant discriminator reached these tables by
-	/// editing 001 in place, and BOTH provisioning paths — the script's <c>CREATE TABLE IF NOT EXISTS</c>
-	/// and the store's own auto-create — guard on table existence. So every database whose inventory
-	/// tables predate that edit still has exactly this shape, and upgrading the package does not change
-	/// it. Dropping the column takes its primary key with it, so each key is restated in its narrow form.
+	/// The repair a suite that regressed these tables owes its neighbours. The inventory tables are shared
+	/// by every arm in the Postgres collection, and the pre-tenant shape is one no current store will
+	/// accept — it fails fast on the missing tenant column, by design. DROP first because the create
+	/// script guards on table existence and would otherwise do nothing at all.
 	/// </remarks>
 	/// <param name="connectionString">The target database.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task RegressDataInventoryToLegacyAsync(
+	public static async Task ReprovisionDataInventoryAsync(
+		string connectionString,
+		CancellationToken cancellationToken)
+	{
+		await ExecuteAsync(
+			connectionString,
+			"""
+			DROP TABLE IF EXISTS "compliance"."discovered_data_locations";
+			DROP TABLE IF EXISTS "compliance"."data_inventory_registrations";
+			""",
+			cancellationToken).ConfigureAwait(false);
+
+		await EnsureCreatedAsync(connectionString, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Returns the two inventory tables to the pre-tenant shape an upgrading consumer holds: no tenant_id
+	/// column at all, and the narrow primary keys that let one tenant's registration overwrite another's.
+	/// </summary>
+	/// <remarks>
+	/// The shape this recreates is not hypothetical. Both provisioning paths — the script's
+	/// <c>CREATE TABLE IF NOT EXISTS</c> and the store's own auto-create — guard on table existence, so
+	/// every database whose inventory tables predate the tenant discriminator still has exactly this
+	/// shape, and upgrading the package does not change it. That is what the store's fail-fast is for, and
+	/// this is the only way to hand it that input. Dropping the column takes its primary key with it, so
+	/// each key is restated in its narrow form.
+	/// </remarks>
+	/// <param name="connectionString">The target database.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	public static Task RegressDataInventoryToPreTenantAsync(
 		string connectionString,
 		CancellationToken cancellationToken) =>
 		ExecuteAsync(
@@ -96,35 +121,6 @@ internal static class ShippedCompliancePostgresSchema
 			    END IF;
 			END
 			$$;
-			""",
-			cancellationToken);
-
-	/// <summary>Creates the compliance schema in its shipped, fresh-install shape.</summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task EnsureCreatedAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(connectionString, LoadShipped(CreateScript), cancellationToken);
-
-	/// <summary>Runs the shipped tenant-totality migration.</summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task MigrateAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(connectionString, LoadShipped(MigrateScript), cancellationToken);
-
-	/// <summary>
-	/// Returns the two tenant columns to the pre-migration shape a real upgrading consumer holds: nullable
-	/// and with no default.
-	/// </summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task RegressToLegacyAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(
-			connectionString,
-			"""
-			ALTER TABLE "compliance"."legal_holds" ALTER COLUMN tenant_id DROP DEFAULT;
-			ALTER TABLE "compliance"."legal_holds" ALTER COLUMN tenant_id DROP NOT NULL;
-			ALTER TABLE "compliance"."erasure_requests" ALTER COLUMN tenant_id DROP DEFAULT;
-			ALTER TABLE "compliance"."erasure_requests" ALTER COLUMN tenant_id DROP NOT NULL;
 			""",
 			cancellationToken);
 

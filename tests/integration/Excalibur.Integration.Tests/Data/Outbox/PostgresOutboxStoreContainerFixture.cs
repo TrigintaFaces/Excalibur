@@ -115,9 +115,7 @@ public sealed class PostgresOutboxStoreContainerFixture : ContainerFixtureBase
 		// detect the violation it exists to catch, while still reporting green. A fixture that holds no
 		// schema cannot drift from one.
 		var scripts = ShippedSchemaScript.ReadAll(
-			"src/Excalibur/Excalibur.Outbox.Postgres/Scripts/001_CreateOutboxSchema.sql",
-			"src/Excalibur/Excalibur.Outbox.Postgres/Scripts/002_MakeOutboxTenantTotal.sql",
-			"src/Excalibur/Excalibur.Outbox.Postgres/Scripts/003_CarryTenantOnDeadLetters.sql");
+			"src/Excalibur/Excalibur.Outbox.Postgres/Scripts/001_CreateOutboxSchema.sql");
 
 		await using var connection = new NpgsqlConnection(ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);

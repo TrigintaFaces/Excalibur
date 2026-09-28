@@ -102,8 +102,6 @@ something a version upgrade did to you while you were not looking.
 | `scripts/01-SagaSchema.sql` |
 | `scripts/02-SagaCorrelationIndex.sql` |
 | `scripts/02-SagaMonitoringSchema.sql` |
-| `scripts/03-NarrowTenantIdToPortableMaximum.sql` |
-| `scripts/SagaTimeouts.Upgrade.sql` |
 | `scripts/SagaTimeouts.sql` |
 
 Apply them in filename order before starting the application, and again — for any new ones — before

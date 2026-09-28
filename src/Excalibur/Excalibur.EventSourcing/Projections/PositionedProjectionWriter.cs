@@ -217,8 +217,6 @@ internal static class PositionedProjectionWriter<TProjection>
 	/// <b>A vanished projection is settled, not retried.</b> The row is gone because it was deleted, and
 	/// deletion is how erasure removes personal data. Re-folding the stream would put it back.
 	/// </para>
-	/// </remarks>
-	/// <remarks>
 	/// <para>
 	/// <b>There is deliberately no default arm.</b> Every member is named, so adding an outcome to
 	/// <see cref="ProjectionAdvanceOutcome"/> is a COMPILE ERROR here rather than a silent fall-through.

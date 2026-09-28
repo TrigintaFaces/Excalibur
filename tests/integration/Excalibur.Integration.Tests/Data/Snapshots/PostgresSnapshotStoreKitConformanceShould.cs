@@ -28,7 +28,7 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 /// closed: derive the published kit, not the internal twin, against the real backend. It reuses the
 /// existing <see cref="PostgresSnapshotStoreContainerFixture"/> rather than standing up a second
 /// container -- that fixture already provisions from the scripts the package ships
-/// (<c>001_CreateSnapshotSchema.sql</c>, <c>002_MigrateSnapshotsToKeyedSentinel.sql</c>), so nothing here
+/// (<c>001_CreateSnapshotSchema.sql</c>), so nothing here
 /// restates the schema.
 /// </para>
 /// </remarks>

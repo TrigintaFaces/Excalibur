@@ -86,3 +86,94 @@ refuse:src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerMaterializedView
 # DELETE THIS ENTRY if the claim table gains a shipped DDL script, or if the identity stops being
 # a parameter.
 refuse:src/Excalibur/Excalibur.Outbox.Marten/MartenOutboxClaims.cs:unresolvable table identity '{qualified}'
+
+# ---------------------------------------------------------------------------------------------
+# THE PRE-RC SCHEMA RESET -- one event, and the reason every entry below looks alike.
+#
+# Until this reset, each package shipped a create script plus a chain of in-place migrations, and
+# this gate's question -- "does every in-place change to a create script ship an ALTER a consumer can
+# follow?" -- was the right one to ask. It is not the right question before RC any more, and the
+# change is deliberate rather than a lapse.
+#
+# The chain was removed from every package. Each now ships create scripts only, already at the final
+# shape, and a schema change is delivered by EDITING THE CREATE SCRIPT so that a new consumer never
+# inherits a sequence of edits that undo each other. The consequence is exactly what this gate
+# detects: every historical in-place column change now has no ALTER behind it, because none is
+# offered. A database provisioned by an earlier prerelease has no upgrade path and is re-provisioned.
+#
+# WHY THESE ARE LISTED RATHER THAN THE ANCHOR MOVED. Moving the anchor to the reset commit empties
+# the gate's window, and this gate REFUSEs an empty population rather than passing it (its own
+# self-test arm: "an empty population is NOT a pass", exit 2). A permanently refusing gate reports
+# nothing and teaches the team to ignore it. Listing the findings keeps the gate live: a NEW in-place
+# change, to a create script, after this reset, is not in this set and still fails.
+#
+# DELETE THIS WHOLE BLOCK AT 10.0.0-rc.1. The schema freezes there, the migration chain becomes
+# append-only, and from that point an in-place create-script change genuinely is the defect this gate
+# was written to catch. Every line below is then stale, which this gate already fails on -- so the
+# block removes itself by the rule that governs the rest of this file.
+# ---------------------------------------------------------------------------------------------
+Excalibur.AuditLogging.Postgres:audit_events:TENANT_ID
+Excalibur.Compliance.Postgres:data_inventory_registrations:STORE_KIND
+Excalibur.Compliance.Postgres:data_inventory_registrations:TENANT_ID
+Excalibur.Compliance.Postgres:data_inventory_registrations:constraint:PRIMARY KEY (TABLE_NAME, FIELD_NAME, TENANT_ID)
+Excalibur.Compliance.Postgres:discovered_data_locations:TENANT_ID
+Excalibur.Compliance.Postgres:discovered_data_locations:constraint:PRIMARY KEY (DATA_SUBJECT_ID_HASH, TABLE_NAME, FIELD_NAME, R
+Excalibur.Compliance.Postgres:erasure_certificates:EXCEPTIONS
+Excalibur.Compliance.Postgres:erasure_certificates:GENERATED_AT
+Excalibur.Compliance.Postgres:erasure_certificates:PAYLOAD
+Excalibur.Compliance.Postgres:erasure_certificates:VERSION
+Excalibur.Compliance.Postgres:erasure_requests:TENANT_ID
+Excalibur.Compliance.Postgres:legal_holds:TENANT_ID
+Excalibur.Compliance.SqlServer:DataInventoryRegistrations:REGISTRATIONID
+Excalibur.Compliance.SqlServer:DataInventoryRegistrations:STOREKIND
+Excalibur.Compliance.SqlServer:DataInventoryRegistrations:TENANTID
+Excalibur.Compliance.SqlServer:DataInventoryRegistrations:constraint:CONSTRAINT PK_DATAINVENTORYREGISTRATIONS PRIMARY KEY CLUSTER
+Excalibur.Compliance.SqlServer:DataInventoryRegistrations:constraint:CONSTRAINT PK_{_OPTIONS.REGISTRATIONSTABLENAME} PRIMARY KEY
+Excalibur.Compliance.SqlServer:DataInventoryRegistrations:constraint:CONSTRAINT UQ_DATAINVENTORYREGISTRATIONS_KEY UNIQUE (TABLENA
+Excalibur.Compliance.SqlServer:DataInventoryRegistrations:constraint:CONSTRAINT UQ_{_OPTIONS.REGISTRATIONSTABLENAME}_KEY UNIQUE (
+Excalibur.Compliance.SqlServer:DiscoveredDataLocations:LOCATIONID
+Excalibur.Compliance.SqlServer:DiscoveredDataLocations:NATURALKEYHASH
+Excalibur.Compliance.SqlServer:DiscoveredDataLocations:TENANTID
+Excalibur.Compliance.SqlServer:DiscoveredDataLocations:constraint:CONSTRAINT PK_DISCOVEREDDATALOCATIONS PRIMARY KEY CLUSTERED
+Excalibur.Compliance.SqlServer:DiscoveredDataLocations:constraint:CONSTRAINT PK_{_OPTIONS.DISCOVEREDLOCATIONSTABLENAME} PRIMAR
+Excalibur.Compliance.SqlServer:DiscoveredDataLocations:constraint:CONSTRAINT UQ_DISCOVEREDDATALOCATIONS_KEY UNIQUE (NATURALKEY
+Excalibur.Compliance.SqlServer:DiscoveredDataLocations:constraint:CONSTRAINT UQ_{_OPTIONS.DISCOVEREDLOCATIONSTABLENAME}_KEY UN
+Excalibur.Compliance.SqlServer:ErasureCertificates:UNREACHEDDATA
+Excalibur.Compliance.SqlServer:ErasureRequests:TENANTID
+Excalibur.Compliance.SqlServer:KeyEscrow:TENANTID
+Excalibur.Compliance.SqlServer:LegalHolds:TENANTID
+Excalibur.Data.Postgres:activity_group:NAME
+Excalibur.Data.SqlServer:ActivityGroup:NAME
+Excalibur.EventSourcing.Oracle:EVENTSTOREEVENTS:POSITION
+Excalibur.EventSourcing.Oracle:EVENTSTOREEVENTS:TENANTID
+Excalibur.EventSourcing.Oracle:EVENTSTORESNAPSHOTS:TENANTID
+Excalibur.EventSourcing.Postgres:event_store_snapshots:TENANT_ID
+Excalibur.EventSourcing.Postgres:events:ARCHIVED_AT
+Excalibur.EventSourcing.Postgres:events:POSITION
+Excalibur.EventSourcing.Postgres:events:TENANT_ID
+Excalibur.EventSourcing.Postgres:events:constraint:CONSTRAINT UQ_EVENTS_AGGREGATE_VERSION_TENANT UNIQUE (AGGREG
+Excalibur.EventSourcing.Postgres:materialized_view_positions:TENANT_ID
+Excalibur.EventSourcing.Postgres:materialized_views:TENANT_ID
+Excalibur.EventSourcing.SqlServer:EventStoreEvents:ARCHIVEDAT
+Excalibur.EventSourcing.SqlServer:EventStoreEvents:EVENTDATA
+Excalibur.EventSourcing.SqlServer:EventStoreEvents:POSITION
+Excalibur.EventSourcing.SqlServer:EventStoreEvents:TENANTID
+Excalibur.EventSourcing.SqlServer:EventStoreSnapshots:TENANTID
+Excalibur.EventSourcing.SqlServer:EventStoreSnapshots:constraint:CONSTRAINT [PK_EVENTSTORESNAPSHOTS] PRIMARY KEY NONCLUSTERED
+Excalibur.EventSourcing.Sqlite:Events:EVENTDATA
+Excalibur.EventSourcing.Sqlite:Events:GLOBALPOSITION
+Excalibur.EventSourcing.Sqlite:Events:TENANTID
+Excalibur.EventSourcing.Sqlite:Events:constraint:UNIQUE(AGGREGATEID, AGGREGATETYPE, VERSION, TENANTID)
+Excalibur.Inbox.Oracle:INBOX_MESSAGES:TENANTID
+Excalibur.Inbox.Postgres:inbox_messages:TENANT_ID
+Excalibur.Inbox.SqlServer:inbox_messages:TENANTID
+Excalibur.Outbox.Oracle:OUTBOX_DEAD_LETTERS:TENANT_ID
+Excalibur.Outbox.Oracle:OUTBOX_DEAD_LETTERS:constraint:CONSTRAINT UQ_OUTBOX_DLQ_MESSAGE_ID UNIQUE (MESSAGE_ID, TENA
+Excalibur.Outbox.Postgres:outbox_dead_letters:MESSAGE_ID
+Excalibur.Outbox.Postgres:outbox_dead_letters:TENANT_ID
+Excalibur.Outbox.Postgres:outbox_dead_letters:constraint:CONSTRAINT PK_OUTBOX_DEAD_LETTERS PRIMARY KEY (MESSAGE_ID, T
+Excalibur.Saga.Oracle:SAGAS:TENANTID
+Excalibur.Saga.Oracle:SAGATIMEOUTS:TENANTID
+Excalibur.Saga.SqlServer:SagaTimeouts:TENANTID
+Excalibur.Workflows.SqlServer:workflow_signal_inbox:TENANTID
+Excalibur.Workflows.SqlServer:workflow_signal_inbox:constraint:CONSTRAINT UQ_WORKFLOW_SIGNAL_INBOX UNIQUE (TENANTID, INSTAN

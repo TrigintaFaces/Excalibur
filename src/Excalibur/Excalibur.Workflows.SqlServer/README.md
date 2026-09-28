@@ -78,8 +78,9 @@ both directions. A redelivery *within* one tenant still collides and is still re
 presenting the same `(InstanceId, SignalId)` are two different signals, and under a constraint that omitted
 the tenant the second was refused admission and silently discarded — its workflow then waited for a signal
 the system had received and thrown away, with no error and no row left behind. The host verifies this exact
-three-column constraint at startup and refuses to start without it; if your table predates the tenant
-column, apply `Scripts/002_MakeWorkflowSignalInboxTenantTotal.sql` before deploying. `Sequence` is an `IDENTITY` arrival
+three-column constraint at startup and refuses to start without it. A database provisioned by an earlier
+prerelease has no in-place upgrade path; re-provision it from
+`Scripts/001_CreateWorkflowSignalInboxSchema.sql`. `Sequence` is an `IDENTITY` arrival
 column: drain order is the monotonic append sequence, never a wall-clock timestamp, so consumption is
 deterministic and reproducible.
 

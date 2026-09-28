@@ -94,8 +94,7 @@ public sealed class PostgresSnapshotStoreContainerFixture : ContainerFixtureBase
 		// "event_store_snapshots" -- and defaulted tenant_id to '', the sentinel the store retired in
 		// favour of the reserved '__untenanted__' value. A fixture that holds no schema cannot drift.
 		var scripts = ShippedSchemaScript.ReadAll(
-			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/001_CreateSnapshotSchema.sql",
-			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/002_MigrateSnapshotsToKeyedSentinel.sql");
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/001_CreateSnapshotSchema.sql");
 
 		foreach (var script in scripts)
 		{

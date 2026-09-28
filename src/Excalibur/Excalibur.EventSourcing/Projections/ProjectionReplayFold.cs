@@ -102,6 +102,8 @@ internal sealed class ProjectionReplayFold<TProjection>
 	/// <see langword="true"/> when a handler folded the event; <see langword="false"/> when this
 	/// projection registers no handler for the type, which is normal and produces no key.
 	/// </returns>
+	[RequiresUnreferencedCode("Folds through IProjectionStore, which serializes the projection type reflectively.")]
+	[RequiresDynamicCode("Folds through IProjectionStore, which serializes the projection type reflectively.")]
 	internal async Task<bool> FoldAsync(
 		IDomainEvent domainEvent,
 		string aggregateId,
@@ -176,10 +178,8 @@ internal sealed class ProjectionReplayFold<TProjection>
 	/// <exception cref="InvalidOperationException">
 	/// The store refused a write because another writer advanced that identifier during the replay.
 	/// </exception>
-	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "Projection persistence goes through IProjectionStore, which consumers configure with preserved types.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Projection persistence goes through IProjectionStore, which consumers configure.")]
+	[RequiresUnreferencedCode("Projection persistence goes through IProjectionStore, which serializes the projection type reflectively.")]
+	[RequiresDynamicCode("Projection persistence goes through IProjectionStore, which serializes the projection type reflectively.")]
 	internal async Task FlushAsync(
 		Func<object, string>? computeSearchText,
 		Action<object, string>? setSearchText,
@@ -271,10 +271,8 @@ internal sealed class ProjectionReplayFold<TProjection>
 	/// concurrency required — the one part of the live path that must NOT be reused.
 	/// </para>
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "Projection loading goes through IProjectionStore, which consumers configure with preserved types.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Projection loading goes through IProjectionStore, which consumers configure.")]
+	[RequiresUnreferencedCode("Projection loading goes through IProjectionStore, which serializes the projection type reflectively.")]
+	[RequiresDynamicCode("Projection loading goes through IProjectionStore, which serializes the projection type reflectively.")]
 	private async Task<TProjection> TouchAsync(string projectionId, CancellationToken cancellationToken)
 	{
 		if (_states.TryGetValue(projectionId, out var existing))

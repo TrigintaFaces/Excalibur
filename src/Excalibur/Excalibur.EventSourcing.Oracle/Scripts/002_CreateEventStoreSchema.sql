@@ -83,9 +83,8 @@ CREATE TABLE EVENTSTOREEVENTS (
     -- column. It is left in place deliberately: removing it is a separate, behaviour-visible
     -- change, and it costs nothing here.
     --
-    -- An existing database created before tenancy is converged by
-    -- 004_MakeEventTenantTotal.sql, which backfills the sentinel and then applies this
-    -- constraint, so an upgraded database ends up in the same shape as a fresh one.
+    -- A database provisioned before tenancy has no in-place upgrade to this shape and is
+    -- re-provisioned from this script.
     TENANTID        VARCHAR2(64)  DEFAULT '__untenanted__'  NOT NULL,
     CONSTRAINT PK_EVENTSTOREEVENTS PRIMARY KEY (POSITION),
     -- The optimistic-concurrency guarantee: one row per version per stream, per tenant. Without

@@ -16,10 +16,9 @@ running the scripts shipped inside this package under `scripts/`:
 
 | Script | Creates | Required |
 |---|---|---|
-| `scripts/003_CreateEventStoreSchema.sql` | `EVENTSTOREEVENTS` | Yes — this is the event store itself |
 | `scripts/001_CreateSnapshotSchema.sql` | `EVENTSTORESNAPSHOTS` | Only if you enable snapshots |
-| `scripts/002_MigrateSnapshotsToKeyedSentinel.sql` | — | Upgrade only, see below |
-| `scripts/004_MakeEventTenantTotal.sql` | — | Upgrade only, see below |
+| `scripts/002_CreateEventStoreSchema.sql` | `EVENTSTOREEVENTS` | Yes — this is the event store itself |
+| `scripts/003_CreateSubscriptionCheckpointSchema.sql` | `SUBSCRIPTIONCHECKPOINTS` | Only if you run catch-up subscriptions |
 
 In Oracle a schema is a user. Run the scripts while connected **as** the user named by
 `OracleEventStoreOptions.Schema` (default `EXCALIBUR`), or switch first with
@@ -27,26 +26,19 @@ In Oracle a schema is a user. Run the scripts while connected **as** the user na
 as a different user without switching creates them where the store will not look for them.
 
 ```sh
-sqlplus excalibur/password@//host:1521/service @003_CreateEventStoreSchema.sql
+sqlplus excalibur/password@//host:1521/service @002_CreateEventStoreSchema.sql
 ```
 
 Oracle has no `CREATE TABLE IF NOT EXISTS`, so re-running a create script raises ORA-00955 (name
 already used), which is safe to ignore.
 
-`002_MigrateSnapshotsToKeyedSentinel.sql` is an upgrade for databases whose snapshot table predates
-the keyed tenant sentinel. It is not needed for a fresh install.
+`TENANTID` is created `NOT NULL`, and an untenanted event stores the reserved `__untenanted__`
+sentinel rather than `NULL`. That is what makes the stream-identity constraint bind untenanted rows:
+Oracle treats `NULL`s as distinct in a unique index, so a nullable tenant term would leave two
+appends at the same version of the same untenanted stream both able to succeed.
 
-`004_MakeEventTenantTotal.sql` is the same upgrade for the EVENT table: it backfills
-`EVENTSTOREEVENTS.TENANTID` from `NULL` to the reserved `__untenanted__` sentinel and then makes the
-column `NOT NULL`, so an untenanted event is a value rather than a missing one. It is not needed for
-a fresh install — `003` already creates the column that way.
-
-Run it if your event store predates the sentinel. It closes a real concurrency hole as well as
-tidying the representation: Oracle treats `NULL`s as distinct in a unique index, so while `TENANTID`
-was nullable the stream-identity constraint did not constrain untenanted rows, and two appends at
-the same version of the same untenanted stream could both succeed. Tenanted streams were never
-affected. The script's STEP 0 reports any such duplicate that already exists; resolve those rows
-before continuing, because only you can decide which append survives.
+A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it from
+these scripts.
 
 ## Registration
 

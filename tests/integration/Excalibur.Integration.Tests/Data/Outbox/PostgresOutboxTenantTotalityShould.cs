@@ -10,8 +10,8 @@ using Npgsql;
 namespace Excalibur.Integration.Tests.Data.Outbox;
 
 /// <summary>
-/// Locks the TOTALITY of <c>public.outbox.tenant_id</c> against a real Postgres, for the fresh-install
-/// schema, the upgrade script, and the staging path that has to keep working across both.
+/// Locks the TOTALITY of <c>public.outbox.tenant_id</c> against a real Postgres, for the shipped
+/// schema and the staging path that has to agree with it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,8 +22,14 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 /// </para>
 /// <para>
 /// It runs against a real database because totality is a property of the SCHEMA, not of any C# type:
-/// whether a <c>DEFAULT</c> fires on an omitted column, whether <c>SET NOT NULL</c> is accepted after a
-/// backfill, and whether the upgrade is safe to re-run are answered by the server and by nothing else.
+/// whether a <c>DEFAULT</c> fires on an omitted column and whether the column refuses NULL are answered
+/// by the server and by nothing else.
+/// </para>
+/// <para>
+/// There is no upgrade path to lock. The package ships one CREATE script per provider, already at the
+/// final shape, so the only database these arms can meaningfully describe is the one a consumer
+/// actually provisions. Arms that asserted about converting a legacy database were removed with the
+/// migration scripts rather than left asserting against a path that no longer exists.
 /// </para>
 /// <para>
 /// It provisions from the DDL the package actually SHIPS rather than from the container fixture's
@@ -177,106 +183,6 @@ public sealed class PostgresOutboxTenantTotalityShould(PostgresOutboxStoreContai
 		stored.ShouldBe("acme", "normalising the untenanted case must not touch a real tenant");
 	}
 
-	/// <summary>
-	/// UPGRADE: rows written as NULL or blank before the migration read back as the sentinel after it, a
-	/// real tenant's row is untouched, and the column ends up closed.
-	/// </summary>
-	/// <remarks>
-	/// The blank row is included because the read path already treats a blank stored value as untenanted,
-	/// so leaving it would satisfy NOT NULL while preserving the very split the migration exists to
-	/// remove — a column that is total in the type system and still ambiguous in meaning.
-	/// </remarks>
-	[Fact]
-	public async Task BackfillLegacyNullAndBlankTenantsWhileLeavingARealTenantAlone()
-	{
-		RequireDocker();
-		await ShippedPostgresOutboxSchema.CreateFreshAsync(ConnectionString, TestContext.Current.CancellationToken);
-		await ShippedPostgresOutboxSchema.ReopenTenantColumnToLegacyShapeAsync(
-			ConnectionString, TestContext.Current.CancellationToken);
-
-		(await IsTenantColumnNullableAsync()).ShouldBeTrue(
-			"the legacy shape must actually be re-established, or the migration below proves nothing");
-
-		await ExecuteAsync(
-			"""
-			INSERT INTO public.outbox (message_id, message_type, message_body, tenant_id, occurred_on)
-			VALUES ('legacy-null', 'T', '\x01'::bytea, NULL, NOW()),
-			       ('legacy-blank', 'T', '\x01'::bytea, '   ', NOW()),
-			       ('tenanted', 'T', '\x01'::bytea, 'acme', NOW());
-			""");
-
-		await ShippedPostgresOutboxSchema.RunMigrationAsync(ConnectionString, TestContext.Current.CancellationToken);
-
-		(await TenantOfAsync("legacy-null")).ShouldBe(
-			Sentinel, "a row written as NULL before the migration must read back as the sentinel after it");
-
-		(await TenantOfAsync("legacy-blank")).ShouldBe(
-			Sentinel, "a blank tenant is already READ as untenanted, so it must be STORED that way too");
-
-		(await TenantOfAsync("tenanted")).ShouldBe(
-			"acme", "the backfill must touch only genuinely untenanted rows — a real tenant is not rewritten");
-
-		(await IsTenantColumnNullableAsync()).ShouldBeFalse(
-			"the migration must close the column, not merely rewrite the values in it");
-	}
-
-	/// <summary>
-	/// UPGRADE: the migration is safe to run twice, and against an already-converged database.
-	/// </summary>
-	/// <remarks>
-	/// Deployment scripts get re-run — by a retried pipeline, or by an operator who cannot tell whether
-	/// the first attempt finished. A migration that is only correct once is one that will be wrong in
-	/// production.
-	/// </remarks>
-	[Fact]
-	public async Task BeSafeToRunTheMigrationTwice()
-	{
-		RequireDocker();
-		await ShippedPostgresOutboxSchema.CreateFreshAsync(ConnectionString, TestContext.Current.CancellationToken);
-		await ShippedPostgresOutboxSchema.ReopenTenantColumnToLegacyShapeAsync(
-			ConnectionString, TestContext.Current.CancellationToken);
-
-		await ExecuteAsync(
-			"""
-			INSERT INTO public.outbox (message_id, message_type, message_body, tenant_id, occurred_on)
-			VALUES ('legacy-null', 'T', '\x01'::bytea, NULL, NOW());
-			""");
-
-		await ShippedPostgresOutboxSchema.RunMigrationAsync(ConnectionString, TestContext.Current.CancellationToken);
-		await ShippedPostgresOutboxSchema.RunMigrationAsync(ConnectionString, TestContext.Current.CancellationToken);
-
-		(await TenantOfAsync("legacy-null")).ShouldBe(
-			Sentinel, "a second run must leave the converged data exactly as it was");
-
-		(await ScalarAsync<long>("SELECT COUNT(*) FROM public.outbox;")).ShouldBe(
-			1L, "a second run must not duplicate or drop rows");
-
-		(await IsTenantColumnNullableAsync()).ShouldBeFalse("the column must remain closed after a second run");
-	}
-
-	/// <summary>
-	/// UPGRADE: the migration is a no-op against a database that is already on the fresh shape.
-	/// </summary>
-	[Fact]
-	public async Task BeANoOpAgainstAnAlreadyConvergedDatabase()
-	{
-		RequireDocker();
-		await ShippedPostgresOutboxSchema.CreateFreshAsync(ConnectionString, TestContext.Current.CancellationToken);
-
-		await ExecuteAsync(
-			"""
-			INSERT INTO public.outbox (message_id, message_type, message_body, tenant_id, occurred_on)
-			VALUES ('already', 'T', '\x01'::bytea, 'acme', NOW());
-			""");
-
-		await ShippedPostgresOutboxSchema.RunMigrationAsync(ConnectionString, TestContext.Current.CancellationToken);
-
-		(await TenantOfAsync("already")).ShouldBe(
-			"acme", "running the upgrade on a fresh install must change nothing at all");
-
-		(await IsTenantColumnNullableAsync()).ShouldBeFalse("the column must still be closed");
-	}
-
 	private static InsertOutboxMessage NewInsertRequest(string messageId, string? tenantId) =>
 		new(
 			messageId: messageId,
@@ -303,9 +209,6 @@ public sealed class PostgresOutboxTenantTotalityShould(PostgresOutboxStoreContai
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"this lock asserts a property of the SHIPPED SCHEMA and is deliberately never skipped — "
 			+ "a green run that never reached a database would certify nothing.");
-
-	private Task<string?> TenantOfAsync(string messageId) =>
-		ScalarAsync<string>($"SELECT tenant_id FROM public.outbox WHERE message_id = '{messageId}';");
 
 	private async Task<bool> IsTenantColumnNullableAsync() =>
 		await ScalarAsync<string>(

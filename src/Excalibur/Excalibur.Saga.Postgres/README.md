@@ -60,7 +60,6 @@ something a version upgrade did to you while you were not looking.
 | Script |
 |---|
 | `scripts/01-SagaSchema.sql` |
-| `scripts/02-NarrowTenantIdToPortableMaximum.sql` |
 
 Apply them in filename order before starting the application, and again — for any new ones — before
 starting a new version after an upgrade.

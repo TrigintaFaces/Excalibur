@@ -15,7 +15,7 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 
 /// <summary>
 /// Locks the TENANT PROVENANCE of a dead-lettered message on Postgres, against a real database, for the
-/// fresh-install schema, the upgrade script, and both move paths.
+/// shipped schema and both move paths.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,9 +28,9 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 /// </para>
 /// <para>
 /// It runs against a real database because the property is decided by the SCHEMA and the SQL together, not
-/// by any C# type: whether the column exists, whether the INSERT…SELECT carries it, whether the read-back
-/// projects it, and whether the upgrade converges an older database are answered by the server and by
-/// nothing else. It provisions from the DDL the package SHIPS and drives the request types the store
+/// by any C# type: whether the column exists, whether the INSERT…SELECT carries it, and whether the
+/// read-back projects it are answered by the server and by nothing else. It provisions from the DDL the
+/// package SHIPS and drives the request types the store
 /// actually uses, rather than hand-written SQL — a hand-written INSERT here would pass regardless of what
 /// the store does.
 /// </para>
@@ -39,6 +39,12 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 /// move that stamps EVERY entry with that key, which would destroy tenant identity completely while
 /// looking perfectly correct; the arm that a real tenant survives verbatim is what makes that
 /// inexpressible.
+/// </para>
+/// <para>
+/// There is no upgrade path to lock. The package ships one CREATE script per provider, already at the
+/// final shape, so the only database these arms can meaningfully describe is the one a consumer actually
+/// provisions. Arms that asserted about converting a legacy database were removed with the migration
+/// scripts rather than left asserting against a path that no longer exists.
 /// </para>
 /// <para>
 /// NOT skip-gated. A Docker-unavailable run FAILS rather than passing vacuously — a provenance lock that
@@ -159,102 +165,39 @@ public sealed class PostgresDeadLetterTenantProvenanceShould(PostgresOutboxStore
 	}
 
 	/// <summary>
-	/// UPGRADE: an entry written before the column existed converges onto the reserved key, the column ends
-	/// up closed, and the key ends up carrying the tenant.
+	/// THE KEY ARM: the shipped dead-letter key carries the tenant term, not the message id alone.
 	/// </summary>
 	/// <remarks>
-	/// The reserved key on such a row records "no tenant was captured", which is NOT the claim that the
-	/// message had no tenant — its real tenant was never written anywhere and the outbox row it could have
-	/// been read from is gone. The script says so at length; this arm only locks that the convergence
-	/// happens at all, since a column left nullable would leave the same ambiguity the reserved key exists
-	/// to remove.
+	/// <para>
+	/// Read from the LIVE CATALOGUE rather than from the script text. Parsing the shipped .sql would test
+	/// our own file against itself and would stay green against a server that never applied the
+	/// constraint — the database is the only thing that can answer what the key actually is.
+	/// </para>
+	/// <para>
+	/// Both columns are asserted, and the message-id half is the liveness arm. "tenant_id is in this set"
+	/// is satisfied vacuously by an EMPTY set, which is exactly what a renamed table, a wrong constraint
+	/// type, or a catalogue query that matched nothing produces. Asserting the id too makes an empty
+	/// result RED instead of green.
+	/// </para>
 	/// </remarks>
 	[Fact]
-	public async Task ConvergeAPreExistingDeadLetterOntoTheReservedKey()
-	{
-		RequireDocker();
-		await ShippedPostgresOutboxSchema.CreateFreshAsync(ConnectionString, Ct);
-		await ShippedPostgresOutboxSchema.RemoveDeadLetterTenantColumnToLegacyShapeAsync(ConnectionString, Ct);
-
-		(await HasDeadLetterTenantColumnAsync()).ShouldBeFalse(
-			"the legacy shape must actually be re-established, or the migration below proves nothing");
-
-		await ExecuteAsync(
-			"""
-			INSERT INTO public.outbox_dead_letters
-			    (message_id, message_type, message_body, occurred_on, attempts)
-			VALUES ('legacy-dl', 'T', '\x01'::bytea, NOW(), 4);
-			""");
-
-		await ShippedPostgresOutboxSchema.RunDeadLetterMigrationAsync(ConnectionString, Ct);
-
-		(await StoredTenantOfAsync("legacy-dl")).ShouldBe(
-			Sentinel,
-			"an entry that predates the column must hold a value after the upgrade, because the column is "
-			+ "now total — on that row the value records 'not captured', not 'known untenanted'");
-
-		(await IsDeadLetterTenantNullableAsync()).ShouldBeFalse(
-			"the upgrade must close the column, not merely put a value in it");
-
-		(await PrimaryKeyIncludesTenantAsync()).ShouldBeTrue(
-			"the upgrade must widen the key, or a later write could drop the tenant and still satisfy the "
-			+ "constraint");
-	}
-
-	/// <summary>
-	/// UPGRADE, liveness: after the upgrade the move works and a real tenant is stored verbatim.
-	/// </summary>
-	/// <remarks>
-	/// This is the arm that fails if the upgrade produces a schema the shipped SQL cannot write to — a
-	/// column of the wrong width, a key the INSERT violates, a default that swallows the value. An upgrade
-	/// that converges the data and then rejects every subsequent write is worse than no upgrade, and the
-	/// convergence arm above cannot see it.
-	/// </remarks>
-	[Fact]
-	public async Task AcceptRealTraffic_AfterTheUpgrade()
-	{
-		RequireDocker();
-		await ShippedPostgresOutboxSchema.CreateFreshAsync(ConnectionString, Ct);
-		await ShippedPostgresOutboxSchema.RemoveDeadLetterTenantColumnToLegacyShapeAsync(ConnectionString, Ct);
-		await ShippedPostgresOutboxSchema.RunDeadLetterMigrationAsync(ConnectionString, Ct);
-
-		await StageAsync("m-post-upgrade", tenantId: "fabrikam");
-		await MoveToDeadLetterAsync("m-post-upgrade");
-
-		(await StoredTenantOfAsync("m-post-upgrade")).ShouldBe(
-			"fabrikam",
-			"an upgraded database must accept the same traffic a fresh one does, with the tenant intact");
-	}
-
-	/// <summary>
-	/// UPGRADE: the script is safe to run twice, and against an already-converged database.
-	/// </summary>
-	/// <remarks>
-	/// Deployment scripts get re-run — by a retried pipeline, or by an operator who cannot tell whether the
-	/// first attempt finished. A migration that is only correct once is one that will be wrong in production.
-	/// </remarks>
-	[Fact]
-	public async Task BeSafeToRunTheUpgradeTwiceAndOnAFreshInstall()
+	public async Task CarryTheTenantTermInTheShippedDeadLetterKey()
 	{
 		RequireDocker();
 		await ShippedPostgresOutboxSchema.CreateFreshAsync(ConnectionString, Ct);
 
-		await StageAsync("m-already", tenantId: "acme");
-		await MoveToDeadLetterAsync("m-already");
+		var keyColumns = await PrimaryKeyColumnsAsync();
 
-		await ShippedPostgresOutboxSchema.RunDeadLetterMigrationAsync(ConnectionString, Ct);
-		await ShippedPostgresOutboxSchema.RunDeadLetterMigrationAsync(ConnectionString, Ct);
+		keyColumns.ShouldContain(
+			"message_id",
+			"the dead-letter key must address a message at all — an empty column set here would make the "
+			+ "tenant assertion below vacuously true");
 
-		(await StoredTenantOfAsync("m-already")).ShouldBe(
-			"acme",
-			"running the upgrade against a converged database must not rewrite a real tenant to the "
-			+ "reserved key — the backfill touches only rows that hold no value");
-
-		(await ScalarAsync<long>("SELECT COUNT(*) FROM public.outbox_dead_letters;")).ShouldBe(
-			1L, "a second run must not duplicate or drop rows");
-
-		(await IsDeadLetterTenantNullableAsync()).ShouldBeFalse("the column must remain closed");
-		(await PrimaryKeyIncludesTenantAsync()).ShouldBeTrue("the key must remain widened");
+		keyColumns.ShouldContain(
+			"tenant_id",
+			"without the tenant term in the key, two tenants' dead letters carrying the same message id "
+			+ "collide on ONE row: the second write overwrites the first, and the only surviving record of "
+			+ "that message — the row an operator attributes and a redrive reads — is destroyed");
 	}
 
 	private PostgresOutboxStore CreateStore()
@@ -344,32 +287,31 @@ public sealed class PostgresDeadLetterTenantProvenanceShould(PostgresOutboxStore
 		ScalarAsync<string>(
 			$"SELECT tenant_id FROM public.outbox_dead_letters WHERE message_id = '{messageId}';");
 
-	private async Task<bool> HasDeadLetterTenantColumnAsync() =>
-		await ScalarAsync<long>(
-			"""
-			SELECT COUNT(*) FROM information_schema.columns
-			WHERE table_schema = 'public' AND table_name = 'outbox_dead_letters'
-			  AND column_name = 'tenant_id';
-			""") > 0;
+	/// <summary>
+	/// Reads the dead-letter table's PRIMARY KEY column set from the live catalogue.
+	/// </summary>
+	/// <remarks>
+	/// Returns the COMPOSITION rather than a boolean, so the caller can assert both the presence of the
+	/// tenant term and the presence of the message id. A boolean "contains tenant" helper cannot
+	/// distinguish a key that is missing the term from a query that matched no key at all.
+	/// </remarks>
+	private async Task<IReadOnlyList<string>> PrimaryKeyColumnsAsync()
+	{
+		await using var connection = new NpgsqlConnection(ConnectionString);
+		await connection.OpenAsync(Ct);
 
-	private async Task<bool> IsDeadLetterTenantNullableAsync() =>
-		await ScalarAsync<string>(
+		var columns = await connection.QueryAsync<string>(
 			"""
-			SELECT is_nullable FROM information_schema.columns
-			WHERE table_schema = 'public' AND table_name = 'outbox_dead_letters'
-			  AND column_name = 'tenant_id';
-			""") == "YES";
-
-	private async Task<bool> PrimaryKeyIncludesTenantAsync() =>
-		await ScalarAsync<long>(
-			"""
-			SELECT COUNT(*)
+			SELECT a.attname
 			  FROM pg_constraint c
 			  JOIN unnest(c.conkey) AS k(attnum) ON TRUE
 			  JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
 			 WHERE c.conrelid = 'public.outbox_dead_letters'::regclass
-			   AND c.contype = 'p' AND a.attname = 'tenant_id';
-			""") > 0;
+			   AND c.contype = 'p';
+			""");
+
+		return columns.ToList();
+	}
 
 	private async Task ExecuteAsync(string sql)
 	{

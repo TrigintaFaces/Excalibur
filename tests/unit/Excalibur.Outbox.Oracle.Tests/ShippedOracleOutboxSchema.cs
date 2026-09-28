@@ -9,16 +9,18 @@ using Oracle.ManagedDataAccess.Client;
 namespace Excalibur.Outbox.Oracle.Tests;
 
 /// <summary>
-/// Provisions the Oracle outbox tables from the DDL the package ships, and runs the upgrade script
-/// the package ships.
+/// Provisions the Oracle outbox tables from the DDL the package ships.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <see cref="OracleOutboxStoreContainerFixture"/> hand-writes its own <c>CREATE TABLE</c>. That is
 /// reasonable for the store's behavioural suites, but it means nothing in the tree exercised the
-/// scripts a consumer actually runs — and for Oracle that gap is wider than for the other providers,
-/// because the upgrade script contains PL/SQL. A syntax error in an anonymous block is not a
-/// compile-time defect anywhere in this repository; it is discovered by running it, or by a consumer.
+/// script a consumer actually runs. A defect in that script is not a compile-time defect anywhere in
+/// this repository; it is discovered by running it, or by a consumer.
+/// </para>
+/// <para>
+/// There is no upgrade script to run. The package ships one CREATE script per provider, already at the
+/// final shape, and a consumer holding an older database re-provisions from it.
 /// </para>
 /// <para>
 /// The splitter below is the reason this type exists rather than a single <c>ExecuteNonQuery</c>.
@@ -31,18 +33,11 @@ namespace Excalibur.Outbox.Oracle.Tests;
 internal static class ShippedOracleOutboxSchema
 {
 	private const string CreateScriptFileName = "001_CreateOracleOutboxSchema.sql";
-	private const string MigrationScriptFileName = "002_MakeOracleOutboxTenantTotal.sql";
-	private const string DeadLetterMigrationScriptFileName = "003_CarryOracleDeadLetterTenant.sql";
 
 	/// <summary>
 	/// Gets the shipped fresh-install DDL.
 	/// </summary>
 	public static string CreateDdl { get; } = LoadShipped(CreateScriptFileName);
-
-	/// <summary>
-	/// Gets the shipped tenant-totality upgrade script.
-	/// </summary>
-	public static string MigrationDdl { get; } = LoadShipped(MigrationScriptFileName);
 
 	/// <summary>
 	/// Drops the outbox tables and recreates them from the shipped fresh-install script.
@@ -59,75 +54,6 @@ internal static class ShippedOracleOutboxSchema
 		}
 
 		await RunScriptAsync(connectionString, CreateDdl, cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Runs the shipped tenant-totality upgrade script.
-	/// </summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task RunMigrationAsync(string connectionString, CancellationToken cancellationToken) =>
-		RunScriptAsync(connectionString, MigrationDdl, cancellationToken);
-
-	/// <summary>
-	/// Gets the shipped dead-letter tenant-provenance upgrade script.
-	/// </summary>
-	public static string DeadLetterMigrationDdl { get; } = LoadShipped(DeadLetterMigrationScriptFileName);
-
-	/// <summary>
-	/// Runs the shipped dead-letter tenant-provenance upgrade script.
-	/// </summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task RunDeadLetterMigrationAsync(
-		string connectionString, CancellationToken cancellationToken) =>
-		RunScriptAsync(connectionString, DeadLetterMigrationDdl, cancellationToken);
-
-	/// <summary>
-	/// Re-opens the dead-letter table to its pre-wave shape: no tenant column, and a unique key on the
-	/// message id alone.
-	/// </summary>
-	/// <remarks>
-	/// Reconstructed from the CURRENT shipped schema rather than hand-written, for the same reason as the
-	/// outbox equivalent below. The constraint is dropped before the column so the drop cannot silently
-	/// take the key with it and leave the table in a shape no released version ever produced.
-	/// </remarks>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static async Task RemoveDeadLetterTenantColumnToLegacyShapeAsync(
-		string connectionString, CancellationToken cancellationToken)
-	{
-		await ExecuteAsync(
-			connectionString,
-			"ALTER TABLE OUTBOX_DEAD_LETTERS DROP CONSTRAINT UQ_OUTBOX_DLQ_MESSAGE_ID",
-			cancellationToken).ConfigureAwait(false);
-		await ExecuteAsync(
-			connectionString,
-			"ALTER TABLE OUTBOX_DEAD_LETTERS DROP COLUMN TENANT_ID",
-			cancellationToken).ConfigureAwait(false);
-		await ExecuteAsync(
-			connectionString,
-			"ALTER TABLE OUTBOX_DEAD_LETTERS ADD CONSTRAINT UQ_OUTBOX_DLQ_MESSAGE_ID UNIQUE (MESSAGE_ID)",
-			cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Re-opens the tenant column to its pre-wave shape: nullable, with no default.
-	/// </summary>
-	/// <remarks>
-	/// Reconstructed from the CURRENT shipped schema rather than hand-written, so it cannot drift from
-	/// the product: it creates today's table and re-opens the one column, which is exactly the state a
-	/// database created before this wave is in.
-	/// </remarks>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static async Task ReopenTenantColumnToLegacyShapeAsync(
-		string connectionString, CancellationToken cancellationToken)
-	{
-		await ExecuteAsync(connectionString, "ALTER TABLE OUTBOX MODIFY (TENANT_ID DEFAULT NULL)", cancellationToken)
-			.ConfigureAwait(false);
-		await ExecuteAsync(connectionString, "ALTER TABLE OUTBOX MODIFY (TENANT_ID NULL)", cancellationToken)
-			.ConfigureAwait(false);
 	}
 
 	private static async Task RunScriptAsync(

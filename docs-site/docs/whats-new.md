@@ -24,7 +24,21 @@ Everything on this page that requires you to change code, change a schema, or ma
 
 ### Schema changes
 
-These stores do not create their own tables, so an upgrade that skips these steps fails at runtime rather than at startup.
+:::danger The database schema was reset for this pre-release
+Every in-place migration script was removed. Each package now ships **only create scripts**, already at
+the final shape — tenant-total, portable key widths, and an event-store position the framework allocates
+rather than the database.
+
+**There is no upgrade path from a database provisioned by an earlier pre-release, and none is offered.**
+Re-provision from the shipped create scripts. The per-store table below tells you what the current schema
+contains; on a database you create now, the create script provides all of it and there is nothing to add.
+
+The migration chain becomes append-only at `10.0.0-rc.1`, when the schema freezes. Until then a schema
+change is delivered by changing the create script, so that a new consumer never inherits a chain of edits
+that undo each other.
+:::
+
+These stores do not create their own tables, so provisioning that skips them fails at runtime rather than at startup.
 
 | Store | What to add |
 | --- | --- |
@@ -32,8 +46,8 @@ These stores do not create their own tables, so an upgrade that skips these step
 | SQL Server inbox | `NextAttemptAt DATETIMEOFFSET NULL` — see [retry backoff schedule](./patterns/inbox.md#retry-backoff-schedule) |
 | PostgreSQL outbox | `tenant_id` column; without it, staged messages fail with `column "tenant_id" does not exist` |
 | Leader-fenced outbox (SQL Server, PostgreSQL, Oracle) | a fence control table (`OutboxFence` / `outbox_fence`) holding one monotonic high-water mark per scope. **Single-instance outboxes need no fence table.** |
-| GDPR data inventory (SQL Server, PostgreSQL) | a nullable `StoreKind` column on the registrations table, added by the shipped `009_AddRegistrationStoreKind.sql` / `006_AddRegistrationStoreKind.sql`. **The column alone is not enough — you must also classify your existing registrations**, or erasure keeps reporting a non-`Completed` outcome. See [erasure registrations must declare a store kind](./migration/erasure-registration-store-kind.md) |
-| **Event store (SQL Server, PostgreSQL, Oracle, SQLite)** | **`Position` is no longer `IDENTITY` / `BIGSERIAL`.** It is now allocated from a singleton counter row inside the appending transaction, which is what makes global positions gapless. You need the counter table (`EventStoreEventsPosition` / `event_store_events_position`) seeded from `MAX(Position)`, and the `Position` column changed to a plain `BIGINT NOT NULL`. **The supported path for an existing store is to recreate it** — this is a prerelease line and we do not carry data forward. If you must keep the data, apply the shipped `001` for your provider, then `012_BackfillGapsLeftByLegacyArchival.sql`, which fills the holes left by the older archival that DELETED rows. **Its step 2 ships commented out on purpose** — it writes to your system of record, so you read step 1's verdict and apply step 2 by hand. A database with no gaps needs only the schema change. See [the event store](./event-sourcing/event-store.md) |
+| GDPR data inventory (SQL Server, PostgreSQL) | a nullable `StoreKind` column on the registrations table, provisioned by the shipped create script. **The column alone is not enough — you must also classify your existing registrations**, or erasure keeps reporting a non-`Completed` outcome. See [erasure registrations must declare a store kind](./migration/erasure-registration-store-kind.md) |
+| **Event store (SQL Server, PostgreSQL, Oracle, SQLite)** | **`Position` is no longer `IDENTITY` / `BIGSERIAL`.** It is now allocated from a singleton counter row inside the appending transaction, which is what makes global positions gapless. You need the counter table (`EventStoreEventsPosition` / `event_store_events_position`) seeded from `MAX(Position)`, and the `Position` column changed to a plain `BIGINT NOT NULL`. **The supported path for an existing store is to recreate it** — this is a prerelease line and we do not carry data forward, and no in-place upgrade ships. The shipped create script provisions the counter table and the plain `BIGINT` column together. See [the event store](./event-sourcing/event-store.md) |
 
 ### Stored data changes
 
@@ -59,8 +73,8 @@ error, no retry, and nothing downstream ever learning.
 **The trade is deliberate: a permanently absent position now stalls a subscriber instead of being
 skipped past.** A stall is loud and recoverable; a skipped event is silent and is not. But it means a
 store carrying holes — which older archival produced, because it DELETED rows — will stop a subscriber
-rather than run past them. `012_BackfillGapsLeftByLegacyArchival.sql` fills those holes as tombstones;
-**its step 2 ships commented out on purpose**, because it writes to your system of record.
+rather than run past them. Archival now tombstones a row instead of deleting it, so a store provisioned
+by the shipped create script cannot acquire a permanent hole.
 
 **A rebuild now fails rather than reporting `Completed`** when it meets a gap, for the same reason.
 

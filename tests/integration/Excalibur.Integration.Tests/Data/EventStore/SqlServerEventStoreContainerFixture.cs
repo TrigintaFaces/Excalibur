@@ -83,23 +83,11 @@ public sealed class SqlServerEventStoreContainerFixture : ContainerFixtureBase
 			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 
-		// 003's pre-flight refuses outright unless BOTH EventStoreEvents and EventStoreSnapshots already
-		// exist under their default names -- this package's migrations assume a consumer applied 001 AND
-		// 002 together, because a real deployment always has both tables from the same package. 002 has
-		// to run here even though this fixture never reads the snapshot table itself.
+		// The snapshot table ships from the same package and a real deployment always has both, so it is
+		// created here even though this fixture never reads it.
 		foreach (var scriptPath in new[]
 		{
 			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/002_CreateSnapshotSchema.sql",
-			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/003_MigrateToMultiTenant.sql",
-			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/004_MakeEventTenantTotal.sql",
-			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/006_ConvergeUntenantedToDefaultTenant.sql",
-			// 007 is a no-op against this fixture -- 001 already ships EventData nullable, so the script
-			// takes its "already nullable" branch. It is applied anyway so that every run parses and
-			// executes the shipped migration on a non-sqlcmd runner, which is the failure mode that
-			// silently kills a migration on its first line, and so that its re-run guard is exercised
-			// rather than asserted. The migration's actual ALTER is covered by
-			// SqlServerEventDataNullableMigrationShould, which builds the pre-migration NOT NULL shape.
-			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/007_MakeEventDataNullableForErasure.sql",
 		})
 		{
 			foreach (var script in ShippedSchemaScript.ReadSqlCmdBatches(scriptPath))

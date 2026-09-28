@@ -549,15 +549,9 @@ per-partition version arm both go RED against the real emulator, and both return
   **That runtime reconciliation is only reachable by a host that runs the package against its own database
   with table-creation rights.** A deployment whose schema is owned centrally by a migration tool, or
   provisioned and reviewed before the application touches it, never reaches it — and for that deployment
-  re-running the create script is a no-op that leaves the old shape in place. The `Excalibur.EventSourcing.Sqlite`
-  package therefore also ships `002_MakeEventAndSnapshotIdentityTenantScoped.sql`, packed under `scripts/`
-  beside `001_CreateEventStoreSchema.sql` — a restore puts both at
-  `~/.nuget/packages/excalibur.eventsourcing.sqlite/<version>/scripts/`. It performs the same rebuild for
-  both the event table and the snapshot table: each is renamed aside, recreated on the current tenant-scoped
-  shape, and every carried-over row stamped with the reserved sentinel. Apply it with a runner that stops on
-  the first error — the script's guards roll back rather than half-apply, and a runner that continues past a
-  refusal defeats them. It **stops at the shape** — see the next gap for why a static script deliberately
-  does not attempt the single-tenant convergence.
+  re-running the create script is a no-op that leaves whatever shape is already there. The shipped create
+  script provisions the current tenant-scoped shape; there is no in-place upgrade from an earlier one, so a
+  database that predates it is re-provisioned rather than migrated.
 
 - **A single-tenant deployment's own rows can be split across TWO different, both-correct identities —
   `__untenanted__` and `__default__` — and closing that gap for existing rows is a separate step from the
@@ -828,15 +822,11 @@ the registry's allow-list: an unregistered type is still refused with the assemb
 > **Applied to SQL Server, deliberately not to the others, and the asymmetry is the point.** The
 > skip is only reachable where the scan is non-atomic. PostgreSQL and Oracle are MVCC, SQLite is
 > serialised, and the in-memory store is in-process — on those the guard would buy nothing and
-> cost something, because it WAITS on a missing position and a database archived by an older
-> version carries permanent holes (archival used to delete event rows; it now tombstones them).
+> cost something, because it WAITS on a missing position.
 >
-> **If your stream has such holes**, script
-> `Excalibur.EventSourcing.SqlServer/Scripts/012_BackfillGapsLeftByLegacyArchival.sql` reports
-> them and can insert a tombstone at each missing position, restoring contiguity. It recovers
-> nothing — the events are gone — it makes the stream readable again and marks where the loss
-> happened. Every consumer already skips a null-payload row, so the filler is not a deliverable
-> event.
+> A stream provisioned by the current schema cannot carry a permanent hole: archival tombstones a
+> row rather than deleting it, so the position survives with a null payload, and every consumer
+> already skips a null-payload row.
 >
 > The trade, stated: if a position were permanently absent this stalls rather than skips. That is
 > the correct direction — a stall is loud, a skipped event is silent.

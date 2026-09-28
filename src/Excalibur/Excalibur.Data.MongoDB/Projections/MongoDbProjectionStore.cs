@@ -776,13 +776,6 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		}
 	}
 
-	/// <summary>
-	/// Builds the stored document, always stamping what it asserts about the prefix folded into it.
-	/// </summary>
-	/// <remarks>
-	/// Shared by the unconditional and positioned writes so the two cannot drift into producing
-	/// documents the other cannot read back.
-	/// </remarks>
 	/// <inheritdoc />
 	/// <remarks>
 	/// <para>
@@ -843,6 +836,13 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 			: new ProjectionRefoldResult(ProjectionRefoldOutcome.RequiresRebuild, null);
 	}
 
+	/// <summary>
+	/// Builds the stored document, always stamping what it asserts about the prefix folded into it.
+	/// </summary>
+	/// <remarks>
+	/// Shared by the unconditional and positioned writes so the two cannot drift into producing
+	/// documents the other cannot read back.
+	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private BsonDocument BuildDocument(string id, TProjection projection, ProjectionPosition position)

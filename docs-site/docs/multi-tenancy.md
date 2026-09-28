@@ -401,7 +401,7 @@ Neither column is nullable. `TenantId` is `NOT NULL` on both tables, so the sent
 | Where it appears | a `UNIQUE` constraint | the **primary key** |
 | Read predicate | `COALESCE(TenantId, '__untenanted__') = @TenantId` | `TenantId = @TenantId` |
 
-Events are the system of record and predate tenancy in existing deployments, so an append-only log can contain rows written before the tenant column existed. Those rows are not left as a second spelling of "untenanted": the shipped migration backfills them to the sentinel and then makes the column `NOT NULL`. Totality is worth that migration because `TenantId` participates in the event table's `UNIQUE` constraint, and a nullable column in a `UNIQUE` constraint is compared under three-valued logic — which would leave the optimistic-concurrency guarantee weaker for untenanted streams than for tenanted ones. With the column total, one rule covers both.
+The column is total because `TenantId` participates in the event table's `UNIQUE` constraint, and a nullable column in a `UNIQUE` constraint is compared under three-valued logic — which would leave the optimistic-concurrency guarantee weaker for untenanted streams than for tenanted ones. With the column total, one rule covers both. A database provisioned by an earlier prerelease has no in-place upgrade path onto that shape; re-provision it from the shipped create scripts.
 
 The `COALESCE` in the event read path is retained and is now a no-op over a total column. It is left in place deliberately: removing it is a separate, behaviour-visible change, and it costs nothing where it stands.
 
@@ -413,7 +413,7 @@ For the same reason, do **not** rewrite the snapshot predicate as `COALESCE(Tena
 
 Execute the shipped `.sql` with `QUOTED_IDENTIFIER` **ON**. Several schemas declare filtered indexes (`CREATE INDEX … WHERE`), which SQL Server refuses to create without it, and `sqlcmd` defaults it **off** — the index is then simply absent, leaving a database that works but scans where it should seek. The shipped scripts set it themselves; if you split, reorder, or hand-copy them into your own migration tooling, set it there too.
 
-Every convergence script that refuses on ambiguous data (a named tenant present, a collision under the new key) is self-contained: it opens its own transaction, so a refusal rolls back everything the script has done so far.
+A script that refuses on ambiguous data is self-contained: it opens its own transaction, so a refusal rolls back everything the script has done so far.
 
 **Apply each SQL Server script on a single connection.** It opens its transaction in its first batch and commits it in its last, and a transaction belongs to a session — a runner that reconnects between `GO` batches loses it at the first one. Rather than let that run on unprotected, the script checks for it immediately after opening the transaction and refuses, naming the cause. `sqlcmd` holds one connection by default; a migration runner may need configuring.
 
@@ -428,24 +428,7 @@ sqlcmd -b -i <script>                  # SQL Server
 psql -v ON_ERROR_STOP=1 -f <script>    # PostgreSQL
 ```
 
-Without those flags the pipeline will read a refused, no-op migration as a success. Nothing is kept either way — the transaction still rolls back — but the pipeline is told the wrong thing.
-
-### The compliance and data-inventory stores converge the other direction
-
-The event-store migration above moves rows **from** the untenanted sentinel **onto** the single-tenant
-identity, because those stores never had a tenant concept at all before tenancy shipped. The Postgres
-compliance store and the data-inventory stores (SQL Server, Postgres) hit the opposite defect: their
-registration helper always supplies a tenant context, so a single-tenant deployment of these stores
-always bound the single-tenant identity `__default__` and never the reserved sentinel
-`__untenanted__` — the reverse mistake, needing the reverse convergence.
-
-If you run `PostgresComplianceStore` or either data-inventory store on a single-tenant host, run the
-shipped convergence migration **before** upgrading:
-`Excalibur.Compliance.Postgres/Scripts/004_ConvergeDefaultToUntenanted.sql` and, on SQL Server,
-`Excalibur.Compliance.SqlServer/Scripts/007_ConvergeDefaultToUntenanted.sql`. Each moves every row from
-`__default__` to `__untenanted__` and refuses — naming the affected table and the offending tenant —
-if the deployment already holds a row under a named tenant, so a genuinely multi-tenant host is left
-untouched rather than guessed at.
+Without those flags the pipeline will read a refused, no-op run as a success. Nothing is kept either way — the transaction still rolls back — but the pipeline is told the wrong thing.
 
 ## Cold/archive storage binds a tenant term
 

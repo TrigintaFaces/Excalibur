@@ -546,8 +546,6 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// proof of conflict from the error alone, and it stands even when the re-read cannot be performed.
 	/// Without it, a lost race whose follow-up read also failed would be demoted to an ordinary failure.
 	/// </para>
-	/// </remarks>
-	/// <remarks>
 	/// <para>
 	/// <b>The re-read is authoritative whenever it succeeds; the SQLSTATE is only a FALLBACK for when it
 	/// does not.</b> The ordering is load-bearing. <c>23505</c> was a total discriminator while

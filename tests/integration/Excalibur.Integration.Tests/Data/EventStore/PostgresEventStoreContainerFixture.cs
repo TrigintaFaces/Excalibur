@@ -68,9 +68,7 @@ public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 		// the violation it exists to catch, while still reporting green. A fixture that holds no schema
 		// cannot drift from one.
 		var scripts = ShippedSchemaScript.ReadAll(
-			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/004_CreateEventStoreSchema.sql",
-			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/005_MakeEventStreamIdentityTenantScoped.sql",
-			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/006_ConvergeUntenantedToDefaultTenant.sql");
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/002_CreateEventStoreSchema.sql");
 
 		foreach (var script in scripts)
 		{

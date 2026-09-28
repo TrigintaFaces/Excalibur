@@ -42,14 +42,14 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// names which branch fired, and its absence distinguishes the two zero cases when read together with
 /// the position the same statement returns.
 /// </para>
+/// <para>
+/// <b>This type does not serialize.</b> It receives the read-model JSON already encoded and returns it
+/// still encoded, so the projection's wire shape is decided in exactly ONE place per provider -- the
+/// owning store, which sources the canonical read-model options. A second serializer here would be a
+/// second chance to write a document the canonical read path cannot load back, which is a defect class
+/// this framework has already paid for once.
+/// </para>
 /// </remarks>
-	/// <remarks>
-	/// <b>This type does not serialize.</b> It receives the read-model JSON already encoded and returns it
-	/// still encoded, so the projection's wire shape is decided in exactly ONE place per provider -- the
-	/// owning store, which sources the canonical read-model options. A second serializer here would be a
-	/// second chance to write a document the canonical read path cannot load back, which is a defect class
-	/// this framework has already paid for once.
-	/// </remarks>
 internal sealed class SqlServerPositionedProjectionStore<TProjection>
 	where TProjection : class
 {

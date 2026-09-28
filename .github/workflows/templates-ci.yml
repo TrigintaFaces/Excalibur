@@ -64,7 +64,44 @@ jobs:
             ${{ runner.os }}-nuget-templates-
             ${{ runner.os }}-nuget-
 
-      - name: Run template validation
+      # Pack THIS TREE, so the scaffold build below answers "is this commit correct?".
+      #
+      # The templates float 10.0.0-*, and a scaffold built with no local feed resolves that from
+      # nuget.org -- i.e. against the LAST RELEASE, not against the code in this commit. That makes
+      # the job red for the whole window between any breaking change and the next publish, which is
+      # correct work failing a gate, and a gate that is red for correct work is one people learn to
+      # ignore. It also means a template broken BY this commit still passes as long as the published
+      # packages happen to satisfy it.
+      - name: Pack this tree to a local feed
+        shell: pwsh
+        run: |
+          dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release `
+            --verbosity minimal --output ./artifacts/local-feed
+          # The exact version is read back from a package rather than computed, so it cannot drift
+          # from what was actually produced.
+          $pkg = Get-ChildItem ./artifacts/local-feed -Filter 'Excalibur.Dispatch.*.nupkg' |
+                 Where-Object { $_.Name -notmatch '\.symbols\.' } | Select-Object -First 1
+          if (-not $pkg) { throw "pack produced no Excalibur.Dispatch package to read a version from" }
+          if ($pkg.Name -notmatch '^Excalibur\.Dispatch\.((?:\d+\.){2}\d+.*)\.nupkg$') {
+            throw "could not read a version out of $($pkg.Name)"
+          }
+          "LOCAL_FEED_VERSION=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "local feed version: $($Matches[1])"
+
+      - name: Validate templates against THIS TREE
+        shell: pwsh
+        run: ./eng/test-templates.ps1 -LocalFeed ./artifacts/local-feed -LocalFeedVersion $env:LOCAL_FEED_VERSION
+
+      # The other half of the question, and it is a different one: can a consumer scaffold TODAY,
+      # against what is actually on nuget.org? That is release readiness, not commit correctness, and
+      # it is ALLOWED to be red while a breaking change is in flight -- during that window it is
+      # telling the truth. It caught "every scaffold is unrestorable" once and must keep being able to.
+      #
+      # workflow_dispatch ONLY, and deliberately not a schedule: this workflow has no schedule trigger
+      # and none is added here, so the check runs when someone asks for it -- which is the moment
+      # before cutting a release, the only moment its answer is actionable.
+      - name: Validate templates against the published feed (release readiness)
+        if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: ./eng/test-templates.ps1
 

@@ -205,8 +205,8 @@ provider package before the first checkpoint:
 
 | Package | Script |
 | --- | --- |
-| `Excalibur.EventSourcing.SqlServer` | `scripts/008_CreateCursorMapSchema.sql` |
-| `Excalibur.EventSourcing.Postgres` | `scripts/008_CreateCursorMapSchema.sql` |
+| `Excalibur.EventSourcing.SqlServer` | `scripts/003_CreateCursorMapSchema.sql` |
+| `Excalibur.EventSourcing.Postgres` | `scripts/003_CreateCursorMapSchema.sql` |
 
 Without it the first save fails — `Msg 208, Invalid object name 'ProjectionCursorMaps'` on SQL Server,
 `42P01: relation "projection_cursor_maps" does not exist` on PostgreSQL — and the host halts.

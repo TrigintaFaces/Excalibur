@@ -77,17 +77,16 @@ you run global-stream projections, watch checkpoint progress as an operational m
 relying on the framework to tell you.
 :::
 
-## What to do about a permanent hole
+## A permanent hole cannot arise on the current schema
 
-Run `012_BackfillGapsLeftByLegacyArchival.sql` for your provider. Step 1 reports whether your database
-has gaps and how many, and **writes nothing** — read its verdict first. Step 2 ships commented out on
-purpose, because it writes to the table that is your system of record; you uncomment and apply it
-deliberately.
+A stream provisioned by the shipped create script cannot carry a permanent hole. Archival **tombstones**
+a row rather than deleting it: the position survives with a null payload and `ArchivedAt` set, and every
+consumer of the global stream already skips a null-payload row and advances past it. So a missing
+position always means a transaction still in flight, which is the case this page's stall is designed for
+— the read resumes on its own once that transaction commits or aborts.
 
-It inserts one tombstone row per missing position, shaped exactly like an archived row
-(`EventData NULL`, `ArchivedAt` set). Every consumer of the global stream already skips a null-payload
-row and advances past it, so this introduces no new event type and nothing new for you to handle. It
-restores readability; it does not recover the deleted events, and nothing can.
+Permanent holes were only reachable on a database whose archival predates the tombstone shape. There is
+no in-place upgrade from that shape; re-provision from the shipped create script.
 
 ## `ReadByEventTypeAsync` is deliberately NOT gap-filtered
 

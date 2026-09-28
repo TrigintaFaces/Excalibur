@@ -12,8 +12,8 @@ using Xunit;
 namespace Excalibur.Outbox.Oracle.Tests;
 
 /// <summary>
-/// Locks the TOTALITY of <c>OUTBOX.TENANT_ID</c> against a real Oracle, for the fresh-install schema,
-/// the upgrade script, and the staging path that has to keep working across both.
+/// Locks the TOTALITY of <c>OUTBOX.TENANT_ID</c> against a real Oracle, for the shipped schema and the
+/// staging path that has to agree with it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,8 +21,8 @@ namespace Excalibur.Outbox.Oracle.Tests;
 /// reserved <c>__untenanted__</c> sentinel — rather than two (the sentinel and SQL <c>NULL</c>).
 /// </para>
 /// <para>
-/// Oracle earns its own suite rather than being assumed symmetric with Postgres, for three reasons
-/// that are dialect-specific and each of which has exactly one correct answer:
+/// Oracle earns its own suite rather than being assumed symmetric with Postgres, for two reasons that
+/// are dialect-specific and each of which has exactly one correct answer:
 /// </para>
 /// <list type="bullet">
 /// <item><description>
@@ -34,11 +34,13 @@ namespace Excalibur.Outbox.Oracle.Tests;
 /// <c>DEFAULT</c> must precede <c>NOT NULL</c> in a column constraint. The reverse order is a syntax
 /// error, and no compiler in this repository would catch it.
 /// </description></item>
-/// <item><description>
-/// The upgrade script is PL/SQL. An anonymous block's syntax is checked by the server and by nothing
-/// else — a malformed block is discovered by running it, or by a consumer running it.
-/// </description></item>
 /// </list>
+/// <para>
+/// There is no upgrade path to lock. The package ships one CREATE script per provider, already at the
+/// final shape, so the only database these arms can meaningfully describe is the one a consumer
+/// actually provisions. Arms that asserted about converting a legacy database were removed with the
+/// migration scripts rather than left asserting against a path that no longer exists.
+/// </para>
 /// <para>
 /// It provisions from the DDL the package actually SHIPS rather than from the container fixture's
 /// hand-written copy — see <see cref="ShippedOracleOutboxSchema"/>.
@@ -174,81 +176,55 @@ public sealed class OracleOutboxTenantTotalityShould(OracleOutboxStoreContainerF
 	}
 
 	/// <summary>
-	/// UPGRADE: a row written as NULL before the migration reads back as the sentinel after it, a real
-	/// tenant's row is untouched, and the column ends up closed.
+	/// The splitter keeps a PL/SQL block WHOLE rather than truncating it at its first internal semicolon.
 	/// </summary>
 	/// <remarks>
-	/// This arm is also the only thing that syntax-checks the PL/SQL in the shipped upgrade script.
+	/// <para>
+	/// Asserted directly because the consequence of getting this wrong is not a clear failure: a truncated
+	/// block still reaches the driver as a plausible fragment and dies with an Oracle syntax error far
+	/// from its cause. Every <see cref="ShippedOracleOutboxSchema.CreateFreshAsync"/> exercises the
+	/// splitter incidentally, but nothing else asserts this property of it.
+	/// </para>
+	/// <para>
+	/// The input is inline rather than a shipped file on purpose. It is the SPLITTER under test, not the
+	/// DDL, so this arm stays meaningful whatever the shipped scripts happen to contain — and it cannot
+	/// go quietly green the way a file-driven arm does when the file stops containing a block.
+	/// </para>
 	/// </remarks>
 	[Fact]
-	public async Task BackfillALegacyNullTenantWhileLeavingARealTenantAlone()
+	public void KeepAPlSqlBlockWholeWhenSplittingAScript()
 	{
-		await RequireDockerAndFreshSchemaAsync();
-		await ShippedOracleOutboxSchema.ReopenTenantColumnToLegacyShapeAsync(
-			ConnectionString, TestContext.Current.CancellationToken);
+		const string Script = """
+			ALTER TABLE OUTBOX MODIFY (TENANT_ID NULL);
 
-		(await IsTenantColumnNullableAsync()).ShouldBeTrue(
-			"the legacy shape must actually be re-established, or the migration below proves nothing");
+			DECLARE
+			    columnCount NUMBER;
+			BEGIN
+			    SELECT COUNT(*) INTO columnCount FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'OUTBOX';
+			    IF columnCount > 0 THEN
+			        NULL;
+			    END IF;
+			END;
+			/
+			""";
 
-		await ExecuteAsync("INSERT INTO OUTBOX (MESSAGE_ID, MESSAGE_TYPE, TENANT_ID) VALUES ('legacy', 'T', NULL)");
-		await ExecuteAsync("INSERT INTO OUTBOX (MESSAGE_ID, MESSAGE_TYPE, TENANT_ID) VALUES ('tenanted', 'T', 'acme')");
+		var statements = ShippedOracleOutboxSchema.SplitStatements(Script).ToList();
 
-		await ShippedOracleOutboxSchema.RunMigrationAsync(ConnectionString, TestContext.Current.CancellationToken);
+		statements.Count.ShouldBe(
+			2,
+			"one plain statement and one PL/SQL block — a splitter that honoured the block's internal "
+			+ "semicolons would yield more than two fragments");
 
-		(await TenantOfAsync("legacy")).ShouldBe(
-			Sentinel, "a row written as NULL before the migration must read back as the sentinel after it");
+		statements[0].ShouldBe(
+			"ALTER TABLE OUTBOX MODIFY (TENANT_ID NULL)",
+			"a plain statement still terminates at its semicolon, and the terminator is not passed on");
 
-		(await TenantOfAsync("tenanted")).ShouldBe(
-			"acme", "the backfill must touch only genuinely untenanted rows — a real tenant is not rewritten");
-
-		(await IsTenantColumnNullableAsync()).ShouldBeFalse(
-			"the migration must close the column, not merely rewrite the values in it");
-	}
-
-	/// <summary>
-	/// UPGRADE: the migration is safe to run twice, and against an already-converged database.
-	/// </summary>
-	[Fact]
-	public async Task BeSafeToRunTheMigrationTwice()
-	{
-		await RequireDockerAndFreshSchemaAsync();
-		await ShippedOracleOutboxSchema.ReopenTenantColumnToLegacyShapeAsync(
-			ConnectionString, TestContext.Current.CancellationToken);
-
-		await ExecuteAsync("INSERT INTO OUTBOX (MESSAGE_ID, MESSAGE_TYPE, TENANT_ID) VALUES ('legacy', 'T', NULL)");
-
-		await ShippedOracleOutboxSchema.RunMigrationAsync(ConnectionString, TestContext.Current.CancellationToken);
-		await ShippedOracleOutboxSchema.RunMigrationAsync(ConnectionString, TestContext.Current.CancellationToken);
-
-		(await TenantOfAsync("legacy")).ShouldBe(Sentinel, "a second run must leave the converged data exactly as it was");
-
-		(await ScalarAsync<decimal>("SELECT COUNT(*) FROM OUTBOX")).ShouldBe(
-			1m, "a second run must not duplicate or drop rows");
-
-		(await IsTenantColumnNullableAsync()).ShouldBeFalse("the column must remain closed after a second run");
-	}
-
-	/// <summary>
-	/// The shipped upgrade script splits into executable statements at all.
-	/// </summary>
-	/// <remarks>
-	/// Guards the splitter itself rather than the schema. If it ever collapsed the PL/SQL block into a
-	/// truncated fragment, the migration arms above would fail with a confusing Oracle syntax error
-	/// rather than pointing at the cause; and if it produced zero statements, every migration arm would
-	/// pass by running nothing at all — the vacuity this suite must not have.
-	/// </remarks>
-	[Fact]
-	public void SplitTheShippedUpgradeScriptIntoExecutableStatements()
-	{
-		var statements = ShippedOracleOutboxSchema.SplitStatements(ShippedOracleOutboxSchema.MigrationDdl).ToList();
-
-		statements.Count.ShouldBeGreaterThanOrEqualTo(
-			3, "the upgrade script has a pre-flight query, at least one PL/SQL block, and a verification query");
-
-		statements.Count(s => s.StartsWith("DECLARE", StringComparison.OrdinalIgnoreCase)).ShouldBe(
-			2, "both guarded PL/SQL blocks must survive splitting whole, semicolons and all");
-
-		statements.ShouldAllBe(s => s.Length > 0, "no empty statement may reach the driver");
+		// Asserted with an explicit comparison rather than a containment matcher: `string` is also
+		// `IEnumerable<char>`, so the matcher's element overload is a candidate and the assertion can bind
+		// to a predicate over characters instead of the substring intended.
+		statements[1].Contains("END IF;", StringComparison.Ordinal).ShouldBeTrue(
+			"the block must arrive whole: a splitter that cut at the first internal semicolon would hand "
+			+ "the driver a fragment ending mid-block, which fails with a syntax error far from its cause");
 	}
 
 	private static InsertOutboxMessage NewInsertRequest(string messageId, string? tenantId) =>

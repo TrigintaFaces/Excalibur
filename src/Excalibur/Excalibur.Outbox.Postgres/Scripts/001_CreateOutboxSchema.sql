@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public.outbox (
     -- argue for that: a NOT NULL column would reject every untenanted stage. That was true only
     -- while the staging path bound the caller's raw value. It now binds the partition's term,
     -- which is never null, so the constraint rejects nothing the store writes. Databases created
-    -- under the old shape are converged by 002_MakeOutboxTenantTotal.sql.
+    -- The column is NOT NULL from the start; there is no earlier nullable shape to converge.
     tenant_id           VARCHAR(64)                    NOT NULL DEFAULT '__untenanted__',
     destination         VARCHAR(500),
     correlation_id      VARCHAR(255),
@@ -90,9 +90,8 @@ CREATE TABLE IF NOT EXISTS public.outbox (
 -- is a no-op on a converged database.
 --
 -- tenant_id arrives NOT NULL carrying the reserved untenanted key as its default, so existing rows
--- are anchored to that key by the ADD itself. That is the same value 002_MakeOutboxTenantTotal.sql
--- backfills to, and 002 then correctly reports nothing to do, because the column it converges is
--- already total. Run 001 first for that reason.
+-- are anchored to that key by the ADD itself, which is the same reserved value a fresh
+-- provisioning writes.
 --
 -- occurred_on carries NOW() as its default, so if it is genuinely absent every existing row is
 -- stamped with the instant of the upgrade rather than when the message was produced. There is no

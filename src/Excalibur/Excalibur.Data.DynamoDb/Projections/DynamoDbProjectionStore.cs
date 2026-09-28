@@ -974,14 +974,6 @@ public sealed class DynamoDbProjectionStore<
 		}
 	}
 
-	/// <summary>
-	/// Builds the DynamoDB item for a projection, always stamping what it asserts about its prefix.
-	/// </summary>
-	/// <remarks>
-	/// Shared by the unconditional and the positioned writes so the two cannot drift: a builder used by
-	/// only one of them would eventually differ in how it lays out metadata, and the two writes would
-	/// produce items the other could not read back.
-	/// </remarks>
 	/// <inheritdoc />
 	/// <remarks>
 	/// <para>
@@ -1051,6 +1043,14 @@ public sealed class DynamoDbProjectionStore<
 		}
 	}
 
+	/// <summary>
+	/// Builds the DynamoDB item for a projection, always stamping what it asserts about its prefix.
+	/// </summary>
+	/// <remarks>
+	/// Shared by the unconditional and the positioned writes so the two cannot drift: a builder used by
+	/// only one of them would eventually differ in how it lays out metadata, and the two writes would
+	/// produce items the other could not read back.
+	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private Dictionary<string, AttributeValue> BuildItem(

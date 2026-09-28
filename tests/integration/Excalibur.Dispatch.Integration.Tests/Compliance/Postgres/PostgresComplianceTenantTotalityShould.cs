@@ -11,17 +11,15 @@ using Npgsql;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Postgres;
 
 /// <summary>
-/// The Postgres half of the coupled change that makes <c>compliance.legal_holds.tenant_id</c> and
-/// <c>compliance.erasure_requests.tenant_id</c> total: the schema migration AND the read predicate that
-/// has to move with it.
+/// The Postgres half of the coupled guarantee that makes <c>compliance.legal_holds.tenant_id</c> total:
+/// the shipped column shape AND the read predicate that has to match it.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Both engines carry the same guarantee, so both are bound.</b> A global legal hold — one belonging to
-/// no tenant — is stored as NULL before the migration and as the reserved sentinel after it. The read that
-/// shows a scoped tenant its applicable holds used to say <c>tenant = @Ambient OR tenant IS NULL</c>; over
-/// a backfilled NOT NULL column that second arm matches nothing, so the predicate silently stops returning
-/// global holds.
+/// no tenant — is stored as the reserved sentinel, never as NULL. A read that says
+/// <c>tenant = @Ambient OR tenant IS NULL</c> matches nothing over a NOT NULL column, so the predicate
+/// silently stops returning global holds.
 /// </para>
 /// <para>
 /// <b>And going quiet is not a fail-safe.</b> A legal hold BLOCKS erasure. A hold that stops being visible
@@ -30,11 +28,16 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Postgres;
 /// carrying that path uncovered.
 /// </para>
 /// <para>
-/// <b>Real Postgres, provisioned and migrated from the scripts the package SHIPS</b>
-/// (<see cref="ShippedCompliancePostgresSchema"/>), and never skip-gated. Each arm regresses the shipped
-/// schema to the shape a real upgrading consumer holds, seeds rows through raw SQL as legacy data (the
-/// store's write path can no longer produce a NULL tenant, which is the point), then runs the shipped
-/// migration and asserts against the store.
+/// <b>Real Postgres, provisioned from the script the package SHIPS</b>
+/// (<see cref="ShippedCompliancePostgresSchema"/>), and never skip-gated. Whether a DEFAULT fires on an
+/// omitted column, whether a column refuses a NULL, and whether a predicate matches a row are answered by
+/// the server and by nothing else.
+/// </para>
+/// <para>
+/// <b>There is no in-place upgrade from the pre-tenant shape.</b> The package ships one CREATE script per
+/// provider, already at the final shape, so the only database these arms can meaningfully describe is the
+/// one a consumer actually provisions. Arms that asserted about converting a legacy database were removed
+/// with the migration scripts rather than left asserting against a path that no longer exists.
 /// </para>
 /// </remarks>
 [IntegrationTest]
@@ -51,49 +54,19 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 	public PostgresComplianceTenantTotalityShould(PostgresFixture fixture) => _fixture = fixture;
 
 	/// <summary>
-	/// THE HEADLINE ARM. A global hold stored as a legacy NULL is STILL VISIBLE to a scoped tenant after
-	/// the migration rewrites it to the sentinel.
-	/// </summary>
-	/// <remarks>
-	/// RED against the predicate this change replaced: with <c>OR tenant_id IS NULL</c> as the only global
-	/// arm, the migrated row matches neither disjunct and this read returns nothing. That silent empty
-	/// result is indistinguishable from "there is no hold" to every caller above it — including the
-	/// erasure path, which would then proceed.
-	/// </remarks>
-	[Fact]
-	public async Task KeepALegacyGlobalHoldVisibleToAScopedTenant_AfterTheMigration()
-	{
-		var subject = await ArrangeLegacyAsync();
-		var tenant = NewTenant();
-
-		await SeedLegacyHoldAsync(subject, tenantId: null);
-		await MigrateAsync();
-
-		var visible = await CreateStore(tenant)
-			.GetActiveHoldsForDataSubjectAsync(subject, tenantId: null, TestCancellationToken);
-
-		visible.ShouldHaveSingleItem().TenantId.ShouldBe(
-			Sentinel,
-			"a hold belonging to no tenant is a GLOBAL hold that blocks erasure for every tenant. After the "
-			+ "migration it is spelled with the sentinel rather than NULL, and a scoped read must still "
-			+ "return it — a hold that goes invisible does not refuse an erasure, it allows one.");
-	}
-
-	/// <summary>
-	/// LIVENESS. The scoped tenant still sees its OWN hold after the migration.
+	/// LIVENESS. The scoped tenant sees its OWN hold.
 	/// </summary>
 	/// <remarks>
 	/// Paired with the safety arm below on purpose. A predicate that returns nothing to anybody satisfies
 	/// every isolation assertion in this file; only this arm fails when the read goes inert.
 	/// </remarks>
 	[Fact]
-	public async Task KeepATenantsOwnHoldVisibleToIt_AfterTheMigration()
+	public async Task KeepATenantsOwnHoldVisibleToIt_OnTheShippedSchema()
 	{
-		var subject = await ArrangeLegacyAsync();
+		var subject = await ArrangeShippedAsync();
 		var tenant = NewTenant();
 
-		await SeedLegacyHoldAsync(subject, tenantId: tenant);
-		await MigrateAsync();
+		await SeedHoldAsync(subject, tenantId: tenant);
 
 		var visible = await CreateStore(tenant)
 			.GetActiveHoldsForDataSubjectAsync(subject, tenantId: null, TestCancellationToken);
@@ -102,24 +75,22 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 	}
 
 	/// <summary>
-	/// SAFETY. The widened predicate matches the sentinel — it must not have widened to match ANOTHER
-	/// TENANT's hold.
+	/// SAFETY. The predicate matches the sentinel — it must not match ANOTHER TENANT's hold.
 	/// </summary>
 	/// <remarks>
 	/// The foreign tenant is seeded as a case-variant of the reader's own, matching the SQL Server arm so
-	/// the two engines are held to one rule. This dialect's default collations are deterministic, so it
-	/// starts where SQL Server only arrives after the migration states a binary collation — asserting it
-	/// here keeps that parity from silently diverging.
+	/// the two engines are held to one rule. This dialect's default collations are deterministic, where
+	/// SQL Server has to state a binary collation on the column to get there — asserting it here keeps
+	/// that parity from silently diverging.
 	/// </remarks>
 	[Fact]
-	public async Task NotDiscloseAnotherTenantsHoldToAScopedTenant_AfterTheMigration()
+	public async Task NotDiscloseAnotherTenantsHoldToAScopedTenant_OnTheShippedSchema()
 	{
-		var subject = await ArrangeLegacyAsync();
+		var subject = await ArrangeShippedAsync();
 		var tenant = NewTenant();
 		var foreignTenant = tenant.ToUpperInvariant();
 
-		await SeedLegacyHoldAsync(subject, tenantId: foreignTenant);
-		await MigrateAsync();
+		await SeedHoldAsync(subject, tenantId: foreignTenant);
 
 		var visible = await CreateStore(tenant)
 			.GetActiveHoldsForDataSubjectAsync(subject, tenantId: null, TestCancellationToken);
@@ -130,33 +101,13 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 	}
 
 	/// <summary>
-	/// The migration rewrites a legacy NULL tenant to the sentinel rather than leaving two spellings of
-	/// "no tenant" in the same column.
+	/// The column carries a DEFAULT, so a writer that omits the tenant entirely still produces the
+	/// sentinel rather than failing or storing nothing.
 	/// </summary>
 	[Fact]
-	public async Task RewriteALegacyNullTenantToTheSentinel()
+	public async Task DefaultAnOmittedTenantToTheSentinel_OnTheShippedSchema()
 	{
-		var subject = await ArrangeLegacyAsync();
-
-		await SeedLegacyHoldAsync(subject, tenantId: null);
-		await MigrateAsync();
-
-		var stored = await QuerySingleAsync<string>(
-			@"SELECT tenant_id FROM ""compliance"".""legal_holds"" WHERE data_subject_id_hash = @Subject",
-			subject);
-
-		stored.ShouldBe(Sentinel);
-	}
-
-	/// <summary>
-	/// After the migration the column carries a DEFAULT, so a writer that omits the tenant entirely still
-	/// produces the sentinel rather than failing or storing nothing.
-	/// </summary>
-	[Fact]
-	public async Task DefaultAnOmittedTenantToTheSentinel_AfterTheMigration()
-	{
-		var subject = await ArrangeLegacyAsync();
-		await MigrateAsync();
+		var subject = await ArrangeShippedAsync();
 
 		await ExecuteAsync(
 			"""
@@ -177,14 +128,13 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 	}
 
 	/// <summary>
-	/// After the migration the column REFUSES a NULL, so the old spelling of "no tenant" cannot come back
-	/// through a writer that was never updated.
+	/// The column REFUSES a NULL, so the other spelling of "no tenant" cannot come back through a writer
+	/// that was never updated.
 	/// </summary>
 	[Fact]
-	public async Task RefuseANullTenant_AfterTheMigration()
+	public async Task RefuseANullTenant_OnTheShippedSchema()
 	{
-		var subject = await ArrangeLegacyAsync();
-		await MigrateAsync();
+		var subject = await ArrangeShippedAsync();
 
 		var refused = await Should.ThrowAsync<PostgresException>(async () => await ExecuteAsync(
 			"""
@@ -201,51 +151,19 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 	}
 
 	/// <summary>
-	/// The erasure table converges too. Its reads use bare equality and were already blind to a NULL
-	/// tenant, so totality is a no-op on what they return — but the column must still stop accepting two
-	/// spellings, or the two compliance tables drift apart in the same schema.
-	/// </summary>
-	[Fact]
-	public async Task RewriteALegacyNullTenantToTheSentinel_OnTheErasureTable()
-	{
-		var subject = await ArrangeLegacyAsync();
-
-		await ExecuteAsync(
-			"""
-			INSERT INTO "compliance"."erasure_requests"
-				(request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis, requested_by,
-				 requested_at, status, created_at, updated_at)
-			VALUES
-				(@HoldId, @Subject, 0, NULL, 0, 0, 'totality-arm', now(), 0, now(), now())
-			""",
-			subject);
-
-		await MigrateAsync();
-
-		var stored = await QuerySingleAsync<string>(
-			@"SELECT tenant_id FROM ""compliance"".""erasure_requests"" WHERE data_subject_id_hash = @Subject",
-			subject);
-
-		stored.ShouldBe(Sentinel);
-	}
-
-	/// <summary>
 	/// THE WRITE HALF. A store with no ambient tenant, saving a hold that names none either, must STAMP
-	/// the sentinel — not bind the NULL the migrated column now refuses.
+	/// the sentinel — not bind the NULL the column refuses.
 	/// </summary>
 	/// <remarks>
-	/// RED against the binding this change replaced. It read <c>tenant.IsScoped ? tenant.TenantId :
-	/// hold.TenantId</c>, so with neither side supplying a term it bound NULL, and every global hold a
-	/// single-tenant deployment created would be rejected outright by the migrated column. That is the
-	/// half of this change the read arms cannot see: they seed legacy rows through raw SQL precisely
-	/// because the write path can no longer produce a NULL, so without this arm nothing would fail if the
-	/// normalisation were removed.
+	/// RED against a binding that read <c>tenant.IsScoped ? tenant.TenantId : hold.TenantId</c>: with
+	/// neither side supplying a term it binds NULL, and every global hold a single-tenant deployment
+	/// created is rejected outright by the column. That is the half the read arms cannot see, because
+	/// they supply a tenant explicitly.
 	/// </remarks>
 	[Fact]
 	public async Task StampTheSentinel_WhenAnUnscopedStoreSavesAHoldWithNoTenant()
 	{
-		var subject = await ArrangeLegacyAsync();
-		await MigrateAsync();
+		var subject = await ArrangeShippedAsync();
 
 		await CreateUnscopedStore().SaveHoldAsync(
 			new LegalHold
@@ -269,16 +187,16 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 		stored.ShouldBe(
 			Sentinel,
 			"a hold naming no tenant is a GLOBAL hold. The write path must normalise 'no tenant' to the "
-			+ "reserved sentinel, because the column no longer accepts the other spelling.");
+			+ "reserved sentinel, because the column does not accept the other spelling.");
 	}
 
 	// ---- arrangement -------------------------------------------------------------------------------
 
 	/// <summary>
-	/// Provisions the shipped schema and returns it to the pre-migration shape, then yields a unique data
-	/// subject so arms sharing the container cannot see each other's rows.
+	/// Provisions the shipped schema, then yields a unique data subject so arms sharing the container
+	/// cannot see each other's rows.
 	/// </summary>
-	private async Task<string> ArrangeLegacyAsync()
+	private async Task<string> ArrangeShippedAsync()
 	{
 		// Never skip-gated. An arm that answers "was the DEFAULT applied" by not running is not evidence,
 		// and this suite exists precisely because the server is the only thing that can answer it.
@@ -287,27 +205,23 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 			?? "Postgres must be reachable: these arms assert server-enforced schema behaviour.");
 
 		await ShippedCompliancePostgresSchema.EnsureCreatedAsync(_fixture.ConnectionString, TestCancellationToken);
-		await ShippedCompliancePostgresSchema.RegressToLegacyAsync(_fixture.ConnectionString, TestCancellationToken);
 
 		return $"subject-{Guid.NewGuid():N}";
 	}
 
-	private Task MigrateAsync() =>
-		ShippedCompliancePostgresSchema.MigrateAsync(_fixture.ConnectionString, TestCancellationToken);
-
 	private static string NewTenant() => $"tenant-{Guid.NewGuid():N}";
 
 	/// <summary>
-	/// Seeds a hold through raw SQL rather than the store, because a NULL tenant is LEGACY data the write
-	/// path can no longer produce — normalising it at the boundary is half of this change.
+	/// Seeds a hold through raw SQL rather than the store, so the arm controls the stored tenant term
+	/// exactly — including a case-variant the store's own write path would never produce.
 	/// </summary>
-	private Task SeedLegacyHoldAsync(string dataSubjectIdHash, string? tenantId) => ExecuteAsync(
+	private Task SeedHoldAsync(string dataSubjectIdHash, string tenantId) => ExecuteAsync(
 		"""
 		INSERT INTO "compliance"."legal_holds"
 			(hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference, description,
 			 is_active, created_by, created_at)
 		VALUES
-			(@HoldId, @Subject, 0, @TenantId, 0, 'legacy-hold', 'seeded before the migration', TRUE,
+			(@HoldId, @Subject, 0, @TenantId, 0, 'seeded-hold', 'seeded directly through SQL', TRUE,
 			 'totality-arm', now())
 		""",
 		dataSubjectIdHash,
@@ -345,8 +259,8 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 		{
 			ConnectionString = _fixture.ConnectionString,
 			SchemaName = "compliance",
-			// The DEFAULT table name, deliberately: the shipped migration targets it, and an arm run
-			// against a custom-named table would be asserting about a table no script migrates.
+			// The DEFAULT table name, deliberately: it is the name the shipped script creates, and an arm
+			// run against a custom-named table would be asserting about a table no script provisions.
 			TableName = "legal_holds",
 			AutoCreateSchema = false,
 		}),

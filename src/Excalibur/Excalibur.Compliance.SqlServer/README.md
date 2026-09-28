@@ -28,55 +28,39 @@ services.AddSqlServerErasureStore(options =>
 ## Schema
 
 This package ships the scripts below under `scripts/`, in the order they must be applied. Which you
-need depends on what you register. Run the create scripts on a new database; run the migrations only
-when you are upgrading a database provisioned by an earlier version.
+need depends on what you register.
 
-| Script | Kind | Required when you use | Affects |
-|---|---|---|---|
-| `001_CreateComplianceSchema.sql` | create | the erasure, data-inventory and legal-hold stores | `ErasureRequests`, `ErasureCertificates`, `DataInventoryRegistrations`, `DiscoveredDataLocations`, `LegalHolds` |
-| `002_CreateKeyEscrowSchema.sql` | create | key escrow (`AddSqlServerKeyEscrow`) | `KeyEscrow`, `RecoveryTokens`, `KeyEscrowWrap` |
-| `003_MakeComplianceTenantTotal.sql` | migration | upgrading an existing erasure / legal-hold database | `ErasureRequests`, `LegalHolds` |
-| `004_MakeDataInventoryTenantTotal.sql` | migration | upgrading an existing data-inventory database | `DataInventoryRegistrations`, `DiscoveredDataLocations` |
-| `005_MakeEscrowTenantTotal.sql` | migration | upgrading an existing key-escrow database | `KeyEscrow` |
-| `006_MakeInventoryKeysFitTheIndexLimit.sql` | migration | any data-inventory database provisioned before this version | `DataInventoryRegistrations`, `DiscoveredDataLocations` |
+| Script | Required when you use | Affects |
+|---|---|---|
+| `001_CreateComplianceSchema.sql` | the erasure, data-inventory and legal-hold stores | `ErasureRequests`, `ErasureCertificates`, `DataInventoryRegistrations`, `DiscoveredDataLocations`, `LegalHolds` |
+| `002_CreateKeyEscrowSchema.sql` | key escrow (`AddSqlServerKeyEscrow`) | `KeyEscrow`, `RecoveryTokens`, `KeyEscrowWrap` |
 
-The create scripts make the `compliance` schema if it is absent, and every statement in every script
-is guarded, so all of them are safe to re-run and safe to apply to a database that already holds some
-of the tables.
+They make the `compliance` schema if it is absent, and every statement in every script is guarded, so
+both are safe to re-run and safe to apply to a database that already holds some of the tables.
 
 ```sh
 sqlcmd -S server -d database -i 001_CreateComplianceSchema.sql
 sqlcmd -S server -d database -i 002_CreateKeyEscrowSchema.sql
 ```
 
-#### If you provisioned the data-inventory tables before this version
+A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it from
+these scripts.
 
-Run `004_MakeDataInventoryTenantTotal.sql` and then `006_MakeInventoryKeysFitTheIndexLimit.sql`, in
-that order. The second one is a repair, not a new feature, and it applies whether or not you use
-multiple tenants: both inventory tables were created with primary keys wider than SQL Server's
-900-byte index limit. `CREATE TABLE` only warned, so the tables exist and work — until a row's key
-values get long enough, at which point the insert is refused with `Msg 1946`. That depends on your
-data rather than on your schema, so it survives a smoke test and shows up on a real registration.
+#### `DiscoveredDataLocations` constrains the session settings of every writer
 
-`006` moves each natural key off the clustered index and keeps it enforced, and it states inside the
-file what that trades. Run it with the compliance stores stopped: it rebuilds clustered indexes and
-holds a schema-modification lock for the size of the data.
+The table enforces its natural key through an indexed computed column, because SQL Server's 900-byte
+index limit cannot hold the key values directly. SQL Server then refuses any `INSERT` or `UPDATE`
+from a session whose `QUOTED_IDENTIFIER` is `OFF` — including `sqlcmd`, which defaults it off. The
+application is unaffected, because the client turns it on when it connects. Ad-hoc repair, bulk
+import and ETL against that table are not: set `QUOTED_IDENTIFIER ON` first, or the write is rejected
+with an error that names the setting and not the cause.
 
-One consequence outlives the migration. `DiscoveredDataLocations` gains an indexed computed column,
-and SQL Server then refuses any `INSERT` or `UPDATE` from a session whose `QUOTED_IDENTIFIER` is
-`OFF` — including `sqlcmd`, which defaults it off. The application is unaffected, because the client
-turns it on when it connects. Ad-hoc repair, bulk import and ETL against that table are not: set
-`QUOTED_IDENTIFIER ON` first, or the write is rejected with an error that names the setting and not
-the cause.
+#### Never rewrite a stored tenant term on `KeyEscrow`
 
-#### If you are upgrading a database that already holds escrowed keys
-
-Run `005_MakeEscrowTenantTotal.sql`, and do not write your own migration for that table. The tenant
-term on `KeyEscrow` is not only a column: the escrow service feeds it into the authenticated
-encryption of the key material and reads it back out of the column to decrypt. Rewriting the stored
+The tenant term there is not only a column: the escrow service feeds it into the authenticated
+encryption of the key material and reads it back out of the column to decrypt. Rewriting a stored
 term therefore invalidates the ciphertext, which cannot be re-authenticated without the master key —
-the row still looks correct and the key can never be recovered again. The shipped script closes the
-column without rewriting any stored term, and says so where it does it.
+the row still looks correct and the key can never be recovered again.
 
 ### Erasure, data inventory and legal holds
 

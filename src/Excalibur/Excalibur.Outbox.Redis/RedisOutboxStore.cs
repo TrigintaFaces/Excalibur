@@ -1024,7 +1024,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		// Always emit the tenant field, folded through the single total conversion. An untenanted
 		// message binds the reserved sentinel rather than omitting the field, so there is exactly ONE
 		// way to say "no tenant" here, matching the SQL providers' NOT NULL DEFAULT '__untenanted__'
-		// column (see Excalibur.Outbox.Postgres/Scripts/002_MakeOutboxTenantTotal.sql).
+		// column (see Excalibur.Outbox.Postgres/Scripts/001_CreateOutboxSchema.sql).
 		entries.Add(new HashEntry("TenantId", KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId));
 
 		// Consumer-supplied routing fields — persisted so they round-trip on reload (a dropped routing field

@@ -50,7 +50,6 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 	: IClassFixture<SqlServerEventStoreContainerFixture>
 {
 	private const string Sentinel = "__untenanted__";
-	private const string MigrationScriptFileName = "004_MakeEventTenantTotal.sql";
 
 	private readonly SqlServerEventStoreContainerFixture _fixture = fixture;
 
@@ -139,106 +138,6 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 			"an explicit NULL tenant must be refused by the database, not silently accepted");
 	}
 
-	/// <summary>
-	/// UPGRADE: a row written as NULL before the migration reads back as the sentinel after it, a real
-	/// tenant's row is untouched, and the column ends up closed with its binary collation intact.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// The legacy shape is reconstructed from the shipped schema rather than hand-written, so this test
-	/// cannot drift from the product: it creates the current table and then re-opens the tenant column,
-	/// which is exactly the state a database created before this wave is in.
-	/// </para>
-	/// <para>
-	/// The collation assertion is not incidental. <c>ALTER COLUMN</c> does not preserve a column's
-	/// collation — omitting the clause resets it to the DATABASE default, which is typically
-	/// case-INSENSITIVE. A migration that dropped it would leave <c>'Acme'</c> and <c>'acme'</c> the same
-	/// tenant, so a scoped read would return another tenant's events: the tenant predicate would fail
-	/// OPEN, silently, with every other assertion here still green.
-	/// </para>
-	/// </remarks>
-	[Fact]
-	public async Task BackfillALegacyNullTenantWhileLeavingARealTenantAlone()
-	{
-		RequireDocker();
-		await CreateFreshShippedSchemaAsync().ConfigureAwait(false);
-		await ReopenTenantColumnToLegacyShapeAsync().ConfigureAwait(false);
-
-		(await IsTenantColumnNullableAsync().ConfigureAwait(false)).ShouldBeTrue(
-			"the legacy shape must actually be re-established, or the migration below proves nothing");
-
-		await ExecuteAsync(
-			"""
-			INSERT INTO [dbo].[EventStoreEvents]
-				([Position], [EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
-			VALUES
-				(7101, N'legacy', N'agg-legacy', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), NULL),
-				(7102, N'tenanted', N'agg-tenanted', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), N'acme');
-			""").ConfigureAwait(false);
-
-		await RunShippedMigrationAsync().ConfigureAwait(false);
-
-		var legacy = await ScalarAsync<string>(
-			"SELECT [TenantId] FROM [dbo].[EventStoreEvents] WHERE [EventId] = N'legacy';").ConfigureAwait(false);
-		legacy.ShouldBe(
-			Sentinel,
-			"a row written as NULL before the migration must read back as the sentinel after it");
-
-		var tenanted = await ScalarAsync<string>(
-			"SELECT [TenantId] FROM [dbo].[EventStoreEvents] WHERE [EventId] = N'tenanted';").ConfigureAwait(false);
-		tenanted.ShouldBe(
-			"acme",
-			"the backfill must touch only genuinely untenanted rows — a real tenant's events are not rewritten");
-
-		(await IsTenantColumnNullableAsync().ConfigureAwait(false)).ShouldBeFalse(
-			"the migration must close the column, not merely rewrite the values in it");
-
-		var collation = await ScalarAsync<string>(
-			"""
-			SELECT c.collation_name
-			FROM sys.columns c
-			WHERE c.object_id = OBJECT_ID(N'[dbo].[EventStoreEvents]') AND c.name = N'TenantId';
-			""").ConfigureAwait(false);
-		collation.ShouldBe(
-			"Latin1_General_BIN2",
-			"the ALTER must restate the binary collation; losing it makes the tenant predicate fail OPEN");
-	}
-
-	/// <summary>
-	/// UPGRADE: running the migration twice is a no-op, and running it against an already-converged
-	/// database changes nothing.
-	/// </summary>
-	/// <remarks>
-	/// Deployment scripts get re-run — by a retried pipeline, or by an operator who cannot tell whether
-	/// the first attempt finished. A migration that is only correct once is a migration that will be
-	/// wrong in production.
-	/// </remarks>
-	[Fact]
-	public async Task BeSafeToRunTwice()
-	{
-		RequireDocker();
-		await CreateFreshShippedSchemaAsync().ConfigureAwait(false);
-		await ReopenTenantColumnToLegacyShapeAsync().ConfigureAwait(false);
-
-		await ExecuteAsync(
-			"""
-			INSERT INTO [dbo].[EventStoreEvents]
-				([Position], [EventId], [AggregateId], [AggregateType], [EventType], [EventData], [Version], [Timestamp], [TenantId])
-			VALUES (7004, N'legacy', N'agg-legacy', N'Order', N'Created', 0x01, 1, SYSDATETIMEOFFSET(), NULL);
-			""").ConfigureAwait(false);
-
-		await RunShippedMigrationAsync().ConfigureAwait(false);
-		await RunShippedMigrationAsync().ConfigureAwait(false);
-
-		var stored = await ScalarAsync<string>(
-			"SELECT [TenantId] FROM [dbo].[EventStoreEvents] WHERE [EventId] = N'legacy';").ConfigureAwait(false);
-		stored.ShouldBe(Sentinel, "a second run must leave the converged data exactly as it was");
-
-		var rows = await ScalarAsync<int>(
-			"SELECT COUNT(*) FROM [dbo].[EventStoreEvents];").ConfigureAwait(false);
-		rows.ShouldBe(1, "a second run must not duplicate or drop rows");
-	}
-
 	private void RequireDocker() =>
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"this lock asserts a property of the SHIPPED SCHEMA and is deliberately never skipped — " +
@@ -304,34 +203,6 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 				ON [dbo].[EventStoreEvents] ([AggregateId], [AggregateType], [TenantId], [Version]);
 			""").ConfigureAwait(false);
 
-	/// <summary>
-	/// Runs the migration script the package ships, batch by batch, on ONE connection.
-	/// </summary>
-	/// <remarks>
-	/// The single connection is load-bearing, not tidiness. The script opens a transaction in its
-	/// first batch and commits it in its last, and a transaction belongs to a session — so a harness
-	/// that reconnects between batches loses it at the first <c>GO</c> and is not applying the script
-	/// the way the script requires. The migration detects that and refuses, which is the behaviour a
-	/// consumer whose runner reconnects will get; this arm is here to exercise the migration, so it
-	/// applies it correctly. <c>ShippedMigrationTableAbsenceShould</c> holds the same connection for
-	/// the same reason.
-	/// </remarks>
-	private async Task RunShippedMigrationAsync()
-	{
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync().ConfigureAwait(false);
-
-		foreach (var batch in SplitBatches(LoadShippedMigration()))
-		{
-			// CA2100: the batch is the package's own shipped migration, read from the embedded copy.
-			// Executing it verbatim IS the thing under test.
-#pragma warning disable CA2100 // Review SQL queries for security vulnerabilities
-			await using var command = new SqlCommand(batch, connection);
-#pragma warning restore CA2100
-			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-		}
-	}
-
 	private async Task<bool> IsTenantColumnNullableAsync() =>
 		await ScalarAsync<int>(
 			"""
@@ -373,27 +244,4 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 			.Split(["\nGO\r\n", "\nGO\n", "\r\nGO\r\n"], StringSplitOptions.None)
 			.Select(static batch => batch.Trim())
 			.Where(static batch => batch.Length > 0 && !batch.Equals("GO", StringComparison.OrdinalIgnoreCase));
-
-	/// <summary>
-	/// Loads the shipped migration by resource-name suffix, for the reason given on
-	/// <see cref="ShippedEventStoreSchema"/>: pinning the full manifest name would turn an unrelated
-	/// project restructure into a null stream instead of a sentence.
-	/// </summary>
-	private static string LoadShippedMigration()
-	{
-		var assembly = Assembly.GetExecutingAssembly();
-
-		var resourceName = Array.Find(
-			assembly.GetManifestResourceNames(),
-			name => name.EndsWith(MigrationScriptFileName, StringComparison.Ordinal))
-			?? throw new InvalidOperationException(
-				$"The shipped migration '{MigrationScriptFileName}' is not embedded in {assembly.GetName().Name}. " +
-				"It is linked in by the test project's EmbeddedResource item; if that item was removed, this " +
-				"lock would be asserting against a migration no consumer has.");
-
-		using var stream = assembly.GetManifestResourceStream(resourceName)!;
-		using var reader = new StreamReader(stream);
-
-		return reader.ReadToEnd();
-	}
 }

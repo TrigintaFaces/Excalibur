@@ -58,7 +58,6 @@ something a version upgrade did to you while you were not looking.
 | `scripts/001_CreateDeadLetterSchema.sql` |
 | `scripts/002_CreateActivityGroupSchema.sql` |
 | `scripts/003_CreateGrantSchema.sql` |
-| `scripts/004_NarrowActivityGroupName.sql` |
 
 Apply them in filename order before starting the application, and again — for any new ones — before
 starting a new version after an upgrade.

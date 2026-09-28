@@ -41,19 +41,12 @@
 -- database provisioned before the tenant column existed still fails on the first append with "no
 -- such column: TenantId" after re-running this file.
 --
--- There are two upgrade paths for that database, and which one applies is a deployment question:
---
---   * Running the package with table-creation rights. SqliteTableInitializer reconciles an existing
---     events table and an existing snapshots table at startup, in both cases rebuilding onto the
---     tenant-scoped shape and converging untenanted rows.
---
---   * 002_MakeEventAndSnapshotIdentityTenantScoped.sql, for the deployment that provisions its
---     schema separately — a migration tool that owns schema centrally, or a database reviewed and
---     built before the application touches it. That is the deployment this file exists for, so
---     "run the package once" is not an answer for it.
---
--- This script deliberately does not try to reproduce that migration itself: it is the CREATE, and
--- mixing an upgrade into it would make the two indistinguishable to a reader deciding which to run.
+-- A database provisioned before the tenant term existed has no in-place upgrade script and is
+-- re-provisioned from this file. A host that runs the package WITH table-creation rights is the
+-- one exception: SqliteTableInitializer reconciles an existing events table and an existing
+-- snapshots table at startup, rebuilding onto the tenant-scoped shape and converging untenanted
+-- rows. A deployment whose schema is owned centrally, or reviewed and built before the
+-- application touches it, never reaches that path — which is the deployment this file exists for.
 
 -- ---------------------------------------------------------------------------------------
 -- 1) Events — the append-only event store.
@@ -98,7 +91,7 @@
 --    customer reference — routine, not exotic) collide: tenant B's version probe reports -1 ("does
 --    not exist") while an append of version 0 hits tenant A's row and fails as a duplicate — a
 --    conflict that never converges on retry, because the probe keeps reporting -1. This is the
---    same shape PostgreSQL converges to in 005_MakeEventStreamIdentityTenantScoped.sql.
+--    same shape PostgreSQL's own create script declares.
 -- ---------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS [Events] (
     GlobalPosition INTEGER PRIMARY KEY,
@@ -118,8 +111,8 @@ CREATE TABLE IF NOT EXISTS [Events] (
 -- in the same order) — which SQLite already backs with an implicit index, so this one is
 -- redundant for that prefix. It is reproduced here ANYWAY because the auto-create path creates it
 -- (SqliteTableInitializer.EventsTableDdl), matching PostgreSQL's own idx_events_aggregate, which
--- likewise was not widened to include tenant_id when 005_MakeEventStreamIdentityTenantScoped.sql
--- added the tenant term to that provider's key. A script that "improved" on the store by omitting
+-- likewise does not include tenant_id even though that provider's
+-- stream key carries the tenant term. A script that "improved" on the store by omitting
 -- it would make script-provisioned and auto-provisioned databases structurally different, which is
 -- the drift this file exists to prevent. Removing it is a change to make in the store first, and
 -- then here.

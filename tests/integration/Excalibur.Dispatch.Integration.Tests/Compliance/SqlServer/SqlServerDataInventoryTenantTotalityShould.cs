@@ -3,52 +3,45 @@
 
 using System.Runtime.CompilerServices;
 
-using Dapper;
-
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.SqlServer.Erasure;
 
-using Microsoft.Data.SqlClient;
-
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 
 /// <summary>
-/// Binds the SQL Server data-inventory tenant-totality migration against the shape every UPGRADING
-/// consumer actually holds — no tenant column, and primary keys with no tenant term.
+/// Binds the SQL Server data-inventory store's tenant totality against the schema the package SHIPS —
+/// and the fail-fast an upgrading consumer's pre-tenant database still gets.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why this suite exists, and why the fresh-install suites cannot stand in for it.</b> The tenant
-/// discriminator reached these two tables by editing 001 in place. Both provisioning paths guard on
-/// table EXISTENCE — the script's <c>IF NOT EXISTS</c> and the store's own auto-create — so neither adds
-/// a column to a table that is already there. A consumer who upgrades the package therefore keeps the
-/// old shape, while every statement the new store issues names <c>TenantId</c>. Their disclosure is not
-/// closed and their store does not work. Every other suite provisions a FRESH schema, so none of them
-/// can observe this: they all test the one database that was never broken.
-/// </para>
-/// <para>
 /// <b>Two defects, two independent arms.</b> The disclosure is a READ defect, closed by the predicate.
-/// The overwrite is a WRITE defect, closed only by the tenant term entering the PRIMARY KEY. A suite
-/// that asserted only the read would go green over a live cross-tenant overwrite, so the key half is
-/// bound on its own — both by behaviour (<see cref="NotLetOneTenantsRegistrationOverwriteAnothers_AfterTheMigration"/>)
-/// and by the catalogue (<see cref="WidenBothPrimaryKeys_ToIncludeTheTenantTerm"/>).
+/// The overwrite is a WRITE defect, closed only by the tenant term entering the table's natural KEY. A
+/// suite that asserted only the read would go green over a live cross-tenant overwrite, so the key half
+/// is bound on its own, by behaviour
+/// (<see cref="NotLetOneTenantsRegistrationOverwriteAnothers_OnTheShippedSchema"/>).
 /// </para>
 /// <para>
 /// <b>Safety is paired with liveness throughout.</b> "Tenant B does not see tenant A's rows" is fully
-/// satisfied by a store that returns nothing to anybody, and "the migration prevents an overwrite" is
-/// satisfied by one that refuses every write. Each safety arm here has a twin asserting the rightful
-/// owner is still served, and the legacy rows the migration rewrites are asserted to remain READABLE
-/// rather than merely re-labelled.
+/// satisfied by a store that returns nothing to anybody. Each safety arm here has a twin asserting the
+/// rightful owner is still served.
 /// </para>
 /// <para>
-/// <b>Provisioned and migrated from the scripts the package ships</b>, never from fixture DDL. A
-/// hand-written CREATE TABLE here could drift ahead of the shipped file and pass against a schema no
-/// consumer will ever run — silently, which is worse than drifting behind.
+/// <b>There is no in-place upgrade from the pre-tenant shape</b>, and that is a deliberate contract
+/// rather than an omission: the package ships one CREATE script per provider, already at the final
+/// shape, and a consumer holding an older database re-provisions from it. What remains testable — and
+/// what <see cref="FailFastNamingTheRemedy_WhenTheTenantColumnIsAbsent"/> binds — is that such a
+/// database is refused at the boundary with a message naming the remedy, rather than dying later on a
+/// raw provider error about an unknown column.
+/// </para>
+/// <para>
+/// <b>Provisioned from the script the package ships</b>, never from fixture DDL. A hand-written CREATE
+/// TABLE here could drift ahead of the shipped file and pass against a schema no consumer will ever
+/// run — silently, which is worse than drifting behind.
 /// </para>
 /// <para>
 /// <b>Arms are isolated by registration identity, not by table.</b> These arms share the default table
-/// names, because those are the names the migration targets. Each arm therefore seeds under its own
+/// names, because those are the names a consumer gets. Each arm therefore seeds under its own
 /// <c>TableName</c> (taken from the calling member) so one arm's rows can never satisfy another arm's
 /// assertion — the failure mode that makes a leak look real when arms run in company but not alone.
 /// </para>
@@ -60,32 +53,31 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 [Trait("Infrastructure", TestInfrastructure.SqlServer)]
 public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTestBase
 {
-	private const string Sentinel = "__untenanted__";
+	private const string SubjectId = "subject-inventory-totality";
 
 	private readonly SqlServerFixture _fixture;
 
 	public SqlServerDataInventoryTenantTotalityShould(SqlServerFixture fixture) => _fixture = fixture;
 
 	/// <summary>
-	/// Restores the shared inventory tables to the shipped shape after every arm, by replaying the real
-	/// upgrade chain the arm regressed past.
+	/// Restores the shared inventory tables to the shipped shape after every arm, by dropping them and
+	/// re-provisioning from the create script.
 	/// </summary>
 	/// <remarks>
 	/// <para>
 	/// Not tidiness. These two tables carry the DEFAULT names — they have to, because those are the names
-	/// the migration targets — so every other arm in this collection reads the same tables. The legacy
-	/// shape is one no current store will accept: it fails fast on the absent tenant column, which is the
-	/// behaviour <see cref="FailFastNamingTheMigration_WhenTheTenantColumnIsAbsent"/> exists to bind. An
-	/// arm that regressed and did not migrate would therefore hand the next suite a database its store
-	/// refuses to start against, and that suite would report a schema error naming neither this file nor
-	/// the arm that caused it. Per-arm rather than per-class, so the window in which the shared schema is
-	/// legacy never outlives the single arm that needs it.
+	/// a consumer gets — so every other arm in this collection reads the same tables. The pre-tenant shape
+	/// is one no current store will accept: it fails fast on the absent tenant column, which is the
+	/// behaviour <see cref="FailFastNamingTheRemedy_WhenTheTenantColumnIsAbsent"/> exists to bind. An arm
+	/// that regressed and did not restore would therefore hand the next suite a database its store refuses
+	/// to start against, and that suite would report a schema error naming neither this file nor the arm
+	/// that caused it. Per-arm rather than per-class, so the window in which the shared schema is
+	/// pre-tenant never outlives the single arm that needs it.
 	/// </para>
 	/// <para>
-	/// Both steps are replayed, in the order a consumer runs them: 004 returns the tenant column and the
-	/// tenant-bearing keys, and 006 moves those keys back off the clustered index. 001 cannot stand in for
-	/// either — it guards on table existence, so it does nothing to a table that is already there, which
-	/// is the whole premise of this suite.
+	/// DROP then create, rather than an ALTER chain, because that IS the shipped remedy: the create script
+	/// guards on table existence, so on its own it does nothing to a table that is already there — which
+	/// is the whole premise of the fail-fast arm.
 	/// </para>
 	/// </remarks>
 	public override async ValueTask DisposeAsync()
@@ -95,10 +87,7 @@ public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTest
 		// replace that diagnosis with a less useful one.
 		if (_fixture.DockerAvailable)
 		{
-			await ShippedComplianceSchema.MigrateDataInventoryAsync(
-				_fixture.ConnectionString, CancellationToken.None);
-
-			await ShippedComplianceSchema.MigrateInventoryKeyWidthsAsync(
+			await ShippedComplianceSchema.ReprovisionDataInventoryAsync(
 				_fixture.ConnectionString, CancellationToken.None);
 		}
 
@@ -106,8 +95,8 @@ public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTest
 	}
 
 	/// <summary>
-	/// THE FAIL-FAST ARM. Against a database that still has the legacy shape, the store must refuse to
-	/// start and say which script repairs it.
+	/// THE FAIL-FAST ARM. Against a database that still has the pre-tenant shape, the store must refuse to
+	/// start and name the remedy.
 	/// </summary>
 	/// <remarks>
 	/// Before the check this binds, both provisioning paths reported success on this database — verify
@@ -117,66 +106,33 @@ public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTest
 	/// failure diagnosable at startup rather than at the first subject-access request.
 	/// </remarks>
 	[Fact]
-	public async Task FailFastNamingTheMigration_WhenTheTenantColumnIsAbsent()
+	public async Task FailFastNamingTheRemedy_WhenTheTenantColumnIsAbsent()
 	{
-		await ArrangeLegacyAsync();
+		await ArrangePreTenantAsync();
 
 		var store = CreateStore();
 
 		var thrown = await Should.ThrowAsync<InvalidOperationException>(
 			() => store.SaveRegistrationAsync(CreateRegistration(), TestCancellationToken));
 
-		// Asserted with an explicit comparison rather than a string-containment matcher: `string` is also
-		// `IEnumerable<char>`, so the matcher's element overload is a candidate and the assertion can bind to
-		// a predicate over characters instead of the substring intended.
-		thrown.Message.Contains("004_MakeDataInventoryTenantTotal.sql", StringComparison.Ordinal).ShouldBeTrue(
-			"an upgrading consumer cannot act on a failure that does not name the script that fixes it. "
-			+ $"Message was: {thrown.Message}");
+		// Asserted with an explicit comparison rather than a string-containment matcher: a string is also
+		// an IEnumerable of char, so the matcher's element overload is a candidate and the assertion can
+		// bind to a predicate over characters instead of the substring intended.
+		thrown.Message.Contains("Re-provision this table from the shipped create script", StringComparison.Ordinal)
+			.ShouldBeTrue(
+				"an upgrading consumer cannot act on a failure that does not name the remedy. "
+				+ $"Message was: {thrown.Message}");
 	}
 
 	/// <summary>
-	/// LIVENESS for the backfill. A registration written before the tenant column existed must still be
-	/// READABLE after the migration, as an untenanted row.
-	/// </summary>
-	/// <remarks>
-	/// The load-bearing arm of the migration. A migration that made every pre-existing registration
-	/// unreachable would satisfy every safety property in this file while silently emptying the compliance
-	/// data map — and a registration is how the erasure path knows a field holds personal data, so a row
-	/// that stops being returned is a field that stops being erased.
-	/// </remarks>
-	[Fact]
-	public async Task KeepALegacyRegistrationReadable_AsUntenanted_AfterTheMigration()
-	{
-		var table = CurrentArmTable();
-		await ArrangeLegacyAsync();
-		await SeedLegacyRegistrationAsync(table);
-
-		await MigrateAsync();
-
-		var stored = await QuerySingleAsync<string>(
-			"SELECT TenantId FROM [compliance].[DataInventoryRegistrations] WHERE TableName = @Table",
-			table);
-
-		stored.ShouldBe(Sentinel, "a row written before tenancy existed is untenanted, not unknown.");
-
-		var readBack = await CreateStore().FindRegistrationsForDataSubjectAsync(
-			SubjectId, DataSubjectIdType.UserId, null, TestCancellationToken);
-
-		readBack.ShouldContain(
-			r => r.TableName == table,
-			"the migrated legacy registration must still reach an untenanted caller.");
-	}
-
-	/// <summary>
-	/// THE SAFETY ARM for the disclosure half. After the migration a tenant that registered nothing must
+	/// THE SAFETY ARM for the disclosure half. On the shipped schema a tenant that registered nothing must
 	/// receive nothing.
 	/// </summary>
 	[Fact]
-	public async Task NotDiscloseAnotherTenantsRegistration_AfterTheMigration()
+	public async Task NotDiscloseAnotherTenantsRegistration_OnTheShippedSchema()
 	{
 		var table = CurrentArmTable();
-		await ArrangeLegacyAsync();
-		await MigrateAsync();
+		await ArrangeShippedAsync();
 
 		var owner = NewTenant();
 		await CreateStore(owner).SaveRegistrationAsync(CreateRegistration(table), TestCancellationToken);
@@ -193,11 +149,10 @@ public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTest
 	/// LIVENESS twin of the arm above: the owner must still be served.
 	/// </summary>
 	[Fact]
-	public async Task ReturnATenantsOwnRegistration_AfterTheMigration()
+	public async Task ReturnATenantsOwnRegistration_OnTheShippedSchema()
 	{
 		var table = CurrentArmTable();
-		await ArrangeLegacyAsync();
-		await MigrateAsync();
+		await ArrangeShippedAsync();
 
 		var owner = NewTenant();
 		await CreateStore(owner).SaveRegistrationAsync(CreateRegistration(table), TestCancellationToken);
@@ -214,17 +169,16 @@ public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTest
 	/// THE SAFETY ARM for the overwrite half — the defect a read-side fix alone would ship over.
 	/// </summary>
 	/// <remarks>
-	/// This arm is RED unless the migration widens the KEY. With the narrow key both tenants address one
-	/// row, so the second save takes the upsert's UPDATE branch and the first tenant's registration is
-	/// destroyed in place, leaving no trace. Adding the column without rebuilding the primary key closes
-	/// the disclosure and leaves this defect running.
+	/// This arm is RED unless the tenant term is in the table's natural KEY. Without it both tenants
+	/// address one row, so the second save takes the upsert's UPDATE branch and the first tenant's
+	/// registration is destroyed in place, leaving no trace. Scoping the read alone closes the disclosure
+	/// and leaves this defect running.
 	/// </remarks>
 	[Fact]
-	public async Task NotLetOneTenantsRegistrationOverwriteAnothers_AfterTheMigration()
+	public async Task NotLetOneTenantsRegistrationOverwriteAnothers_OnTheShippedSchema()
 	{
 		var table = CurrentArmTable();
-		await ArrangeLegacyAsync();
-		await MigrateAsync();
+		await ArrangeShippedAsync();
 
 		var owner = NewTenant();
 		var other = NewTenant();
@@ -243,75 +197,37 @@ public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTest
 	}
 
 	/// <summary>
-	/// Binds the key change in the CATALOGUE, independently of any read or write path.
+	/// Provisions the schema in the shape the package ships, which is the shape every consumer of a
+	/// current package gets.
 	/// </summary>
-	/// <remarks>
-	/// Asserted directly because the behavioural arm above could in principle be satisfied by some future
-	/// change other than the key — and because the key is the thing the migration is riskiest about. Both
-	/// tables are checked; adding the term to one and forgetting the other is the natural half-fix.
-	/// </remarks>
-	[Fact]
-	public async Task WidenBothPrimaryKeys_ToIncludeTheTenantTerm()
+	private async Task ArrangeShippedAsync()
 	{
-		await ArrangeLegacyAsync();
-		await MigrateAsync();
-
-		(await PrimaryKeyContainsTenantIdAsync("DataInventoryRegistrations")).ShouldBeTrue(
-			"without the tenant term in this key, two tenants registering the same table and field are one row.");
-
-		(await PrimaryKeyContainsTenantIdAsync("DiscoveredDataLocations")).ShouldBeTrue(
-			"without the tenant term in this key, two tenants discovering the same record are one row.");
-	}
-
-	/// <summary>
-	/// The migration is guarded and re-runnable: applying it to a converged database changes nothing and
-	/// does not throw.
-	/// </summary>
-	/// <remarks>
-	/// Re-runnability is not tidiness here. An operator whose first attempt failed part-way — or who
-	/// cannot tell whether it ran — has to be able to run it again, and a script that throws on a
-	/// converged database makes "did this apply?" unanswerable without reading the catalogue by hand.
-	/// </remarks>
-	[Fact]
-	public async Task BeReRunnable_AgainstAnAlreadyConvergedDatabase()
-	{
-		var table = CurrentArmTable();
-		await ArrangeLegacyAsync();
-		await SeedLegacyRegistrationAsync(table);
-
-		await MigrateAsync();
-		await MigrateAsync();
-
-		(await PrimaryKeyContainsTenantIdAsync("DataInventoryRegistrations")).ShouldBeTrue(
-			"a second run must leave the widened key in place.");
-
-		var stored = await QuerySingleAsync<string>(
-			"SELECT TenantId FROM [compliance].[DataInventoryRegistrations] WHERE TableName = @Table",
-			table);
-
-		stored.ShouldBe(Sentinel, "a second run must not disturb the rows the first one converged.");
-	}
-
-	private const string SubjectId = "subject-inventory-totality";
-
-	/// <summary>
-	/// Provisions the shipped schema and returns the two inventory tables to the pre-migration shape.
-	/// </summary>
-	private async Task ArrangeLegacyAsync()
-	{
-		// Never skip-gated. An arm that answers "does the migration repair this database" by not running
-		// is not evidence, and the server is the only thing that can answer it.
-		_fixture.DockerAvailable.ShouldBeTrue(
-			_fixture.InitializationError
-			?? "SQL Server must be reachable: these arms assert server-enforced schema behaviour.");
+		RequireServer();
 
 		await ShippedComplianceSchema.EnsureCreatedAsync(_fixture.ConnectionString, TestCancellationToken);
-		await ShippedComplianceSchema.RegressDataInventoryToLegacyAsync(
+	}
+
+	/// <summary>
+	/// Provisions the shipped schema and then returns the two inventory tables to the pre-tenant shape an
+	/// upgrading consumer still holds, which is the only input that can reach the store's fail-fast.
+	/// </summary>
+	private async Task ArrangePreTenantAsync()
+	{
+		RequireServer();
+
+		await ShippedComplianceSchema.EnsureCreatedAsync(_fixture.ConnectionString, TestCancellationToken);
+		await ShippedComplianceSchema.RegressDataInventoryToPreTenantAsync(
 			_fixture.ConnectionString, TestCancellationToken);
 	}
 
-	private Task MigrateAsync() =>
-		ShippedComplianceSchema.MigrateDataInventoryAsync(_fixture.ConnectionString, TestCancellationToken);
+	/// <summary>
+	/// Never skip-gated. An arm that answers "does the store refuse this database" by not running is not
+	/// evidence, and the server is the only thing that can answer it.
+	/// </summary>
+	private void RequireServer() =>
+		_fixture.DockerAvailable.ShouldBeTrue(
+			_fixture.InitializationError
+			?? "SQL Server must be reachable: these arms assert server-enforced schema behaviour.");
 
 	private static string NewTenant() => $"tenant-{Guid.NewGuid():N}";
 
@@ -341,62 +257,6 @@ public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTest
 			Description = description,
 		};
 
-	/// <summary>
-	/// Seeds a registration through raw SQL rather than the store, because the legacy shape has no tenant
-	/// column and the store can no longer write a row without one.
-	/// </summary>
-	private async Task SeedLegacyRegistrationAsync(string tableName)
-	{
-		await using var connection = new SqlConnection(_fixture.ConnectionString);
-		_ = await connection.ExecuteAsync(new CommandDefinition(
-			"""
-			INSERT INTO [compliance].[DataInventoryRegistrations]
-				(TableName, FieldName, DataCategory, DataSubjectIdColumn, IdType, KeyIdColumn,
-				 TenantIdColumn, Description, CreatedAt, UpdatedAt)
-			VALUES
-				(@Table, 'EmailAddress', 'ContactInformation', 'CustomerId', 0, 'Id',
-				 'TenantId', 'seeded before the migration', SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET())
-			""",
-			new { Table = tableName },
-			cancellationToken: TestCancellationToken));
-	}
-
-	/// <summary>
-	/// Reads the key's COMPOSITION from the catalogue rather than testing for the constraint's name: a
-	/// database can carry a correctly-named key that is still missing the tenant term, which is exactly
-	/// the half-migrated state worth detecting.
-	/// </summary>
-	private async Task<bool> PrimaryKeyContainsTenantIdAsync(string tableName)
-	{
-		await using var connection = new SqlConnection(_fixture.ConnectionString);
-
-		return await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
-			"""
-			SELECT CASE WHEN EXISTS (
-				SELECT 1
-				FROM sys.key_constraints kc
-				JOIN sys.index_columns ic ON ic.object_id = kc.parent_object_id
-										 AND ic.index_id = kc.unique_index_id
-				JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
-				WHERE kc.type = 'PK'
-				  AND kc.parent_object_id = OBJECT_ID('[compliance].[' + @Table + ']')
-				  AND c.name = 'TenantId'
-			) THEN 1 ELSE 0 END
-			""",
-			new { Table = tableName },
-			cancellationToken: TestCancellationToken));
-	}
-
-	private async Task<T> QuerySingleAsync<T>(string sql, string tableName)
-	{
-		await using var connection = new SqlConnection(_fixture.ConnectionString);
-
-		return await connection.QuerySingleAsync<T>(new CommandDefinition(
-			sql,
-			new { Table = tableName },
-			cancellationToken: TestCancellationToken));
-	}
-
 	// Fully qualified: an unqualified `Options.Create` binds to the Excalibur.Dispatch.Options NAMESPACE
 	// in this file's scope, not to Microsoft's static class.
 	private SqlServerDataInventoryStore CreateStore(string? ambientTenant = null) => new(
@@ -407,10 +267,10 @@ public sealed class SqlServerDataInventoryTenantTotalityShould : IntegrationTest
 			RegistrationsTableName = "DataInventoryRegistrations",
 			DiscoveredLocationsTableName = "DiscoveredDataLocations",
 
-			// FALSE deliberately. Auto-create would not repair a legacy table either — it guards on table
-			// existence — but leaving it on would blur which mechanism these arms are binding. A consumer
-			// upgrading with auto-create ENABLED reaches the same fail-fast, and that equivalence is the
-			// point of putting the column check on both paths.
+			// FALSE deliberately. Auto-create would not repair a pre-tenant table either — it guards on
+			// table existence — but leaving it on would blur which mechanism these arms are binding. A
+			// consumer upgrading with auto-create ENABLED reaches the same fail-fast, and that equivalence
+			// is the point of putting the column check on both paths.
 			AutoCreateSchema = false,
 		}),
 		new PassThroughDataSubjectHasher(),

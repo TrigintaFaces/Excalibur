@@ -2195,9 +2195,9 @@ still pass a slot while it was uncommitted.
 **This introduces a failure mode you need to recognise before you upgrade.** A permanently absent
 position now **stalls** a subscriber instead of being skipped past. That is the correct direction — a
 stall is loud, a skipped event is silent and unrecoverable — but it is a behaviour change, and legacy
-archival deleted rows, which is exactly what leaves a permanent hole. `012_BackfillGapsLeftByLegacyArchival.sql`
-backfills those holes as tombstones; **its second step ships commented out deliberately**, because it is
-content you apply by hand to your own system of record. See
+archival deleted rows, which is exactly what leaves a permanent hole. Archival now tombstones a row
+instead of deleting it, so a database provisioned by the shipped create script cannot acquire one; a
+database whose archival predates that shape has no in-place upgrade and should be re-provisioned. See
 [Global-stream reads stop at gaps](./migration/global-stream-reads-stop-at-gaps.md).
 
 **Two limits you must read before treating this as closed.** The schema change was made by rewriting

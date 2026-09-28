@@ -22,7 +22,7 @@ namespace Excalibur.Integration.Tests.Redis.Outbox;
 /// deliberately accepts EITHER a null tenant or the sentinel — that arm binds the interface-wide
 /// contract, which the in-memory store legitimately satisfies with null. This suite binds a STRICTER,
 /// Redis-specific property: Redis chose to converge on the sentinel representation the SQL providers
-/// use (see <c>Excalibur.Outbox.Postgres/Scripts/002_MakeOutboxTenantTotal.sql</c>), so an untenanted
+/// use (see the shipped outbox create script), so an untenanted
 /// message read back through THIS store must be the sentinel — never null, never an absent field.
 /// </para>
 /// <para>

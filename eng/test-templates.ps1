@@ -21,7 +21,20 @@
 #>
 
 param(
-    [switch]$NoCleanUp
+    [switch]$NoCleanUp,
+
+    # Folder of locally-packed .nupkg files. Supplied, the scaffold build resolves OUR packages from
+    # here instead of nuget.org, which is what makes this check answer "is this COMMIT correct?".
+    # Omitted, it builds against the published feed and answers "can a consumer scaffold TODAY?".
+    # Both questions are real; they diverge for the whole window between a breaking change and the
+    # next publish, and a gate wired to the second one is red-by-construction during that window.
+    [string]$LocalFeed = '',
+
+    # The exact version present in -LocalFeed. Required with it, and the reason is subtle: the
+    # templates float 10.0.0-*, and NuGet picks the highest match ACROSS ALL SOURCES -- so a published
+    # alpha newer than the local pack silently wins and the check measures the feed again while
+    # appearing to measure the tree. Pinning the exact locally-packed version removes the ambiguity.
+    [string]$LocalFeedVersion = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -769,6 +782,30 @@ function Test-ScaffoldBuilds {
     New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
     Write-Host "  Build sandbox: $buildRoot" -ForegroundColor Gray
 
+    $usingLocalFeed = -not [string]::IsNullOrWhiteSpace($LocalFeed)
+    if ($usingLocalFeed) {
+        if ([string]::IsNullOrWhiteSpace($LocalFeedVersion)) {
+            throw "-LocalFeed requires -LocalFeedVersion: without an exact version the templates' 10.0.0-* range can resolve to a published package and this check silently measures the feed instead of the tree."
+        }
+        if (-not (Test-Path $LocalFeed)) {
+            throw "-LocalFeed path does not exist: $LocalFeed"
+        }
+        # nuget.org is KEPT deliberately -- the scaffolds pull third-party dependencies (Dapper, the
+        # cloud SDKs) that exist nowhere else, so clearing every source would fail for reasons that
+        # have nothing to do with our packages. The local feed is added alongside it, and the exact
+        # pinned version is what guarantees OUR packages come from the local one.
+        $feedFull = (Resolve-Path $LocalFeed).Path
+        @"
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="local-pack" value="$feedFull" />
+  </packageSources>
+</configuration>
+"@ | Set-Content -Path (Join-Path $buildRoot "nuget.config") -Encoding UTF8
+        Write-Host "  Local feed:    $feedFull (version $LocalFeedVersion)" -ForegroundColor Gray
+    }
+
     try {
         foreach ($template in $Templates) {
             $shortName = $template.ShortName
@@ -781,12 +818,17 @@ function Test-ScaffoldBuilds {
                 continue
             }
 
-            $buildOut = dotnet build $outputDir -c Release --nologo 2>&1 | Out-String
+            $buildArgs = @($outputDir, '-c', 'Release', '--nologo')
+            if ($usingLocalFeed) {
+                $buildArgs += "-p:ExcaliburDispatchVersion=$LocalFeedVersion"
+            }
+            $buildOut = dotnet build @buildArgs 2>&1 | Out-String
             $errorLines = @($buildOut -split "`r?`n" | Where-Object { $_ -match "error [A-Z]+\d+" } | Select-Object -Unique)
             $built = ($errorLines.Count -eq 0)
             $detail = if ($built) { "" } else { (($errorLines | Select-Object -First 3) -join " | ") }
 
-            Write-TestResult "$shortName scaffold builds against the published feed" $built $detail
+            $against = if ($usingLocalFeed) { "against this tree (local pack $LocalFeedVersion)" } else { "against the published feed" }
+            Write-TestResult "$shortName scaffold builds $against" $built $detail
         }
     }
     finally {

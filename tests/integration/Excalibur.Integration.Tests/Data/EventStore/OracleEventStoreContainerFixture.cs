@@ -135,7 +135,7 @@ public sealed class OracleEventStoreContainerFixture : ContainerFixtureBase
 	private static string ResolveShippedScriptPath()
 	{
 		const string RelativePath =
-			"src/Excalibur/Excalibur.EventSourcing.Oracle/Scripts/003_CreateEventStoreSchema.sql";
+			"src/Excalibur/Excalibur.EventSourcing.Oracle/Scripts/002_CreateEventStoreSchema.sql";
 
 		var directory = new DirectoryInfo(AppContext.BaseDirectory);
 		while (directory is not null)

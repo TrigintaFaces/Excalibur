@@ -147,9 +147,9 @@ GO
 -- CONTIGUOUS run from the caller's position and stops at the first gap. By J a missing position
 -- is in flight rather than absent, so stopping DEFERS events instead of dropping them.
 --
--- IF YOUR DATABASE WAS ARCHIVED BY A VERSION THAT DELETED EVENT ROWS, it carries permanent gaps
--- and the reader will wait at the first one. Script 012_BackfillGapsLeftByLegacyArchival.sql
--- reports them and can restore contiguity by inserting a tombstone at each missing position.
+-- A database provisioned by this script cannot acquire a permanent gap: archival TOMBSTONES a
+-- row rather than deleting it, so the position survives with a null payload. A database whose
+-- archival predates that shape carries permanent gaps and is re-provisioned, not upgraded.
 -- What J DOES still give you: the relative allocation order of two counters and the lifetime
 -- of any single transaction do not enter the correctness argument for the STORED sequence.
 --

@@ -86,13 +86,6 @@ Also see **[Migrating to .NET 10](net10-only.md)** if your projects are not yet 
 
 - **[Migrating to .NET 10](net10-only.md)** -- Every shipping package collapsed to `net10.0`. Consumer project TFM, SDK, Docker images, and serverless runtime identifiers must be updated.
 
-### Also required if you use GDPR erasure
-
-- **[Erasure registrations must declare a store kind](erasure-registration-store-kind.md)** -- Apply one
-  shipped schema script, then **classify your existing registrations**. A registration written before this
-  change reads back as an unknown store kind, reaches no contributor, and discharges nothing — so erasure
-  keeps reporting a non-`Completed` outcome until you classify it. Nothing fails at startup, which is why
-  this one is easy to miss.
 
 ## Reference
 

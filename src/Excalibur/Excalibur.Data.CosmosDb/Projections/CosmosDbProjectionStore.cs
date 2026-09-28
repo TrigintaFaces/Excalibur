@@ -1063,11 +1063,6 @@ public sealed partial class CosmosDbProjectionStore<
 			.ConfigureAwait(false);
 	}
 
-	/// <summary>Replaces the document only if it still carries the ETag the caller read.</summary>
-	/// <remarks>
-	/// The ETag is what makes the write atomic against a concurrent writer. The position comparison the
-	/// caller already performed is what refuses a re-delivery; neither substitutes for the other.
-	/// </remarks>
 	/// <inheritdoc />
 	/// <remarks>
 	/// <para>
@@ -1134,6 +1129,11 @@ public sealed partial class CosmosDbProjectionStore<
 		};
 	}
 
+	/// <summary>Replaces the document only if it still carries the ETag the caller read.</summary>
+	/// <remarks>
+	/// The ETag is what makes the write atomic against a concurrent writer. The position comparison the
+	/// caller already performed is what refuses a re-delivery; neither substitutes for the other.
+	/// </remarks>
 	private async Task<ProjectionAdvanceResult> ReplaceAtEtagAsync(
 		string id,
 		Dictionary<string, object?> document,

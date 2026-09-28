@@ -123,12 +123,12 @@ public static class DefaultPipelineProfiles
 	/// Each entry registers itself through an explicit closed generic rather than a reflected
 	/// <see cref="Type"/>, so the set stays trim-safe and ahead-of-time friendly.
 	/// </para>
-	/// </remarks>
-	/// <remarks>
+	/// <para>
 	/// <b>These are REGISTERED, not seated.</b> The default profile names none of them -- see
 	/// <see cref="CreateDefaultProfile"/> for why. This list exists so that a profile which DOES name
 	/// one resolves it, which is the half of the original defect worth keeping: a profile must never
 	/// declare a middleware the container cannot supply.
+	/// </para>
 	/// </remarks>
 	internal static readonly DefaultMiddlewareEntry[] DefaultProfileMiddleware =
 	[

@@ -244,9 +244,9 @@ CREATE TABLE dbo.inbox_messages (
     CONSTRAINT PK_inbox_messages PRIMARY KEY CLUSTERED (MessageId, HandlerType)
 );
 
--- To grow into multi-tenancy later (single-tenant -> multi-tenant), run the provider's
--- 002_MigrateToMultiTenant.sql: it adds TenantId NOT NULL DEFAULT '__untenanted__' (anchoring
--- existing rows to the reserved sentinel) and rebuilds the key as (MessageId, HandlerType, TenantId).
+-- For multi-tenancy, provision from the provider's 001_CreateInboxSchema.MultiTenant.sql instead:
+-- it carries TenantId NOT NULL DEFAULT '__untenanted__' and keys on (MessageId, HandlerType,
+-- TenantId). There is no in-place upgrade from the single-tenant key -- re-provision.
 ```
 
 ## Project Structure

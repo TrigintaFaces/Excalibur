@@ -8,78 +8,83 @@ using Microsoft.Data.SqlClient;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 
 /// <summary>
-/// Provisions, regresses, and migrates the compliance schema using the DDL the package actually SHIPS.
+/// Provisions the compliance schema using the DDL the package actually SHIPS, and can put the two
+/// inventory tables back into the pre-tenant shape an upgrading consumer still holds.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Nothing here restates a <c>CREATE TABLE</c>. Both the fresh-install shape and the migration are read
-/// out of the package's own script files, so a suite built on this type cannot pass against a schema no
-/// consumer will ever provision — the failure mode a hand-written fixture DDL produces when it drifts
-/// <em>ahead</em> of the shipped file, which is worse than drifting behind because it is silent.
+/// Nothing here restates a <c>CREATE TABLE</c>. The fresh-install shape is read out of the package's own
+/// script file, so a suite built on this type cannot pass against a schema no consumer will ever
+/// provision — the failure mode a hand-written fixture DDL produces when it drifts <em>ahead</em> of the
+/// shipped file, which is worse than drifting behind because it is silent.
 /// </para>
 /// <para>
-/// <see cref="RegressToLegacyAsync"/> is the one that needs justifying. A migration can only be tested
-/// against the shape it migrates FROM, and that shape no longer exists in any file — 001 now creates the
-/// total column directly. Rather than reintroduce the old definition as a copy (which would then be the
-/// only place the legacy shape is written down, free to drift from what consumers actually have), it is
-/// DERIVED from the shipped one by reversing exactly the three properties the migration establishes:
-/// the default, the nullability, and the collation. If 001 changes, this reversal keeps describing the
-/// real "before", because it is expressed relative to the real "after".
+/// <see cref="RegressDataInventoryToPreTenantAsync"/> is the one that needs justifying. The package ships
+/// no in-place upgrade — one CREATE script per provider, already at the final shape — so the pre-tenant
+/// shape exists in no file. It is the input the store's fail-fast exists to refuse, and the only way to
+/// produce it is to DERIVE it from the shipped one by reversing exactly the properties the create script
+/// establishes. Restating the old DDL as a copy would make this the only place it is written down, free
+/// to drift from what upgrading consumers actually have; expressed as a reversal it keeps describing the
+/// real "before" whenever the "after" changes.
 /// </para>
 /// </remarks>
 internal static class ShippedComplianceSchema
 {
 	private const string CreateScript = "SqlServer.001_CreateComplianceSchema.sql";
-	private const string MigrateScript = "SqlServer.003_MakeComplianceTenantTotal.sql";
-	private const string MigrateDataInventoryScript = "SqlServer.004_MakeDataInventoryTenantTotal.sql";
-	private const string MigrateInventoryKeyWidthsScript = "SqlServer.006_MakeInventoryKeysFitTheIndexLimit.sql";
 
-	/// <summary>Runs the shipped data-inventory tenant-totality migration.</summary>
+	/// <summary>Creates the compliance schema in its shipped, fresh-install shape.</summary>
 	/// <param name="connectionString">The target database.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task MigrateDataInventoryAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteScriptAsync(connectionString, LoadShipped(MigrateDataInventoryScript), cancellationToken);
+	public static Task EnsureCreatedAsync(string connectionString, CancellationToken cancellationToken) =>
+		ExecuteScriptAsync(connectionString, LoadShipped(CreateScript), cancellationToken);
 
 	/// <summary>
-	/// Runs the shipped index-width repair, the step that follows the tenant migration in the real upgrade
-	/// chain and produces the shape a fresh install now gets from 001.
+	/// Drops the two inventory tables and re-provisions them from the shipped create script.
 	/// </summary>
 	/// <remarks>
-	/// Exposed so a suite that regressed these tables can put them BACK. The inventory tables are shared by
-	/// every arm in the SQL Server collection, and the legacy shape is one no current store will accept —
-	/// it fails fast on the missing tenant column, by design. A suite that leaves it behind therefore does
-	/// not fail alone; it fails every suite that runs after it, with an error about the schema rather than
-	/// about the culprit.
+	/// The repair a suite that regressed these tables owes its neighbours. The inventory tables are shared
+	/// by every arm in the SQL Server collection, and the pre-tenant shape is one no current store will
+	/// accept — it fails fast on the missing tenant column, by design. A suite that leaves it behind
+	/// therefore does not fail alone; it fails every suite that runs after it, with an error about the
+	/// schema rather than about the culprit. DROP first because the create script guards on table
+	/// existence and would otherwise do nothing at all.
 	/// </remarks>
 	/// <param name="connectionString">The target database.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task MigrateInventoryKeyWidthsAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteScriptAsync(connectionString, LoadShipped(MigrateInventoryKeyWidthsScript), cancellationToken);
+	public static async Task ReprovisionDataInventoryAsync(
+		string connectionString,
+		CancellationToken cancellationToken)
+	{
+		const string Sql = """
+			DROP TABLE IF EXISTS [compliance].[DiscoveredDataLocations];
+			DROP TABLE IF EXISTS [compliance].[DataInventoryRegistrations];
+			""";
+
+		await ExecuteScriptAsync(connectionString, Sql, cancellationToken).ConfigureAwait(false);
+		await EnsureCreatedAsync(connectionString, cancellationToken).ConfigureAwait(false);
+	}
 
 	/// <summary>
-	/// Returns the two inventory tables to the pre-migration shape every upgrading consumer holds: no
-	/// TenantId column at all, and the narrow primary keys that let one tenant's registration overwrite
-	/// another's.
+	/// Returns the two inventory tables to the pre-tenant shape an upgrading consumer holds: no TenantId
+	/// column at all, and the narrow primary keys that let one tenant's registration overwrite another's.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// This is the reversal that matters most, and the shape it recreates is not hypothetical. The tenant
-	/// discriminator reached these tables by editing 001 in place, and BOTH provisioning paths — the
-	/// script's <c>IF NOT EXISTS</c> and the store's own auto-create — guard on table existence. So every
-	/// database whose inventory tables predate that edit still has exactly this shape, and upgrading the
-	/// package does not change it.
+	/// The shape this recreates is not hypothetical. Both provisioning paths — the script's
+	/// <c>IF NOT EXISTS</c> and the store's own auto-create — guard on table EXISTENCE, so every database
+	/// whose inventory tables predate the tenant discriminator still has exactly this shape, and upgrading
+	/// the package does not change it. That is what the store's fail-fast is for, and this is the only way
+	/// to hand it that input.
 	/// </para>
 	/// <para>
-	/// Derived from the shipped definition by reversing every property the two shipped changes establish —
-	/// the tenant column and its default, the key composition, and the surrogate keys and hashed natural
-	/// key the index-width repair introduced — rather than restating the legacy DDL as a copy. A copy
-	/// would become the only place the old shape is written down and would be free to drift from what
-	/// consumers actually have.
+	/// Derived from the shipped definition by reversing every property it establishes — the tenant column
+	/// and its default, the key composition, and the surrogate keys and hashed natural key that keep those
+	/// keys inside SQL Server's index-width limit — rather than restating the old DDL as a copy.
 	/// </para>
 	/// </remarks>
 	/// <param name="connectionString">The target database.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	public static async Task RegressDataInventoryToLegacyAsync(
+	public static async Task RegressDataInventoryToPreTenantAsync(
 		string connectionString,
 		CancellationToken cancellationToken)
 	{
@@ -90,12 +95,10 @@ internal static class ShippedComplianceSchema
 		// "duplicate key was found"; without the guard, a table that is already narrow gets a second
 		// primary key. A regress that is not idempotent is a fixture that only works when it runs first.
 
-		// The reversal spans TWO shipped changes, not one, because 001 now creates the shape BOTH of them
-		// leave behind: the tenant discriminator (004) and the index-width repair (006) that moved each
-		// natural key off the clustered index onto a surrogate. A legacy database predates both, so it has
-		// no TenantId, no surrogate identity column, no UNIQUE natural key, and no NaturalKeyHash. Reversing
-		// only the tenant half is what made this throw: the natural key's UNIQUE constraint still named
-		// TenantId, so SQL Server refused to drop the column out from under it.
+		// The reversal spans the whole shipped shape, not only the tenant column: a pre-tenant database has
+		// no TenantId, no surrogate identity column, no UNIQUE natural key, and no NaturalKeyHash.
+		// Reversing only the tenant half throws — the natural key's UNIQUE constraint still names TenantId,
+		// so SQL Server refuses to drop the column out from under it.
 		//
 		// Order is dependency-first and is load-bearing. The UNIQUE constraints go before the columns they
 		// name; NaturalKeyHash goes before TenantId because it is a PERSISTED computed column over it; and
@@ -166,60 +169,6 @@ internal static class ShippedComplianceSchema
 			    ALTER TABLE [compliance].[DiscoveredDataLocations]
 			        ADD CONSTRAINT [PK_DiscoveredDataLocations]
 			            PRIMARY KEY ([DataSubjectIdHash], [TableName], [FieldName], [RecordId]);
-			""";
-
-		await ExecuteScriptAsync(connectionString, Sql, cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <summary>Creates the compliance schema in its shipped, fresh-install shape.</summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task EnsureCreatedAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteScriptAsync(connectionString, LoadShipped(CreateScript), cancellationToken);
-
-	/// <summary>Runs the shipped tenant-totality migration.</summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task MigrateAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteScriptAsync(connectionString, LoadShipped(MigrateScript), cancellationToken);
-
-	/// <summary>
-	/// Returns the two tenant columns to the pre-migration shape a real upgrading consumer holds: nullable,
-	/// no default, and no explicit collation (so the column inherits the database default, which is what
-	/// 001 produced before it named a collation).
-	/// </summary>
-	/// <param name="connectionString">The target database.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	public static async Task RegressToLegacyAsync(string connectionString, CancellationToken cancellationToken)
-	{
-		const string Sql = """
-			IF EXISTS (SELECT * FROM sys.default_constraints
-			           WHERE parent_object_id = OBJECT_ID(N'[compliance].[LegalHolds]')
-			             AND name = N'DF_LegalHolds_TenantId')
-			    ALTER TABLE [compliance].[LegalHolds] DROP CONSTRAINT [DF_LegalHolds_TenantId];
-
-			IF EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_LegalHolds_TenantId'
-			           AND object_id = OBJECT_ID(N'[compliance].[LegalHolds]'))
-			    DROP INDEX [IX_LegalHolds_TenantId] ON [compliance].[LegalHolds];
-
-			ALTER TABLE [compliance].[LegalHolds] ALTER COLUMN [TenantId] NVARCHAR(256) NULL;
-
-			CREATE NONCLUSTERED INDEX [IX_LegalHolds_TenantId]
-			    ON [compliance].[LegalHolds] ([TenantId], [IsActive]);
-
-			IF EXISTS (SELECT * FROM sys.default_constraints
-			           WHERE parent_object_id = OBJECT_ID(N'[compliance].[ErasureRequests]')
-			             AND name = N'DF_ErasureRequests_TenantId')
-			    ALTER TABLE [compliance].[ErasureRequests] DROP CONSTRAINT [DF_ErasureRequests_TenantId];
-
-			IF EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_ErasureRequests_TenantId'
-			           AND object_id = OBJECT_ID(N'[compliance].[ErasureRequests]'))
-			    DROP INDEX [IX_ErasureRequests_TenantId] ON [compliance].[ErasureRequests];
-
-			ALTER TABLE [compliance].[ErasureRequests] ALTER COLUMN [TenantId] NVARCHAR(256) NULL;
-
-			CREATE NONCLUSTERED INDEX [IX_ErasureRequests_TenantId]
-			    ON [compliance].[ErasureRequests] ([TenantId], [RequestedAt]);
 			""";
 
 		await ExecuteScriptAsync(connectionString, Sql, cancellationToken).ConfigureAwait(false);

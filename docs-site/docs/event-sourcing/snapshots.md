@@ -396,19 +396,13 @@ step is required to get started. Its DDL still ships, for the deployment that pr
 application: `scripts/001_CreateEventStoreSchema.sql` creates the snapshot table alongside the event
 table. Take the schema from that script rather than from another provider's — the column types differ.
 
-**Upgrading an existing SQLite database needs no action from you, provided the application holds
-`CREATE TABLE`.** A database created before the snapshot table carried a tenant column is reconciled
-automatically the first time the store opens it:
-the table is rebuilt with the tenant column and every existing snapshot is stamped as untenanted, so
-the snapshots you already have stay readable. A database whose rows store the untenanted partition as
-an empty string has those rows converged onto the reserved untenanted key by the same step. Both are
-idempotent.
+A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it from
+the shipped script.
 
-A deployment whose schema is owned elsewhere never reaches that reconciliation, and re-running `001`
-against its database changes nothing. For it the package ships
-`scripts/002_MakeEventAndSnapshotIdentityTenantScoped.sql`, which performs the same rebuild for the
-snapshot and event tables. Run it with the application stopped and a runner that stops on the first
-error.
+On a **single-tenant** host — one that has not registered multi-tenancy — the store converges rows
+under the reserved untenanted key onto that host's single-tenant identity the first time it opens the
+database, provided it holds `CREATE TABLE`. A host that requires a tenant skips that step, so its
+genuinely-untenanted system rows stay where they are. The step is idempotent.
 
 The single case that stops rather than guessing is a table holding **both** representations for the same
 aggregate — an empty-string row and a reserved-key row. Those two rows would have to become one, so the

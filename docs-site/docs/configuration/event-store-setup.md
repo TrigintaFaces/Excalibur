@@ -298,8 +298,8 @@ header explaining why every column is shaped the way it is.
 
 | Package | Create scripts | Migrations |
 |---------|----------------|------------|
-| `Excalibur.EventSourcing.SqlServer` | `001_CreateEventStoreSchema.sql`, `002_CreateSnapshotSchema.sql`, `008_CreateCursorMapSchema.sql` | `003`–`007`, `009` |
-| `Excalibur.EventSourcing.Postgres` | `001_CreateSnapshotSchema.sql`, `004_CreateEventStoreSchema.sql`, `008_CreateCursorMapSchema.sql` | `002`, `003`, `005`–`007` |
+| `Excalibur.EventSourcing.SqlServer` | `001_CreateEventStoreSchema.sql`, `002_CreateSnapshotSchema.sql`, `003_CreateCursorMapSchema.sql` | `003`–`007`, `009` |
+| `Excalibur.EventSourcing.Postgres` | `001_CreateSnapshotSchema.sql`, `002_CreateEventStoreSchema.sql`, `003_CreateCursorMapSchema.sql` | `002`, `003`, `005`–`007` |
 
 To read them from a restored package:
 

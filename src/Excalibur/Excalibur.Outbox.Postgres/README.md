@@ -49,10 +49,8 @@ Every statement is guarded with `IF NOT EXISTS`, so the script is safe to re-run
   sentinel, not `NULL`, so there is exactly one way to say a message has no tenant and a scoped
   predicate always compares a value against a value. The staging path binds the term explicitly,
   so the default is a backstop for hand-written `INSERT`s.
-- A database created while `tenant_id` was nullable is converged by
-  `002_MakeOutboxTenantTotal.sql`, which backfills `NULL` (and blank) to the sentinel before
-  applying the constraint. **Run it with the processor stopped, and deploy this package version
-  first** — the older package binds a raw null tenant and would fail the new constraint.
+- A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it
+  from the shipped schema script.
 - `outbox_fence.scope_key` must keep its primary key — the fenced claim and fenced delete upsert
   with `ON CONFLICT (scope_key)`, which requires a matching unique constraint.
 

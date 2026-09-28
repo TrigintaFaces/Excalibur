@@ -241,10 +241,8 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 
 	/// <summary>Replays an aggregate's whole history into fresh projection state.</summary>
 	/// <returns>The folded state, the highest position folded, and how many events were applied.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Event deserialization is inherently dynamic; projection recovery requires runtime type resolution.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026",
-		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
+	[RequiresUnreferencedCode("Event deserialization requires type metadata; consumers must preserve event types.")]
+	[RequiresDynamicCode("Event deserialization is inherently dynamic; projection recovery resolves types at run time.")]
 	private async Task<(TProjection State, long? HighestPosition, int EventCount)> ReplayAsync<TProjection>(
 		MultiStreamProjection<TProjection> projection,
 		string aggregateId,

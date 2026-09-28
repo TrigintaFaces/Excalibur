@@ -14,6 +14,19 @@
 -- no tenant column -- a subscription reads the global stream of the store it is attached to, and under
 -- tenant sharding each shard is a separate database with its own position sequence.
 
+-- Stop on the first failed statement rather than continuing to the next one.
+--
+-- Without this, a statement that fails -- the table already exists under a different shape, the
+-- schema lacks CREATE TABLE, a tablespace is out of quota -- leaves the script exiting 0. A
+-- deployment pipeline reads that as success and applies the NEXT migration to a database this one
+-- never changed, so the failure is discovered later and somewhere else.
+--
+-- SQL*Plus, SQLcl and SQL Developer honour the directive; drivers that execute statements directly
+-- ignore client directives, so a runner of that kind must be configured to stop on error itself.
+-- An operator running this inside an interactive session is ended by the non-zero exit; to keep the
+-- session, issue WHENEVER SQLERROR CONTINUE before @-ing the file.
+WHENEVER SQLERROR EXIT FAILURE ROLLBACK
+
 DECLARE
     table_exists NUMBER;
 BEGIN

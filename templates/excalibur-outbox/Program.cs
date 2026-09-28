@@ -1,4 +1,12 @@
 using Excalibur.Dispatch.Configuration;
+// Required, and it stays required until the release that moves this extension is PUBLISHED.
+// Template validation compiles this scaffold against the published feed, not against source, so
+// it sees whichever namespace the released package declares UseOutbox in. In the source tree the
+// extension now lives in Microsoft.Extensions.DependencyInjection and needs no import at all;
+// until that ships, the released package still declares it here. Keeping the directive is correct
+// in BOTH worlds -- the namespace still exists either way (the middleware types live in it), so
+// after the move publishes this line is merely redundant rather than wrong.
+using Excalibur.Dispatch.Middleware.Outbox;
 using Excalibur.Dispatch.Observability.Metrics;
 #if (UseSqlServer)
 using Excalibur.Outbox.SqlServer;

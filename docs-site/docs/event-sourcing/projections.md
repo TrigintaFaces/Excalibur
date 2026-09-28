@@ -825,9 +825,9 @@ Ordering relative to `AddEventSourcing` does not matter; any of these replaces t
 
 | Provider | Checkpoint table |
 |---|---|
-| SQL Server | apply `scripts/010_CreateSubscriptionCheckpointSchema.sql` |
-| PostgreSQL | apply `scripts/009_CreateSubscriptionCheckpointSchema.sql` |
-| Oracle | apply `scripts/007_CreateSubscriptionCheckpointSchema.sql` |
+| SQL Server | apply `scripts/004_CreateSubscriptionCheckpointSchema.sql` |
+| PostgreSQL | apply `scripts/004_CreateSubscriptionCheckpointSchema.sql` |
+| Oracle | apply `scripts/003_CreateSubscriptionCheckpointSchema.sql` |
 | SQLite | created automatically on first use, like every other SQLite store |
 
 On the three server engines the store fails loudly if the table is missing, rather than starting a

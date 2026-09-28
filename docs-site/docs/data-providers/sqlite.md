@@ -89,7 +89,7 @@ Tables are created on first use. The DDL is also shipped as scripts in the packa
 | Script | What it does |
 |---|---|
 | `001_CreateEventStoreSchema.sql` | Creates both tables — `Events` and `Snapshots` — on the current shape. Re-runnable; every statement is `IF NOT EXISTS`. |
-| `002_MakeEventAndSnapshotIdentityTenantScoped.sql` | Upgrades a database provisioned before either table carried `TenantId`. Rebuilds both onto the tenant-scoped key and stamps carried-over rows as untenanted. |
+| `002_CreateSubscriptionCheckpointSchema.sql` | Creates `SubscriptionCheckpoints`, where a catch-up subscription records the last global position it processed. Only needed if you run one. |
 
 ```sql
 CREATE TABLE IF NOT EXISTS [Events] (
@@ -120,13 +120,7 @@ INSERT OR IGNORE INTO [Events_Position] (Id, Value)
 SELECT 1, COALESCE((SELECT MAX(GlobalPosition) FROM [Events]), 0);
 ```
 
-`CREATE TABLE IF NOT EXISTS` does not alter an existing table, so re-running `001` against a database created by an earlier version runs clean and changes nothing — and the first append then fails with `no such column: TenantId`.
-
-If the application holds `CREATE TABLE`, the store reconciles both tables itself at startup and nothing is required of you. If schema is owned elsewhere — a migration tool, or a database provisioned and reviewed before the application connects — that reconciliation is never reached, so apply `002_MakeEventAndSnapshotIdentityTenantScoped.sql` by hand: application stopped, against a backup, with a runner that stops on the first error. The script is one transaction whose guards roll it back on refusal, but the `sqlite3` shell continues past a failed statement unless you pass `-bail`:
-
-```bash
-sqlite3 -bail app.db < 002_MakeEventAndSnapshotIdentityTenantScoped.sql
-```
+`CREATE TABLE IF NOT EXISTS` does not alter an existing table, so re-running `001` against a database provisioned by an earlier prerelease runs clean and changes nothing. There is no in-place upgrade path from that shape — re-provision the database from these scripts.
 
 ## Concurrency
 

@@ -710,7 +710,11 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
                 covered = bool(window) and all(
                     re.search("\\b" + re.escape(c) + "\\b", window, re.I) for c in columns
                 ) and bool(columns)
-                short = re.sub("\\s+", " ", name)[:60]
+                # rstrip AFTER truncating: the cut can land on a space, and a key ending in whitespace can
+                # never match its own baseline entry, because the baseline reader strips every line it
+                # reads. Such a finding reports as BOTH unrecorded and stale on every run -- the untenable
+                # state this file's own `reason` docstring warns about, reached through truncation instead.
+                short = re.sub("\\s+", " ", name)[:60].rstrip()
                 key = f"{pkg}:{resolved}:constraint:{short}"
             else:
                 covered = bool(re.search("\\b" + re.escape(name) + "\\b", window, re.I))
@@ -1170,6 +1174,21 @@ public sealed class Store
 }
 """
 
+_V1_SQL_KEYLESS = """CREATE TABLE example_table (
+	id INT NOT NULL
+);
+"""
+
+# The constraint name is sized so the finding key -- the constraint text normalised and cut to 60
+# characters -- lands its final character on a SPACE. That is the shape that used to be impossible
+# to baseline: the reader strips every line it reads, so a key ending in whitespace matched nothing
+# and reported as unrecorded AND stale on the same run, forever.
+_V2_SQL_KEY_TRUNCATES_ONTO_A_SPACE = """CREATE TABLE example_table (
+	id INT NOT NULL,
+	CONSTRAINT PK_TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT PRIMARY KEY (id)
+);
+"""
+
 _V2_CS_ADDS_COLUMN_AND_KEY = """namespace Fixture;
 public sealed class StoreOptions
 {
@@ -1303,6 +1322,9 @@ def self_test() -> int:
         ("SAFETY   a stale baseline entry is detected",
          {sql: _V1_SQL}, {sql: _V2_SQL_COMMENT_ONLY},
          {"Example.Package:example_table:tenant_id"}, 1, True),
+        ("LIVENESS a baselined constraint whose key truncates onto a space is matched",
+         {sql: _V1_SQL_KEYLESS}, {sql: _V2_SQL_KEY_TRUNCATES_ONTO_A_SPACE},
+         {"Example.Package:example_table:constraint:CONSTRAINT PK_TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT PRIMARY KEY"}, 0, True),
         ("LIVENESS column add that DOES ship an ALTER is allowed",
          {sql: _V1_SQL}, {sql: _V2_SQL_ADDS_COLUMN, migration: _MIGRATION_SQL}, set(), 0, True),
         ("LIVENESS a brand-new script is allowed",

@@ -203,12 +203,6 @@ internal static class SqliteTableInitializer
 		=> (connection.ConnectionString, table, role);
 
 	/// <summary>
-	/// The current events schema. Single source for both the create path and the rebuild path so the two
-	/// cannot drift: a rebuild that reproduced the schema separately would silently diverge from the table
-	/// new databases get. Mirrors <c>Scripts/001_CreateEventStoreSchema.sql</c> -- the two are required to
-	/// stay identical (see that file's header).
-	/// </summary>
-	/// <summary>
 	/// The position counter that orders this store's global stream.
 	/// </summary>
 	/// <remarks>
@@ -229,6 +223,12 @@ internal static class SqliteTableInitializer
 		SELECT 1, COALESCE((SELECT MAX(GlobalPosition) FROM [{table}]), 0);
 		""";
 
+	/// <summary>
+	/// The current events schema. Single source for both the create path and the rebuild path so the two
+	/// cannot drift: a rebuild that reproduced the schema separately would silently diverge from the table
+	/// new databases get. Mirrors <c>Scripts/001_CreateEventStoreSchema.sql</c> -- the two are required to
+	/// stay identical (see that file's header).
+	/// </summary>
 	private static string EventsTableDdl(string table, bool ifNotExists) =>
 		$"""
 		CREATE TABLE {(ifNotExists ? "IF NOT EXISTS " : string.Empty)}[{table}] (
@@ -258,8 +258,8 @@ internal static class SqliteTableInitializer
 			-- and a key column is not defaulted. The store binds the value explicitly on every insert.
 			TenantId TEXT NOT NULL,
 			-- The tenant participates in stream IDENTITY, not merely in read filters, so optimistic
-			-- concurrency is per-tenant rather than global -- the same shape PostgreSQL converges to in
-			-- 005_MakeEventStreamIdentityTenantScoped.sql. Without the term, two tenants sharing a natural
+			-- concurrency is per-tenant rather than global -- the same shape PostgreSQL's own create
+			-- script declares. Without the term, two tenants sharing a natural
 			-- aggregate id collide: tenant B's version probe reports -1 ("does not exist") while an append
 			-- of version 0 hits tenant A's row and fails as a duplicate -- a conflict that never converges
 			-- on retry, because the probe keeps reporting -1.
