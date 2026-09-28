@@ -9,9 +9,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Excalibur.Dispatch.Observability.Metrics;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Observability.Metrics;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Provides extension methods for configuring Dispatch metrics instrumentation.
 /// </summary>

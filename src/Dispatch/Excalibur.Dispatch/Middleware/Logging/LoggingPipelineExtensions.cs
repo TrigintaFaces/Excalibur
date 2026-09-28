@@ -7,9 +7,10 @@ using Excalibur.Dispatch.Options.Middleware;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Excalibur.Dispatch.Middleware.Logging;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Middleware.Logging;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding logging middleware to the pipeline.
 /// </summary>

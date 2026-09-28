@@ -8,9 +8,9 @@ using Excalibur.Caching.Projections;
 using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Caching;
 
-namespace Excalibur.Dispatch.Caching;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring projection caching on an <see cref="IDispatchBuilder"/>.
 /// </summary>

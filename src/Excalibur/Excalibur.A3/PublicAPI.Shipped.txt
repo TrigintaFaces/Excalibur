@@ -203,7 +203,6 @@ Excalibur.A3.Authorization.AuthorizationPolicy.IsAuthorized(string! activityName
 Excalibur.A3.Authorization.AuthorizationPolicy.TenantId.get -> string! (forwarded, contained in Excalibur.A3.Core)
 Excalibur.A3.Authorization.AuthorizationPolicy.UserId.get -> string! (forwarded, contained in Excalibur.A3.Core)
 Excalibur.A3.Authorization.AuthorizationPolicyExtensions (forwarded, contained in Excalibur.A3.Abstractions)
-Excalibur.A3.Authorization.DispatchBuilderExtensions
 Excalibur.A3.Authorization.GrantSyncAtomicity
 Excalibur.A3.Authorization.GrantSyncAtomicity.BestEffort = 1 -> Excalibur.A3.Authorization.GrantSyncAtomicity
 Excalibur.A3.Authorization.GrantSyncAtomicity.Required = 0 -> Excalibur.A3.Authorization.GrantSyncAtomicity
@@ -366,6 +365,7 @@ Excalibur.A3.IAccessToken.UserId.get -> string!
 Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.AuditExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.DispatchBuilderExtensions
 Microsoft.Extensions.DependencyInjection.GrantAuthorizationServiceCollectionExtensions
 const Excalibur.A3.Exceptions.NotAuthenticatedException.DefaultMessage = "Authentication failed." -> string!
 const Excalibur.A3.Exceptions.NotAuthenticatedException.DefaultStatusCode = 401 -> int
@@ -377,7 +377,6 @@ static Excalibur.A3.AccessToken.FromValues(string? userId, string! tenantId) -> 
 static Excalibur.A3.Authorization.AuthorizationCacheKey.ForActivityGroups(string! tenantId) -> string!
 static Excalibur.A3.Authorization.AuthorizationCacheKey.ForGrants(string! userId) -> string!
 static Excalibur.A3.Authorization.AuthorizationPolicyExtensions.IsAuthorized(this Excalibur.A3.Authorization.IAuthorizationPolicy! policy, string! activityName) -> bool (forwarded, contained in Excalibur.A3.Abstractions)
-static Excalibur.A3.Authorization.DispatchBuilderExtensions.AddExcaliburAuthorization(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.A3.Authorization.PolicyResult.operator !=(Excalibur.A3.Authorization.PolicyResult? left, Excalibur.A3.Authorization.PolicyResult? right) -> bool (forwarded, contained in Excalibur.A3.Core)
 static Excalibur.A3.Authorization.PolicyResult.operator ==(Excalibur.A3.Authorization.PolicyResult? left, Excalibur.A3.Authorization.PolicyResult? right) -> bool (forwarded, contained in Excalibur.A3.Core)
 static Excalibur.A3.Exceptions.NotAuthenticatedException.BecauseMissingClaim(string! claim) -> Excalibur.A3.Exceptions.NotAuthenticatedException!
@@ -389,6 +388,7 @@ static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.Ad
 static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddExcaliburA3(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.AuditExcaliburBuilderExtensions.AddAudit(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions.AddExcaliburAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderExtensions.AddExcaliburAuthorization(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.GrantAuthorizationServiceCollectionExtensions.AddGrantAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! policyName, string! activityName, string![]! resourceTypes, string? resourceId = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.A3.Authentication.AuthClaims.Email -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.FamilyName -> string!

@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Middleware.Resilience;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Middleware.Resilience;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding circuit breaker middleware to the dispatch pipeline.
 /// </summary>

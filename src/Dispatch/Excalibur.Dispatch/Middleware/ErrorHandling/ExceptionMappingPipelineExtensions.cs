@@ -4,9 +4,10 @@
 using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Middleware.ErrorHandling;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Middleware.ErrorHandling;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding exception mapping middleware to the pipeline.
 /// </summary>
@@ -32,7 +33,7 @@ public static class ExceptionMappingPipelineExtensions
 	/// </list>
 	/// </para>
 	/// <para>
-	/// For custom exception mappings, use <see cref="Excalibur.Dispatch.Configuration.ExceptionMappingDispatchBuilderExtensions.WithExceptionMapping"/>
+	/// For custom exception mappings, use <see cref="Microsoft.Extensions.DependencyInjection.ExceptionMappingDispatchBuilderExtensions.WithExceptionMapping"/>
 	/// before calling this method.
 	/// </para>
 	/// <para>

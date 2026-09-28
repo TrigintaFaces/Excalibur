@@ -109,6 +109,15 @@ public class AppendAllocationStrategyBenchmarks
 		ResetAsync().GetAwaiter().GetResult();
 	}
 
+	[Benchmark(Baseline = true, Description = "IDENTITY (old: gaps possible)")]
+	public Task Identity() => RunAsync(c => AppendIdentityAsync(c, EventsPerAppend));
+
+	[Benchmark(Description = "counter row, 2 round trips (current)")]
+	public Task CounterRow() => RunAsync(c => AppendCounterAsync(c, EventsPerAppend, batched: false));
+
+	[Benchmark(Description = "counter row, 1 round trip (candidate)")]
+	public Task CounterRowBatched() => RunAsync(c => AppendCounterAsync(c, EventsPerAppend, batched: true));
+
 	/// <summary>
 	/// Empties every table and reseeds the counter, so each arm starts from the same state.
 	/// </summary>
@@ -135,15 +144,6 @@ public class AppendAllocationStrategyBenchmarks
 		await using var command = new SqlCommand(Sql, connection);
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
-
-	[Benchmark(Baseline = true, Description = "IDENTITY (old: gaps possible)")]
-	public Task Identity() => RunAsync(c => AppendIdentityAsync(c, EventsPerAppend));
-
-	[Benchmark(Description = "counter row, 2 round trips (current)")]
-	public Task CounterRow() => RunAsync(c => AppendCounterAsync(c, EventsPerAppend, batched: false));
-
-	[Benchmark(Description = "counter row, 1 round trip (candidate)")]
-	public Task CounterRowBatched() => RunAsync(c => AppendCounterAsync(c, EventsPerAppend, batched: true));
 
 	private Task RunAsync(Func<SqlConnection, Task> append)
 	{

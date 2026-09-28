@@ -4,9 +4,10 @@
 using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Threading;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Threading;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding background execution middleware to the dispatch pipeline.
 /// </summary>
@@ -31,7 +32,7 @@ public static class BackgroundExecutionPipelineExtensions
 	/// </para>
 	/// <para>
 	/// What happens when a background message fails is set by
-	/// <see cref="Options.Threading.BackgroundExecutionOptions.ExceptionBehavior"/>, configured with
+	/// <see cref="Excalibur.Dispatch.Options.Threading.BackgroundExecutionOptions.ExceptionBehavior"/>, configured with
 	/// <c>services.Configure&lt;BackgroundExecutionOptions&gt;(...)</c>.
 	/// </para>
 	/// <para>

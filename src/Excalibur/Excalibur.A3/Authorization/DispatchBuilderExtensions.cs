@@ -5,9 +5,10 @@
 using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.A3.Authorization;
+using Excalibur.Dispatch;
 
-namespace Excalibur.A3.Authorization;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for <see cref="IDispatchBuilder" /> to configure Excalibur authorization.
 /// </summary>

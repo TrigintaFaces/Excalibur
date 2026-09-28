@@ -269,8 +269,8 @@ package, so the folder listing finds them either way.
 | `Excalibur.AuditLogging.SqlServer` | `001_CreateAuditSchema` |
 | `Excalibur.Cdc.Postgres` | `001_CreateCdcStateSchema` |
 | `Excalibur.Cdc.SqlServer` | `001_CreateCdcStateSchema`, `002_CreateCdcIdempotencySchema` |
-| `Excalibur.Compliance.Postgres` | `001_CreateComplianceSchema` … `006_AddRegistrationStoreKind` (6 scripts) |
-| `Excalibur.Compliance.SqlServer` | `001_CreateComplianceSchema` … `010_AddCertificateUnreachedData` (9 scripts) — no `008`; the number was never used |
+| `Excalibur.Compliance.Postgres` | `001_CreateComplianceSchema` … `007_LeaseTheErasureExecutionClaim` (7 scripts) |
+| `Excalibur.Compliance.SqlServer` | `001_CreateComplianceSchema` … `011_LeaseTheErasureExecutionClaim` (10 scripts) — no `008`; the number was never used |
 | `Excalibur.Data.DataProcessing` | `001_CreateDataProcessingSchema` |
 | `Excalibur.Data.IdentityMap.SqlServer` | `CreateIdentityMapTable` |
 | `Excalibur.Data.Postgres` | `001_CreateDeadLetterSchema` … `004_NarrowActivityGroupName` (4 scripts) |

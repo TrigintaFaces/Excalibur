@@ -9,9 +9,10 @@ using Excalibur.Dispatch.Options.Threading;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Threading;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Threading;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring threading and concurrency features in the Dispatch message processing pipeline. Provides fluent API
 /// for enabling parallel processing, thread pooling, keyed locking, and performance optimization.

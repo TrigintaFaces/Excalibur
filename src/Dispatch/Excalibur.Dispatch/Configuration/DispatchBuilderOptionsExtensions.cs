@@ -3,9 +3,11 @@
 
 
 using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Options;
 
-namespace Excalibur.Dispatch.Configuration;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring Dispatch options in a fluent manner.
 /// </summary>

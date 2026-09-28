@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Configuration;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring exception mapping on <see cref="IDispatchBuilder"/>.
 /// </summary>

@@ -7,9 +7,10 @@ using Excalibur.Dispatch.Options.Middleware;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Excalibur.Dispatch.Middleware.Timeout;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Middleware.Timeout;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding timeout middleware to the dispatch pipeline.
 /// </summary>

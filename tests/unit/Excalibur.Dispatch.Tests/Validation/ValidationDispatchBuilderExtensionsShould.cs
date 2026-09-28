@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Validation;
 using IDispatchMiddleware = global::Excalibur.Dispatch.IDispatchMiddleware;
 using Excalibur.Dispatch.Middleware.Validation;
 
-using ValidationBuilderExt = Excalibur.Dispatch.Validation.ValidationDispatchBuilderExtensions;
+using ValidationBuilderExt = Microsoft.Extensions.DependencyInjection.ValidationDispatchBuilderExtensions;
 
 namespace Excalibur.Dispatch.Tests.Validation;
 

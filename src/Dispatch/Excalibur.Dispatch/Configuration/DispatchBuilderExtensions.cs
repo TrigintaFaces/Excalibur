@@ -11,9 +11,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Excalibur.Dispatch.Extensions;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Configuration;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for pipeline configuration, handler registration, and assembly scanning.
 /// </summary>

@@ -23,6 +23,19 @@
 -- NULL means "not claimed". Every existing row takes NULL and is claimable exactly as before, so a
 -- deployment that applies this script changes no behaviour until the code that reads the column ships.
 
+-- SQL Server requires SET QUOTED_IDENTIFIER ON to create a FILTERED index (one with a WHERE clause),
+-- and sqlcmd defaults it OFF. Without these, the filtered index below fails with Msg 1934 and is simply
+-- ABSENT from the resulting database -- a script runner that does not check exit status gets a schema
+-- silently missing the index the scheduler's lapsed-lease scan depends on, and the only symptom is that
+-- the scan gets slower as the table grows. Matches Excalibur.Data.SqlServer/Scripts/001, which already
+-- does this for the same reason.
+--
+-- Set before the first batch: the setting applies within its own batch and persists across later ones,
+-- and these statements are executed as a single command by callers that do not split batches.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF NOT EXISTS (
     SELECT 1 FROM sys.columns
     WHERE object_id = OBJECT_ID(N'[compliance].[ErasureRequests]') AND name = N'LeaseExpiresAtUtc')

@@ -1177,6 +1177,63 @@ Because projections are stored flat, an `ElasticRepositoryBase<OrderSummary>` ta
 
 ---
 
+## What a Projection's Position Means
+
+A projection row carries the position of the last event folded into it. That number is not bookkeeping:
+it is an assertion about **which prefix of the stream the stored state contains**, and every write has to
+make it true at the instant it commits.
+
+```
+state(x) = fold(apply, init, { e in stream : pos(e) <= P(x) })
+```
+
+**A position has three states, not two.** Two of them carry no number, and they need opposite treatment —
+which is why they are distinct values rather than one "null".
+
+| state | what the row is saying | may a positioned write adopt it? |
+|---|---|---|
+| `Positioned(P)` | the state is a fold over exactly the events at or below `P` | no — it is *advanced from* |
+| `Unnumbered` | the state **is** a complete fold, over a prefix that has no global number | **yes** |
+| `Unplaceable` | the state is **not** a fold over any prefix | **never** |
+
+`Unnumbered` is what a row written before positions existed looks like, and what the save path produces
+when it folds events that carry no global position yet. The state is trustworthy; only its coordinate is
+unknown. Folding the next batch onto it and stamping that batch's position makes a true statement.
+
+`Unplaceable` is what `IProjectionStore<T>.UpsertAsync` leaves behind. That method replaces the state
+with a value the store cannot relate to the stream, so no position could describe the result. If a later
+write adopted such a row it would fold its batch onto unknown state and then stamp its own position — and
+the row would assert a prefix it does not contain, with every event below that position missing from your
+read model while the row claims otherwise. Nothing downstream can detect that: the row is well-formed and
+every value in it was written correctly.
+
+### Which method to call
+
+```csharp
+// You folded events and you know the global position they reached.
+await positioned.UpsertAtPositionAsync(id, state, expectedPosition: readAt, newPosition: 42, ct);
+
+// You have a COMPLETE fold but no global position number for it — say so explicitly.
+await positioned.UpsertUnnumberedAsync(id, state, ct);
+
+// You are replacing the state with something you cannot relate to the stream.
+// The row becomes Unplaceable and must be rebuilt before it can be advanced again.
+await store.UpsertAsync(id, state, ct);
+```
+
+Reaching for `UpsertAsync` when you actually hold a complete fold is the mistake this distinction exists
+to prevent: it makes a strictly stronger and wrong claim, and a later positioned write will refuse the row.
+
+### When a write is refused
+
+`UpsertAtPositionAsync` returns `ProjectionAdvanceOutcome.Unplaceable` when the stored state is not a
+fold over any prefix. **This is terminal, not a retry.** Re-reading yields the same row and the same
+refusal, so treating it like `Superseded` is an unbounded redelivery loop. Rebuild the projection from the
+stream; then it can be advanced again.
+
+Every store that records positions is held to this by a conformance arm, so the three states behave the
+same on SQL Server, PostgreSQL, Cosmos DB, DynamoDB, MongoDB, Firestore, Elasticsearch and OpenSearch.
+
 ## Execution and Failure Handling
 
 ### Execution Order

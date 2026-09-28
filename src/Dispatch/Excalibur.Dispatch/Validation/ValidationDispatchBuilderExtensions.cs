@@ -6,9 +6,10 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Middleware.Validation;
 
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Validation;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Validation;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring message validation in the dispatch builder. Provides methods to register validation services and
 /// configure custom validators.

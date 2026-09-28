@@ -12,9 +12,10 @@ using Excalibur.Dispatch.Validation;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Middleware;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding middleware presets and fine-grained stacks to the dispatch pipeline.
 /// </summary>

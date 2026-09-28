@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Middleware.Validation;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Middleware.Validation;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding validation middleware to the dispatch pipeline.
 /// </summary>
@@ -27,7 +28,7 @@ public static class ValidationPipelineExtensions
 	/// <para>
 	/// For the batteries-included path that registers the validator infrastructure <em>and</em> the
 	/// middleware in one call, use
-	/// <see cref="Excalibur.Dispatch.Validation.ValidationDispatchBuilderExtensions.UseValidation(Excalibur.Dispatch.Configuration.IDispatchBuilder)"/>.
+	/// <see cref="Microsoft.Extensions.DependencyInjection.ValidationDispatchBuilderExtensions.UseValidation(Excalibur.Dispatch.Configuration.IDispatchBuilder)"/>.
 	/// </para>
 	/// <para>
 	/// The validation middleware runs registered <c>IValidator&lt;T&gt;</c> implementations against the

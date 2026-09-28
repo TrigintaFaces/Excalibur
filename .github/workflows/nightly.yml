@@ -123,8 +123,13 @@ jobs:
     #
     # Per LEG now, not for the union. Projected from this runner's own measured rates against the
     # suite about to arrive: dispatch ~24 minutes of tests, excalibur ~56, plus ~5 minutes of setup
-    # and build each. 90 leaves roughly a third of the budget spare on the longer leg while still
-    # bounding a genuine hang at an hour and a half rather than two.
+    # and build each.
+    #
+    # The WALL must stay strictly above the session cap below (75m), or the runner kills the job
+    # before the cap can fire and the cap enforces nothing -- which is what the workflow-hygiene gate
+    # caught when I first set both to 90. The gap is what buys a NAMED timeout error instead of an
+    # anonymous cancellation, and the ~15 minutes of it is also the cache-save window that killed the
+    # unsplit job.
     timeout-minutes: 90
     steps:
       - name: Checkout code
@@ -186,7 +191,7 @@ jobs:
             --logger "trx;LogFilePrefix=nightly-integration" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
-            -- RunConfiguration.TestSessionTimeout=5400000
+            -- RunConfiguration.TestSessionTimeout=4500000
 
       # The counter check below is a real check and it is kept, but it cannot see this failure on its
       # own. A skipped test is recorded as NotExecuted and excluded from both executed and passed, so

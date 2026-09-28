@@ -9,9 +9,10 @@ using Excalibur.Dispatch.Options.ErrorHandling;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.ErrorHandling;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring poison message handling in the dispatch pipeline.
 /// </summary>

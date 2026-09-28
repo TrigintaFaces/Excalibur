@@ -7,9 +7,10 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Serialization;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring message serialization in the dispatch system. Provides methods to register serializers and configure
 /// serialization behavior.

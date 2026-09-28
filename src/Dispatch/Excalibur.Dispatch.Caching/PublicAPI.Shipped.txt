@@ -171,7 +171,6 @@ Excalibur.Dispatch.Caching.CachedValue.Value.get -> object?
 Excalibur.Dispatch.Caching.CachedValue.Value.init -> void
 Excalibur.Dispatch.Caching.CachedValueJsonConverter
 Excalibur.Dispatch.Caching.CachedValueJsonConverter.CachedValueJsonConverter() -> void
-Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions
 Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder
 Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.CreateKey(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context) -> string?
 Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.CreateKey(string! logicalKey, string? tenantId, string? userId) -> string!
@@ -228,18 +227,19 @@ Excalibur.Dispatch.Caching.InvalidateCacheAttribute.InvalidateOnFailure.init -> 
 Excalibur.Dispatch.Caching.InvalidateCacheAttribute.Tags.get -> string![]!
 Excalibur.Dispatch.Caching.InvalidateCacheAttribute.Tags.init -> void
 Microsoft.Extensions.DependencyInjection.CacheHealthChecksBuilderExtensions
+Microsoft.Extensions.DependencyInjection.CachingDispatchBuilderExtensions
 Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ScopedDistributedCacheServiceCollectionExtensions
 override Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ToString() -> string!
 override Excalibur.Dispatch.Caching.CachedValueJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Excalibur.Dispatch.Caching.CachedValue?
 override Excalibur.Dispatch.Caching.CachedValueJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Excalibur.Dispatch.Caching.CachedValue! value, System.Text.Json.JsonSerializerOptions! options) -> void
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.UseCaching(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Func<Excalibur.Dispatch.IDispatchMessage!, object?, bool>! policy) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage, TPolicy>(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage>(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Func<TMessage!, object?, bool>! shouldCache) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.CacheHealthChecksBuilderExtensions.AddCacheHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "cache", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.CachingDispatchBuilderExtensions.UseCaching(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CachingDispatchBuilderExtensions.WithResultCachePolicy(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Func<Excalibur.Dispatch.IDispatchMessage!, object?, bool>! policy) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage, TPolicy>(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage>(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Func<TMessage!, object?, bool>! shouldCache) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddCachePolicy<TMessage, TPolicy>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

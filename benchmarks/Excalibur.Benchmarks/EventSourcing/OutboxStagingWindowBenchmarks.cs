@@ -73,6 +73,12 @@ public class OutboxStagingWindowBenchmarks
 		ResetAsync().GetAwaiter().GetResult();
 	}
 
+	[Benchmark(Baseline = true, Description = "stage INSIDE the lock (old order)")]
+	public Task StageInsideLock() => RunAsync(stageBeforeAllocation: false);
+
+	[Benchmark(Description = "stage OUTSIDE the lock (new order)")]
+	public Task StageOutsideLock() => RunAsync(stageBeforeAllocation: true);
+
 	/// <summary>
 	/// Empties every table and reseeds the counter, so each arm starts from the same state.
 	/// </summary>
@@ -96,12 +102,6 @@ public class OutboxStagingWindowBenchmarks
 		await using var command = new SqlCommand(Sql, connection);
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
-
-	[Benchmark(Baseline = true, Description = "stage INSIDE the lock (old order)")]
-	public Task StageInsideLock() => RunAsync(stageBeforeAllocation: false);
-
-	[Benchmark(Description = "stage OUTSIDE the lock (new order)")]
-	public Task StageOutsideLock() => RunAsync(stageBeforeAllocation: true);
 
 	private Task RunAsync(bool stageBeforeAllocation)
 	{

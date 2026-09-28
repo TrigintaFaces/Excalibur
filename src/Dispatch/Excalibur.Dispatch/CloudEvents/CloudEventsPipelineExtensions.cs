@@ -8,9 +8,10 @@ using Excalibur.Dispatch.Options.CloudEvents;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Excalibur.Dispatch.CloudEvents;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.CloudEvents;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding CloudEvents middleware to the dispatch pipeline.
 /// </summary>

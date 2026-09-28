@@ -318,7 +318,6 @@ Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordMessagePublished
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordProcessingDuration(double duration, string! messageType, bool success) -> void
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetricsAdmin
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetricsAdmin.UpdateActiveSessions(int delta) -> void
-Excalibur.Dispatch.Observability.Metrics.MetricsDispatchBuilderExtensions
 Excalibur.Dispatch.Observability.Metrics.MetricsWarningLogger
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ActivitySourceName.get -> string!
@@ -392,6 +391,7 @@ Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.Suppress
 Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.SuppressedTagNames.set -> void
 Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.TelemetrySanitizerOptions() -> void
 Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions
+Microsoft.Extensions.DependencyInjection.MetricsDispatchBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ObservabilityServiceCollectionExtensions
 const Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Name = "Excalibur.Dispatch" -> string!
@@ -411,9 +411,6 @@ static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.Reco
 static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.RecordWithExemplar(this System.Diagnostics.Metrics.Histogram<double>! histogram, double value, System.Diagnostics.TagList tags) -> void
 static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.RecordWithExemplar(this System.Diagnostics.Metrics.Histogram<double>! histogram, double value, string! messageType, bool success) -> void
 static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.RecordWithExemplar(this System.Diagnostics.Metrics.Histogram<long>! histogram, long value, System.Diagnostics.TagList tags) -> void
-static Excalibur.Dispatch.Observability.Metrics.MetricsDispatchBuilderExtensions.UseMetricsInstrumentation(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Observability.Metrics.MetricsDispatchBuilderExtensions.WithMetricsOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Observability.Metrics.MetricsDispatchBuilderExtensions.WithMetricsOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Observability.Metrics.MetricsWarningLogger.EmitDebug(string! message) -> void
 static Excalibur.Dispatch.Observability.Metrics.MetricsWarningLogger.EmitOnce() -> void
 static Excalibur.Dispatch.Observability.Metrics.MetricsWarningLogger.EmitWarning(string! message) -> void
@@ -435,6 +432,9 @@ static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExte
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseTracing(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseW3CTraceContext(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseW3CTraceContextInjection(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.MetricsDispatchBuilderExtensions.UseMetricsInstrumentation(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.MetricsDispatchBuilderExtensions.WithMetricsOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.MetricsDispatchBuilderExtensions.WithMetricsOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddAllDispatchMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddDispatchMetricsInstrumentation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddDispatchMetricsInstrumentation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

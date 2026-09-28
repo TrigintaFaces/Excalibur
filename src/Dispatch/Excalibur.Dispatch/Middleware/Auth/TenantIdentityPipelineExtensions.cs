@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Middleware.Auth;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Middleware.Auth;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding tenant identity middleware to the dispatch pipeline.
 /// </summary>

@@ -9,9 +9,10 @@ using Excalibur.Dispatch.Options.Validation;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Validation.Context;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Validation.Context;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for IDispatchBuilder to add context validation.
 /// </summary>

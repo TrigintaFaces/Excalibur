@@ -8,9 +8,10 @@ using Excalibur.Dispatch.Options.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Excalibur.Dispatch.Middleware.Inbox;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Middleware.Inbox;
-
+namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for adding inbox (idempotency) middleware to the dispatch pipeline.
 /// </summary>

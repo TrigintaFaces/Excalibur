@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Middleware.ErrorHandling;
 /// </para>
 /// <para>
 /// Register handlers in the container and add the middleware to the pipeline with
-/// <see cref="TypedExceptionHandlingPipelineExtensions.UseTypedExceptionHandling"/>.
+/// <see cref="Microsoft.Extensions.DependencyInjection.TypedExceptionHandlingPipelineExtensions.UseTypedExceptionHandling"/>.
 /// <see cref="TypedExceptionHandlerMiddleware"/> then resolves the matching handler when an
 /// exception escapes a pipeline component below it. Registration alone does not place the
 /// middleware in the pipeline, and without it no handler is consulted.
