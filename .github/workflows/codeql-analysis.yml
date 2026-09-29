@@ -108,6 +108,7 @@ jobs:
         run: bash ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf
 
       - name: Perform CodeQL Analysis
+        id: codeql_analyze
         uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           category: "/language:${{matrix.language}}"
@@ -132,4 +133,4 @@ jobs:
       - name: Report result
         if: always()
         run: |
-          bash eng/ci/job-summary.sh             --title "CodeQL Security Analysis (C#)"             --verdict "${{ job.status == 'success' && 'pass' || 'fail' }}"             --detail "CodeQL analysed the C# sources for security findings"             --next "Open the Security tab's code-scanning alerts for this run. A finding is triaged, not dismissed: fix it, or record why it is not exploitable here."
+          bash eng/ci/job-summary.sh             --title "CodeQL Security Analysis (C#)"             --verdict "${{ steps.codeql_analyze.outcome == 'success' && 'pass' || (steps.codeql_analyze.outcome == 'failure' && 'fail' || 'refuse') }}"             --detail "${{ steps.codeql_analyze.outcome == 'success' && 'CodeQL analysed the C# sources for security findings' || (steps.codeql_analyze.outcome == 'failure' && 'CodeQL ran and its analysis step failed' || 'NOTHING WAS ANALYSED. The analysis step did not run -- the build before it failed. This is not a clean result; it is an unmeasured one.') }}"             --next "Open the Security tab's code-scanning alerts for this run. A finding is triaged, not dismissed: fix it, or record why it is not exploitable here."

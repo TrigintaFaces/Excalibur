@@ -320,6 +320,7 @@ jobs:
         run: npm ci
 
       - name: TypeScript check
+        id: typescript_check
         working-directory: docs-site
         run: npm run typecheck
 
@@ -344,6 +345,7 @@ jobs:
         run: bash eng/ci/docs-csharp-phantom-gate.test.sh
 
       - name: Build Docusaurus (enforcing zero warnings)
+        id: docusaurus_build
         working-directory: docs-site
         env:
           CI: true
@@ -400,8 +402,8 @@ jobs:
           echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| TypeScript Check | ${{ job.status == 'success' && 'PASS' || 'FAIL' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docusaurus Build | ${{ job.status == 'success' && 'PASS' || 'FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript Check | ${{ steps.typescript_check.outcome == 'success' && 'PASS' || (steps.typescript_check.outcome == 'failure' && 'FAIL' || 'NOT RUN') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docusaurus Build | ${{ steps.docusaurus_build.outcome == 'success' && 'PASS' || (steps.docusaurus_build.outcome == 'failure' && 'FAIL' || 'NOT RUN') }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build Warnings | ${{ env.DOCS_WARNINGS || '0' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
@@ -2238,6 +2240,7 @@ jobs:
         run: dotnet restore samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
 
       - name: Build AOT sample (Release)
+        id: aot_build
         run: |
           echo "Building AOT sample with source generators..."
           dotnet build samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
@@ -2253,17 +2256,53 @@ jobs:
           echo "AOT sample build succeeded"
 
       - name: Verify AOT publish configuration
+        id: aot_config
         run: |
-          echo "Verifying AOT/trimming configuration..."
-          if ! grep -q '<PublishAot>true</PublishAot>' samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
-            echo "PublishAot not enabled in project file"
-            exit 1
-          fi
-          if ! grep -q '<TrimMode>full</TrimMode>' samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
-            echo "TrimMode not set to full"
-            exit 1
-          fi
-          echo "AOT configuration verified"
+          set -euo pipefail
+          # Every row the job summary prints under "Configuration Verified" is READ HERE and
+          # exported from what was actually found. Two of those four rows used to be literals typed
+          # into the summary: they printed the same reassuring value whether or not the property
+          # still existed in the project file, so the table asserted a verification nothing
+          # performed. A row that cannot disagree with the tree is not a check.
+          CSPROJ="samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj"
+
+          FAILED=0
+
+          # Values are stripped to a conservative character set before they reach $GITHUB_ENV. The
+          # summary interpolates them into a shell string, so an unsanitised project file could
+          # otherwise inject a command substitution into this workflow.
+          read_prop() {
+              sed -n "s@.*<$1>\(.*\)</$1>.*@\1@p" "$CSPROJ" | head -1 | tr -cd 'A-Za-z0-9._;-'
+          }
+
+          require_exact() {   # $1 element, $2 required value, $3 env var the summary reports
+              local value
+              value="$(read_prop "$1")"
+              echo "$3=${value:-<absent>}" >> "$GITHUB_ENV"
+              if [ "$value" != "$2" ]; then
+                  echo "::error::$1 is '${value:-<absent>}' in $CSPROJ; Native AOT requires '$2'."
+                  FAILED=1
+              fi
+          }
+
+          require_contains() {  # $1 element, $2 required substring, $3 env var
+              local value
+              value="$(read_prop "$1")"
+              case "$value" in
+                  *"$2"*) echo "$3=$2" >> "$GITHUB_ENV" ;;
+                  *)      echo "$3=<absent>" >> "$GITHUB_ENV"
+                          echo "::error::$1 does not contain '$2' in $CSPROJ."
+                          FAILED=1 ;;
+              esac
+          }
+
+          require_exact    PublishAot                                  true  AOT_PUBLISHAOT
+          require_exact    TrimMode                                    full  AOT_TRIMMODE
+          require_exact    JsonSerializerIsReflectionEnabledByDefault  false AOT_JSONREFLECTION
+          require_contains InterceptorsNamespaces  Excalibur.Dispatch.Generated AOT_INTERCEPTORS
+
+          [ "$FAILED" -eq 0 ] || exit 1
+          echo "AOT configuration verified: all four properties read from $CSPROJ."
 
       - name: Check for trimming/AOT warnings
         run: |
@@ -2322,10 +2361,10 @@ jobs:
           echo "### Configuration Verified" >> $GITHUB_STEP_SUMMARY
           echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| PublishAot | true |" >> $GITHUB_STEP_SUMMARY
-          echo "| TrimMode | full |" >> $GITHUB_STEP_SUMMARY
-          echo "| JsonSerializerIsReflectionEnabledByDefault | false |" >> $GITHUB_STEP_SUMMARY
-          echo "| Interceptors | Excalibur.Dispatch.Generated |" >> $GITHUB_STEP_SUMMARY
+          echo "| PublishAot | ${{ env.AOT_PUBLISHAOT || 'NOT MEASURED' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TrimMode | ${{ env.AOT_TRIMMODE || 'NOT MEASURED' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| JsonSerializerIsReflectionEnabledByDefault | ${{ env.AOT_JSONREFLECTION || 'NOT MEASURED' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Interceptors | ${{ env.AOT_INTERCEPTORS || 'NOT MEASURED' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Source Generators Demonstrated" >> $GITHUB_STEP_SUMMARY
           echo "- HandlerRegistrySourceGenerator" >> $GITHUB_STEP_SUMMARY
@@ -2336,8 +2375,8 @@ jobs:
           echo "### Results" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | ${{ job.status == 'success' && 'PASS' || 'FAIL' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| AOT Config | ${{ job.status == 'success' && 'Verified' || 'Issues' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ steps.aot_build.outcome == 'success' && 'PASS' || (steps.aot_build.outcome == 'failure' && 'FAIL' || 'NOT RUN') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| AOT Config | ${{ steps.aot_config.outcome == 'success' && 'Verified' || (steps.aot_config.outcome == 'failure' && 'Issues' || 'NOT RUN') }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Trim Warnings | ${{ env.AOT_WARNINGS || '0' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
