@@ -79,7 +79,7 @@ permit `timeout-minutes`; the called workflow's own job timeouts apply.
 | nightly.yml | dependency-audit | schedule,workflow_dispatch | 20 | ubuntu-latest | - |  | workflow |  |
 | nightly.yml | deterministic-unit-tests | schedule,workflow_dispatch | 15 | ubuntu-latest | - | yes | workflow |  |
 | nightly.yml | flake-report | schedule,workflow_dispatch | 15 | ubuntu-latest | - |  | job |  |
-| nightly.yml | integration-tests | schedule,workflow_dispatch | 60 | ubuntu-latest | deterministic-unit-tests | yes | workflow |  |
+| nightly.yml | integration-tests | schedule,workflow_dispatch | 90 | ubuntu-latest | deterministic-unit-tests | yes | workflow |  |
 | nightly.yml | nightly-summary | schedule,workflow_dispatch | 5 | ubuntu-latest | deterministic-unit-tests,integrati |  | workflow |  |
 | nightly.yml | npm-audit | schedule,workflow_dispatch | 15 | ubuntu-latest | - |  | workflow |  |
 | nightly.yml | package-composition | schedule,workflow_dispatch | 30 | ubuntu-latest | - |  | workflow |  |
