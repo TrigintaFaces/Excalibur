@@ -170,9 +170,8 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 		// WITNESS THE LAST EVENT, NOT THE FIRST.
 		//
-		// This provider has a documented non-atomic opt-out (UseTransactionalWrite=false) where items are
-		// put one at a time and a failure partway leaves a torn prefix. A probe that finds the FIRST item
-		// and then reports expectedVersion + count would claim the whole batch from a prefix -- success over
+		// A probe that finds the FIRST item and then reports expectedVersion + count would claim the whole
+		// batch from whatever prefix happened to be present -- success over
 		// a torn stream, which no later read can distinguish from a shorter history.
 		//
 		// Items are written in version order, so the LAST one present implies every earlier one is too.
@@ -897,10 +896,13 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
-		// Non-transactional opt-out path (UseTransactionalWrite=false): a per-item conditional PutItem loop.
-		// Each PutItem uses attribute_not_exists(#pk) so a version collision raises ConditionalCheckFailed,
-		// mapped to a concurrency conflict. Not atomic across events by design — the caller opted out of
-		// transactions; for atomic multi-event appends leave UseTransactionalWrite enabled (the default).
+		// THE SINGLE-EVENT PATH: one conditional PutItem, which is atomic by itself.
+		//
+		// attribute_not_exists(#pk) makes a version collision raise ConditionalCheckFailed, mapped to a
+		// concurrency conflict. Multi-event appends do NOT come here -- they go through TransactWriteItems,
+		// because writing them one at a time can leave a torn prefix. Routing a single event through a
+		// transaction would double its write cost and demand the extra IAM permission for no benefit:
+		// there is no second item to be atomic with.
 		var version = expectedVersion;
 		double totalCapacity = 0;
 

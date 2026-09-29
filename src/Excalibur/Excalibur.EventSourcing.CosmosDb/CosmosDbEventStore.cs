@@ -294,8 +294,8 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	/// operations and offers no larger atomic primitive, so an append of <b>more than 100 events</b> is
 	/// rejected with <see cref="EventBatchTooLargeException"/> before anything is written, rather than
 	/// committed as a sequence of batches that could leave a torn prefix behind. Callers split the append
-	/// into batches of at most 100 events, or set <c>UseTransactionalBatch=false</c> to opt into the
-	/// documented non-atomic sequential path.
+	/// into batches of at most 100 events. There is no opt-out that accepts a larger append: one existed
+	/// and was removed, because its only effect was to permit a torn prefix by configuration.
 	/// </remarks>
 	public async Task<CloudAppendResult> AppendAsync(
 		string aggregateId,
@@ -519,9 +519,9 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	/// ONE point read settles it. Item ids are deterministic, so the slot after the expected version names
 	/// itself; and a transactional batch commits all-or-nothing, so if our first event is there then all of
 	/// them are and the version reached is arithmetic. THAT ATOMICITY IS LOAD-BEARING FOR CORRECTNESS on
-	/// the batch path. On the sequential opt-out path (UseTransactionalBatch=false) the consumer has
-	/// already traded atomicity away, so a torn prefix is possible there and this probe reports only that
-	/// the FIRST event landed -- which is exactly what it claims and no more.
+	/// the batch path. The probe witnesses the LAST event of the batch rather than the first, so it does
+	/// not depend on that atomicity holding: items are written in version order, so the last one present
+	/// implies every earlier one is too.
 	/// </para>
 	/// </remarks>
 	private async Task<long?> ReadCommittedAppendOutcomeAsync(
@@ -538,9 +538,8 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 		// WITNESS THE LAST EVENT, NOT THE FIRST.
 		//
-		// This provider has a documented non-atomic opt-out (UseTransactionalBatch=false) where a batch is
-		// committed per item and a failure partway leaves a torn prefix. A probe that finds the FIRST event
-		// and then reports expectedVersion + count would claim the whole batch from a prefix -- success over
+		// A probe that finds the FIRST event and then reports expectedVersion + count would claim the whole
+		// batch from whatever prefix happened to be present -- success over
 		// a torn stream, which no later read can distinguish from a shorter history.
 		//
 		// Items are written in version order, so the LAST one present implies every earlier one is too.

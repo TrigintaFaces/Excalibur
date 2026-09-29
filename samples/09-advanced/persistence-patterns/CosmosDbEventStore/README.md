@@ -130,7 +130,6 @@ services.Configure<CosmosDbEventStoreOptions>(options =>
     options.PartitionKeyPath = "/streamId";
     options.CreateContainerIfNotExists = true;
     options.ContainerThroughput = 400;
-    options.UseTransactionalBatch = true;
 });
 ```
 

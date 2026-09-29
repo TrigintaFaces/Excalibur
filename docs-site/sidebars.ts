@@ -22,6 +22,7 @@ const sidebars: SidebarsConfig = {
         { type: 'doc', id: 'pick-your-stack' },
         { type: 'doc', id: 'whats-new' },
         { type: 'doc', id: 'known-issues' },
+        { type: 'doc', id: 'resolved-issues' },
         {
           type: 'category',
           label: 'Getting Started',

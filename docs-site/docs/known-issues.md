@@ -21,11 +21,24 @@ is not listed — you cannot install our branch, so telling you about it would c
 act on; those belong in release notes. **An absence here therefore means one of two things: we have not
 identified it, or it cannot reach you. It does not mean we judged it minor.**
 
-Every entry is re-checked against the code before each update. Entries we have confirmed fixed are listed under [Resolved](#resolved-since-the-last-update) rather than quietly deleted, so you can tell a fixed issue from a forgotten one.
+Every entry is re-checked against the code before each update. **This page lists only what is still wrong.** Entries we have confirmed fixed move to [Resolved issues](resolved-issues.md) rather than being quietly deleted, so you can still tell a fixed issue from a forgotten one — and so that what remains here is the list you have to act on.
 
 ---
 
 ## Defects
+
+**At a glance.** The defects below are grouped by the area they affect. Each group links to its entries; nothing is summarised away, and the full write-up for every issue is still on this page.
+
+| Area | Issues | What tends to go wrong |
+|---|---|---|
+| [Authorization and multi-tenancy](#authorization-and-multi-tenancy) | 5 | Grants and access reviews that silently do nothing, or reach across tenants. |
+| [Secrets and data protection](#secrets-and-data-protection) | 2 | Credentials that persist where you did not expect, and an attribute that protects nothing. |
+| [Compliance: GDPR and SOC 2](#compliance-gdpr-and-soc-2) | 5 | Reports and certificates that claim more than the framework checked. |
+| [Event sourcing, outbox and projections](#event-sourcing-outbox-and-projections) | 8 | Writes reported as succeeding when they did not, or vice versa. |
+| [Transports](#transports) | 4 | Messages reported as sent, or acknowledged, when they were neither. |
+| [Dependencies and packaging](#dependencies-and-packaging) | 3 | What a published package pulls in that you did not ask for. |
+| [Test fixtures](#test-fixtures) | 1 | Shipped testing helpers that do not work as documented. |
+
 
 **Several of the defects below are the same behaviour in unrelated subsystems: the framework reports
 success without having done the thing.** A compliance control reports satisfied without having assessed
@@ -44,66 +57,9 @@ one today.
 never assessed is reported as a *failure against you* rather than as a gap in our coverage. The remedy
 there is the mirror image — you are checking whether a red is real, not whether a green is.
 
-### The caller's `Authorization` and `Cookie` headers are stored in your SQL Server outbox, and can reach your broker and your traces
+### Authorization and multi-tenancy
 
-:::danger Treat credentials that reached any of these places as exposed
-If you dispatch HTTP requests through the ASP.NET Core integration, the caller's request headers —
-including bearer tokens, cookies and API keys — are copied onto every message dispatched for that request.
-Where they end up depends on which parts of the framework you use; for SQL Server outbox users, **no
-opt-in is needed**.
-:::
-
-**What happens.** The ASP.NET Core integration copies **every** request header into the message context,
-with no filtering. From there they reach up to three places:
-
-| where the headers end up | when | you opted in? |
-|---|---|---|
-| **Your SQL Server outbox table** — stored in the message's headers | you use the SQL Server outbox store | **No — this is the default behaviour of that store** |
-| **Your message broker** — each header becomes a CloudEvents extension attribute, for example one ending in `headerauthorization` | you enabled CloudEvents on the transport with `UseCloudEvents(...)` or an `AddCloudEventsFor<Transport>(...)` method | Yes |
-| **Your tracing backend** — each header becomes a span attribute named `context.item.<header>` | you set `IncludeCustomItemsInTraces = true` in the observability options; up to the first ten context items are recorded | Yes |
-
-**Are you affected?** You are affected if you dispatch messages from HTTP requests through the framework's
-ASP.NET Core integration (the controller helpers or the endpoint route handlers) **and** any row of the
-table applies to you. Our other outbox stores do not copy the headers, and a message published without
-CloudEvents does not carry them to the broker. The tracing path's built-in filters remove items whose
-names contain *password*, *secret*, *token* or *credential*, but not `Authorization` or `Cookie`.
-
-We have not established whether this is limited to the message dispatched for the request itself or also
-reaches messages your handlers publish while handling it, so **assume it covers every message dispatched
-or published while handling the request.**
-
-**What that exposes.** Anyone who can read the outbox table or its backups, consume or inspect the
-affected topics and queues (including dead-letter queues and broker logs), or read your traces can read
-the credentials — for as long as each of those keeps them.
-
-**Which versions are affected.** Every published 10.x version. The unfiltered header copy has existed since
-February 2026, and the SQL Server outbox already stored the context on each message before then, so SQL
-Server outbox users have been affected since the header copy arrived. The broker path first appeared on
-RabbitMQ and later extended to further transports; we have not dated the tracing path. We have not
-assessed the older 3.x line — do not read that as clean. As with the other entries on this page, we are
-not publishing a list of versions: we cannot produce a complete one, and a partial list would tell some
-affected readers they are safe.
-
-**What to do now.** None of this needs a new release:
-
-1. **Stop the exposure at its source:** remove sensitive entries (`Authorization`, `Cookie`, API-key
-   headers and similar) from the message context before you dispatch. That closes all three paths at once.
-   Short of that, turn CloudEvents off on transports that carry HTTP-originated messages, and leave
-   `IncludeCustomItemsInTraces` off — but neither of those protects the SQL Server outbox.
-2. **Treat anything that may already be stored as exposed.** Review and purge the headers of rows in your
-   SQL Server outbox table **and its backups**, the retention of affected topics, queues and dead-letter
-   queues, and any traces recorded with custom items enabled. Rotate long-lived credentials that could be
-   among them — API keys and persistent session cookies in particular. Short-lived bearer tokens expire on
-   their own, but may still be readable wherever they were stored.
-
-**Is it fixed?** **Not in any released version.** The repair copies a request header into the message
-context only when you have named it, and never copies `Authorization`, `Proxy-Authorization`, `Cookie` or
-`Set-Cookie` even if named — the same allow-list model as ASP.NET Core header propagation. Because it filters
-at the source, it closes all three paths. **That is a behaviour change for you:** if your handlers read
-request headers from the message context, they will only see the headers you allow-list. When a release
-carries the fix, this entry will name it.
-
-### An access review reports every unreviewed grant revoked while revoking none of them
+#### An access review reports every unreviewed grant revoked while revoking none of them
 
 :::danger A control that reports success without acting
 If you use access reviews to remove access nobody re-approved, the step that does it reports that
@@ -151,7 +107,7 @@ list would tell some affected readers they are safe.
 absent filter — never an empty string — to mean "no filter", and makes the revoke step report success
 only for grants it actually revoked. When a release carries it, this entry will name that version.
 
-### One tenant's activity-group grant can authorize another tenant's activities — and this one grants access rather than losing it
+#### One tenant's activity-group grant can authorize another tenant's activities — and this one grants access rather than losing it
 
 **Read this differently from everything else on this page.** Every other entry here describes something
 you *lose* — a message dropped, a grant refused, a control unassessed. **This one grants access that
@@ -246,7 +202,7 @@ and is in no published package.
 have not opened would be guesswork. If you are on a different build, the test above answers it for the
 version you actually have.
 
-### Refreshing activity groups or their grants deletes every tenant's, not just yours
+#### Refreshing activity groups or their grants deletes every tenant's, not just yours
 
 **This is destruction rather than unauthorized access, it needs no unusual configuration, and it is a
 separate problem from the one above** — it is listed separately so it is not read as a detail of that one.
@@ -328,342 +284,145 @@ healthy.
 you must refresh, do it where no other tenant's data is live, and re-seed every tenant afterwards rather
 than only the one you intended to refresh.
 
-### SQL Server change data capture can silently drop captured changes, permanently, when a batch ends abnormally
+#### An authorization grant whose tenant, type or qualifier contains `:` or `%` is silently never applied
 
-**You are affected only if ALL THREE of these hold.** Stating it as "SQL Server CDC is affected" would
-be wrong and would send unaffected consumers on an audit they do not need:
+**Who this affects.** Anyone whose grant terms — the tenant id, the grant type, or the qualifier —
+contain a colon or a percent sign. Identifiers issued by an external identity provider commonly do: an
+OpenID Connect `sub` claim is an opaque string the provider chooses, and URN- and URI-shaped values are
+ordinary rather than unusual.
 
-1. you use **SQL Server** change data capture, **and**
-2. the reader is **still working through that table** when the batch ends. This is the real
-   discriminator: if it reaches the end of the available changes first it discards its own in-memory
-   position, and the problem cannot arise however the batch then fails. **and**
-3. the batch then ends **without recording delivery of everything the reader had already queued** —
-   the common case is a handler that throws — in a process that **keeps polling** afterwards. A crash
-   takes the stale in-memory position with it and the next start reloads the durable one, so a hard
-   failure is *safer* here than a survivable one.
+**What you see.** Nothing. The grant is written without error, the call returns, and nothing is logged.
+The grant is simply never matched when it is read back, so the holder is refused exactly as though the
+grant had never been issued.
 
-**Condition 2 is the one to check yourself.** A handler that returns immediately lets the reader finish
-the table and discard its position, which is why a prompt handler never reaches this and why a test
-suite sees none of it. Almost any real handler occupies time, so in production the question is usually
-only whether condition 3 also happens. **A slow handler alone is not enough** — if your batches complete, the checkpoint is
-written and the invariant is restored on every cycle. It is the abnormal ending that does the damage,
-because the step that records what was actually delivered sits on the normal path rather than in a
-cleanup block, so an aborted batch skips it.
+**The mechanism.** Grant keys are composed by escaping each term and then joining them: `%` and `:` are
+replaced with `%25` and `%3A`, so that a term containing either cannot be mistaken for the separator.
+**In published versions one of the parsers does not reverse that escaping**, so a key written from escaped
+terms is read back as different terms than it was written with. The effect is that the grant appears
+**absent rather than wrong** — it produces a refusal, never a wrong allow, and never access for anyone
+else.
 
-**When it does occur, captured changes are never delivered to anyone and the loss becomes permanent.**
-There is no exception, no error return and nothing in a log. The next poll advances past the lost
-range, so the window to notice closes on its own.
+**Is it fixed?** **Not in any released version.** **Nothing a fix does will reach grants you have already
+stored, and nothing needs to** — they were written correctly; it is the read that fails to match them, so
+they resolve again as soon as you are on a release that carries the fix.
 
-**How it happens.** Reading and delivering advance two different positions. The reader advances an
-in-memory position as it *queues* changes; the durable checkpoint advances only as they are
-*delivered*. **If the reader finishes a table it discards its in-memory position for that table**, the
-two can no longer disagree, and nothing is at risk. If it is still mid-table when the batch ends, that
-position survives — and because the position only ever moves to a strictly greater value, the next
-poll discards the durable one in favour of it and skips everything queued but not delivered.
+#### The startup check that is supposed to refuse a mis-ordered tenant pipeline never runs
 
-**The queue does not have to be full.** That is worth stating because it is the natural assumption and
-it is wrong: a modest backlog on a large queue reaches this the same way. Our own regression test for
-this runs at the default queue size with the queue never close to full. **The loss is bounded by `QueueSize + ConsumerBatchSize - 1`, which at the shipped
-defaults of 1000 and 50 is up to 1049 changes per occurrence** — and once the next poll checkpoints, it
-survives a process restart.
-
-:::danger This was measured, and the number was predicted before it was measured
-Against a real SQL Server instance with `QueueSize` deliberately set to 4 and a handler that occupies
-the consumer and then throws, **46 of 50 captured changes were ever delivered — a shortfall of exactly
-4, the queue size.** Two consecutive runs were identical, and the shortfall had been predicted as
-"approximately `QueueSize`" before the experiment was built, specifically so that a failure for some
-other reason could not be mistaken for confirmation.
+:::warning This is a guarantee that does not fire, not a behaviour that is wrong
+If your pipeline is correctly ordered, nothing here affects you. If it is mis-ordered, you were
+promised a startup failure and you will not get one — you get silent, tenant-less execution instead.
 :::
 
-:::warning The obvious way to test this will tell you that you are fine
-**The defect needs the reader still mid-table, a faulting batch AND a second poll.** A check whose
-handler succeeds, or that polls once, or whose data is small enough that the reader finishes first,
-will pass every time — and the natural way to check, running a small CDC job and confirming the changes
-arrive, is exactly that shape.
-**Seeing your changes arrive in a small test is not evidence that you are unaffected; it is a test that
-cannot fail.**
+**What happens.** The framework documents that a pipeline in which a tenant-*reading* middleware would
+run before the last tenant-*establishing* middleware is refused at composition, with an error naming
+both types. The check identifies each by asking whether the pipeline entry implements the corresponding
+marker interface.
 
-This is also why our own suite did not catch it: a prompt handler takes one change, that batch of one
-completes, and its checkpoint is written before the reader moves on, so the invariant is restored
-continuously. To exercise the real path you need a handler that occupies the consumer **and then
-throws**, with at least two polling cycles. Setting `QueueSize` to a small value makes it reachable in
-a test without production volume.
+By the time middleware reach that check they are frequently not the middleware themselves. A middleware
+registered as `Scoped` is represented by a per-dispatch stand-in that holds no instance at all; using
+`UseAt<T>(stage)` wraps it; scoping it to message kinds wraps it again. None of those wrappers carries
+the marker interfaces, so the check concludes that nothing establishes tenant context and returns
+without examining the ordering.
+
+The framework's own tenant-establishing middleware is registered `Scoped`, so in any application built
+on the generic host this check has never been able to fire.
+
+**Are you affected?** You are affected if you rely on that refusal to catch a mis-ordered pipeline. You
+are **not** harmed by this on its own: a correctly ordered pipeline behaves correctly. What you have
+lost is the guard, not the behaviour.
+
+**What that exposes.** If your pipeline *is* mis-ordered — your own tenant-reading middleware placed at
+an earlier stage than the middleware that establishes tenancy — that middleware runs outside the ambient
+tenant scope and observes **no tenant**. It raises no error and writes no log. A tenant-scoped read
+inside it returns the untenanted result rather than failing, so the symptom is wrong data rather than an
+outage, and nothing marks which requests were affected.
+
+**What to do now.** Check the ordering yourself rather than relying on the refusal. Any middleware of
+yours that reads tenant context must declare a later `DispatchMiddlewareStage` than the middleware that
+establishes it, or be registered after it within the same stage. If you have a middleware that reads
+tenant identity and you have never seen a startup error, that is not evidence the ordering is right.
+
+**Which versions are affected.** Every published 10.x version. We have not assessed the older 3.x line —
+do not read that as clean.
+
+**Is there a fixed version?** **`10.0.0-alpha.13`.** The corrected check reads the capability from the
+type each pipeline entry represents rather than from the entry itself, which sees through all three
+wrappers. The rule now lives in its own seam (`Excalibur.Dispatch/Delivery/Pipeline/TenantOrderingRule.cs`)
+and is exercised through a real container rather than a constructed pipeline. That distinction is the
+whole defect: the five older arms pass undecorated test doubles straight to the pipeline constructor, so
+they stay green against the broken code and **cannot fail for this defect at all**. Only the
+real-container arms detect it.
+
+One residual, stated rather than left for you to find: the rule still returns silently when nothing in
+the pipeline establishes tenant context. It refuses a mis-ordering; it does not require that a tenant be
+established in the first place.
+
+Not yet confirmed against the published package.
+
+---
+
+### Secrets and data protection
+
+#### The caller's `Authorization` and `Cookie` headers are stored in your SQL Server outbox, and can reach your broker and your traces
+
+:::danger Treat credentials that reached any of these places as exposed
+If you dispatch HTTP requests through the ASP.NET Core integration, the caller's request headers —
+including bearer tokens, cookies and API keys — are copied onto every message dispatched for that request.
+Where they end up depends on which parts of the framework you use; for SQL Server outbox users, **no
+opt-in is needed**.
 :::
 
-**"Have I already lost data?" — we cannot tell you, and you should assume the honest answer.** The loss
-is silent and the checkpoint has already advanced past it, so nothing in the framework retains a record
-that a change went undelivered. **There is no diagnostic we can offer you after the fact.** The only
-way to answer it is outside the framework: compare what exists in your source tables — row counts, or
-the LSN range for the period in question — against what your handler actually recorded downstream. If
-you have no independent record of what your handler processed, the question is not answerable at all,
-which is itself worth knowing before you need the answer.
+**What happens.** The ASP.NET Core integration copies **every** request header into the message context,
+with no filtering. From there they reach up to three places:
 
-**And your own telemetry will not answer it — it has an alibi we gave you.** If you followed the CDC
-guidance and installed an idempotency filter, you already expect to see fewer events reach your
-handlers than the source produced, and you have a documented reason for it. **A filter suppressing
-duplicates and a poll silently dropping the tail look identical from outside**: the same shortfall,
-with an explanation you were told to anticipate. So a careful reader checks their own metrics, finds
-exactly what the documentation led them to expect, and closes this page. **Compare against the source
-table, not against your own pipeline's counts.**
-
-**This breaks a promise we made elsewhere, in the direction you were not warned about.** Until now our
-change data capture guidance stated flatly that CDC is **at-least-once** and told you to add an
-idempotency filter if your handlers are not naturally idempotent. **We have since corrected that page**
-— delivery semantics are provider-specific and replay is not the only failure mode — but the version
-you read said otherwise, and the filter it recommended is the right defence **against duplicates.** This defect fails the other way: it delivers **too few** events,
-not too many. So a consumer who read that page, believed it, and installed the deduplication it
-recommends took the exact opposite precaution to the one that would have helped, and had positive
-reason not to go looking for missing changes. **If you followed our CDC guidance, you are the reader
-this entry is for.**
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. We can prove that bound rather than assert it. The published version list for `Excalibur.Cdc.SqlServer` has 82
-entries and the most recent is `10.0.0-alpha.11`, whose package predates the correction by three days —
-so **no published version can contain it**, and that is the complete published set rather than the
-subset we happen to hold. We are deliberately **not**
-publishing a list of affected versions: whether a specific published build executes this path is a
-behavioural question about that build, and we have not run it. Use the reproduction above against the
-version you actually have.
-
-**Mitigation.** **Stop your handlers throwing**: catch and handle their own failures so every batch
-runs through to the point where delivery is recorded. **This follows from reading the code and we have
-not run it**, and it is a mitigation rather than a fix — the defect is still present.
-
-:::danger Do not raise `QueueSize` to reduce this — we measured it, and it multiplies the loss
-Raising the queue is the intuitive response and it is the wrong one. Against a real SQL Server
-instance on the affected code, changing **only** that value:
-
-| `QueueSize` | delivered | **lost** |
+| where the headers end up | when | you opted in? |
 |---|---|---|
-| 4 | 46 of 50 | **4** |
-| 40 | 10 of 50 | **40** |
+| **Your SQL Server outbox table** — stored in the message's headers | you use the SQL Server outbox store | **No — this is the default behaviour of that store** |
+| **Your message broker** — each header becomes a CloudEvents extension attribute, for example one ending in `headerauthorization` | you enabled CloudEvents on the transport with `UseCloudEvents(...)` or an `AddCloudEventsFor<Transport>(...)` method | Yes |
+| **Your tracing backend** — each header becomes a span attribute named `context.item.<header>` | you set `IncludeCustomItemsInTraces = true` in the observability options; up to the first ten context items are recorded | Yes |
 
-(Consumer batch size was held at 1 throughout, so these are the `QueueSize` term of the bound above
-in isolation.) **The loss scaled one-for-one with `QueueSize`.** A larger queue lets the reader get
-further ahead before anything stops it, so it does not reduce your exposure — it scales it. If you
-have already raised `QueueSize` for throughput, you have raised your worst case by the same factor.
-:::
+**Are you affected?** You are affected if you dispatch messages from HTTP requests through the framework's
+ASP.NET Core integration (the controller helpers or the endpoint route handlers) **and** any row of the
+table applies to you. Our other outbox stores do not copy the headers, and a message published without
+CloudEvents does not carry them to the broker. The tracing path's built-in filters remove items whose
+names contain *password*, *secret*, *token* or *credential*, but not `Authorization` or `Cookie`.
 
-### An activity-group grant works on the first request and is silently denied on every request after it
+We have not established whether this is limited to the message dispatched for the request itself or also
+reaches messages your handlers publish while handling it, so **assume it covers every message dispatched
+or published while handling the request.**
 
-**You are affected if you authorize through activity groups.** That is the whole condition, and it
-is shorter than it looks like it should be for a reason worth stating: **there is no cache-free
-configuration to fall back on.** The authorization policy provider takes the application-scoped
-distributed cache as a required constructor dependency, so "activity groups without a policy cache"
-is not a state you can be in — a host without that cache fails at start-up, with an error naming the
-registration call to add. If you build a bare service provider and never start a host, the failure moves
-to the first authorized request instead.
+**What that exposes.** Anyone who can read the outbox table or its backups, consume or inspect the
+affected topics and queues (including dead-letter queues and broker logs), or read your traces can read
+the credentials — for as long as each of those keeps them.
 
-**If you use only direct grants, you are unaffected** regardless of your caching.
+**Which versions are affected.** Every published 10.x version. The unfiltered header copy has existed since
+February 2026, and the SQL Server outbox already stored the context on each message before then, so SQL
+Server outbox users have been affected since the header copy arrived. The broker path first appeared on
+RabbitMQ and later extended to further transports; we have not dated the tracing path. We have not
+assessed the older 3.x line — do not read that as clean. As with the other entries on this page, we are
+not publishing a list of versions: we cannot produce a complete one, and a partial list would tell some
+affected readers they are safe.
 
-Where activity groups are in use, a grant that should apply is refused once the cache starts serving hits. **There is
-no error.** The refusal is indistinguishable from a policy that correctly says no — no exception, no
-warning, nothing in a log that reads as wrong.
+**What to do now.** None of this needs a new release:
 
-**The tell, and you can check it in two requests.** The policy is read from your store on a cache
-miss and from the cache on a hit, and the grant survives only on the miss path:
+1. **Stop the exposure at its source:** remove sensitive entries (`Authorization`, `Cookie`, API-key
+   headers and similar) from the message context before you dispatch. That closes all three paths at once.
+   Short of that, turn CloudEvents off on transports that carry HTTP-originated messages, and leave
+   `IncludeCustomItemsInTraces` off — but neither of those protects the SQL Server outbox.
+2. **Treat anything that may already be stored as exposed.** Review and purge the headers of rows in your
+   SQL Server outbox table **and its backups**, the retention of affected topics, queues and dead-letter
+   queues, and any traces recorded with custom items enabled. Rotate long-lived credentials that could be
+   among them — API keys and persistent session cookies in particular. Short-lived bearer tokens expire on
+   their own, but may still be readable wherever they were stored.
 
-| | what happens |
-|---|---|
-| first request after a cold cache | read from the store — **the grant applies** |
-| every request after that | served from cache — **the grant is silently denied** |
+**Is it fixed?** **Not in any released version.** The repair copies a request header into the message
+context only when you have named it, and never copies `Authorization`, `Proxy-Authorization`, `Cookie` or
+`Set-Cookie` even if named — the same allow-list model as ASP.NET Core header propagation. Because it filters
+at the source, it closes all three paths. **That is a behaviour change for you:** if your handlers read
+request headers from the message context, they will only see the headers you allow-list. When a release
+carries the fix, this entry will name it.
 
-So the signature is an authorization decision that **changes without anything changing**. If you have
-ever seen a permission work once after a restart and then stop, this is a candidate.
-
-:::danger The obvious way to test this will tell you that you are fine, and it is wrong
-**The cache-miss path authorizes correctly.** So if you restart the application, clear the cache, or
-try it on a freshly-started instance, **you will see the grant work and conclude you are unaffected.**
-That conclusion is exactly backwards: you tested the one path that is not broken.
-
-**Exercise the same activity-group grant twice in succession, within the cache lifetime, without
-restarting anything. The second attempt is the one that shows the defect.**
-
-**Do not change anything between the two attempts.** Adding, revoking or editing a grant or an
-activity group **clears the cache**, which sends the next check down the working path and resets the
-test. A check written the natural way — *grant the permission, then verify it* — invalidates the
-cache with the grant and therefore **passes every time, forever.** That is the most likely way to
-conclude wrongly that you are unaffected, and it is probably how any test you already have is
-written.
-
-**On SQL Server and PostgreSQL a second defect also refuses the grant on the cache-miss path, so you
-may see it fail on both requests rather than only the second. Failing twice does not rule this out —
-it is a stronger signal, not a weaker one.**
-
-This is also why it survived our own test suite — every existing arm takes the miss path.
-:::
-
-**Why — and the cache is not the broken part.** The policy's activity-group collection is declared
-as a weakly-typed `object` on the seam that crosses the cache. **That widening is the defect.** A
-declared `object` is the one shape a JSON round trip cannot carry intact: it comes back as a
-`JsonElement`, which satisfies none of the collection tests the authorization check performs, so the
-group contributes no activities and the grant is not found.
-
-The round trip is what makes the widening *observable*, not what causes it — which is why every
-provider is affected, why no serializer setting avoids it, and why the fix is to narrow the declared
-type at the seam rather than to change how the document is cached. We state this precisely because
-the natural reading of the two-request test above is that caching is at fault; it is not, and acting
-on that reading leads to the wrong workaround.
-
-**What is NOT affected — measured, not assumed.** **Ordinary grants are fine.** Every read of the
-grants dictionary is key-only — two `ContainsKey` lookups and one enumeration that discards the value
-— so the value shape this round trip damages is never read for them, and the same mechanism cannot
-reach them. Every other consumer of that cache only invalidates it.
-
-**The blast radius is activity groups, and nothing else.** If you do not use activity-group grants,
-no audit is needed.
-
-**What to do.** There is no configuration switch for this: the authorization policy provider takes
-the distributed cache as a required dependency, so it cannot be turned off. Until a fixed version is
-available:
-
-- **Treat an activity-group grant as unreliable** and prefer a direct grant for anything you cannot
-  afford to have silently refused.
-- If you must keep activity groups, **substituting a no-op cache for the application-scoped
-  registration** forces every read to miss and take the store path, which is the path that works.
-
-  :::warning Substitute the right one — the wrong one silently disables your whole application cache
-  Authorization uses **two** cache registrations, and they are easy to confuse:
-
-  | registration | what it is |
-  |---|---|
-  | `AddDistributedMemoryCache()` / `AddStackExchangeRedisCache(...)` | the **base** cache — your entire application uses this |
-  | `AddApplicationScopedDistributedCache(...)` | a **keyed wrapper** around the base, which partitions the keyspace per application |
-
-  **Replace the wrapper, not the base.** Substituting a no-op for the *base* cache also stops the
-  authorization symptom — which is exactly the problem, because the two outcomes are
-  indistinguishable from the authorization side while the second one has **turned off caching
-  everywhere else in your application**, with nothing to tell you.
-  :::
-
-  This trades the authorization cache's performance benefit for correctness, and it **follows from
-  reading the code rather than from a test we have run** — verify it in your own deployment before
-  relying on it.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The correction is complete in our source — the seam no longer carries the weakly-typed value at all, so the defect is not expressible there rather than merely absent. Until a release ships, the mitigation above is the only remedy available to you.
-
-:::info What we have not established
-**We do not know which published versions execute the broken path, and we are not going to guess.**
-The components are present in every published package we inspected, and the defect is confirmed in
-our current source for every provider — but establishing that a *specific* published build takes that
-branch needs a behavioural test against that build, which we have not run. Five separate attempts to
-date the defect from source history produced four different answers, and we withdrew them rather than
-publish one.
-
-**Use the two-request check above against your own deployment.** It answers the question for the
-version you actually have, which is the only version that matters to you.
-:::
-
-### `Excalibur.Outbox.Marten` before `10.0.0-alpha.12` brings in a Marten with a critical SQL-injection advisory
-
-**FIXED IN `10.0.0-alpha.12`, published 2026-09-25. Upgrade to it — you do not need to override
-anything.** Versions `10.0.0-alpha.4` through `10.0.0-alpha.11` declare a dependency on
-**Marten 9.12.0**, which carries
-**CVE-2026-75513 / GHSA-rfx3-98h7-v3xp, CVSS 9.1**
-(`CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:L`). Marten interpolates a runtime, potentially
-attacker-influenced value into generated SQL as a single-quoted string literal, without escaping or
-parameterization, so a value containing a single quote can break out and inject arbitrary SQL.
-
-**The advisory names six files, and they are not all one kind of path:**
-
-| Group | File | Reached by |
-|---|---|---|
-| LINQ provider | `DictionaryItemMember.cs` | a dictionary indexer key — **the primary confirmed vector** |
-| LINQ provider | `DictionaryContainsKeyFilter.cs` | `Dictionary.ContainsKey(key)` |
-| LINQ provider | `SelectParser.cs` | a constant string projected through `Select` |
-| Tenant management | `DeleteAllForTenant.cs` | a tenant id reaching per-tenant projection teardown |
-| Tenant management | `DatabaseScopedTenantPartitions.cs` | a tenant id inlined into `FOR VALUES IN` partition DDL |
-| Event store daemon | `Events/Daemon/Internals/EventLoader.cs` | a per-tenant partition-pruning literal — a defence-in-depth sink rather than a primary vector |
-
-**Writing no LINQ does not put you outside this.** The tenant-management and daemon paths are reached
-by ordinary multi-tenant operation rather than by query style. **That is a statement about coverage,
-not about likelihood** — the confirmed vector is the LINQ dictionary-key path, and the others are
-additional sinks the patch closes.
-
-The advisory's stated impact is **multi-tenant authorization bypass — returning other tenants' rows —
-and blind data exfiltration**. Its vector carries a low integrity impact as well (`I:L`), and data
-modification may also be reachable: Npgsql accepts semicolon-separated statements by default, with no
-setting to disable. **Whether that is reachable through Marten's generated commands is something we
-have not established.**
-
-### ⚠ The advisory is wider than the version we declare
-
-**Affected: Marten `>= 7.0.0, <= 9.12.0`. Patched: `9.13.0`.**
-
-**Every version of our package that you can install declares `9.12.0`**, so the table below is about the
-version you get *by default*. **But if you have overridden Marten to any version from `7.0.0` onward, you
-are still affected** — pinning *backwards*, or to any 8.x, does not help. Only `9.13.0` or later does.
-
-**The remedy is now a version, not a workaround: upgrade to `10.0.0-alpha.12` or later.** We verified
-this against the published manifest rather than our own source — `alpha.12` declares
-`<dependency id="Marten" version="9.13.0" />` and `alpha.11` declares `9.12.0`.
-
-> **This paragraph previously said the opposite, and said it for a day.** It read: *"Our source has
-> since moved to `9.13.0`, and that does not help you yet … overriding the Marten version yourself is
-> the remedy that exists today."* That was true when written and became false when `alpha.12` was
-> published on 2026-09-25. It is quoted here rather than deleted because it erred in the direction
-> that keeps you on a vulnerable library: it told you no fixed version existed while one did. If you
-> pinned Marten manually on the strength of it, that override is no longer needed, though it is
-> harmless provided you pinned forward to `9.13.0` or later.
-
-**This was in every version we had published up to and including `alpha.11`.** We checked each one's manifest on nuget.org rather than
-inferring it from our source:
-
-| Package | Versions | Declares |
-|---|---|---|
-| `Excalibur.Outbox.Marten` | `10.0.0-alpha.4` through `10.0.0-alpha.11` — all 8 | `Marten` `9.12.0` |
-
-**Why it reaches you even though you never asked for 9.12.0.** Our manifest names `9.12.0` without
-brackets, which NuGet reads as a *minimum*, not a pin. NuGet then applies its lowest-applicable-version
-rule and restores exactly `9.12.0` — the vulnerable one — unless something else in your graph asks for
-more. So the default outcome of installing this package is the vulnerable version.
-
-**Your own build probably told you this already — and if it did not, that silence is not evidence.**
-Our packages target `net10.0` only, and on .NET 10 and later NuGet's dependency audit defaults to
-auditing **transitive** packages, not just direct ones. So an ordinary `dotnet restore` reports the
-vulnerable Marten pin as `NU1903`/`NU1904`, on every restore, without needing anything from us. **If
-you have seen that warning, it is this — the same finding, not a second one**, and the ids above should
-reconcile with whatever your own scanning reported.
-
-**Two cases where you would not have been told**, which is why this entry exists rather than leaving it
-to your toolchain:
-
-- you set `NuGetAuditMode` to `direct`, or suppressed `NU1903`/`NU1904`. That is a default control
-  switched off rather than something we concealed — but it does mean the warning never reached you.
-- the audit **warns**; it only fails the build if you treat warnings as errors. A warning in a noisy
-  restore log is easy to have scrolled past.
-
-**What to do — and you do not need a release from us.** Add a direct reference to a fixed Marten
-alongside our package:
-
-```xml
-<PackageReference Include="Marten" Version="9.13.0" />
-```
-
-NuGet's *direct dependency wins* rule means your reference overrides the transitive one, and because
-this is an upgrade it raises no downgrade warning. **The vulnerability is entirely in the dependency, so
-pinning it removes your exposure completely** — there is nothing left for us to fix on your behalf.
-
-**Not yet fixed in any released version.** There is no version of `Excalibur.Outbox.Marten` you can
-upgrade to that resolves this. We are not asking you to wait for one: the workaround above is a complete
-remedy and it is under your control today. This entry will name a fixed version when one ships.
-
-**What we have not established, stated so you can judge the urgency yourself.** We have confirmed the
-vulnerable dependency is in your graph. We have **not** determined whether our own outbox queries reach
-an unescaped code path — our store does use Marten's LINQ provider, and most of its predicates compare
-enums, integers and timestamps rather than strings. **Nor have we assessed the tenant-management paths
-at all**, which the advisory names alongside LINQ. **Treat that as unfinished work on our side, not as
-reassurance.**
-
-**And it would not change your exposure even if we finished it and the answer were "we never reach it."**
-The vulnerable library is loaded into your process. Your own code queries Marten through the same
-session our store uses, so the unescaped path is reachable from your application whether or not our
-outbox happens to touch it. **What our store does bounds *our* culpability, not *your* risk** — so if we
-later publish "the outbox does not reach the vulnerable path," read that as narrowing where the fault
-lies, never as a reason to unpin Marten.
-
-**Applies only if you use the Marten outbox store.** The other outbox providers do not reference Marten.
-
-### The `[Sensitive]` attribute does not encrypt anything — its own documentation says it does
+#### The `[Sensitive]` attribute does not encrypt anything — its own documentation says it does
 
 `[Sensitive]`'s summary, which ships inside every package's XML documentation file and so appears in your
 IDE as you type it, reads: *"Marks a property as containing sensitive business data requiring
@@ -710,396 +469,11 @@ assignment is the whole of the change — there is no replacement to adopt and n
 data or your paperwork.** Values you already stored under `[Sensitive]` are still in cleartext and nothing
 migrates them; an attestation you have already given an assessor stays given until you withdraw it. Both
 are yours to close, which is why this entry stays here after the correction rather than moving to
-[Resolved](#resolved-since-the-last-update).
+[Resolved issues](resolved-issues.md).
 
-### An authorization grant whose tenant, type or qualifier contains `:` or `%` is silently never applied
+### Compliance: GDPR and SOC 2
 
-**Who this affects.** Anyone whose grant terms — the tenant id, the grant type, or the qualifier —
-contain a colon or a percent sign. Identifiers issued by an external identity provider commonly do: an
-OpenID Connect `sub` claim is an opaque string the provider chooses, and URN- and URI-shaped values are
-ordinary rather than unusual.
-
-**What you see.** Nothing. The grant is written without error, the call returns, and nothing is logged.
-The grant is simply never matched when it is read back, so the holder is refused exactly as though the
-grant had never been issued.
-
-**The mechanism.** Grant keys are composed by escaping each term and then joining them: `%` and `:` are
-replaced with `%25` and `%3A`, so that a term containing either cannot be mistaken for the separator.
-**In published versions one of the parsers does not reverse that escaping**, so a key written from escaped
-terms is read back as different terms than it was written with. The effect is that the grant appears
-**absent rather than wrong** — it produces a refusal, never a wrong allow, and never access for anyone
-else.
-
-**Is it fixed?** **Not in any released version.** **Nothing a fix does will reach grants you have already
-stored, and nothing needs to** — they were written correctly; it is the read that fails to match them, so
-they resolve again as soon as you are on a release that carries the fix.
-
-### `[EncryptedField]` on a `string` property is silently ignored, and every example we published used a `string`
-
-**Who this affects.** Anyone who annotated a `string` property with `[EncryptedField]` — which is anyone
-who followed the documentation, because every example we published used one.
-
-**What you see.** Nothing. The attribute applies, the code compiles, and no warning or error is raised at
-any point. The property is stored in plaintext.
-
-**The mechanism, in every released version.** All three paths that act on the attribute selected only
-`byte[]` properties (`EncryptionDecryptionService`, `ReEncryptionService`, and the encrypting
-projection-store decorator). A `string` never matched, so the annotation was read, found not to apply, and
-skipped in silence. The capability was present in the same assembly — the crypto-shredding path selects
-`string` *and* `byte[]`, so it has always crypted strings — the encryption paths simply did not use it.
-
-**This is distinct from the `[Sensitive]` entry above, and more pointed.** `[Sensitive]` never claimed to
-be the encryption annotation once you read past its summary. `[EncryptedField]` *is* the encryption
-annotation, and this hits the consumer who reached for the right one.
-
-**What to do.** Audit every `[EncryptedField]` annotation for a `string` property. Those values are in
-plaintext now and nothing will migrate them for you: when this is fixed it will encrypt new writes only,
-because nothing decrypts — nothing was ever encrypted. Move the property to `byte[]`, or use
-`[PersonalData]` on a record that also carries `[DataSubjectId]` with crypto-shredding registered.
-
-**A note on our own examples.** Some published examples were changed to `byte[]`; the attribute's own
-IntelliSense example still shows a `string` property. Neither tells you anything about the values you
-already stored. **Do not treat an example — of either shape — as evidence that your existing annotations
-are fine.** Anyone who annotated a `string` under a released version is still in plaintext and still has
-no signal.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. **That fix will not reach the values you
-already stored:** nothing was ever encrypted, so there is nothing to decrypt, and any fix can only encrypt
-new writes. **Before you migrate a `string` property to `byte[]` to work around this, check which version
-you are on** — that schema change is not required on a release that honours the annotation.
-Crypto-shredding is unaffected throughout — it has always handled `string` and `byte[]` alike.
-
-### The bundled Cosmos DB emulator fixture cannot connect using its documented approach
-
-**What you see.** Calls made through a `CosmosClient` built against `CosmosDbContainerFixture` may never reach the emulator. Rather than failing quickly, requests repeat and hang.
-
-**What you must do.** Set **both** `LimitToEndpoint` and `SerializerOptions` on the client options:
-
-```csharp
-var options = new CosmosClientOptions
-{
-    LimitToEndpoint = true,
-    ConnectionMode = ConnectionMode.Gateway,
-    SerializerOptions = new CosmosSerializationOptions
-    {
-        PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase,
-    },
-};
-```
-
-:::danger `SerializerOptions` is not optional, and omitting it fails silently
-An earlier version of this page showed only `LimitToEndpoint` and `ConnectionMode`. **Following that incomplete recipe produces a client whose point-reads silently miss.** The Cosmos SDK's default serializer emits PascalCase property names, so a client built without the naming policy writes `Id` where a later point-read looks for `id` — and the read returns nothing for a document that is present, with no error. If you built a client from our previous instructions, add `SerializerOptions`.
-:::
-
-The endpoint option was established by execution against the emulator, using client options alone with nothing taken from the fixture. It addresses the advertised-endpoint obstacle; your environment may impose others beyond it. The fixture owns only the container lifecycle and the connection string, and the emulator can be slow to become ready — keep test timeouts generous.
-
-### IntelliSense tells you audit chain verification is confined to your tenant; on both SQL stores it is not
-
-**This is a documentation defect, not a data-isolation one.** No audit record crosses a tenant boundary, and
-nothing you have stored is exposed to anyone. What is wrong is what the framework *told you the result
-means* — and for an audit artefact, that is the part you would hand to an assessor.
-
-**What you see.** Hovering `IAuditQuery.VerifyChainIntegrityAsync(startDate, endDate, ct)` in your IDE
-shows:
-
-> *Confined the same way as `QueryAsync`: verifies only the caller's own tenant's hash chain over the given
-> range, never another tenant's.*
-
-**What actually happens.** The method takes no tenant argument, and its scope is a property of the store:
-
-| store | scope of a verification |
-|---|---|
-| SQL Server | **estate-wide**, enumerated per partition |
-| PostgreSQL | **estate-wide**, enumerated per partition |
-| in-memory | confined to the ambient tenant |
-
-So on either production store the result attests the integrity of the whole chain, not of one tenant's
-slice. The cross-reference is what makes this hard to catch: `QueryAsync` **is** confined exactly as the
-sentence says, so the claim borrows its credibility from a true statement about a neighbouring member.
-
-**What you must do.** **Do not present an estate-wide verification result to a single tenant as evidence
-about their own data.** It is a sound integrity check — it is simply a check over more than you were told.
-Treat it as an operator-level operation. If you want to restrict who may call it, register
-`AddRbacAuditStore()`, which requires a compliance-officer role or above and writes a meta-audit record of
-every verification.
-
-**Which versions are affected.** The remark is attached to that method in the shipped XML documentation of
-`Excalibur.Compliance.Abstractions` in **`10.0.0-alpha.9` and `10.0.0-alpha.10`**. We checked the shipped
-documentation file in every earlier package we hold — `alpha.8`, `alpha.7`, `alpha.5` and the `3.0.0`
-line — and the sentence is **not** present in any of them. It entered between `alpha.8` and `alpha.9`.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The *behaviour* was never wrong and
-does not change; only the description of it does.
-
-### A container holding the timeout middleware cannot be disposed synchronously
-
-**What you see.** You register the timeout middleware the documented way and then dispose your container
-the ordinary way:
-
-```csharp
-builder.Services.AddDispatch(dispatch => dispatch.UseTimeout());
-
-using var provider = services.BuildServiceProvider();   // throws on dispose
-```
-
-At scope disposal you get:
-
-```
-InvalidOperationException: ... type only implements IAsyncDisposable.
-Use DisposeAsync to dispose the container.
-```
-
-**Why.** `TimeoutMiddleware` implements **only** `IAsyncDisposable` — it has an async `DisposeAsync()` and
-no synchronous `Dispose()`. `Microsoft.Extensions.DependencyInjection` refuses to dispose such a service
-from a synchronous disposal path rather than blocking on it, so the throw comes from the container, not
-from this framework, and it names the container rather than the middleware that caused it.
-
-**The workaround, if you cannot upgrade.** Dispose asynchronously:
-
-```csharp
-await using var provider = services.BuildServiceProvider();
-```
-
-Any host that disposes its container asynchronously is unaffected. The crash reaches you on a
-**synchronous** disposal path — most often where you build and dispose a provider yourself, in a test, a
-console app, or a short-lived worker. If you are unsure which your host does, `await using` is safe either
-way.
-
-**Which versions are affected.** Every published `10.0.0-alpha` we can read carries both the middleware
-and the `UseTimeout` registration that reaches it — measured in the shipped assemblies of `alpha.5`,
-`alpha.7`, `alpha.8`, `alpha.9` and `alpha.10`, and in the late `3.0.0-alpha` packages as well. The
-async-only disposal contract is recorded in the framework's published public-API surface, not merely at
-our development head.
-
-**We have not established the first affected version**, and we would rather say so than name one we have
-not opened. If you are on a version not listed above, assume you are affected and use `await using`.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The fix removes `DisposeAsync()`
-from this type entirely and stops it implementing `IAsyncDisposable`: the method released nothing — the
-only state the middleware held was a process-lifetime `ActivitySource` — so the interface was a claim on
-resources the type did not have. If you have been calling `DisposeAsync()` on it directly, that call has
-never done anything.
-
-`10.0.0-alpha.11` carries the fix, so upgrading resolves this. On earlier versions the `await using`
-form above is the remedy.
-
-### The SOC 2 evidence package is fabricated, and its chain-of-custody hash is the same value every time
-
-**What you see.** `ISoc2ComplianceService.GetEvidenceAsync(criterion, periodStart, periodEnd, ct)` returns a
-complete, well-formed `AuditEvidence` for any criterion and any period. It is empty and it is not derived
-from anything:
-
-```
-Items                  = []
-Summary.TotalItems     = 0
-Summary.AuditLogEntries        = 0
-Summary.ConfigurationSnapshots = 0
-Summary.TestResults            = 0
-ChainOfCustodyHash     = <the same string, always>
-```
-
-Nothing is queried. The implementation does not read an evidence store, and the criterion and period you
-pass do not influence the result. **The `ChainOfCustodyHash` is computed over the empty item list, so it is
-a constant** — the SHA-256 of an empty string, identical for every criterion, every period, and every
-tenant. It is a well-formed value in the field an assessor would use to establish that an evidence package
-has not been altered, and it establishes nothing.
-
-**Why you are unlikely to catch this.** Nothing fails. There is no exception, no warning, and no empty-result
-signal that reads as "not implemented" rather than "nothing happened in this period" — an empty evidence
-package for a quiet period is a plausible answer. The hash is present and looks like the artefact that makes
-the package trustworthy, which is precisely the field that would stop you looking further.
-
-**Which versions are affected.** All currently published ones, including `10.0.0-alpha.10` — confirmed by
-reading `GetEvidenceAsync` and `ChainOfCustodyHash` out of that package's own shipped assembly. The method
-is on the published public surface, so any consumer who called it received this.
-
-**What you must do.** **Do not use `GetEvidenceAsync` output as evidence for anything, and do not hand its
-`ChainOfCustodyHash` to an assessor.** If you have already included a generated evidence package in an audit
-submission, it does not support the controls it appears to support, and the hash does not attest to its
-integrity — treat those as gaps to re-evidence by other means rather than as covered. Collect SOC 2 evidence
-from your own systems of record: your audit log store, your configuration management, and your test results.
-
-**The sibling export is the same shape, and easier to spot.**
-`ISoc2AuditExporter.ExportForAuditorAsync(format, periodStart, periodEnd, ct)` returns a **zero-byte array**
-for every format and every period — also present in `10.0.0-alpha.10`. That one at least announces itself: an
-empty file is visibly empty. The evidence package above is the dangerous one, because it is well-formed.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The correct behaviour for a capability that cannot produce a value
-is to refuse rather than to return a confident empty one, so both members now throw rather than hand
-back a fabricated package or an empty export. **Plan for that:** code that calls either one today should not
-be written to depend on a successful return.
-
-### A SOC 2 control nobody assessed is reported as a failure against you, not as a gap in our coverage
-
-**This is the inverse of the entry below it, and it is the worse direction.** That one gives you a green
-you did not earn. This one puts a **red against your name** for a control the framework never looked at —
-in the document you hand an assessor.
-
-**What you see.** A generated SOC 2 report marks a criterion **not met**, lists an exception under it, and
-the overall opinion comes back **Qualified** or **Adverse**. Your controls may be fine. The framework simply
-had **no validator registered for that criterion at all**.
-
-**Why.** A criterion with no registered validator yields an empty control list, so the report has nothing to
-aggregate. Rather than recording that it assessed nothing, it **fabricates the criterion's whole status**:
-not met, effectiveness score zero, and a validation timestamp of the moment you asked. The exception list is
-then built from not-met criteria, and the opinion is derived from the resulting compliance level.
-
-**A criterion that IS registered is not affected**, and this is worth stating because the narrower claim is
-the true one: every control id the report iterates comes from the same registration map it validates
-against, so a *partially* registered criterion cannot produce this. The failure is all-or-nothing per
-criterion — which makes it likeliest exactly where you are claiming a criterion you have not wired a
-validator for.
-
-**Why this matters more than an ordinary wrong number.** Assurance work turns on a distinction this
-collapses:
-
-| | means | who it reflects on |
-|---|---|---|
-| **scope limitation** | "we did not examine this" | the examiner's coverage |
-| **exception** | "we examined it and it failed" | **your control environment** |
-
-The framework reports the first as the second. It understates our coverage and overstates your defects, in
-the one artefact whose purpose is to be read by someone deciding whether to rely on your controls.
-
-**Which versions are affected.** Every published package we hold: `10.0.0-alpha.5`, `.7`, `.8`, `.9`,
-`.10`, and the `3.0.0` line — the validation service and the report generator are present in all of them
-(control: the SOC 2 compliance service is present in each on the same read). We have not established a
-first-affected version and are not going to name one we have not opened.
-
-**How to tell, on your own installation.** The fabricated timestamp is the discriminator — a criterion the
-framework never examined is stamped as validated at the instant you asked:
-
-```csharp
-var soc2   = provider.GetRequiredService<ISoc2ComplianceService>();
-var asked  = DateTimeOffset.UtcNow;
-var status = await soc2.GetComplianceStatusAsync(tenantId: null, cancellationToken);
-
-foreach (var (criterion, s) in status.CriterionStatuses.Where(x => !x.Value.IsMet))
-{
-    // A not-met criterion whose LastValidated is ~the moment you called, with a zero score,
-    // was never assessed. A genuinely failed one carries the timestamp of its real validation.
-    Console.WriteLine($"{criterion}: score={s.EffectivenessScore} validated={s.LastValidated:O} asked={asked:O}");
-}
-```
-
-**What you must do.**
-
-1. **Before generating a report, confirm a validator is registered for every criterion you are claiming.**
-   A criterion with no validator reads as failed rather than as unassessed.
-2. **Do not hand a Qualified or Adverse opinion to an assessor without checking why.** Open the exception
-   list and the per-control evidence: an unassessed control shows evidence saying the provider is not
-   configured, sitting under a verdict that reads as a control failure.
-3. **Where a control is genuinely performed outside this framework**, state it to your assessor as a scope
-   limitation with its own evidence. It is not something we can evidence for you, and the report as
-   generated will not distinguish it.
-
-**There is a second symptom in the same report, and it is easy to miss.** A criterion for which **no**
-control was assessed at all is not only marked not met — it is stamped with a validation timestamp of
-*right now*. An assessor reads that as "examined a moment ago, and failed." Nothing was examined. The
-timestamp is invented because the field has nowhere to record that no validation happened.
-
-**Both symptoms have one cause**, and it is worth stating because it tells you where else to be careful:
-the result type has no way to represent "not assessed". A two-state met/not-met flag must render an
-unexamined control as *not met*, and a non-optional timestamp must be filled with *something*. The code is
-not careless; **the type left no honest option**.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The remedy was a contract change rather than a patch — the result
-had to be able to say "not assessed" before anything downstream could stop treating it as a failure, and it
-now can. `10.0.0-alpha.11` and `10.0.0-alpha.10` behave as described above; `10.0.0-alpha.12` and later
-report the control as not assessed rather than as a failure against you.
-
-### SOC 2 controls can report as satisfied without the framework having assessed them
-
-**What you see.** `AddSoc2ComplianceWithBuiltInValidators()` (and `AddSoc2ComplianceWithMonitoring()`,
-which calls it) registers `AvailabilityControlValidator`. Both of its dependencies are optional and
-default to `null`:
-
-```csharp
-AvailabilityControlValidator(
-    IComplianceMetrics? complianceMetrics = null,
-    IBackupConfigurationProvider? backupConfigProvider = null)
-```
-
-With neither registered — which is what you get unless you wire them yourself — a generated SOC 2 report
-marks **AVL-002 (Performance Metrics)** and **AVL-003 (Backup Verification)** as **satisfied**. Neither was
-assessed. The framework has no means of observing your monitoring or your backups when those providers are
-absent, so the passing verdict rests on an assumption that an external system performs them, not on
-anything it checked.
-
-**Why you are unlikely to catch this.** The verdict is a pass, and the evidence attached to it says the
-provider is not configured — so the report contains both the green mark and the reason it should not be
-green. An assessor reading the verdict column sees two satisfied controls.
-
-**What you must do.** Until this is fixed, treat AVL-002 and AVL-003 in a generated report as **not
-assessed** unless you have registered `IComplianceMetrics` and an `IBackupConfigurationProvider` reporting
-`IsBackupConfigured == true`. Do not hand a generated report to an assessor without confirming those two
-registrations. If monitoring or backup verification is performed by a system outside this framework, that
-arrangement needs independent attestation — it is not something we can evidence for you.
-
-**This is not confined to the two controls above.** In `10.0.0-alpha.10`, eight of the framework's fourteen
-SOC 2 control handlers contain no failing path at all — for these, the validator cannot return anything
-other than satisfied, whatever you configure:
-
-| | |
-|---|---|
-| SEC-002 | Encryption in Transit |
-| AVL-001 | Health Monitoring |
-| AVL-002 | Performance Metrics |
-| AVL-003 | Backup Verification |
-| INT-001 | Input Validation |
-| INT-002 | Idempotency |
-| INT-003 | Delivery Confirmation |
-| CNF-001 | Data Classification |
-
-**The table is anchored to one published version. Check it against the version YOU installed**, which may
-differ — controls are being given failing paths as they are fixed, so a later release will show fewer than
-eight. **Check it against your package and not against our repository.**
-Register SOC 2 compliance without the provider a control names, run validation, and read the verdict for
-that control:
-
-```csharp
-// Register the built-in validators and NOT the provider AVL-002 names.
-services.AddSoc2ComplianceWithBuiltInValidators();
-
-var validation = provider.GetRequiredService<IControlValidationService>();
-var result = await validation.ValidateControlAsync("AVL-002", cancellationToken);
-
-// On an affected version this is true even though no IComplianceMetrics is registered.
-Console.WriteLine(result.IsEffective);
-```
-
-A control that reports satisfied while its declared mechanism is absent is an instance of this defect. Every
-type used above is part of the package's public surface, so this runs against the assembly you installed —
-you are observing the behaviour of your own build, not reading ours. **Do not verify this by reading our source** — the handlers are being changed as these are fixed, so
-our repository already disagrees with the table above for some controls and will disagree for more. What
-your installed package does is settled; what our source does is not.
-
-**Whether each of these is a false attestation is a separate question we have not finished answering.** A
-control may have no failing path because the framework genuinely always provides the mechanism — plausible
-for INT-002, where idempotency comes from the outbox — or because nothing checks, which is the case for the
-two availability controls above. **We are not going to tell you which is which until we have determined
-it.** In the meantime the safe reading is the general one: **treat a satisfied verdict from this framework
-as evidence that a code path ran, not that a control was assessed**, and confirm for each control that the
-mechanism it names is actually present in your deployment.
-
-**Which versions are affected — all of them.** Both behaviours were written before this package was ever
-published: AVL-002 on 2025-11-26 and AVL-003 on 2026-01-19, while the earliest published
-`Excalibur.Compliance` is `3.0.0-alpha.157`, published 2026-04-20. Every release up to and including `10.0.0-alpha.11` contains
-them, and `10.0.0-alpha.12` is the first that does not, so there is no lower bound worth stating but
-there is now an upgrade that removes the behaviour. If you have this package at all, this entry applies to you.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. It will also say which controls the fix covers. Until this entry
-names a release, there is no upgrade that changes what your report says.
-
-**Scope.** Plain `AddSoc2Compliance()` does not register the built-in validators, so on its own it is
-unaffected — but `AddControlValidator<TValidator>()` registers one explicitly, and a built-in validator
-registered that way behaves exactly as described above. Where a
-control does have a failing path, it is used properly — `CNF-002` and `CNF-003` both treat an absent
-declared mechanism as an unverified control rather than a pass, and `CNF-003` is the pattern the
-availability fix follows. That is why the table above lists particular controls rather than whole
-validators: `CNF-001` has no failing path while its two siblings in the same class do.
-
-### A GDPR erasure certificate can report Completed when the framework could not check its own coverage
+#### A GDPR erasure certificate can report Completed when the framework could not check its own coverage
 
 :::note A second, separate defect affects the same document
 This entry is about a certificate whose `Completed` status the framework could not substantiate. A
@@ -1163,7 +537,7 @@ prove the repair holds on a trimmed or AOT host — the arm that would demonstra
 publish and does not exist yet — so the fix is documented as unverified in that configuration rather
 than asserted.
 
-### An erasure certificate's signature authenticates who it is about, not what it says — so its claims can be altered and it still verifies
+#### An erasure certificate's signature authenticates who it is about, not what it says — so its claims can be altered and it still verifies
 
 **This is a second, independent defect on the same document as the entry above.** That one is about a
 certificate whose `Completed` status the framework could not substantiate. This one is about whether the
@@ -1256,7 +630,7 @@ enumerated set of fields, so that a claim added later is covered automatically i
 against the new one.** Nothing about the signed-input format was ever published, so no documented contract
 is broken by the change — but if you reverse-engineered the format, it will change under you.
 
-### An erasure certificate covers only the locations you registered, and reports `Completed` without mentioning the ones you did not
+#### An erasure certificate covers only the locations you registered, and reports `Completed` without mentioning the ones you did not
 
 :::note This is a third, independent defect on the same document
 The two entries above are about a `Completed` [the framework could not
@@ -1372,308 +746,151 @@ opaque rather than leaving that to you. When a release carries it, this entry wi
 **Until then, registering every location yourself is the whole of the remedy**, and no configuration
 setting substitutes for it.
 
-### Oracle schema scripts do not stop on error, so a failed migration reports success
+#### A GDPR erasure reported as completed leaves the personal data in every read model
 
-**What you see.** The `.sql` files shipped under `scripts/` in the `Excalibur.*.Oracle` packages are applied
-by you, typically with SQL\*Plus. Almost none of them begin with
+:::danger An erasure certificate does not mean the data is gone
+Erasure removes the payload from the event store. It does **not** reach projections, so any read model
+built from those events keeps the personal data indefinitely — and the certificate you produce for a
+regulator does not say so.
+:::
 
-```sql
-WHENEVER SQLERROR EXIT FAILURE
-```
+**What happens.** Erasure operates on the event store: it forgets the event payload there. Projections
+are separate documents or rows, written by the apply path as events arrive, and nothing in the erasure
+path revisits them. So after a successful erasure the personal data remains in every projection derived
+from the erased events, in whatever store holds them, for as long as that store keeps it.
 
-Without it SQL\*Plus prints the error, **continues to the next statement, and exits `0`**. A migration
-runner, deployment pipeline or shell script that checks the exit code is told the schema was applied
-correctly when it was not. Later statements run against a table that was never created or never altered, so
-what you end up with is a schema that is partly migrated and reports as fully migrated.
+**Are you affected?** You are affected if you both (a) build projections or read models from events, and
+(b) rely on the framework's erasure to satisfy a subject's deletion request. You are not affected if you
+do not use projections, or if you already erase your read models yourself by some other means.
 
-**Why you are unlikely to catch this.** The failure is silent in exactly the place you would look. The
-process exits `0`, your pipeline goes green, and the divergence only surfaces later as a missing column or a
-constraint that was never added — usually at runtime, in the subsystem that depends on it.
+**What that exposes.** A deletion request you have reported as fulfilled is not fulfilled. The data
+remains queryable through exactly the surfaces your application reads from — usually the ones serving
+user-facing features — and it will be rebuilt into any projection replayed from a source that still
+holds it. Treat any erasure performed through the framework as covering the event store only.
 
-**The guard is present on a minority of scripts, which is worse than its being absent everywhere.** If you
-open one of the scripts that has it and conclude we apply it as a matter of course, you will be wrong about
-the rest. Check every script you run rather than sampling one.
+**What to do now.** Erase the corresponding projection documents or rows yourself as part of your
+erasure workflow, and do not treat an erasure certificate as evidence that read models were cleared. If
+you have already issued certificates on this basis, they overstate what was done.
 
-**What you must do.** Do not rely on the exit code of a SQL\*Plus run over these scripts. Either prepend
-`WHENEVER SQLERROR EXIT FAILURE` to each script yourself before applying it, or verify the resulting schema
-directly — the tables, columns and constraints the script was supposed to create — rather than trusting that
-the command succeeded.
+:::warning A retraction published here was wrong about your version. It is withdrawn.
 
-**Which versions are affected.** All currently published ones. In the newest published package,
-`10.0.0-alpha.10`, **at least eleven of the seventeen Oracle scripts carry no guard** — so upgrading to the
-latest release does not close the gap. We state that as a floor rather than an exact split on purpose: eleven
-of the seventeen gained the guard only after that release was cut, so they cannot have been in it. Whether any
-of the remaining six were guarded in the package as published we have not confirmed, and we would rather
-understate our own protection than overstate it. The unguarded eleven are every script that creates a schema
-from scratch, plus several migrations. **The first script you run against an empty database is among them**,
-and the guarded ones are upgrade scripts you reach later, if at all.
+**Read this if you saw the earlier text.** A revision of this page briefly told you that
+`IProjectionRecovery.ReapplyAsync` does not clear the subject's row and reports success anyway, and
+that there was no version-level workaround. **That statement was about our unreleased source, not
+about any version you can install, and it should not have been published unscoped.**
 
-The counts above describe `10.0.0-alpha.10` specifically, because that is the artefact you installed and the
-only one you can act on.
+**For every published 10.x version, `ReapplyAsync` clears the row as originally described.** The
+conditional write that produced the defect does not exist in the published line: the type that
+introduces it has never been present on the branch our packages are built from, and the recovery path
+there writes unconditionally. If you held back an erasure remediation on the strength of the retracted
+text, you can proceed.
 
-**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore.
+The defect was real in work that has not shipped, and it is fixed there: recovery now either writes the
+re-folded state at the position the row already holds, or fails loudly. It never reports a successful
+recovery having written nothing.
 
-### Rejecting a message with `requeue: true` does not arrange redelivery — it waits for your consumer to stop
+**This does not change the gap described above.** Erasure still does not reach projections
+automatically. `ReapplyAsync` could not produce a row for an aggregate whose every event is a
+tombstone in any published version; **`10.0.0-alpha.13` corrects that half** — it now skips tombstones
+structurally and writes the empty state for a fully erased aggregate. The projection gap itself remains
+open and is described in the next paragraph.
+:::
 
-**What you see.** Nothing. The call returns normally, a line appears in your log, and your code carries
-on believing the message has been put back. There is no exception, no return value, and no status to
-inspect — `RejectAsync` returns a plain `Task`, so **there is no channel through which it could tell you
-anything**, even in principle.
+**What still works, and what does not.** A full projection rebuild re-folds rows from the tombstoned
+stream and does clear the subject's contributions from rows shared with other subjects. It does **not**
+produce a row for an aggregate whose every event is now a tombstone, so it cannot clear that subject's
+own row. `ReapplyAsync` is the call intended for that row: given the aggregate id it re-folds the
+tombstoned stream and writes the result, which for a fully erased aggregate is the empty state.
 
-**What actually happens.** Rejecting with `requeue: true` declines to commit the offset and discards the
-transport's own bookkeeping for that message. **It does not seek, does not notify the broker, and does
-not schedule anything.** The message becomes available again only when this consumer stops polling long
-enough for its group session to expire and the partition to be reassigned. Declining to commit is a
-legitimate Kafka pattern — the defect is that the contract presents a **conditional, deferred** outcome
-as though it were an arranged one.
+Both are calls **you** must make. Neither is triggered by the erasure itself, so an erasure you have
+reported as completed has not touched any read model unless you invoked one of them. Treat clearing
+projections as your own step in the erasure workflow until the erasure path reaches them.
 
-**The case that bites.** A long-running consumer that requeues a message and keeps polling **may never
-see that message again for the life of the session**, with nothing in the return value, the message, or
-your own state to indicate it. If you requeue on a transient failure and expect a retry shortly, that
-retry is not coming while the consumer stays healthy.
+**What changes in `10.0.0-alpha.13`.** An erasure on a host with registered projections reports
+**partial** rather than `Completed`, and **the certificate you receive says so in a form built to be
+read by an auditor**. Nothing about the erasure itself changes — the same rows are tombstoned and the
+same read models keep the data. What changes is that the certificate stops implying otherwise.
 
-**Can you force redelivery yourself? No — and we checked rather than assumed.** The shipped transport
-surface exposes no seek operation, no access to the underlying consumer, and no redelivery affordance of
-any kind; `Requeue` exists only as an enum value on the reject call. **The only lever you have is to
-stop the consumer** — end the process, or let the session lapse — so the partition is reassigned and the
-uncommitted message is delivered to whoever picks it up.
+Concretely, the certificate gains a list of what the erasure did **not** reach, separate from the list
+of data lawfully retained and never mixed with it. Each entry names the kind of store still holding the
+data, describes in one sentence why the erasure did not reach it, states explicitly that **no lawful
+basis is claimed** for that retention, and tells you that discharging it remains your obligation and
+that doing so **takes the affected read model offline for the duration**. That last point matters
+operationally: the remedy must not be run against a live projection processor, because a rebuild
+interrupted part-way leaves the subject cleared from some rows and not others with no record of which.
 
-**What you must do.** Treat `requeue: true` as *"I decline to commit this"* rather than *"redeliver
-this."* Concretely, and available today: if you need a bounded, observable retry, do it in your own
-handler — retry in-process, or publish the message to a retry topic you control — rather than relying on
-requeue to bring it back. If you use requeue as a backstop for a message you genuinely cannot process,
-that is sound, provided nothing downstream is waiting for the redelivery to happen promptly.
+A certificate with nothing outstanding is unchanged, byte for byte, so certificates you have already
+been issued continue to verify.
 
-**How to confirm it on the version you hold.** Reject a message with `requeue: true` in a consumer you
-then leave running, and keep polling the same partition. Watch for the message to reappear. It will not,
-until you stop that consumer. If you then restart and it arrives, you have this behaviour.
+If you have built your own projection erasure, register an `IErasureContributor` declaring
+`DataStoreKind.Projection` and the framework stands down.
 
-**Which versions are affected — every published version.** The reject path has this shape in all of
-them. **No released version behaves differently, and we are not naming a target release.** When a release
-carries a repair we stand behind, this entry will name that version and say what changes for a caller
-of the reject path.
+**Which versions are affected.** Every published 10.x version. This is a capability that was never
+built rather than one that broke, so there is no earlier unaffected version: the projection apply path
+and the erasure path have never been connected. We have not assessed the older 3.x line — do not read
+that as clean.
 
-### The IBM MQ transport discards every message property you set
+**Is there a fixed version?** **Partly, in `10.0.0-alpha.13`.** That release stops the erasure
+reporting `Completed` when registered projections still hold the subject: it reports **partial** and the
+certificate carries the unreached-data list described above. **The gap itself is not fixed and is not
+scheduled** — erasure still does not reach read models, and clearing them remains your step. What
+changed is that the certificate no longer implies otherwise.
 
-**What you see.** If you send through the IBM MQ transport and set properties on the message — a
-correlation key, a routing hint, a tenant marker, CloudEvents attributes, anything — none of them reach the
-queue. The send succeeds, no error is raised and no warning is logged. A receiver on the other side reads
-the message back with an empty property set, and code that branches on one of those properties takes the
-absent path.
-
-Only the message body and one framework-internal property survive. Every property your own code attached is
-dropped silently at the point of send.
-
-**How it happened.** The sender wrote a single internal property and never enumerated the caller's. The
-receiving half was correct throughout — it reads the full property set off the queue — so a round trip
-through this transport looked like a receiver defect, or like properties that were never set, rather than
-like a send-path loss. Nothing in the framework raised an error, because from the sender's point of view
-writing one property and writing twenty are the same successful operation.
-
-**Which versions are affected.** The transport has carried this since it was first added, and every
-pre-release of it up to and including `10.0.0-alpha.10` contains it. **The repair is not in `10.0.0-alpha.10` or any earlier
-release** — but it IS in `10.0.0-alpha.11` and later, so upgrading resolves this. **This paragraph
-previously said the repair was on the main branch and unreleased; that stopped being true when
-`10.0.0-alpha.11` shipped.**
-
-**How to confirm it on the version you hold.** Do not check this by reading our source — that tells you
-about the current main branch, not about the package you have restored. Check it against your own queue
-manager instead:
-
-1. Register the transport as you normally would with `AddIbmMqTransport`, pointing at a queue you can read.
-2. Send one message with at least one property set on it, alongside whatever body you normally use.
-3. Receive that message back through the same transport and inspect the received message's `Properties`.
-
-**If the property you set is absent, your version carries this defect.** The body arrives intact either
-way, so a body-only check will not show it. If you cannot run against a real queue manager, the shortcut
-is the version test above rather than any local experiment: nothing in your own configuration changes the
-outcome.
-
-**What you must do.** While you are on any released version, do not rely on message properties surviving a
-send through IBM MQ. Carry the values you need inside the message body instead, where they are unaffected.
-If you have code that reads a property back after a round trip and treats its absence as meaningful — a
-missing tenant, an unset correlation id, an absent CloudEvents attribute — that branch has been taken on
-every message, and any decision it made is worth re-examining rather than assumed correct.
-
-Nothing you can configure changes this on a released version; the properties are discarded before the
-message reaches the queue manager.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The sender now forwards the properties you set. Until this entry
-names a release, the workaround above is what you have.
+Not yet confirmed against the published package: we name the release that carries the fix, and we
+confirm it by reading the shipped assembly once it is published. Verify against the package you
+actually restore.
 
 ---
 
-### The Azure Event Hubs transport can report a send as successful while dropping the message
+#### GDPR data-portability and subject-access requests report success having done nothing
 
-**What you see.** Nothing. That is the defect. When you publish through the Azure Event Hubs transport,
-messages are accumulated into a batch before being sent. If a message does not fit in the batch, it is
-discarded and the send continues and reports success. **No exception is raised, no warning is logged, and
-the returned result does not indicate that anything was lost.** The messages that did fit arrive normally,
-so the topic looks healthy and your application has no signal to act on.
-
-You are most likely to meet it under the conditions that make a batch fill: large payloads, many messages
-published in one operation, or a message whose size grows after enrichment.
-
-**On `10.0.0-alpha.11` and later, both send paths refuse.** **This paragraph previously said the
-refusing path was CloudEvents-only and had been added after the most recent release, so no released
-version could escape the defect. That was wrong.** Both the standard and the CloudEvents send path carry
-the size check and throw at `10.0.0-alpha.11`, `10.0.0-alpha.12` and on main; batching happens in one
-place, and there is no third path that discards. On versions **before** `10.0.0-alpha.11` the original
-statement holds: no configuration avoids it, and CloudEvents does not help.
-
-**What you must do.** Until you are on a version carrying the fix, do not treat a successful return from
-this transport as proof of delivery. If you need that assurance now, either publish messages individually
-rather than in a batch, or reconcile what you sent against what your consumers received. The outbox
-pattern gives you the same assurance structurally, because an unacknowledged message stays in the outbox.
-
-**How to confirm it on the version you hold.** Do not check this by reading our source — that tells you
-about the current main branch, not the package you restored. Publish a batch whose combined payload is
-comfortably larger than your namespace's maximum event size, then count the events that arrive on the
-hub. If fewer arrive than you sent and the call reported success, your version carries this defect.
-
-**Is it fixed? Yes — in `10.0.0-alpha.11` and later.** Both send paths refuse an over-large message with
-an exception instead of discarding it. **This entry previously said the repair was "not yet in any
-released version" — that was wrong, and it stayed wrong through two releases.** If you are on
-`10.0.0-alpha.11` or later you already have the fix; on anything earlier, upgrading resolves it and the
-workarounds above are no longer your only option. Not yet confirmed by reading the published assembly —
-verify against the package you actually restore.
-
-**Which versions are affected — every version before `10.0.0-alpha.11`.** This has been present since
-before the transport reached its current package name. **This section previously said every published
-version contains it; that is no longer true and was already untrue when `10.0.0-alpha.11` shipped.** **We are deliberately not naming a
-first-affected version**: the code has passed through more than one mass-rename commit, and a
-path-scoped history search reports the rename rather than the original change — twice while investigating
-this, that error made the defect look months younger than it is. Rather than publish a date we would have
-to correct upward, we are naming no first-affected version. The *first fixed* version we can name, and
-have measured against the repository at both tags, is `10.0.0-alpha.11`.
-
-### A Kafka rebalance commits past messages still running in your handlers, so they are never redelivered
-
-:::note A separate Kafka message-loss defect is listed directly below
-This entry covers messages lost across a **rebalance**. A handler that **throws** loses its message by a
-different route, with a different trigger — see the next entry. They are independent: if you are exposed
-to one you should assume you are exposed to the other, and fixing either leaves the other in place.
+:::danger These produce evidence a regulator may read
+The built-in Article 20 export returns `Completed` — with a data size — having read, serialised and
+written nothing. The built-in Article 15 request can be marked `Fulfilled` at the instant it is
+created. Neither is detectable from outside: a completed export with a plausible size looks exactly
+like a real one.
 :::
 
-**What you see.** Nothing at the time, and nothing afterwards. A routine rebalance happens — you deploy,
-you scale out, a consumer restarts, or a slow batch exceeds the poll interval — and afterwards some
-messages have simply never been handled. There is no exception, no warning, and no gap in the consumer
-group's committed offsets to look at, because the offsets are exactly what tell you everything was
-consumed. The messages are not in a dead-letter topic either. They were delivered once, to a handler that
-had not finished, and the group moved past them.
+**What happens.** Two GDPR services ship as the default behind public registration calls.
 
-**Why it happens.** When partitions are revoked, the transport commits the consumer's *stored* offsets.
-The underlying client stores an offset the moment it hands a message to the application — not when your
-handler completes — because `enable.auto.offset.store` is left at its default of `true`. So the stored
-position is one past *every message ever delivered*, including the ones still running. Committing it on
-revoke moves the group's committed offset beyond unfinished work, and the next owner of the partition
-resumes after it. No crash is required; only that a handler had not returned yet.
+`AddDataPortability()` registers an Article 20 exporter whose `ExportAsync` returns
+`Status = ExportStatus.Completed` unconditionally. Nothing is read from any store, nothing is
+serialised, and nothing is written — the result type carries no payload, path or URI, so there is
+nowhere an export could be placed even in principle. The `DataSize` field, documented as the byte count
+of the exported data, is filled with the number of discovered data locations multiplied by 1024.
 
-The transport does track a settled position and commits that explicitly on its normal path. The revoke
-path does not go through that tracking, so the safeguard is bypassed at the one edge it does not own.
+`AddSubjectAccessRequests()` registers an Article 15 service with an `AutoFulfill` option. With it set,
+a request is created with `Status = Fulfilled` and `FulfilledAt = ` the current time, in the same
+operation that creates it — before anything could have been gathered or sent.
 
-**What you must do — and there is one question to answer before you do it, because this workaround is
-not safe for every deployment.**
+**Are you affected?** You are affected if you call either registration and treat its result as evidence
+that a data-subject request was satisfied. You are not affected if you registered your own
+implementation of either interface: both use `TryAdd`, so yours takes precedence and the built-in one
+is never constructed.
 
-**Precondition: do you read your dead-letter topic through the bundled dead-letter consumer?** If your
-code calls `Consume` on that consumer anywhere, the answer is yes.
+**What that exposes.** A subject-access or portability response recorded as fulfilled when no data was
+produced. The consequence is not a runtime fault — it is a compliance record that overstates what was
+done, and the audience for it is a regulator or an auditor reviewing your controls.
 
-**If you do NOT use it**, apply the workaround. Turn off the client's automatic offset store, which the
-transport passes straight through to the underlying client:
+**What to do now.** Register your own `IDataPortabilityService` and `ISubjectAccessService` before
+calling the `Add*` methods, and treat any completion these services previously recorded as unverified.
+Only you can decide what to export, in what shape, and where it goes.
 
-```csharp
-services.Configure<KafkaOptions>(options =>
-{
-    options.AdditionalConfig["enable.auto.offset.store"] = "false";
-});
-```
+**Which versions are affected.** Every published 10.x version. We have not assessed the older 3.x line
+— do not read that as clean.
 
-**If you DO use it, this setting will break it, and you must deal with that first.** The dead-letter
-consumer commits by asking the client for its *stored* offsets — the mechanism you have just switched
-off — and unlike the rebalance path it does not tolerate there being none. Its `Consume` call throws as
-soon as it has messages to return, **and the messages it already read are lost with the exception**,
-from a topic that is your last copy. Do one of these **before** applying the setting:
+**Is there a fixed version?** **`10.0.0-alpha.13`**, and the fix is a deliberate breaking change rather
+than a silent repair: the built-in exporter now **refuses** with an
+error naming the remedy instead of reporting a completed export, and the `AutoFulfill` option is
+**removed** so a request is always created `Pending` and can only become `Fulfilled` through the
+explicit `FulfillRequestAsync` call that records an act you actually performed. If you relied on
+`AutoFulfill`, that reliance was on a value that never reflected any work.
 
-- read the dead-letter topic with your own consumer for as long as the workaround is in place; or
-- wrap the `Consume` call and treat that specific failure as *"nothing was committed, these messages
-  will be delivered again"* — which is true and safe, because the offsets did not move.
+---
 
-**If you can do neither, do not apply the workaround.** There is no safe form of it for your
-deployment, and you are choosing between two loss paths rather than removing one. In that case your
-remaining options are the ones that do not touch offset storage at all: keep handler durations well
-inside the poll interval so rebalances are rarer, and reconcile what you consumed against what you
-produced rather than trusting the committed offset.
+### Event sourcing, outbox and projections
 
-With automatic storing off, nothing is recorded ahead of your handlers, so the commit on revoke cannot
-carry the group past unfinished work. The explicit commits the transport makes at settled positions are
-unaffected and continue to advance the group normally.
-
-**The trade is duplicates instead of loss.** Messages that were in flight during a rebalance are
-delivered again to the partition's new owner, so **your handlers must be idempotent.** That is already
-the obligation this transport documents, and it is the correct side of the trade to be on: a duplicate is
-recoverable and a lost message is not.
-
-**Also leave `EnableAutoCommit` off**, which is its default. Turning it on commits those same stored
-offsets on a timer, which reintroduces the loss on its own without any rebalance being involved.
-
-**How to confirm it on the version you hold.** Do not check this by reading our source; that describes
-the main branch rather than the package you restored. Give a handler an artificial delay of a minute,
-publish a batch of messages, and once they are dispatched start a second consumer in the same group to
-force a rebalance. Then read the group's committed offset with `kafka-consumer-groups --describe`. If the
-committed offset is already past the messages your handler has not finished, your version carries this,
-and those messages will not be fetched again by any member of the group.
-
-**Is it fixed?** **No released version behaves differently.** A correct fix must at least do two things: the
-revoke path must commit the tracked settled position explicitly rather than the stored one,
-and automatic offset storing must be turned off in the transport's own configuration, because while it is
-on any argument-less commit anywhere in the process defeats the guarantee. **Those two are
-necessary and we are not claiming they are sufficient** — review of a candidate fix with both
-parts in place found further ways the group can still move past unfinished work, so treat this
-entry as open until a release names itself as carrying the complete repair. **Until a release carries
-that, the workaround above is what you have, and it is effective today.** When a release carries the fix,
-this entry will name that version.
-
-**Which versions are affected.** Every published `10.0.0-alpha.*` version — `alpha.4` through `alpha.11`
-— carries it. The commit-on-revoke path has behaved this way since it was introduced, which predates the
-oldest of those releases, so there is no 10.x version where it is absent. We have **not** separately
-verified the superseded `3.0.0-alpha.*` line and are not telling you it is safe; nothing we are aware of
-changed this behaviour there.
-
-### A Kafka handler that throws loses its message: it is neither committed nor redelivered
-
-**This is a second, independent Kafka defect.** The entry above is about a *rebalance*. This one needs no
-rebalance at all — only a handler that throws.
-
-**What you see.** A handler throws an unhandled exception. The framework logs it, and the consumer moves
-on to the next message. **The message that failed is never delivered to your handler again.** It is not
-retried, it does not reach a dead-letter topic, and the consumer group's committed offsets give no sign
-that anything is missing.
-
-**Why it happens.** When a handler throws, the Kafka subscriber catches the exception and records it,
-and does nothing else: it neither commits the offset nor seeks back to it. With the offset left
-uncommitted and no rewind, the consumer's position has already advanced past the message, so it is not
-fetched again — and the next offset that *is* committed covers it. The message is gone without ever
-having been handled successfully.
-
-**Which versions are affected.** **Every published version that contains the Kafka transport
-subscriber is affected**, and we are deliberately not publishing a list of versions. We confirmed the
-behaviour in every `10.0.0` pre-release this repository has tagged; we have not verified the superseded
-`3.0.0-alpha.*` line and are not telling you it is safe.
-
-**What to do now.**
-
-- **Catch exceptions inside your handlers** and decide their outcome yourself — return a failure result,
-  or route the message to your own retry or dead-letter mechanism — so that nothing reaches the
-  framework as an unhandled exception.
-- **Make handlers idempotent**, and reconcile against the source of truth if you need to know what was
-  lost: nothing in the consumer group's offsets will tell you.
-- **Treat an unhandled-exception log entry from the Kafka subscriber as a lost message**, not as a
-  warning. Alert on it.
-
-**Is it fixed?** **Not in any released version.** When a release carries a fix, this entry will name
-that version.
-
-### The outbox fencing contract we published tells you to build the problem it exists to prevent
+#### The outbox fencing contract we published tells you to build the problem it exists to prevent
 
 **Who this affects.** Only you, if you wrote your own outbox store against `IFencedOutboxStore`. **If you
 use the outbox stores that ship with the framework, you did not implement this contract — we did**, and
@@ -1736,7 +953,7 @@ reader on an early alpha should not read a list that starts at alpha.5 as permis
 **The 3.x line is genuinely not affected**, and that one is a measurement rather than a bound: the
 interface does not exist in it at all. We checked its shipped documentation directly.
 
-### The outbox failure report is required to check an owner it is never given
+#### The outbox failure report is required to check an owner it is never given
 
 **Who this affects.** Anyone whose messages take the outbox failure path — which is every outbox user,
 since a failed delivery is not an unusual event — and, more sharply, anyone who wrote their own
@@ -1866,7 +1083,7 @@ cannot express an atomic high-water mark — the cloud-native and search-backed 
 explicit `AsSingleWriter()` opt-out under a leader election, which is the same opt-out they have always
 required for the mark-sent transition.
 
-### The batch failure report performs no ownership check, and its documentation does not say so
+#### The batch failure report performs no ownership check, and its documentation does not say so
 
 **Who this affects.** Anyone who reports outbox failures in batches — through
 `IOutboxStoreBatch.MarkBatchFailedAsync`, or through the `MarkBatchFailedAsync` extension method on
@@ -1913,191 +1130,7 @@ refuses a report made under a claim the store no longer recognises. **The unscop
 still performs no check**, so switching packages does not fix your code; you have to call the overload that
 takes the claim. If you keep calling the four-argument member, the behaviour above is exactly what you have.
 
-### Middleware is resolved once, from the root container, so Development hosts cannot dispatch and Production hosts share one instance across every request
-
-**What you see.** Two different things, and which one you get depends on a setting you probably did not
-choose. ASP.NET Core turns on the container's scope validation in the Development environment and leaves
-it off everywhere else.
-
-In **Development**, a host that registered middleware the documented way fails on its first dispatch:
-
-```csharp
-builder.Services.AddDispatch(dispatch => dispatch.UseMiddleware<MyMiddleware>());
-```
-
-```
-InvalidOperationException: Pipeline 'Default' cannot be built because 1 required middleware
-could not be resolved:
-  - MyMiddleware: Cannot resolve scoped service 'MyMiddleware' from root provider.
-```
-
-A host that selected a pipeline profile rather than registering middleware itself sees no exception at
-all. The profile's stages are dropped one by one, each with a warning, and the host dispatches through an
-empty pipeline. Nothing in the response says a stage is missing.
-
-In **Production** neither happens, because scope validation is off there. The pipeline composes, every
-stage runs, and **one instance of each middleware serves every request for the life of the process**.
-
-**Why.** The composed pipeline is registered as a singleton, and the container hands a singleton factory
-the root provider by definition. Every middleware this framework seats is registered with a scoped
-lifetime — the four stages of the default profile, and everything `UseMiddleware<T>()` registers for you.
-Resolving them while composing the pipeline therefore resolves scoped services from the root. Scope
-validation refuses that outright; without it the resolution succeeds and the instances are held forever,
-together with whatever they were constructed with — an outbox store, a unit of work, a tenant context.
-
-**What it costs you.** The Development failure is loud and will not reach your users. The Production
-behaviour is the serious one: a service you registered per-request is shared across every request that
-passes through that middleware, with no error and nothing in your telemetry to distinguish it. If any of
-your middleware constructor-injects a scoped service, treat it as shared process-wide on any released
-version.
-
-**The workaround, if you cannot upgrade.** Register your middleware yourself, as a singleton, through the
-documented enumerable registration, and do not call `UseMiddleware<T>()` for it:
-
-```csharp
-services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, MyMiddleware>());
-```
-
-The composed pipeline reads that registration, and a singleton resolved from the root is not a captive
-dependency. It only holds if the middleware genuinely has no per-request state of its own: take your
-scoped services from `context.RequestServices` inside `InvokeAsync` rather than through the constructor,
-and keep per-request values on `IMessageContext` rather than in fields. That is the guidance for writing
-middleware in any case.
-
-The same applies to the default profile's own stages. Registering those four types as singletons **before**
-you call `AddDispatch()` takes effect, because the framework's own registration yields to one you already
-made.
-
-Turning scope validation off in Development stops the exception and leaves the shared instance in place.
-It makes the symptom go away and the defect remain, so we do not suggest it.
-
-**Which versions are affected.** The singleton pipeline registration is present in the shipped assemblies
-of `10.0.0-alpha.10` and `10.0.0-alpha.11`, which are the two we opened, and the code carrying it predates
-every `10.0.0-alpha`. Your own `UseMiddleware<T>()` registrations reach it on any of them. The default
-profile's four stages became scoped registrations between `alpha.10` and `alpha.11`, so an empty pipeline
-where a profile was selected is something we can place only at `alpha.11` and later. **We have not
-established the first affected version** for the `UseMiddleware<T>()` half and would rather say so than
-name one we have not opened; if you are on a version not listed above, assume you are affected.
-
-**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. That is measured by opening the shipped
-assemblies: the types the fix introduces are absent from both `alpha.10` and `alpha.11`. The fix keeps the
-composed pipeline a singleton and stops it holding the middleware: a stage the container would serve fresh
-per scope is resolved per dispatch instead, from your request scope where you have one and from a scope
-created for that dispatch and disposed after it where you do not.
-
-### Published pre-release packages carry a benchmarking harness as a direct dependency
-
-**What you see.** If you restored `10.0.0-alpha.8`, your dependency graph contains `BenchmarkDotNet` and three compiler-platform packages that nothing in your application uses. 103 of the 195 packages published at that version declare the harness directly, so most of the framework brings it in. You will see it in your lock file, in a restore-graph listing, and in any dependency or supply-chain scan you run against your build.
-
-This affects what you restore and audit, not what you run: nothing in the framework calls into the harness at runtime, so there is no behavioural change and no code of yours to alter. The cost is a larger restore, additional packages in your lock file, and additional entries a scanner will attribute to your application.
-
-**How it happened.** One package referenced the harness without marking it as a build-time-only dependency, and this repository pins transitive package versions centrally. That combination promotes a transitive reference to a direct one at every package that depends on it, and packing writes direct references into the published manifest. It reached every package with a path to the one that carried it — 102 of them, plus the package itself.
-
-**What you must do.** Move to a pre-release later than `10.0.0-alpha.8`. There is no useful workaround while you remain on it: the dependency is declared in the published manifest, so it is resolved before any setting in your own project applies. Excluding its assets stops it being referenced by your compilation but does not remove it from your restore graph or from a scanner’s view.
-
-Later versions do not carry it, and the packaging pipeline now fails the build if any shipped package declares a dependency from a category that cannot be correct at your runtime — benchmarking harnesses, test frameworks, mocking and assertion libraries, analyzers, and the compiler platform among them.
-
----
-
----
-
-### A GDPR erasure reported as completed leaves the personal data in every read model
-
-:::danger An erasure certificate does not mean the data is gone
-Erasure removes the payload from the event store. It does **not** reach projections, so any read model
-built from those events keeps the personal data indefinitely — and the certificate you produce for a
-regulator does not say so.
-:::
-
-**What happens.** Erasure operates on the event store: it forgets the event payload there. Projections
-are separate documents or rows, written by the apply path as events arrive, and nothing in the erasure
-path revisits them. So after a successful erasure the personal data remains in every projection derived
-from the erased events, in whatever store holds them, for as long as that store keeps it.
-
-**Are you affected?** You are affected if you both (a) build projections or read models from events, and
-(b) rely on the framework's erasure to satisfy a subject's deletion request. You are not affected if you
-do not use projections, or if you already erase your read models yourself by some other means.
-
-**What that exposes.** A deletion request you have reported as fulfilled is not fulfilled. The data
-remains queryable through exactly the surfaces your application reads from — usually the ones serving
-user-facing features — and it will be rebuilt into any projection replayed from a source that still
-holds it. Treat any erasure performed through the framework as covering the event store only.
-
-**What to do now.** Erase the corresponding projection documents or rows yourself as part of your
-erasure workflow, and do not treat an erasure certificate as evidence that read models were cleared. If
-you have already issued certificates on this basis, they overstate what was done.
-
-:::warning A retraction published here was wrong about your version. It is withdrawn.
-
-**Read this if you saw the earlier text.** A revision of this page briefly told you that
-`IProjectionRecovery.ReapplyAsync` does not clear the subject's row and reports success anyway, and
-that there was no version-level workaround. **That statement was about our unreleased source, not
-about any version you can install, and it should not have been published unscoped.**
-
-**For every published 10.x version, `ReapplyAsync` clears the row as originally described.** The
-conditional write that produced the defect does not exist in the published line: the type that
-introduces it has never been present on the branch our packages are built from, and the recovery path
-there writes unconditionally. If you held back an erasure remediation on the strength of the retracted
-text, you can proceed.
-
-The defect was real in work that has not shipped, and it is fixed there: recovery now either writes the
-re-folded state at the position the row already holds, or fails loudly. It never reports a successful
-recovery having written nothing.
-
-**This does not change the gap described above.** Erasure still does not reach projections
-automatically. `ReapplyAsync` could not produce a row for an aggregate whose every event is a
-tombstone in any published version; **`10.0.0-alpha.13` corrects that half** — it now skips tombstones
-structurally and writes the empty state for a fully erased aggregate. The projection gap itself remains
-open and is described in the next paragraph.
-:::
-
-**What still works, and what does not.** A full projection rebuild re-folds rows from the tombstoned
-stream and does clear the subject's contributions from rows shared with other subjects. It does **not**
-produce a row for an aggregate whose every event is now a tombstone, so it cannot clear that subject's
-own row. `ReapplyAsync` is the call intended for that row: given the aggregate id it re-folds the
-tombstoned stream and writes the result, which for a fully erased aggregate is the empty state.
-
-Both are calls **you** must make. Neither is triggered by the erasure itself, so an erasure you have
-reported as completed has not touched any read model unless you invoked one of them. Treat clearing
-projections as your own step in the erasure workflow until the erasure path reaches them.
-
-**What changes in `10.0.0-alpha.13`.** An erasure on a host with registered projections reports
-**partial** rather than `Completed`, and **the certificate you receive says so in a form built to be
-read by an auditor**. Nothing about the erasure itself changes — the same rows are tombstoned and the
-same read models keep the data. What changes is that the certificate stops implying otherwise.
-
-Concretely, the certificate gains a list of what the erasure did **not** reach, separate from the list
-of data lawfully retained and never mixed with it. Each entry names the kind of store still holding the
-data, describes in one sentence why the erasure did not reach it, states explicitly that **no lawful
-basis is claimed** for that retention, and tells you that discharging it remains your obligation and
-that doing so **takes the affected read model offline for the duration**. That last point matters
-operationally: the remedy must not be run against a live projection processor, because a rebuild
-interrupted part-way leaves the subject cleared from some rows and not others with no record of which.
-
-A certificate with nothing outstanding is unchanged, byte for byte, so certificates you have already
-been issued continue to verify.
-
-If you have built your own projection erasure, register an `IErasureContributor` declaring
-`DataStoreKind.Projection` and the framework stands down.
-
-**Which versions are affected.** Every published 10.x version. This is a capability that was never
-built rather than one that broke, so there is no earlier unaffected version: the projection apply path
-and the erasure path have never been connected. We have not assessed the older 3.x line — do not read
-that as clean.
-
-**Is there a fixed version?** **Partly, in `10.0.0-alpha.13`.** That release stops the erasure
-reporting `Completed` when registered projections still hold the subject: it reports **partial** and the
-certificate carries the unreached-data list described above. **The gap itself is not fixed and is not
-scheduled** — erasure still does not reach read models, and clearing them remains your step. What
-changed is that the certificate no longer implies otherwise.
-
-Not yet confirmed against the published package: we name the release that carries the fix, and we
-confirm it by reading the shipped assembly once it is published. Verify against the package you
-actually restore.
-
----
-
-### An append that was committed can be reported as a conflict, and retrying it writes the event twice
+#### An append that was committed can be reported as a conflict, and retrying it writes the event twice
 
 :::danger The documented response to a conflict makes this worse, not better
 The store reports a concurrency conflict. The documented response is reload-and-retry. Retrying appends
@@ -2151,7 +1184,7 @@ fix is present but unverified by us. Not yet confirmed against the published pac
 
 ---
 
-### A subscriber reading the global event stream can permanently skip a committed event
+#### A subscriber reading the global event stream can permanently skip a committed event
 
 :::danger A skipped event is never redelivered
 The subscriber advances past the missing position and no later read from that checkpoint revisits it.
@@ -2212,7 +1245,7 @@ Not yet confirmed against the published package.
 
 ---
 
-### Rebuilding a projection appears to succeed and changes nothing your application reads
+#### Rebuilding a projection appears to succeed and changes nothing your application reads
 
 **What happens.** The rebuild writes its result to a single row keyed by the projection's **type name**.
 Every other path that maintains a projection — the live apply path used as events arrive, and recovery —
@@ -2246,7 +1279,7 @@ Not yet confirmed against the published package.
 
 ---
 
-### A saga silently discards every event of a type after the first, unless you set a step id
+#### A saga silently discards every event of a type after the first, unless you set a step id
 
 :::danger The log line says the opposite of what happened
 Each discarded event is reported as `skipped duplicate event`. It was not a duplicate. It was a
@@ -2289,7 +1322,7 @@ arrive with the migration guidance it needs rather than quietly.
 
 ---
 
-### Every projection write fails on MongoDB
+#### Every projection write fails on MongoDB
 
 **What happens.** The MongoDB projection store stamps each written document with an "updated at" value
 taken as a `DateTimeOffset`. The MongoDB driver has no mapping from `DateTimeOffset` to a BSON value and
@@ -2322,106 +1355,371 @@ the published package.
 
 ---
 
-### The startup check that is supposed to refuse a mis-ordered tenant pipeline never runs
+### Transports
 
-:::warning This is a guarantee that does not fire, not a behaviour that is wrong
-If your pipeline is correctly ordered, nothing here affects you. If it is mis-ordered, you were
-promised a startup failure and you will not get one — you get silent, tenant-less execution instead.
+#### Rejecting a message with `requeue: true` does not arrange redelivery — it waits for your consumer to stop
+
+**What you see.** Nothing. The call returns normally, a line appears in your log, and your code carries
+on believing the message has been put back. There is no exception, no return value, and no status to
+inspect — `RejectAsync` returns a plain `Task`, so **there is no channel through which it could tell you
+anything**, even in principle.
+
+**What actually happens.** Rejecting with `requeue: true` declines to commit the offset and discards the
+transport's own bookkeeping for that message. **It does not seek, does not notify the broker, and does
+not schedule anything.** The message becomes available again only when this consumer stops polling long
+enough for its group session to expire and the partition to be reassigned. Declining to commit is a
+legitimate Kafka pattern — the defect is that the contract presents a **conditional, deferred** outcome
+as though it were an arranged one.
+
+**The case that bites.** A long-running consumer that requeues a message and keeps polling **may never
+see that message again for the life of the session**, with nothing in the return value, the message, or
+your own state to indicate it. If you requeue on a transient failure and expect a retry shortly, that
+retry is not coming while the consumer stays healthy.
+
+**Can you force redelivery yourself? No — and we checked rather than assumed.** The shipped transport
+surface exposes no seek operation, no access to the underlying consumer, and no redelivery affordance of
+any kind; `Requeue` exists only as an enum value on the reject call. **The only lever you have is to
+stop the consumer** — end the process, or let the session lapse — so the partition is reassigned and the
+uncommitted message is delivered to whoever picks it up.
+
+**What you must do.** Treat `requeue: true` as *"I decline to commit this"* rather than *"redeliver
+this."* Concretely, and available today: if you need a bounded, observable retry, do it in your own
+handler — retry in-process, or publish the message to a retry topic you control — rather than relying on
+requeue to bring it back. If you use requeue as a backstop for a message you genuinely cannot process,
+that is sound, provided nothing downstream is waiting for the redelivery to happen promptly.
+
+**How to confirm it on the version you hold.** Reject a message with `requeue: true` in a consumer you
+then leave running, and keep polling the same partition. Watch for the message to reappear. It will not,
+until you stop that consumer. If you then restart and it arrives, you have this behaviour.
+
+**Which versions are affected — every published version.** The reject path has this shape in all of
+them. **No released version behaves differently, and we are not naming a target release.** When a release
+carries a repair we stand behind, this entry will name that version and say what changes for a caller
+of the reject path.
+
+#### The Azure Event Hubs transport can report a send as successful while dropping the message
+
+**What you see.** Nothing. That is the defect. When you publish through the Azure Event Hubs transport,
+messages are accumulated into a batch before being sent. If a message does not fit in the batch, it is
+discarded and the send continues and reports success. **No exception is raised, no warning is logged, and
+the returned result does not indicate that anything was lost.** The messages that did fit arrive normally,
+so the topic looks healthy and your application has no signal to act on.
+
+You are most likely to meet it under the conditions that make a batch fill: large payloads, many messages
+published in one operation, or a message whose size grows after enrichment.
+
+**On `10.0.0-alpha.11` and later, both send paths refuse.** **This paragraph previously said the
+refusing path was CloudEvents-only and had been added after the most recent release, so no released
+version could escape the defect. That was wrong.** Both the standard and the CloudEvents send path carry
+the size check and throw at `10.0.0-alpha.11`, `10.0.0-alpha.12` and on main; batching happens in one
+place, and there is no third path that discards. On versions **before** `10.0.0-alpha.11` the original
+statement holds: no configuration avoids it, and CloudEvents does not help.
+
+**What you must do.** Until you are on a version carrying the fix, do not treat a successful return from
+this transport as proof of delivery. If you need that assurance now, either publish messages individually
+rather than in a batch, or reconcile what you sent against what your consumers received. The outbox
+pattern gives you the same assurance structurally, because an unacknowledged message stays in the outbox.
+
+**How to confirm it on the version you hold.** Do not check this by reading our source — that tells you
+about the current main branch, not the package you restored. Publish a batch whose combined payload is
+comfortably larger than your namespace's maximum event size, then count the events that arrive on the
+hub. If fewer arrive than you sent and the call reported success, your version carries this defect.
+
+**Is it fixed? Yes — in `10.0.0-alpha.11` and later.** Both send paths refuse an over-large message with
+an exception instead of discarding it. **This entry previously said the repair was "not yet in any
+released version" — that was wrong, and it stayed wrong through two releases.** If you are on
+`10.0.0-alpha.11` or later you already have the fix; on anything earlier, upgrading resolves it and the
+workarounds above are no longer your only option. Not yet confirmed by reading the published assembly —
+verify against the package you actually restore.
+
+**Which versions are affected — every version before `10.0.0-alpha.11`.** This has been present since
+before the transport reached its current package name. **This section previously said every published
+version contains it; that is no longer true and was already untrue when `10.0.0-alpha.11` shipped.** **We are deliberately not naming a
+first-affected version**: the code has passed through more than one mass-rename commit, and a
+path-scoped history search reports the rename rather than the original change — twice while investigating
+this, that error made the defect look months younger than it is. Rather than publish a date we would have
+to correct upward, we are naming no first-affected version. The *first fixed* version we can name, and
+have measured against the repository at both tags, is `10.0.0-alpha.11`.
+
+#### A Kafka rebalance commits past messages still running in your handlers, so they are never redelivered
+
+:::note A separate Kafka message-loss defect is listed directly below
+This entry covers messages lost across a **rebalance**. A handler that **throws** loses its message by a
+different route, with a different trigger — see the next entry. They are independent: if you are exposed
+to one you should assume you are exposed to the other, and fixing either leaves the other in place.
 :::
 
-**What happens.** The framework documents that a pipeline in which a tenant-*reading* middleware would
-run before the last tenant-*establishing* middleware is refused at composition, with an error naming
-both types. The check identifies each by asking whether the pipeline entry implements the corresponding
-marker interface.
+**What you see.** Nothing at the time, and nothing afterwards. A routine rebalance happens — you deploy,
+you scale out, a consumer restarts, or a slow batch exceeds the poll interval — and afterwards some
+messages have simply never been handled. There is no exception, no warning, and no gap in the consumer
+group's committed offsets to look at, because the offsets are exactly what tell you everything was
+consumed. The messages are not in a dead-letter topic either. They were delivered once, to a handler that
+had not finished, and the group moved past them.
 
-By the time middleware reach that check they are frequently not the middleware themselves. A middleware
-registered as `Scoped` is represented by a per-dispatch stand-in that holds no instance at all; using
-`UseAt<T>(stage)` wraps it; scoping it to message kinds wraps it again. None of those wrappers carries
-the marker interfaces, so the check concludes that nothing establishes tenant context and returns
-without examining the ordering.
+**Why it happens.** When partitions are revoked, the transport commits the consumer's *stored* offsets.
+The underlying client stores an offset the moment it hands a message to the application — not when your
+handler completes — because `enable.auto.offset.store` is left at its default of `true`. So the stored
+position is one past *every message ever delivered*, including the ones still running. Committing it on
+revoke moves the group's committed offset beyond unfinished work, and the next owner of the partition
+resumes after it. No crash is required; only that a handler had not returned yet.
 
-The framework's own tenant-establishing middleware is registered `Scoped`, so in any application built
-on the generic host this check has never been able to fire.
+The transport does track a settled position and commits that explicitly on its normal path. The revoke
+path does not go through that tracking, so the safeguard is bypassed at the one edge it does not own.
 
-**Are you affected?** You are affected if you rely on that refusal to catch a mis-ordered pipeline. You
-are **not** harmed by this on its own: a correctly ordered pipeline behaves correctly. What you have
-lost is the guard, not the behaviour.
+**What you must do — and there is one question to answer before you do it, because this workaround is
+not safe for every deployment.**
 
-**What that exposes.** If your pipeline *is* mis-ordered — your own tenant-reading middleware placed at
-an earlier stage than the middleware that establishes tenancy — that middleware runs outside the ambient
-tenant scope and observes **no tenant**. It raises no error and writes no log. A tenant-scoped read
-inside it returns the untenanted result rather than failing, so the symptom is wrong data rather than an
-outage, and nothing marks which requests were affected.
+**Precondition: do you read your dead-letter topic through the bundled dead-letter consumer?** If your
+code calls `Consume` on that consumer anywhere, the answer is yes.
 
-**What to do now.** Check the ordering yourself rather than relying on the refusal. Any middleware of
-yours that reads tenant context must declare a later `DispatchMiddlewareStage` than the middleware that
-establishes it, or be registered after it within the same stage. If you have a middleware that reads
-tenant identity and you have never seen a startup error, that is not evidence the ordering is right.
+**If you do NOT use it**, apply the workaround. Turn off the client's automatic offset store, which the
+transport passes straight through to the underlying client:
 
-**Which versions are affected.** Every published 10.x version. We have not assessed the older 3.x line —
-do not read that as clean.
+```csharp
+services.Configure<KafkaOptions>(options =>
+{
+    options.AdditionalConfig["enable.auto.offset.store"] = "false";
+});
+```
 
-**Is there a fixed version?** **`10.0.0-alpha.13`.** The corrected check reads the capability from the
-type each pipeline entry represents rather than from the entry itself, which sees through all three
-wrappers. The rule now lives in its own seam (`Excalibur.Dispatch/Delivery/Pipeline/TenantOrderingRule.cs`)
-and is exercised through a real container rather than a constructed pipeline. That distinction is the
-whole defect: the five older arms pass undecorated test doubles straight to the pipeline constructor, so
-they stay green against the broken code and **cannot fail for this defect at all**. Only the
-real-container arms detect it.
+**If you DO use it, this setting will break it, and you must deal with that first.** The dead-letter
+consumer commits by asking the client for its *stored* offsets — the mechanism you have just switched
+off — and unlike the rebalance path it does not tolerate there being none. Its `Consume` call throws as
+soon as it has messages to return, **and the messages it already read are lost with the exception**,
+from a topic that is your last copy. Do one of these **before** applying the setting:
 
-One residual, stated rather than left for you to find: the rule still returns silently when nothing in
-the pipeline establishes tenant context. It refuses a mis-ordering; it does not require that a tenant be
-established in the first place.
+- read the dead-letter topic with your own consumer for as long as the workaround is in place; or
+- wrap the `Consume` call and treat that specific failure as *"nothing was committed, these messages
+  will be delivered again"* — which is true and safe, because the offsets did not move.
 
-Not yet confirmed against the published package.
+**If you can do neither, do not apply the workaround.** There is no safe form of it for your
+deployment, and you are choosing between two loss paths rather than removing one. In that case your
+remaining options are the ones that do not touch offset storage at all: keep handler durations well
+inside the poll interval so rebalances are rarer, and reconcile what you consumed against what you
+produced rather than trusting the committed offset.
+
+With automatic storing off, nothing is recorded ahead of your handlers, so the commit on revoke cannot
+carry the group past unfinished work. The explicit commits the transport makes at settled positions are
+unaffected and continue to advance the group normally.
+
+**The trade is duplicates instead of loss.** Messages that were in flight during a rebalance are
+delivered again to the partition's new owner, so **your handlers must be idempotent.** That is already
+the obligation this transport documents, and it is the correct side of the trade to be on: a duplicate is
+recoverable and a lost message is not.
+
+**Also leave `EnableAutoCommit` off**, which is its default. Turning it on commits those same stored
+offsets on a timer, which reintroduces the loss on its own without any rebalance being involved.
+
+**How to confirm it on the version you hold.** Do not check this by reading our source; that describes
+the main branch rather than the package you restored. Give a handler an artificial delay of a minute,
+publish a batch of messages, and once they are dispatched start a second consumer in the same group to
+force a rebalance. Then read the group's committed offset with `kafka-consumer-groups --describe`. If the
+committed offset is already past the messages your handler has not finished, your version carries this,
+and those messages will not be fetched again by any member of the group.
+
+**Is it fixed?** **No released version behaves differently.** A correct fix must at least do two things: the
+revoke path must commit the tracked settled position explicitly rather than the stored one,
+and automatic offset storing must be turned off in the transport's own configuration, because while it is
+on any argument-less commit anywhere in the process defeats the guarantee. **Those two are
+necessary and we are not claiming they are sufficient** — review of a candidate fix with both
+parts in place found further ways the group can still move past unfinished work, so treat this
+entry as open until a release names itself as carrying the complete repair. **Until a release carries
+that, the workaround above is what you have, and it is effective today.** When a release carries the fix,
+this entry will name that version.
+
+**Which versions are affected.** Every published `10.0.0-alpha.*` version — `alpha.4` through `alpha.11`
+— carries it. The commit-on-revoke path has behaved this way since it was introduced, which predates the
+oldest of those releases, so there is no 10.x version where it is absent. We have **not** separately
+verified the superseded `3.0.0-alpha.*` line and are not telling you it is safe; nothing we are aware of
+changed this behaviour there.
+
+#### A Kafka handler that throws loses its message: it is neither committed nor redelivered
+
+**This is a second, independent Kafka defect.** The entry above is about a *rebalance*. This one needs no
+rebalance at all — only a handler that throws.
+
+**What you see.** A handler throws an unhandled exception. The framework logs it, and the consumer moves
+on to the next message. **The message that failed is never delivered to your handler again.** It is not
+retried, it does not reach a dead-letter topic, and the consumer group's committed offsets give no sign
+that anything is missing.
+
+**Why it happens.** When a handler throws, the Kafka subscriber catches the exception and records it,
+and does nothing else: it neither commits the offset nor seeks back to it. With the offset left
+uncommitted and no rewind, the consumer's position has already advanced past the message, so it is not
+fetched again — and the next offset that *is* committed covers it. The message is gone without ever
+having been handled successfully.
+
+**Which versions are affected.** **Every published version that contains the Kafka transport
+subscriber is affected**, and we are deliberately not publishing a list of versions. We confirmed the
+behaviour in every `10.0.0` pre-release this repository has tagged; we have not verified the superseded
+`3.0.0-alpha.*` line and are not telling you it is safe.
+
+**What to do now.**
+
+- **Catch exceptions inside your handlers** and decide their outcome yourself — return a failure result,
+  or route the message to your own retry or dead-letter mechanism — so that nothing reaches the
+  framework as an unhandled exception.
+- **Make handlers idempotent**, and reconcile against the source of truth if you need to know what was
+  lost: nothing in the consumer group's offsets will tell you.
+- **Treat an unhandled-exception log entry from the Kafka subscriber as a lost message**, not as a
+  warning. Alert on it.
+
+**Is it fixed?** **Not in any released version.** When a release carries a fix, this entry will name
+that version.
+
+### Dependencies and packaging
+
+#### `Excalibur.Outbox.Marten` before `10.0.0-alpha.12` brings in a Marten with a critical SQL-injection advisory
+
+**FIXED IN `10.0.0-alpha.12`, published 2026-09-25. Upgrade to it — you do not need to override
+anything.** Versions `10.0.0-alpha.4` through `10.0.0-alpha.11` declare a dependency on
+**Marten 9.12.0**, which carries
+**CVE-2026-75513 / GHSA-rfx3-98h7-v3xp, CVSS 9.1**
+(`CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:L`). Marten interpolates a runtime, potentially
+attacker-influenced value into generated SQL as a single-quoted string literal, without escaping or
+parameterization, so a value containing a single quote can break out and inject arbitrary SQL.
+
+**The advisory names six files, and they are not all one kind of path:**
+
+| Group | File | Reached by |
+|---|---|---|
+| LINQ provider | `DictionaryItemMember.cs` | a dictionary indexer key — **the primary confirmed vector** |
+| LINQ provider | `DictionaryContainsKeyFilter.cs` | `Dictionary.ContainsKey(key)` |
+| LINQ provider | `SelectParser.cs` | a constant string projected through `Select` |
+| Tenant management | `DeleteAllForTenant.cs` | a tenant id reaching per-tenant projection teardown |
+| Tenant management | `DatabaseScopedTenantPartitions.cs` | a tenant id inlined into `FOR VALUES IN` partition DDL |
+| Event store daemon | `Events/Daemon/Internals/EventLoader.cs` | a per-tenant partition-pruning literal — a defence-in-depth sink rather than a primary vector |
+
+**Writing no LINQ does not put you outside this.** The tenant-management and daemon paths are reached
+by ordinary multi-tenant operation rather than by query style. **That is a statement about coverage,
+not about likelihood** — the confirmed vector is the LINQ dictionary-key path, and the others are
+additional sinks the patch closes.
+
+The advisory's stated impact is **multi-tenant authorization bypass — returning other tenants' rows —
+and blind data exfiltration**. Its vector carries a low integrity impact as well (`I:L`), and data
+modification may also be reachable: Npgsql accepts semicolon-separated statements by default, with no
+setting to disable. **Whether that is reachable through Marten's generated commands is something we
+have not established.**
+
+#### ⚠ The advisory is wider than the version we declare
+
+**Affected: Marten `>= 7.0.0, <= 9.12.0`. Patched: `9.13.0`.**
+
+**Every version of our package that you can install declares `9.12.0`**, so the table below is about the
+version you get *by default*. **But if you have overridden Marten to any version from `7.0.0` onward, you
+are still affected** — pinning *backwards*, or to any 8.x, does not help. Only `9.13.0` or later does.
+
+**The remedy is now a version, not a workaround: upgrade to `10.0.0-alpha.12` or later.** We verified
+this against the published manifest rather than our own source — `alpha.12` declares
+`<dependency id="Marten" version="9.13.0" />` and `alpha.11` declares `9.12.0`.
+
+> **This paragraph previously said the opposite, and said it for a day.** It read: *"Our source has
+> since moved to `9.13.0`, and that does not help you yet … overriding the Marten version yourself is
+> the remedy that exists today."* That was true when written and became false when `alpha.12` was
+> published on 2026-09-25. It is quoted here rather than deleted because it erred in the direction
+> that keeps you on a vulnerable library: it told you no fixed version existed while one did. If you
+> pinned Marten manually on the strength of it, that override is no longer needed, though it is
+> harmless provided you pinned forward to `9.13.0` or later.
+
+**This was in every version we had published up to and including `alpha.11`.** We checked each one's manifest on nuget.org rather than
+inferring it from our source:
+
+| Package | Versions | Declares |
+|---|---|---|
+| `Excalibur.Outbox.Marten` | `10.0.0-alpha.4` through `10.0.0-alpha.11` — all 8 | `Marten` `9.12.0` |
+
+**Why it reaches you even though you never asked for 9.12.0.** Our manifest names `9.12.0` without
+brackets, which NuGet reads as a *minimum*, not a pin. NuGet then applies its lowest-applicable-version
+rule and restores exactly `9.12.0` — the vulnerable one — unless something else in your graph asks for
+more. So the default outcome of installing this package is the vulnerable version.
+
+**Your own build probably told you this already — and if it did not, that silence is not evidence.**
+Our packages target `net10.0` only, and on .NET 10 and later NuGet's dependency audit defaults to
+auditing **transitive** packages, not just direct ones. So an ordinary `dotnet restore` reports the
+vulnerable Marten pin as `NU1903`/`NU1904`, on every restore, without needing anything from us. **If
+you have seen that warning, it is this — the same finding, not a second one**, and the ids above should
+reconcile with whatever your own scanning reported.
+
+**Two cases where you would not have been told**, which is why this entry exists rather than leaving it
+to your toolchain:
+
+- you set `NuGetAuditMode` to `direct`, or suppressed `NU1903`/`NU1904`. That is a default control
+  switched off rather than something we concealed — but it does mean the warning never reached you.
+- the audit **warns**; it only fails the build if you treat warnings as errors. A warning in a noisy
+  restore log is easy to have scrolled past.
+
+**What to do — and you do not need a release from us.** Add a direct reference to a fixed Marten
+alongside our package:
+
+```xml
+<PackageReference Include="Marten" Version="9.13.0" />
+```
+
+NuGet's *direct dependency wins* rule means your reference overrides the transitive one, and because
+this is an upgrade it raises no downgrade warning. **The vulnerability is entirely in the dependency, so
+pinning it removes your exposure completely** — there is nothing left for us to fix on your behalf.
+
+**Not yet fixed in any released version.** There is no version of `Excalibur.Outbox.Marten` you can
+upgrade to that resolves this. We are not asking you to wait for one: the workaround above is a complete
+remedy and it is under your control today. This entry will name a fixed version when one ships.
+
+**What we have not established, stated so you can judge the urgency yourself.** We have confirmed the
+vulnerable dependency is in your graph. We have **not** determined whether our own outbox queries reach
+an unescaped code path — our store does use Marten's LINQ provider, and most of its predicates compare
+enums, integers and timestamps rather than strings. **Nor have we assessed the tenant-management paths
+at all**, which the advisory names alongside LINQ. **Treat that as unfinished work on our side, not as
+reassurance.**
+
+**And it would not change your exposure even if we finished it and the answer were "we never reach it."**
+The vulnerable library is loaded into your process. Your own code queries Marten through the same
+session our store uses, so the unescaped path is reachable from your application whether or not our
+outbox happens to touch it. **What our store does bounds *our* culpability, not *your* risk** — so if we
+later publish "the outbox does not reach the vulnerable path," read that as narrowing where the fault
+lies, never as a reason to unpin Marten.
+
+**Applies only if you use the Marten outbox store.** The other outbox providers do not reference Marten.
+
+#### Published pre-release packages carry a benchmarking harness as a direct dependency
+
+**What you see.** If you restored `10.0.0-alpha.8`, your dependency graph contains `BenchmarkDotNet` and three compiler-platform packages that nothing in your application uses. 103 of the 195 packages published at that version declare the harness directly, so most of the framework brings it in. You will see it in your lock file, in a restore-graph listing, and in any dependency or supply-chain scan you run against your build.
+
+This affects what you restore and audit, not what you run: nothing in the framework calls into the harness at runtime, so there is no behavioural change and no code of yours to alter. The cost is a larger restore, additional packages in your lock file, and additional entries a scanner will attribute to your application.
+
+**How it happened.** One package referenced the harness without marking it as a build-time-only dependency, and this repository pins transitive package versions centrally. That combination promotes a transitive reference to a direct one at every package that depends on it, and packing writes direct references into the published manifest. It reached every package with a path to the one that carried it — 102 of them, plus the package itself.
+
+**What you must do.** Move to a pre-release later than `10.0.0-alpha.8`. There is no useful workaround while you remain on it: the dependency is declared in the published manifest, so it is resolved before any setting in your own project applies. Excluding its assets stops it being referenced by your compilation but does not remove it from your restore graph or from a scanner’s view.
+
+Later versions do not carry it, and the packaging pipeline now fails the build if any shipped package declares a dependency from a category that cannot be correct at your runtime — benchmarking harnesses, test frameworks, mocking and assertion libraries, analyzers, and the compiler platform among them.
 
 ---
 
-### GDPR data-portability and subject-access requests report success having done nothing
+---
 
-:::danger These produce evidence a regulator may read
-The built-in Article 20 export returns `Completed` — with a data size — having read, serialised and
-written nothing. The built-in Article 15 request can be marked `Fulfilled` at the instant it is
-created. Neither is detectable from outside: a completed export with a plausible size looks exactly
-like a real one.
+### Test fixtures
+
+#### The bundled Cosmos DB emulator fixture cannot connect using its documented approach
+
+**What you see.** Calls made through a `CosmosClient` built against `CosmosDbContainerFixture` may never reach the emulator. Rather than failing quickly, requests repeat and hang.
+
+**What you must do.** Set **both** `LimitToEndpoint` and `SerializerOptions` on the client options:
+
+```csharp
+var options = new CosmosClientOptions
+{
+    LimitToEndpoint = true,
+    ConnectionMode = ConnectionMode.Gateway,
+    SerializerOptions = new CosmosSerializationOptions
+    {
+        PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase,
+    },
+};
+```
+
+:::danger `SerializerOptions` is not optional, and omitting it fails silently
+An earlier version of this page showed only `LimitToEndpoint` and `ConnectionMode`. **Following that incomplete recipe produces a client whose point-reads silently miss.** The Cosmos SDK's default serializer emits PascalCase property names, so a client built without the naming policy writes `Id` where a later point-read looks for `id` — and the read returns nothing for a document that is present, with no error. If you built a client from our previous instructions, add `SerializerOptions`.
 :::
 
-**What happens.** Two GDPR services ship as the default behind public registration calls.
-
-`AddDataPortability()` registers an Article 20 exporter whose `ExportAsync` returns
-`Status = ExportStatus.Completed` unconditionally. Nothing is read from any store, nothing is
-serialised, and nothing is written — the result type carries no payload, path or URI, so there is
-nowhere an export could be placed even in principle. The `DataSize` field, documented as the byte count
-of the exported data, is filled with the number of discovered data locations multiplied by 1024.
-
-`AddSubjectAccessRequests()` registers an Article 15 service with an `AutoFulfill` option. With it set,
-a request is created with `Status = Fulfilled` and `FulfilledAt = ` the current time, in the same
-operation that creates it — before anything could have been gathered or sent.
-
-**Are you affected?** You are affected if you call either registration and treat its result as evidence
-that a data-subject request was satisfied. You are not affected if you registered your own
-implementation of either interface: both use `TryAdd`, so yours takes precedence and the built-in one
-is never constructed.
-
-**What that exposes.** A subject-access or portability response recorded as fulfilled when no data was
-produced. The consequence is not a runtime fault — it is a compliance record that overstates what was
-done, and the audience for it is a regulator or an auditor reviewing your controls.
-
-**What to do now.** Register your own `IDataPortabilityService` and `ISubjectAccessService` before
-calling the `Add*` methods, and treat any completion these services previously recorded as unverified.
-Only you can decide what to export, in what shape, and where it goes.
-
-**Which versions are affected.** Every published 10.x version. We have not assessed the older 3.x line
-— do not read that as clean.
-
-**Is there a fixed version?** **`10.0.0-alpha.13`**, and the fix is a deliberate breaking change rather
-than a silent repair: the built-in exporter now **refuses** with an
-error naming the remedy instead of reporting a completed export, and the `AutoFulfill` option is
-**removed** so a request is always created `Pending` and can only become `Fulfilled` through the
-explicit `FulfillRequestAsync` call that records an act you actually performed. If you relied on
-`AutoFulfill`, that reliance was on a value that never reflected any work.
-
----
+The endpoint option was established by execution against the emulator, using client options alone with nothing taken from the fixture. It addresses the advertised-endpoint obstacle; your environment may impose others beyond it. The fixture owns only the container lifecycle and the connection string, and the emulator can be slow to become ready — keep test timeouts generous.
 
 ## Unverified areas
 
@@ -2477,71 +1775,11 @@ Three separate things are true about Cosmos DB in this release, and they are eas
 
 ---
 
-## Resolved since the last update
+## Resolved
 
-Listed rather than deleted, so a fixed issue is distinguishable from a forgotten one.
+Fixed issues have moved to **[Resolved issues](resolved-issues.md)**, with the release each fix landed in and how we confirmed it.
 
-**Each entry below now states where the fix is, and how we know.** Where an entry says *confirmed in*
-a version, we read the discriminating type or member out of that published package's own assembly — not out
-of our repository. Where we could not confirm it against a published package, the entry says so plainly
-rather than implying a release.
-
-Confirmation at this level means the code is **present** in the package you can install. It is not a
-statement that it was executed there. **Verify against the package you actually restored** before treating
-any entry as closing a risk for you.
-
-- **Erasure and legal-hold reads are now tenant-scoped.**
-  **Confirmed present in `Excalibur.Compliance` `10.0.0-alpha.10`** for the in-memory stores — the tenant
-  derivation and the untenanted sentinel are both in that package's shipped assembly. **The SQL Server and
-  PostgreSQL compliance packages were not checked**: we hold no copy of them to read, so for those two
-  providers this is unestablished, not confirmed.
-  Previously disclosed as unscoped, including a
-  case where a tenant-wide legal hold was not consulted at all when no tenant was supplied, so an
-  irreversible erasure could proceed past it. All six stores (SQL Server, PostgreSQL and in-memory, for
-  both erasure requests and legal holds) now derive their tenant term from the ambient tenant context
-  through a single derivation point, and a caller-supplied tenant is **ANDed onto** that term rather than
-  replacing it — so the argument can only narrow a result, never widen it. Both contracts are now in the
-  set `AddMultiTenancy()` checks, so a multi-tenant host that registers an unscoped implementation fails
-  at startup instead of leaking at runtime.
-  Reading and mutating a hold are deliberately asymmetric: a tenant **sees** an estate-wide hold, because
-  it blocks that tenant's erasures, but cannot **modify** one — otherwise a tenant could re-home an
-  estate-wide preservation order into its own partition and silently lift it for everyone else.
-  **Not yet proven on PostgreSQL:** the structural fix is in place there, but no test runs against a real
-  PostgreSQL server to detect a regression, so treat that provider as fixed-but-unverified.
-  Background sweeps that expire holds and drain scheduled erasure requests remain deliberately
-  estate-wide; scoping them to one tenant would stall erasure for every other tenant and make expired
-  holds permanent.
-- **The Cosmos DB, DynamoDB, Firestore and MongoDB event stores now confine tenants.**
-  **Not confirmed against any published package.** The change landed on 2026-08-24, which is before the
-  `10.0.0-alpha.10` packages were published, so it may well be in them — but we hold no copy of those four
-  packages to read, and "before the release date" is not the same as "in the release". Treat this as
-  unestablished for your installation and check the behaviour below against the package you restored.
-  Previously
-  disclosed as not separating tenants at all: their document keys were composed from the aggregate type and
-  aggregate id, so two tenants writing the same aggregate id shared one document set and one version
-  sequence, and a read under either returned the other's events. All four now compose the owning tenant
-  into the document key as its leading segment, which makes a cross-tenant read unaddressable rather than
-  merely filtered and gives each tenant its own version sequence. The shared conformance kit's three tenant
-  arms — including the one that catches a filter-only fix, where two tenants sharing an aggregate id must
-  version it independently — pass against real MongoDB, DynamoDB Local, and the Cosmos DB and Firestore
-  emulators. A multi-tenant host may now register any of the four under either isolation strategy.
-  **This changed the stored key shape.** Documents written by an earlier version are not addressable by the
-  new key until re-keyed. Nothing is destroyed and no *startup* check fires, but the store no longer serves
-  them as an empty stream: the first read that would have reported a false absence throws
-  `InvalidOperationException` naming the collection and the offending key, and modifies nothing. **The same
-  change applies to the saga stores on those four providers**, where an unguarded false absence would have
-  made a coordinator restart a saga and re-fire every compensating action it had already performed.
-  See [Cosmos DB, DynamoDB, Firestore and MongoDB keys carry the tenant](./migration/nosql-tenant-key-rekey.md).
-- **Inbox reads are now tenant-scoped.**
-  **Confirmed present in `Excalibur.Inbox.SqlServer` `10.0.0-alpha.10`** — the tenant partition helper is in
-  that package's shipped assembly. **The other inbox providers were not checked**, for the same reason: we
-  hold no copy of those packages.
-  Previously disclosed as unscoped across the board. The relational stores (SQL Server, PostgreSQL, Oracle) now apply a tenant predicate to their read, claim and merge paths and fail closed when a tenant is active but unresolved; the document and cache stores (MongoDB, Cosmos DB, DynamoDB, Firestore, Redis, Elasticsearch) carry the tenant inside the stored key, so a keyed read cannot cross tenants. The in-memory store is the exception and is listed above.
-- **The unexplained not-found responses from the Cosmos DB snapshot store are explained, and were never a provider fault.**
-  **No version applies to this one.** The fault was in our own test harness and was never in any shipped
-  package, so there is nothing for you to upgrade to. We disclosed seeing not-found responses for a database that should have existed, and said we did not know the cause and could not rule out the provider. We since determined it: our own test teardown deleted a database shared by the whole test class, so the first test destroyed it for every test that followed. It was our test harness. **Nothing about it affected consumers, and the previous entry implying the provider might be at fault was wrong.**
-
----
+They are listed rather than deleted so that a fixed issue stays distinguishable from a forgotten one. They are not on this page so that this page answers one question only: what is still wrong.
 
 ## See also
 

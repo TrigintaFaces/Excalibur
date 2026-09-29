@@ -117,7 +117,6 @@ services.Configure<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions>(o
 	options.PartitionKeyPath = "/streamId";
 	options.CreateContainerIfNotExists = true;
 	options.ContainerThroughput = 400; // Minimum for development
-	options.UseTransactionalBatch = true;
 	options.MaxBatchSize = 100;
 	options.ChangeFeedPollIntervalMs = 1000;
 });
