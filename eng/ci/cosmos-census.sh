@@ -39,6 +39,15 @@ census_disagreement() {
     return 0
 }
 
+# 0 (true) when two enumerations of the same tree differ as sorted MULTISETS. Sorted, so a
+# reordering between passes is not a finding; multiset, so a lost or duplicated case is. Compared by
+# content rather than by count, which also catches the pass that loses one test and gains another.
+enumeration_disagrees() {
+    ! diff -q <(printf '%s
+' "$1" | sort) <(printf '%s
+' "$2" | sort) >/dev/null 2>&1
+}
+
 # --- self-test -------------------------------------------------------------------------------------
 # SAFETY arm: the census REFUSES when a Cosmos class is invisible to the filter.
 # LIVENESS arm: it PASSES a healthy tree. Without the second arm this gate is satisfied by refusing
@@ -136,6 +145,37 @@ EOF
         && { echo "  liveness: scope=out rejected a clean emulator-free filter — FAIL"; st_fail=1; } \
         || { echo "  liveness: scope=out accepts an emulator-free filter — PASS"; }
 
+    # SAFETY: two enumerations that disagree must REFUSE. This is the arm for the defect that
+    # produced this control: a pass that silently returns fewer tests than exist, exits 0, and lowers
+    # the bar every downstream count is measured against.
+    if enumeration_disagrees "$(printf 'A.One
+A.Two
+A.Three')" "$(printf 'A.One
+A.Two')"; then
+        echo "  safety:   a short second enumeration REFUSES — PASS"
+    else
+        echo "  safety:   a short second enumeration was ACCEPTED — FAIL"; st_fail=1
+    fi
+
+    # SAFETY: equal COUNTS are not agreement. A pass that loses one test and gains another has the
+    # same total, and a count comparison would wave it through.
+    if enumeration_disagrees "$(printf 'A.One
+A.Two')" "$(printf 'A.One
+A.Three')"; then
+        echo "  safety:   same count, different names REFUSES — PASS"
+    else
+        echo "  safety:   same count with different names was ACCEPTED — FAIL"; st_fail=1
+    fi
+
+    # LIVENESS: identical enumerations must be accepted, or every run refuses and the gate is inert.
+    if enumeration_disagrees "$(printf 'A.Two
+A.One')" "$(printf 'A.One
+A.Two')"; then
+        echo "  liveness: identical enumerations were REJECTED — FAIL"; st_fail=1
+    else
+        echo "  liveness: identical enumerations (any order) are accepted — PASS"
+    fi
+
     # SAFETY: an unknown scope must REFUSE rather than silently defaulting to one of the two policies.
     if bash "$0" x y z bogus-scope >/dev/null 2>&1; then
         echo "  safety:   an unknown --emulator-scope was ACCEPTED — FAIL"; st_fail=1
@@ -170,11 +210,85 @@ esac
 fail() { echo "::error::REFUSE — $*" >&2; exit 3; }
 
 # --- EXPECTED: the full admitted population, enumerated not run (no emulator required) ---------------
+# ENUMERATE ONE PROJECT AT A TIME, AND DO IT TWICE.
+#
+# This step was not reproducible. Measured on two consecutive CI runs of the dispatch shard, against
+# an executed population that was 1907 both times, it reported EXPECTED=1907 and then EXPECTED=1833.
+# The 74 it dropped were not recognisable as a group -- same traits, same [Fact], same assemblies and
+# the same shared conformance kit as tests that enumerated fine, splitting part-way through two
+# classes rather than along any boundary in the source. The run with the low reading REFUSED a shard
+# in which every test passed, and it named the tests as the fault.
+#
+# Enumerating the whole filter in one invocation sends every project's listing to a single stdout.
+# That is the only mechanism anyone has named, and it is removed here rather than mitigated: each
+# project is enumerated by its own invocation, into its own file.
+#
+# Measured on the dispatch shard, per project, against that run's own TRX:
+#
+#   Excalibur.Dispatch.Integration.Tests   1710      TRX 1710
+#   Excalibur.Inbox.Oracle.Tests             93      TRX   93
+#   Excalibur.Outbox.Oracle.Tests           104      TRX  104
+#                                          ----
+#                                          1907      executed 1907
+#
+# A PROJECT THAT YIELDS ZERO IS A REFUSAL, NOT A ZERO. That is the arm the single-invocation form
+# could not have: a shortfall now has to show up as an empty project rather than as a thinner listing,
+# and an empty test project is something this can actually see. It is also why the projects are
+# classified by IsTestProject rather than by trying them and ignoring what fails -- ignoring failures
+# is how a missing assembly becomes a smaller EXPECTED, which is a weaker gate that still passes.
+slnf_projects() {
+    python3 - "$SLNF" <<'PYEOF'
+import json, sys, os
+# Written through sys.stdout.buffer, in bytes, with an explicit LF. print() would emit CRLF on
+# Windows and `read` does not strip the CR, so every path reached MSBuild with a carriage return on
+# the end and came back as MSB1009 "project file does not exist" -- which reads as a missing project
+# rather than as a line-ending fault, and cost an hour finding that out.
+with open(sys.argv[1], encoding='utf-8-sig') as fh:
+    doc = json.load(fh)
+sln = doc.get('solution', {})
+slnf_dir = os.path.dirname(os.path.abspath(sys.argv[1]))
+root = os.path.dirname(os.path.normpath(os.path.join(slnf_dir, sln.get('path', '.').replace(chr(92), '/'))))
+out = []
+for rel in sln.get('projects', []):
+    out.append(os.path.normpath(os.path.join(root, rel.replace(chr(92), '/'))).replace(chr(92), '/'))
+sys.stdout.buffer.write(''.join(line + chr(10) for line in out).encode('utf-8'))
+PYEOF
+}
+
+# 'true' only for a project the SDK itself considers a test project. Evaluated by MSBuild rather than
+# read out of the file, so a value inherited from Directory.Build.props is seen -- a regex over the
+# csproj text is blind to it and would silently skip a real test project.
+is_test_project() {
+    [ "$(dotnet msbuild "$1" -getProperty:IsTestProject -nologo 2>/dev/null | tr -d '[:space:]')" = "true" ]
+}
+
+enumerate_expected() {
+    local out="$1" proj one enumerated_any=0 n
+    : >"$out"
+    while IFS= read -r proj; do
+        proj="${proj%$''}"   # also strip it here: the slnf itself may carry CRLF
+        [ -n "$proj" ] || continue
+        is_test_project "$proj" || continue
+        one="$(mktemp)"
+        if ! dotnet test "$proj" --configuration Release --no-build --list-tests --filter "$FILTER" -m:1 >"$one" 2>&1; then
+            cat "$one" >&2; rm -f "$one"
+            fail "could not enumerate $proj (dotnet test --list-tests failed). EXPECTED is the bar every downstream count is measured against; continuing without this project would lower it."
+        fi
+        n="$(grep -cE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z_][A-Za-z0-9_]*' "$one" || true)"
+        if [ "$n" -eq 0 ]; then
+            rm -f "$one"
+            fail "$proj is a test project but enumerated 0 tests under the filter. A project that contributes nothing is indistinguishable from one that was skipped, and both lower EXPECTED silently."
+        fi
+        cat "$one" >>"$out"; rm -f "$one"
+        enumerated_any=1
+    done < <(slnf_projects)
+    [ "$enumerated_any" -eq 1 ] || fail "no test project in $SLNF was enumerated. An empty population satisfies every downstream comparison while measuring nothing."
+}
+
 listing="$(mktemp)"
-if ! dotnet test "$SLNF" --configuration Release --no-build --list-tests --filter "$FILTER" >"$listing" 2>&1; then
-    cat "$listing" >&2
-    fail "could not enumerate the EXPECTED set (dotnet test --list-tests failed)"
-fi
+listing_b="$(mktemp)"
+enumerate_expected "$listing"
+enumerate_expected "$listing_b"
 
 # Test lines are indented under "The following Tests are available:"; take fully-qualified names only.
 # TWO lists from one extraction, because the two consumers need OPPOSITE things.
@@ -195,6 +309,25 @@ expected_test_lines="$(grep -oE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z_]
     | sed 's/^[[:space:]]*//')"
 expected_tests="$(printf '%s\n' "$expected_test_lines" | sort -u)"
 EXPECTED="$(printf '%s\n' "$expected_test_lines" | grep -c . || true)"
+
+# THE DETERMINISM CONTROL. Two independent enumerations of the same tree must agree exactly. They
+# are compared as sorted multisets, so a reordering is fine and a lost or duplicated case is not.
+#
+# This is the arm that catches the failure the error-text grep below cannot: an enumeration that
+# quietly returns fewer tests than exist, exits 0, and says nothing. A single pass has no way to
+# know it was short -- there is nothing to compare it against -- so the second pass is not
+# belt-and-braces, it is the only available oracle for its own completeness.
+expected_b_lines="$(grep -oE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z_][A-Za-z0-9_]*' "$listing_b" \
+    | sed 's/^[[:space:]]*//')"
+EXPECTED_B="$(printf '%s\n' "$expected_b_lines" | grep -c . || true)"
+
+if enumeration_disagrees "$expected_test_lines" "$expected_b_lines"; then
+    echo "::error::first pass enumerated $EXPECTED, second pass $EXPECTED_B" >&2
+    diff <(printf '%s\n' "$expected_test_lines" | sort) <(printf '%s\n' "$expected_b_lines" | sort) \
+        | grep -E '^[<>]' | head -20 >&2 || true
+    fail "enumeration is not reproducible ($EXPECTED vs $EXPECTED_B on the same tree). EXPECTED is the bar every downstream count is measured against, so an unreproducible one certifies whichever population it happened to see. The names above are the difference between the two passes."
+fi
+
 
 [ "${EXPECTED:-0}" -gt 0 ] || fail "EXPECTED census returned 0 tests. A population of zero satisfies every downstream comparison while measuring nothing."
 
