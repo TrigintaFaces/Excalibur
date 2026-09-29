@@ -659,11 +659,122 @@ runs can.
 
 ## Known gaps
 
-- **DynamoDB and Cosmos DB expose a documented non-atomic opt-out** (`UseTransactionalWrite=false`,
-  `UseTransactionalBatch=false`). On those paths the append is committed per item and a failure partway
-  through *can* leave a partial stream. This is the consumer's explicit trade, made by configuration, and
-  the limit is not enforced there. The guarantee above describes the default, atomic configuration, which
-  is what the conformance suites register. Firestore offers no such opt-out.
+- **There is no non-atomic opt-out on any provider.** DynamoDB and Cosmos DB previously exposed one
+  (`UseTransactionalWrite=false`, `UseTransactionalBatch=false`) which permitted an append larger than the
+  provider's atomic limit by writing the events one at a time. Both are **removed**. The flag bought
+  throughput with silent, permanent corruption — a failure partway left a prefix with no suffix, and no
+  later read distinguishes that from a stream never written further — and it was reachable by
+  configuration alone, on a guarantee this document states in absolute terms. A caller with more events
+  than the limit splits the append; the exception carries `ActualCount` and `MaxBatchSize` so the split is
+  mechanical.
+- **A single-event append does not use a transaction, and does not need one.** One item write is atomic by
+  itself, so Cosmos issues a plain create and DynamoDB a conditional `PutItem`. On DynamoDB that also
+  avoids the doubled write cost and the additional IAM permission `TransactWriteItems` requires — which is
+  the one legitimate saving the removed flag offered, kept where it is honest and withdrawn where it was
+  not.
+
+# Architecture — Append Reporting
+
+## Guarantee
+
+**An append is reported successful if and only if its events are durably present.** `AppendAsync` returns
+success exactly when the records carrying *that call's* event identifiers are in the stream — including
+when an earlier attempt by the same caller is what put them there — and returns a concurrency conflict
+exactly when the version it targeted was taken by somebody else.
+
+The falsifiable form: append one event to a new stream, then present **the same event, with the same
+identifier, at the same expected version** a second time. The second call must report **success**, and the
+stream must then hold **exactly one** event. A store that reports a conflict there fails; a store that
+reports success but holds two events fails.
+
+**Why this is not a cosmetic distinction.** A concurrency conflict's documented remedy is reload-and-retry.
+If a store reports a conflict for an append whose events are already present, the caller reloads, re-applies
+the command, and appends the same business event again at the *next* version — where no uniqueness key can
+catch it, because the version differs. The duplicate is permanent, no read distinguishes it from two
+genuine events, and every replay applies it twice. **Reporting a conflict in that state is not the cautious
+answer; it is a duplicate generator.**
+
+This matters without any concurrency at all. A commit that reaches the server and whose acknowledgement is
+lost — a connection reset, a command timeout, a pause past the client timeout — leaves the events durably
+written and the caller believing they were not.
+
+## How it is achieved (the seam)
+
+Ask which records are present, by identity, before classifying anything. A moved version, an occupied
+slot, and a duplicate-key violation all say *somebody wrote here* and none of them says *who*: "another
+writer took my version" and "I took it myself and lost the acknowledgement" move the stream identically,
+so any classifier reading the version alone must get one of the two cases wrong.
+
+Two moments need the question asked, and they cover different reachable states:
+
+- **Before the write**, where the version is found already moved — a previous invocation committed.
+- **After a failed write**, where the pre-check matched and could not have seen anything — this invocation
+  committed and its acknowledgement was lost.
+
+`FirestoreEventStore.cs:432` shows the in-transaction form: the slot after the expected version is read for
+the conflict check anyway, so comparing the stored event identifier against this call's costs no extra round
+trip. `SqlServerEventStore.cs:519` shows the after-failure form.
+
+Where a provider offers its own idempotency primitive, that is used in preference to inferring the answer
+afterwards: `DynamoDbEventStore.cs` presents a deterministic `ClientRequestToken` on `TransactWriteItems`,
+derived from the stream, the expected version and the first event identifier, so a retried transaction is
+recognised by the service rather than reconstructed by us.
+
+### The property this rests on, which other subsystems must not break
+
+The probe reads committed state **outside** the write transaction, and that is sound for one reason only:
+
+> **The store is append-only. Once a row carrying event identifier `e` exists in a stream, it exists in
+> every later state.**
+
+A predicate that is monotone in that order needs no transaction to be read. A positive answer taken at one
+instant is still true at every later instant, and staleness can only make the probe read *false* when the
+truth has since become *true* — which yields a concurrency conflict, which is the behaviour without the
+probe at all, and therefore safe.
+
+**What would break it.** Any path that **reassigns** an event identifier on an existing row. Deletion is
+safe — it can only turn a positive into a negative, which degrades to a conflict. Rewriting a row while
+preserving its identifier is safe. Rewriting a row and giving it a *different* identifier is not: the probe
+would then fail to recognise a write that did happen, and the duplicate this guarantee exists to prevent
+comes back.
+
+Right-to-erasure, retention trimming and stream compaction must therefore preserve or remove event
+identifiers, never reassign them.
+
+## Evidence (conformance)
+
+`EventStoreConformanceTestKit.ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate`, wired by every
+provider suite. It needs no fault injection: re-presenting the same events at the same expected version is
+what a driver retry after a lost acknowledgement looks like from outside the store, and what a caller's own
+retry looks like. It asserts both halves — success reported, and exactly one event in the stream.
+
+## Consumer obligations
+
+- **An event identifier names a business event, not an attempt.** A caller retrying the same business
+  command must present the **same** event identifier. This is what makes the store able to recognise its own
+  earlier write.
+- **A caller that mints a fresh identifier per attempt does not get this guarantee.** The store cannot
+  recognise the retry, reports a conflict, and the caller must be idempotent downstream. This degrades to
+  at-least-once rather than becoming unsafe.
+- **Do not reuse an identifier for a different business event.** That is the one direction the store cannot
+  defend against: it will recognise the identifier, report success, and the second event will never be
+  written.
+
+## Known gaps
+
+- **Every provider satisfies this.** Cosmos DB, DynamoDB, Firestore, MongoDB, SQL Server, PostgreSQL,
+  Oracle, SQLite and Redis all pass the conformance arms above against real infrastructure, as does the
+  in-memory store. Redis reaches the guarantee by a different mechanism — an idempotency marker maintained
+  inside the same Lua script as the append, because a stream offers no keyed read by event identifier — and
+  its recognition window is correspondingly narrower: it covers a retry of the most recent append to a
+  stream, not one arriving after another writer has appended.
+- **The in-memory store satisfies it**, and is the reference the provider suites are read against.
+- **The probe witnesses the LAST event of the batch, not the first.** Events are written in version
+  order, so the last one present implies every earlier one is too — a witness that holds whether or not the
+  write was a single atomic operation. An earlier revision of this probe witnessed the first event and
+  reported the whole batch from it, which would have reported success over a torn prefix on any
+  non-atomic path. That path no longer exists either, so the two defences are independent.
+
 
 # Architecture — Stored Message Identity
 

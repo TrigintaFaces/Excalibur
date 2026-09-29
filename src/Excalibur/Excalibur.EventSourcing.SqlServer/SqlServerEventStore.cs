@@ -478,6 +478,28 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 				// Roll back immediately. Do NOT invoke stageOutbox on a conflict — nothing must be staged
 				// when the append is rejected (EC-K.2).
 				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+
+				// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING.
+				//
+				// A moved version says somebody wrote here; it does not say WHO. A retry of an append whose
+				// acknowledgement was lost arrives HERE, at the pre-check, because its own committed write is
+				// what moved the version -- so the read-back further down, on the exception path, is never
+				// reached on this path and cannot help. Reporting a conflict instead sends the caller to
+				// reload-and-retry, which appends the same business event again at the NEXT version, where the
+				// stream uniqueness key cannot catch it because the version differs.
+				//
+				// Sound outside the transaction: the store is append-only, so once a row carrying event id e
+				// exists it exists in every later state. A stale read can only miss it, which yields the
+				// conflict we would have reported anyway.
+				var committedOnRetry = await ReadCommittedAppendOutcomeAsync(connection, eventList, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
+				{
+					activity.SetOperationResult(EventSourcingTagValues.Success);
+					return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+				}
+
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
@@ -803,6 +825,28 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			{
 				// Explicit rollback rather than waiting for DisposeAsync.
 				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+
+				// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING.
+				//
+				// A moved version says somebody wrote here; it does not say WHO. A retry of an append whose
+				// acknowledgement was lost arrives HERE, at the pre-check, because its own committed write is
+				// what moved the version -- so the read-back further down, on the exception path, is never
+				// reached on this path and cannot help. Reporting a conflict instead sends the caller to
+				// reload-and-retry, which appends the same business event again at the NEXT version, where the
+				// stream uniqueness key cannot catch it because the version differs.
+				//
+				// Sound outside the transaction: the store is append-only, so once a row carrying event id e
+				// exists it exists in every later state. A stale read can only miss it, which yields the
+				// conflict we would have reported anyway.
+				var committedOnRetry = await ReadCommittedAppendOutcomeAsync(connection, eventList, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
+				{
+					activity.SetOperationResult(EventSourcingTagValues.Success);
+					return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+				}
+
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}

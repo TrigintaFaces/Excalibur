@@ -41,7 +41,7 @@ public sealed class DynamoDbEventStoreChunkedAppendAtomicityShould : IClassFixtu
 		_fixture = fixture;
 	}
 
-	private IEventStore CreateStore(bool transactional = true)
+	private IEventStore CreateStore()
 	{
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"LocalStack DynamoDB container must be available - real-infra atomicity is never skipped: "
@@ -51,7 +51,6 @@ public sealed class DynamoDbEventStoreChunkedAppendAtomicityShould : IClassFixtu
 		{
 			EventsTableName = $"{_fixture.TableName}_{Guid.NewGuid():N}",
 			CreateTableIfNotExists = true,
-			UseTransactionalWrite = transactional,
 		});
 		return new DynamoDbEventStore(_fixture.Client, _fixture.StreamsClient, options, NullLogger<DynamoDbEventStore>.Instance, UntenantedContext.Instance);
 	}
@@ -67,7 +66,7 @@ public sealed class DynamoDbEventStoreChunkedAppendAtomicityShould : IClassFixtu
 	[Fact]
 	public async Task Reject_an_oversized_append_at_the_boundary_without_any_partial_write()
 	{
-		var store = CreateStore(transactional: true);
+		var store = CreateStore();
 		var aggregateId = $"agg-{Guid.NewGuid():N}";
 
 		// > 100 events cannot be appended atomically on DynamoDB → rejected before any write.
@@ -82,7 +81,7 @@ public sealed class DynamoDbEventStoreChunkedAppendAtomicityShould : IClassFixtu
 	[Fact]
 	public async Task Append_a_max_size_batch_atomically_in_full()
 	{
-		var store = CreateStore(transactional: true);
+		var store = CreateStore();
 		var aggregateId = $"agg-{Guid.NewGuid():N}";
 
 		// Exactly the 100-item boundary commits atomically in full.
@@ -97,19 +96,35 @@ public sealed class DynamoDbEventStoreChunkedAppendAtomicityShould : IClassFixtu
 	}
 
 	[Fact]
-	public async Task Allow_an_oversized_append_on_the_non_transactional_opt_out_path()
+	public async Task Refuse_an_oversized_append_under_every_configuration()
 	{
-		// Scope guard (SA over-rejection finding): the 100-item cap is TransactWriteItems-specific. The opt-out
-		// per-item PutItem path (UseTransactionalWrite=false) may legitimately append >100 (best-effort), so the
-		// reject must NOT fire here — a regression that rejected on this path would fail this test.
-		var store = CreateStore(transactional: false);
+		// SUPERSEDED ARM. This previously asserted the opposite -- that a >100 append SUCCEEDS on the
+		// non-transactional opt-out path -- because that path existed and accepted it best-effort. The
+		// opt-out is removed: it bought throughput with a torn prefix no later read could detect, and
+		// there is now no configuration in which an oversized append is accepted.
+		var store = CreateStore();
 		var aggregateId = $"agg-{Guid.NewGuid():N}";
-		const int oversized = 150;
 
-		var result = await store.AppendAsync(aggregateId, AggregateType, NewBatch(aggregateId, oversized), expectedVersion: -1, CancellationToken.None);
-		result.Success.ShouldBeTrue("the non-transactional opt-out path must accept a >100-event append (no TransactWriteItems cap)");
+		_ = await Should.ThrowAsync<ArgumentOutOfRangeException>(
+			async () => await store.AppendAsync(aggregateId, AggregateType, NewBatch(aggregateId, 150), expectedVersion: -1, CancellationToken.None));
 
 		var loaded = await store.LoadAsync(aggregateId, AggregateType, CancellationToken.None);
-		loaded.Count.ShouldBe(oversized, "the opt-out path persists the whole >100 append");
+		loaded.Count.ShouldBe(0, "no configuration may accept an oversized append, and none may leave a partial stream");
+	}
+
+	[Fact]
+	public async Task Append_a_single_event_without_a_transaction_and_still_commit_it()
+	{
+		// The single-event fast path is the one saving the removed flag legitimately offered: one
+		// conditional PutItem is atomic by itself, so it skips TransactWriteItems and its doubled write
+		// cost. It is kept, so it needs an arm -- otherwise the carve-out is untested.
+		var store = CreateStore();
+		var aggregateId = $"agg-{Guid.NewGuid():N}";
+
+		var result = await store.AppendAsync(aggregateId, AggregateType, NewBatch(aggregateId, 1), expectedVersion: -1, CancellationToken.None);
+		result.Success.ShouldBeTrue();
+
+		var loaded = await store.LoadAsync(aggregateId, AggregateType, CancellationToken.None);
+		loaded.Count.ShouldBe(1, "a single-event append commits without a transaction");
 	}
 }

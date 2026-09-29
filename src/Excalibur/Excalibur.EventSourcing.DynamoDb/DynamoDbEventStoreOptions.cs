@@ -33,12 +33,6 @@ public sealed class DynamoDbEventStoreOptions
 	public string SortKeyAttribute { get; set; } = "sk";
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to use transactions for appending events.
-	/// </summary>
-	/// <value>Defaults to <see langword="true"/>.</value>
-	public bool UseTransactionalWrite { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets the maximum batch size for DynamoDB Streams processing.
 	/// </summary>
 	/// <value>Defaults to 100.</value>

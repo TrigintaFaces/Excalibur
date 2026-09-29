@@ -95,7 +95,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		_ = A.CallTo(() => client.TransactWriteItemsAsync(A<TransactWriteItemsRequest>._, A<CancellationToken>._))
 			.ThrowsAsync(new TransactionCanceledException("transaction cancelled (no conditional-check failure)"));
 
-		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
+		var sut = CreateStore(client);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
 
 		// MS-01: the provider exception is normalized to a failure result rather than leaked. The
@@ -125,7 +125,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		_ = A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
 			.ThrowsAsync(new ConditionalCheckFailedException("conflict"));
 
-		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = false);
+		var sut = CreateStore(client);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1") };
 
 		var result = await sut.AppendAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 0, CancellationToken.None);
@@ -170,7 +170,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		_ = A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
 			.ThrowsAsync(new ConditionalCheckFailedException("conflict"));
 
-		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = false);
+		var sut = CreateStore(client);
 		var eventStore = (IEventStore)sut;
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1") };
 
@@ -204,7 +204,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 				CancellationReasons = [new CancellationReason { Code = "ConditionalCheckFailed" }]
 			});
 
-		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
+		var sut = CreateStore(client);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
 
 		var result = await sut.AppendAsync(
@@ -231,7 +231,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-tail", 4)] }));
 
-		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
+		var sut = CreateStore(client);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
 
 		var result = await sut.AppendAsync(
@@ -388,7 +388,6 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 			PartitionKeyAttribute = "pk",
 			SortKeyAttribute = "sk",
 			CreateTableIfNotExists = false,
-			UseTransactionalWrite = true
 		};
 		configure?.Invoke(options);
 

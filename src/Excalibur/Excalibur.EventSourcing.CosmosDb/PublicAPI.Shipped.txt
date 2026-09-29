@@ -42,8 +42,6 @@ Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.MaxConsecutiveCheckpo
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.MaxConsecutiveCheckpointFailures.set -> void
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.PartitionKeyPath.get -> string!
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.PartitionKeyPath.set -> void
-Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.UseTransactionalBatch.get -> bool
-Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.UseTransactionalBatch.set -> void
 Excalibur.EventSourcing.CosmosDb.EventSourcingBuilderCosmosDbExtensions
 Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder
 Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder!

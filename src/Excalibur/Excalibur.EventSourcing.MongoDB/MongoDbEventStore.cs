@@ -320,6 +320,12 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
 			aggregateId, aggregateType, eventList.Count, expectedVersion);
 
+		// Declared outside the try because the duplicate-key handlers need them: answering "did OUR OWN
+		// events land" requires the identifiers this call attempted to write, and a catch cannot see a
+		// variable scoped to the try.
+		var documents = new List<MongoDbEventDocument>(eventList.Count);
+		var firstPosition = 0L;
+
 		try
 		{
 			await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -328,6 +334,19 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			var currentVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 			if (currentVersion != expectedVersion)
 			{
+				// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING. A retry of an append whose
+				// acknowledgement was lost arrives HERE: its own committed write is what moved the version, so the
+				// duplicate-key handlers below are never reached on this path.
+				var committedOnRetry = await ReadCommittedAppendOutcomeAsync(
+					aggregateId, aggregateType, eventList, expectedVersion, cancellationToken).ConfigureAwait(false);
+
+				if (committedOnRetry is { } retryVersion)
+				{
+					activity.SetOperationResult(EventSourcingTagValues.Success);
+					result = WriteStoreTelemetry.Results.Success;
+					return AppendResult.CreateSuccess(retryVersion, firstPosition);
+				}
+
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 				result = WriteStoreTelemetry.Results.Conflict;
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
@@ -336,11 +355,11 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			// Reserve a contiguous block of global-sequence numbers with a SINGLE atomic Inc, rather than
 			// one FindOneAndUpdate round-trip per event. The block is [firstGlobalSequence ..
 			// firstGlobalSequence + count - 1], assigned to events in order.
-			var documents = new List<MongoDbEventDocument>(eventList.Count);
+			documents = new List<MongoDbEventDocument>(eventList.Count);
 			var version = currentVersion;
 			var firstGlobalSequence = await ReserveGlobalSequenceBlockAsync(eventList.Count, cancellationToken)
 				.ConfigureAwait(false);
-			var firstPosition = firstGlobalSequence;
+			firstPosition = firstGlobalSequence;
 			var globalSequence = firstGlobalSequence;
 
 			foreach (var named in eventList.AsNamedEvents())
@@ -409,7 +428,18 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		catch (MongoBulkWriteException<MongoDbEventDocument> ex)
 			when (ex.WriteErrors.Any(e => e.Code == DuplicateKeyErrorCode))
 		{
-			// Duplicate key error - version conflict detected
+			// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING.
+			var committedVersion = await ReadCommittedAppendOutcomeAsync(documents, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (committedVersion is { } landedVersion)
+			{
+				LogEventsAppended(eventList.Count, aggregateType, aggregateId, landedVersion);
+				activity.SetOperationResult(EventSourcingTagValues.Success);
+				result = WriteStoreTelemetry.Results.Success;
+				return AppendResult.CreateSuccess(landedVersion, firstPosition);
+			}
+
 			LogConcurrencyConflict(aggregateType, aggregateId, expectedVersion);
 
 			// Re-read current version to report accurate conflict
@@ -420,7 +450,18 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		}
 		catch (MongoWriteException ex) when (ex.WriteError?.Code == DuplicateKeyErrorCode)
 		{
-			// Duplicate key error - version conflict detected (single document case)
+			// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING.
+			var committedSingle = await ReadCommittedAppendOutcomeAsync(documents, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (committedSingle is { } landedSingleVersion)
+			{
+				LogEventsAppended(eventList.Count, aggregateType, aggregateId, landedSingleVersion);
+				activity.SetOperationResult(EventSourcingTagValues.Success);
+				result = WriteStoreTelemetry.Results.Success;
+				return AppendResult.CreateSuccess(landedSingleVersion, firstPosition);
+			}
+
 			LogConcurrencyConflict(aggregateType, aggregateId, expectedVersion);
 
 			var actualVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
@@ -647,6 +688,110 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 
 		await RefuseLegacyUntenantedDocumentsAsync(cancellationToken).ConfigureAwait(false);
 		_legacyDocumentsProbed = true;
+	}
+	/// <summary>
+	/// Asks whether the documents carrying THIS call's event identifiers are already present, before the
+	/// documents themselves have been built.
+	/// </summary>
+	/// <param name="aggregateId">The aggregate whose stream is being appended to.</param>
+	/// <param name="aggregateType">The aggregate type.</param>
+	/// <param name="eventList">The events this call is attempting to write.</param>
+	/// <param name="expectedVersion">The version this call expected the stream to be at.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The version the batch reached if our own events are present; otherwise <see langword="null"/>.</returns>
+	/// <remarks>
+	/// Keyed on IDENTITY rather than on a version slot. A slot-keyed probe asks "is our event at the
+	/// version we expected", which is blind to an append that committed at some other version and reads it
+	/// as absent -- returning a conflict, and reopening the duplicate hole this exists to close.
+	/// </remarks>
+	private async Task<long?> ReadCommittedAppendOutcomeAsync(
+		string aggregateId,
+		string aggregateType,
+		IReadOnlyCollection<IDomainEvent> eventList,
+		long expectedVersion,
+		CancellationToken cancellationToken)
+	{
+		var eventIds = eventList
+			.Select(static e => e.EventId)
+			.Where(static id => !string.IsNullOrWhiteSpace(id))
+			.ToList();
+
+		if (eventIds.Count == 0)
+		{
+			return null;
+		}
+
+		var filter = Builders<MongoDbEventDocument>.Filter.And(
+			Builders<MongoDbEventDocument>.Filter.Eq(d => d.StreamId, BuildStreamId(aggregateId)),
+			Builders<MongoDbEventDocument>.Filter.Eq(d => d.AggregateType, aggregateType),
+			Builders<MongoDbEventDocument>.Filter.In(d => d.EventId, eventIds));
+
+		var landed = await _eventsCollection!.Find(filter)
+			.SortByDescending(d => d.Version)
+			.FirstOrDefaultAsync(cancellationToken)
+			.ConfigureAwait(false);
+
+		// Report the version OUR batch reached, which is what an uninterrupted success would have returned.
+		return landed is null ? null : expectedVersion + eventList.Count;
+	}
+
+
+	/// <summary>
+	/// Asks whether the documents carrying THIS call's event identifiers are already durably present.
+	/// </summary>
+	/// <param name="documents">The documents this call attempted to insert.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The version the batch reached if our own events are present; otherwise <see langword="null"/>.</returns>
+	/// <remarks>
+	/// <para>
+	/// A duplicate key on the stream/version index means the slot is TAKEN. It does not say by whom, and
+	/// the two causes need opposite answers: another writer took our version, or we took it ourselves and
+	/// lost the acknowledgement. Both move the stream identically, so a classifier reading the version
+	/// reports a durably committed append as a concurrency conflict -- and the documented remedy for a
+	/// conflict is reload-and-retry, which writes the same business event again at the NEXT version. The
+	/// unique index cannot stop that, because the version differs, and every replay then applies it twice.
+	/// </para>
+	/// <para>
+	/// The retry is not hypothetical here: a multi-event append runs inside
+	/// <c>WithTransactionAsync</c>, which re-runs its callback on a transient or unknown-commit-result
+	/// error -- the shape where the commit landed and the response did not return.
+	/// </para>
+	/// <para>
+	/// ONE identifier settles the batch. A single-event append is one atomic document write and a
+	/// multi-event append commits inside a transaction, so if the first event is present then all of them
+	/// are, and the version reached is the last document's. THAT ATOMICITY IS LOAD-BEARING FOR
+	/// CORRECTNESS: a future non-atomic write path would break this probe without touching it.
+	/// </para>
+	/// </remarks>
+
+	private async Task<long?> ReadCommittedAppendOutcomeAsync(
+		IReadOnlyList<MongoDbEventDocument> documents,
+		CancellationToken cancellationToken)
+	{
+		if (documents.Count == 0)
+		{
+			return null;
+		}
+
+		var first = documents[0];
+
+		// A blank event id is representable, so the probe is not always available. When it is not, fall
+		// back to reporting the conflict rather than claim a totality we do not have.
+		if (string.IsNullOrWhiteSpace(first.EventId))
+		{
+			return null;
+		}
+
+		var filter = Builders<MongoDbEventDocument>.Filter.And(
+			Builders<MongoDbEventDocument>.Filter.Eq(d => d.StreamId, first.StreamId),
+			Builders<MongoDbEventDocument>.Filter.Eq(d => d.AggregateType, first.AggregateType),
+			Builders<MongoDbEventDocument>.Filter.Eq(d => d.EventId, first.EventId));
+
+		var landed = await _eventsCollection!.Find(filter)
+			.FirstOrDefaultAsync(cancellationToken)
+			.ConfigureAwait(false);
+
+		return landed is null ? null : documents[^1].Version;
 	}
 
 	private async Task<long> GetCurrentVersionAsync(

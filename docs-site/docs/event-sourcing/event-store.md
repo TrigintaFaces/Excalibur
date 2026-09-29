@@ -306,6 +306,64 @@ public async Task HandleWithRetry(UpdateOrderAction action, CancellationToken ct
 }
 ```
 
+### Two different failures, two different retries
+
+The pattern above is the right response to a **genuine** conflict: another writer really did take your
+version, so you reload, re-apply the command against the new state, and save. That produces new events with
+new identifiers, which is correct — they are genuinely new events.
+
+It is **not** the right response to an **ambiguous** outcome: a timeout, a dropped connection, or any
+failure where you never learned whether the append committed. There the events may already be in the
+stream, and re-deriving them from a reload creates a second copy of the same business event at the next
+version, where nothing can detect it.
+
+For that case, re-present **the same events**:
+
+```csharp
+// The events were built once, before the first attempt. On an ambiguous failure, present THE SAME
+// instances again at THE SAME expected version -- do NOT rebuild them from a reload.
+var events = order.DequeueUncommittedEvents();
+
+for (var attempt = 0; attempt < 3; attempt++)
+{
+    try
+    {
+        var result = await _eventStore.AppendAsync(
+            order.Id, nameof(Order), events, expectedVersion, ct);
+
+        if (result.Success)
+        {
+            return;
+        }
+
+        if (result.IsConcurrencyConflict)
+        {
+            // A real conflict: somebody else took the version. Reload and re-apply instead.
+            break;
+        }
+    }
+    catch (Exception ex) when (ex is TimeoutException or IOException)
+    {
+        // Ambiguous. The append may have committed. Retrying with the SAME events is safe.
+    }
+}
+```
+
+The store recognises the retry because the events carry the same identifiers, finds them already present,
+and reports **success** rather than a conflict.
+
+### The identifier contract
+
+An event identifier names a **business event**, not an attempt at writing one.
+
+- **Retrying the same command must present the same `EventId`.** That is what lets the store recognise its
+  own earlier write and answer honestly.
+- **Minting a fresh identifier per attempt is safe but weaker.** The store cannot recognise the retry, so
+  you get at-least-once delivery into the stream and your handlers must be idempotent.
+- **Never reuse an identifier for a different business event.** This is the one direction the store cannot
+  defend against: it will recognise the identifier, report success, and your second event will never be
+  written.
+
 ## Event Streams
 
 For global stream reading and projections, see the [Projections](projections.md) documentation.

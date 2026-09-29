@@ -35,26 +35,6 @@ public sealed class CosmosDbEventStoreOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveDefaultTimeToLiveOfMinusOne()
-	{
-		// Arrange & Act
-		var options = new CosmosDbEventStoreOptions();
-
-		// Assert
-		options.DefaultTimeToLiveSeconds.ShouldBe(-1);
-	}
-
-	[Fact]
-	public void HaveDefaultUseTransactionalBatchTrue()
-	{
-		// Arrange & Act
-		var options = new CosmosDbEventStoreOptions();
-
-		// Assert
-		options.UseTransactionalBatch.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void HaveDefaultMaxBatchSizeOf100()
 	{
 		// Arrange & Act
@@ -151,19 +131,6 @@ public sealed class CosmosDbEventStoreOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AllowCustomUseTransactionalBatch()
-	{
-		// Arrange & Act
-		var options = new CosmosDbEventStoreOptions
-		{
-			UseTransactionalBatch = false
-		};
-
-		// Assert
-		options.UseTransactionalBatch.ShouldBeFalse();
-	}
-
-	[Fact]
 	public void AllowCustomMaxBatchSize()
 	{
 		// Arrange & Act
@@ -216,4 +183,14 @@ public sealed class CosmosDbEventStoreOptionsShould : UnitTestBase
 	}
 
 	#endregion Property Setters Tests
+	[Fact]
+	public void HaveDefaultTimeToLiveOfMinusOne()
+	{
+		// Arrange & Act
+		var options = new CosmosDbEventStoreOptions();
+
+		// Assert
+		options.DefaultTimeToLiveSeconds.ShouldBe(-1);
+	}
+
 }

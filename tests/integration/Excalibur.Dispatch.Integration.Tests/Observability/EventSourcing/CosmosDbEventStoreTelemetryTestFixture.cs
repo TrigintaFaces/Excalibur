@@ -231,7 +231,6 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 			EventsContainerName = ContainerName,
 			PartitionKeyPath = "/streamId",
 			CreateContainerIfNotExists = true,
-			UseTransactionalBatch = false, // Use sequential for simpler concurrency testing
 			ContainerThroughput = 400,
 		});
 

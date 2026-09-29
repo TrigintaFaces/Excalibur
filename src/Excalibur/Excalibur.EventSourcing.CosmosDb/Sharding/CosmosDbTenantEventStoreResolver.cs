@@ -113,7 +113,6 @@ internal sealed class CosmosDbTenantEventStoreResolver : ITenantStoreResolver<IE
 			DatabaseName = _defaultOptions.DatabaseName,
 			EventsContainerName = shardInfo.RequireCoordinate(shardInfo.IndexPrefix, nameof(ShardInfo.IndexPrefix)),
 			PartitionKeyPath = _defaultOptions.PartitionKeyPath,
-			UseTransactionalBatch = _defaultOptions.UseTransactionalBatch,
 			CreateContainerIfNotExists = _defaultOptions.CreateContainerIfNotExists,
 		});
 

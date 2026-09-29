@@ -71,7 +71,6 @@ public sealed class DynamoDbEventStoreOptionsIspSplitShould
 		{
 			EventsTableName = "ProdEvents",
 			MaxBatchSize = 50,
-			UseTransactionalWrite = false,
 			Throughput =
 			{
 				ReadCapacityUnits = 100,
@@ -81,7 +80,6 @@ public sealed class DynamoDbEventStoreOptionsIspSplitShould
 
 		options.EventsTableName.ShouldBe("ProdEvents");
 		options.MaxBatchSize.ShouldBe(50);
-		options.UseTransactionalWrite.ShouldBeFalse();
 		options.Throughput.ReadCapacityUnits.ShouldBe(100);
 		options.Throughput.WriteCapacityUnits.ShouldBe(200);
 	}

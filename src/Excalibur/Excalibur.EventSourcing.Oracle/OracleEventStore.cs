@@ -50,6 +50,45 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 	private readonly string _table;
 
 	/// <summary>
+	/// Asks whether the rows carrying THIS call's event identifiers are already durably present.
+	/// </summary>
+	/// <param name="connection">An open connection.</param>
+	/// <param name="eventList">The events this call attempted to write.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The committed outcome, or <see langword="null"/> when there is no identity to ask with.</returns>
+	/// <remarks>
+	/// Sound outside the write transaction because the store is append-only: once a row carrying event id e
+	/// exists it exists in every later state, so a stale read can only MISS it -- yielding the conflict that
+	/// would have been reported anyway. It must never fail the append: a probe that throws would turn a
+	/// recoverable lost acknowledgement into a hard failure, which is worse than the defect it closes.
+	/// </remarks>
+	private async Task<CommittedAppendOutcome?> ReadCommittedAppendOutcomeAsync(
+		OracleConnection connection,
+		IReadOnlyCollection<IDomainEvent> eventList,
+		CancellationToken cancellationToken)
+	{
+		var firstEventId = eventList
+			.Select(static e => e.EventId)
+			.FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+
+		if (string.IsNullOrWhiteSpace(firstEventId))
+		{
+			return null;
+		}
+
+		try
+		{
+			return await connection.ResolveAsync(
+				new GetCommittedAppendOutcomeRequest(
+					firstEventId, CurrentTenantScope, cancellationToken, _schema, _table)).ConfigureAwait(false);
+		}
+		catch (OracleException)
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
 	/// The position counter table that orders this store's global stream. Named after the events table so
 	/// that two event stores sharing a schema each get their own counter rather than silently sharing one
 	/// position space, which would interleave two unrelated streams.
@@ -338,6 +377,18 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			if (currentVersion != expectedVersion)
 			{
 				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+
+				// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING. A retry of an append whose
+				// acknowledgement was lost arrives HERE: its own committed write is what moved the version.
+				var committedOnRetry = await ReadCommittedAppendOutcomeAsync(connection, eventList, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
+				{
+					activity.SetOperationResult(EventSourcingTagValues.Success);
+					return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+				}
+
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
@@ -438,6 +489,18 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		if (currentVersion != expectedVersion)
 		{
 			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+
+			// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING. A retry of an append whose
+			// acknowledgement was lost arrives HERE: its own committed write is what moved the version.
+			var committedOnRetry = await ReadCommittedAppendOutcomeAsync(connection, eventList, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
+			{
+				activity.SetOperationResult(EventSourcingTagValues.Success);
+				return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+			}
+
 			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 			return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 		}

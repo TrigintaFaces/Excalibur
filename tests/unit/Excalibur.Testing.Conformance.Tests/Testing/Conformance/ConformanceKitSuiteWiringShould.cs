@@ -263,6 +263,17 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict_Test() => AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict();
 		public Task ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed_Test() => ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed();
 		public Task ConcurrentAppend_DifferentAggregates_AllShouldSucceed_Test() => ConcurrentAppend_DifferentAggregates_AllShouldSucceed();
+		public Task ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate_Test() => ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate();
+
+		/// <summary>SAFETY: the lost-acknowledgement answer holds mid-stream, not only when the stream is created.</summary>
+		[Fact]
+		public Task ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate_Test() =>
+			ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate();
+
+		/// <summary>SAFETY: the lost-acknowledgement answer holds for a multi-event batch, and never over a torn prefix.</summary>
+		[Fact]
+		public Task ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate_Test() =>
+			ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate();
 		public Task AppendAsync_WithCorrectExpectedVersion_ShouldSucceed_Test() => AppendAsync_WithCorrectExpectedVersion_ShouldSucceed();
 		public Task AppendAsync_EmptyEvents_ShouldNotChangeVersion_Test() => AppendAsync_EmptyEvents_ShouldNotChangeVersion();
 		public Task LoadAsync_EmptyStream_ShouldReturnEmpty_Test() => LoadAsync_EmptyStream_ShouldReturnEmpty();
@@ -298,6 +309,9 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict_Test() => AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict();
 		public Task ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed_Test() => ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed();
 		public Task ConcurrentAppend_DifferentAggregates_AllShouldSucceed_Test() => ConcurrentAppend_DifferentAggregates_AllShouldSucceed();
+		public Task ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate_Test() => ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate();
+		public Task ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate_Test() => ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate();
+		public Task ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate_Test() => ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate();
 		public Task AppendAsync_WithCorrectExpectedVersion_ShouldSucceed_Test() => AppendAsync_WithCorrectExpectedVersion_ShouldSucceed();
 		public Task AppendAsync_EmptyEvents_ShouldNotChangeVersion_Test() => AppendAsync_EmptyEvents_ShouldNotChangeVersion();
 		public Task LoadAsync_EmptyStream_ShouldReturnEmpty_Test() => LoadAsync_EmptyStream_ShouldReturnEmpty();

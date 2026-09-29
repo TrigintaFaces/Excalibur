@@ -340,6 +340,33 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
 
  if (currentVersion != expectedVersion)
  {
+ // ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING.
+ //
+ // A moved version says somebody wrote here; it does not say WHO. Another writer took our version,
+ // or we took it ourselves and the caller retried without learning it had succeeded. Both move the
+ // stream identically, so answering from the version reports a durably present append as a
+ // concurrency conflict -- and the documented remedy for a conflict is reload-and-retry, which
+ // appends the same business event again at the NEXT version, where nothing can catch it. Every
+ // replay then applies it twice.
+ //
+ // This store is the reference the provider suites are read against, so it must not be the one
+ // teaching the wrong contract.
+ var ourFirstEventId = eventList.FirstOrDefault()?.EventId;
+
+ if (!string.IsNullOrWhiteSpace(ourFirstEventId))
+ {
+  // Events are stored in version order starting at 0, so version v sits at index v.
+  var slot = expectedVersion + 1;
+
+  if (slot >= 0 && slot < aggregateEvents.Count
+   && string.Equals(aggregateEvents[(int)slot].EventId, ourFirstEventId, StringComparison.Ordinal))
+  {
+   activity.SetOperationResult(EventSourcingTagValues.Success);
+   return new ValueTask<AppendResult>(
+    AppendResult.CreateSuccess(expectedVersion + eventList.Count, firstEventPosition: null));
+  }
+ }
+
  // Concurrency conflict detected via return value (no exception)
  activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
  return new ValueTask<AppendResult>(AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion));

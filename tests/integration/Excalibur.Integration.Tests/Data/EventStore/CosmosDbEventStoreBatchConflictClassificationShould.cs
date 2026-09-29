@@ -182,7 +182,6 @@ public sealed class CosmosDbEventStoreBatchConflictClassificationShould
 
 				// The default, stated here so the arm cannot be silently turned into a test of the
 				// single-item path by a change to that default.
-				UseTransactionalBatch = true,
 			}),
 			NullLogger<CosmosDbEventStore>.Instance,
 			SingleTenantTestContext.Instance);

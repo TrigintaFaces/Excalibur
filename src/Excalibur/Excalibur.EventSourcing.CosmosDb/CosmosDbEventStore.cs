@@ -327,22 +327,22 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			return CloudAppendResult.CreateSuccess(expectedVersion, 0);
 		}
 
-		// On the ATOMIC (transactional-batch) path, Cosmos DB hard-caps a TransactionalBatch at 100 operations
-		// and offers no >100 atomic primitive, so an all-or-nothing append (the IEventStore.AppendAsync
-		// contract) is impossible beyond 100 events. Reject at the boundary BEFORE any write rather than
-		// commit sequential batches and risk a torn event-stream prefix -- callers split into <=100-event
-		// appends. (A torn append is event-stream corruption, which event sourcing must never produce, and a
-		// consumer holding a torn stream cannot detect it: it has a prefix and no suffix, and every later read
-		// is consistent with a shorter history.) The non-transactional opt-out path (UseTransactionalBatch=false)
-		// is NOT rejected: the consumer explicitly traded away atomicity for the per-item sequential path, so
-		// >100 is its accepted (documented non-atomic) behavior.
-		if (_options.Value.UseTransactionalBatch && eventList.Count > MaxTransactionalBatchOperations)
+		// Cosmos DB hard-caps a TransactionalBatch at 100 operations and offers no larger atomic
+		// primitive, so an all-or-nothing append beyond 100 events is impossible on this provider.
+		// It is REFUSED here, before any write.
+		//
+		// There is deliberately no opt-out. A configuration flag that permits a >100 append by writing
+		// the events one at a time buys throughput with silent, permanent corruption: a failure partway
+		// leaves a prefix with no suffix, and no later read can distinguish that from a stream that was
+		// simply never written further. The caller splits into appends of at most 100 events instead,
+		// and the exception below carries both numbers so that split is mechanical rather than guesswork.
+		if (eventList.Count > MaxTransactionalBatchOperations)
 		{
 			throw new EventBatchTooLargeException(
 				nameof(events),
 				eventList.Count,
 				MaxTransactionalBatchOperations,
-				$"Cosmos DB atomic append is limited to {MaxTransactionalBatchOperations} events per call; split the batch into appends of at most {MaxTransactionalBatchOperations} events, or set UseTransactionalBatch=false to opt into the non-atomic sequential path.");
+				$"Cosmos DB atomic append is limited to {MaxTransactionalBatchOperations} events per call; split the batch into appends of at most {MaxTransactionalBatchOperations} events.");
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -365,6 +365,17 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 				.ConfigureAwait(false);
 			if (precheckVersion != expectedVersion)
 			{
+				// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING. A retry of an append whose
+				// acknowledgement was lost arrives here FIRST: our own committed write is what moved the version.
+				var precheckCommitted = await ReadCommittedAppendOutcomeAsync(
+					streamId, pk, expectedVersion, eventList, cancellationToken).ConfigureAwait(false);
+
+				if (precheckCommitted is { } precheckLanded)
+				{
+					activity.SetOperationResult(EventSourcingTagValues.Success);
+					return CloudAppendResult.CreateSuccess(precheckLanded, 0);
+				}
+
 				LogConcurrencyConflict(streamId, expectedVersion);
 				result = WriteStoreTelemetry.Results.Conflict;
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -372,7 +383,8 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			}
 
 			CloudAppendResult appendResult;
-			if (_options.Value.UseTransactionalBatch && eventList.Count > 1)
+			// A single event is one item write, which is atomic on its own and needs no batch.
+			if (eventList.Count > 1)
 			{
 				appendResult = await AppendWithTransactionAsync(
 						streamId, aggregateId, aggregateType, partitionKey, eventList, expectedVersion, pk, cancellationToken)
@@ -392,6 +404,16 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			}
 			else if (appendResult.IsConcurrencyConflict)
 			{
+				// A batch reports a lost race by returning, so the same question has to be asked here too.
+				var batchCommitted = await ReadCommittedAppendOutcomeAsync(
+					streamId, pk, expectedVersion, eventList, cancellationToken).ConfigureAwait(false);
+
+				if (batchCommitted is { } batchLanded)
+				{
+					activity.SetOperationResult(EventSourcingTagValues.Success);
+					return CloudAppendResult.CreateSuccess(batchLanded, 0);
+				}
+
 				// A batch reports its outcome by returning, not by throwing, so a lost race arrives here
 				// rather than at the conflict handler below. It is the same outcome and is recorded as one.
 				LogConcurrencyConflict(streamId, expectedVersion);
@@ -408,6 +430,16 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		}
 		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
 		{
+			// Same question as the pre-check, asked after the write attempt instead of before it.
+			var committed = await ReadCommittedAppendOutcomeAsync(
+				streamId, pk, expectedVersion, eventList, cancellationToken).ConfigureAwait(false);
+
+			if (committed is { } landed)
+			{
+				activity.SetOperationResult(EventSourcingTagValues.Success);
+				return CloudAppendResult.CreateSuccess(landed, ex.RequestCharge);
+			}
+
 			var currentVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, partitionKey, cancellationToken)
 				.ConfigureAwait(false);
 			LogConcurrencyConflict(streamId, expectedVersion);
@@ -465,8 +497,88 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 		return subscription;
 	}
+	/// <summary>
+	/// Asks whether the items carrying THIS call's event identifiers are already durably present.
+	/// </summary>
+	/// <param name="streamId">The stream being appended to.</param>
+	/// <param name="pk">The stream's partition key.</param>
+	/// <param name="expectedVersion">The version this call expected the stream to be at.</param>
+	/// <param name="eventList">The events this call attempted to write.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The version the batch reached if our own events are present; otherwise <see langword="null"/>.</returns>
+	/// <remarks>
+	/// <para>
+	/// A taken slot, a 409 and a moved version all say the same thing -- somebody wrote here -- and none of
+	/// them says WHO. The two causes need opposite answers: another writer took our version, or we took it
+	/// ourselves and lost the acknowledgement. Both move the stream identically, so classifying from the
+	/// version reports a durably committed append as a concurrency conflict, whose documented remedy is
+	/// reload-and-retry -- which writes the same business event again at the NEXT version, where no
+	/// uniqueness guard can catch it, and every replay then applies it twice.
+	/// </para>
+	/// <para>
+	/// ONE point read settles it. Item ids are deterministic, so the slot after the expected version names
+	/// itself; and a transactional batch commits all-or-nothing, so if our first event is there then all of
+	/// them are and the version reached is arithmetic. THAT ATOMICITY IS LOAD-BEARING FOR CORRECTNESS on
+	/// the batch path. On the sequential opt-out path (UseTransactionalBatch=false) the consumer has
+	/// already traded atomicity away, so a torn prefix is possible there and this probe reports only that
+	/// the FIRST event landed -- which is exactly what it claims and no more.
+	/// </para>
+	/// </remarks>
+	private async Task<long?> ReadCommittedAppendOutcomeAsync(
+		string streamId,
+		Microsoft.Azure.Cosmos.PartitionKey pk,
+		long expectedVersion,
+		IReadOnlyList<IDomainEvent> eventList,
+		CancellationToken cancellationToken)
+	{
+		if (eventList.Count == 0)
+		{
+			return null;
+		}
+
+		// WITNESS THE LAST EVENT, NOT THE FIRST.
+		//
+		// This provider has a documented non-atomic opt-out (UseTransactionalBatch=false) where a batch is
+		// committed per item and a failure partway leaves a torn prefix. A probe that finds the FIRST event
+		// and then reports expectedVersion + count would claim the whole batch from a prefix -- success over
+		// a torn stream, which no later read can distinguish from a shorter history.
+		//
+		// Items are written in version order, so the LAST one present implies every earlier one is too.
+		// That witness is sound on the atomic path and on the opt-out path alike, and it needs no knowledge
+		// of which one is configured.
+		var ourLastEventId = eventList[^1].EventId;
+
+		// A blank event id is representable, so the probe is not always available. When it is not, fall back
+		// to reporting the conflict rather than claim a totality we do not have.
+		if (string.IsNullOrWhiteSpace(ourLastEventId))
+		{
+			return null;
+		}
+
+		try
+		{
+			var response = await _container!.ReadItemAsync<EventDocument>(
+				$"{streamId}:{expectedVersion + eventList.Count}",
+				pk,
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			var occupant = response.Resource;
+
+			return occupant is not null
+				&& string.Equals(occupant.EventId, ourLastEventId, StringComparison.Ordinal)
+				? expectedVersion + eventList.Count
+				: null;
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		{
+			// Nothing occupies the slot, so nothing of ours landed there.
+			return null;
+		}
+	}
+
 
 	/// <inheritdoc/>
+
 	public async Task<long> GetCurrentVersionAsync(
 		string aggregateId,
 		string aggregateType,

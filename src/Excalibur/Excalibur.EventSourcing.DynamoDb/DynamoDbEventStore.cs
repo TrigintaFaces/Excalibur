@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 using Amazon.DynamoDBStreams;
@@ -128,6 +130,86 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 	/// <inheritdoc />
 	public CloudPersistenceProviderType CloudProvider => CloudPersistenceProviderType.DynamoDb;
+
+	/// <summary>
+	/// Asks whether the item carrying THIS call's first event identifier is already durably present.
+	/// </summary>
+	/// <param name="streamId">The stream being appended to.</param>
+	/// <param name="expectedVersion">The version this call expected the stream to be at.</param>
+	/// <param name="eventList">The events this call attempted to write.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The version the batch reached if our own events are present; otherwise <see langword="null"/>.</returns>
+	/// <remarks>
+	/// <para>
+	/// A failed conditional check says the slot is taken. It does not say by whom, and the two causes need
+	/// opposite answers: another writer took our version, or we took it ourselves and lost the
+	/// acknowledgement. Both move the stream identically, so classifying from the version reports a
+	/// durably committed append as a concurrency conflict -- and the documented remedy for a conflict is
+	/// reload-and-retry, which writes the same business event again at the NEXT version, where the
+	/// condition cannot catch it. Every replay then applies it twice.
+	/// </para>
+	/// <para>
+	/// The key is deterministic -- partition by stream, sort by version -- so ONE consistent point read
+	/// names the slot after the expected version. On the transactional path TransactWriteItems commits
+	/// all-or-nothing, so the first event settles the whole batch and the version reached is arithmetic;
+	/// THAT ATOMICITY IS LOAD-BEARING FOR CORRECTNESS there. On the per-item opt-out path the consumer has
+	/// already traded atomicity away, so this reports only that the FIRST event landed, which is what it
+	/// claims and no more.
+	/// </para>
+	/// </remarks>
+	private async Task<long?> ReadCommittedAppendOutcomeAsync(
+		string streamId,
+		long expectedVersion,
+		IReadOnlyList<IDomainEvent> eventList,
+		CancellationToken cancellationToken)
+	{
+		if (eventList.Count == 0)
+		{
+			return null;
+		}
+
+		// WITNESS THE LAST EVENT, NOT THE FIRST.
+		//
+		// This provider has a documented non-atomic opt-out (UseTransactionalWrite=false) where items are
+		// put one at a time and a failure partway leaves a torn prefix. A probe that finds the FIRST item
+		// and then reports expectedVersion + count would claim the whole batch from a prefix -- success over
+		// a torn stream, which no later read can distinguish from a shorter history.
+		//
+		// Items are written in version order, so the LAST one present implies every earlier one is too.
+		var ourLastEventId = eventList[^1].EventId;
+
+		// A blank event id is representable, so the probe is not always available. When it is not, fall back
+		// to reporting the conflict rather than claim a totality we do not have.
+		if (string.IsNullOrWhiteSpace(ourLastEventId))
+		{
+			return null;
+		}
+
+		var request = new GetItemRequest
+		{
+			TableName = _options.EventsTableName,
+			Key = new Dictionary<string, AttributeValue>
+			{
+				[_options.PartitionKeyAttribute] = new AttributeValue { S = streamId },
+				[_options.SortKeyAttribute] = new AttributeValue { N = (expectedVersion + eventList.Count).ToString(CultureInfo.InvariantCulture) }
+			},
+			ProjectionExpression = "eventId",
+			ConsistentRead = true
+		};
+
+		var response = await _client.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
+
+		if (response.Item is null || response.Item.Count == 0)
+		{
+			// Nothing occupies the slot, so nothing of ours landed there.
+			return null;
+		}
+
+		return response.Item.TryGetValue("eventId", out var occupant)
+			&& string.Equals(occupant.S, ourLastEventId, StringComparison.Ordinal)
+			? expectedVersion + eventList.Count
+			: null;
+	}
 
 	/// <summary>
 	/// Returns the DynamoDB Streams client, or throws when this store was constructed without one.
@@ -344,20 +426,21 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			return CloudAppendResult.CreateSuccess(expectedVersion, 0);
 		}
 
-		// On the ATOMIC (transactional) path, DynamoDB's TransactWriteItems hard-caps at 100 items and offers
-		// no >100 atomic primitive, so an all-or-nothing append (the IEventStore.AppendAsync contract) is
-		// impossible beyond 100 events. Reject at the boundary BEFORE any write rather than risk a torn
-		// event-stream prefix — callers split into ≤100-event appends. (A torn append is event-stream
-		// corruption, which event sourcing must never produce.) The non-transactional opt-out path
-		// (UseTransactionalWrite=false) is NOT rejected: the consumer explicitly traded away atomicity for
-		// the per-item PutItem path, so >100 is its accepted (documented non-atomic) behavior.
-		if (_options.UseTransactionalWrite && eventsList.Count > DynamoTransactItemLimit)
+		// DynamoDB's TransactWriteItems hard-caps at 100 items and offers no larger atomic primitive, so
+		// an all-or-nothing append beyond 100 events is impossible on this provider. It is REFUSED here,
+		// before any write.
+		//
+		// There is deliberately no opt-out. A flag permitting a >100 append by putting items one at a
+		// time buys throughput with silent, permanent corruption: a failure partway leaves a prefix with
+		// no suffix, and no later read can distinguish that from a stream never written further. The
+		// caller splits instead, and the exception carries both numbers so the split is mechanical.
+		if (eventsList.Count > DynamoTransactItemLimit)
 		{
 			throw new EventBatchTooLargeException(
 				nameof(events),
 				eventsList.Count,
 				DynamoTransactItemLimit,
-				$"DynamoDB atomic append is limited to {DynamoTransactItemLimit} events per call; split the batch into appends of at most {DynamoTransactItemLimit} events, or set UseTransactionalWrite=false to opt into the non-atomic per-item path.");
+				$"DynamoDB atomic append is limited to {DynamoTransactItemLimit} events per call; split the batch into appends of at most {DynamoTransactItemLimit} events.");
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -379,6 +462,17 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 				.ConfigureAwait(false);
 			if (precheckVersion != expectedVersion)
 			{
+				// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING. A retry of an append whose
+				// acknowledgement was lost arrives here FIRST: our own committed write is what moved the version.
+				var precheckCommitted = await ReadCommittedAppendOutcomeAsync(
+					streamId, expectedVersion, eventsList, cancellationToken).ConfigureAwait(false);
+
+				if (precheckCommitted is { } precheckLanded)
+				{
+					activity.SetOperationResult(EventSourcingTagValues.Success);
+					return CloudAppendResult.CreateSuccess(precheckLanded, 0);
+				}
+
 				operationResult = WriteStoreTelemetry.Results.Conflict;
 				LogConcurrencyConflict(streamId, expectedVersion);
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -387,8 +481,14 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 			// Transactional path is guaranteed ≤100 by the guard above, so a single atomic TransactWriteItems
 			// covers it. The opt-out path handles any count via the per-item PutItem loop (non-atomic).
+			// A SINGLE event is one conditional PutItem, which is atomic by itself. Routing it through
+			// TransactWriteItems would double the write cost and demand the extra IAM permission a
+			// transaction requires, and buy nothing: there is no second item to be atomic with.
+			//
+			// That cost saving is why the removed opt-out existed. It is kept here, where it is honest,
+			// and not extended to multi-event appends, where it traded atomicity for throughput.
 			CloudAppendResult appendResult;
-			if (_options.UseTransactionalWrite)
+			if (eventsList.Count > 1)
 			{
 				appendResult = await AppendWithTransactionAsync(
 						streamId, aggregateId, aggregateType, partitionKey, eventsList, expectedVersion, cancellationToken)
@@ -396,9 +496,6 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			}
 			else
 			{
-				// Transactional writes opted OUT (UseTransactionalWrite=false): honor the choice with the
-				// per-item conditional PutItem path (no TransactWriteItems — avoids the 2× WCU and the extra
-				// IAM permission a transaction requires).
 				appendResult = await AppendSequentiallyAsync(
 						streamId, aggregateId, aggregateType, partitionKey, eventsList, expectedVersion, cancellationToken)
 					.ConfigureAwait(false);
@@ -685,6 +782,33 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			cloudEvent.Version,
 			cloudEvent.Timestamp);
 
+	/// <summary>
+	/// Builds the deterministic idempotency token for one append attempt.
+	/// </summary>
+	/// <param name="streamId">The stream being appended to.</param>
+	/// <param name="expectedVersion">The version this call expects the stream to be at.</param>
+	/// <param name="events">The events this call is writing.</param>
+	/// <returns>A stable 36-character token, or <see langword="null"/> when no stable identity is available.</returns>
+	/// <remarks>
+	/// Returns <see langword="null"/> when the first event carries no id, because a token that is not
+	/// stable across retries is worse than none: it would claim idempotency the call does not have.
+	/// </remarks>
+	private static string? BuildIdempotencyToken(string streamId, long expectedVersion, IReadOnlyList<IDomainEvent> events)
+	{
+		if (events.Count == 0 || string.IsNullOrWhiteSpace(events[0].EventId))
+		{
+			return null;
+		}
+
+		var seed = string.Create(
+			CultureInfo.InvariantCulture,
+			$"{streamId}|{expectedVersion}|{events[0].EventId}");
+
+		var digest = SHA256.HashData(Encoding.UTF8.GetBytes(seed));
+
+		return new Guid(digest.AsSpan(0, 16)).ToString();
+	}
+
 	private async Task<CloudAppendResult> AppendWithTransactionAsync(
 		string streamId,
 		string aggregateId,
@@ -717,10 +841,25 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 		try
 		{
+			// IDEMPOTENCY TOKEN -- prevent the ambiguity rather than resolve it afterwards.
+			//
+			// Without a ClientRequestToken, an SDK retry of a TransactWriteItems whose RESPONSE was lost
+			// re-executes the whole transaction. The conditional checks then fail against rows the FIRST
+			// attempt already committed, and the append is reported as a concurrency conflict even though it
+			// succeeded. With the token, DynamoDB treats the retry as the same call within its idempotency
+			// window and returns the original outcome. This is the provider's own mechanism for the hazard,
+			// so it is used in preference to inferring the answer from a later read.
+			//
+			// The token is DERIVED, not random: a random one would be different on every retry and therefore
+			// idempotent with nothing. It is a deterministic digest of the stream, the expected version and
+			// this call's first event id, so the same append always presents the same token while two genuinely
+			// different appends never collide. Formatted as a GUID because the field accepts 1-36 characters
+			// and a consumer-supplied event id has no length guarantee.
 			var request = new TransactWriteItemsRequest
 			{
 				TransactItems = transactItems,
-				ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
+				ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL,
+				ClientRequestToken = BuildIdempotencyToken(streamId, expectedVersion, events)
 			};
 
 			var response = await _client.TransactWriteItemsAsync(request, cancellationToken)

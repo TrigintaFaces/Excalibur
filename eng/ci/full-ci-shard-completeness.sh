@@ -179,6 +179,40 @@ normalise_reported_assemblies() {
     | sort -u
 }
 
+# The assemblies a shard's TRX files say reported. One TRX per assembly (LogFilePrefix), and each
+# carries the assembly path in UnitTest/@storage, so this set is authoritative in a way the console
+# never is.
+#
+# WHY THIS EXISTS. The console-derived set above keys on the " - Name.dll (tfm)" suffix of the
+# terminal line, and that suffix is lost when two writers reach stdout at once. Measured on a real
+# 14-shard run: two shards reported asm_exit=1 naming an assembly MISSING, and both assemblies had in
+# fact run and passed. Their terminal lines had been clobbered --
+#
+#   Passed! - Failed: 0, Passed: 11, ... Duration: 4 sResults File: ...UnitTests-...trx
+#   Passed! - Failed: 0, Passed: 84, ... Duration: 228 ms
+#
+# -- the first with the following line written into it, the second simply truncated. Those counts,
+# 11 and 84, matched the two assemblies' TRX result counts exactly. The gate said "silence, not a
+# pass" about assemblies that had reported, because it was reading a surface that can lose the name.
+trx_reported_assemblies() {
+  local shard="$1" log="$2" dir f
+  dir="$(dirname "$log")"
+  for f in "$dir/${shard}"_*.trx; do
+    [ -r "$f" ] || continue
+    # The TRX is written by whichever platform ran the shard, so storage may use either separator.
+    # Backslashes are normalised with tr -- the doubled form is required: a single one makes tr warn
+    # "unescaped backslash at end of string" and pass it through unchanged, which silently defeats the
+    # basename and makes every TRX name unmatchable.
+    grep -oE 'storage="[^"]*"' "$f"       | sed 's/^storage="//; s/"$//'       | tr '\\' '/'       | sed 's#.*/##; s/[.]dll$//'
+  done | sort -u
+}
+
+# Terminal lines that report a result but name no assembly. Such a line is not evidence that an
+# assembly ran, and not evidence that one did not.
+count_unattributable_result_lines() {
+  grep -cE '(Passed!|Failed!).*Duration:[^-]*$' || true
+}
+
 usage() {
   cat <<EOF
 usage: $(basename "$0") --results <file>     compare reported shards against the workflows
@@ -194,9 +228,14 @@ EOF
 TMP_EXPECTED="$(mktemp)"; TMP_REPORTED="$(mktemp)"
 trap 'rm -f "$TMP_EXPECTED" "$TMP_REPORTED"' EXIT
 
+arm_ok()  { arms=$((arms+1)); echo "  PASS  $*"; }
+arm_bad() { arms=$((arms+1)); fails=$((fails+1)); echo "  FAIL  $*"; }
+
 # ── self-test: the guard must go RED on an omission and GREEN on a complete set ──────────────────
 self_test() {
-  local fails=0 rc out
+  local fails=0 arms=0 rc out
+  local BS
+  BS=$(printf '%b' '\\')   # one literal backslash, kept out of printf format strings
   printf '\nfull-ci-shard-completeness — self-test\n\n'
 
   local expected_all
@@ -210,15 +249,15 @@ self_test() {
 
   # S1 LIVENESS — a complete set must PASS. Without this arm a guard that always fails looks fine.
   rc=0; printf '%s\n' $expected_all | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 0 ]; then echo "  PASS  S1 LIVENESS complete shard set -> exit 0"
-  else echo "  FAIL  S1 LIVENESS complete shard set -> exit $rc (expected 0)"; fails=$((fails+1)); fi
+  if [ "$rc" -eq 0 ]; then arm_ok "S1 LIVENESS complete shard set -> exit 0"
+  else arm_bad "S1 LIVENESS complete shard set -> exit $rc (expected 0)"; fi
 
   # S2 SAFETY — drop IntegrationTests, the shard that was actually omitted in the incident this gate exists to prevent. MUST go red.
   local minus_one
   minus_one="$(printf '%s\n' $expected_all | grep -v '^IntegrationTests$')"
   rc=0; printf '%s\n' "$minus_one" | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 1 ]; then echo "  PASS  S2 SAFETY   IntegrationTests omitted -> exit 1 (the real-world omission is caught)"
-  else echo "  FAIL  S2 SAFETY   IntegrationTests omitted -> exit $rc (expected 1)"; fails=$((fails+1)); fi
+  if [ "$rc" -eq 1 ]; then arm_ok "S2 SAFETY   IntegrationTests omitted -> exit 1 (the real-world omission is caught)"
+  else arm_bad "S2 SAFETY   IntegrationTests omitted -> exit $rc (expected 1)"; fi
 
   # S2b SAFETY — dropping ANY shard must fail, not just the famous one.
   # `head -1` is WRONG here: the sorted oracle begins with IntegrationTests, so it would pick the
@@ -233,26 +272,26 @@ self_test() {
   fi
   minus_first="$(printf '%s\n' $expected_all | tr ' ' '\n' | grep -v "^${first}$" | grep -v '^$')"
   rc=0; printf '%s\n' "$minus_first" | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 1 ]; then echo "  PASS  S2b SAFETY  '$first' omitted -> exit 1 (not special-cased to one shard)"
-  else echo "  FAIL  S2b SAFETY  '$first' omitted -> exit $rc (expected 1)"; fails=$((fails+1)); fi
+  if [ "$rc" -eq 1 ]; then arm_ok "S2b SAFETY  '$first' omitted -> exit 1 (not special-cased to one shard)"
+  else arm_bad "S2b SAFETY  '$first' omitted -> exit $rc (expected 1)"; fi
 
   # S3 REFUSE != PASS — an undeterminable oracle must REFUSE, never report a clean run.
   rc=0; CI_YML_OVERRIDE=/nonexistent/ci.yml bash "$0" --results /dev/null >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 2 ]; then echo "  PASS  S3 REFUSE   unreadable ci.yml -> exit 2, distinct from both PASS and FAIL"
-  else echo "  FAIL  S3 REFUSE   unreadable ci.yml -> exit $rc (expected 2)"; fails=$((fails+1)); fi
+  if [ "$rc" -eq 2 ]; then arm_ok "S3 REFUSE   unreadable ci.yml -> exit 2, distinct from both PASS and FAIL"
+  else arm_bad "S3 REFUSE   unreadable ci.yml -> exit $rc (expected 2)"; fi
 
   # S4 EMPTY-INPUT — zero shards reported is the "runner never ran" case; must FAIL, not pass.
   rc=0; bash "$0" --results /dev/null >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 1 ]; then echo "  PASS  S4 EMPTY    no shards reported -> exit 1 (an empty run is not a green run)"
-  else echo "  FAIL  S4 EMPTY    no shards reported -> exit $rc (expected 1)"; fails=$((fails+1)); fi
+  if [ "$rc" -eq 1 ]; then arm_ok "S4 EMPTY    no shards reported -> exit 1 (an empty run is not a green run)"
+  else arm_bad "S4 EMPTY    no shards reported -> exit $rc (expected 1)"; fi
 
   # S5 SHAPE — the real report is a markdown table; the parser must read what the runner emits.
   local table="| # | Shard | Passed | Failed |"$'\n'
   local s
   for s in $expected_all; do table="$table| 1 | $s | 10 | 0 |"$'\n'; done
   rc=0; printf '%s' "$table" | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 0 ]; then echo "  PASS  S5 SHAPE    markdown summary-table rows parse -> exit 0"
-  else echo "  FAIL  S5 SHAPE    markdown summary-table rows -> exit $rc (expected 0)"; fails=$((fails+1)); fi
+  if [ "$rc" -eq 0 ]; then arm_ok "S5 SHAPE    markdown summary-table rows parse -> exit 0"
+  else arm_bad "S5 SHAPE    markdown summary-table rows -> exit $rc (expected 0)"; fi
 
   # ── assembly arm ───────────────────────────────────────────────────────────────────────────────
   # Same three states, one level down. A6 is the liveness arm and it is the one that matters:
@@ -269,8 +308,8 @@ self_test() {
     for a in $asm_all; do full_log="${full_log}Passed!  - Failed:     0, Passed:    10, Skipped:     0, Total:    10, Duration: 1 s - ${a}.dll (net10.0)"$'\n'; done
     printf '%s' "$full_log" > "$TMP_REPORTED.log"
     rc=0; bash "$0" --assembly-results "$probe_shard" "$TMP_REPORTED.log" >/dev/null 2>&1 || rc=$?
-    if [ "$rc" -eq 0 ]; then echo "  PASS  A6 LIVENESS every expected assembly reported -> exit 0"
-    else echo "  FAIL  A6 LIVENESS every expected assembly reported -> exit $rc (expected 0)"; fails=$((fails+1)); fi
+    if [ "$rc" -eq 0 ]; then arm_ok "A6 LIVENESS every expected assembly reported -> exit 0"
+    else arm_bad "A6 LIVENESS every expected assembly reported -> exit $rc (expected 0)"; fi
 
     # A7 SAFETY — drop ONE assembly's line. This is the real-world shape: the shard still exits 0
     # and still prints zero failures, and only this check can see the hole.
@@ -279,33 +318,65 @@ self_test() {
     dropped="$(grep -v "\- ${first_asm}\.dll" "$TMP_REPORTED.log")"
     printf '%s\n' "$dropped" > "$TMP_REPORTED.log2"
     rc=0; bash "$0" --assembly-results "$probe_shard" "$TMP_REPORTED.log2" >/dev/null 2>&1 || rc=$?
-    if [ "$rc" -eq 1 ]; then echo "  PASS  A7 SAFETY   '$first_asm' silently absent -> exit 1"
-    else echo "  FAIL  A7 SAFETY   '$first_asm' silently absent -> exit $rc (expected 1)"; fails=$((fails+1)); fi
+    if [ "$rc" -eq 1 ]; then arm_ok "A7 SAFETY   '$first_asm' silently absent -> exit 1"
+    else arm_bad "A7 SAFETY   '$first_asm' silently absent -> exit $rc (expected 1)"; fi
 
     # A8 SAFETY — a log with ZERO test lines (the shard never ran, or died before reporting) must
     # FAIL. `Failed: 0` is trivially true of a run that produced nothing.
     : > "$TMP_REPORTED.log3"
     rc=0; bash "$0" --assembly-results "$probe_shard" "$TMP_REPORTED.log3" >/dev/null 2>&1 || rc=$?
-    if [ "$rc" -eq 1 ]; then echo "  PASS  A8 EMPTY    no assembly reported -> exit 1 (an empty shard is not a green shard)"
-    else echo "  FAIL  A8 EMPTY    no assembly reported -> exit $rc (expected 1)"; fails=$((fails+1)); fi
+    if [ "$rc" -eq 1 ]; then arm_ok "A8 EMPTY    no assembly reported -> exit 1 (an empty shard is not a green shard)"
+    else arm_bad "A8 EMPTY    no assembly reported -> exit $rc (expected 1)"; fi
+
+    # A11 LIVENESS — the real defect this gate produced. One assembly's terminal line loses its
+    # " - Name.dll (tfm)" suffix to interleaved output, but the assembly DID run and left a TRX.
+    # Before the TRX union this reported FAIL and named an assembly that had passed.
+    local clobbered trx_dir
+    clobbered="$(grep -v "\- ${first_asm}\.dll" "$TMP_REPORTED.log")"
+    trx_dir="$(dirname "$TMP_REPORTED.log")"
+    {
+      printf '%s\n' "$clobbered"
+      printf 'Passed!  - Failed:     0, Passed:    11, Skipped:     0, Total:    11, Duration: 4 s\n'
+    } > "$trx_dir/clob.log"
+    printf '<TestRun><TestDefinitions><UnitTest storage="d:%sbin%s%s.dll" /></TestDefinitions></TestRun>\n' \
+      "$BS" "$BS" "$(printf '%s' "$first_asm" | tr 'A-Z' 'a-z')" > "$trx_dir/${probe_shard}_selftest.trx"
+    rc=0; bash "$0" --assembly-results "$probe_shard" "$trx_dir/clob.log" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 0 ]; then arm_ok "A11 LIVENESS a clobbered line resolved by its TRX -> exit 0 (no false MISSING)"
+    else arm_bad "A11 LIVENESS a clobbered line resolved by its TRX -> exit $rc (expected 0)"; fi
+
+    # A12 SAFETY — the TRX must not become a blanket excuse. With the line clobbered AND no TRX to
+    # attribute it, a lost name and a lost assembly are indistinguishable: REFUSE, never PASS.
+    rm -f "$trx_dir/${probe_shard}_selftest.trx"
+    rc=0; bash "$0" --assembly-results "$probe_shard" "$trx_dir/clob.log" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 2 ]; then arm_ok "A12 REFUSE   clobbered line with no TRX -> exit 2 (not a pass, not a fail)"
+    else arm_bad "A12 REFUSE   clobbered line with no TRX -> exit $rc (expected 2)"; fi
+
+    # A13 SAFETY — a TRX for a DIFFERENT assembly must not satisfy the missing one. Without this the
+    # union could be satisfied by any TRX at all, which is the vacuity the union risks introducing.
+    printf '<TestRun><TestDefinitions><UnitTest storage="d:%sbin%ssome.other.assembly.dll" /></TestDefinitions></TestRun>\n' \
+      "$BS" "$BS" > "$trx_dir/${probe_shard}_selftest.trx"
+    rc=0; bash "$0" --assembly-results "$probe_shard" "$TMP_REPORTED.log2" >/dev/null 2>&1 || rc=$?
+    rm -f "$trx_dir/${probe_shard}_selftest.trx"
+    if [ "$rc" -eq 1 ]; then arm_ok "A13 SAFETY  an unrelated TRX does not satisfy a missing assembly -> exit 1"
+    else arm_bad "A13 SAFETY  an unrelated TRX does not satisfy a missing assembly -> exit $rc (expected 1)"; fi
 
     # A9 REFUSE — an unknown shard has no derivable oracle. REFUSE, never PASS.
     rc=0; bash "$0" --assembly-results "NoSuchShard-$$" "$TMP_REPORTED.log" >/dev/null 2>&1 || rc=$?
-    if [ "$rc" -eq 2 ]; then echo "  PASS  A9 REFUSE   unknown shard -> exit 2, distinct from PASS and FAIL"
-    else echo "  FAIL  A9 REFUSE   unknown shard -> exit $rc (expected 2)"; fails=$((fails+1)); fi
+    if [ "$rc" -eq 2 ]; then arm_ok "A9 REFUSE   unknown shard -> exit 2, distinct from PASS and FAIL"
+    else arm_bad "A9 REFUSE   unknown shard -> exit $rc (expected 2)"; fi
 
     # A10 ORACLE SHAPE — the expected set must EXCLUDE support libraries that emit no test line.
     # If Tests.Shared ever enters the oracle, every run FAILs for a project that cannot report,
     # and the gate gets disabled as noise. That is how a real gate dies.
     if printf '%s\n' $asm_all | grep -qx "Tests.Shared"; then
-      echo "  FAIL  A10 ORACLE  Tests.Shared (IsTestProject=false) leaked into the expected set"; fails=$((fails+1))
+      arm_bad "A10 ORACLE  Tests.Shared (IsTestProject=false) leaked into the expected set"
     else
-      echo "  PASS  A10 ORACLE  support libraries excluded from the expected set"
+      arm_ok "A10 ORACLE  support libraries excluded from the expected set"
     fi
     rm -f "$TMP_REPORTED.log" "$TMP_REPORTED.log2" "$TMP_REPORTED.log3"
   fi
 
-  printf '\n  %s\n\n' "$([ "$fails" -eq 0 ] && echo "11 passed, 0 failed" || echo "$fails failed")"
+  printf '\n  %s\n\n' "$([ "$fails" -eq 0 ] && echo "$arms passed, 0 failed" || echo "$((arms-fails)) passed, $fails failed")"
   [ "$fails" -eq 0 ] || return 1
   return 0
 }
@@ -338,12 +409,41 @@ if [ "$MODE" = asmexpected ] || [ "$MODE" = asmcompare ]; then
   [ "$MODE" = asmexpected ] && { cat "$TMP_EXPECTED"; exit 0; }
 
   [ -n "$RESULTS" ] && [ -r "$RESULTS" ] || { echo "REFUSE: run log not readable: ${RESULTS:-<none>}" >&2; exit 2; }
+  # An assembly that ran leaves evidence on the console, in a TRX, or both. One that never ran leaves
+  # neither, so the UNION is the right reading: it removes the false MISSING caused by a clobbered
+  # console line without weakening what this gate catches.
   normalise_reported_assemblies < "$RESULTS" > "$TMP_REPORTED"
+  trx_reported_assemblies "$SHARD" "$RESULTS" >> "$TMP_REPORTED"
+  sort -u -o "$TMP_REPORTED" "$TMP_REPORTED"
 
-  A_MISSING="$(comm -23 "$TMP_EXPECTED" "$TMP_REPORTED")"
-  A_EXTRA="$(comm -13 "$TMP_EXPECTED" "$TMP_REPORTED")"
-  A_EXP="$(wc -l < "$TMP_EXPECTED" | tr -d ' ')"
-  A_REP="$(wc -l < "$TMP_REPORTED" | tr -d ' ')"
+  # TRX storage names are lower-cased by the runner, so the COMPARISON is case-insensitive while the
+  # REPORT keeps the .slnf's own casing.
+  TMP_EXP_LC="$(mktemp)"; TMP_REP_LC="$(mktemp)"
+  tr 'A-Z' 'a-z' < "$TMP_EXPECTED" | sort -u > "$TMP_EXP_LC"
+  tr 'A-Z' 'a-z' < "$TMP_REPORTED" | sort -u > "$TMP_REP_LC"
+
+  MISSING_LC="$(comm -23 "$TMP_EXP_LC" "$TMP_REP_LC")"
+  A_EXTRA="$(comm -13 "$TMP_EXP_LC" "$TMP_REP_LC")"
+  A_MISSING="$(awk 'NR==FNR{ if(length($0)) m[$0]; next } (tolower($0) in m)' <(printf '%s
+' "$MISSING_LC") "$TMP_EXPECTED")"
+  A_EXP="$(wc -l < "$TMP_EXP_LC" | tr -d ' ')"
+  A_REP="$(wc -l < "$TMP_REP_LC" | tr -d ' ')"
+  rm -f "$TMP_EXP_LC" "$TMP_REP_LC"
+
+  # Still looks incomplete, the log carries result lines naming no assembly, and no TRX is beside it
+  # to resolve them: REFUSE. A lost name and a lost assembly are indistinguishable from here, and
+  # calling that FAIL is how this gate once named two innocent assemblies.
+  if [ -n "$A_MISSING" ]; then
+    UNATTRIBUTABLE="$(count_unattributable_result_lines < "$RESULTS")"
+    TRX_FOUND="$(trx_reported_assemblies "$SHARD" "$RESULTS" | grep -c . || true)"
+    if [ "${UNATTRIBUTABLE:-0}" -gt 0 ] && [ "${TRX_FOUND:-0}" -eq 0 ]; then
+      echo "REFUSE: shard '$SHARD' has $UNATTRIBUTABLE result line(s) naming no assembly, and no TRX beside $RESULTS to resolve them." >&2
+      echo "A clobbered terminal line and a missing assembly are indistinguishable here. This measured NOTHING: not a pass, not a fail." >&2
+      printf '  unresolved: %s
+' $A_MISSING >&2
+      exit 2
+    fi
+  fi
 
   if [ -n "$A_MISSING" ]; then
     echo "FAIL: shard '$SHARD' is INCOMPLETE — $A_REP of $A_EXP expected assemblies reported." >&2

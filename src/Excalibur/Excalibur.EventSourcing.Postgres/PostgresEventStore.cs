@@ -51,6 +51,46 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	private readonly JsonSerializerOptions _jsonOptions;
 
 	/// <summary>
+	/// Asks whether the rows carrying THIS call's event identifiers are already durably present.
+	/// </summary>
+	/// <param name="connection">An open connection.</param>
+	/// <param name="eventList">The events this call attempted to write.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The committed outcome, or <see langword="null"/> when there is no identity to ask with.</returns>
+	/// <remarks>
+	/// Sound outside the write transaction because the store is append-only: once a row carrying event id e
+	/// exists it exists in every later state, so a stale read can only MISS it -- which yields the conflict
+	/// that would have been reported anyway. It must never fail the append: a probe that throws would turn a
+	/// recoverable lost acknowledgement into a hard failure, which is worse than the defect it closes.
+	/// </remarks>
+	private async Task<CommittedAppendOutcome?> ReadCommittedAppendOutcomeAsync(
+		NpgsqlConnection connection,
+		IReadOnlyCollection<IDomainEvent> eventList,
+		CancellationToken cancellationToken)
+	{
+		var eventIds = eventList
+			.Select(static e => e.EventId)
+			.Where(static id => !string.IsNullOrWhiteSpace(id))
+			.ToList();
+
+		if (eventIds.Count == 0)
+		{
+			return null;
+		}
+
+		try
+		{
+			return await connection.ResolveAsync(
+				new GetCommittedAppendOutcomeRequest(
+					eventIds, CurrentTenantScope, cancellationToken, _schema, _table)).ConfigureAwait(false);
+		}
+		catch (NpgsqlException)
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
 	/// Whether the host supplied an event type-info resolver, selecting the reflection-free serialization
 	/// path. Decided once at construction because the resolver cannot change for a constructed store.
 	/// </summary>
@@ -385,6 +425,18 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 					// Roll back immediately. Nothing must be staged when the append is rejected, so the
 					// callback is not invoked at all on this path.
 					await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+
+					// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING. A retry of an append whose
+					// acknowledgement was lost arrives HERE: its own committed write is what moved the version, so any
+					// read-back further down cannot help -- nothing throws on this path.
+					var committedOnRetry = await ReadCommittedAppendOutcomeAsync(connection, eventList, cancellationToken)
+						.ConfigureAwait(false);
+
+					if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
+					{
+						return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+					}
+
 					return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 				}
 
@@ -461,6 +513,18 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 
 		if (currentVersion != expectedVersion)
 		{
+			// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING. A retry of an append whose
+			// acknowledgement was lost arrives HERE: its own committed write is what moved the version, so any
+			// read-back further down cannot help -- nothing throws on this path.
+			var committedOnRetry = await ReadCommittedAppendOutcomeAsync(connection, eventList, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
+			{
+				activity.SetOperationResult(EventSourcingTagValues.Success);
+				return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+			}
+
 			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 			return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 		}

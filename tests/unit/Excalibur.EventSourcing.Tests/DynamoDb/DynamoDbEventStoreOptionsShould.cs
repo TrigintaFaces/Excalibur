@@ -35,26 +35,6 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveDefaultSortKeyAttribute()
-	{
-		// Arrange & Act
-		var options = new DynamoDbEventStoreOptions();
-
-		// Assert
-		options.SortKeyAttribute.ShouldBe("sk");
-	}
-
-	[Fact]
-	public void HaveDefaultUseTransactionalWriteTrue()
-	{
-		// Arrange & Act
-		var options = new DynamoDbEventStoreOptions();
-
-		// Assert
-		options.UseTransactionalWrite.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void HaveDefaultMaxBatchSizeOf100()
 	{
 		// Arrange & Act
@@ -168,19 +148,6 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AllowCustomUseTransactionalWrite()
-	{
-		// Arrange & Act
-		var options = new DynamoDbEventStoreOptions
-		{
-			UseTransactionalWrite = false
-		};
-
-		// Assert
-		options.UseTransactionalWrite.ShouldBeFalse();
-	}
-
-	[Fact]
 	public void AllowCustomMaxBatchSize()
 	{
 		// Arrange & Act
@@ -272,4 +239,14 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 	}
 
 	#endregion Property Setters Tests
+	[Fact]
+	public void HaveDefaultSortKeyAttribute()
+	{
+		// Arrange & Act
+		var options = new DynamoDbEventStoreOptions();
+
+		// Assert
+		options.SortKeyAttribute.ShouldBe("sk");
+	}
+
 }

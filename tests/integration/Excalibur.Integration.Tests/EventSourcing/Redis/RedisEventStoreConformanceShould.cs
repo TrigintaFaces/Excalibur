@@ -160,6 +160,30 @@ public sealed class RedisEventStoreConformanceShould : EventStoreConformanceTest
 		return ConcurrentAppend_DifferentAggregates_AllShouldSucceed();
 	}
 
+	/// <summary>SAFETY: re-presenting the same events at the same expected version is success, not a conflict, and does not duplicate them.</summary>
+	[Fact]
+	public Task ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate_Test()
+	{
+		RequireRealRedis();
+		return ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate();
+	}
+
+	/// <summary>SAFETY: the lost-acknowledgement answer holds mid-stream, not only when the stream is created.</summary>
+	[Fact]
+	public Task ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate_Test()
+	{
+		RequireRealRedis();
+		return ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate();
+	}
+
+	/// <summary>SAFETY: the lost-acknowledgement answer holds for a multi-event batch, and never over a torn prefix.</summary>
+	[Fact]
+	public Task ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate_Test()
+	{
+		RequireRealRedis();
+		return ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate();
+	}
+
 	/// <summary>SAFETY: a null, empty or whitespace aggregate identifier is rejected rather than written to a stream no reader can name.</summary>
 	[Fact]
 	public Task AppendAsync_UnaddressableAggregateId_ShouldThrow_Test()

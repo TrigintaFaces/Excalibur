@@ -39,12 +39,6 @@ public sealed class CosmosDbEventStoreOptions
 	public int DefaultTimeToLiveSeconds { get; set; } = -1;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to use transactions for appending events.
-	/// </summary>
-	/// <value>Defaults to <see langword="true"/>.</value>
-	public bool UseTransactionalBatch { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets the maximum batch size for change feed processing.
 	/// </summary>
 	/// <value>Defaults to 100.</value>

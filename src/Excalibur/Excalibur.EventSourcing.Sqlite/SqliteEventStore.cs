@@ -222,6 +222,39 @@ public sealed class SqliteEventStore : IEventStore
 
 			if (currentVersion != expectedVersion)
 			{
+				// ASK WHETHER OUR OWN EVENTS LANDED, BEFORE CLASSIFYING ANYTHING.
+				//
+				// A moved version says somebody wrote here; it does not say WHO. A retry of an append whose
+				// acknowledgement was lost arrives HERE, because its OWN committed write is what moved the
+				// version. Reporting a conflict sends the caller to reload-and-retry, which appends the same
+				// business event again at the NEXT version, where the stream uniqueness key cannot catch it
+				// because the version differs -- a permanent duplicate that every replay applies twice.
+				//
+				// Keyed on IDENTITY, not on a version slot: a slot probe is blind to an append that committed
+				// at some other version. Sound outside the write transaction because the store is append-only,
+				// so a stale read can only MISS the row, which yields the conflict reported anyway. ONE
+				// identifier settles the batch because this append commits in a single transaction -- that
+				// atomicity is load-bearing here, not incidental.
+				var firstEventId = eventList
+					.Select(static e => e.EventId)
+					.FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+
+				if (!string.IsNullOrWhiteSpace(firstEventId))
+				{
+					var landed = await connection.QuerySingleOrDefaultAsync<(long? LastVersion, long? FirstPosition)>(
+						new CommandDefinition(
+							$"SELECT MAX(Version) AS LastVersion, MIN(GlobalPosition) AS FirstPosition FROM [{_table}] "
+								+ "WHERE EventId = @EventId AND TenantId = @TenantId",
+							new { EventId = firstEventId, TenantId = tenantId },
+							transaction,
+							cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+					if (landed.LastVersion is { } landedVersion)
+					{
+						return AppendResult.CreateSuccess(landedVersion, landed.FirstPosition);
+					}
+				}
+
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 

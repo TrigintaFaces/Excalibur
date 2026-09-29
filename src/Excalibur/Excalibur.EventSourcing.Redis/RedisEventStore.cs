@@ -72,8 +72,10 @@ public sealed partial class RedisEventStore : IEventStore
 	private static readonly string AppendScript = """
 		local stream_key = KEYS[1]
 		local version_key = KEYS[2]
+		local marker_key = KEYS[3]
 		local expected_version = tonumber(ARGV[1])
 		local event_count = tonumber(ARGV[2])
+		local first_event_id = ARGV[3]
 
 		-- Authoritative current version comes from the stored counter, NOT XLEN.
 		-- XLEN drifts below the true version under XTRIM/XDEL, which would corrupt this check.
@@ -89,13 +91,28 @@ public sealed partial class RedisEventStore : IEventStore
 		-- Create (expected_version == -1) requires an absent counter (current_version == -1);
 		-- without this guard two concurrent creates would both append (lost-write / double-create).
 		if current_version ~= expected_version then
+			-- ASK WHETHER THIS CALL ALREADY COMMITTED, BEFORE REPORTING A CONFLICT.
+			--
+			-- A retry of an append whose acknowledgement was lost arrives here: its OWN committed write
+			-- is what moved the counter. Reporting a conflict sends the caller to reload-and-retry, which
+			-- appends the same business event again at the next version, where nothing can detect it.
+			--
+			-- There is no keyed read by event id over a stream -- that would be an XRANGE scan, O(n) in
+			-- stream length, on the conflict path -- so the identity is recorded as a marker when the
+			-- append succeeds and read back here. O(1), and atomic with the append because it is the
+			-- same script.
+			local marked = redis.call('HMGET', marker_key, 'eventId', 'version')
+			if marked[1] and marked[1] == first_event_id then
+				return {tonumber(marked[2]), '0-0'}
+			end
+
 			return {-1, current_version}
 		end
 
 		-- Append each event to the stream
 		local first_id = nil
 		for i = 1, event_count do
-			local base = 2 + (i - 1) * 2
+			local base = 3 + (i - 1) * 2
 			local field = ARGV[base + 1]
 			local value = ARGV[base + 2]
 			local id = redis.call('XADD', stream_key, '*', field, value)
@@ -107,6 +124,12 @@ public sealed partial class RedisEventStore : IEventStore
 		-- Advance the authoritative version counter atomically with the appends.
 		local new_version = expected_version + event_count
 		redis.call('SET', version_key, new_version)
+
+		-- Record WHAT this append was, not merely that the version moved, so the next attempt carrying
+		-- the same identifier can be recognised as this one rather than mistaken for a rival writer.
+		-- One key per stream, overwritten each append: it holds the LAST append only, which is the
+		-- window a lost acknowledgement actually occupies.
+		redis.call('HSET', marker_key, 'eventId', first_event_id, 'version', new_version)
 		return {new_version, first_id or '0-0'}
 		""";
 
@@ -204,10 +227,18 @@ public sealed partial class RedisEventStore : IEventStore
 		var streamKey = GetStreamKey(aggregateType, aggregateId);
 
 		// Build Lua script arguments: expectedVersion, eventCount, then pairs of (eventId, serializedEvent)
+		// The first event's identifier is what lets a retry of THIS append be recognised as one. A blank
+		// identifier leaves the marker unmatchable, which degrades to the previous behaviour -- a conflict
+		// -- rather than to a wrong answer.
+		var firstEventId = eventList
+			.Select(static e => e.EventId)
+			.FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id)) ?? string.Empty;
+
 		var args = new List<RedisValue>
 		{
 			expectedVersion,
 			eventList.Count,
+			firstEventId,
 		};
 
 		var nextVersion = expectedVersion;
@@ -248,7 +279,7 @@ public sealed partial class RedisEventStore : IEventStore
 		{
 			var result = (RedisResult[]?)await db.ScriptEvaluateAsync(
 				AppendScript,
-				[streamKey, versionKey],
+				[streamKey, versionKey, GetRetryMarkerKey(streamKey)],
 				args.ToArray()).ConfigureAwait(false);
 
 			if (result == null || result.Length < 2)
@@ -265,9 +296,13 @@ public sealed partial class RedisEventStore : IEventStore
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion);
 			}
 
-			LogEventsAppended(aggregateId, aggregateType, eventList.Count, nextVersion);
+			// Read the version the SCRIPT reports rather than the one computed here: on a recognised retry
+			// it is the version the earlier attempt reached, which is the honest answer.
+			var committedVersion = statusValue;
+
+			LogEventsAppended(aggregateId, aggregateType, eventList.Count, committedVersion);
 			// Per-stream version counter only — no store-wide global sequence, so no global first-event position.
-			return AppendResult.CreateSuccess(nextVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(committedVersion, firstEventPosition: null);
 		}
 		// Only a provider fault normalizes to a failure result. Cancellation, and any programming error
 		// (a null reference, a bad argument), propagates untouched: the caller asked to stop, or the code is
@@ -307,6 +342,11 @@ public sealed partial class RedisEventStore : IEventStore
 	// the multi-key append script single-slot (and therefore cluster-safe). The stream key already binds
 	// the tenant (GetStreamKey), so the version key inherits it automatically.
 	private static string GetVersionKey(string streamKey) => $"{{{streamKey}}}:ver";
+
+	// Holds the identity of the LAST successful append to this stream, so a retry carrying the same
+	// identifier can be told apart from a rival writer. Hash-tagged onto the stream key for the same
+	// reason the version counter is: all three must live on one cluster slot for the script to be atomic.
+	private static string GetRetryMarkerKey(string streamKey) => $"{{{streamKey}}}:retry";
 
 	private static List<StoredEvent> ParseStreamEntries(StreamEntry[] entries, JsonSerializerOptions options)
 	{

@@ -145,7 +145,6 @@ public sealed class DynamoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 			PartitionKeyAttribute = "pk",
 			SortKeyAttribute = "sk",
 			CreateTableIfNotExists = true,
-			UseTransactionalWrite = true,
 			Throughput = { UseOnDemandCapacity = true },
 			EnableStreams = false, // LocalStack has limited streams support
 		});

@@ -570,8 +570,180 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 		var conflicts = results.Count(r => !r.Success && r.IsConcurrencyConflict);
 		if (conflicts != concurrentAttempts - 1)
 		{
+			// The COUNT alone is not diagnosable. When this arm failed on a real provider it reported
+			// "0 were" and nothing else, and the provider log was not captured by the runner, so the
+			// reason a loser was not classified as a conflict could not be recovered from the artifacts
+			// at all -- two different mechanisms fit the same number and neither could be ruled out.
+			// The losers' own reports are the evidence, and they are already in hand here; printing
+			// them costs nothing on the passing path and is the whole diagnosis on the failing one.
+			var loserReports = string.Join(
+				"; ",
+				results
+					.Where(r => !r.Success)
+					.Select(r => $"[conflict={r.IsConcurrencyConflict}, error={r.ErrorMessage ?? "<none>"}]"));
+
 			throw new TestFixtureAssertionException(
-				$"Expected the other {concurrentAttempts - 1} racers to be concurrency conflicts but {conflicts} were.");
+				$"Expected the other {concurrentAttempts - 1} racers to be concurrency conflicts but {conflicts} were. "
+				+ $"Loser reports: {loserReports}");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that re-presenting the SAME events at the SAME expected version is reported as success
+	/// and does not write them twice -- the lost-acknowledgement case.
+	/// </summary>
+	/// <returns>A task representing the asynchronous operation.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is what a retry looks like from outside a store, and it needs no fault injection: a driver
+	/// re-running a callback after a lost commit acknowledgement, and a caller retrying its own command,
+	/// both arrive as a second call carrying the same event identifiers at the same expected version.
+	/// </para>
+	/// <para>
+	/// A store that answers from the VERSION rather than from IDENTITY reports the second call as a
+	/// concurrency conflict, because its own committed write moved the stream. The documented remedy for
+	/// a conflict is reload-and-retry, which appends the same business event again at the NEXT version,
+	/// where no uniqueness guard can catch it -- so the stream holds it twice, permanently, and every
+	/// replay applies it twice. The load assertion below is the one that catches that.
+	/// </para>
+	/// </remarks>
+	public virtual async Task ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var aggregateId = GenerateAggregateId();
+		var events = CreateTestEvents(aggregateId, 1);
+
+		var first = await store.AppendAsync(
+			aggregateId, DefaultAggregateType, events, -1, CancellationToken.None).ConfigureAwait(false);
+
+		if (!first.Success)
+		{
+			throw new TestFixtureAssertionException(
+				$"The first append must succeed before the retry can be tested. Error: {first.ErrorMessage}");
+		}
+
+		// The SAME event instances, at the SAME expected version. Indistinguishable from a driver retry.
+		var retry = await store.AppendAsync(
+			aggregateId, DefaultAggregateType, events, -1, CancellationToken.None).ConfigureAwait(false);
+
+		if (!retry.Success)
+		{
+			throw new TestFixtureAssertionException(
+				"Re-presenting the same events at the same expected version must be reported as SUCCESS: the "
+				+ "events are durably present, which is what success means. Reporting a concurrency conflict "
+				+ "sends the caller to reload-and-retry, which appends the same business event again at the "
+					+ $"conflict={retry.IsConcurrencyConflict}, error={retry.ErrorMessage}");
+		}
+
+		// LIVENESS, and the assertion that actually matters: the stream must still hold ONE event.
+		var loaded = await store.LoadAsync(
+			aggregateId, DefaultAggregateType, CancellationToken.None).ConfigureAwait(false);
+
+		if (loaded.Count != 1)
+		{
+			throw new TestFixtureAssertionException(
+				$"The stream must hold exactly one event after a retry of the same append, but holds {loaded.Count}. "
+				+ "A duplicate here is permanent and every replay applies it twice.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies the lost-acknowledgement answer for a MULTI-EVENT batch, not just a single event.
+	/// </summary>
+	/// <returns>A task representing the asynchronous operation.</returns>
+	/// <remarks>
+	/// A store that recognises its own write from one record and then reports the whole batch committed is
+	/// right only where the append was all-or-nothing. This arm is what makes that inference falsifiable:
+	/// if a store reports success while holding a torn prefix, the count assertion below fails.
+	/// </remarks>
+	public virtual async Task ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var aggregateId = GenerateAggregateId();
+		var events = CreateTestEvents(aggregateId, 3);
+
+		var first = await store.AppendAsync(
+			aggregateId, DefaultAggregateType, events, -1, CancellationToken.None).ConfigureAwait(false);
+
+		if (!first.Success)
+		{
+			throw new TestFixtureAssertionException(
+				$"The first append must succeed before the retry can be tested. Error: {first.ErrorMessage}");
+		}
+
+		var retry = await store.AppendAsync(
+			aggregateId, DefaultAggregateType, events, -1, CancellationToken.None).ConfigureAwait(false);
+
+		if (!retry.Success)
+		{
+			throw new TestFixtureAssertionException(
+				"Re-presenting a multi-event batch at the same expected version must be reported as SUCCESS. "
+				+ $"conflict={retry.IsConcurrencyConflict}, error={retry.ErrorMessage}");
+		}
+
+		var loaded = await store.LoadAsync(
+			aggregateId, DefaultAggregateType, CancellationToken.None).ConfigureAwait(false);
+
+		if (loaded.Count != 3)
+		{
+			throw new TestFixtureAssertionException(
+				$"The stream must hold exactly the three events of the batch, but holds {loaded.Count}. "
+				+ "Six means the retry duplicated the batch; fewer than three means success was reported over a "
+				+ "torn prefix, which is the worse of the two.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies the lost-acknowledgement answer MID-STREAM, not only when the stream is being created.
+	/// </summary>
+	/// <returns>A task representing the asynchronous operation.</returns>
+	/// <remarks>
+	/// Creation and extension are different code paths in several providers -- a negative expected version
+	/// is special-cased, so an arm that only ever creates a stream leaves the common case untested.
+	/// </remarks>
+	public virtual async Task ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var aggregateId = GenerateAggregateId();
+
+		// Establish a stream that already exists, so the retry below extends rather than creates.
+		var seed = await store.AppendAsync(
+			aggregateId, DefaultAggregateType, CreateTestEvents(aggregateId, 1), -1, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (!seed.Success)
+		{
+			throw new TestFixtureAssertionException($"Seed append failed: {seed.ErrorMessage}");
+		}
+
+		var events = CreateTestEvents(aggregateId, 1, 1);
+
+		var extend = await store.AppendAsync(
+			aggregateId, DefaultAggregateType, events, 0, CancellationToken.None).ConfigureAwait(false);
+
+		if (!extend.Success)
+		{
+			throw new TestFixtureAssertionException($"Mid-stream append failed: {extend.ErrorMessage}");
+		}
+
+		// The same events, at the same expected version, against a stream that has already moved past it.
+		var retry = await store.AppendAsync(
+			aggregateId, DefaultAggregateType, events, 0, CancellationToken.None).ConfigureAwait(false);
+
+		if (!retry.Success)
+		{
+			throw new TestFixtureAssertionException(
+				"Re-presenting the same events mid-stream must be reported as SUCCESS. "
+				+ $"conflict={retry.IsConcurrencyConflict}, error={retry.ErrorMessage}");
+		}
+
+		var loaded = await store.LoadAsync(
+			aggregateId, DefaultAggregateType, CancellationToken.None).ConfigureAwait(false);
+
+		if (loaded.Count != 2)
+		{
+			throw new TestFixtureAssertionException(
+				$"The stream must hold the seed plus one extension, so exactly two events, but holds {loaded.Count}.");
 		}
 	}
 

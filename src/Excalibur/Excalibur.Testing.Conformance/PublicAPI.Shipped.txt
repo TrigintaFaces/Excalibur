@@ -705,6 +705,9 @@ virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_Fro
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_ShouldIsolateByAggregateId() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_ShouldIsolateByAggregateType() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_ShouldReturnEventsInVersionOrder() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.ResetDataAsync() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.TenantPartitions_MustVersionTheSameAggregateIndependently() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.TenantScopedLoad_MustNotSeeAnotherTenantsEvents() -> System.Threading.Tasks.Task!

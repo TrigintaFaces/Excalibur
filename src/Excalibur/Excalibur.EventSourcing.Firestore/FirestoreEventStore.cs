@@ -398,6 +398,8 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			// Use transaction for optimistic concurrency
 			var newVersion = expectedVersion;
 			var conflictDetected = false;
+			var alreadyCommittedByUs = false;
+			var conflictSlotOccupied = false;
 			var currentActualVersion = expectedVersion;
 
 			await _db!.RunTransactionAsync(async transaction =>
@@ -407,6 +409,8 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				// reporting a conflict the retry disproved -- so a successful write looks like a failure and
 				// the caller retries work that already landed.
 				conflictDetected = false;
+				alreadyCommittedByUs = false;
+				conflictSlotOccupied = false;
 
 				// Optimistic-concurrency check by KEYED READS, never a transactional query.
 				//
@@ -429,7 +433,44 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 				if (nextSnapshot.Exists)
 				{
+					// THE SLOT IS OCCUPIED. THAT IS NOT THE QUESTION -- the question is BY WHOM.
+					//
+					// Firestore re-runs this callback on six status codes, five of which are lost-acknowledgement
+					// shapes: the commit reached the server and landed, and the response did not come back. On the
+					// re-run this slot is occupied by THIS CALL'S OWN EVENT. Testing only .Exists reported that as a
+					// concurrency conflict, and the documented remedy for a conflict is reload-and-retry, which
+					// appends the same business event again at the NEXT version. Deterministic ids cannot prevent
+					// that, because the versions differ, and every replay then applies the event twice.
+					//
+					// So ask by identity. The document already carries the event id it was written with, and the
+					// snapshot is in hand, so this costs no extra round trip. SqlServerEventStore states the same
+					// rule for the same reason: ask whether OUR OWN events landed before classifying anything.
+					// ONE document settles it, and only one. A Firestore transaction is all-or-nothing and the batch
+					// is kept inside a single transaction, so if we committed then EVERY slot we wrote is ours -- the
+					// first therefore decides the whole batch, and the resulting version is arithmetic rather than
+					// another read. THAT ATOMICITY IS NOW LOAD-BEARING FOR CORRECTNESS, not merely for torn streams:
+					// a future non-atomic write path would break this probe without touching it.
+					var ourFirstEventId = eventsList.Count > 0 ? eventsList[0].EventId : null;
+					
+					// A blank event id is representable, so the probe is not always available. When it is not, fall
+					// back to the previous behaviour rather than claim a totality we do not have.
+					if (!string.IsNullOrWhiteSpace(ourFirstEventId)
+						&& nextSnapshot.TryGetValue<string>("eventId", out var occupantEventId)
+						&& string.Equals(occupantEventId, ourFirstEventId, StringComparison.Ordinal))
+					{
+						// Our own earlier attempt committed and its acknowledgement was lost. The events are
+						// durably present, so the honest report is success at the version the batch reached.
+						alreadyCommittedByUs = true;
+						newVersion = expectedVersion + eventsList.Count;
+						return;
+					}
+					
+					// Everything else is a conflict, and that includes the UNKNOWN case: occupied by a document whose
+					// event id is missing or unreadable (one written before this field existed, say). Conflict is the
+					// safe verdict there because its remedy -- reload and retry -- is conservative. Success is the
+					// branch that must never be reached by inference.
 					conflictDetected = true;
+					conflictSlotOccupied = true;
 					return;
 				}
 
@@ -480,14 +521,35 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				newVersion = version;
 			}, cancellationToken: cancellationToken).ConfigureAwait(false);
 
+			if (alreadyCommittedByUs)
+			{
+				LogConcurrencyConflict(
+					streamId,
+					$"A prior attempt of this append committed and its acknowledgement was lost; reporting success "
+						+ $"at version {newVersion} from the durable documents rather than a concurrency conflict.");
+				activity.SetOperationResult(EventSourcingTagValues.Success);
+				operationResult = WriteStoreTelemetry.Results.Success;
+				return CloudAppendResult.CreateSuccess(newVersion, 0);
+			}
+
 			if (conflictDetected)
 			{
 				LogConcurrencyConflict(streamId, $"Expected version {expectedVersion}");
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 				operationResult = WriteStoreTelemetry.Results.Conflict;
 
-				// Read outside the transaction: the keyed checks above prove a conflict exists but do not
-				// reveal how far ahead the stream is, and asking inside would reintroduce the range lock.
+				if (conflictSlotOccupied)
+				{
+					// The slot after ours is TAKEN, so the stream is at least expectedVersion + 1. That bound is
+					// PROVEN by the snapshot we already read; no further call can improve it. The read that used to
+					// happen here sat inside the same try as the general provider-exception handler, so a failure
+					// in it discarded a verdict that had already been decided correctly. Not guarded -- removed.
+					return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, expectedVersion + 1, 0);
+				}
+
+				// The other branch: the EXPECTED slot is absent, so the stream is BEHIND the caller rather than
+				// ahead of it, and nothing proven so far says where it actually is. This is the only branch that
+				// needs a measurement. It fires on a stale caller, not on a race, so it is rare and uncontended.
 				currentActualVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, partitionKey, cancellationToken)
 					.ConfigureAwait(false);
 				return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, currentActualVersion, 0);

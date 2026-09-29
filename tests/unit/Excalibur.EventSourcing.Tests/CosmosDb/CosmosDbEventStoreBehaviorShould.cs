@@ -55,9 +55,9 @@ public sealed class CosmosDbEventStoreBehaviorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task AppendAsync_Throw_WhenTransactionalBatchPathCannotAccessContainer()
+	public async Task AppendAsync_Throw_WhenTransactionalBatchPathCannotAccessContainer()  // two events -> batch path
 	{
-		var sut = CreateInitializedStore(useTransactionalBatch: true);
+		var sut = CreateInitializedStore();
 		var events = new IDomainEvent[]
 		{
 			new TestDomainEvent("evt-1"),
@@ -69,9 +69,9 @@ public sealed class CosmosDbEventStoreBehaviorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task AppendAsync_Throw_WhenSequentialPathCannotAccessContainer()
+	public async Task AppendAsync_Throw_WhenSequentialPathCannotAccessContainer()  // one event -> single-write path
 	{
-		var sut = CreateInitializedStore(useTransactionalBatch: false);
+		var sut = CreateInitializedStore();
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1") };
 
 		await Should.ThrowAsync<NullReferenceException>(() =>
@@ -115,7 +115,7 @@ public sealed class CosmosDbEventStoreBehaviorShould : UnitTestBase
 			sut.SubscribeToChangesAsync(options: null, CancellationToken.None));
 	}
 
-	private static CosmosDbEventStore CreateInitializedStore(bool useTransactionalBatch = true)
+	private static CosmosDbEventStore CreateInitializedStore()
 	{
 		var sut = (CosmosDbEventStore)RuntimeHelpers.GetUninitializedObject(typeof(CosmosDbEventStore));
 		SetPrivateField(
@@ -123,7 +123,6 @@ public sealed class CosmosDbEventStoreBehaviorShould : UnitTestBase
 			"_options",
 			Options.Create(new CosmosDbEventStoreOptions
 			{
-				UseTransactionalBatch = useTransactionalBatch
 			}));
 		SetPrivateField(sut, "_logger", NullLogger<CosmosDbEventStore>.Instance);
 		SetPrivateField(sut, "_tenantContext", UntenantedContext.Instance);
