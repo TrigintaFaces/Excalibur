@@ -482,7 +482,6 @@ per-partition version arm both go RED against the real emulator, and both return
 | The default-tenant identifier is a single canonical reserved value | tenant-defaults unit arms |
 | A SQLite database created before the snapshot table had a tenant column is still readable and writable after upgrading, and one holding the empty-string encoding becomes reachable again | SQLite released-schema upgrade arms + empty-tenant convergence arms |
 | A SQLite table holding both untenanted encodings for one aggregate refuses at startup, naming the table and aggregate, without mutating a row | SQLite convergence collision arm |
-| The SQLite upgrade script a separately-provisioned deployment runs reaches the same tenant-scoped shape: rows and global positions survive, carried-over rows hold the reserved sentinel, one tenant still cannot append the same version twice while two tenants can, and a second run refuses and changes nothing | SQLite shipped upgrade-script arms (`SqliteShippedTenantUpgradeScriptShould`) |
 
 ## Known gaps
 
