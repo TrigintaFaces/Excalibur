@@ -1044,6 +1044,250 @@ public abstract class KeyManagementProviderConformanceTestKit : ConformanceTestK
 	}
 
 	/// <summary>
+	/// Verifies that a key deleted but still RECOVERABLE is reported as NOT destroyed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the arm the absence-as-destruction defect fails.</b> The two arms above exercise the
+	/// zero-retention destruction the erasure path performs; this one exercises the positive-retention delete,
+	/// which on a soft-deleting backend leaves the material recoverable for the whole retention window. A
+	/// provider that derives its answer from a key LOOKUP rather than from a statement about recoverability
+	/// answers <see langword="true"/> here -- Azure Key Vault, for instance, answers a soft-deleted key as not
+	/// found for that entire window -- and certifying on that attests an erasure over data the vault can still
+	/// hand back.
+	/// </para>
+	/// <para>
+	/// <b>The gate is the reported outcome, not the retention we passed.</b> A backend with no recovery window
+	/// destroys outright whatever retention it is given and reports <c>Completed</c>; for such a provider
+	/// <see langword="true"/> is the honest answer and this arm has nothing to assert, so it asserts nothing
+	/// and says so. The arm binds precisely where a recovery window exists, which is where the defect lives.
+	/// </para>
+	/// </remarks>
+	/// <returns> A task representing the arm. </returns>
+	public virtual async Task IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed()
+	{
+		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
+		try
+		{
+			var status = RequireDestructionStatusProvider(provider);
+			var keyId = GenerateKeyId();
+
+			_ = await provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			var outcome = await admin.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
+
+			if (outcome.State == KeyDestructionState.NotFound)
+			{
+				throw new TestFixtureAssertionException(
+					"Expected a retained delete of an existing key to destroy or schedule it, not report NotFound.");
+			}
+
+			if (outcome.State != KeyDestructionState.ScheduledIrreversible)
+			{
+				// No recovery window on this backend: the material really is gone, so there is no recoverable
+				// state for this arm to be about.
+				SkipArm(
+					nameof(IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed),
+					null,
+					"The backend reported the destruction as "
+					+ outcome.State.ToString()
+					+ " for a 30-day retention, so it holds no recoverable copy and has no recovery window for "
+					+ "this arm to examine.");
+				return;
+			}
+
+			RecordArmExecuted(nameof(IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed));
+
+			if (await status.IsKeyDestroyedAsync(keyId, CancellationToken.None).ConfigureAwait(false))
+			{
+				throw new TestFixtureAssertionException(
+					"The destruction was reported as SCHEDULED -- the backend can still restore this key -- and "
+					+ "IsKeyDestroyedAsync reports it destroyed. Answering from a key lookup produces exactly this: "
+					+ "a soft-deleted key is invisible to the lookup for its whole retention window, so absence is "
+					+ "read as destruction and an erasure is certified over recoverable personal data.");
+			}
+		}
+		finally
+		{
+			await CleanupAsync().ConfigureAwait(false);
+			(admin as IDisposable)?.Dispose();
+			(provider as IDisposable)?.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a key's GENERATION does not move across a rotation.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A rotation extends one material lineage, so the generation identifies the lineage and must be the same
+	/// before and after. The destruction record holds the generation found when the erasure ran; if a rotation
+	/// changed it, every envelope written before that rotation would name an identifier no record will ever
+	/// hold, and its read would fail permanently -- the material destroyed, and the identifier that would have
+	/// recorded it unreadable, so no retry can repair it.
+	/// </para>
+	/// <para>
+	/// <b>This is the arm that fails a provider reusing a backend per-version value.</b> An opaque key-vault
+	/// version id and a per-version key ARN both change on rotation while looking like perfectly good
+	/// identifiers, and nothing else in this kit notices.
+	/// </para>
+	/// </remarks>
+	/// <returns> A task representing the arm. </returns>
+	public virtual async Task Generation_ShouldBeStable_AcrossARotation()
+	{
+		var provider = CreateProvider();
+		try
+		{
+			var keyId = GenerateKeyId();
+
+			_ = await provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			var first = await provider.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
+			var before = first?.Generation;
+
+			if (before is null)
+			{
+				SkipArm(
+					nameof(Generation_ShouldBeStable_AcrossARotation),
+					null,
+					"The provider reports no generation on a key it just provisioned, so it cannot support a "
+					+ "crypto-shred read path and there is no lineage identity for this arm to examine.");
+				return;
+			}
+
+			RecordArmExecuted(nameof(Generation_ShouldBeStable_AcrossARotation));
+
+			_ = await provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			var rotated = await provider.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
+
+			// Guard: the rotation must actually have produced a new version, or "unchanged" is satisfied by
+			// nothing having happened.
+			if (rotated is null || rotated.Version <= first!.Version)
+			{
+				throw new TestFixtureAssertionException(
+					"The second rotation did not advance the version, so this arm cannot establish that the "
+					+ "generation survives one. A provider whose rotation is a no-op would pass the comparison "
+					+ "below without ever rotating.");
+			}
+
+			// Compared as generations, not as strings. The type's equality is ordinal by construction, so an
+			// arm cannot accidentally compare case-insensitively and pass over two different records.
+			if (before != rotated.Generation)
+			{
+				throw new TestFixtureAssertionException(
+					"The generation CHANGED across a rotation. A rotation extends one material lineage, so every "
+					+ "envelope written before it still names the generation reported earlier. An erasure records "
+					+ "only the generation present when it runs, so those envelopes would name an identifier no "
+					+ "destruction record holds, and their reads would fail permanently with no repair available. "
+					+ "A backend per-version identifier -- an opaque version id, a per-version key ARN -- is not a "
+					+ "lineage identifier and must not be reported as the generation.");
+			}
+		}
+		finally
+		{
+			await CleanupAsync().ConfigureAwait(false);
+			(provider as IDisposable)?.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a handle re-provisioned after a COMPLETED destruction reports a DIFFERENT generation.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The twin of the arm above, failing the opposite defect. A handle is derived from the data subject, so it
+	/// is stable and gets re-occupied: destroy a subject's key and let an ordinary write provision another at
+	/// the same handle. If the generation stayed the same, the destroyed generation's record would match the NEW
+	/// material, and every field written after the erasure would be reported as lawfully erased while being
+	/// perfectly readable -- a tombstone over live personal data, which is the catastrophic direction.
+	/// </para>
+	/// <para>
+	/// Without this arm, the stability arm above is satisfied by a provider returning one constant for every key
+	/// it ever holds.
+	/// </para>
+	/// </remarks>
+	/// <returns> A task representing the arm. </returns>
+	public virtual async Task Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction()
+	{
+		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
+		try
+		{
+			var keyId = GenerateKeyId();
+
+			_ = await provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			var destroyedGeneration =
+				(await provider.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false))?.Generation;
+
+			if (destroyedGeneration is null)
+			{
+				SkipArm(
+					nameof(Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction),
+					null,
+					"The provider reports no generation on a key it just provisioned, so there is no lineage "
+					+ "identity for this arm to examine.");
+				return;
+			}
+
+			var outcome = await admin.DeleteKeyAsync(keyId, 0, CancellationToken.None).ConfigureAwait(false);
+
+			if (outcome.State != KeyDestructionState.Completed)
+			{
+				// The handle is not free yet. A backend with a mandatory recovery window cannot be
+				// re-provisioned at the same name until it elapses, so the state this arm is about is
+				// unreachable here rather than untested.
+				SkipArm(
+					nameof(Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction),
+					null,
+					"A zero-retention delete reported "
+					+ outcome.State.ToString()
+					+ " rather than Completed, so the handle cannot be re-provisioned yet and the re-occupation "
+					+ "this arm examines is unreachable on this backend.");
+				return;
+			}
+
+			RecordArmExecuted(nameof(Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction));
+
+			_ = await provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			var reprovisioned =
+				(await provider.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false))?.Generation;
+
+			if (reprovisioned is null)
+			{
+				throw new TestFixtureAssertionException(
+					"The handle was re-provisioned but reports no generation, so no field written under the new "
+					+ "key can ever be read once a destruction is recorded against this handle.");
+			}
+
+			if (destroyedGeneration == reprovisioned)
+			{
+				throw new TestFixtureAssertionException(
+					"A handle re-provisioned after a COMPLETED destruction reports the SAME generation as the "
+					+ "material that was destroyed. The destroyed generation's record then matches this new key, "
+					+ "so every field written under it is reported as lawfully erased while remaining perfectly "
+					+ "readable -- a tombstone asserted over live personal data. A generation must identify the "
+					+ "MATERIAL, never the handle: handles are derived from the data subject and are re-occupied "
+					+ "by design.");
+			}
+		}
+		finally
+		{
+			await CleanupAsync().ConfigureAwait(false);
+			(admin as IDisposable)?.Dispose();
+			(provider as IDisposable)?.Dispose();
+		}
+	}
+
+	/// <summary>
 	/// Resolves the destruction-status capability, failing with an explanation rather than skipping.
 	/// </summary>
 	/// <param name="provider">The provider under test.</param>
@@ -1074,426 +1318,6 @@ public abstract class KeyManagementProviderConformanceTestKit : ConformanceTestK
 			+ "ever be certified -- the verification service treats the missing capability as fail-closed. If that "
 			+ "is intended for this provider, mark these arms skipped in your suite with that reason so the gap "
 			+ "stays visible; a decorator that merely forgot to forward GetService should forward it.");
-	}
-
-	#endregion
-
-	#region KeyDestructionStatus Tests
-
-	/// <summary>
-	/// Resolves the optional destruction-status capability, or <see langword="null"/> when the provider does
-	/// not advertise it.
-	/// </summary>
-	/// <param name="provider"> The provider under test. </param>
-	/// <returns> The capability, or <see langword="null"/>. </returns>
-	private static IKeyDestructionStatusProvider? DestructionStatusOrNull(IKeyManagementProvider provider) =>
-		provider.GetService(typeof(IKeyDestructionStatusProvider)) as IKeyDestructionStatusProvider;
-
-	/// <summary>
-	/// Verifies that a LIVE key version is reported as NOT destroyed.
-	/// </summary>
-	/// <returns> A task representing the arm. </returns>
-	/// <remarks>
-	/// This is the arm a provider that answers <see langword="true"/> to everything fails. It matters more
-	/// than it looks: a caller reads <see langword="true"/> as "this data is irrecoverable", and a decrypt
-	/// path that trusts it will report live personal data as lawfully erased.
-	/// </remarks>
-	public virtual async Task IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed()
-	{
-		var provider = CreateProvider();
-		try
-		{
-			if (DestructionStatusOrNull(provider) is not { } destructionStatus)
-			{
-				SkipArm(
-					nameof(IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed),
-					typeof(IKeyDestructionStatusProvider),
-					"The provider does not advertise IKeyDestructionStatusProvider, so it cannot state whether a "
-					+ "key version is destroyed. An erasure that destroys its keys can never be confirmed.");
-				return;
-			}
-
-			RecordArmExecuted(nameof(IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed));
-
-			var keyId = GenerateKeyId();
-			var rotation = await provider
-				.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
-				.ConfigureAwait(false);
-
-			var version = rotation.NewKey?.Version ?? 1;
-
-			if (await destructionStatus.IsKeyDestroyedAsync(keyId, version, CancellationToken.None)
-					.ConfigureAwait(false))
-			{
-				throw new TestFixtureAssertionException(
-					$"Expected version {version} of a key just created to be reported NOT destroyed, but the "
-					+ "provider reported it destroyed. Its material is live and decryptable.");
-			}
-		}
-		finally
-		{
-			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// Verifies that a key version the backend has never held is reported as destroyed.
-	/// </summary>
-	/// <returns> A task representing the arm. </returns>
-	/// <remarks>
-	/// The contract's <see langword="true"/> covers "destroyed, or never existed", and this is the one arm
-	/// that can reach <see langword="true"/> on EVERY backend — including one whose deletion is always
-	/// scheduled behind a mandatory window, where nothing a test can do makes a real key irrecoverable in
-	/// time. Paired with the live-key arm above, it binds both directions on every provider, so neither a
-	/// provider that always answers <see langword="true"/> nor one that always answers <see langword="false"/>
-	/// can pass this kit.
-	/// </remarks>
-	public virtual async Task IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed()
-	{
-		var provider = CreateProvider();
-		try
-		{
-			if (DestructionStatusOrNull(provider) is not { } destructionStatus)
-			{
-				SkipArm(
-					nameof(IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed),
-					typeof(IKeyDestructionStatusProvider),
-					"The provider does not advertise IKeyDestructionStatusProvider, so it cannot state whether a "
-					+ "key version is destroyed. An erasure that destroys its keys can never be confirmed.");
-				return;
-			}
-
-			RecordArmExecuted(nameof(IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed));
-
-			var keyId = GenerateKeyId();
-
-			if (!await destructionStatus.IsKeyDestroyedAsync(keyId, 1, CancellationToken.None)
-					.ConfigureAwait(false))
-			{
-				throw new TestFixtureAssertionException(
-					"Expected a key version this backend has never held to be reported destroyed, but the "
-					+ "provider reported it recoverable. A provider that never answers true leaves every "
-					+ "erasure awaiting a confirmation that cannot arrive.");
-			}
-		}
-		finally
-		{
-			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// Verifies that the version-scoped destruction answer AGREES with the outcome the deletion reported.
-	/// </summary>
-	/// <returns> A task representing the arm. </returns>
-	/// <remarks>
-	/// This is the load-bearing arm, and the direction it protects is the counter-intuitive one. A deletion
-	/// that reports <see cref="KeyDestructionState.ScheduledIrreversible"/> leaves the key RECOVERABLE until
-	/// its window elapses, so the version MUST be reported NOT destroyed — even though the backend's own key
-	/// lookup may already answer "not found" for it, which is what a soft-deleting vault does for the whole
-	/// retention period. A provider that infers destruction from that absence passes every other arm in this
-	/// kit and tells a caller that recoverable personal data was lawfully erased. Only a deletion reporting
-	/// <see cref="KeyDestructionState.Completed"/> may be answered <see langword="true"/>.
-	/// </remarks>
-	public virtual async Task IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome()
-	{
-		var provider = CreateProvider();
-		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
-		try
-		{
-			if (DestructionStatusOrNull(provider) is not { } destructionStatus)
-			{
-				SkipArm(
-					nameof(IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome),
-					typeof(IKeyDestructionStatusProvider),
-					"The provider does not advertise IKeyDestructionStatusProvider, so it cannot state whether a "
-					+ "key version is destroyed. An erasure that destroys its keys can never be confirmed.");
-				return;
-			}
-
-			RecordArmExecuted(nameof(IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome));
-
-			var keyId = GenerateKeyId();
-			var rotation = await provider
-				.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
-				.ConfigureAwait(false);
-
-			var version = rotation.NewKey?.Version ?? 1;
-
-			var outcome = await admin.DeleteKeyAsync(keyId, 0, CancellationToken.None).ConfigureAwait(false);
-
-			if (outcome.State == KeyDestructionState.NotFound)
-			{
-				throw new TestFixtureAssertionException(
-					"Expected DeleteKeyAsync to destroy or schedule a key just created, but it reported NotFound; "
-					+ "the destruction status cannot be checked against an outcome that did not happen.");
-			}
-
-			var destroyed = await destructionStatus.IsKeyDestroyedAsync(keyId, version, CancellationToken.None)
-				.ConfigureAwait(false);
-
-			if (outcome.State == KeyDestructionState.ScheduledIrreversible && destroyed)
-			{
-				throw new TestFixtureAssertionException(
-					$"Version {version} was reported DESTROYED while its own deletion reported "
-					+ "ScheduledIrreversible, which means the material is still recoverable until the window "
-					+ "elapses. Answer from what the backend holds, never from whether a key lookup finds it: a "
-					+ "deleted-but-recoverable key is absent from that lookup for its entire recovery window.");
-			}
-
-			if (outcome.State == KeyDestructionState.Completed && !destroyed)
-			{
-				throw new TestFixtureAssertionException(
-					$"Version {version} was reported RECOVERABLE while its own deletion reported Completed, so "
-					+ "no erasure that destroys this key can ever be confirmed.");
-			}
-		}
-		finally
-		{
-			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// Verifies that the version-scoped overload rejects a null or empty key identifier.
-	/// </summary>
-	/// <returns> A task representing the arm. </returns>
-	public virtual async Task IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException()
-	{
-		var provider = CreateProvider();
-		try
-		{
-			if (DestructionStatusOrNull(provider) is not { } destructionStatus)
-			{
-				SkipArm(
-					nameof(IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException),
-					typeof(IKeyDestructionStatusProvider),
-					"The provider does not advertise IKeyDestructionStatusProvider, so it cannot state whether a "
-					+ "key version is destroyed. An erasure that destroys its keys can never be confirmed.");
-				return;
-			}
-
-			RecordArmExecuted(nameof(IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException));
-
-			var threw = false;
-			try
-			{
-				_ = await destructionStatus.IsKeyDestroyedAsync(null!, 1, CancellationToken.None)
-					.ConfigureAwait(false);
-			}
-			catch (ArgumentException)
-			{
-				threw = true;
-			}
-
-			if (!threw)
-			{
-				throw new TestFixtureAssertionException(
-					"Expected IsKeyDestroyedAsync to throw ArgumentException for a null keyId. Answering a "
-					+ "malformed identifier at all risks answering it 'destroyed'.");
-			}
-		}
-		finally
-		{
-			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// Verifies that the CURRENT generation of a live key is reported as NOT destroyed.
-	/// </summary>
-	/// <returns> A task representing the arm. </returns>
-	/// <remarks>
-	/// The liveness half of the generation-scoped question. A provider that answers
-	/// <see langword="true"/> here reports live personal data as lawfully erased, and the field read path
-	/// degrades open on that answer without attempting a decryption, so nothing downstream ever learns the
-	/// data was still there.
-	/// </remarks>
-	public virtual async Task IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed()
-	{
-		var provider = CreateProvider();
-		try
-		{
-			if (DestructionStatusOrNull(provider) is not { } destructionStatus)
-			{
-				SkipArm(
-					nameof(IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed),
-					typeof(IKeyDestructionStatusProvider),
-					"The provider does not advertise IKeyDestructionStatusProvider, so it cannot state whether a "
-					+ "key generation is destroyed. An erasure that destroys its keys can never be confirmed.");
-				return;
-			}
-
-			var keyId = GenerateKeyId();
-			var rotation = await provider
-				.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
-				.ConfigureAwait(false);
-
-			var generation = rotation.NewKey?.Generation;
-
-			if (string.IsNullOrEmpty(generation))
-			{
-				SkipArm(
-					nameof(IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed),
-					typeof(IKeyDestructionStatusProvider),
-					"The provider reports no generation on its key metadata, so the generation-scoped question "
-					+ "cannot be asked of it. Field encryption refuses an envelope that names no generation, so "
-					+ "this provider cannot be used for crypto-shredded fields until it supplies one.");
-				return;
-			}
-
-			RecordArmExecuted(nameof(IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed));
-
-			if (await destructionStatus.IsKeyDestroyedAsync(keyId, generation, CancellationToken.None)
-					.ConfigureAwait(false))
-			{
-				throw new TestFixtureAssertionException(
-					$"Expected generation '{generation}' of a key just created to be reported NOT destroyed, but "
-					+ "the provider reported it destroyed. Its material is live and decryptable, and a field read "
-					+ "will answer null for it without attempting a decryption.");
-			}
-		}
-		finally
-		{
-			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// Verifies that a generation the backend has never held is reported as destroyed, EVEN THOUGH the key
-	/// handle naming it is live.
-	/// </summary>
-	/// <returns> A task representing the arm. </returns>
-	/// <remarks>
-	/// <para>
-	/// This is the arm the whole generation-scoped capability exists for, and the only one that distinguishes
-	/// a conformant provider from one that merely compiles. A subject's key handle is derived from the
-	/// subject, so it is stable and can be occupied again: destroy a subject's key, let one ordinary write
-	/// provision another at the same handle, and the version ordinal restarts from the beginning. A provider
-	/// that answers the handle or the ordinal therefore answers truthfully about material the reader is not
-	/// holding, and every field written before the erasure reads as live.
-	/// </para>
-	/// <para>
-	/// A provider that answers <see langword="false"/> here has reintroduced exactly that confusion, and the
-	/// failure is silent: the read proceeds, fails its authentication tag, and surfaces as corrupted data
-	/// rather than as the erasure it is.
-	/// </para>
-	/// </remarks>
-	public virtual async Task IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed()
-	{
-		var provider = CreateProvider();
-		try
-		{
-			if (DestructionStatusOrNull(provider) is not { } destructionStatus)
-			{
-				SkipArm(
-					nameof(IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed),
-					typeof(IKeyDestructionStatusProvider),
-					"The provider does not advertise IKeyDestructionStatusProvider, so it cannot state whether a "
-					+ "key generation is destroyed. An erasure that destroys its keys can never be confirmed.");
-				return;
-			}
-
-			RecordArmExecuted(nameof(IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed));
-
-			// A LIVE handle, so nothing about this arm can be satisfied by the handle being absent. The
-			// generation is the only thing that differs from the live material.
-			var keyId = GenerateKeyId();
-			_ = await provider
-				.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
-				.ConfigureAwait(false);
-
-			const string NeverHeld = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
-
-			if (!await destructionStatus.IsKeyDestroyedAsync(keyId, NeverHeld, CancellationToken.None)
-					.ConfigureAwait(false))
-			{
-				throw new TestFixtureAssertionException(
-					$"Expected generation '{NeverHeld}' -- which this backend has never held -- to be reported "
-					+ "DESTROYED at a live key handle, but the provider reported it live. The handle is derived "
-					+ "from the data subject, so it is occupied again by the next ordinary write after an "
-					+ "erasure; answering the handle rather than the generation reports a destroyed subject's "
-					+ "fields as readable and the read then fails as corruption rather than as an erasure.");
-			}
-		}
-		finally
-		{
-			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// Verifies that the generation-scoped overload rejects a malformed key identifier or generation rather
-	/// than answering one.
-	/// </summary>
-	/// <returns> A task representing the arm. </returns>
-	/// <remarks>
-	/// Answering a malformed identifier at all risks answering it "destroyed", and the caller reads that as a
-	/// lawful erasure.
-	/// </remarks>
-	public virtual async Task IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException()
-	{
-		var provider = CreateProvider();
-		try
-		{
-			if (DestructionStatusOrNull(provider) is not { } destructionStatus)
-			{
-				SkipArm(
-					nameof(IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException),
-					typeof(IKeyDestructionStatusProvider),
-					"The provider does not advertise IKeyDestructionStatusProvider, so it cannot state whether a "
-					+ "key generation is destroyed. An erasure that destroys its keys can never be confirmed.");
-				return;
-			}
-
-			RecordArmExecuted(
-				nameof(IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException));
-
-			await ShouldRejectAsync(
-				() => destructionStatus.IsKeyDestroyedAsync(null!, "any-generation", CancellationToken.None),
-				"a null keyId").ConfigureAwait(false);
-
-			await ShouldRejectAsync(
-				() => destructionStatus.IsKeyDestroyedAsync(GenerateKeyId(), null!, CancellationToken.None),
-				"a null generation").ConfigureAwait(false);
-
-			await ShouldRejectAsync(
-				() => destructionStatus.IsKeyDestroyedAsync(GenerateKeyId(), string.Empty, CancellationToken.None),
-				"an empty generation").ConfigureAwait(false);
-		}
-		finally
-		{
-			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// Asserts that an operation rejects its argument rather than answering the question.
-	/// </summary>
-	/// <param name="operation"> The operation expected to reject. </param>
-	/// <param name="what"> The malformed argument, for the failure message. </param>
-	/// <returns> A task representing the assertion. </returns>
-	private static async Task ShouldRejectAsync(Func<Task<bool>> operation, string what)
-	{
-		try
-		{
-			_ = await operation().ConfigureAwait(false);
-		}
-		catch (ArgumentException)
-		{
-			return;
-		}
-
-		throw new TestFixtureAssertionException(
-			$"Expected IsKeyDestroyedAsync to throw ArgumentException for {what}. Answering a malformed "
-			+ "identifier at all risks answering it 'destroyed', which a caller reads as a lawful erasure.");
 	}
 
 	#endregion

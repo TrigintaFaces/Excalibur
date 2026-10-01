@@ -29,7 +29,8 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 /// </list>
 /// </remarks>
 public sealed partial class SqlServerErasureStore
-	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureSchemaValidator, IDisposable
+	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureSchemaValidator,
+		IKeyDestructionLedger, IDisposable
 {
 	private readonly SqlServerErasureStoreOptions _options;
 	private readonly IDataSubjectHasher _dataSubjectHasher;
@@ -285,30 +286,34 @@ public sealed partial class SqlServerErasureStore
 	}
 
 	/// <inheritdoc />
-	public async Task RecordKeyDestroyedAsync(Guid requestId, string keyHandle, CancellationToken cancellationToken)
+	public async Task StageKeyDestructionAsync(
+		Guid requestId,
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
+		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
 		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId" : string.Empty;
 
-		// The INSERT is gated on the request EXISTING IN THIS TENANT, in the same statement, so a record can
-		// never be written into another tenant's partition and the check cannot drift from the write.
-		//
-		// NOT EXISTS makes it idempotent without relying on catching a primary-key violation, so a second pass
-		// recording the same handle affects nothing and raises nothing. The key does still constrain the table:
-		// it is what makes the set a set under genuine concurrency, where two statements can both pass the
-		// NOT EXISTS.
+		// A SEPARATE TABLE from the ledger, and that is the load-bearing part of this design. Between this
+		// INSERT and the destruction the row names LIVE material, so if the read predicate could match it a
+		// live key would report as destroyed. Holding the two states in one table behind a nullable column
+		// would make that a discipline -- one forgotten WHERE clause away. Two tables make it inexpressible:
+		// the predicate resolves only against the ledger, and a ledger row exists only after a destruction.
 		var sql = $@"
-			INSERT INTO {_options.FullDestroyedKeysTableName} (RequestId, KeyHandle, DestroyedAt)
-			SELECT @RequestId, @KeyHandle, @Now
+			INSERT INTO {_options.FullDestructionIntentsTableName} (RequestId, KeyHandle, KeyGeneration, StagedAt)
+			SELECT @RequestId, @KeyHandle, @KeyGeneration, @Now
 			FROM {_options.FullRequestsTableName} r
 			WHERE r.RequestId = @RequestId{tenantPredicate}
 			  AND NOT EXISTS (
-				  SELECT 1 FROM {_options.FullDestroyedKeysTableName} d
-				  WHERE d.RequestId = @RequestId AND d.KeyHandle = @KeyHandle)";
+				  SELECT 1 FROM {_options.FullDestructionIntentsTableName} i
+				  WHERE i.RequestId = @RequestId AND i.KeyHandle = @KeyHandle
+				    AND i.KeyGeneration = @KeyGeneration)";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -319,6 +324,122 @@ public sealed partial class SqlServerErasureStore
 				sql,
 				new
 				{
+					RequestId = requestId,
+					KeyHandle = keyHandle,
+					KeyGeneration = keyGeneration,
+					Now = DateTimeOffset.UtcNow,
+					AmbientTenantId = tenant.TenantId,
+				},
+				cancellationToken: cancellationToken,
+				commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			// Zero rows has two causes and only one is benign. Already staged is benign; no such request in this
+			// tenant is not, and it must not pass as "staged" -- the caller is about to perform an irreversible
+			// destruction believing the generation is recoverable from this row.
+			if (affected == 0)
+			{
+				// Same discriminator as the record below: ask whether the REQUEST exists, which is what decides
+				// whether zero rows was the benign already-staged case or a caller naming a request that is not
+				// here.
+				var requestExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+					$"SELECT COUNT(1) FROM {_options.FullRequestsTableName} r "
+					+ $"WHERE r.RequestId = @RequestId{tenantPredicate}",
+					new { RequestId = requestId, AmbientTenantId = tenant.TenantId },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+				if (requestExists == 0)
+				{
+					throw new KeyNotFoundException(
+						$"No erasure request with id '{requestId}' exists in this tenant, so a destruction "
+						+ "cannot be staged against it. This throws rather than returning quietly: the staged "
+						+ "intent is the only copy of the generation that survives the destruction, so "
+						+ "proceeding without it would leave a crashed pass with nothing to recover from.");
+				}
+			}
+		}
+		catch (SqlException ex) when (IsDuplicateKeyViolation(ex))
+		{
+			// Two passes raced past the NOT EXISTS. The row is there either way, which is the whole
+			// postcondition, so this is the success path arriving by a different route.
+		}
+	}
+
+	/// <inheritdoc />
+	public async Task<IReadOnlyList<string>> GetStagedKeyGenerationsAsync(
+		Guid requestId,
+		string keyHandle,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var tenant = AmbientScope;
+		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId" : string.Empty;
+
+		// Joined to the request so another tenant's staged intents read as absent: a staged generation is a
+		// backend token for live material, and one tenant must not be able to enumerate another's.
+		var sql = $@"
+			SELECT i.KeyGeneration
+			FROM {_options.FullDestructionIntentsTableName} i
+			INNER JOIN {_options.FullRequestsTableName} r ON r.RequestId = i.RequestId
+			WHERE i.RequestId = @RequestId AND i.KeyHandle = @KeyHandle{tenantPredicate}";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var generations = await connection.QueryAsync<string>(new CommandDefinition(
+			sql,
+			new { RequestId = requestId, KeyHandle = keyHandle, AmbientTenantId = tenant.TenantId },
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		return [.. generations];
+	}
+
+	/// <inheritdoc />
+	public async Task RecordKeyDestroyedAsync(
+		Guid requestId,
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
+		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var tenant = AmbientScope;
+		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId" : string.Empty;
+
+		// The INSERT is gated on the request EXISTING IN THIS TENANT, in the same statement, so a record can
+		// never be written into another tenant's partition and the check cannot drift from the write.
+		//
+		// THE EXISTENCE TEST IS ON THE GENERATION ALONE, and that is a correction rather than a detail. It used
+		// to test (RequestId, KeyHandle), whose comment reasoned only about two passes recording the same
+		// handle -- so a SECOND destruction at one handle, which is a different generation and a real
+		// destruction, was silently absorbed as a duplicate and never recorded. A generation is minted once and
+		// never reused, so a conflict on the generation is the only conflict that is genuinely a repeat.
+		var sql = $@"
+			INSERT INTO {_options.FullDestroyedKeysTableName} (KeyGeneration, RequestId, KeyHandle, DestroyedAt, RecordedBy)
+			SELECT @KeyGeneration, @RequestId, @KeyHandle, @Now, '{RecordedBy.FrameworkErasure}'
+			FROM {_options.FullRequestsTableName} r
+			WHERE r.RequestId = @RequestId{tenantPredicate}
+			  AND NOT EXISTS (
+				  SELECT 1 FROM {_options.FullDestroyedKeysTableName} d
+				  WHERE d.KeyGeneration = @KeyGeneration)";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			var affected = await connection.ExecuteAsync(new CommandDefinition(
+				sql,
+				new
+				{
+					KeyGeneration = keyGeneration,
 					RequestId = requestId,
 					KeyHandle = keyHandle,
 					Now = DateTimeOffset.UtcNow,
@@ -332,20 +453,28 @@ public sealed partial class SqlServerErasureStore
 			// attest a destruction on the strength of this record existing.
 			if (affected == 0)
 			{
-				var alreadyRecorded = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
-					$"SELECT COUNT(1) FROM {_options.FullDestroyedKeysTableName} d "
-					+ "WHERE d.RequestId = @RequestId AND d.KeyHandle = @KeyHandle",
-					new { RequestId = requestId, KeyHandle = keyHandle },
+				// WHICH QUESTION THIS ASKS IS THE WHOLE POINT, so it asks the one that decides. The two causes of
+				// zero rows are "the generation was already on file" (benign) and "no such request in this
+				// tenant" (not benign, and the caller is about to attest a destruction on a record that does not
+				// exist). Asking whether the REQUEST exists separates them exactly. Asking whether the GENERATION
+				// exists is a proxy, and the wrong one: with the ledger keyed on the generation alone, a
+				// generation on file under any other request would answer yes and let a bad requestId pass as
+				// benign.
+				var requestExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+					$"SELECT COUNT(1) FROM {_options.FullRequestsTableName} r "
+					+ $"WHERE r.RequestId = @RequestId{tenantPredicate}",
+					new { RequestId = requestId, AmbientTenantId = tenant.TenantId },
 					cancellationToken: cancellationToken,
 					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
-				if (alreadyRecorded == 0)
+				if (requestExists == 0)
 				{
 					throw new KeyNotFoundException(
 						$"No erasure request with id '{requestId}' exists in this tenant, so a destroyed key "
 						+ "cannot be recorded against it. This throws rather than returning quietly: the record "
-						+ "is what lets a retry attest a destruction an earlier pass performed, so losing it "
-						+ "silently would make the subject's erasure permanently uncertifiable.");
+						+ "is what lets a retry attest a destruction an earlier pass performed and what lets a "
+						+ "read report the subject's erasure, so losing it silently would make that erasure "
+						+ "permanently uncertifiable.");
 				}
 			}
 		}
@@ -354,6 +483,137 @@ public sealed partial class SqlServerErasureStore
 			// Two passes raced past the NOT EXISTS. The row is there either way, which is the whole
 			// postcondition, so this is the success path arriving by a different route.
 		}
+
+		// ONLY HERE, and the position in this method is the whole safety argument. Control reaches this line
+		// only once the ledger row for this generation is known to EXIST -- this statement inserted it, the
+		// existence check found it already there, or the duplicate-key filter above caught a race that left
+		// it there. The staged intent then carries nothing the ledger does not, so removing it loses no
+		// recovery information.
+		//
+        // IT NEEDS ORDERING, NOT ATOMICITY, which is why there is no transaction around the pair. A crash
+		// between the insert and the delete leaves a stale intent, and a stale intent is harmless by
+		// construction: the read predicate cannot name this table. The reverse order is the one that is
+		// unsafe -- an intent deleted before its ledger row exists recreates the unrepairable window the
+		// staging table was introduced to close -- so the delete is in a method of its own, called from this
+		// one place, after the success determination.
+		await DeleteStagedIntentAsync(connection, requestId, keyHandle, keyGeneration, cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Removes a staged intent whose destruction is now recorded in the ledger.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Housekeeping, and it FAILS OPEN on purpose. By the time this runs the destruction is irreversible and
+	/// its ledger row is committed, so the request must be able to reach completion; letting a cleanup failure
+	/// propagate would turn a successful, recorded erasure into a failed one and leave the subject
+	/// uncertifiable over a row nobody reads. The cost of the failure is one orphaned row in a table the read
+	/// predicate cannot see.
+	/// </para>
+	/// <para>
+	/// Without this the intents table grows by one row per key per request, forever. It is bounded here rather
+	/// than by a sweep because the exact moment the row becomes redundant is known precisely at this call
+	/// site and nowhere else.
+	/// </para>
+	/// </remarks>
+	private async Task DeleteStagedIntentAsync(
+		SqlConnection connection,
+		Guid requestId,
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			_ = await connection.ExecuteAsync(new CommandDefinition(
+				$"DELETE FROM {_options.FullDestructionIntentsTableName} "
+				+ "WHERE RequestId = @RequestId AND KeyHandle = @KeyHandle "
+				+ "AND KeyGeneration = @KeyGeneration",
+				new { RequestId = requestId, KeyHandle = keyHandle, KeyGeneration = keyGeneration },
+				cancellationToken: cancellationToken,
+				commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		}
+		catch (SqlException ex)
+		{
+			LogStagedIntentNotCleanedUp(keyHandle, ex);
+		}
+	}
+
+	/// <inheritdoc />
+	public async Task RecordDestroyedGenerationAsync(string keyGeneration, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// NO request and NO handle, and they are NULL rather than a sentinel because the caller genuinely has
+		// neither -- a consumer who destroyed a key through their own process has no erasure request to name.
+		// The provenance column is what records that this row rests on the caller's assertion; it is not
+		// inferred from the nulls.
+		//
+		// NOT gated on a request row existing, which is the one structural difference from the framework's own
+		// write, and it is the whole point of this member: there is no request. The evidence is the caller's
+		// assertion, which the contract states they own.
+		//
+		// NOT EXISTS plus the duplicate-key filter below, so re-asserting a generation already on file is a
+		// no-op and the FIRST instant stands. A later assertion must not move a recorded destruction's
+		// timestamp.
+		var sql = $@"
+			INSERT INTO {_options.FullDestroyedKeysTableName} (KeyGeneration, RequestId, KeyHandle, DestroyedAt, RecordedBy)
+			SELECT @KeyGeneration, NULL, NULL, @Now, '{RecordedBy.CallerAssertion}'
+			WHERE NOT EXISTS (
+				SELECT 1 FROM {_options.FullDestroyedKeysTableName} d
+				WHERE d.KeyGeneration = @KeyGeneration)";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			// Not caught beyond the race below, by contract: a caller that believed it recorded a destruction
+			// it did not would see the subject's reads fail with no indication why.
+			_ = await connection.ExecuteAsync(new CommandDefinition(
+				sql,
+				new { KeyGeneration = keyGeneration, Now = DateTimeOffset.UtcNow },
+				cancellationToken: cancellationToken,
+				commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		}
+		catch (SqlException ex) when (IsDuplicateKeyViolation(ex))
+		{
+			// Two callers raced past the NOT EXISTS. The row is there either way, which is the whole
+			// postcondition, so this is the success path arriving by a different route.
+		}
+	}
+
+	/// <inheritdoc />
+	public async ValueTask<bool> IsGenerationDestroyedAsync(string keyGeneration, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// NO tenant predicate, deliberately, and NOT an oversight. The statement is addressed by the ledger's
+		// whole PRIMARY KEY, so it already selects at most one row; a tenant term on such a statement cannot
+		// admit a foreign row and its only reachable effect is turning the correct row into none. Here that
+		// effect is the catastrophic one in reverse: a read of a genuinely erased subject would stop reporting
+		// their erasure and start failing, permanently. A generation is minted by the key backend and is not
+		// derivable from a subject, so one tenant cannot name another's.
+		//
+		// The intents table is NOT named here, and must never be: a staged generation describes material that
+		// may still be live.
+		var sql = $"SELECT COUNT(1) FROM {_options.FullDestroyedKeysTableName} WHERE KeyGeneration = @KeyGeneration";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var found = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+			sql,
+			new { KeyGeneration = keyGeneration },
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		return found > 0;
 	}
 
 	/// <inheritdoc />
@@ -785,6 +1045,14 @@ public sealed partial class SqlServerErasureStore
 	[LoggerMessage(LogLevel.Information, "Cleaned up {Count} expired erasure certificates")]
 	private partial void LogCleanedUpCertificates(int count);
 
+	// Warning, not error: the destruction is recorded and the erasure can complete. What is left behind is
+	// one row in a table the read predicate cannot name. Logged so unbounded growth has a visible cause
+	// rather than being discovered as a disk-space incident nobody can attribute.
+	[LoggerMessage(LogLevel.Warning,
+		"A destruction for key handle {KeyHandle} was recorded in the ledger, but its staged intent could not "
+		+ "be removed. The erasure is unaffected; the intent row remains and is invisible to the read path")]
+	private partial void LogStagedIntentNotCleanedUp(string keyHandle, Exception exception);
+
 	[LoggerMessage(LogLevel.Debug, "Ensured SQL Server erasure schema and tables exist")]
 	private partial void LogSchemaEnsured();
 
@@ -978,7 +1246,17 @@ public sealed partial class SqlServerErasureStore
 		// completion becomes unreachable with nothing reporting why.
 		(_options.FullDestroyedKeysTableName,
 		[
-			"RequestId", "KeyHandle", "DestroyedAt",
+			"KeyGeneration", "RequestId", "KeyHandle", "DestroyedAt", "RecordedBy",
+		]),
+
+		// Verified for the same reason, and the failure it prevents is worse. Without this table a destruction
+		// proceeds with nowhere to stage the generation it is about to annihilate, so a crash between the
+		// destroy and the record leaves the subject's ciphertext permanently undecryptable AND their erasure
+		// permanently unreportable, with no repair available at all. Naming the table at STARTUP is the only
+		// place that is still cheap.
+		(_options.FullDestructionIntentsTableName,
+		[
+			"RequestId", "KeyHandle", "KeyGeneration", "StagedAt",
 		]),
 	];
 
@@ -990,6 +1268,25 @@ public sealed partial class SqlServerErasureStore
 	/// an unrelated failure - a dropped connection, a timeout, a check constraint - as a duplicate, which
 	/// is worse than not translating at all: the caller would be told the row exists when it does not.
 	/// </remarks>
+	/// <summary>
+	/// The ledger's provenance values. Stored as text because the audience for this table is a compliance
+	/// auditor reading rows directly, and a self-describing value needs no lookup to interpret.
+	/// </summary>
+	/// <remarks>
+	/// Provenance is an EXPLICIT column rather than something inferred from a null request id. Deriving a fact
+	/// from the absence of a value is the exact reasoning this ledger exists to remove, and it would be no more
+	/// sound here than at a key backend. It is an audit attribute only: the read predicate never names it, so a
+	/// row is a row whichever writer produced it.
+	/// </remarks>
+	private static class RecordedBy
+	{
+		/// <summary>An erasure this framework performed: staged before the destroy, recorded after it.</summary>
+		public const string FrameworkErasure = "framework-erasure";
+
+		/// <summary>A destruction the CALLER performed and asserted. Nothing here re-verified it.</summary>
+		public const string CallerAssertion = "caller-assertion";
+	}
+
 	private static bool IsDuplicateKeyViolation(SqlException ex)
 		=> ex.Number is 2627 or 2601;
 
@@ -1074,22 +1371,67 @@ public sealed partial class SqlServerErasureStore
 				)
 			END";
 
-		// Which handles a request has destroyed, one row per handle. The composite PRIMARY KEY is the
-		// idempotency: re-recording a handle this request already destroyed violates it and is swallowed as a
-		// no-op, so no pass has to read-modify-write a set and no pass can lose another's record.
+		// THE LEDGER. A row here IS the statement that this generation's material was irreversibly destroyed by
+		// an erasure this framework performed, and it is the sole basis on which a read may report a field as
+		// erased.
+		//
+		// The PRIMARY KEY is the GENERATION ALONE. A generation is minted once and never reused, so one
+		// generation is one destruction and two rows for it are a contradiction the database refuses -- which
+		// DISSOLVES a retried erasure, two erasures of one subject, and a handle reused by a different subject
+		// rather than defending against each. RequestId and KeyHandle ride along as audit attributes and are
+		// never key components; the read predicate names neither.
 		var createDestroyedKeysTableSql = $@"
 			IF NOT EXISTS (SELECT 1 FROM sys.tables t
 				JOIN sys.schemas s ON t.schema_id = s.schema_id
 				WHERE s.name = '{_options.SchemaName}' AND t.name = '{_options.DestroyedKeysTableName}')
 			BEGIN
 				CREATE TABLE {_options.FullDestroyedKeysTableName} (
-					RequestId UNIQUEIDENTIFIER NOT NULL,
-					-- Binary collation, so the database compares handles exactly as the framework does
-					-- ordinally. A case-insensitive collation would treat two distinct handles as one and
-					-- silently attest coverage for a key that was never destroyed.
-					KeyHandle NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
+					-- Binary collation, so the database compares generations exactly as the framework does
+					-- ordinally. A case-insensitive collation would treat two distinct generations as one, and
+					-- one destroyed generation would then answer for a different, LIVE one.
+					KeyGeneration NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
+					-- NULLABLE, because a destruction asserted by the CONSUMER through the ledger's public
+					-- write has no erasure request and no handle to name. Audit attributes either way; the
+					-- read predicate names neither.
+					RequestId UNIQUEIDENTIFIER NULL,
+					KeyHandle NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
 					DestroyedAt DATETIMEOFFSET NOT NULL,
-					CONSTRAINT PK_{_options.DestroyedKeysTableName} PRIMARY KEY (RequestId, KeyHandle)
+					-- WHO asserted the destruction, stated explicitly rather than inferred from the nulls
+					-- above. Deriving a fact from a missing value is the reasoning this table exists to replace.
+					RecordedBy NVARCHAR(32) NOT NULL,
+					CONSTRAINT PK_{_options.DestroyedKeysTableName} PRIMARY KEY (KeyGeneration)
+				);
+				-- The retry reads this table by request to learn which handles its earlier passes destroyed,
+				-- and that is no longer the primary key, so it needs its own index.
+				CREATE INDEX IX_{_options.DestroyedKeysTableName}_Request
+					ON {_options.FullDestroyedKeysTableName} (RequestId, KeyHandle);
+			END";
+
+		// THE STAGING TABLE, written BEFORE the destruction, and deliberately NOT the ledger.
+		//
+		// The destruction destroys this write's own input: on every backend the framework supports the
+		// generation identifier IS backend material, unreadable once the material is gone. So a crash between
+		// destroying and recording is not a window a retry repairs -- the generation is gone, the record can
+		// never be written, and the subject is left permanently undecryptable and permanently unreportable.
+		// Staging first is what leaves a retry something to work from.
+		//
+		// It is a SECOND TABLE because between the stage and the destruction a staged row names LIVE material.
+		// A predicate that could match it would report a live key as destroyed, which is the catastrophic
+		// direction. One table with a nullable DestroyedAt would make that a discipline -- one forgotten WHERE
+		// clause away; two tables make it inexpressible, because a row's presence in the ledger is itself the
+		// statement and there is no clause to forget.
+		var createDestructionIntentsTableSql = $@"
+			IF NOT EXISTS (SELECT 1 FROM sys.tables t
+				JOIN sys.schemas s ON t.schema_id = s.schema_id
+				WHERE s.name = '{_options.SchemaName}' AND t.name = '{_options.DestructionIntentsTableName}')
+			BEGIN
+				CREATE TABLE {_options.FullDestructionIntentsTableName} (
+					RequestId UNIQUEIDENTIFIER NOT NULL,
+					KeyHandle NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
+					KeyGeneration NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
+					StagedAt DATETIMEOFFSET NOT NULL,
+					CONSTRAINT PK_{_options.DestructionIntentsTableName}
+						PRIMARY KEY (RequestId, KeyHandle, KeyGeneration)
 				)
 			END";
 
@@ -1103,6 +1445,8 @@ public sealed partial class SqlServerErasureStore
 		_ = await connection.ExecuteAsync(new CommandDefinition(createCertificatesTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 		_ = await connection.ExecuteAsync(new CommandDefinition(createDestroyedKeysTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+			.ConfigureAwait(false);
+		_ = await connection.ExecuteAsync(new CommandDefinition(createDestructionIntentsTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
 		LogSchemaEnsured();

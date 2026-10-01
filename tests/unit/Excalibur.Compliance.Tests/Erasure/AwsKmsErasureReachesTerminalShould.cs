@@ -37,6 +37,19 @@ public sealed class AwsKmsErasureReachesTerminalShould : IDisposable
 
 	private readonly Dictionary<string, KeyState> _cmks = [];
 	private readonly Dictionary<string, string> _aliases = [];
+
+	/// <summary>
+	/// The framework-minted generation tag each CMK carries, keyed by CMK id.
+	/// </summary>
+	/// <remarks>
+	/// A real KMS key carries its generation as a resource TAG that the framework minted and wrote, and the
+	/// provider reports no generation for a key that has none. This fake previously returned no tags at all, so
+	/// every key looked generation-less -- and erasure now ABORTS a destruction whose generation it cannot read,
+	/// because destroying material that could never be recorded leaves the subject permanently unattestable. So
+	/// the absent tag was not a cosmetic gap: it made every arm here exercise the abort path instead of the
+	/// destruction path they are about.
+	/// </remarks>
+	private readonly Dictionary<string, string> _generations = [];
 	private readonly AwsKmsProvider _provider;
 
 	public AwsKmsErasureReachesTerminalShould()
@@ -65,6 +78,23 @@ public sealed class AwsKmsErasureReachesTerminalShould : IDisposable
 					},
 				});
 			});
+		// The generation tag, which the provider reads to report KeyMetadata.Generation. A CMK this fake does
+		// not know answers with no tags -- the same shape the real SDK uses for an untagged key, and the shape
+		// that must survive a destruction: once the CMK is gone the tag is gone with it, which is exactly why
+		// the generation has to be read BEFORE the destroy and cannot be recovered afterwards.
+		A.CallTo(() => _kms.ListResourceTagsAsync(A<ListResourceTagsRequest>._, A<CancellationToken>._))
+			.ReturnsLazily((ListResourceTagsRequest request, CancellationToken _) =>
+			{
+				var cmk = _aliases.TryGetValue(request.KeyId, out var target) ? target : request.KeyId;
+
+				return Task.FromResult(new ListResourceTagsResponse
+				{
+					Tags = _generations.TryGetValue(cmk, out var generation)
+						? [new Tag { TagKey = AwsKmsKeyTags.Generation, TagValue = generation }]
+						: null,
+				});
+			});
+
 		A.CallTo(() => _kms.ScheduleKeyDeletionAsync(A<ScheduleKeyDeletionRequest>._, A<CancellationToken>._))
 			.ReturnsLazily((ScheduleKeyDeletionRequest request, CancellationToken _) =>
 			{
@@ -166,9 +196,16 @@ public sealed class AwsKmsErasureReachesTerminalShould : IDisposable
 	/// <summary>Stages a logical key whose versions are the given CMKs, oldest first; the last is current.</summary>
 	private void GivenKeyWithVersions(string keyId, params string[] cmks)
 	{
+		// ONE generation for the whole lineage, which is what the provider does on rotation: it carries the
+		// existing generation tag onto the new CMK rather than minting a fresh one, so every version of a key
+		// shares the generation the lineage was minted with. Minting per-CMK here would model a provider
+		// behaviour that does not exist.
+		var lineageGeneration = KeyGeneration.Mint().ToString();
+
 		for (var i = 0; i < cmks.Length; i++)
 		{
 			_cmks[cmks[i]] = KeyState.Enabled;
+			_generations[cmks[i]] = lineageGeneration;
 			_aliases[_options.BuildVersionAlias(keyId, i + 1)] = cmks[i];
 		}
 
@@ -179,6 +216,10 @@ public sealed class AwsKmsErasureReachesTerminalShould : IDisposable
 	private void AwsDeletes(string cmk)
 	{
 		_ = _cmks.Remove(cmk);
+
+		// The tag goes with the key, which is the whole reason the generation must be read before the destroy:
+		// after this there is no longer anywhere to read it from.
+		_ = _generations.Remove(cmk);
 		foreach (var alias in _aliases.Where(a => a.Value == cmk).Select(a => a.Key).ToList())
 		{
 			_ = _aliases.Remove(alias);

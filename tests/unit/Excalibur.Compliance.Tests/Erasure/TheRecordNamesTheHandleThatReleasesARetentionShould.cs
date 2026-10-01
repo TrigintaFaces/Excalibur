@@ -322,6 +322,12 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 			_ = services.AddSingleton<InMemoryErasureStore>();
 			_ = services.AddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 
+			// The ledger facet of the same store. The read path takes it as a required collaborator and a
+			// tombstone is produced only from a record in it, so without this mapping the stack cannot even be
+			// constructed -- and with it, a destruction the erasure service performs is recorded where a later
+			// read can find it.
+			_ = services.AddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
 			_provider = services.BuildServiceProvider();
 		}
 
@@ -362,9 +368,44 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 
 		public EncryptedData? Unretained { get; private set; }
 
-		public async ValueTask<KeyDestructionOutcome> DestroyAsync(string handle) =>
-			await _provider.GetRequiredService<IKeyManagementAdmin>()
-				.DeleteKeyAsync(handle, retentionDays: 0, TestContext.Current.CancellationToken);
+		/// <summary>
+		/// The CONSUMER destroying a retained key out of band, once the obligation the record named has lapsed.
+		/// </summary>
+		/// <param name="handle">The retained key handle the certificate named.</param>
+		/// <returns>The destruction outcome.</returns>
+		/// <remarks>
+		/// <para>
+		/// This is not the framework erasing: the erasure deliberately spared this key, named it on the
+		/// certificate, and handed the consumer the decision of when the retention ends. So the destruction here
+		/// is theirs -- and so is the ledger record, which is why that write is a supported public operation
+		/// rather than framework-internal. Without it the key would be genuinely destroyed with nothing stating
+		/// so, and a read of the retained field would fail loudly instead of reporting the erasure: correct
+		/// behaviour, and not what a consumer following the documented path should get.
+		/// </para>
+		/// <para>
+		/// The generation is read BEFORE the destroy, because the destroy takes it with the material. Read it
+		/// afterwards and there is nothing left to read, leaving the field permanently unreadable with no repair
+		/// available -- the one outcome a retention exit must not produce.
+		/// </para>
+		/// </remarks>
+		public async ValueTask<KeyDestructionOutcome> DestroyAsync(string handle)
+		{
+			var cancellationToken = TestContext.Current.CancellationToken;
+
+			var generation = (await _provider.GetRequiredService<IKeyManagementProvider>()
+				.GetKeyAsync(handle, cancellationToken))?.Generation;
+
+			var outcome = await _provider.GetRequiredService<IKeyManagementAdmin>()
+				.DeleteKeyAsync(handle, retentionDays: 0, cancellationToken);
+
+			if (outcome.State == KeyDestructionState.Completed && generation is not null)
+			{
+				await _provider.GetRequiredService<IKeyDestructionLedger>()
+					.RecordDestroyedGenerationAsync(generation.Value.ToString(), cancellationToken);
+			}
+
+			return outcome;
+		}
 
 		public async ValueTask<ErasureCertificate> EraseAsync()
 		{

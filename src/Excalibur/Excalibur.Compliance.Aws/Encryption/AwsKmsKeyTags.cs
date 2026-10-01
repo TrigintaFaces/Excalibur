@@ -43,6 +43,22 @@ internal static class AwsKmsKeyTags
     /// <summary>Tag recording what a key is for.</summary>
     public const string Purpose = "Purpose";
 
+    /// <summary>Tag recording the identifier of the material LINEAGE a CMK belongs to.</summary>
+    /// <remarks>
+    /// <para>
+    /// Every version of a logical key is its own CMK here, so the CMK id identifies a VERSION, not a lineage.
+    /// It was used as the generation and that is wrong on the axis that matters: a rotation creates a new CMK,
+    /// so the identifier moved within one lineage. An erasure records the generation it finds now -- the newest
+    /// -- and every envelope written under an earlier version then names a generation no ledger row holds, so
+    /// its read fails permanently with no repair available.
+    /// </para>
+    /// <para>
+    /// This tag carries one value across every CMK of a lineage instead, minted when the lineage is first
+    /// provisioned and copied onto each rotation's new CMK.
+    /// </para>
+    /// </remarks>
+    public const string Generation = "ExcaliburKeyGeneration";
+
     /// <summary>
     /// Reads a key's tags, returning an empty set when they cannot be read.
     /// </summary>
@@ -129,6 +145,21 @@ internal static class AwsKmsKeyTags
     /// <returns>The recorded purpose, or <see langword="null"/>.</returns>
     public static string? PurposeOf(IReadOnlyDictionary<string, string>? tags) =>
         tags is not null && tags.TryGetValue(Purpose, out var value) ? value : null;
+
+    /// <summary>Reads the lineage identifier a CMK's tags record.</summary>
+    /// <param name="tags">The key's tags.</param>
+    /// <returns>
+    /// The recorded lineage identifier, or <see langword="null"/> when the CMK carries none.
+    /// </returns>
+    /// <remarks>
+    /// Absent is reported as absent, never substituted with the CMK id or any other value to hand. A CMK this
+    /// framework did not provision has no lineage identity we can honestly state, and a read path that is
+    /// handed one would treat a value we invented as evidence about material we never saw.
+    /// </remarks>
+    public static string? GenerationOf(IReadOnlyDictionary<string, string>? tags) =>
+        tags is not null && tags.TryGetValue(Generation, out var value) && !string.IsNullOrEmpty(value)
+            ? value
+            : null;
 
     /// <summary>Reports whether a CMK has been rotated out.</summary>
     /// <param name="tags">The key's tags.</param>

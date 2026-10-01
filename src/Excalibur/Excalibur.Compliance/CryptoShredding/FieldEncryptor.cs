@@ -18,35 +18,68 @@ namespace Excalibur.Compliance.CryptoShredding;
 /// integrity or algorithm failures still surface as exceptions.
 /// </para>
 /// <para>
-/// A tombstone is a statement that data was lawfully erased, so it is produced ONLY when the key-management
-/// provider STATES that the material behind this field's key version is destroyed, through
-/// <see cref="IKeyDestructionStatusProvider"/>. A key that merely cannot be found is not evidence of erasure:
-/// backends with a recovery window report a deleted-but-restorable key as absent for the whole window, so
-/// degrading open on absence would claim an erasure over data a single restore call brings back. When the
-/// provider cannot answer, decryption throws rather than guessing -- an erased subject's aggregate then fails
-/// to load on that provider, which is loud and recoverable, where a fabricated tombstone is neither.
+/// A tombstone is a statement that data was lawfully erased, so it is produced ONLY where
+/// <see cref="IKeyDestructionLedger"/> holds a row for the key generation this field's envelope names. A row
+/// exists only after an irreversible destruction this deployment performed has already completed, so a row's
+/// existence IS the statement -- there is no status to interpret and no absence to read.
+/// </para>
+/// <para>
+/// <b>It is NOT asked of the key backend, and that is a correctness decision rather than a layering
+/// preference.</b> A backend can only answer "I cannot serve or restore this material now", whose negative
+/// covers three states at once: destroyed, recoverable, and never held here. It cannot separate them, because
+/// a backend retains nothing about material it never held. Backends with a recovery window report a
+/// deleted-but-restorable key as absent for the whole window, so deriving "erased" from that absence claims an
+/// erasure over data a single restore call brings back -- which is precisely what two shipped providers did.
+/// The information that separates those states existed at one instant and belonged to one actor: whoever
+/// destroyed the material. That is this framework, so the answer comes from a record this framework wrote.
+/// </para>
+/// <para>
+/// A generation with no row answers "not destroyed", and the read then attempts the decrypt. If the material
+/// really is gone that decrypt fails loudly -- "we lost it" surfacing as an error, never "we erased it"
+/// surfacing as a discharged erasure. A deployment with no ledger at all cannot reach this code: the ledger is
+/// a required dependency, so the omission fails at service resolution instead of on the first erased read.
 /// </para>
 /// </remarks>
 internal sealed class FieldEncryptor : IFieldEncryptor
 {
     private readonly ISubjectKeyManager _keyManager;
     private readonly IEncryptionProviderRegistry _registry;
-    private readonly IKeyManagementProvider _keyProvider;
+    private readonly IKeyDestructionLedger _ledger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FieldEncryptor"/> class.
     /// </summary>
     /// <param name="keyManager">Resolves and creates the per-subject key handle.</param>
     /// <param name="registry">The encryption provider registry used to encrypt and decrypt.</param>
-    /// <param name="keyProvider">The key-management provider used to detect a shredded (destroyed) key.</param>
+    /// <param name="ledger">
+    /// States whether a key generation's material was destroyed. REQUIRED, and deliberately not optional.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// <paramref name="ledger"/> has no default and is not resolved on demand, which is a correctness
+    /// decision rather than a style one. It replaces an earlier shape that asked the key provider for the
+    /// capability and threw when it was absent. That shape answered the question safely but left the bad
+    /// state <i>askable</i>: a deployment with no way to state a destruction was discovered on the first read
+    /// of an erased subject -- in production, on the compliance path. As a required collaborator the same
+    /// configuration fails at service resolution, before a single request is served, and the read path loses
+    /// the branch entirely.
+    /// </para>
+    /// <para>
+    /// It is also not a capability of an <see cref="IKeyManagementProvider"/>, and must never be resolved
+    /// from one. A
+    /// ledger is a durable record this framework writes when IT destroys material; a key backend cannot hold
+    /// that record, because it retains nothing about material it never held, so "destroyed" and "never
+    /// existed" are indistinguishable there by construction.
+    /// </para>
+    /// </remarks>
     public FieldEncryptor(
         ISubjectKeyManager keyManager,
         IEncryptionProviderRegistry registry,
-        IKeyManagementProvider keyProvider)
+        IKeyDestructionLedger ledger)
     {
         _keyManager = keyManager ?? throw new ArgumentNullException(nameof(keyManager));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
-        _keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
+        _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
     }
 
     /// <inheritdoc/>
@@ -67,7 +100,7 @@ internal sealed class FieldEncryptor : IFieldEncryptor
         var context = new EncryptionContext
         {
             KeyId = subjectKey.KeyId,
-            KeyGeneration = subjectKey.Generation
+            KeyGeneration = subjectKey.Generation?.ToString()
         };
 
         var provider = _registry.GetPrimary();
@@ -165,35 +198,41 @@ internal sealed class FieldEncryptor : IFieldEncryptor
     }
 
     /// <summary>
-    /// Asks the key-management provider to state whether the material of this envelope's key GENERATION is
-    /// destroyed, and refuses to decide the read when it has no way to say.
+    /// Reads the destruction ledger for the key GENERATION this envelope names.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The generation rather than the handle or the version, because only the generation's answer cannot be
     /// changed by a later provisioning: destroy a subject's key, let one ordinary write provision another at the
     /// same handle, and both the handle and the restarted version ordinal truthfully report "not destroyed" --
     /// about material this reader is not holding.
+    /// </para>
+    /// <para>
+    /// <b>The ledger, and never the key backend.</b> This method previously asked the key provider, which could
+    /// only answer "I cannot serve or restore this" -- a false that means destroyed OR recoverable OR never
+    /// held, three states a backend cannot separate because it retains nothing about material it never held.
+    /// Two providers duly derived "destroyed" from that absence and reported a lawful erasure over recoverable
+    /// personal data. The question belongs to whoever performed the destruction, which is this framework, so it
+    /// is answered from a record this framework wrote.
+    /// </para>
+    /// <para>
+    /// No argument but the generation. Passing the handle as well would reintroduce a term the answer does not
+    /// depend on, and the only outcome it could change is turning the correct row into none.
+    /// </para>
     /// </remarks>
     private async ValueTask<bool> IsEnvelopeGenerationDestroyedAsync(
         EncryptedData envelope,
         CancellationToken cancellationToken)
     {
-        // A provider that cannot answer is never read as having answered "destroyed". Degrading open on the
-        // strength of a question nobody answered is the same fabrication as degrading open on absence.
-        if (_keyProvider.GetService(typeof(IKeyDestructionStatusProvider))
-            is not IKeyDestructionStatusProvider destructionStatus)
-        {
-            throw new EncryptionException(
-                $"The key-management provider '{_keyProvider.GetType().Name}' does not implement "
-                + $"{nameof(IKeyDestructionStatusProvider)}, so it cannot state whether the key behind this "
-                + "field was destroyed, and a crypto-shredded subject's fields cannot degrade open on it. "
-                + $"Implement {nameof(IKeyDestructionStatusProvider)} on the provider to restore that "
-                + "behaviour; until then a read of an erased subject fails rather than reporting an erasure "
-                + "nothing confirmed.");
-        }
-
-        return await destructionStatus
-            .IsKeyDestroyedAsync(envelope.KeyId, envelope.KeyGeneration!, cancellationToken)
+        // No resolve-or-throw, and its absence is the point. The ledger is a required constructor dependency,
+        // so "no way to state a destruction" is now unrepresentable here rather than detected here -- it fails
+        // at service resolution, before a request is served. What the old branch guarded against cannot occur.
+        //
+        // A generation with no ledger row answers FALSE, and the read then attempts the decrypt. If the
+        // material really is gone that decrypt fails LOUDLY, which is the correct direction: "we lost it"
+        // reported as an error, never "we erased it" reported as a discharged erasure.
+        return await _ledger
+            .IsGenerationDestroyedAsync(envelope.KeyGeneration!, cancellationToken)
             .ConfigureAwait(false);
     }
 }

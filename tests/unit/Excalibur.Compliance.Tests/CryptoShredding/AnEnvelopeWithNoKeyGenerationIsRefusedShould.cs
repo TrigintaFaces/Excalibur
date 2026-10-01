@@ -53,10 +53,10 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 	[Fact]
 	public async Task Refuse_AnEnvelopeCarryingNoKeyGeneration_BeforeAnyKeyStoreQuestionOrDecryption()
 	{
-		var (keyProvider, destruction) = KeyProviderStatingNotDestroyed();
+		var ledger = LedgerStatingNotDestroyed();
 		var (registry, decryptor) = RegistryWhoseProviderWouldSucceed();
 
-		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, keyProvider);
+		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger);
 
 		var refusal = await Should.ThrowAsync<EncryptionException>(
 			() => encryptor.DecryptAsync(Envelope(generation: null), CancellationToken.None).AsTask());
@@ -66,9 +66,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 			"an envelope that cannot identify its own key material is refused as unreadable ciphertext, never "
 			+ "reported as an erasure and never read");
 
-		A.CallTo(() => destruction.IsKeyDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
-		A.CallTo(() => destruction.IsKeyDestroyedAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => decryptor.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -82,10 +80,10 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 	[Fact]
 	public async Task Refuse_AnEnvelopeWhoseKeyGenerationIsEmpty_NotOnlyOneThatIsNull()
 	{
-		var (keyProvider, _) = KeyProviderStatingNotDestroyed();
+		var ledger = LedgerStatingNotDestroyed();
 		var (registry, decryptor) = RegistryWhoseProviderWouldSucceed();
 
-		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, keyProvider);
+		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger);
 
 		var refusal = await Should.ThrowAsync<EncryptionException>(
 			() => encryptor.DecryptAsync(Envelope(generation: string.Empty), CancellationToken.None).AsTask());
@@ -103,10 +101,10 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 	[Fact]
 	public async Task Refuse_AnEnvelopeFromAnEarlierLayout_EvenWhenItCarriesAGeneration()
 	{
-		var (keyProvider, destruction) = KeyProviderStatingNotDestroyed();
+		var ledger = LedgerStatingNotDestroyed();
 		var (registry, decryptor) = RegistryWhoseProviderWouldSucceed();
 
-		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, keyProvider);
+		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger);
 
 		var earlierLayout = Envelope(generation: LiveGeneration) with
 		{
@@ -117,7 +115,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 			() => encryptor.DecryptAsync(earlierLayout, CancellationToken.None).AsTask());
 
 		refusal.ErrorCode.ShouldBe(EncryptionErrorCode.InvalidCiphertext);
-		A.CallTo(() => destruction.IsKeyDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
+		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => decryptor.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -130,15 +128,15 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 	[Fact]
 	public async Task StillRead_AnEnvelopeNamingALiveGenerationAtTheCurrentFormatVersion()
 	{
-		var (keyProvider, destruction) = KeyProviderStatingNotDestroyed();
+		var ledger = LedgerStatingNotDestroyed();
 		var (registry, _) = RegistryWhoseProviderWouldSucceed();
 
-		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, keyProvider);
+		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger);
 
 		var plaintext = await encryptor.DecryptAsync(Envelope(generation: LiveGeneration), CancellationToken.None);
 
 		plaintext.ShouldBe(Plaintext);
-		A.CallTo(() => destruction.IsKeyDestroyedAsync(KeyId, LiveGeneration, A<CancellationToken>._))
+		A.CallTo(() => ledger.IsGenerationDestroyedAsync(LiveGeneration, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -229,21 +227,14 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 		AuthTag = new byte[16],
 	};
 
-	// A provider that can answer the destruction question and states the material is live, so nothing in
-	// these arms turns on a destruction statement.
-	private static (IKeyManagementProvider Provider, IKeyDestructionStatusProvider Destruction)
-		KeyProviderStatingNotDestroyed()
+	// A ledger holding no destruction record, so nothing in these arms turns on a destruction statement.
+	private static IKeyDestructionLedger LedgerStatingNotDestroyed()
 	{
-		var provider = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyDestructionStatusProvider>());
-		_ = A.CallTo(() => provider.GetService(typeof(IKeyDestructionStatusProvider))).Returns(provider);
+		var ledger = A.Fake<IKeyDestructionLedger>();
+		_ = A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<CancellationToken>._))
+			.Returns(new ValueTask<bool>(false));
 
-		var destruction = (IKeyDestructionStatusProvider)provider;
-		_ = A.CallTo(() => destruction.IsKeyDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
-		_ = A.CallTo(() => destruction.IsKeyDestroyedAsync(A<string>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
-
-		return (provider, destruction);
+		return ledger;
 	}
 
 	// A registry whose decryption provider would hand back the plaintext. Every refusal arm asserts it was

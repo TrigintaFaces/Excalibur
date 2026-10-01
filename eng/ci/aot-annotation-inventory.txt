@@ -43,6 +43,19 @@
 # members they name, and the diff was confirmed additive before it was kept.
 #
 
+#
+# Appended 2026-10-01. The 15 entries added in this pass are the positioned-projection
+# RebuildAtPositionAsync members and their conformance arms. Each was read against its member
+# before recording: every one carries both RequiresUnreferencedCode and RequiresDynamicCode,
+# each message states the hazard (projection serialization is reflective) AND names the AOT-safe
+# alternative (JsonSerializerOptions with a source-generated resolver), which is the condition
+# this gate asks for. One entry was dropped as no longer annotated:
+#   PositionedProjectionStoreConformanceTestKit::Adopt_a_row_that_carries_no_position
+#
+# NOTE ON METHOD: the gate's --regenerate rewrites this file WITHOUT its header, so running it
+# destroys the review record above -- including the sentence stating that no entry was added by a
+# blanket regenerate. It was run once here and the header restored by hand. Do not ship a
+# regenerated inventory without re-attaching this block.
 src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxStoreDecorator.cs::EnqueueAsync
 src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxStoreDecorator.cs::GetUnsentMessagesAsync
 src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxWriterExtensions.cs::WriteScheduledAsync
@@ -215,6 +228,7 @@ src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::Ge
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::QueryCursorAsync
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::QueryPagedAsync
+src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::UpsertAtPositionAsync
@@ -232,6 +246,7 @@ src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::Ge
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::GetWithPositionAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::QueryCursorAsync
+src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::UpsertAtPositionAsync
@@ -255,6 +270,7 @@ src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchRequestLogger
 src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::GetWithPositionAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::UpsertAtPositionAsync
@@ -274,6 +290,7 @@ src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExt
 src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::GetWithPositionAsync
 src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::UpsertAtPositionAsync
@@ -288,6 +305,7 @@ src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::GetB
 src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::GetWithPositionAsync
 src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::QueryPagedAsync
+src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::UpsertAtPositionAsync
@@ -297,6 +315,7 @@ src/Excalibur/Excalibur.Data.OpenSearch/MaterializedViews/OpenSearchMaterialized
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::GetWithPositionAsync
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::UpsertAtPositionAsync
@@ -324,6 +343,7 @@ src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresMaterializedViewStore.cs:
 src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::GetWithPositionAsync
 src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::UpsertAtPositionAsync
@@ -335,6 +355,7 @@ src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::Get
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::GetWithPositionAsync
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::QueryPagedAsync
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::UpsertAtPositionAsync
@@ -361,6 +382,7 @@ src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjection
 src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::QueryAsync
 src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::QueryCursorAsync
 src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::QueryPagedAsync
+src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::UpsertAsync
 src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::UpsertAtPositionAsync
@@ -371,6 +393,7 @@ src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionBuilder.cs::AddProje
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::GetByIdAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::GetWithPositionAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::UpsertAtPositionAsync
@@ -381,6 +404,7 @@ src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::G
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryCursorAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryPagedAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::RebuildAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::RefoldAtPositionAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::UpsertAsync
 src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::UpsertAtPositionAsync
@@ -494,23 +518,26 @@ src/Excalibur/Excalibur.Testing.Conformance/Conformance/EventStoreConformanceTes
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/InboxStoreConformanceTestKit.cs::ConformanceTestKit
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/OutboxStoreConformanceTestKit.cs::ConformanceTestKit
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Admit_exactly_one_of_two_writers_racing_from_one_read
-src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Adopt_a_row_that_carries_no_position
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Advance_from_the_position_it_read
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Apply_the_same_refold_twice_without_changing_the_result
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::CreatePositionedStoreAsync
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Create_when_nothing_is_stored
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Invalidate_the_position_when_an_unconditional_write_replaces_the_state
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Read_the_state_and_its_position_as_one_observation
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Rebuild_must_not_resurrect_a_deleted_row
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Rebuild_repairs_a_row_that_carries_no_position
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refold_the_state_at_the_position_the_row_already_holds
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refuse_a_late_starter_that_claims_absence
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refuse_a_negative_position_argument
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refuse_a_position_that_does_not_advance
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refuse_a_refold_at_a_position_the_row_does_not_hold
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refuse_a_refold_when_the_row_advanced_after_the_read
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refuse_a_row_that_carries_no_position
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refuse_a_stale_expected_position
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Report_a_deleted_projection_as_vanished_without_recreating_it
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Report_a_refold_against_an_absent_row_as_vanished_without_creating_it
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Report_requires_rebuild_for_a_refold_against_an_unnumbered_row
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/PositionedProjectionStoreConformanceTestKit.cs::Report_requires_rebuild_for_a_row_with_no_established_position
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/SagaStoreConformanceTestKit.cs::ConformanceTestKit
 src/Excalibur/Excalibur.Testing.Conformance/Conformance/SchedulerConformanceTestKit.cs::ScheduleJobAsync_PassesCronExpressionToDownstreamCall

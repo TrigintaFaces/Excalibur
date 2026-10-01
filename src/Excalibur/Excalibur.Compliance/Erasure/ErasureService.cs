@@ -965,11 +965,85 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 					}
 				}
 
+				// A1 — READ THE GENERATION, BEFORE the destruction, because the destruction destroys it.
+				//
+				// The generation identifier IS backend material on every provider this framework supports: a
+				// key-vault version id, a CMK id, a sidecar marker, an in-memory entry. None of them is
+				// readable once the material is gone, so this read has exactly one chance and it is here.
+				var generationRead = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false);
+				var generation = generationRead.Generation;
+
+				// A GENERATION WE COULD NOT READ ABORTS THE DESTRUCTION FOR THIS KEY THIS PASS. We do not
+				// destroy what we cannot record.
+				//
+				// THE DESTRUCTION IS THE STEP THAT CANNOT BE TAKEN BACK, which is what makes this the safe
+				// direction rather than the timid one. Destroying anyway would leave the request PERMANENTLY
+				// NON-TERMINAL: nothing is recorded, so Completed is unreachable, and a retry cannot repair it
+				// either -- the generation the retry would need to read was annihilated by the very destruction
+				// that proceeded. The subject's data is then unreadable forever, with no ledger row that could
+				// ever be written and no pass that could ever attest the erasure.
+				//
+				// Aborting trades that for a LATE erasure: the key is still live, the subject's data still
+				// reads, and a retry re-attempts read-then-stage-then-destroy in order and can genuinely
+				// succeed. A delayed erasure is a timeliness problem; an unattestable one is permanent.
+				//
+				// This is the same shape as the escrow-revoke failure above, for the same reason: do not take
+				// the irreversible step when the reversible precondition failed. The error folds into the
+				// tri-state gate via `errors`, so Completed stays unreachable while this stands.
+				//
+				// A SECOND CHECK DEPENDS ON THIS ONE. The deferred-confirmation path refuses completion on an
+				// AGGREGATE test -- "did this request record any generation at all" -- rather than per handle,
+				// because the handles it examines are a superset and a handle that never held material has
+				// nothing staged. That reading is sound only while "destroyed but unstaged" is unreachable, and
+				// this refusal is what makes it unreachable. Relaxing it to destroy-anyway reopens the hole
+				// there, not here.
+				if (generationRead.Outcome == KeyGenerationReadOutcome.Unreadable)
+				{
+					errors.Add(
+						$"The generation identifier of key '{keyId}' could not be read, so the key was NOT "
+						+ "destroyed this pass. Destroying it would have been irreversible AND unrecordable: "
+						+ "the identifier a destruction record needs is destroyed along with the material, so "
+						+ "no later pass could ever attest the erasure and every read of this subject would "
+						+ "fail permanently. A retry re-reads the generation, stages it, and then destroys.");
+					continue;
+				}
+
+				// ABSENT IS NOT UNREADABLE, and conflating them is a regression this branch exists to prevent.
+				// A handle that holds no material needs no destruction record, because there is no ciphertext
+				// this erasure could have made unreadable -- so it falls through to the destroy, where the
+				// NotFound branch below decides correctly between "this request destroyed it earlier" and "we
+				// never held it". Aborting here instead would turn a discovered location whose key never
+				// existed into an error that blocks completion forever.
+				//
+				// A1' — STAGE IT DURABLY, still before the destruction.
+				//
+				// This is NOT a destruction record and the read predicate cannot reach it: between here and the
+				// destroy it names LIVE material. It is the only copy of the generation that survives the
+				// destroy, so a pass that crashes in that window leaves a successor something to work from
+				// instead of leaving the subject permanently undecryptable with no repair available.
+				if (generation is not null)
+				{
+					await _store.StageKeyDestructionAsync(requestId, keyId, generation, cancellationToken)
+						.ConfigureAwait(false);
+				}
+
+				// A2 — DESTROY. Reached only when the generation was staged, or when the handle holds no
+				// material at all and there is therefore nothing to record.
 				var outcome = await _keyAdmin.DeleteKeyAsync(keyId, 0, cancellationToken).ConfigureAwait(false);
 				switch (outcome.State)
 				{
 					case KeyDestructionState.Completed:
-						// Irrecoverable NOW — the only state that may be attested as erased.
+						// A3 — RECORD. Irrecoverable NOW, and the ONLY state that may be recorded or attested.
+						//
+						// THIS GATE IS LOAD-BEARING FOR THE WHOLE LEDGER, and nothing else at this call site
+						// says so. A ledger row is the sole basis on which a read of this subject's ciphertext
+						// reports their field as erased, so a row written for anything weaker than Completed
+						// attests an erasure over material that still exists. ScheduledIrreversible is exactly
+						// that case and it is not hypothetical: a CMK pending deletion can be UN-destroyed --
+						// AWS KMS CancelKeyDeletion restores it -- so recording one would put a resurrectable
+						// key in the ledger and make every read of that subject report a lawful erasure of data
+						// that is still recoverable. That failure is silent in both directions: the consumer
+						// sees a tombstone and the auditor sees a certificate. Hence this case and no other.
 						//
 						// Recorded durably BEFORE it is counted, and per key rather than at completion. The
 						// pass that needs this record is precisely the one that does not reach completion, so
@@ -977,7 +1051,21 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 						// for. If the record fails, the destruction is NOT attested this pass: attesting a
 						// destruction we could not record would leave a retry unable to attest it either,
 						// which is the defect this record exists to close.
-						await _store.RecordKeyDestroyedAsync(requestId, keyId, cancellationToken)
+						// A provider that reports Completed destroyed material, so it HAD material, so the read
+						// above cannot have found the handle absent. This guard is therefore a contradiction
+						// check rather than a branch anyone expects to take -- and it refuses to count an
+						// unrecordable destruction rather than dereferencing a null and crashing the pass.
+						if (generation is null)
+						{
+							errors.Add(
+								$"Key '{keyId}' reported no material before the destruction and the provider "
+								+ "then reported destroying it. Those cannot both be true, so this destruction "
+								+ "is not attested: there is no generation to record it under, and a completion "
+								+ "claimed over it would rest on nothing.");
+							break;
+						}
+
+						await _store.RecordKeyDestroyedAsync(requestId, keyId, generation, cancellationToken)
 							.ConfigureAwait(false);
 
 						deletedCount++;
@@ -1035,6 +1123,105 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 		}
 
 		return deletedCount;
+	}
+
+	/// <summary>
+	/// Reads the generation identifier of the material currently behind <paramref name="keyId"/>, before it is
+	/// destroyed.
+	/// </summary>
+	/// <returns>
+	/// The generation, or <see langword="null"/> when the backend cannot supply one -- the key is already absent,
+	/// the provider does not report a generation, or the lookup failed.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// Resolved from the admin rather than from a new constructor parameter, matching how the destruction-status
+	/// capability is reached: a provider that composes answers through <see cref="IServiceProvider"/>, and the
+	/// single-backend providers implement the interface directly, so both shapes are asked.
+	/// </para>
+	/// <para>
+	/// A failure here returns <see langword="null"/> rather than throwing, and the caller then declines to
+	/// RECORD rather than declining to DESTROY. Those are the two ways to be wrong and they are not
+	/// symmetric: refusing to destroy because a metadata lookup failed leaves recoverable personal data in
+	/// place against a lawful request, while destroying without a record leaves the subject erased and the
+	/// erasure unreportable -- which the caller raises as an error, so it is loud.
+	/// </para>
+	/// </remarks>
+	private async Task<KeyGenerationRead> ReadKeyGenerationAsync(string keyId, CancellationToken cancellationToken)
+	{
+		var keyProvider =
+			(_keyAdmin as IServiceProvider)?.GetService(typeof(IKeyManagementProvider)) as IKeyManagementProvider
+			?? _keyAdmin as IKeyManagementProvider;
+
+		if (keyProvider is null)
+		{
+			// The configured admin cannot answer key lookups at all, so no destruction it performs could ever
+			// be recorded. UNREADABLE rather than absent: we did not establish that the handle holds nothing,
+			// we established that we cannot ask.
+			return KeyGenerationRead.Unreadable;
+		}
+
+		try
+		{
+			var metadata = await keyProvider.GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+
+			if (metadata is null)
+			{
+				// No material at this handle. Nothing to record, and nothing this erasure can have made
+				// unreadable, so the caller proceeds to the destroy rather than refusing.
+				return KeyGenerationRead.Absent;
+			}
+
+			// A generation is well-formed by the time it is a KeyGeneration at all, so the old
+			// string.IsNullOrEmpty guard has nothing left to catch: the only remaining question is whether the
+			// provider reported one. Rendered to the characters the record stores.
+			var generation = metadata.Generation?.ToString();
+
+			// MATERIAL EXISTS AND THE PROVIDER NAMED NO GENERATION FOR IT. That is the unreadable case, not the
+			// absent one: destroying this would annihilate ciphertext with no identifier under which any pass
+			// could ever record the destruction.
+			return generation is null ? KeyGenerationRead.Unreadable : KeyGenerationRead.Readable(generation);
+		}
+		catch (Exception ex)
+		{
+			// We could not ask, which is never the same as an answer of "nothing here". The caller declines to
+			// destroy on this outcome, so the failure costs a late erasure rather than an unattestable one.
+			LogKeyGenerationUnreadable(keyId, ex);
+
+			return KeyGenerationRead.Unreadable;
+		}
+	}
+
+	/// <summary>What a pre-destruction generation lookup established.</summary>
+	/// <remarks>
+	/// Three states, because the two the framework used to collapse have opposite consequences. "No material
+	/// here" means there is nothing to record and nothing to lose, so the destruction may proceed. "I could not
+	/// find out" means material may exist whose destruction could never be recorded, so the destruction must
+	/// NOT proceed. A two-state result forces one of those to masquerade as the other, and whichever way it is
+	/// collapsed it is wrong: treat unreadable as absent and an erasure becomes permanently unattestable; treat
+	/// absent as unreadable and a discovered location whose key never existed blocks completion forever.
+	/// </remarks>
+	private enum KeyGenerationReadOutcome
+	{
+		/// <summary>The handle holds no material. Nothing to stage, nothing to record.</summary>
+		Absent,
+
+		/// <summary>The handle holds material and the provider named its generation.</summary>
+		Readable,
+
+		/// <summary>The lookup could not be answered. Whether material exists is UNKNOWN.</summary>
+		Unreadable,
+	}
+
+	/// <summary>The outcome of a pre-destruction generation lookup, and the generation when there is one.</summary>
+	private readonly record struct KeyGenerationRead(KeyGenerationReadOutcome Outcome, string? Generation)
+	{
+		public static KeyGenerationRead Absent { get; } = new(KeyGenerationReadOutcome.Absent, null);
+
+		public static KeyGenerationRead Unreadable { get; } = new(KeyGenerationReadOutcome.Unreadable, null);
+
+		public static KeyGenerationRead Readable(string generation) =>
+			new(KeyGenerationReadOutcome.Readable, generation);
 	}
 
 	/// <summary>Evaluates erasure coverage for the discovered locations (delegates to the evaluator).</summary>
@@ -1421,11 +1608,94 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 
 		foreach (var keyId in keyIds)
 		{
+			// A handle that answers false is not yet destroyed and the request stays where it is.
+			//
+			// PRE-EXISTING LIVENESS ISSUE, noted rather than fixed because it predates the ledger and is LOUD:
+			// if the handle is re-provisioned between the delete and this confirm, the backend truthfully
+			// answers false about the NEW material and this request can never complete. It fails visibly and
+			// forever rather than attesting something untrue, which is the correct direction, but it is a
+			// liveness hole and it is not closed here.
 			if (!await verifier.VerifyKeyDeletionAsync(keyId, cancellationToken).ConfigureAwait(false))
 			{
 				LogErasureKeyDestructionNotYetConfirmed(requestId, keyId);
 				return false;
 			}
+		}
+
+		// A3, DEFERRED. This is the SECOND door that writes ledger rows, and it is deliberately narrower than
+		// the first rather than a relaxation of it -- do not simplify one onto the other.
+		//
+		// WHAT MAKES THE EVIDENCE SUFFICIENT HERE, because the backend answer alone is NOT:
+		//
+		// A handle-scoped attestation says "I hold no recoverable copy of this handle", whose true-case is
+		// still three-valued on its own -- destroyed, or recoverable, or NEVER HELD HERE. Writing a ledger row
+		// on that alone would reintroduce absence-as-evidence at a new site, which is the exact defect this
+		// ledger exists to remove.
+		//
+		// THE STAGED INTENT EXCLUDES THE THIRD STATE. An intent records that we read generation g at handle h
+		// FROM THIS BACKEND, at a moment before we issued the delete. So "never held here" is ruled out by our
+		// own record, not by the backend's silence. The conjunction -- we staged g at h, we issued the destroy,
+		// and the backend now states it holds no recoverable copy of h -- is an affirmative statement that g's
+		// material is gone. The record is still written by the actor that performed the destruction, on
+		// evidence that the destruction completed, which is what the guarantee requires.
+		//
+		// And the attestation is sound for the SET: if the backend holds no recoverable copy of the handle,
+		// every generation that was ever at that handle is gone, including ones nobody staged. So each row
+		// written from an intent is TRUE; the generations we cannot name are MISSING rather than wrong.
+		//
+		// THE GENERATION COMES FROM THE INTENT, NEVER FROM THE BACKEND. The material is gone by now, so a
+		// fresh read is impossible -- that impossibility is the whole reason the intent is staged before the
+		// destroy rather than after it.
+		var recordedFromIntents = 0;
+		foreach (var keyId in keyIds)
+		{
+			var staged = await _store.GetStagedKeyGenerationsAsync(requestId, keyId, cancellationToken)
+				.ConfigureAwait(false);
+
+			foreach (var generation in staged)
+			{
+				await _store.RecordKeyDestroyedAsync(requestId, keyId, generation, cancellationToken)
+					.ConfigureAwait(false);
+				recordedFromIntents++;
+			}
+		}
+
+		// NOTHING STAGED MEANS NOTHING TO STAND ON, and the request is refused rather than completed. A request
+		// reaches this method only because destructions were SCHEDULED, so an empty intent set means we cannot
+		// say which generations we destroyed -- and a completed erasure with no ledger row is one whose
+		// subject's every read fails forever while a certificate says their data was lawfully erased. That is
+		// the bare-absence case the second door exists to refuse, so it is refused here explicitly rather than
+		// by producing zero rows and continuing.
+		//
+		// THIS REFUSAL IS AGGREGATE RATHER THAN PER-HANDLE, AND THAT IS SAFE ONLY BECAUSE THE DESTROY PATH
+		// GUARANTEES A DESTROYED HANDLE ALWAYS HAS AN INTENT. Do not relax that guarantee without revisiting
+		// this check.
+		//
+		// The handles examined here are a declared SUPERSET -- the subject key plus every key the inventory
+		// associates with a discovered location -- so a handle that never held material has nothing staged and
+		// never did. Refusing per-handle would therefore block completion for handles this erasure never
+		// destroyed, which is why the test is "did we record anything at all".
+		//
+		// What makes that sound is upstream: ExecuteKeyDeletionsAsync REFUSES TO DESTROY a key whose generation
+		// it could not read, so "destroyed but unstaged" is unreachable. Remove that refusal and this check
+		// develops a hole with no local evidence of it: three handles where one was staged and destroyed and
+		// another was destroyed with an unreadable generation would pass this aggregate test on the first
+		// handle's intent, write no row for the second, and issue a certificate over a handle whose reads are
+		// permanently broken. The two checks are one mechanism; neither is complete alone.
+		if (recordedFromIntents == 0)
+		{
+			const string NoIntentDetail =
+				"The key provider confirmed destruction, but this request staged no key generation before "
+				+ "destroying, so there is nothing to record in the key-destruction ledger. Completion is "
+				+ "refused: without a ledger record no read of this subject's data can report their erasure, "
+				+ "and a certificate issued now would attest an erasure nothing stands behind.";
+
+			LogErasureKeyDestructionNotRecordable(requestId, keyIds.Count);
+			_ = await _store.UpdateStatusAsync(
+				requestId, ErasureRequestStatus.AwaitingKeyDestruction, NoIntentDetail, cancellationToken)
+				.ConfigureAwait(false);
+
+			return false;
 		}
 
 		// Exemptions are re-derived for the certificate (they depend only on the discovered locations and the
@@ -1772,6 +2042,21 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  LogLevel.Error,
  "Failed to delete key {KeyId} for erasure request {RequestId}")]
 	private partial void LogErasureKeyDeletionFailed(string keyId, Guid requestId, Exception exception);
+
+	[LoggerMessage(
+ ComplianceEventId.ErasureKeyDestructionNotRecordable,
+ LogLevel.Error,
+ "Erasure request {RequestId} had its destruction of {KeyCount} key handle(s) confirmed by the provider, "
+ + "but staged no generation beforehand, so the destruction cannot be recorded in the ledger. The request "
+ + "cannot be completed")]
+	private partial void LogErasureKeyDestructionNotRecordable(Guid requestId, int keyCount);
+
+	[LoggerMessage(
+ ComplianceEventId.ErasureKeyGenerationUnreadable,
+ LogLevel.Error,
+ "Could not read the generation identifier of key {KeyId} before destroying it. The destruction will "
+ + "proceed, but it cannot be recorded in the key-destruction ledger and the erasure cannot be attested")]
+	private partial void LogKeyGenerationUnreadable(string keyId, Exception exception);
 
 	[LoggerMessage(
  ComplianceEventId.ErasureRequestCompleted,

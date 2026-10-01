@@ -87,6 +87,13 @@ public sealed class PostgresErasureStoreConformanceTests : ErasureStoreConforman
 			// here is part of what distinguishes this fixture from its SqlServer sibling.
 			RequestsTableName = $"erasure_requests_{_suffix}",
 			CertificatesTableName = $"erasure_certificates_{_suffix}",
+
+			// SUFFIXED TOO, which the fixture previously did not do. The ledger is keyed on the GENERATION
+			// alone and is deliberately not scoped by request, so a fixed generation literal in one arm is
+			// visible to every other arm sharing the container -- one arm's record then answers another arm's
+			// predicate and the arm cannot fail. Per-arm tables remove the shared surface entirely.
+			DestroyedKeysTableName = $"erasure_destroyed_keys_{_suffix}",
+			DestructionIntentsTableName = $"erasure_destruction_intents_{_suffix}",
 			CommandTimeoutSeconds = 30,
 
 			// The store provisions its own tables. See the class remarks.
@@ -170,6 +177,18 @@ public sealed class PostgresErasureStoreConformanceTests : ErasureStoreConforman
 	[Fact]
 	public Task RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct_Test() =>
 		RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct();
+
+	[Fact]
+	public Task RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth_Test() =>
+		RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth();
+
+	[Fact]
+	public Task StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed_Test() =>
+		StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed();
+
+	[Fact]
+	public Task RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent_Test() =>
+		RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent();
 
 	#endregion Completion
 

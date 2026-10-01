@@ -1,1 +1,7 @@
 #nullable enable
+*REMOVED*Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.RecordKeyDestroyedAsync(System.Guid requestId, string! keyHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.GetStagedKeyGenerationsAsync(System.Guid requestId, string! keyHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.IsGenerationDestroyedAsync(string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.RecordKeyDestroyedAsync(System.Guid requestId, string! keyHandle, string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.StageKeyDestructionAsync(System.Guid requestId, string! keyHandle, string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.RecordDestroyedGenerationAsync(string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

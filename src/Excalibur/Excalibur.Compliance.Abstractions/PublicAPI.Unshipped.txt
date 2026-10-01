@@ -1,1 +1,28 @@
 #nullable enable
+*REMOVED*Excalibur.Compliance.IKeyDestructionStatusProvider.IsKeyDestroyedAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+*REMOVED*Excalibur.Compliance.IKeyDestructionStatusProvider.IsKeyDestroyedAsync(string! keyId, string! generation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.IKeyDestructionLedger
+Excalibur.Compliance.IKeyDestructionLedger.IsGenerationDestroyedAsync(string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+*REMOVED*Excalibur.Compliance.IErasureStore.RecordKeyDestroyedAsync(System.Guid requestId, string! keyHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.IErasureStore.GetStagedKeyGenerationsAsync(System.Guid requestId, string! keyHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+Excalibur.Compliance.IErasureStore.RecordKeyDestroyedAsync(System.Guid requestId, string! keyHandle, string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.IErasureStore.StageKeyDestructionAsync(System.Guid requestId, string! keyHandle, string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.IKeyDestructionLedger.RecordDestroyedGenerationAsync(string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+*REMOVED*Excalibur.Compliance.KeyMetadata.Generation.get -> string?
+*REMOVED*Excalibur.Compliance.SubjectKey.Generation.get -> string?
+*REMOVED*Excalibur.Compliance.SubjectKey.SubjectKey(string! KeyId, string? Generation) -> void
+Excalibur.Compliance.KeyGeneration
+Excalibur.Compliance.KeyGeneration.Equals(Excalibur.Compliance.KeyGeneration other) -> bool
+Excalibur.Compliance.KeyGeneration.HasValue.get -> bool
+Excalibur.Compliance.KeyGeneration.KeyGeneration() -> void
+override Excalibur.Compliance.KeyGeneration.Equals(object? obj) -> bool
+override Excalibur.Compliance.KeyGeneration.GetHashCode() -> int
+override Excalibur.Compliance.KeyGeneration.ToString() -> string!
+static Excalibur.Compliance.KeyGeneration.Mint() -> Excalibur.Compliance.KeyGeneration
+static Excalibur.Compliance.KeyGeneration.Parse(string! value) -> Excalibur.Compliance.KeyGeneration
+static Excalibur.Compliance.KeyGeneration.TryParse(string? value, out Excalibur.Compliance.KeyGeneration generation) -> bool
+static Excalibur.Compliance.KeyGeneration.operator !=(Excalibur.Compliance.KeyGeneration left, Excalibur.Compliance.KeyGeneration right) -> bool
+static Excalibur.Compliance.KeyGeneration.operator ==(Excalibur.Compliance.KeyGeneration left, Excalibur.Compliance.KeyGeneration right) -> bool
+Excalibur.Compliance.KeyMetadata.Generation.get -> Excalibur.Compliance.KeyGeneration?
+Excalibur.Compliance.SubjectKey.Generation.get -> Excalibur.Compliance.KeyGeneration?
+Excalibur.Compliance.SubjectKey.SubjectKey(string! KeyId, Excalibur.Compliance.KeyGeneration? Generation) -> void

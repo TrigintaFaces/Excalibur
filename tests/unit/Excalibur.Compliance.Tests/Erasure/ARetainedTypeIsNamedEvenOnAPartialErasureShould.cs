@@ -35,7 +35,8 @@ public sealed class ARetainedTypeIsNamedEvenOnAPartialErasureShould
 
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
 	private readonly IErasureCertificateStore _certStore = A.Fake<IErasureCertificateStore>();
-	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
+	private readonly IKeyManagementAdmin _keyAdmin =
+		KeyDestructionFakes.AdminThatReportsAGenerationForEveryKey();
 	private readonly ILegalHoldService _legalHolds = A.Fake<ILegalHoldService>();
 
 	/// <summary>

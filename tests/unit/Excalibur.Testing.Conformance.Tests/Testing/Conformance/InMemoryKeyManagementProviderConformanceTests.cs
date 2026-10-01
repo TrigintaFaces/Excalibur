@@ -151,39 +151,20 @@ public sealed class InMemoryKeyManagementProviderConformanceTests : KeyManagemen
 	public Task IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed_Test() =>
 		IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed();
 
+	[Fact]
+	public Task IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed();
+
+	[Fact]
+	public Task Generation_ShouldBeStable_AcrossARotation_Test() =>
+		Generation_ShouldBeStable_AcrossARotation();
+
+	[Fact]
+	public Task Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction_Test() =>
+		Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction();
+
 	#endregion DeleteKey Tests
 
-	#region KeyDestructionStatus Tests
-
-	[Fact]
-	public Task IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed_Test() =>
-		IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed();
-
-	[Fact]
-	public Task IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed_Test() =>
-		IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed();
-
-	[Fact]
-	public Task IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome_Test() =>
-		IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome();
-
-	[Fact]
-	public Task IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException_Test() =>
-		IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException();
-
-	[Fact]
-	public Task IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed_Test() =>
-		IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed();
-
-	[Fact]
-	public Task IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed_Test() =>
-		IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed();
-
-	[Fact]
-	public Task IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException_Test() =>
-		IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException();
-
-	#endregion KeyDestructionStatus Tests
 
 	#region SuspendKey Tests
 

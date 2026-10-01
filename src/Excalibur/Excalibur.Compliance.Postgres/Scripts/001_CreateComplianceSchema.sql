@@ -108,29 +108,88 @@ CREATE INDEX IF NOT EXISTS ix_erasure_certificates_retain
     ON "compliance"."erasure_certificates" (retain_until);
 
 -- ---------------------------------------------------------------------------
--- Erasure destroyed keys
+-- Key-destruction ledger
 -- ---------------------------------------------------------------------------
--- Which key handles each request has destroyed, one row per handle, across every pass the request
--- has made.
+-- The key GENERATIONS this framework has irreversibly destroyed. A row here IS the statement that
+-- the generation was destroyed, and it is the sole basis on which a read may report a crypto-shredded
+-- field as erased.
 --
--- WHY THIS TABLE EXISTS, because it is not obvious and a reader may otherwise think a count would do:
--- asking a key store to destroy a key it has ALREADY destroyed reports the key as absent -- the same
--- answer it gives for a key that never existed. So an erasure that destroyed some keys and then
--- failed part-way through the rest attested those keys on its first pass and, on the retry, attested
--- nothing for them. The subject's data was destroyed and their erasure could never be reported
--- complete. These rows are what let a retry attest the coverage its own earlier pass achieved.
+-- WHY THE LEDGER IS NOT A QUESTION FOR THE KEY BACKEND, because this is the part that is not obvious:
+-- a backend can only report what it can serve or restore NOW. It retains nothing about material it
+-- never held, so "we destroyed this" and "this was never here" are the SAME observation there --
+-- permanently, and by construction. A tombstone derived from a backend query therefore computes a
+-- different function from the one the guarantee names, and its failure mode is the catastrophic one:
+-- recoverable personal data reported as lawfully erased, with nothing downstream able to tell.
 --
--- A TABLE rather than a column on the request, because the value is a SET and the writes are appends:
--- the composite primary key makes re-recording a handle a no-op at the database, so no pass has to
--- read-modify-write a list and no pass can lose another's record.
+-- WHY THE PRIMARY KEY IS THE GENERATION ALONE. A generation identifier is minted once and never
+-- reused, so one generation is one destruction and a second row for it is a contradiction the database
+-- refuses. That DISSOLVES three hazards rather than defending against each: a retried erasure, two
+-- erasures of one subject, and a handle reused by a different subject are all artifacts of keying on
+-- the handle. request_id and key_handle ride along as AUDIT ATTRIBUTES and are never key components --
+-- keying on the handle silently drops a second destruction at that handle, which is a destruction that
+-- happened and is not on file.
+--
+-- The same rows also serve the retry: they are what let a second pass attest the coverage its own
+-- earlier pass achieved, because asking the key store again reports an already-destroyed key exactly
+-- as it reports one that never existed.
 CREATE TABLE IF NOT EXISTS "compliance"."erasure_destroyed_keys" (
-    request_id    UUID        NOT NULL,
     -- The C collation compares byte-for-byte, matching the framework's ordinal comparison. A collation
-    -- that folded case would read two distinct handles as one and attest coverage for a key that was
-    -- never destroyed.
-    key_handle    TEXT COLLATE "C" NOT NULL,
-    destroyed_at  TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (request_id, key_handle)
+    -- that folded case would read two distinct generations as one, and one destroyed generation would
+    -- then answer for a different, LIVE one.
+    key_generation TEXT COLLATE "C" NOT NULL PRIMARY KEY,
+    -- NULLABLE, because a destruction the CONSUMER performed and asserted through the
+    -- ledger's public write has no erasure request and no handle to name. Audit
+    -- attributes either way: the read predicate names neither.
+    request_id     UUID        NULL,
+    key_handle     TEXT COLLATE "C" NULL,
+    destroyed_at   TIMESTAMPTZ NOT NULL,
+    -- WHO asserted the destruction: 'framework-erasure' for one this framework
+    -- performed (staged before the destroy, recorded after it), 'caller-assertion' for
+    -- one the consumer performed and recorded themselves, which nothing here
+    -- re-verified. Stated EXPLICITLY rather than inferred from the nulls above --
+    -- deriving a fact from a missing value is the reasoning this table exists to
+    -- replace.
+    recorded_by    TEXT        NOT NULL
+);
+
+-- The retry reads this table by request, and that is no longer the primary key.
+CREATE INDEX IF NOT EXISTS ix_erasure_destroyed_keys_request
+    ON "compliance"."erasure_destroyed_keys" (request_id, key_handle);
+
+-- ---------------------------------------------------------------------------
+-- Key-destruction intents (staging)
+-- ---------------------------------------------------------------------------
+-- The generations a request is ABOUT TO destroy, written BEFORE the destruction is attempted.
+--
+-- WHY IT HAS TO BE WRITTEN FIRST: the destruction destroys this write's own input. On every backend
+-- this framework supports, the generation identifier IS backend material -- a key-vault version id, a
+-- CMK id, a sidecar marker -- and none of it is readable once the material is gone. So a crash between
+-- destroying a key and recording its generation is NOT a window a retry repairs: the generation is
+-- unreadable forever, the record can never be written, and the subject is left both permanently
+-- undecryptable and permanently unable to have their erasure reported. Staging first is what leaves a
+-- successor something to work from.
+--
+-- WHY IT IS A SECOND TABLE AND NOT A NULLABLE destroyed_at COLUMN: between the stage and the
+-- destruction, a staged row names LIVE material. A predicate that could match it would report a live
+-- key as destroyed -- the catastrophic direction. One table behind a nullable column would make that a
+-- discipline, one forgotten WHERE clause away. Two tables make it inexpressible: a row's presence in
+-- the LEDGER is itself the destruction statement, so there is no clause to forget. Nothing that
+-- resolves the read predicate may name this table.
+--
+-- LIFECYCLE, so nobody has to guess who prunes it: a row is deleted by the
+-- framework as soon as its destruction is recorded in the ledger, which is the
+-- moment it stops carrying anything the ledger does not. The table is therefore
+-- SHORT-LIVED in normal operation -- it holds only destructions currently in
+-- flight. A crash between the ledger write and the delete leaves one orphaned
+-- row; that is harmless (nothing on the read path can name this table) and the
+-- framework logs a warning when a cleanup fails, so growth has a visible cause.
+-- No external sweep is expected or required.
+CREATE TABLE IF NOT EXISTS "compliance"."erasure_destruction_intents" (
+    request_id     UUID        NOT NULL,
+    key_handle     TEXT COLLATE "C" NOT NULL,
+    key_generation TEXT COLLATE "C" NOT NULL,
+    staged_at      TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (request_id, key_handle, key_generation)
 );
 
 -- ---------------------------------------------------------------------------

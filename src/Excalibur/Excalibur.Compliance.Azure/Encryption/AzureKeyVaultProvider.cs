@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 
 using Azure;
 using Azure.Identity;
@@ -59,6 +60,25 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 	private volatile bool _disposed;
 
 	/// <summary>
+	/// The tag carrying the identifier of the material LINEAGE at a key name.
+	/// </summary>
+	/// <remarks>
+	/// A named constant rather than an inline literal, unlike the other tags in this file, because a
+	/// misspelling here does not fail: the read simply finds nothing, the generation reads as absent, and a
+	/// crypto-shredded field becomes unreadable rather than throwing anywhere a test would see.
+	/// </remarks>
+	private const string GenerationTag = "excalibur:generation";
+
+	/// <summary>
+	/// Mints an identifier for a newly provisioned material lineage, as the tag value that carries it.
+	/// </summary>
+	/// <remarks>
+	/// The CSPRNG lives in <see cref="KeyGeneration.Mint"/> rather than here, so every provider mints the same
+	/// way and none can drift to a weaker source. This only renders it for the tag.
+	/// </remarks>
+	private static string MintGeneration() => KeyGeneration.Mint().ToString();
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="AzureKeyVaultProvider" /> class.
 	/// </summary>
 	/// <param name="options"> The Azure Key Vault configuration options. </param>
@@ -70,6 +90,41 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 		IOptions<AzureKeyVaultOptions> options,
 		IMemoryCache cache,
 		ILogger<AzureKeyVaultProvider> logger)
+		: this(options, cache, logger, keyClient: null)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AzureKeyVaultProvider" /> class over a caller-supplied
+	/// <see cref="KeyClient" />.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Use this when the vault client needs configuration this provider does not model -- a custom retry or
+	/// transport policy, a proxy, a sovereign or air-gapped cloud, or a credential assembled elsewhere. Register
+	/// a <see cref="KeyClient" /> in the container and the registration extension passes it here; otherwise this
+	/// provider builds one from <see cref="AzureKeyVaultOptions" /> as before.
+	/// </para>
+	/// <para>
+	/// It is also the seam tests substitute the vault through. Before it existed the only way in was to reflect
+	/// on the private field holding the client, which is not a seam a consumer can use and which left this
+	/// provider's own behaviour unreachable from a unit test -- that is how a silent defect on the field-decrypt
+	/// path came to ship with no arm covering it.
+	/// </para>
+	/// </remarks>
+	/// <param name="options"> The Azure Key Vault configuration options. </param>
+	/// <param name="cache"> The memory cache for caching key metadata. </param>
+	/// <param name="logger"> The logger for diagnostics. </param>
+	/// <param name="keyClient">
+	/// The vault client to use, or <see langword="null" /> to build one from <paramref name="options" />.
+	/// </param>
+	/// <exception cref="ArgumentNullException"> Thrown when options, cache, or logger is null. </exception>
+	/// <exception cref="ArgumentException"> Thrown when VaultUri is not configured. </exception>
+	public AzureKeyVaultProvider(
+		IOptions<AzureKeyVaultOptions> options,
+		IMemoryCache cache,
+		ILogger<AzureKeyVaultProvider> logger,
+		KeyClient? keyClient)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(cache);
@@ -79,13 +134,14 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 		_cache = cache;
 		_logger = logger;
 
+		// Required even when a client is supplied: the vault URI identifies this provider in its diagnostics, and
+		// a provider that cannot say which vault it is talking to is not a provider a consumer can audit.
 		if (_options.VaultUri is null)
 		{
 			throw new ArgumentException(Resources.AzureKeyVaultProvider_VaultUriRequired, nameof(options));
 		}
 
-		var credential = _options.Credential ?? new DefaultAzureCredential();
-		_keyClient = new KeyClient(_options.VaultUri, credential);
+		_keyClient = keyClient ?? new KeyClient(_options.VaultUri, _options.Credential ?? new DefaultAzureCredential());
 
 		LogProviderInitialized(_options.VaultUri);
 	}
@@ -313,11 +369,37 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 			createOptions.Tags["excalibur:purpose"] = purpose ?? "general";
 			createOptions.Tags["excalibur:algorithm"] = algorithm.ToString();
 			createOptions.Tags["excalibur:created"] = DateTimeOffset.UtcNow.ToString("O");
+			createOptions.Tags[GenerationTag] = MintGeneration();
 
 			if (existingKey is not null)
 			{
+				// THE LINEAGE IDENTITY MUST SURVIVE THE ROTATION, and it is written explicitly rather than
+				// relied upon. A rotation extends the material lineage, so every envelope already written under
+				// this handle keeps naming the same generation; losing it here would strand all of them.
+				//
+				// Key Vault tags live on the VERSION, and this code does not depend on whether the service-side
+				// rotate copies them to the new one: the tag is read from the version that exists now and
+				// written to the version that results, so the carry-forward holds either way. An absent tag is
+				// an older key provisioned before the lineage identifier existed; it is minted now, which is
+				// honest -- that handle has no recorded identity to preserve.
+				var carriedGeneration =
+					existingKey.Properties.Tags.TryGetValue(GenerationTag, out var priorGeneration)
+					&& !string.IsNullOrEmpty(priorGeneration)
+						? priorGeneration
+						: MintGeneration();
+
 				// Rotate existing key by creating new version
 				var rotateResponse = await _keyClient.RotateKeyAsync(keyName, cancellationToken).ConfigureAwait(false);
+
+				var rotatedProperties = rotateResponse.Value.Properties;
+				_ = rotatedProperties.Tags.TryGetValue(GenerationTag, out var rotatedGeneration);
+				if (!string.Equals(rotatedGeneration, carriedGeneration, StringComparison.Ordinal))
+				{
+					rotatedProperties.Tags[GenerationTag] = carriedGeneration;
+					_ = await _keyClient.UpdateKeyPropertiesAsync(rotatedProperties, cancellationToken: cancellationToken)
+						.ConfigureAwait(false);
+				}
+
 				var newMetadata = MapToKeyMetadata(keyId, rotateResponse.Value);
 
 				// Invalidate cache
@@ -416,6 +498,13 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 			createOptions.Tags["excalibur:purpose"] = purpose ?? "general";
 			createOptions.Tags["excalibur:algorithm"] = algorithm.ToString();
 			createOptions.Tags["excalibur:created"] = DateTimeOffset.UtcNow.ToString("O");
+
+			// This path reaches here only when the handle holds nothing, so the material is new and so is its
+			// lineage identity. A handle re-occupied after an erasure takes this path and MUST get a different
+			// generation from the one that was destroyed, or a read of the erased subject's old ciphertext would
+			// find the new key's generation in no ledger row -- or worse, find the destroyed one and tombstone
+			// data that is live.
+			createOptions.Tags[GenerationTag] = MintGeneration();
 
 			var created = await _keyClient.CreateRsaKeyAsync(createOptions, cancellationToken).ConfigureAwait(false);
 
@@ -538,62 +627,6 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 			}
 
 			return await GetDeletedKeyOrNullAsync(keyName, cancellationToken).ConfigureAwait(false) is null;
-		}
-		finally
-		{
-			_ = _rateLimitSemaphore.Release();
-		}
-	}
-
-	/// <inheritdoc />
-	/// <remarks>
-	/// Key Vault has no per-version delete: a delete takes the key with every version it holds, and a purge
-	/// destroys them together. Every version of a key therefore shares one destruction state, and narrowing the
-	/// question to a version cannot narrow the answer -- so this answers exactly as the key-scoped overload does.
-	/// It does NOT read the requested version and report its absence, because an absent version under a live key is
-	/// an envelope this vault never produced, not material this vault destroyed.
-	/// </remarks>
-	public Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken) =>
-		IsKeyDestroyedAsync(keyId, cancellationToken);
-
-	/// <inheritdoc/>
-	/// <remarks>
-	/// <para>
-	/// The generation is Key Vault's own opaque version identifier, so this asks whether the vault still holds
-	/// that exact version. A key the vault does not hold at all settles it. A key it does hold is then checked
-	/// for the specific version, because the handle looking alive is the case this exists for: a key deleted
-	/// and created again at the same name is healthy and holds entirely different material.
-	/// </para>
-	/// <para>
-	/// A version still inside the soft-delete recovery window is NOT destroyed, which the whole-key check
-	/// already establishes before this gets that far.
-	/// </para>
-	/// </remarks>
-	public async Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrEmpty(keyId);
-		ArgumentException.ThrowIfNullOrEmpty(generation);
-
-		if (await IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false))
-		{
-			return true;
-		}
-
-		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			_ = await _keyClient.GetKeyAsync(GetKeyName(keyId), generation, cancellationToken).ConfigureAwait(false);
-
-			// The vault still holds this exact version, so its material is recoverable and reading a payload
-			// written under it is not an erasure.
-			return false;
-		}
-		catch (RequestFailedException ex) when (ex.Status == 404)
-		{
-			// The key exists and this version of it does not: the material this caller's payload was written
-			// under is gone, whatever has been provisioned at the handle since.
-			return true;
 		}
 		finally
 		{
@@ -931,12 +964,27 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 			KeyId = keyId,
 			Version = version,
 
-			// KEY VAULT'S OWN OPAQUE VERSION IS THE GENERATION, and this is the provider that needed no value
-			// invented for it. The identifier designates one piece of material: a delete removes the key with
-			// every version it holds, and a key created again at the same name gets entirely new opaque
-			// versions, so an identifier from before an erasure never names material that exists afterwards.
-			// It is also why the ORDINAL above cannot serve: that restarts at 1 and names both.
-			Generation = key.Properties.Version,
+			// THE GENERATION IS OURS, AND IT IDENTIFIES THE LINEAGE RATHER THAN THE VERSION.
+			//
+			// Key Vault's opaque version id was used here, and it is correct on ONE axis and wrong on the
+			// other. Correct: a delete takes the key with every version it holds, and a key created again at
+			// the same name gets entirely new opaque versions, so a version id from before an erasure never
+			// names material that exists afterwards. Wrong: a ROTATION also mints a new opaque version, so the
+			// identifier moved WITHIN one lineage -- and an erasure records the generation it finds now, which
+			// is the post-rotation one. Every envelope written before that rotation then names a generation no
+			// ledger row will ever hold, and its read fails permanently with no repair available, because the
+			// material is gone and the identifier that would have recorded it is unreadable.
+			//
+			// So the value is minted once per lineage and carried across rotations. An absent tag is reported
+			// as absent rather than invented: a key this provider did not provision has no lineage identity we
+			// can honestly state, and the read path refuses such an envelope instead of tombstoning it.
+			// PARSED, never trusted as-is. A tag is consumer-writable, so a hand-edited or legacy value that is
+			// not a generation must read as ABSENT rather than becoming one: the ledger keys on this value, and
+			// a value nothing minted could collide with another subject's.
+			Generation = key.Properties.Tags.TryGetValue(GenerationTag, out var generationTag)
+				&& KeyGeneration.TryParse(generationTag, out var parsedGeneration)
+					? parsedGeneration
+					: null,
 
 			Status = status,
 			Algorithm = algorithm,

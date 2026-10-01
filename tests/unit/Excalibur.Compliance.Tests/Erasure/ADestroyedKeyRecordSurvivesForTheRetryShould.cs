@@ -39,7 +39,7 @@ public sealed class ADestroyedKeyRecordSurvivesForTheRetryShould
 		var store = CreateStore();
 		var requestId = await SubmitAsync(store).ConfigureAwait(true);
 
-		await store.RecordKeyDestroyedAsync(requestId, "subject-key", CancellationToken.None).ConfigureAwait(true);
+		await store.RecordKeyDestroyedAsync(requestId, "subject-key", "gen-subject-key", CancellationToken.None).ConfigureAwait(true);
 
 		var status = await store.GetStatusAsync(requestId, CancellationToken.None).ConfigureAwait(true);
 
@@ -56,8 +56,8 @@ public sealed class ADestroyedKeyRecordSurvivesForTheRetryShould
 		var store = CreateStore();
 		var requestId = await SubmitAsync(store).ConfigureAwait(true);
 
-		await store.RecordKeyDestroyedAsync(requestId, "key-a", CancellationToken.None).ConfigureAwait(true);
-		await store.RecordKeyDestroyedAsync(requestId, "key-b", CancellationToken.None).ConfigureAwait(true);
+		await store.RecordKeyDestroyedAsync(requestId, "key-a", "gen-key-a", CancellationToken.None).ConfigureAwait(true);
+		await store.RecordKeyDestroyedAsync(requestId, "key-b", "gen-key-b", CancellationToken.None).ConfigureAwait(true);
 
 		var status = await store.GetStatusAsync(requestId, CancellationToken.None).ConfigureAwait(true);
 
@@ -75,8 +75,8 @@ public sealed class ADestroyedKeyRecordSurvivesForTheRetryShould
 		var store = CreateStore();
 		var requestId = await SubmitAsync(store).ConfigureAwait(true);
 
-		await store.RecordKeyDestroyedAsync(requestId, "subject-key", CancellationToken.None).ConfigureAwait(true);
-		await store.RecordKeyDestroyedAsync(requestId, "subject-key", CancellationToken.None).ConfigureAwait(true);
+		await store.RecordKeyDestroyedAsync(requestId, "subject-key", "gen-subject-key", CancellationToken.None).ConfigureAwait(true);
+		await store.RecordKeyDestroyedAsync(requestId, "subject-key", "gen-subject-key", CancellationToken.None).ConfigureAwait(true);
 
 		var status = await store.GetStatusAsync(requestId, CancellationToken.None).ConfigureAwait(true);
 
@@ -97,8 +97,11 @@ public sealed class ADestroyedKeyRecordSurvivesForTheRetryShould
 		var store = CreateStore();
 		var requestId = await SubmitAsync(store).ConfigureAwait(true);
 
-		await store.RecordKeyDestroyedAsync(requestId, "Key-A", CancellationToken.None).ConfigureAwait(true);
-		await store.RecordKeyDestroyedAsync(requestId, "key-a", CancellationToken.None).ConfigureAwait(true);
+		// Distinct GENERATIONS as well as distinct handles. Each handle holds its own material, so it has its
+		// own generation; reusing one here would make this arm test the ledger's generation key instead of the
+		// handle comparison it is for.
+		await store.RecordKeyDestroyedAsync(requestId, "Key-A", "gen-Key-A", CancellationToken.None).ConfigureAwait(true);
+		await store.RecordKeyDestroyedAsync(requestId, "key-a", "gen-key-a", CancellationToken.None).ConfigureAwait(true);
 
 		var status = await store.GetStatusAsync(requestId, CancellationToken.None).ConfigureAwait(true);
 
@@ -139,7 +142,7 @@ public sealed class ADestroyedKeyRecordSurvivesForTheRetryShould
 		var store = CreateStore();
 
 		_ = await Should.ThrowAsync<KeyNotFoundException>(
-			() => store.RecordKeyDestroyedAsync(Guid.NewGuid(), "subject-key", CancellationToken.None))
+			() => store.RecordKeyDestroyedAsync(Guid.NewGuid(), "subject-key", "gen-subject-key", CancellationToken.None))
 			.ConfigureAwait(true);
 	}
 
@@ -153,7 +156,7 @@ public sealed class ADestroyedKeyRecordSurvivesForTheRetryShould
 		var requestId = await SubmitAsync(store).ConfigureAwait(true);
 
 		_ = await Should.ThrowAsync<ArgumentException>(
-			() => store.RecordKeyDestroyedAsync(requestId, string.Empty, CancellationToken.None))
+			() => store.RecordKeyDestroyedAsync(requestId, string.Empty, "gen-a", CancellationToken.None))
 			.ConfigureAwait(true);
 	}
 

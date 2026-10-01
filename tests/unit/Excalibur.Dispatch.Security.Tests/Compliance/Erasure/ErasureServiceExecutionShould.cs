@@ -28,7 +28,7 @@ public sealed class ErasureServiceExecutionShould
 		_queryStore = A.Fake<IErasureQueryStore>();
 		_legalHoldService = A.Fake<ILegalHoldService>();
 		_dataInventoryService = A.Fake<IDataInventoryService>();
-		_keyAdmin = A.Fake<IKeyManagementAdmin>();
+		_keyAdmin = KeyDestructionFakes.AdminThatReportsAGenerationForEveryHandle();
 		_erasureOptions = new ErasureOptions
 		{
 			DefaultGracePeriod = TimeSpan.FromDays(7),

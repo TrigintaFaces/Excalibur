@@ -47,7 +47,13 @@ public sealed class ErasureCertificateSignatureShould
 
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
 	private readonly IErasureCertificateStore _certStore = A.Fake<IErasureCertificateStore>();
-	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
+	// Reports a GENERATION, which erasure reads before destroying. A bare fake cannot answer that
+	// lookup, and the service now ABORTS the destruction rather than destroying something it could never
+	// record -- so a bare fake here destroys nothing at all and every arm fails for the wrong reason.
+	// Every shipped key provider implements IKeyManagementProvider alongside the admin, which is what
+	// this models.
+	private readonly IKeyManagementAdmin _keyAdmin =
+		KeyDestructionFakes.AdminThatReportsAGenerationForEveryKey();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 	private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
 

@@ -116,7 +116,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 			var metadata = MapToKeyMetadata(keyId, keyInfo.Data) with
 			{
 				Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
-				Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
+				Generation = await ReadKeyLineageAsync(keyId, cancellationToken).ConfigureAwait(false),
 			};
 			CacheMetadata(cacheKey, metadata);
 
@@ -173,7 +173,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 			var metadata = MapToKeyMetadata(keyId, keyInfo.Data, version) with
 			{
 				Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
-				Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
+				Generation = await ReadKeyLineageAsync(keyId, cancellationToken).ConfigureAwait(false),
 			};
 			CacheMetadata(cacheKey, metadata);
 
@@ -254,7 +254,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 					metadata = metadata with
 					{
 						Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
-						Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
+						Generation = await ReadKeyLineageAsync(keyId, cancellationToken).ConfigureAwait(false),
 					};
 
 					if (purpose is not null && metadata.Purpose != purpose)
@@ -364,7 +364,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				var newMetadata = MapToKeyMetadata(keyId, rotatedKey.Data) with
 				{
 					Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
-				Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
+				Generation = await ReadKeyLineageAsync(keyId, cancellationToken).ConfigureAwait(false),
 				};
 
 				InvalidateCache(keyId);
@@ -410,7 +410,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				var newMetadata = MapToKeyMetadata(keyId, newKey.Data) with
 				{
 					Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
-				Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
+				Generation = await ReadKeyLineageAsync(keyId, cancellationToken).ConfigureAwait(false),
 				};
 
 				// Record the identity of the material just provisioned, if this handle has none. Transit offers no
@@ -536,31 +536,6 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// A generation other than the one recorded at this handle is destroyed: Transit holds one lineage of
-	/// material per key name, so a handle recording a different identity has had its material replaced, and a
-	/// handle recording none has nothing this caller's payload could have been written under. The handle looking
-	/// alive is exactly the case this answers, because a key deleted and created again reports as healthy.
-	/// </remarks>
-	public async Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrEmpty(keyId);
-		ArgumentException.ThrowIfNullOrEmpty(generation);
-
-		// The handle being gone settles it without needing the marker, and it is also the state in which the
-		// marker has been erased alongside the material.
-		if (await IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false))
-		{
-			return true;
-		}
-
-		var recorded = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false);
-
-		return !string.Equals(recorded, generation, StringComparison.Ordinal);
-	}
-
-	/// <inheritdoc />
-	/// <remarks>
 	/// Transit has no soft-delete: deleting a key removes its material permanently, so a key Transit does not hold
 	/// is a destroyed key. The cache is bypassed, because a cached entry would describe a key that may since have
 	/// been deleted. Any other failure to read the key is thrown, never reported as either answer.
@@ -578,41 +553,6 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 			return keyInfo?.Data is null;
-		}
-		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
-		{
-			return true;
-		}
-		finally
-		{
-			_ = _rateLimitSemaphore.Release();
-		}
-	}
-
-	/// <inheritdoc />
-	/// <remarks>
-	/// Transit retires individual versions as well as whole keys: trimming a key removes the material of every
-	/// version below its minimum, permanently, and leaves the later versions live. A key holding one trimmed version
-	/// and one live version is therefore not a destroyed key while an envelope naming the trimmed version has
-	/// nothing left to decrypt with, which is why a read asks this overload. A version Transit no longer lists is
-	/// destroyed rather than merely absent, because Transit has no soft-delete and nothing can restore it. Raising
-	/// the minimum decryption version alone does not trim: the material stays listed and is reported live, since
-	/// lowering the minimum again makes it decryptable. The cache is bypassed and any other read failure is thrown.
-	/// </remarks>
-	public async Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrEmpty(keyId);
-
-		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
-				GetKeyName(keyId),
-				_options.Keys.TransitMountPath).ConfigureAwait(false);
-
-			return keyInfo?.Data?.Keys is null
-				|| !keyInfo.Data.Keys.ContainsKey(version.ToString(CultureInfo.InvariantCulture));
 		}
 		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
 		{
@@ -1173,7 +1113,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 
 		// A CSPRNG rather than a GUID. The identifier is not secret -- it travels in cleartext on every payload
 		// -- but reaching for a GUID beside key material is the habit worth not having.
-		var generation = RandomNumberGenerator.GetHexString(32);
+		var generation = KeyGeneration.Mint().ToString();
 
 		var marker = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
@@ -1193,6 +1133,19 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 
 	/// <summary>
 	/// Reads the recorded identifier of the material at a handle, or <see langword="null"/> when none is recorded.
+	/// </summary>
+	private async Task<KeyGeneration?> ReadKeyLineageAsync(string keyId, CancellationToken cancellationToken)
+	{
+		var recorded = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false);
+
+		// PARSED, never trusted as-is. The marker is an ordinary KV secret an operator can edit, so a value that
+		// is not a generation must read as ABSENT rather than becoming one: the ledger keys on it, and a value
+		// nothing minted could collide with another subject's.
+		return KeyGeneration.TryParse(recorded, out var generation) ? generation : null;
+	}
+
+	/// <summary>
+	/// Reads the raw recorded marker at a handle, or <see langword="null"/> when none is recorded.
 	/// </summary>
 	private async Task<string?> ReadKeyGenerationAsync(string keyId, CancellationToken cancellationToken)
 	{

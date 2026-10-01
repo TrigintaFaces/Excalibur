@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
-
 using Azure;
 using Azure.Security.KeyVault.Keys;
 
@@ -33,29 +31,48 @@ public sealed class AzureKeyVaultErasureReachesTerminalShould : IDisposable
 		new KeyClient(new Uri("https://unit-tests.vault.azure.net/"), new global::Azure.Identity.DefaultAzureCredential())));
 	private readonly AzureKeyVaultProvider _provider;
 
+	/// <summary>
+	/// Whether the vault has accepted a delete yet, so the ordinary lookup can answer differently either side
+	/// of it.
+	/// </summary>
+	/// <remarks>
+	/// This flag exists because erasure reads the key BEFORE destroying it, to learn the opaque VERSION that
+	/// Key Vault uses as the generation -- the destruction destroys that identifier, so the read has one
+	/// chance and it is before. A fake that answered 404 from the start modelled only the post-delete vault,
+	/// so every erasure here had no generation to record and correctly declined to attest a destruction it
+	/// could not put on file. The arm then failed for a reason that had nothing to do with purging.
+	/// </remarks>
+	private bool _deleted;
+
 	public AzureKeyVaultErasureReachesTerminalShould()
 	{
+		// Supplied through the constructor, not reflected onto the private field. The reflection this replaced
+		// worked, but it is not a seam a consumer has, so it could not tell us the provider was unreachable from
+		// a test by any supported route -- which is how the field-decrypt defect shipped with no arm.
 		_provider = new AzureKeyVaultProvider(
-			Microsoft.Extensions.Options.Options.Create(new AzureKeyVaultOptions
+			options: Microsoft.Extensions.Options.Options.Create(new AzureKeyVaultOptions
 			{
 				VaultUri = new Uri("https://unit-tests.vault.azure.net/"),
 				KeyNamePrefix = "dispatch-",
 			}),
-			_cache,
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var field = typeof(AzureKeyVaultProvider).GetField("_keyClient", BindingFlags.Instance | BindingFlags.NonPublic);
-		field.ShouldNotBeNull();
-		field!.SetValue(_provider, _keyClient);
+			cache: _cache,
+			logger: NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient: _keyClient);
 
 		var operation = A.Fake<DeleteKeyOperation>();
 		A.CallTo(() => operation.WaitForCompletionAsync(A<CancellationToken>._))
 			.Returns(new ValueTask<Response<DeletedKey>>(Response.FromValue(DeletedKeyNamed("dispatch-x"), A.Fake<Response>())));
-		A.CallTo(() => _keyClient.StartDeleteKeyAsync(A<string>._, A<CancellationToken>._)).Returns(Task.FromResult(operation));
+		A.CallTo(() => _keyClient.StartDeleteKeyAsync(A<string>._, A<CancellationToken>._))
+			.Invokes(() => _deleted = true)
+			.Returns(Task.FromResult(operation));
 
-		// After deletion the ordinary lookup answers 404 -- for a soft-deleted key AND for a purged one.
+		// BEFORE the delete the key is live and the lookup returns it, version and all. AFTER the delete the
+		// ordinary lookup answers 404 -- for a soft-deleted key AND for a purged one, which is the whole reason
+		// completion is confirmed against the deleted-keys collection instead.
 		A.CallTo(() => _keyClient.GetKeyAsync(A<string>._, A<string?>._, A<CancellationToken>._))
-			.Throws(new RequestFailedException(404, "KeyNotFound"));
+			.ReturnsLazily(() => _deleted
+				? throw new RequestFailedException(404, "KeyNotFound")
+				: Task.FromResult(Response.FromValue(LiveKeyNamed("dispatch-x"), A.Fake<Response>())));
 	}
 
 	public void Dispose()
@@ -176,15 +193,34 @@ public sealed class AzureKeyVaultErasureReachesTerminalShould : IDisposable
 		A.CallTo(() => _keyClient.PurgeDeletedKeyAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
+	/// <summary>
+	/// A live vault key carrying an opaque version, which is what the provider reports as the generation.
+	/// </summary>
+	// A key THIS PROVIDER PROVISIONED, which means it carries the lineage tag the provider writes at
+	// creation. Without the tag the provider reports no generation -- correctly, because a key it did not
+	// provision has no lineage identity it can state -- and an erasure then declines to attest a destruction
+	// it cannot name. That refusal is the designed behaviour, so a fake omitting the tag makes every arm here
+	// about an under-specified fake rather than about the vault operation under test. Same reason the
+	// post-purge 404 is stated explicitly above.
+	private static KeyVaultKey LiveKeyNamed(string name, string generation = "a1b2c3d4e5f60718293a4b5c6d7e8f90")
+	{
+		var properties = KeyModelFactory.KeyProperties(
+			id: new Uri($"https://unit-tests.vault.azure.net/keys/{name}/v1"),
+			vaultUri: new Uri("https://unit-tests.vault.azure.net/"),
+			name: name,
+			version: "v1");
+
+		properties.Tags["excalibur:generation"] = generation;
+
+		return KeyModelFactory.KeyVaultKey(
+			properties,
+			KeyModelFactory.JsonWebKey(KeyType.Oct, id: null, keyOps: []));
+	}
+
 	[Fact]
 	public async Task Report_a_live_key_as_not_destroyed()
 	{
-		var live = KeyModelFactory.KeyVaultKey(KeyModelFactory.KeyProperties(
-			id: new Uri("https://unit-tests.vault.azure.net/keys/dispatch-x/v1"),
-			vaultUri: new Uri("https://unit-tests.vault.azure.net/"),
-			name: "dispatch-x",
-			version: "v1"),
-			KeyModelFactory.JsonWebKey(KeyType.Oct, id: null, keyOps: []));
+		var live = LiveKeyNamed("dispatch-x");
 		A.CallTo(() => _keyClient.GetKeyAsync(A<string>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(Response.FromValue(live, A.Fake<Response>())));
 

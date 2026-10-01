@@ -69,7 +69,7 @@ public sealed class TheVaultGenerationMarkerDiesWithTheKeyShould
 		var first = await provider.CreateKeyIfAbsentAsync(
 			KeyId, EncryptionAlgorithm.Aes256Gcm, null, CancellationToken.None);
 
-		first.Generation.ShouldNotBeNullOrEmpty(
+		first.Generation.ShouldNotBeNull(
 			"precondition: provisioning must record a generation, or this arm compares nothing");
 
 		_ = await provider.DeleteKeyAsync(KeyId, 0, CancellationToken.None);
@@ -77,7 +77,7 @@ public sealed class TheVaultGenerationMarkerDiesWithTheKeyShould
 		var second = await provider.CreateKeyIfAbsentAsync(
 			KeyId, EncryptionAlgorithm.Aes256Gcm, null, CancellationToken.None);
 
-		second.Generation.ShouldNotBeNullOrEmpty();
+		second.Generation.ShouldNotBeNull();
 		second.Generation.ShouldNotBe(
 			first.Generation,
 			"the material at this handle was destroyed and new material provisioned, so it must not carry the "

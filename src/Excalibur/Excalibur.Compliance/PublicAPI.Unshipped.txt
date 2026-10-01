@@ -1,1 +1,5 @@
 #nullable enable
+*REMOVED*Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.IsKeyDestroyedAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+*REMOVED*Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.IsKeyDestroyedAsync(string! keyId, string! generation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+*REMOVED*Excalibur.Compliance.Encryption.MultiRegionKeyProvider.IsKeyDestroyedAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+*REMOVED*Excalibur.Compliance.Encryption.MultiRegionKeyProvider.IsKeyDestroyedAsync(string! keyId, string! generation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!

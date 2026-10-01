@@ -61,6 +61,11 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 
+		// The destruction ledger. Registered from the SAME store instance, so a deployment cannot end up
+		// with a ledger that is not the one the erasure writes to -- which would silently separate the
+		// record from the read that depends on it.
+		services.TryAddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<PostgresErasureStore>());
+
 		// Provisioning is a configuration concern, so it is settled once at host startup rather than on the
 		// path of every write. The hosted service verifies this store's schema before the host accepts
 		// traffic, so a mis-provisioned deployment fails to start instead of reporting a deployment fault
@@ -143,6 +148,11 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
+
+		// The destruction ledger. Registered from the SAME store instance, so a deployment cannot end up
+		// with a ledger that is not the one the erasure writes to -- which would silently separate the
+		// record from the read that depends on it.
+		services.TryAddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<PostgresErasureStore>());
 
 		// Provisioning is a configuration concern, so it is settled once at host startup rather than on the
 		// path of every write. The hosted service verifies this store's schema before the host accepts

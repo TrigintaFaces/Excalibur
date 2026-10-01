@@ -38,7 +38,6 @@ Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.GetStatusAsync(Syst
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.ListRequestsAsync(Excalibur.Compliance.ErasureRequestStatus? status, string? tenantId, System.DateTimeOffset? fromDate, System.DateTimeOffset? toDate, int pageNumber, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ErasureStatus!>!>!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.RecordCancellationAsync(System.Guid requestId, string! reason, string! cancelledBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.RecordCompletionAsync(System.Guid requestId, int keysDeleted, int recordsAffected, System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.RecordKeyDestroyedAsync(System.Guid requestId, string! keyHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.SaveCertificateAsync(Excalibur.Compliance.ErasureCertificate! certificate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.SaveRequestAsync(Excalibur.Compliance.ErasureRequest! request, System.DateTimeOffset scheduledExecutionTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.SqlServerErasureStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions!>! options, Excalibur.Compliance.Erasure.IDataSubjectHasher! dataSubjectHasher, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.TenantContextOptions!>! tenantContextOptions) -> void
@@ -55,8 +54,11 @@ Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.ConnectionSt
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.ConnectionString.set -> void
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.DestroyedKeysTableName.get -> string!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.DestroyedKeysTableName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.DestructionIntentsTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.DestructionIntentsTableName.set -> void
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.FullCertificatesTableName.get -> string!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.FullDestroyedKeysTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.FullDestructionIntentsTableName.get -> string!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.FullRequestsTableName.get -> string!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.RequestsTableName.get -> string!
 Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.RequestsTableName.set -> void

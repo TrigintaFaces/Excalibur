@@ -37,15 +37,30 @@ public sealed class PostgresErasureStoreOptions
 	public string CertificatesTableName { get; set; } = "erasure_certificates";
 
 	/// <summary>
-	/// Gets or sets the table recording which key handles each request has destroyed.
+	/// Gets or sets the destruction LEDGER table: the key generations this framework has irreversibly destroyed.
 	/// </summary>
 	/// <remarks>
-	/// A table rather than a column on the request, because the value is a SET and the writes are appends.
-	/// A primary key over (request, handle) makes re-recording a handle a no-op at the database rather than
-	/// in a read-modify-write the framework would have to serialize, so two passes of one request cannot lose
-	/// each other's records.
+	/// A table rather than a column on the request, because the value is a SET and the writes are appends. Its
+	/// primary key is the GENERATION alone — a generation is minted once and never reused, so a row's existence
+	/// IS the statement that it was destroyed, and a second row for one generation is a contradiction the
+	/// database refuses. The request and the handle ride along as audit attributes and are never part of the key:
+	/// keying on the handle instead silently drops a second destruction at the same handle, which is a
+	/// destruction that happened and is not on file.
 	/// </remarks>
 	public string DestroyedKeysTableName { get; set; } = "erasure_destroyed_keys";
+
+	/// <summary>
+	/// Gets or sets the staging table holding generations a request is ABOUT TO destroy.
+	/// </summary>
+	/// <remarks>
+	/// Separate from the ledger, and the separation is the design rather than a tidiness choice. A staged row is
+	/// written BEFORE the destruction — it has to be, because the destruction destroys the generation identifier
+	/// itself and a crash afterwards would leave the record unwritable forever. So between the stage and the
+	/// destruction the row names LIVE material, and nothing that resolves a destruction predicate may be able to
+	/// reach it. Holding both states in one table behind a nullable timestamp would make that a discipline; two
+	/// tables make it inexpressible.
+	/// </remarks>
+	public string DestructionIntentsTableName { get; set; } = "erasure_destruction_intents";
 
 	/// <summary>
 	/// Gets or sets the command timeout in seconds.
@@ -76,6 +91,11 @@ public sealed class PostgresErasureStoreOptions
 	/// Gets the full destroyed-keys table name including schema.
 	/// </summary>
 	public string FullDestroyedKeysTableName => $"\"{SchemaName}\".\"{DestroyedKeysTableName}\"";
+
+	/// <summary>
+	/// Gets the full destruction-intents table name including schema.
+	/// </summary>
+	public string FullDestructionIntentsTableName => $"\"{SchemaName}\".\"{DestructionIntentsTableName}\"";
 
 	/// <summary>
 	/// Validates the options.

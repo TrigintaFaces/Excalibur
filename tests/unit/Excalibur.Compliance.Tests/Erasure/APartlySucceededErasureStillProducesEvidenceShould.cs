@@ -29,7 +29,8 @@ public sealed class APartlySucceededErasureStillProducesEvidenceShould
 {
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
 	private readonly IErasureCertificateStore _certStore = A.Fake<IErasureCertificateStore>();
-	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
+	private readonly IKeyManagementAdmin _keyAdmin =
+		KeyDestructionFakes.AdminThatReportsAGenerationForEveryKey();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 
 	// LIVENESS, and it is the whole bead: a certificate must be produced at all.

@@ -68,7 +68,11 @@ run_arm() {
             echo "$out" | tail -12; return 1 ;;
     esac
 
-    viol="$(echo "$out" | grep -oE 'Invariant [A-Za-z]+ is violated' | head -1 | awk '{print $2}')"
+    # [A-Za-z0-9_]+, not [A-Za-z]+. The narrower class cannot match an invariant whose name contains
+    # a digit -- InvS1 came back as "no violation" while TLC had exited 12 (violated), so a HEALTHY
+    # red arm reported FAIL with a misleading reason. It failed in the safe direction, which is why it
+    # went unnoticed: every invariant that existed when this was written happened to be letters only.
+    viol="$(echo "$out" | grep -oE 'Invariant [A-Za-z0-9_]+ is violated' | head -1 | awk '{print $2}')"
 
     if [ "$expect" = "hold" ]; then
         if [ "$rc" -eq 0 ]; then echo "  ok  $label -- all invariants HOLD"; return 0; fi
@@ -134,13 +138,58 @@ else
     echo "     >> diameter moved with the writer count; concurrency is being exercised."
 fi
 
-# TLC leaves a trace binary per violated arm and a states/ directory. Four of our five arms
+# ---------------------------------------------------------------------------
+# KEY-DESTRUCTION LEDGER. Written at DESIGN time, before the implementation exists, which is the
+# phase the ladder makes load-bearing: a model written during TEST restates the code.
+#
+# Each red arm below is a design the architect actually proposed and adversarial review broke. They
+# are kept as arms rather than as prose because a design that was refuted once gets re-proposed, and
+# an arm refuses it mechanically.
+# ---------------------------------------------------------------------------
+mklarm() { # name stagefirst recordall recordbeforedestroy
+    cp "$HERE/KeyDestructionLedger.tla" "$HERE/$1.tla"
+    sed -i "s/MODULE KeyDestructionLedger/MODULE $1/" "$HERE/$1.tla"
+    cat > "$HERE/$1.cfg" <<EOF
+SPECIFICATION Spec
+CONSTANTS
+    Gens = {g1, g2}
+    Current = g2
+    StageFirst = $2
+    RecordAll = $3
+    RecordBeforeDestroy = $4
+INVARIANT TypeOK
+INVARIANT InvS1
+INVARIANT InvJ
+INVARIANT InvRepairable
+EOF
+}
+
+echo
+echo "-- key-destruction ledger: the shipped design, and the three refuted ones"
+mklarm _L_Ships       TRUE  TRUE  FALSE
+mklarm _L_NoStage     FALSE TRUE  FALSE
+mklarm _L_OnlyCurrent TRUE  FALSE FALSE
+mklarm _L_RecordFirst TRUE  TRUE  TRUE
+
+run_arm _L_Ships       hold           "(stage, destroy, record)   <- SHIPS"                      || fails=$((fails+1))
+run_arm _L_NoStage     InvRepairable  "(destroy, record)          <- subject lost PERMANENTLY"    || fails=$((fails+1))
+run_arm _L_OnlyCurrent InvRepairable  "(stage only current gen)   <- pre-rotation envelope lost"  || fails=$((fails+1))
+run_arm _L_RecordFirst InvS1          "(record, destroy)          <- TOMBSTONE OVER LIVE MATERIAL" || fails=$((fails+1))
+
+# Adequacy for this model is not a diameter question -- there is one process, so concurrency is not
+# what it establishes. What it establishes is that the SET semantics and the post-destruction
+# unreadability of the generation together make two proposed designs unrepairable. The premise doing
+# the work is Record's `ledger' = ledger \cup intents`, stated in the module's SCOPE block. If that
+# equation is wrong about any provider, this model is wrong for that provider.
+
+# TLC leaves a trace binary per violated arm and a states/ directory. Seven of our nine arms
 # violate BY DESIGN, so this is not incidental litter -- it accumulates every run.
-rm -rf "$HERE"/_Arm_*.tla "$HERE"/_Arm_*.cfg "$HERE"/*_TTrace_*.tla "$HERE"/*_TTrace_*.bin "$HERE"/states 2>/dev/null
+rm -rf "$HERE"/_Arm_*.tla "$HERE"/_Arm_*.cfg "$HERE"/_L_*.tla "$HERE"/_L_*.cfg \
+       "$HERE"/*_TTrace_*.tla "$HERE"/*_TTrace_*.bin "$HERE"/states 2>/dev/null
 
 echo
 if [ "$fails" -eq 0 ]; then
-    echo "PASS -- 5 arms, 4 of which MUST fail and did."
+    echo "PASS -- 9 arms, 7 of which MUST fail and did."
     echo
     echo "  A pass means each arm gave the answer it was required to give. It does NOT mean a model"
     echo "  is ADEQUATE, and no exit code can carry that judgement. R4 for the event-sourcing seam"

@@ -16,9 +16,31 @@ namespace Excalibur.Compliance.Erasure;
 /// This implementation stores all data in memory and is NOT suitable for production use.
 /// Data is lost when the application restarts.
 /// </remarks>
-internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateStore, IErasureQueryStore
+internal sealed class InMemoryErasureStore
+	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IKeyDestructionLedger
 {
 	private readonly ConcurrentDictionary<Guid, ErasureRequestData> _requests = new();
+
+	/// <summary>
+	/// The destruction ledger, keyed on the GENERATION alone and nothing else.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Store-level rather than per-request, because the read predicate is handed a generation and nothing else:
+	/// a reader holds an envelope, and an envelope names a generation, not the erasure request that destroyed
+	/// it. Keying this on the request or the handle would make the predicate unanswerable from what a reader
+	/// actually has.
+	/// </para>
+	/// <para>
+	/// A generation is minted once and never reused, so one generation is one destruction. An entry's existence
+	/// IS the statement that it was destroyed — there is no flag to read and no clause to omit. Ordinal, because
+	/// a generation identifier is an opaque backend token and never text to be compared culturally; a
+	/// case-folding comparison would let one destroyed generation answer for a different, live one.
+	/// </para>
+	/// </remarks>
+	private readonly ConcurrentDictionary<string, DestroyedGenerationRecord> _destroyedGenerations =
+		new(StringComparer.Ordinal);
+
 	private readonly ConcurrentDictionary<Guid, ErasureCertificate> _certificates = new();
 	private readonly ConcurrentDictionary<Guid, Guid> _requestToCertificate = new();
 	private readonly IDataSubjectHasher _dataSubjectHasher;
@@ -258,32 +280,205 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	}
 
 	/// <inheritdoc />
-	public Task RecordKeyDestroyedAsync(Guid requestId, string keyHandle, CancellationToken cancellationToken)
+	public Task StageKeyDestructionAsync(
+		Guid requestId,
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
+		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
+
+		var data = ResolveRequestForKeyRecord(
+			requestId,
+			"a destruction cannot be staged against it. This throws rather than returning quietly: the staged "
+			+ "intent is the only copy of the generation that survives the destruction, so losing it silently "
+			+ "would leave a crashed pass with nothing to recover from.");
+
+		// Kept APART from the ledger, in a collection no predicate reads. Between this write and the
+		// destruction the generation names LIVE material, so a store that held it where the read predicate
+		// could reach it would report a live key as destroyed.
+		_ = data.StagedDestructions.GetOrAdd(keyHandle, static _ => new ConcurrentDictionary<string, byte>(StringComparer.Ordinal))
+			.TryAdd(keyGeneration, 0);
+		data.UpdatedAt = DateTimeOffset.UtcNow;
+
+		return Task.CompletedTask;
+	}
+
+	/// <inheritdoc />
+	public Task<IReadOnlyList<string>> GetStagedKeyGenerationsAsync(
+		Guid requestId,
+		string keyHandle,
+		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
 
 		// Resolved before the lookup so that an unresolved tenant fails closed whether or not the row exists.
 		var tenant = AmbientScope;
 
-		// Another tenant's row is treated as absent, so one tenant cannot write a destruction record into
-		// another tenant's partition -- and a record written to the wrong partition would let the wrong
-		// request attest coverage it never achieved.
-		if (!_requests.TryGetValue(requestId, out var data) || !MatchesAmbientTenant(tenant, data.TenantId))
+		if (!_requests.TryGetValue(requestId, out var data)
+			|| !MatchesAmbientTenant(tenant, data.TenantId)
+			|| !data.StagedDestructions.TryGetValue(keyHandle, out var staged))
 		{
-			throw new KeyNotFoundException(
-				$"No erasure request with id '{requestId}' exists in this tenant, so a destroyed key cannot be "
-				+ "recorded against it. This throws rather than returning quietly: the record is what lets a "
-				+ "retry attest a destruction an earlier pass performed, so losing it silently would make the "
-				+ "subject's erasure permanently uncertifiable with nothing reporting why.");
+			return Task.FromResult<IReadOnlyList<string>>([]);
 		}
 
-		// Idempotent by construction -- re-recording a handle this request already destroyed is a no-op, and
-		// nothing here removes a handle an earlier pass wrote.
-		_ = data.DestroyedKeyHandles.TryAdd(keyHandle, 0);
+		return Task.FromResult<IReadOnlyList<string>>([.. staged.Keys]);
+	}
+
+	/// <inheritdoc />
+	public Task RecordKeyDestroyedAsync(
+		Guid requestId,
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
+		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
+
+		var data = ResolveRequestForKeyRecord(
+			requestId,
+			"a destroyed key cannot be recorded against it. This throws rather than returning quietly: the "
+			+ "record is what lets a retry attest a destruction an earlier pass performed and what lets a read "
+			+ "report the subject's erasure, so losing it silently would make that erasure permanently "
+			+ "uncertifiable with nothing reporting why.");
+
+		// The ledger. Keyed on the generation alone: one generation is one destruction, so a second write for
+		// the same generation is absorbed and the first instant stands. Two DIFFERENT generations destroyed at
+		// one handle are two destructions and get two entries -- keying this on the handle would silently drop
+		// the second.
+		_ = _destroyedGenerations.TryAdd(
+			keyGeneration,
+			new DestroyedGenerationRecord(requestId, keyHandle, DateTimeOffset.UtcNow, RecordedBy.FrameworkErasure));
+
+		// The handle set a retry reads is DERIVED from these entries rather than tracked beside them -- see
+		// DestroyedHandlesFor. One source means this store answers exactly as the SQL stores do, which read
+		// the same question off the same ledger table; two sources would let the two diverge on an input the
+		// conformance kit can reach.
+
+		// ONLY AFTER the ledger entry exists, never before. Once it does, the staged intent carries nothing
+		// the ledger does not, so dropping it loses no recovery information -- whereas dropping it first
+		// would recreate the unrepairable window the staging collection was introduced to close. Other
+		// generations staged at the same handle stay, because they are still unrecorded.
+		if (data.StagedDestructions.TryGetValue(keyHandle, out var stagedForHandle))
+		{
+			_ = stagedForHandle.TryRemove(keyGeneration, out _);
+		}
+
 		data.UpdatedAt = DateTimeOffset.UtcNow;
 
 		return Task.CompletedTask;
 	}
+
+	/// <inheritdoc />
+	public Task RecordDestroyedGenerationAsync(string keyGeneration, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
+
+		// NO request and NO handle, because the caller genuinely has neither. The provenance value records
+		// that this entry rests on the caller's assertion rather than on anything this framework observed; it
+		// is stated rather than inferred from the absent request.
+		//
+		// TryAdd, so re-asserting a generation already on file is a no-op and the FIRST instant stands.
+		_ = _destroyedGenerations.TryAdd(
+			keyGeneration,
+			new DestroyedGenerationRecord(null, null, DateTimeOffset.UtcNow, RecordedBy.CallerAssertion));
+
+		return Task.CompletedTask;
+	}
+
+	/// <inheritdoc />
+	public ValueTask<bool> IsGenerationDestroyedAsync(string keyGeneration, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
+
+		// NO tenant term, deliberately, and NOT an oversight. The lookup is addressed by the ledger's whole key,
+		// so it already selects at most one entry; a tenant term on such a lookup cannot admit a foreign entry
+		// and its only reachable effect is turning the correct entry into none. Here that effect is the
+		// catastrophic one in reverse: a read of a genuinely erased subject would stop reporting their erasure
+		// and start failing, permanently. A generation is minted by the key backend and is not derivable from a
+		// subject, so one tenant cannot name another's.
+		//
+		// Staged intents are NOT consulted. A staged generation names material that may still be live.
+		return new ValueTask<bool>(_destroyedGenerations.ContainsKey(keyGeneration));
+	}
+
+	/// <summary>
+	/// Resolves the request a key record is about to be written against, failing closed on an unresolved tenant
+	/// and treating another tenant's request as absent.
+	/// </summary>
+	/// <remarks>
+	/// Shared by the stage and the record so the tenant check cannot drift between them: a record written into
+	/// the wrong partition would let the wrong request attest coverage it never achieved.
+	/// </remarks>
+	private ErasureRequestData ResolveRequestForKeyRecord(Guid requestId, string consequence)
+	{
+		// Resolved before the lookup so that an unresolved tenant fails closed whether or not the row exists.
+		var tenant = AmbientScope;
+
+		if (!_requests.TryGetValue(requestId, out var data) || !MatchesAmbientTenant(tenant, data.TenantId))
+		{
+			throw new KeyNotFoundException(
+				$"No erasure request with id '{requestId}' exists in this tenant, so {consequence}");
+		}
+
+		return data;
+	}
+
+	/// <summary>
+	/// The handles this request has destroyed, derived from the ledger entries it wrote.
+	/// </summary>
+	/// <remarks>
+	/// A retry has to know WHICH handles an earlier pass destroyed, because the key store reports one it
+	/// destroyed exactly as it reports one it never held. Derived rather than tracked separately so this store
+	/// answers the question from the same records the SQL stores read it from; a second source of truth here
+	/// would diverge from them the first time two records shared a generation. Ordinal throughout -- a handle is
+	/// an opaque identifier, never text to be compared culturally.
+	/// </remarks>
+	/// <!-- ponytail: a scan of the ledger per status read. This store is for development and testing; if it
+	///      ever needs to answer at scale, index by request id. -->
+	private IReadOnlyList<string> DestroyedHandlesFor(Guid requestId) =>
+	[
+		.. _destroyedGenerations.Values
+			// A caller-asserted entry has no request, so it never matches and never appears in a request's
+			// destroyed-handle set -- correct, because this framework did not destroy it.
+			.Where(r => r.RequestId == requestId)
+			.Select(static r => r.KeyHandle!)
+			.Distinct(StringComparer.Ordinal),
+	];
+
+	/// <summary>
+	/// The ledger's provenance values, matching the SQL stores' so an auditor reading rows from any provider
+	/// sees the same two strings.
+	/// </summary>
+	/// <remarks>
+	/// Named constants rather than inline literals because the value is a STORED CONTRACT: an auditor reads it
+	/// to tell an intent-backed service record from a caller's unverified assertion, so the two doors must
+	/// never converge on one string. It is an audit attribute only — the read predicate never names it, so a
+	/// row is a row whichever writer produced it.
+	/// </remarks>
+	private static class RecordedBy
+	{
+		/// <summary>An erasure this framework performed: staged before the destroy, recorded after it.</summary>
+		public const string FrameworkErasure = "framework-erasure";
+
+		/// <summary>A destruction the CALLER performed and asserted. Nothing here re-verified it.</summary>
+		public const string CallerAssertion = "caller-assertion";
+	}
+
+	/// <summary>
+	/// A ledger entry: this generation was destroyed at this instant, and this is who says so.
+	/// </summary>
+	/// <remarks>
+	/// The request and the handle are nullable because a destruction asserted through the ledger's public write
+	/// has neither. <paramref name="RecordedBy"/> states the provenance explicitly rather than leaving it to be
+	/// inferred from those nulls.
+	/// </remarks>
+	private sealed record DestroyedGenerationRecord(
+		Guid? RequestId,
+		string? KeyHandle,
+		DateTimeOffset DestroyedAt,
+		string RecordedBy);
 
 	/// <inheritdoc />
 	public Task<bool> RecordCancellationAsync(
@@ -533,9 +728,16 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 		_requests.Clear();
 		_certificates.Clear();
 		_requestToCertificate.Clear();
+
+		// The ledger and the staged intents go too. The ledger is keyed on the generation alone and is NOT
+		// scoped by request, so leaving it behind would let a cleared store keep reporting generations as
+		// destroyed -- an arm that then asserted "not destroyed" could never fail.
+		_destroyedGenerations.Clear();
 	}
 
-	private static ErasureStatus ToStatus(ErasureRequestData data) =>
+	// Not static: the destroyed-handle set is derived from the instance's ledger rather than carried on the
+	// request, so that this store and the SQL stores answer the question from one source each.
+	private ErasureStatus ToStatus(ErasureRequestData data) =>
 		new()
 		{
 			RequestId = data.RequestId,
@@ -555,7 +757,7 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 			CancellationReason = data.CancellationReason,
 			CancelledBy = data.CancelledBy,
 			KeysDeleted = data.KeysDeleted,
-			DestroyedKeyHandles = [.. data.DestroyedKeyHandles.Keys],
+			DestroyedKeyHandles = DestroyedHandlesFor(data.RequestId),
 			RecordsAffected = data.RecordsAffected,
 			CertificateId = data.CertificateId,
 			ErrorMessage = data.ErrorMessage,
@@ -645,10 +847,11 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 		}
 		public int? KeysDeleted { get; set; }
 
-		// A SET rather than a count, and append-only: a retry has to know WHICH handles an earlier pass
-		// destroyed, because the key store reports one it destroyed exactly as it reports one it never held.
-		// Ordinal on purpose -- a key handle is an opaque identifier, never text to be compared culturally.
-		public ConcurrentDictionary<string, byte> DestroyedKeyHandles { get; } =
+
+		// Generations this request staged for destruction, by handle. Held here rather than in the ledger
+		// because between the stage and the destruction a staged generation names LIVE material -- nothing that
+		// resolves the read predicate may be able to reach it.
+		public ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> StagedDestructions { get; } =
 			new(StringComparer.Ordinal);
 
 		public int? RecordsAffected { get; set; }

@@ -647,6 +647,18 @@ internal static class ComplianceEventId
 	/// <summary>Erasure store health check failed.</summary>
 	public const int ErasureHealthCheckFailed = 92832;
 
+	/// <summary>A key's generation identifier could not be read before its material was destroyed.</summary>
+	public const int ErasureKeyGenerationUnreadable = 92833;
+
+	/// <summary>A confirmed destruction could not be recorded because nothing was staged for it.</summary>
+	public const int ErasureKeyDestructionNotRecordable = 92834;
+
+	/// <summary>Crypto-shredding is configured but no key-destruction ledger is registered.</summary>
+	public const int CryptoShreddingLedgerNotRegistered = 92835;
+
+	/// <summary>Whether a key-destruction ledger is registered could not be determined.</summary>
+	public const int CryptoShreddingLedgerWiringUnverifiable = 92836;
+
 	/// <summary>Compliance restored notification logged.</summary>
 	public const int ComplianceRestored = 92820;
 

@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Security.Cryptography;
 
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
@@ -370,47 +371,6 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		}
 	}
 
-	/// <inheritdoc/>
-	/// <remarks>
-	/// <para>
-	/// The generation is the CMK id, so this asks KMS directly about that one key rather than about the alias
-	/// that currently points somewhere. An alias is re-occupiable — a rotation repoints it and a provisioning
-	/// after an erasure creates a fresh one — so the alias looking healthy says nothing about the material a
-	/// caller's payload was written under.
-	/// </para>
-	/// <para>
-	/// Destroyed means KMS cannot describe the CMK at all, or holds it as imported material that has been
-	/// deleted. A CMK pending deletion is <b>recoverable</b> with <c>CancelKeyDeletion</c> and is therefore NOT
-	/// destroyed — the same rule the handle-scoped overload applies, for the same reason.
-	/// </para>
-	/// </remarks>
-	public async Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrEmpty(keyId);
-		ArgumentException.ThrowIfNullOrEmpty(generation);
-
-		try
-		{
-			var described = await _kmsClient.DescribeKeyAsync(
-				new DescribeKeyRequest { KeyId = generation }, cancellationToken).ConfigureAwait(false);
-
-			var metadata = described.KeyMetadata;
-			if (metadata is null)
-			{
-				return true;
-			}
-
-			// Imported material that has been deleted leaves the CMK present but irrecoverable, which is
-			// destroyed in every sense that matters to a reader holding ciphertext.
-			return metadata.Origin == OriginType.EXTERNAL && metadata.KeyState == KeyState.PendingImport;
-		}
-		catch (NotFoundException)
-		{
-			return true;
-		}
-	}
-
 	/// <inheritdoc />
 	/// <remarks>
 	/// Destroyed only when no alias of this key -- the unversioned alias or any per-version alias -- still names a
@@ -445,50 +405,6 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		}
 
 		return true;
-	}
-
-	/// <inheritdoc/>
-	/// <remarks>
-	/// Each version of a logical key is its own CMK behind its own durable alias, so a rotation genuinely leaves one
-	/// version destroyed while a later one still decrypts -- which is why a read asks this overload rather than the
-	/// key-scoped one. Only the CMK behind the requested version's alias is examined: pending deletion is
-	/// recoverable with <c>CancelKeyDeletion</c> and therefore NOT destroyed, deleted imported material is
-	/// irrecoverable and therefore destroyed, and an alias KMS no longer resolves names a CMK it has removed. A key
-	/// created before per-version aliases existed has only its unversioned alias, and that alias is version 1, so
-	/// version 1 falls back to it exactly as the version lookup does. A failure to ask is thrown.
-	/// </remarks>
-	public async Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrEmpty(keyId);
-
-		var target = _options.BuildVersionAlias(keyId, version);
-		AwsKeyMetadata? metadata;
-		try
-		{
-			metadata = (await _kmsClient.DescribeKeyAsync(new DescribeKeyRequest { KeyId = target }, cancellationToken)
-				.ConfigureAwait(false)).KeyMetadata;
-		}
-		catch (NotFoundException)
-		{
-			if (version != 1)
-			{
-				return true;
-			}
-
-			try
-			{
-				metadata = (await _kmsClient.DescribeKeyAsync(
-					new DescribeKeyRequest { KeyId = _options.BuildKeyAlias(keyId) },
-					cancellationToken).ConfigureAwait(false)).KeyMetadata;
-			}
-			catch (NotFoundException)
-			{
-				return true;
-			}
-		}
-
-		return metadata?.Origin == OriginType.EXTERNAL && metadata.KeyState == KeyState.PendingImport;
 	}
 
 	private async Task<KeyDestructionOutcome> DestroyCmkAsync(
@@ -921,9 +837,23 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 
 		var newVersion = existingKey.Version + 1;
 
+		// THE LINEAGE IDENTITY SURVIVES THE ROTATION. A rotation extends the material lineage, so every
+		// envelope already written under this handle keeps naming the same generation. Minting a new one here
+		// would leave all of them naming an identifier no ledger row will ever hold, and -- because the
+		// erasure records only the generation it finds at destruction time -- their reads would fail forever
+		// with the material gone and nothing able to record it.
+		//
+		// An absent tag means a CMK provisioned before this lineage identifier existed. One is minted now,
+		// which is honest: that handle has no recorded identity to preserve.
+		var lineageGeneration =
+			AwsKmsKeyTags.GenerationOf(
+				await AwsKmsKeyTags.ReadAsync(_kmsClient, kmsKeyId, cancellationToken)
+					.ConfigureAwait(false))
+			?? MintGeneration();
+
 		// Rotation creates a NEW CMK and repoints the alias, so every version is a distinct key with its
 		// own ARN. That is what makes versions representable here at all.
-		var newKey = await CreateKmsKeyAsync(keyId, existingKey.Purpose, newVersion, cancellationToken)
+		var newKey = await CreateKmsKeyAsync(keyId, existingKey.Purpose, newVersion, lineageGeneration, cancellationToken)
 			.ConfigureAwait(false);
 
 		// Give the new version a durable name of its own before anything points at it. Without this the
@@ -1006,7 +936,12 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		}
 
 		var versionAlias = _options.BuildVersionAlias(keyId, 1);
-		var kmsKey = await CreateKmsKeyAsync(keyId, purpose, version: 1, cancellationToken).ConfigureAwait(false);
+
+		// A handle that holds nothing is new material, including one re-occupied after an erasure -- which MUST
+		// get a different generation from the one that was destroyed, or a read of the erased subject's old
+		// ciphertext would find the destroyed generation in the ledger and tombstone data that is live.
+		var kmsKey = await CreateKmsKeyAsync(keyId, purpose, version: 1, MintGeneration(), cancellationToken)
+			.ConfigureAwait(false);
 
 		try
 		{
@@ -1107,7 +1042,9 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		string? purpose,
 		CancellationToken cancellationToken)
 	{
-		var kmsKey = await CreateKmsKeyAsync(keyId, purpose, version: 1, cancellationToken).ConfigureAwait(false);
+		// A first provisioning, so a fresh material lineage.
+		var kmsKey = await CreateKmsKeyAsync(keyId, purpose, version: 1, MintGeneration(), cancellationToken)
+			.ConfigureAwait(false);
 
 		// Version 1 needs its own alias too, not only versions produced by rotation. Without it the first
 		// version becomes unaddressable the moment a rotation moves the unversioned alias, and a request for
@@ -1144,10 +1081,36 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		return KeyRotationResult.Succeeded(metadata);
 	}
 
+	/// <summary>
+	/// Mints an identifier for a newly provisioned material lineage.
+	/// </summary>
+	/// <remarks>
+	/// The CSPRNG lives in <see cref="KeyGeneration.Mint"/> rather than here, so every provider mints the same
+	/// way and none can drift to a weaker source. This only renders it for the tag.
+	/// </remarks>
+	private static string MintGeneration() => KeyGeneration.Mint().ToString();
+
+	/// <summary>
+	/// Creates the CMK backing one version of a logical key, tagged as belonging to a material lineage.
+	/// </summary>
+	/// <param name="keyId">The logical key identifier.</param>
+	/// <param name="purpose">The key's purpose, if any.</param>
+	/// <param name="version">The version this CMK is.</param>
+	/// <param name="generation">
+	/// The identifier of the material lineage this CMK belongs to: minted by the caller for a first
+	/// provisioning, carried from the superseded CMK for a rotation.
+	/// </param>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <remarks>
+	/// The lineage identifier is a PARAMETER rather than something minted here, and that is the whole point:
+	/// this method is called by both a first provisioning and a rotation, and the two must differ. Minting
+	/// inside would give every rotation a new identity and strand every envelope written before it.
+	/// </remarks>
 	private async Task<AwsKeyMetadata> CreateKmsKeyAsync(
 		string keyId,
 		string? purpose,
 		int version,
+		string generation,
 		CancellationToken cancellationToken)
 	{
 		var request = new CreateKeyRequest
@@ -1166,6 +1129,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 				// this provider rotates by creating a NEW CMK and repointing the alias -- so the version is
 				// ours to record, somewhere that survives a restart and is visible to every instance.
 				new() { TagKey = AwsKmsKeyTags.Version, TagValue = version.ToString(CultureInfo.InvariantCulture) },
+				new() { TagKey = AwsKmsKeyTags.Generation, TagValue = generation },
 			}
 		};
 
@@ -1216,7 +1180,18 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 			// CMK and repoints the alias, and provisioning at a handle whose key was destroyed mints another
 			// one, so the CMK id names exactly one piece of material and is never reused. The handle (an alias)
 			// and the version tag are both re-occupiable; this is not.
-			Generation = kmsMetadata.KeyId,
+			// THE LINEAGE TAG, NOT THE CMK ID. Every version of a logical key is its own CMK, so the CMK id
+			// identifies a VERSION: a rotation moves it within one lineage, and an erasure that records only
+			// the current generation leaves every earlier envelope naming an identifier no ledger row holds.
+			// Absent is reported as absent rather than falling back to the CMK id -- a CMK this framework did
+			// not provision has no lineage identity we can state, and the read path refuses such an envelope
+			// instead of tombstoning it.
+			// PARSED, never trusted as-is. A CMK tag is consumer-writable, so a value that is not a generation
+			// must read as ABSENT rather than becoming one: the ledger keys on it, and a value nothing minted
+			// could collide with another subject's.
+			Generation = KeyGeneration.TryParse(AwsKmsKeyTags.GenerationOf(tags), out var parsedGeneration)
+				? parsedGeneration
+				: null,
 
 			Status = status,
 			Algorithm = EncryptionAlgorithm.Aes256Gcm, // SYMMETRIC_DEFAULT is AES-256-GCM

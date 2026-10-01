@@ -215,6 +215,12 @@ public sealed class TwoFirstWritesForOneSubjectShould
 
 		_ = services.AddCryptoShredding();
 
+		// The read path takes a destruction ledger as a required collaborator, so the stack cannot be built
+		// without one. These arms never destroy anything -- they are about two concurrent FIRST writes -- so the
+		// ledger stays empty throughout and no field is ever reported erased. Registering it is what lets the
+		// stack exist; an empty one is the correct state for arms that erase nothing.
+		_ = services.AddInMemoryErasureStore();
+
 		return services.BuildServiceProvider();
 	}
 

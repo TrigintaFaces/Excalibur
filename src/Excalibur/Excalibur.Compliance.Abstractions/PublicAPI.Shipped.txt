@@ -1600,7 +1600,6 @@ Excalibur.Compliance.IErasureStore.GetService(System.Type! serviceType) -> objec
 Excalibur.Compliance.IErasureStore.GetStatusAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureStatus?>!
 Excalibur.Compliance.IErasureStore.RecordCancellationAsync(System.Guid requestId, string! reason, string! cancelledBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.IErasureStore.RecordCompletionAsync(System.Guid requestId, int keysDeleted, int recordsAffected, System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Compliance.IErasureStore.RecordKeyDestroyedAsync(System.Guid requestId, string! keyHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.IErasureStore.SaveRequestAsync(Excalibur.Compliance.ErasureRequest! request, System.DateTimeOffset scheduledExecutionTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.IErasureStore.UpdateStatusAsync(System.Guid requestId, Excalibur.Compliance.ErasureRequestStatus status, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.IErasureVerificationService
@@ -1626,8 +1625,6 @@ Excalibur.Compliance.IKeyCacheAdmin.Invalidate(string! keyId) -> void
 Excalibur.Compliance.IKeyCacheAdmin.Set(Excalibur.Compliance.KeyMetadata! keyMetadata, System.TimeSpan ttl) -> void
 Excalibur.Compliance.IKeyDestructionStatusProvider
 Excalibur.Compliance.IKeyDestructionStatusProvider.IsKeyDestroyedAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Compliance.IKeyDestructionStatusProvider.IsKeyDestroyedAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Compliance.IKeyDestructionStatusProvider.IsKeyDestroyedAsync(string! keyId, string! generation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.IKeyEscrowService
 Excalibur.Compliance.IKeyEscrowService.BackupKeyAsync(string! keyId, System.ReadOnlyMemory<byte> keyMaterial, Excalibur.Compliance.EscrowOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.EscrowReceipt!>!
 Excalibur.Compliance.IKeyEscrowService.GenerateRecoveryTokensAsync(string! keyId, int custodianCount, int threshold, System.TimeSpan? expiresIn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RecoveryToken![]!>!
@@ -1811,7 +1808,6 @@ Excalibur.Compliance.KeyMetadata.CreatedAt.get -> System.DateTimeOffset?
 Excalibur.Compliance.KeyMetadata.CreatedAt.init -> void
 Excalibur.Compliance.KeyMetadata.ExpiresAt.get -> System.DateTimeOffset?
 Excalibur.Compliance.KeyMetadata.ExpiresAt.init -> void
-Excalibur.Compliance.KeyMetadata.Generation.get -> string?
 Excalibur.Compliance.KeyMetadata.Generation.init -> void
 Excalibur.Compliance.KeyMetadata.IsFipsCompliant.get -> bool
 Excalibur.Compliance.KeyMetadata.IsFipsCompliant.init -> void
@@ -2706,12 +2702,10 @@ Excalibur.Compliance.SubjectAccessResult.RequestId.init -> void
 Excalibur.Compliance.SubjectAccessResult.Status.get -> Excalibur.Compliance.SubjectAccessRequestStatus
 Excalibur.Compliance.SubjectAccessResult.Status.init -> void
 Excalibur.Compliance.SubjectKey
-Excalibur.Compliance.SubjectKey.Generation.get -> string?
 Excalibur.Compliance.SubjectKey.Generation.init -> void
 Excalibur.Compliance.SubjectKey.KeyId.get -> string!
 Excalibur.Compliance.SubjectKey.KeyId.init -> void
 Excalibur.Compliance.SubjectKey.SubjectKey() -> void
-Excalibur.Compliance.SubjectKey.SubjectKey(string! KeyId, string? Generation) -> void
 Excalibur.Compliance.SystemDescription
 Excalibur.Compliance.SystemDescription.DataTypes.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Excalibur.Compliance.SystemDescription.DataTypes.set -> void

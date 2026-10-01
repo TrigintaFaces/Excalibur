@@ -90,6 +90,13 @@ public sealed class SqlServerErasureStoreConformanceTests : ErasureStoreConforma
 			SchemaName = "compliance",
 			RequestsTableName = $"ErasureRequests_{_suffix}",
 			CertificatesTableName = $"ErasureCertificates_{_suffix}",
+
+			// SUFFIXED TOO, which the fixture previously did not do. The ledger is keyed on the GENERATION
+			// alone and is deliberately not scoped by request, so a fixed generation literal in one arm is
+			// visible to every other arm sharing the container -- one arm's record then answers another arm's
+			// predicate and the arm cannot fail. Per-arm tables remove the shared surface entirely.
+			DestroyedKeysTableName = $"ErasureDestroyedKeys_{_suffix}",
+			DestructionIntentsTableName = $"ErasureDestructionIntents_{_suffix}",
 			CommandTimeoutSeconds = 30,
 
 			// The store provisions its own tables. See the class remarks: a fixture-declared copy of the
@@ -174,6 +181,18 @@ public sealed class SqlServerErasureStoreConformanceTests : ErasureStoreConforma
 	[Fact]
 	public Task RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct_Test() =>
 		RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct();
+
+	[Fact]
+	public Task RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth_Test() =>
+		RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth();
+
+	[Fact]
+	public Task StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed_Test() =>
+		StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed();
+
+	[Fact]
+	public Task RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent_Test() =>
+		RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent();
 
 	#endregion Completion
 

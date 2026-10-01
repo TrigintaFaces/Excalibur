@@ -718,13 +718,15 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 				+ (before is null ? "no request at all." : $"{before.DestroyedKeyHandles.Count} handle(s)."));
 		}
 
-		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-a", CancellationToken.None)
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-a", "gen-a", CancellationToken.None)
 			.ConfigureAwait(false);
-		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-b", CancellationToken.None)
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-b", "gen-b", CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Idempotent: a retry re-records a handle the store already holds.
-		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-a", CancellationToken.None)
+		// Idempotent on the GENERATION: a retry re-records the same generation the store already holds. Note
+		// that this is the SAME generation, not merely the same handle -- two different generations at one
+		// handle are two destructions and must both be kept, which the dedicated arm below covers.
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-a", "gen-a", CancellationToken.None)
 			.ConfigureAwait(false);
 
 		var after = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
@@ -765,7 +767,7 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		try
 		{
-			await store.RecordKeyDestroyedAsync(nonExistentId, "subject-key", CancellationToken.None)
+			await store.RecordKeyDestroyedAsync(nonExistentId, "subject-key", "gen-a", CancellationToken.None)
 				.ConfigureAwait(false);
 		}
 		catch (KeyNotFoundException)
@@ -794,9 +796,9 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
 			.ConfigureAwait(false);
 
-		await store.RecordKeyDestroyedAsync(request.RequestId, "Subject-Key", CancellationToken.None)
+		await store.RecordKeyDestroyedAsync(request.RequestId, "Subject-Key", "gen-upper", CancellationToken.None)
 			.ConfigureAwait(false);
-		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key", CancellationToken.None)
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key", "gen-lower", CancellationToken.None)
 			.ConfigureAwait(false);
 
 		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
@@ -809,6 +811,209 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 				+ (status is null ? "no request" : status.DestroyedKeyHandles.Count.ToString()));
 		}
 	}
+
+	/// <summary>
+	/// Verifies that TWO generations destroyed at ONE handle produce TWO ledger records, not one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This arm is RED against a store whose conflict clause names the request and the handle rather than the
+	/// generation. That was the live shape: the clause reasoned only about "two passes recording the same
+	/// handle", so a SECOND destruction at one handle -- a different generation, a real destruction -- was
+	/// silently absorbed as a duplicate and never recorded. The failure is silent and it lands on the
+	/// catastrophic side: a read of ciphertext produced under the second generation finds no record and cannot
+	/// report the subject's erasure, so a destruction that happened is not on file anywhere.
+	/// </para>
+	/// <para>
+	/// Observed through the ledger predicate rather than by counting rows, because that predicate is the thing
+	/// consumers actually depend on: both generations must independently answer "destroyed". A store that
+	/// collapsed them answers for the first and not the second.
+	/// </para>
+	/// <para>
+	/// The instants are deliberately NOT asserted to differ. Two writes microseconds apart can legitimately
+	/// read the same clock, so a strict-inequality assertion would be a wall-clock race rather than a statement
+	/// about the store. What this arm pins is that the second destruction produced its own record instead of
+	/// being discarded; whether its timestamp differs from the first is a property of the clock.
+	/// </para>
+	/// </remarks>
+	public virtual async Task RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = RequireLedger(store);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Unique per run, so a shared database cannot let an earlier run's rows satisfy this arm. The ledger is
+		// keyed on the generation ALONE and is deliberately not scoped by request, so a fixed literal here
+		// would be answered by any previous execution and the arm could never fail.
+		var first = $"gen-first-{Guid.NewGuid():N}";
+		var second = $"gen-second-{Guid.NewGuid():N}";
+
+		// Guard: neither generation is on file before this arm writes it. Without this the assertions below
+		// could pass over a ledger that answers true for everything.
+		if (await ledger.IsGenerationDestroyedAsync(first, CancellationToken.None).ConfigureAwait(false)
+			|| await ledger.IsGenerationDestroyedAsync(second, CancellationToken.None).ConfigureAwait(false))
+		{
+			throw new TestFixtureAssertionException(
+				"Neither generation may be reported destroyed before it is recorded. A ledger that answers "
+				+ "true for an unrecorded generation would produce a tombstone over live personal data.");
+		}
+
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key", first, CancellationToken.None)
+			.ConfigureAwait(false);
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key", second, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var firstRecorded = await ledger.IsGenerationDestroyedAsync(first, CancellationToken.None)
+			.ConfigureAwait(false);
+		var secondRecorded = await ledger.IsGenerationDestroyedAsync(second, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (!firstRecorded || !secondRecorded)
+		{
+			throw new TestFixtureAssertionException(
+				"Two generations destroyed at one handle are two destructions and both must be recorded. "
+				+ $"First recorded: {firstRecorded}; second recorded: {secondRecorded}. A store keying this "
+				+ "record on the handle silently drops the second, and every read of ciphertext produced under "
+				+ "that generation then fails to report the subject's erasure.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that STAGING a destruction does not make the generation report as destroyed.
+	/// </summary>
+	/// <remarks>
+	/// The safety arm for the whole two-table design. A staged row is written BEFORE the destruction, so
+	/// between the stage and the destroy it names LIVE material. If the ledger predicate could see it, a live
+	/// key would report as destroyed and the read would tombstone recoverable personal data while reporting a
+	/// lawful erasure -- silent in both directions. Its liveness twin is the arm above: a store that never
+	/// reports anything destroyed satisfies this arm and fails that one.
+	/// </remarks>
+	public virtual async Task StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = RequireLedger(store);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var generation = $"gen-staged-{Guid.NewGuid():N}";
+
+		await store.StageKeyDestructionAsync(request.RequestId, "subject-key", generation, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// The stage must be readable back -- otherwise this arm is satisfied by a store that drops the write,
+		// which would be the opposite defect: a destruction performed with no recoverable generation.
+		var staged = await store.GetStagedKeyGenerationsAsync(request.RequestId, "subject-key", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (!staged.Contains(generation, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A staged destruction must be readable back. It is the only copy of the generation that "
+				+ "survives the destruction, so a store that drops it leaves a crashed pass with nothing to "
+				+ $"recover from. Got: {string.Join(", ", staged)}");
+		}
+
+		if (await ledger.IsGenerationDestroyedAsync(generation, CancellationToken.None).ConfigureAwait(false))
+		{
+			throw new TestFixtureAssertionException(
+				"A STAGED generation must NOT report as destroyed. The stage happens before the destruction, so "
+				+ "it names material that is still live -- reporting it destroyed would tombstone recoverable "
+				+ "personal data and attest an erasure that has not happened.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that recording a destruction removes its staged intent, and ONLY its own.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// SAFETY and LIVENESS in one arm, because either half alone is satisfied by a wrong implementation. A
+	/// store that deletes nothing passes the second assertion and fails the first; a store that clears every
+	/// intent for the handle passes the first and fails the second — and that second failure is the dangerous
+	/// one, because the generations it would wipe are destructions NOT yet recorded, and a staged intent is
+	/// the only copy of a generation that survives its own destruction.
+	/// </para>
+	/// <para>
+	/// The ordering this protects is not asserted here and cannot be from outside: that the delete happens
+	/// AFTER the ledger row exists is a property of the write path, not of the observable state afterwards.
+	/// What this arm pins is that the cleanup is scoped to the generation that was recorded.
+	/// </para>
+	/// </remarks>
+	public virtual async Task RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var recorded = $"gen-recorded-{Guid.NewGuid():N}";
+		var stillStaged = $"gen-pending-{Guid.NewGuid():N}";
+
+		await store.StageKeyDestructionAsync(request.RequestId, "subject-key", recorded, CancellationToken.None)
+			.ConfigureAwait(false);
+		await store.StageKeyDestructionAsync(request.RequestId, "subject-key", stillStaged, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Guard: both are staged before anything is recorded, or the assertions below could pass over a store
+		// that never staged the second one at all.
+		var staged = await store.GetStagedKeyGenerationsAsync(request.RequestId, "subject-key", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (!staged.Contains(recorded, StringComparer.Ordinal)
+			|| !staged.Contains(stillStaged, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"Both generations must be staged before this arm records one. A store that dropped either "
+				+ $"would make the assertions below meaningless. Got: {string.Join(", ", staged)}");
+		}
+
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key", recorded, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var after = await store.GetStagedKeyGenerationsAsync(request.RequestId, "subject-key", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// SAFETY: the recorded generation's intent is gone, so the table does not grow without bound.
+		if (after.Contains(recorded, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A staged intent must be removed once its destruction is recorded in the ledger. It then "
+				+ "carries nothing the ledger does not, and leaving it grows this table by one row per key per "
+				+ "request forever.");
+		}
+
+		// LIVENESS: the unrecorded generation's intent SURVIVES. This is the half that matters — it is the
+		// only remaining copy of a generation whose destruction has not been recorded.
+		if (!after.Contains(stillStaged, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"Recording ONE generation must not clear the intents of generations that are still unrecorded. "
+				+ "A staged intent is the only copy of a generation that survives its own destruction, so "
+				+ $"clearing it early makes that destruction permanently unrecordable. Got: {string.Join(", ", after)}");
+		}
+	}
+
+	/// <summary>
+	/// Resolves the destruction ledger from the store under test, failing the arm if the store has none.
+	/// </summary>
+	/// <remarks>
+	/// Required rather than optional: without a ledger no read of a crypto-shredded field can ever report the
+	/// subject's erasure, so a store that cannot answer this is not a conforming erasure store. The cast is
+	/// explicit here so the failure names the missing capability instead of surfacing as a null-reference.
+	/// </remarks>
+	private static IKeyDestructionLedger RequireLedger(IErasureStore store) =>
+		store as IKeyDestructionLedger
+		?? store.GetService(typeof(IKeyDestructionLedger)) as IKeyDestructionLedger
+		?? throw new TestFixtureAssertionException(
+			$"{store.GetType().Name} does not implement IKeyDestructionLedger. Without it no read of a "
+			+ "crypto-shredded field can report an erasure this store recorded, so the destruction records it "
+			+ "writes are unreachable by the only consumer that needs them.");
 
 	/// <inheritdoc cref="RecordCompletionAsync_ShouldMarkCompleted"/>
 	public virtual async Task RecordCompletionAsync_NonExistent_ShouldThrowKeyNotFoundException()

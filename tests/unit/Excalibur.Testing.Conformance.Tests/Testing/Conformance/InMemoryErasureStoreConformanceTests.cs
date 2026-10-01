@@ -129,6 +129,18 @@ public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConforman
 	public Task RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct_Test() =>
 		RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct();
 
+	[Fact]
+	public Task RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth_Test() =>
+		RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth();
+
+	[Fact]
+	public Task StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed_Test() =>
+		StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed();
+
+	[Fact]
+	public Task RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent_Test() =>
+		RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent();
+
 	#endregion Completion Tests
 
 	#region Cancellation Tests (STATE MACHINE)

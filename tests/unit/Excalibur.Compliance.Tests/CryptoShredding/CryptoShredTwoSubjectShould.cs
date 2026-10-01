@@ -48,7 +48,12 @@ public sealed class CryptoShredTwoSubjectShould
         (await fieldEncryptor.DecryptAsync(envelopeB, CancellationToken.None)).ShouldBe(subjectBData);
 
         // Crypto-shred subject A: destroy A's key (all versions), idempotent.
-        await ShredSubjectAsync(keyAdmin, hasher, "subject-A");
+        await ShredSubjectAsync(
+            keyAdmin,
+            scope.ServiceProvider.GetRequiredService<IKeyManagementProvider>(),
+            scope.ServiceProvider.GetRequiredService<IKeyDestructionLedger>(),
+            hasher,
+            "subject-A");
 
         // LOAD-BEARING: A's PII is now unrecoverable (degrade-open tombstone = null), while B's PII is
         // untouched. A shared/purpose-key scheme would either leave A decryptable (no per-subject key)
@@ -73,10 +78,20 @@ public sealed class CryptoShredTwoSubjectShould
         var data = "erase-me"u8.ToArray();
         var envelope = await fieldEncryptor.EncryptAsync("subject-C", RetentionScope.NotInAnAggregate, data, CancellationToken.None);
 
-        await ShredSubjectAsync(keyAdmin, hasher, "subject-C");
+        await ShredSubjectAsync(
+            keyAdmin,
+            scope.ServiceProvider.GetRequiredService<IKeyManagementProvider>(),
+            scope.ServiceProvider.GetRequiredService<IKeyDestructionLedger>(),
+            hasher,
+            "subject-C");
         // Second destroy must not throw (idempotent crypto-erase).
         await Should.NotThrowAsync(async () =>
-            await ShredSubjectAsync(keyAdmin, hasher, "subject-C"));
+            await ShredSubjectAsync(
+            keyAdmin,
+            scope.ServiceProvider.GetRequiredService<IKeyManagementProvider>(),
+            scope.ServiceProvider.GetRequiredService<IKeyDestructionLedger>(),
+            hasher,
+            "subject-C"));
 
         (await fieldEncryptor.DecryptAsync(envelope, CancellationToken.None)).ShouldBeNull();
     }
@@ -131,7 +146,12 @@ public sealed class CryptoShredTwoSubjectShould
         // Non-vacuity: it round-trips before anything is destroyed, so a later null cannot be a broken fixture.
         (await fieldEncryptor.DecryptAsync(earlierEnvelope, CancellationToken.None)).ShouldBe(earlier);
 
-        await ShredSubjectAsync(keyAdmin, hasher, "subject-R");
+        await ShredSubjectAsync(
+            keyAdmin,
+            scope.ServiceProvider.GetRequiredService<IKeyManagementProvider>(),
+            scope.ServiceProvider.GetRequiredService<IKeyDestructionLedger>(),
+            hasher,
+            "subject-R");
 
         // THE ORDINARY WRITE. Nothing unusual is requested: the subject appears again, and the key manager
         // finds no key at their handle and mints one. This is the step that re-occupies the handle.
@@ -160,9 +180,45 @@ public sealed class CryptoShredTwoSubjectShould
                 + "provider that returns null for everything");
     }
 
-    private static async Task ShredSubjectAsync(IKeyManagementAdmin keyAdmin, IDataSubjectHasher hasher, string subjectId)
+    /// <summary>
+    /// Crypto-shreds a subject the way a CONSUMER does it: read the generation, destroy, record.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to destroy and stop, with a comment claiming it did what the erasure service does. That
+    /// stopped being true when a tombstone started requiring a ledger record: destroying alone now leaves the
+    /// subject's reads failing forever instead of reporting their erasure. Recording is the other half.
+    /// </para>
+    /// <para>
+    /// THE ORDER IS THE WHOLE POINT, and it is the order the public ledger write documents. The generation is
+    /// read FIRST, because on most backends the identifier is material the destruction takes with it, so after
+    /// the destroy there is nothing left to read. It is recorded LAST, because a row written before the
+    /// destruction reports live material as erased for however long the gap lasts.
+    /// </para>
+    /// </remarks>
+    private static async Task ShredSubjectAsync(
+        IKeyManagementAdmin keyAdmin,
+        IKeyManagementProvider keyProvider,
+        IKeyDestructionLedger ledger,
+        IDataSubjectHasher hasher,
+        string subjectId)
     {
-        _ = await keyAdmin.DeleteKeyAsync(hasher.HashDataSubjectId(subjectId), retentionDays: 0, CancellationToken.None);
+        var keyHandle = hasher.HashDataSubjectId(subjectId);
+
+        // FIRST: the generation, while the material still exists.
+        var generation = (await keyProvider.GetKeyAsync(keyHandle, CancellationToken.None))?.Generation;
+
+        var outcome = await keyAdmin.DeleteKeyAsync(keyHandle, retentionDays: 0, CancellationToken.None);
+
+        // LAST, and only on an irreversible destruction. A key that is merely scheduled is still recoverable,
+        // so recording it would assert an erasure that has not happened. A repeat shred finds no key and no
+        // generation, which is why this is conditional rather than unconditional -- and the ledger row the
+        // first shred wrote is what keeps the subject's reads reporting their erasure.
+        if (outcome.State == KeyDestructionState.Completed && generation is not null)
+        {
+            // The record stores the characters, which is the boundary KeyGeneration deliberately stops at.
+            await ledger.RecordDestroyedGenerationAsync(generation.Value.ToString(), CancellationToken.None);
+        }
     }
 
     private static ServiceProvider BuildRealEncryptionStack()
@@ -184,6 +240,12 @@ public sealed class CryptoShredTwoSubjectShould
             (IKeyManagementAdmin)sp.GetRequiredService<IKeyManagementProvider>());
 
         services.AddCryptoShredding();
+
+        // The destruction ledger, which a crypto-shredding read now requires: a tombstone is produced only
+        // from a ledger record, so FieldEncryptor takes the ledger as a required dependency and there is
+        // deliberately no always-empty default. The in-memory erasure store is this framework's in-process
+        // ledger implementation, so registering it is how a test (or a consumer with no database) supplies one.
+        services.AddInMemoryErasureStore();
 
         return services.BuildServiceProvider();
     }

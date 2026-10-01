@@ -35,13 +35,20 @@ public sealed record KeyMetadata
 	/// <para>
 	/// <b>Null is a real answer and it is not benign.</b> A provider that cannot identify a generation cannot
 	/// support a crypto-shred read path, because a destroyed key and a re-provisioned one are
-	/// indistinguishable through it. Callers that depend on the distinction refuse rather than assume.
+	/// indistinguishable through it. Callers that depend on the distinction refuse rather than assume -- and
+	/// the nullability is deliberate for exactly that case: a handle provisioned outside this framework has no
+	/// lineage identity we can honestly state, and inventing one on read would give material destroyed
+	/// elsewhere a fresh identifier and present it as live.
 	/// </para>
 	/// <para>
-	/// Opaque: compare for equality, never for order, and do not parse it.
+	/// <b>A <see cref="KeyGeneration"/> rather than a <see cref="string"/>, because the ledger keys on it.</b>
+	/// A string-typed generation accepts an ordinal, a backend version identifier or a value derived from the
+	/// subject, each of which can collide across subjects -- and a collision under a generation-keyed
+	/// destruction ledger reports one subject's live data as erased by another's erasure. The type admits only
+	/// a CSPRNG mint or a 32-hexadecimal-character parse, so that value cannot be constructed here at all.
 	/// </para>
 	/// </remarks>
-	public string? Generation { get; init; }
+	public KeyGeneration? Generation { get; init; }
 
 	/// <summary>
 	/// Gets the current lifecycle status of the key.

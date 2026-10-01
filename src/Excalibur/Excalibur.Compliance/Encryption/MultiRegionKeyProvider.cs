@@ -524,7 +524,6 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 	private static async Task<bool> IsDestroyedInRegionAsync(
 		IKeyManagementProvider region,
 		string keyId,
-		int? version,
 		CancellationToken cancellationToken)
 	{
 		// A region that cannot answer authoritatively is not reported destroyed: its key lookup cannot tell a
@@ -534,11 +533,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 			return false;
 		}
 
-		// The question is asked of the same object the caller cares about: a whole handle when attesting an erasure,
-		// one version when deciding whether a particular ciphertext still has material behind it.
-		return version is { } keyVersion
-			? await destructionStatus.IsKeyDestroyedAsync(keyId, keyVersion, cancellationToken).ConfigureAwait(false)
-			: await destructionStatus.IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false);
+		return await destructionStatus.IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false);
 	}
 
 	#region IKeyManagementProvider + IKeyManagementAdmin Implementation (delegated to active region)
@@ -738,76 +733,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 
 		foreach (var region in new[] { _primaryProvider, _secondaryProvider })
 		{
-			if (!await IsDestroyedInRegionAsync(region, keyId, version: null, cancellationToken).ConfigureAwait(false))
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/// <inheritdoc />
-	/// <remarks>
-	/// One version, and still every region: a version destroyed in the active region but surviving in the secondary
-	/// becomes readable again the moment failover flips <see cref="ActiveProvider"/>, so a version destroyed in one
-	/// of two regions is not destroyed. Each region is asked through its own
-	/// <see cref="IKeyDestructionStatusProvider"/> and a region whose provider does not implement it is never
-	/// reported destroyed. A region that cannot be asked throws.
-	/// </remarks>
-	public async Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrEmpty(keyId);
-
-		foreach (var region in new[] { _primaryProvider, _secondaryProvider })
-		{
-			if (!await IsDestroyedInRegionAsync(region, keyId, version, cancellationToken).ConfigureAwait(false))
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/// <inheritdoc />
-	/// <remarks>
-	/// <para>
-	/// One generation, and still every region. This is the overload that answers the failover hazard the other
-	/// two cannot: a version ordinal resolves against whichever region is active, so one integer designates
-	/// different material before and after a failover, while a generation identifier is minted per provisioning
-	/// and designates one piece of material or nothing at all.
-	/// </para>
-	/// <para>
-	/// A generation live in EITHER region is not destroyed, because a failover makes the surviving copy the one
-	/// that answers reads. A generation neither region holds is destroyed — which is also the answer when the
-	/// generation was minted in a region this deployment no longer has, and that is correct: the material is
-	/// unreachable either way.
-	/// </para>
-	/// <para>
-	/// <b>Forward requirement, stated here because this is where it will break.</b> Replication currently
-	/// copies no key material. When it does, it MUST copy the generation identifier with it; a replication that
-	/// provisioned fresh material in the passive region would mint a second generation at one handle, and this
-	/// method would then report a live generation as destroyed in the region that does not have it.
-	/// </para>
-	/// </remarks>
-	public async Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrEmpty(keyId);
-		ArgumentException.ThrowIfNullOrEmpty(generation);
-
-		foreach (var region in new[] { _primaryProvider, _secondaryProvider })
-		{
-			// A region that cannot answer authoritatively is never reported destroyed, exactly as for the other
-			// two overloads: its key lookup cannot tell a destroyed generation from a recoverable one.
-			if (region.GetService(typeof(IKeyDestructionStatusProvider)) is not IKeyDestructionStatusProvider status)
-			{
-				return false;
-			}
-
-			if (!await status.IsKeyDestroyedAsync(keyId, generation, cancellationToken).ConfigureAwait(false))
+			if (!await IsDestroyedInRegionAsync(region, keyId, cancellationToken).ConfigureAwait(false))
 			{
 				return false;
 			}

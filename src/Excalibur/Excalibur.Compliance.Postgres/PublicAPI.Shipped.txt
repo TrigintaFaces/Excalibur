@@ -39,7 +39,6 @@ Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.ListRequestsAsync(Exc
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.PostgresErasureStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions!>! options, Excalibur.Compliance.Erasure.IDataSubjectHasher! dataSubjectHasher, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.TenantContextOptions!>! tenantContextOptions) -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.RecordCancellationAsync(System.Guid requestId, string! reason, string! cancelledBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.RecordCompletionAsync(System.Guid requestId, int keysDeleted, int recordsAffected, System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.RecordKeyDestroyedAsync(System.Guid requestId, string! keyHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.SaveCertificateAsync(Excalibur.Compliance.ErasureCertificate! certificate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.SaveRequestAsync(Excalibur.Compliance.ErasureRequest! request, System.DateTimeOffset scheduledExecutionTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.UpdateStatusAsync(System.Guid requestId, Excalibur.Compliance.ErasureRequestStatus status, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -55,8 +54,11 @@ Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.ConnectionStri
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.ConnectionString.set -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.DestroyedKeysTableName.get -> string!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.DestroyedKeysTableName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.DestructionIntentsTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.DestructionIntentsTableName.set -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.FullCertificatesTableName.get -> string!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.FullDestroyedKeysTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.FullDestructionIntentsTableName.get -> string!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.FullRequestsTableName.get -> string!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.PostgresErasureStoreOptions() -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.RequestsTableName.get -> string!

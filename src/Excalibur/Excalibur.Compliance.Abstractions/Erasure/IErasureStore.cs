@@ -183,11 +183,88 @@ public interface IErasureStore
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Records that this request destroyed the key at <paramref name="keyHandle"/>, durably, as soon as the
-	/// destruction returns.
+	/// Stages the generation this request is ABOUT TO destroy at <paramref name="keyHandle"/>, durably, BEFORE
+	/// the destruction is attempted.
+	/// </summary>
+	/// <param name="requestId">The request whose pass is about to destroy the key.</param>
+	/// <param name="keyHandle">The key handle whose material is about to be destroyed.</param>
+	/// <param name="keyGeneration">
+	/// The generation identifier of the material about to be destroyed, read from the key backend while that
+	/// material still existed.
+	/// </param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <remarks>
+	/// <para>
+	/// <b>The destruction destroys this write's own input, which is why it has to happen first.</b> On every
+	/// backend the framework supports, the generation identifier IS backend material — a key-vault version id,
+	/// a CMK id, a sidecar marker, an in-memory entry — and none of them is readable once the material is gone.
+	/// So a crash between destroying the key and recording its generation is not a window a retry repairs: the
+	/// generation is unreadable forever, the retry cannot land the record either, and the subject's ciphertext
+	/// is then permanently undecryptable with no way to report their erasure. Staging first is what leaves the
+	/// retry something to work from.
+	/// </para>
+	/// <para>
+	/// <b>A staged row is NOT a destruction record and MUST NOT be read as one.</b> Between this call and the
+	/// destruction it names LIVE material, so a predicate that could match it would report a live key as
+	/// destroyed — the catastrophic direction. Staged intents and destruction records are therefore held apart,
+	/// and <see cref="IKeyDestructionLedger.IsGenerationDestroyedAsync"/> resolves only against the records: a
+	/// row's existence in the ledger IS the destruction statement, so there is no column to interpret and no
+	/// clause to forget.
+	/// </para>
+	/// <para>
+	/// <b>Idempotent, and appends rather than replaces.</b> Staging a generation already staged for the same
+	/// request and handle is a no-op. A later pass adds to what earlier passes staged and never truncates it.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="keyHandle"/> or <paramref name="keyGeneration"/> is null or empty.
+	/// </exception>
+	/// <exception cref="KeyNotFoundException">
+	/// No request with the given <paramref name="requestId"/> exists in this tenant, so there is nothing a
+	/// destruction could be staged against.
+	/// </exception>
+	Task StageKeyDestructionAsync(
+		Guid requestId,
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Gets the generations this request staged for destruction at <paramref name="keyHandle"/>.
+	/// </summary>
+	/// <param name="requestId">The request whose staged intents to read.</param>
+	/// <param name="keyHandle">The key handle the intents were staged against.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// The staged generations, in no particular order; empty when nothing was staged for this request and
+	/// handle. Never <see langword="null"/>.
+	/// </returns>
+	/// <remarks>
+	/// This is the recovery read, and it is the ONLY member that may name a staged intent. It exists because a
+	/// pass that destroyed material and then failed before recording it can no longer read the generation from
+	/// the backend — the destruction took it — so the staged row is the only remaining copy. A caller that uses
+	/// an answer here to write a destruction record is asserting that the material is gone, and it owes
+	/// positive evidence of that: this member reports what was STAGED, which is a statement about an intention,
+	/// never about an outcome.
+	/// </remarks>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="keyHandle"/> is null or empty.</exception>
+	Task<IReadOnlyList<string>> GetStagedKeyGenerationsAsync(
+		Guid requestId,
+		string keyHandle,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Records that this request destroyed the generation <paramref name="keyGeneration"/> at
+	/// <paramref name="keyHandle"/>, durably, as soon as the destruction returns.
 	/// </summary>
 	/// <param name="requestId">The request whose pass destroyed the key.</param>
-	/// <param name="keyHandle">The key handle that is now irrecoverable.</param>
+	/// <param name="keyHandle">The key handle whose material is now irrecoverable.</param>
+	/// <param name="keyGeneration">
+	/// The generation identifier of the destroyed material. This is the ledger's KEY: a generation is minted
+	/// once and never reused, so one generation is one destruction and a second row for it is a contradiction
+	/// the store refuses. <paramref name="requestId"/> and <paramref name="keyHandle"/> are audit attributes
+	/// and are never part of that key.
+	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <remarks>
 	/// <para>
@@ -205,19 +282,23 @@ public interface IErasureStore
 	/// in the only case that matters.
 	/// </para>
 	/// <para>
-	/// <b>Idempotent, and appends rather than replaces.</b> Recording a handle already recorded for the same
-	/// request is a no-op. A later pass adds to what earlier passes wrote and never truncates it.
+	/// <b>Idempotent on the GENERATION, and appends rather than replaces.</b> Recording a generation already
+	/// recorded is a no-op. Two DIFFERENT generations destroyed at one handle are two destructions and produce
+	/// TWO records with their own instants — keying the record on the handle instead would silently drop the
+	/// second, which is a destruction that happened and is not on file.
 	/// </para>
 	/// <para>
-	/// A store that cannot persist this cannot certify a retried erasure, so this is required rather than an
-	/// optional capability: a silently absent record would report a completed erasure as uncoverable and give
-	/// no indication why.
+	/// A store that cannot persist this cannot certify a retried erasure, and no read of the subject's
+	/// ciphertext can ever report their erasure, so this is required rather than an optional capability.
 	/// </para>
 	/// </remarks>
-	/// <exception cref="ArgumentException">Thrown when <paramref name="keyHandle"/> is null or empty.</exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="keyHandle"/> or <paramref name="keyGeneration"/> is null or empty.
+	/// </exception>
 	Task RecordKeyDestroyedAsync(
 		Guid requestId,
 		string keyHandle,
+		string keyGeneration,
 		CancellationToken cancellationToken);
 
 	/// <summary>

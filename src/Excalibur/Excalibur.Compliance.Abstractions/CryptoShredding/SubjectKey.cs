@@ -29,4 +29,4 @@ namespace Excalibur.Compliance;
 /// configured provider cannot identify one. A null here means a crypto-shred read cannot distinguish a
 /// destroyed key from a re-provisioned one, so callers that need that distinction refuse rather than assume.
 /// </param>
-public readonly record struct SubjectKey(string KeyId, string? Generation);
+public readonly record struct SubjectKey(string KeyId, KeyGeneration? Generation);

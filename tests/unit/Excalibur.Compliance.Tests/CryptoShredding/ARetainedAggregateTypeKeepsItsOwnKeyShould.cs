@@ -273,8 +273,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 		// The envelope carries the handle that protects it, which is what makes the retained key reachable
 		// without anyone having to re-derive it.
 		envelope.KeyId.ShouldNotBeNullOrEmpty();
-		_ = await keyAdmin.DeleteKeyAsync(
-			envelope.KeyId!, retentionDays: 0, TestContext.Current.CancellationToken);
+		await DestroyAndRecordAsync(scope.ServiceProvider, envelope.KeyId!);
 
 		(await encryptor.DecryptAsync(envelope, TestContext.Current.CancellationToken))
 			.ShouldBeNull("the retention delays destruction; it does not put the record beyond erasure");
@@ -343,11 +342,49 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 	// Exactly what the erasure destroys: the data subject's own key handle, which is the subject-id hash.
 	private static async Task EraseAsync(IServiceProvider services, string subjectId = Subject)
 	{
-		var keyAdmin = services.GetRequiredService<IKeyManagementAdmin>();
 		var hasher = services.GetRequiredService<IDataSubjectHasher>();
 
-		_ = await keyAdmin.DeleteKeyAsync(
-			hasher.HashDataSubjectId(subjectId), retentionDays: 0, TestContext.Current.CancellationToken);
+		await DestroyAndRecordAsync(services, hasher.HashDataSubjectId(subjectId));
+	}
+
+	/// <summary>
+	/// Destroys a key handle and records the destruction, in the order the ledger requires.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The generation is read BEFORE the destruction, and that order is not stylistic.</b> The generation is
+	/// backend material, so the destroy takes it with the key: read it afterwards and there is nothing left to
+	/// read, which would leave the subject permanently undecryptable with no repair available -- the material
+	/// gone and the identifier that would have recorded it unreadable.
+	/// </para>
+	/// <para>
+	/// Recorded only on <see cref="KeyDestructionState.Completed"/>, because that is the only state in which the
+	/// material is irrecoverable NOW. A scheduled destruction can be cancelled on some backends, and a record
+	/// written for one would tombstone a key that is still restorable.
+	/// </para>
+	/// <para>
+	/// These arms destroy directly rather than through the erasure service, so this is where its recording step
+	/// has to happen instead. Without it the destruction is real and no record exists, so a read of the erased
+	/// subject fails loudly rather than reporting the erasure -- which is the designed refusal, and would make
+	/// every degrade-open assertion below fail for a reason that is not what the arm is about.
+	/// </para>
+	/// </remarks>
+	private static async Task DestroyAndRecordAsync(IServiceProvider services, string handle)
+	{
+		var keyProvider = services.GetRequiredService<IKeyManagementProvider>();
+		var keyAdmin = services.GetRequiredService<IKeyManagementAdmin>();
+		var ledger = services.GetRequiredService<IKeyDestructionLedger>();
+		var cancellationToken = TestContext.Current.CancellationToken;
+
+		var generation =
+			(await keyProvider.GetKeyAsync(handle, cancellationToken))?.Generation;
+
+		var outcome = await keyAdmin.DeleteKeyAsync(handle, retentionDays: 0, cancellationToken);
+
+		if (outcome.State == KeyDestructionState.Completed && generation is not null)
+		{
+			await ledger.RecordDestroyedGenerationAsync(generation.Value.ToString(), cancellationToken);
+		}
 	}
 
 	// registerTenantContextFirst stands in for any unrelated package whose registration helper supplies the
@@ -379,6 +416,12 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 		}
 
 		_ = services.AddCryptoShredding();
+
+		// The read path resolves a destruction ledger, and a tombstone is produced only from a record in it.
+		// These arms destroy keys DIRECTLY through IKeyManagementAdmin rather than through the erasure service,
+		// so nothing records the destruction for them -- see DestroyAndRecordAsync, which does what the service
+		// does at that seam.
+		_ = services.AddInMemoryErasureStore();
 
 		return services.BuildServiceProvider();
 	}

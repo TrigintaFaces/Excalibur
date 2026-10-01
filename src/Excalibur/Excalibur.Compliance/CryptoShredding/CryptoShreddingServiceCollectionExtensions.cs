@@ -5,7 +5,10 @@ using Excalibur.Compliance;
 using Excalibur.Compliance.CryptoShredding;
 using Excalibur.Compliance.Erasure;
 
+using Excalibur.Dispatch;
+
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -45,6 +48,18 @@ public static class CryptoShreddingServiceCollectionExtensions
         services.TryAddScoped<ISubjectKeyManager, SubjectKeyManager>();
         services.TryAddScoped<IFieldEncryptor, FieldEncryptor>();
         services.TryAddScoped<SubjectFieldCryptor>();
+
+        // FAIL AT START RATHER THAN ON THE FIRST REQUEST. FieldEncryptor requires IKeyDestructionLedger, and
+        // every registration of one hangs off an erasure store -- so a composition with crypto-shredding and
+        // no erasure store cannot construct the field encryptor. Because the encryptor is SCOPED, that
+        // surfaces per-request, as a dependency-injection error naming a type the consumer never asked for.
+        // Both descriptors are registered deliberately: the hosted service places the check in a host's
+        // startup pipeline, and the prerequisite validator lets the same check run for a consumer who builds
+        // a provider and calls ValidateStartupGates without ever starting a host.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, CryptoShreddingLedgerWiringValidator>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, CryptoShreddingLedgerWiringValidator>());
 
         return services;
     }

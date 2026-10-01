@@ -463,6 +463,14 @@ app.MapPost("/retention/walkthrough", async (
 	});
 });
 
+// Printed once the host is actually listening. A startup failure never reaches this line, so it
+// separates "started and serving" from "died or hung during startup" for anyone -- or anything --
+// watching the output. The smoke profile for this sample matches on "Sample ready:", so without
+// this line a run that stays up as designed is indistinguishable from one that hung, and the
+// validator correctly refuses to call either a pass.
+app.Lifetime.ApplicationStarted.Register(static () =>
+	Console.WriteLine("Sample ready: GDPR erasure API listening. Press Ctrl+C to stop."));
+
 await app.RunAsync().ConfigureAwait(false);
 
 // Simple PII masking helper — a real sample would use Excalibur.Compliance's IDataMasker.

@@ -3,10 +3,14 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Azure.Security.KeyVault.Keys;
+
 using Excalibur.Compliance;
 using Excalibur.Compliance.Azure;
 
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -85,8 +89,21 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
 
-		// Register the provider
-		services.TryAddSingleton<AzureKeyVaultProvider>();
+		// Register the provider.
+		//
+		// Constructed explicitly, with NAMED arguments, rather than left to constructor selection. The provider
+		// has two constructors differing only in a trailing KeyClient, and which one the container picks would
+		// otherwise depend on whether that service happens to be registered -- a resolution rule this file does
+		// not state and a reader cannot see. Naming each argument also makes a future parameter that nobody wires
+		// a compile error here instead of a silently absent dependency.
+		//
+		// GetService, not GetRequiredService: supplying the client is optional, and its absence means "build one
+		// from the options" rather than a misconfiguration.
+		services.TryAddSingleton(sp => new AzureKeyVaultProvider(
+			options: sp.GetRequiredService<IOptions<AzureKeyVaultOptions>>(),
+			cache: sp.GetRequiredService<IMemoryCache>(),
+			logger: sp.GetRequiredService<ILogger<AzureKeyVaultProvider>>(),
+			keyClient: sp.GetService<KeyClient>()));
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
 		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
 	}

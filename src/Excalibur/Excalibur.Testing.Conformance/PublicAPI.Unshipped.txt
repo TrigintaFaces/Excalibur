@@ -1,1 +1,14 @@
 #nullable enable
+*REMOVED*virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed() -> System.Threading.Tasks.Task!
+*REMOVED*virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException() -> System.Threading.Tasks.Task!
+*REMOVED*virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed() -> System.Threading.Tasks.Task!
+*REMOVED*virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome() -> System.Threading.Tasks.Task!
+*REMOVED*virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed() -> System.Threading.Tasks.Task!
+*REMOVED*virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException() -> System.Threading.Tasks.Task!
+*REMOVED*virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.Generation_ShouldBeStable_AcrossARotation() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction() -> System.Threading.Tasks.Task!

@@ -51,8 +51,16 @@ public sealed class ARetriedErasureAttestsWhatItsFirstPassDestroyedShould
 	// that cannot answer that question leaves the state unmeasured, and the erasure records the absence rather
 	// than assuming the handles are clean. So a fixture without this capability is refused for a reason that
 	// has nothing to do with coverage, and every arm here would fail without telling you why.
+	//
+	// It also implements IKeyManagementProvider, and that is load-bearing for a second reason: the service
+	// reads a key's GENERATION before destroying it, because the destruction destroys the generation
+	// identifier and the destruction record is keyed on it. A fake that could not answer GetKeyAsync would
+	// leave every destruction unrecordable, and these arms would fail for a reason that has nothing to do
+	// with retry attestation.
 	private readonly IKeyManagementAdmin _keyAdmin =
-		A.Fake<IKeyManagementAdmin>(o => o.Implements<IKeyDestructionStatusProvider>());
+		A.Fake<IKeyManagementAdmin>(o => o
+			.Implements<IKeyDestructionStatusProvider>()
+			.Implements<IKeyManagementProvider>());
 	private readonly ILegalHoldService _legalHolds = A.Fake<ILegalHoldService>();
 	private readonly IDataInventoryService _inventory = A.Fake<IDataInventoryService>();
 
@@ -163,7 +171,7 @@ public sealed class ARetriedErasureAttestsWhatItsFirstPassDestroyedShould
 
 		_ = await CreateService().ExecuteAsync(requestId, CancellationToken.None).ConfigureAwait(true);
 
-		A.CallTo(() => _store.RecordKeyDestroyedAsync(requestId, SubjectKey, A<CancellationToken>._))
+		A.CallTo(() => _store.RecordKeyDestroyedAsync(requestId, SubjectKey, A<string>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -185,7 +193,7 @@ public sealed class ARetriedErasureAttestsWhatItsFirstPassDestroyedShould
 		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
-		A.CallTo(() => _store.RecordKeyDestroyedAsync(A<Guid>._, A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _store.RecordKeyDestroyedAsync(A<Guid>._, A<string>._, A<string>._, A<CancellationToken>._))
 			.Throws(new InvalidOperationException("the destroyed-key record could not be written"));
 
 		SetupInventoryCoveredOnlyByTheSubjectKey();
@@ -312,9 +320,40 @@ public sealed class ARetriedErasureAttestsWhatItsFirstPassDestroyedShould
 				A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
+	/// <summary>
+	/// Every handle reports a generation, so a destruction that reaches Completed can be recorded.
+	/// </summary>
+	/// <remarks>
+	/// The service reads the generation BEFORE destroying, because the destruction destroys the identifier and
+	/// the destruction record is keyed on it. A fake that answered nothing here would make every destruction
+	/// unrecordable, and these arms -- which are about retry attestation, not about generation lookup -- would
+	/// all fail for the wrong reason. The generation is MINTED PER HANDLE -- stable for one handle so a retried
+	/// erasure attests what the first pass destroyed, distinct across handles so two destroyed keys do not
+	/// collide on the record's key, and not derived FROM the handle, which is what KeyGeneration's consumer
+	/// obligation forbids.
+	/// </remarks>
+	private void GivenEveryHandleReportsAGeneration()
+	{
+		var generations = new System.Collections.Concurrent.ConcurrentDictionary<string, KeyGeneration>(
+			StringComparer.Ordinal);
+
+		A.CallTo(() => ((IKeyManagementProvider)_keyAdmin).GetKeyAsync(A<string>._, A<CancellationToken>._))
+			.ReturnsLazily((string keyId, CancellationToken _) =>
+				Task.FromResult<KeyMetadata?>(new KeyMetadata
+				{
+					KeyId = keyId,
+					Version = 1,
+					Status = KeyStatus.Active,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+					CreatedAt = DateTimeOffset.UtcNow,
+					Generation = generations.GetOrAdd(keyId, static _ => KeyGeneration.Mint()),
+				}));
+	}
+
 	private void SetupScheduledRequest(Guid requestId, IReadOnlyCollection<string> alreadyDestroyed)
 	{
 		GivenEveryDestroyedHandleIsStillGone();
+		GivenEveryHandleReportsAGeneration();
 
 		var status = new ErasureStatus
 		{

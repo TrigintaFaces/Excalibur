@@ -103,17 +103,19 @@ legacy form written before the marker existed, so it is still encrypted rather t
 unmarked as already-encrypted would leave personal data in the clear for exactly the records written
 earliest.
 
-### A null from a field read means erased, and it is produced only when the key provider says so
+### A null from a field read means erased, and it is produced only when the LEDGER says so
 
-**`IFieldEncryptor.DecryptAsync` returns `null` for a personal field only when the key-management provider
-states, through `IKeyDestructionStatusProvider`, that the material of the key GENERATION that field's
-envelope names is irrecoverable. A key that cannot be resolved but whose material the provider reports as
-recoverable throws rather than returning `null`; a provider that cannot answer at all throws rather than
-returning `null`; and an envelope that names no generation is refused before the question is asked.**
+**`IFieldEncryptor.DecryptAsync` returns `null` for a personal field only when this deployment's
+append-only destruction ledger holds a row for the key GENERATION that field's envelope names. A row is
+written only after an irreversible destruction this deployment performed has already completed, so a
+row's existence IS the destruction statement. The absence of a row is "not destroyed" and the read then
+attempts the decrypt; an inability to READ the ledger is an exception, never "not destroyed". An envelope
+that names no generation is refused before the ledger is consulted.**
 
 This is the guarantee that makes a `null` readable as a lawful crypto-shred, and it is falsifiable in one
-observation: configure a key provider that reports a deleted key as absent while reporting its material as
-recoverable, and the read must not answer `null`. Nothing else in the system can restate it afterwards —
+observation: destroy a key through any path that writes no ledger row -- a soft-delete that leaves the
+material recoverable, or a destruction performed outside this framework -- and the read must not answer
+`null`. Nothing else in the system can restate it afterwards --
 the tombstone reaches the consumer as a loaded aggregate with a field cleared, and nothing downstream ever
 learns whether the data was erased or merely out of reach.
 

@@ -85,6 +85,11 @@ public static class ErasureServiceCollectionExtensions
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
+		// The destruction ledger. Registered from the SAME store instance, so a deployment cannot end up
+		// with a ledger that is not the one the erasure writes to -- which would silently separate the
+		// record from the read that depends on it.
+		services.TryAddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 		return services;
 	}
 

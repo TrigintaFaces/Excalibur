@@ -31,7 +31,7 @@ public sealed class ErasureServiceShould
 		_queryStore = A.Fake<IErasureQueryStore>();
 		_legalHoldService = A.Fake<ILegalHoldService>();
 		_dataInventoryService = A.Fake<IDataInventoryService>();
-		_keyAdmin = A.Fake<IKeyManagementAdmin>();
+		_keyAdmin = KeyDestructionFakes.AdminThatReportsAGenerationForEveryHandle();
 		_options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
 		{
 			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },

@@ -33,10 +33,59 @@ internal static class KeyDestructionFakes
 	/// </remarks>
 	public static IKeyManagementAdmin AdminThatReportsEveryKeyDestroyed()
 	{
-		var admin = A.Fake<IKeyManagementAdmin>(o => o.Implements<IKeyDestructionStatusProvider>());
+		var admin = AdminThatReportsAGenerationForEveryKey(alsoReportsDestruction: true);
 		A.CallTo(() => ((IKeyDestructionStatusProvider)admin)
 				.IsKeyDestroyedAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
+		return admin;
+	}
+
+	/// <summary>
+	/// A key admin that can report the GENERATION behind a handle, which erasure reads before destroying it.
+	/// </summary>
+	/// <remarks>
+	/// A bare <c>A.Fake&lt;IKeyManagementAdmin&gt;()</c> cannot answer this, and the consequence is not a
+	/// detail: the destruction destroys the generation identifier, so erasure has to read it first, and
+	/// without it there is nothing to write into the destruction ledger. A destruction with no ledger record
+	/// is one no read of the subject's ciphertext can ever report, so erasure refuses to attest it. That is the
+	/// correct outcome for such a provider and the wrong fixture for an arm about anything else: every shipped
+	/// key provider implements <see cref="IKeyManagementProvider"/>.
+	/// </remarks>
+	/// <param name="alsoReportsDestruction">
+	/// Whether the admin also answers the destruction-status capability. Declared at creation because
+	/// FakeItEasy fixes a fake's interface set then.
+	/// </param>
+	public static IKeyManagementAdmin AdminThatReportsAGenerationForEveryKey(
+		bool alsoReportsDestruction = false)
+	{
+		var admin = alsoReportsDestruction
+			? A.Fake<IKeyManagementAdmin>(o => o
+				.Implements<IKeyDestructionStatusProvider>()
+				.Implements<IKeyManagementProvider>())
+			: A.Fake<IKeyManagementAdmin>(o => o.Implements<IKeyManagementProvider>());
+
+		// MINTED PER HANDLE, not derived FROM it. Distinct handles must stay distinct in the record -- a fixed
+		// literal would make two destroyed keys collide on the record's key and silently record only the first --
+		// and the same handle must answer the same generation, because a retried erasure attests what the first
+		// pass destroyed. A map from handle to a minted generation gives both. Deriving the value from the handle
+		// gave both too, and is exactly what KeyGeneration's consumer obligation forbids: a derived generation
+		// collides across subjects, and a collision under a generation-keyed ledger reports one subject's live
+		// data as erased by another's erasure. The fake no longer models a provider that breaks that rule.
+		var generations = new System.Collections.Concurrent.ConcurrentDictionary<string, KeyGeneration>(
+			StringComparer.Ordinal);
+
+		A.CallTo(() => ((IKeyManagementProvider)admin).GetKeyAsync(A<string>._, A<CancellationToken>._))
+			.ReturnsLazily((string keyId, CancellationToken _) =>
+				Task.FromResult<KeyMetadata?>(new KeyMetadata
+				{
+					KeyId = keyId,
+					Version = 1,
+					Status = KeyStatus.Active,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+					CreatedAt = DateTimeOffset.UtcNow,
+					Generation = generations.GetOrAdd(keyId, static _ => KeyGeneration.Mint()),
+				}));
+
 		return admin;
 	}
 

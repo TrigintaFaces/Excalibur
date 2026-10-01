@@ -148,7 +148,7 @@ public sealed class EveryPayloadClaimHasSomewhereToLiveShould
 		{
 			var line = lines[i].Trim();
 
-			if (line.StartsWith(")", StringComparison.Ordinal))
+			if (line.StartsWith(')'))
 			{
 				break;
 			}

@@ -425,6 +425,12 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 			_ = services.AddSingleton<InMemoryErasureStore>();
 			_ = services.AddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 
+			// The ledger facet of the same store. The read path takes it as a required collaborator and a
+			// tombstone is produced only from a record in it, so without this mapping the stack cannot even be
+			// constructed -- and with it, a destruction the erasure service performs is recorded where a later
+			// read can find it.
+			_ = services.AddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
 			_provider = services.BuildServiceProvider();
 		}
 
@@ -523,9 +529,18 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 			}
 
 			var real = _provider.GetRequiredService<IKeyManagementAdmin>();
-			var blind = A.Fake<IKeyManagementAdmin>();
+
+			// Blind to the DESTRUCTION-STATUS capability and nothing else. It still forwards the key lookup to
+			// the real provider, because erasure reads a key's generation before destroying it and records the
+			// destruction against that generation -- a substitute that could not answer the lookup would destroy
+			// nothing it could record, and this arm's own non-vacuity guard (keys were genuinely destroyed) would
+			// fail for a reason that has nothing to do with the capability under test.
+			var blind = A.Fake<IKeyManagementAdmin>(o => o.Implements<IKeyManagementProvider>());
 			A.CallTo(() => blind.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
 				.ReturnsLazily((string keyId, int days, CancellationToken ct) => real.DeleteKeyAsync(keyId, days, ct));
+			A.CallTo(() => ((IKeyManagementProvider)blind).GetKeyAsync(A<string>._, A<CancellationToken>._))
+				.ReturnsLazily((string keyId, CancellationToken ct) =>
+					((IKeyManagementProvider)real).GetKeyAsync(keyId, ct));
 			return blind;
 		}
 

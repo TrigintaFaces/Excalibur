@@ -48,11 +48,11 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
     [Fact]
     public async Task Refuse_AnAbsentButRecoverableKey_RatherThanReportItErased()
     {
-        var keyProvider = KeyProviderStating(destroyed: false);
+        var ledger = LedgerStating(destroyed: false);
         var encryptor = new FieldEncryptor(
             A.Fake<ISubjectKeyManager>(),
             RegistryWhoseProviderCannotFindTheKey(),
-            keyProvider);
+            ledger);
 
         var refusal = await Should.ThrowAsync<EncryptionException>(
             () => encryptor.DecryptAsync(Envelope(), CancellationToken.None).AsTask());
@@ -61,8 +61,7 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
             EncryptionErrorCode.KeyNotFound,
             "an unreachable-but-recoverable key must surface as the read failure it is, never as an erasure");
 
-        A.CallTo(() => ((IKeyDestructionStatusProvider)keyProvider)
-                .IsKeyDestroyedAsync(KeyId, KeyGeneration, A<CancellationToken>._))
+        A.CallTo(() => ledger.IsGenerationDestroyedAsync(KeyGeneration, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
     }
 
@@ -77,7 +76,7 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
         var encryptor = new FieldEncryptor(
             A.Fake<ISubjectKeyManager>(),
             RegistryWhoseProviderCannotFindTheKey(),
-            KeyProviderStating(destroyed: true));
+            LedgerStating(destroyed: true));
 
         var plaintext = await encryptor.DecryptAsync(Envelope(), CancellationToken.None);
 
@@ -85,27 +84,29 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
     }
 
     /// <summary>
-    /// A provider with no way to answer the destruction question is never read as having answered "destroyed".
-    /// The refusal is loud and names the capability to implement, because the alternative is a tombstone
-    /// nothing confirmed.
+    /// A deployment with no way to state a destruction cannot be CONSTRUCTED, which is stronger than
+    /// refusing it on the read.
     /// </summary>
+    /// <remarks>
+    /// This arm used to drive a decrypt and assert the read threw, naming the capability to implement.
+    /// That branch is gone, and its absence is the guarantee: the ledger is a required collaborator, so
+    /// "nothing can state a destruction here" is refused at construction -- and under dependency injection
+    /// that is service resolution, before a single request is served, rather than the first read of an
+    /// erased subject on the compliance path. The arm binds the replacement so that reintroducing an
+    /// optional ledger, or a silent always-false default, reddens here.
+    /// </remarks>
     [Fact]
-    public async Task Refuse_AndNameTheCapability_WhenNoProviderCanStateDestruction()
+    public void Refuse_ToBeConstructed_WhenNothingCanStateADestruction()
     {
-        // A bare provider answers no optional capability, which is exactly a consumer-authored provider that
-        // never implemented this one.
-        var encryptor = new FieldEncryptor(
-            A.Fake<ISubjectKeyManager>(),
-            RegistryWhoseProviderCannotFindTheKey(),
-            A.Fake<IKeyManagementProvider>());
+        var absent = Should.Throw<ArgumentNullException>(
+            () => new FieldEncryptor(
+                A.Fake<ISubjectKeyManager>(),
+                RegistryWhoseProviderCannotFindTheKey(),
+                null!));
 
-        var refusal = await Should.ThrowAsync<EncryptionException>(
-            () => encryptor.DecryptAsync(Envelope(), CancellationToken.None).AsTask());
-
-        refusal.Message.ShouldContain(
-            nameof(IKeyDestructionStatusProvider),
-            Case.Sensitive,
-            "an operator cannot act on a refusal that does not name what to implement");
+        absent.ParamName.ShouldBe(
+            "ledger",
+            "an operator cannot act on a refusal that does not name what is missing");
     }
 
     /// <summary>
@@ -144,23 +145,14 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
         AuthTag = new byte[16],
     };
 
-    // A provider that answers the destruction question, and only that question, with the given statement.
-    private static IKeyManagementProvider KeyProviderStating(bool destroyed)
+    // A ledger holding the given statement about every generation it is asked about.
+    private static IKeyDestructionLedger LedgerStating(bool destroyed)
     {
-        var provider = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyDestructionStatusProvider>());
-        A.CallTo(() => provider.GetService(typeof(IKeyDestructionStatusProvider))).Returns(provider);
-        A.CallTo(() => ((IKeyDestructionStatusProvider)provider)
-                .IsKeyDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(destroyed));
+        var ledger = A.Fake<IKeyDestructionLedger>();
+        A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<CancellationToken>._))
+            .Returns(new ValueTask<bool>(destroyed));
 
-        // The handle-scoped overload must NOT be what decides a read: a handle holding one destroyed version and
-        // one live version is not a destroyed handle. Answering it the opposite way here means an arm that
-        // silently fell back to it reddens instead of passing.
-        A.CallTo(() => ((IKeyDestructionStatusProvider)provider)
-                .IsKeyDestroyedAsync(A<string>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(!destroyed));
-
-        return provider;
+        return ledger;
     }
 
     // Stands in for the registered decryption provider once the envelope's key version can no longer be

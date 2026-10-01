@@ -645,7 +645,8 @@
       {
         "project": "samples/06-security/GdprCompliance/GdprCompliance.csproj",
         "mode": "run",
-        "timeoutSeconds": 60
+        "timeoutSeconds": 60,
+        "successMarker": "Sample ready:"
       },
       {
         "project": "samples/06-security/GrantAuthorizedApi/GrantAuthorizedApi.csproj",
