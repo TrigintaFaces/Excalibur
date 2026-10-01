@@ -19,7 +19,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 
 /// <summary>
 /// Optimistic-concurrency conformance for the Oracle saga store (S876 A4). Runs the shared
-/// <see cref="SagaStoreConformanceTestBase"/> contract with <see cref="SupportsOptimisticConcurrency"/>
+/// <see cref="SagaStoreConformanceTestBase"/> contract, which every store must satisfy
 /// enabled against a real <c>gvenzl/oracle-free</c> container — so the version-gated no-overwrite and
 /// no-resurrect facts, plus save/load round-trip and completed-purge, are enforced on real Oracle.
 /// </summary>
@@ -42,8 +42,6 @@ public sealed class OracleSagaStoreConcurrencyConformanceShould : SagaStoreConfo
 		_fixture = fixture;
 	}
 
-	/// <inheritdoc/>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	/// <inheritdoc/>
 	protected override async Task<ISagaStore> CreateStoreAsync()

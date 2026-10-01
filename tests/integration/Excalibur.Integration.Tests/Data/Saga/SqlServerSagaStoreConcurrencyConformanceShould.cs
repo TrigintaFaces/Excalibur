@@ -27,7 +27,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// <summary>
 /// Optimistic-concurrency conformance for the SQL Server saga store (mxozhv / keystone fc1c8a). Author≠impl
 /// (TestsDeveloper); runs the shared <see cref="SagaStoreConformanceTestBase"/> contract with
-/// <see cref="SupportsOptimisticConcurrency"/> enabled, so the version-gated <c>no-overwrite</c> and
+/// optimistic concurrency required of every store, so the version-gated <c>no-overwrite</c> and
 /// <c>no-resurrect</c> facts are enforced against a real SQL Server container.
 /// </summary>
 /// <remarks>
@@ -50,8 +50,6 @@ public sealed class SqlServerSagaStoreConcurrencyConformanceShould : SagaStoreCo
 		_fixture = fixture;
 	}
 
-	/// <inheritdoc/>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	/// <inheritdoc/>
 	protected override async Task<ISagaStore> CreateStoreAsync()

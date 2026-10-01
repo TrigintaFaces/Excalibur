@@ -19,7 +19,11 @@ Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DatabaseIndex.get -> int
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DatabaseIndex.set -> void
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DefaultBatchSize.get -> int
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DefaultBatchSize.set -> void
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.EventTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.EventTypeInfoResolver.set -> void
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.RedisEventStoreOptions() -> void
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.RetryRecognitionWindow.get -> int
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.RetryRecognitionWindow.set -> void
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.StreamKeyPrefix.get -> string!
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.StreamKeyPrefix.set -> void
 Excalibur.EventSourcing.Redis.RedisSnapshotStore
@@ -39,5 +43,3 @@ Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.RedisSnapshotStoreOption
 Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.SnapshotTtlSeconds.get -> int
 Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.SnapshotTtlSeconds.set -> void
 static Excalibur.EventSourcing.Redis.EventSourcingBuilderRedisExtensions.UseRedis(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Redis.IRedisEventSourcingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.Redis.RedisEventStoreOptions.EventTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
-Excalibur.EventSourcing.Redis.RedisEventStoreOptions.EventTypeInfoResolver.set -> void

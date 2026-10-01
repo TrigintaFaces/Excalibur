@@ -57,11 +57,17 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 	public Task Refuse_a_late_starter_that_claims_absence_Test() => Refuse_a_late_starter_that_claims_absence();
 
 	[Fact]
-	public Task Adopt_a_row_that_carries_no_position_Test() => Adopt_a_row_that_carries_no_position();
+	public Task Refuse_a_row_that_carries_no_position_Test() => Refuse_a_row_that_carries_no_position();
 
-	// The safety half of the pair above: that arm requires a COMPLETE FOLD with no number to be
-	// adopted, this one requires a row the blind surface left UNPLACEABLE to be refused. Either
-	// alone is satisfiable by a store that treats both the same, which is what every provider did.
+	// The liveness half of the pair above, and what makes that refusal legitimate rather than a stall:
+	// without it the refusal is satisfied by a store that refuses everything.
+	[Fact]
+	public Task Rebuild_repairs_a_row_that_carries_no_position_Test() =>
+		Rebuild_repairs_a_row_that_carries_no_position();
+
+	// The READ side of the two no-number states. Both writes are refused; what differs is which state
+	// the row reads back as -- UNPLACEABLE here, UNNUMBERED above -- and a store that dropped the
+	// position instead of recording the sentinel passes the refusal and fails this.
 	[Fact]
 	public Task Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable_Test() =>
 		Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable();
@@ -118,6 +124,13 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 	public Task Report_requires_rebuild_for_a_row_with_no_established_position_Test() =>
 		Report_requires_rebuild_for_a_row_with_no_established_position();
 
+	// The UNNUMBERED half of the pair above: that arm drives the row through the blind surface, this one
+	// writes a complete fold with no number. A store discriminating on == Unplaceable rather than
+	// != Positioned passes one and fails the other.
+	[Fact]
+	public Task Report_requires_rebuild_for_a_refold_against_an_unnumbered_row_Test() =>
+		Report_requires_rebuild_for_a_refold_against_an_unnumbered_row();
+
 	/// <summary>A repeated re-fold leaves the row identical.</summary>
 	/// <returns>A task representing the arm.</returns>
 	[Fact]
@@ -134,6 +147,11 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 	/// <returns>A task representing the arm.</returns>
 	[Fact]
 	public Task Refuse_a_negative_position_argument_Test() => Refuse_a_negative_position_argument();
+
+	/// <summary>A rebuild must never resurrect a row an erasure deleted.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Rebuild_must_not_resurrect_a_deleted_row_Test() => Rebuild_must_not_resurrect_a_deleted_row();
 
 	/// <inheritdoc />
 	protected override async Task<IProjectionStore<ConformanceProjection>> CreateStoreAsync()
@@ -160,8 +178,9 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 	/// <b>The default is load-bearing and both halves of it are.</b> <c>NOT NULL</c> stops a row existing
 	/// in a state the conditional predicate cannot compare against; <c>-1</c> rather than <c>0</c> because
 	/// zero is a legitimate stream position, so a zero default would make a brand-new row claim it had
-	/// already folded the first event. The sentinel is what lets a row written through the unconditional
-	/// surface be adopted rather than refused forever.
+	/// already folded the first event. Keeping a DISTINCT sentinel for each of the two no-number states is
+	/// what lets a row written through the unconditional surface be told apart from one holding a complete
+	/// fold; both are refused by a positioned write, and only a rebuild repairs either.
 	/// </remarks>
 	private async Task EnsureTableAsync()
 	{
@@ -175,7 +194,7 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 				data JSONB NOT NULL,
 				created_at TIMESTAMPTZ NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL,
-				last_applied_position BIGINT NOT NULL DEFAULT -1,
+				last_applied_position BIGINT NOT NULL DEFAULT -2,
 				-- Composite (id, tenant_id), never id alone: two tenants may legitimately hold the same
 				-- projection id, and keying on id alone lets one tenant's upsert overwrite another's row.
 				PRIMARY KEY (id, tenant_id)

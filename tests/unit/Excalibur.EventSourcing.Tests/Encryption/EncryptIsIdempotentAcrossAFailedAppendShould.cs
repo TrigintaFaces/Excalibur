@@ -88,8 +88,8 @@ public sealed class EncryptIsIdempotentAcrossAFailedAppendShould
         var encryptor = A.Fake<IFieldEncryptor>();
 
 #pragma warning disable CA2012 // FakeItEasy stores the ValueTask rather than awaiting it here
-        A.CallTo(() => encryptor.EncryptAsync(A<string>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
-            .ReturnsLazily((string _, ReadOnlyMemory<byte> plaintext, CancellationToken _) =>
+        A.CallTo(() => encryptor.EncryptAsync(A<string>._, A<RetentionScope>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, RetentionScope _, ReadOnlyMemory<byte> plaintext, CancellationToken _) =>
                 new EncryptedData
                 {
                     Ciphertext = plaintext.ToArray(),
@@ -163,7 +163,7 @@ public sealed class EncryptIsIdempotentAcrossAFailedAppendShould
         var cryptor = new SubjectFieldCryptor(RoundTrippingEncryptor());
         var evt = NewEvent();
 
-        await cryptor.EncryptFieldsAsync(evt, CancellationToken.None).ConfigureAwait(false);
+        await cryptor.EncryptFieldsAsync(evt, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
 
         evt.CustomerName.ShouldNotBe(OriginalPlaintext, "a first encrypt must still encrypt");
         evt.CustomerName!.StartsWith(EncryptedFieldBinding.StringEnvelopePrefix, StringComparison.Ordinal).ShouldBeTrue(
@@ -184,7 +184,7 @@ public sealed class EncryptIsIdempotentAcrossAFailedAppendShould
         // A value that has never been through this framework: no marker, ordinary text.
         evt.CustomerName = "unmarked legacy value";
 
-        await cryptor.EncryptFieldsAsync(evt, CancellationToken.None).ConfigureAwait(false);
+        await cryptor.EncryptFieldsAsync(evt, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
 
         evt.CustomerName.ShouldNotBe(
             "unmarked legacy value",
@@ -201,10 +201,10 @@ public sealed class EncryptIsIdempotentAcrossAFailedAppendShould
         var cryptor = new SubjectFieldCryptor(RoundTrippingEncryptor());
         var evt = NewEvent();
 
-        await cryptor.EncryptFieldsAsync(evt, CancellationToken.None).ConfigureAwait(false);
+        await cryptor.EncryptFieldsAsync(evt, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
         var afterFirst = evt.CustomerName;
 
-        await cryptor.EncryptFieldsAsync(evt, CancellationToken.None).ConfigureAwait(false);
+        await cryptor.EncryptFieldsAsync(evt, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
 
         evt.CustomerName.ShouldBe(
             afterFirst,

@@ -121,7 +121,7 @@ public sealed class SqlServerComplianceTenantTotalityShould : IntegrationTestBas
 		await ExecuteAsync(
 			"""
 			INSERT INTO [compliance].[LegalHolds]
-				(HoldId, DataSubjectIdHash, IdType, Basis, CaseReference, Description, IsActive, CreatedBy, CreatedAt)
+				(HoldId, DataSubjectIdHash, IdType, BasisV2, CaseReference, Description, IsActive, CreatedBy, CreatedAt)
 			VALUES
 				(NEWID(), @Subject, 0, 0, 'omitted-tenant', 'tenant column omitted entirely', 1, 'totality-arm', SYSDATETIMEOFFSET())
 			""",
@@ -145,7 +145,7 @@ public sealed class SqlServerComplianceTenantTotalityShould : IntegrationTestBas
 		var refused = await Should.ThrowAsync<SqlException>(async () => await ExecuteAsync(
 			"""
 			INSERT INTO [compliance].[LegalHolds]
-				(HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference, Description, IsActive, CreatedBy, CreatedAt)
+				(HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference, Description, IsActive, CreatedBy, CreatedAt)
 			VALUES
 				(NEWID(), @Subject, 0, NULL, 0, 'explicit-null', 'explicit NULL tenant', 1, 'totality-arm', SYSDATETIMEOFFSET())
 			""",
@@ -221,7 +221,7 @@ public sealed class SqlServerComplianceTenantTotalityShould : IntegrationTestBas
 	private Task SeedHoldAsync(string dataSubjectIdHash, string tenantId) => ExecuteAsync(
 		"""
 		INSERT INTO [compliance].[LegalHolds]
-			(HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference, Description, IsActive,
+			(HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference, Description, IsActive,
 			 CreatedBy, CreatedAt)
 		VALUES
 			(NEWID(), @Subject, 0, @TenantId, 0, 'seeded-hold', 'seeded directly through SQL', 1,

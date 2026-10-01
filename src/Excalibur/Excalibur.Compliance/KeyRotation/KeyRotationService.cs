@@ -393,7 +393,7 @@ internal sealed partial class KeyRotationService : BackgroundService, IKeyRotati
 		ComplianceEventId.KeyRotationStarted,
 		LogLevel.Information,
 		"Rotating key {KeyId} (purpose: {Purpose}, version: {Version}, created: {Created})")]
-	private partial void LogKeyRotationStarted(string keyId, string purpose, int version, DateTimeOffset created);
+	private partial void LogKeyRotationStarted(string keyId, string purpose, int version, DateTimeOffset? created);
 
 	[LoggerMessage(
 		ComplianceEventId.KeyRotationSucceeded,

@@ -352,6 +352,24 @@ internal static class ComplianceEventId
 	/// </summary>
 	public const int ErasurePartialCertificateNotWritten = 92975;
 
+	/// <summary>
+	/// A certificate was issued carrying a claim nobody established. The document is still evidence of what
+	/// the erasure did; it does not attest the claim.
+	/// </summary>
+	public const int ErasureCertificateClaimsNotEstablished = 92976;
+
+	/// <summary>
+	/// An erasure did everything asked of it, and personal data for the same data subject was written while it
+	/// ran, so the erasure did not cover that data.
+	/// </summary>
+	public const int ErasureCompletedExceptConcurrentWrites = 92977;
+
+	/// <summary>
+	/// An erasure destroyed keys and could not re-establish their state before attesting, because the key
+	/// provider cannot answer whether a key is destroyed.
+	/// </summary>
+	public const int ErasureKeyStateNotReestablished = 92978;
+
 	/// <summary>Erasure key deletion failed.</summary>
 	public const int ErasureKeyDeletionFailed = 92708;
 
@@ -534,6 +552,32 @@ internal static class ComplianceEventId
 
 	/// <summary>Failed to auto-release expired legal hold.</summary>
 	public const int LegalHoldExpirationReleaseFailed = 92787;
+
+	/// <summary>
+	/// The sweep could not release an expired hold because the stored record changed between the read
+	/// and the write, and the re-read shows the hold is no longer expired -- typically an operator
+	/// extending it. The hold stays active, which is the correct outcome.
+	/// </summary>
+	public const int LegalHoldExpirationConflictHoldExtended = 92788;
+
+	/// <summary>
+	/// The sweep could not release an expired hold because the stored record changed between the read
+	/// and the write, and the re-read shows it is still expired and active. The hold is left for the
+	/// next cycle. Repeated at every cycle for the same hold, which is the signal an operator acts on.
+	/// </summary>
+	public const int LegalHoldExpirationConflictUnresolved = 92789;
+
+	/// <summary>
+	/// The sweep found no hold to release for an identifier its own query had just returned -- the
+	/// record was deleted, or is not visible to this store's tenant.
+	/// </summary>
+	public const int LegalHoldExpirationTargetMissing = 92798;
+
+	/// <summary>
+	/// A sweep cycle finished with at least one hold it could not release because of a concurrent
+	/// write. Carries the cycle's conflict count so a persistently conflicting hold is visible.
+	/// </summary>
+	public const int LegalHoldExpirationCycleConflicts = 92799;
 
 	/// <summary>Legal hold created.</summary>
 	public const int LegalHoldCreated = 92790;

@@ -98,6 +98,24 @@ public sealed record ErasureStatus
 	public int? KeysDeleted { get; init; }
 
 	/// <summary>
+	/// Gets the key handles this request has destroyed, across every pass it has made.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>A count cannot answer the question this does.</b> <see cref="KeysDeleted"/> says how many keys the
+	/// LAST pass destroyed; this says WHICH keys the request has destroyed in total. A retry needs the second,
+	/// because a key an earlier pass destroyed now reports as absent — indistinguishable from one that never
+	/// existed — and without this record the retry attests less coverage than the request has actually
+	/// achieved, so an interrupted erasure could never be reported complete.
+	/// </para>
+	/// <para>
+	/// Empty when the request has destroyed nothing yet, never <see langword="null"/>. Order is not
+	/// meaningful and duplicates do not appear.
+	/// </para>
+	/// </remarks>
+	public IReadOnlyCollection<string> DestroyedKeyHandles { get; init; } = [];
+
+	/// <summary>
 	/// Gets the number of records affected.
 	/// </summary>
 	public int? RecordsAffected { get; init; }

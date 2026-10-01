@@ -60,7 +60,7 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 					-- stale, so this column is part of the contract the store writes against, not an
 					-- optional extra. -1 rather than 0 because zero is a legitimate stream position: a
 					-- zero default would make a brand-new row claim it had already folded the first event.
-					LastAppliedPosition BIGINT NOT NULL DEFAULT (-1),
+					LastAppliedPosition BIGINT NOT NULL DEFAULT (-2),
 					CONSTRAINT [PK_{TableName}] PRIMARY KEY (TenantId, Id)
 				)
 			END
@@ -86,9 +86,10 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 	}
 
 	// SAFETY. A row whose position an unconditional write DESTROYED must be distinguishable, in the
-	// stored value itself, from one that simply never had a position number. The two need opposite
-	// treatment -- the first must never be adopted, the second must be -- and nothing can tell them
-	// apart after the fact, so the distinction is recorded AT WRITE TIME or it is lost for good.
+	// stored value itself, from one that simply never had a position number. Neither can be advanced
+	// from, so the distinction does not decide the next write -- it decides what the row can honestly be
+	// said to hold while it waits to be rebuilt, which is what an operator reads it for. Nothing can tell
+	// them apart after the fact, so it is recorded AT WRITE TIME or it is lost for good.
 	[Fact]
 	public async Task Record_that_an_unconditional_write_left_the_state_unplaceable()
 	{
@@ -121,9 +122,13 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 			+ "would send the caller back to re-read and retry, forever");
 	}
 
-	// LIVENESS, and it is the arm that stops the one above being satisfied by refusing everything.
+	// LIVENESS, and it is the arm that stops the one above being satisfied by refusing everything. The
+	// liveness is NOT adoption -- a positioned write refuses every row carrying no number, whichever of
+	// the two no-number states it holds. It is that the refusal is REPAIRABLE: a whole-stream rebuild
+	// writes the state and its position together and needs no prior prefix to be conditional on, which is
+	// what keeps a loud refusal from being a permanent stall.
 	[Fact]
-	public async Task Keep_an_unnumbered_complete_fold_adoptable()
+	public async Task Refuse_an_unnumbered_complete_fold_and_repair_it_with_a_rebuild()
 	{
 		var id = $"marker-new-{Guid.NewGuid():N}";
 
@@ -138,16 +143,97 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 			ProjectionPosition.UnnumberedSentinel,
 			"a complete fold with no position NUMBER is unnumbered, not unplaceable");
 
-		var adopted = await positioned.UpsertAtPositionAsync(
+		var refused = await positioned.UpsertAtPositionAsync(
 			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 4,
 			CancellationToken.None);
 
-		adopted.Outcome.ShouldBe(
-			ProjectionAdvanceOutcome.Applied,
-			"this row holds a complete fold, so adopting it and stamping the batch's position makes a "
-			+ "TRUE assertion -- refusing here would be the opposite defect");
+		refused.Outcome.ShouldBe(
+			ProjectionAdvanceOutcome.Unplaceable,
+			"a caller that read no position knows nothing about which prefix this state covers, so stamping "
+			+ "its batch's position onto it would make the row assert a prefix the state need not hold. The "
+			+ "outcome reports only that there was no number to advance from, which is what the write "
+			+ "established; Superseded is the answer that must not appear, because it sends the caller back "
+			+ "to re-read and retry against a row that never changes");
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			ProjectionPosition.UnnumberedSentinel,
+			"the refused write must not have moved the position");
+
+		var repaired = await positioned.RebuildAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, newPosition: 4, CancellationToken.None);
+
+		repaired.Outcome.ShouldBe(
+			ProjectionRebuildOutcome.Applied,
+			"the refusal above is legitimate only because the row has an exit. Without this, refusing a "
+			+ "numberless row is a silent permanent stall: the caller reads no position, claims none, and is "
+			+ "refused identically forever");
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			4L,
+			"the repaired row must carry the number the rebuild wrote, or it is still unadvanceable and "
+			+ "nothing was repaired");
 	}
 
+
+	// SAFETY. A row created by the DOCUMENTED DDL -- position column left to its default, never written by
+	// any positioned or unnumbered write -- must read back as UNPLACEABLE and be refused.
+	//
+	// THIS IS THE ARM WHOSE ABSENCE LET A DOC OBLIGATION AND A DECODER DISAGREE. The guidance used to
+	// prescribe DEFAULT -1, which is the sentinel meaning "a caller asserted this state is a complete
+	// fold". Nobody asserted anything about a defaulted row, and the largest population that value will
+	// ever hold is every row of a table altered to add the column -- so the decoder reported an assertion
+	// manufactured by a DDL default. Nothing exercised the documented creation path, so the two could not
+	// contradict each other anywhere a test could see.
+	//
+	// The INSERT omits the column deliberately. Writing it explicitly would test this suite's opinion of
+	// the default rather than the default itself.
+	[Fact]
+	public async Task Refuse_a_row_whose_position_column_was_left_to_the_documented_default()
+	{
+		var id = $"defaulted-{Guid.NewGuid():N}";
+
+		await using (var connection = new SqlConnection(_fixture.ConnectionString))
+		{
+			await connection.OpenAsync(TestContext.Current.CancellationToken);
+			_ = await connection.ExecuteAsync(
+				$"INSERT INTO [{TableName}] (TenantId, Id, Data, CreatedAt, UpdatedAt) "
+				+ "VALUES (@TenantId, @Id, @Data, @Now, @Now)",
+				new
+				{
+					TenantId = TestTenantId,
+					Id = id,
+					Data = "{\"Id\":\"" + id + "\"}",
+					Now = DateTimeOffset.UtcNow,
+				});
+		}
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			ProjectionPosition.UnplaceableSentinel,
+			"the documented default must be the sentinel meaning the position was never established. A -1 "
+			+ "default would store the sentinel meaning a caller ASSERTED a complete fold, about a row "
+			+ "nobody asserted anything about");
+
+		var positioned = (IPositionedProjectionStore<TestOrderProjection>)
+			((IServiceProvider)_store!).GetService(
+				typeof(IPositionedProjectionStore<TestOrderProjection>))!;
+
+		var (_, read) = await positioned.GetWithPositionAsync(id, CancellationToken.None);
+
+		read.Kind.ShouldBe(
+			ProjectionPositionKind.Unplaceable,
+			"a defaulted row is not a fold over any prefix, so the read must not report it as a complete "
+			+ "fold awaiting a coordinate");
+
+		var refused = await positioned.UpsertAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 5,
+			CancellationToken.None);
+
+		refused.Outcome.ShouldBe(
+			ProjectionAdvanceOutcome.Unplaceable,
+			"a positioned write has no number to advance from, so the row is refused terminally and must "
+			+ "be rebuilt -- which is exactly what the guarantee document promises for a projection that "
+			+ "predates the column");
+	}
 	private async Task<long> ReadPositionAsync(string id)
 	{
 		await using var connection = new SqlConnection(_fixture.ConnectionString);

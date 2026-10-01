@@ -497,7 +497,11 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 				if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
 				{
 					activity.SetOperationResult(EventSourcingTagValues.Success);
-					return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+
+					// RECOGNISED, not written by this call. Reporting plain success here would be true about
+					// the append and silently false about the call: these rows are durable, but they are a
+					// prior attempt's, and anything may have happened to them since — an erasure included.
+					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
 				}
 
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -566,7 +570,9 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 					aggregateType, aggregateId);
 
 				activity.SetOperationResult(EventSourcingTagValues.Success);
-				return AppendResult.CreateSuccess(committedVersion, landed.FirstPosition);
+
+				// RECOGNISED, not written by this call — see the pre-check branch above.
+				return AppendResult.CreateAlreadyCommitted(committedVersion, landed.FirstPosition);
 			}
 
 			var currentVersion = await ReadCurrentVersionAfterConflictAsync(
@@ -576,7 +582,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			{
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 
-				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
 			throw;
@@ -844,7 +850,11 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 				if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
 				{
 					activity.SetOperationResult(EventSourcingTagValues.Success);
-					return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+
+					// RECOGNISED, not written by this call. Reporting plain success here would be true about
+					// the append and silently false about the call: these rows are durable, but they are a
+					// prior attempt's, and anything may have happened to them since — an erasure included.
+					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
 				}
 
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -892,7 +902,9 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 					aggregateType, aggregateId);
 
 				activity.SetOperationResult(EventSourcingTagValues.Success);
-				return AppendResult.CreateSuccess(committedVersion, landed.FirstPosition);
+
+				// RECOGNISED, not written by this call — see the pre-check branch above.
+				return AppendResult.CreateAlreadyCommitted(committedVersion, landed.FirstPosition);
 			}
 
 			var currentVersion = await ReadCurrentVersionAfterConflictAsync(
@@ -902,7 +914,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			{
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 
-				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
 			throw;

@@ -249,6 +249,130 @@ Verified by `IsolatingEventStoreDecoratorErasureProbeShould`, which asserts both
 non-erasure inner (so the probe cannot over-claim) and the decorator itself over an erasure-capable inner (so
 the erase is reached *through* the decorator rather than around it).
 
+### 3a. The SNAPSHOT is destroyed before the events, and an interrupted erasure is resumable
+
+**Guarantee, in falsifiable terms.** An erasure destroys an aggregate's derived copies before it destroys
+the events they were derived from, and every step is idempotent, so **no ordering of faults between the
+stores leaves the pre-erasure state readable while the event rows are tombstoned.** A fault mid-erasure is
+reported as partial, and re-running the same erasure resumes it rather than declaring it already done.
+
+**Why the order is a correctness property.** The event store and the snapshot store are separate stores,
+frequently separate databases, and nothing spans them transactionally. One of the two possible orders has
+to survive a fault between them, and only one does:
+
+| order | fault between the two steps leaves | readable? |
+|---|---|---|
+| tombstone, then delete the snapshot | tombstoned events **and a live snapshot** | **yes — the full pre-erasure state** |
+| delete the snapshot, then tombstone | live events and no snapshot | no; the subject's data is still there to erase |
+
+The readable case is not obvious and is why this is written down. A snapshot at count `N` over events
+`0..N-1` makes the aggregate load compute `fromVersion = N-1`
+(`Implementation/EventSourcedRepository.cs:262`) and the store filter `Version > fromVersion`, so **zero
+event rows load**. The tombstone check never sees a row, the erased sentinel never returns, and the
+snapshot applied at `:248` is handed back as the aggregate. The optional empty-tail probe does not catch it
+either: the erasure does not modify `Version`, so the stream's maximum version still equals the snapshot's
+and the probe's comparison is false.
+
+**How it is achieved.** `Erasure/EventStoreErasureContributor.cs` deletes the snapshot before tombstoning
+the events, and the already-tombstoned check **reports rather than skips**. That check answers *are the
+event rows erased*; the invariant the loop owes is *is the erasure complete*, which is a predicate over a
+wider state, so acting on the narrower one is what made an interrupted erasure permanent. Losing a snapshot
+for an aggregate whose erasure then fails costs a slower rehydrate from its own events and nothing more — a
+snapshot is derived state with no independent value.
+
+**Ordering that must NOT be reversed.** Read-model propagation stays *after* the tombstone
+(`Erasure/EventStoreErasureContributor.cs`, the comment at the propagation call states it): a replay
+invoked before the payload is destroyed folds the live payload straight back into the row it was meant to
+clear. So the sequence is **snapshot, then events, then read models** — derived-before-source for the
+snapshot, source-before-derived for the read models, for opposite and equally load-bearing reasons.
+
+**Evidence.** `ErasureDeletesTheSnapshotBeforeTheTombstoneShould` RED-detects both halves: one arm fails
+when the two calls are swapped, and one fails when the already-tombstoned check skips the remaining steps —
+it tombstones, faults the snapshot delete, retries, and asserts the snapshot is destroyed on the retry. Its
+third arm is the liveness half, so neither can be satisfied by a contributor that refuses everything.
+
+**Known gap.** Read-model propagation is the step with no equivalent protection: it runs last, and a fault
+there is reported as partial but leaves the read models holding the subject until the erasure is re-run.
+That is the same gap the projection section below describes, and its remedy is the same — re-run the
+erasure.
+
+**A warning for whoever writes the conformance arm: the in-memory store is not a valid witness here.**
+It holds a single lock across its erase, so the tombstone and everything around it *are* atomic in that
+one store — the only store where atomicity is not needed. Every other provider performs the erase as an
+unadorned statement with no transaction argument, against a store that is separate from the snapshot
+store, so no transaction could span the two even if both accepted one. An arm written against the
+in-memory store therefore certifies an atomicity the other providers do not have, and would pass while
+the guarantee above is the only thing standing between a fault and a readable copy. **This ordering
+property must be exercised against real engines.** It is not discharged today: the arms that exist bind
+the contributor's ordering and its resume behaviour, which are provider-independent, and say nothing
+about what a real engine does when a process dies between two statements.
+
+### 3b. A retried save is REFUSED, not republished, when the stream was erased after the append
+
+**Guarantee, in falsifiable terms.** When a save is recognised as a retry of an append that already
+committed, and that aggregate's stream has been erased in the meantime, the repository stages nothing to
+the outbox and notifies no projection. It throws `ErasedStreamRepublicationException`, which names no
+aggregate, no subject and no payload. **A save on this path never publishes the caller's in-memory
+payloads for a stream the store would no longer return them for.**
+
+**The shape it closes.** An append commits, its acknowledgement is lost, an erasure tombstones that batch,
+and the caller — still holding the aggregate the payloads came from — retries. Every committed-append
+identity probe asks *are the rows carrying my event identifiers present*, and that stays TRUE after an
+erasure, because erasure rewrites existing rows and never removes one. So presence still implies the append
+committed; what stops being true is that **present implies retrievable**. Reporting a conflict instead
+would be worse, not better: the documented response to a conflict is reload-and-retry, which appends the
+erased subject's event again at the next version, where the stream uniqueness key cannot catch it.
+
+**How it is achieved.** `AppendResult` carries a four-member outcome rather than a pair of flags, so a
+store can report `AppendOutcome.AlreadyCommitted` — *committed, but recognised rather than written by this
+call* — which `Success` still reports as true for every caller that only asks whether the append is
+durable. `Implementation/EventSourcedRepository.cs` branches on that outcome, and on the equivalent
+in-memory pending-stage breadcrumb, and asks the store for `IEventStoreErasure` before it stages or
+notifies. **The query runs on the recognised-retry path only**; an ordinary append pays no round trip for
+it. A store presenting no erasure capability cannot have been erased through this chain, so its absence is
+a sound negative rather than a gap.
+
+**Evidence.** `EventSourcedRepositoryErasedRepublicationShould` binds both recognised-retry paths against
+the real in-memory store, so the probe's post-erasure answer is measured rather than mocked: one arm fails
+when the store-probe branch is removed, one when the breadcrumb branch is, and a third — a recognised retry
+against a stream that was **not** erased, which must still stage and still notify — fails when the guard is
+made to refuse unconditionally. Without that third arm the first two would be satisfied by refusing
+everything.
+
+**Consumer obligation.** Catch `ErasedStreamRepublicationException` if a save may race an erasure of the
+same aggregate. Discard the in-memory instance and reload; nothing was staged and nothing was notified, so
+there is nothing to compensate, and retrying the same instance will throw again.
+
+**Known gap.** The refusal covers what the repository would publish from the caller's live payloads. It
+does not retract anything an earlier, successful attempt already staged before the erasure — those messages
+are the outbox's to drain, and draining them republishes pre-erasure payloads. An erasure that must also
+suppress already-staged messages needs the outbox purged as part of the same request.
+
+### 3c. An aggregate type under a declared erasure retention is skipped entirely
+
+**Guarantee: when the host declares that an aggregate type must survive an erasure, that type's events
+are not tombstoned, its snapshots are not deleted and its read-model rows are not cleared — for any data
+subject named inside it — and the contributor reports the retention, naming the type and telling the
+requesting subject that their own data persists there, rather than staying silent about it. A type with
+no declaration is erased exactly as described in 3, 3a and 3b.**
+
+The unit is the type WHOLE because the obligation attaches to the record: a statute keeping sales records
+does not keep the buyer and permit deleting the salesperson, since a partly-erased record has no
+evidentiary value. The check sits at the top of the per-reference loop
+(`Erasure/EventStoreErasureContributor.cs:187`), before anything destructive runs. That placement is
+the mechanism rather than a convenience: the snapshot delete, the tombstone and the read-model clear
+all act on the same reference, so skipping the reference skips all three together and the ordering
+argument in 3a needs no second case. The store's own erase statement is unchanged.
+
+The declaration lives in the compliance package, which also owns the half that keeps the surviving
+record READABLE — a declared type's personal fields are protected by a key of their own, so destroying
+the subject's key does not take the retained record with it. See the compliance architecture document
+for that half and for the known gaps that bound this guarantee.
+
+**Evidence.** `ARetainedAggregateSurvivesErasureShould` binds the skip, the read-model half, the
+per-type reporting, the subject-facing disclosure on the reported entry, the tenant scope, and the two
+liveness controls that make retaining everything RED.
+
 ### 4. Projections: erasure propagates by REPLAY, and which replay call works depends on the shape
 
 A projection is a read model rolled up from the event stream, not an independently erasable store. It does
@@ -334,11 +458,48 @@ rather than a silently partial aggregate, and workflow journal replay refuses ou
 entry is the record that stops an activity being executed twice and a hole in it would re-run work that
 already ran.
 
-**Known gap.** A projection updated incrementally between an aggregate's erasure and its next replay
-may still reflect the pre-erasure state for that subject. Nothing clears it automatically: the framework
-does not connect erasure to any projection call. **And a rebuild does not close it for the subject's own
-row** — see the additive note above: a fully erased aggregate produces no key, so the rebuild writes
-nothing for it. The subject-scoped call in the table below is the remedy for that row.
+**Erasure now drives the per-aggregate remedy itself.** For every aggregate it tombstones, the
+event-store erasure contributor clears that aggregate's row from each registered projection whose
+projection id IS the aggregate id — a persisted projection with no `KeyedBy` selector. The clear is
+dispatched through a delegate bound at registration, when the projection's type is known, so no
+reflection is involved and a projection that cannot be cleared this way has no delegate to invoke rather
+than a check that could be got wrong. The order is load-bearing: the clear runs **after** the tombstone,
+in the same per-aggregate step, because a replay before it would fold the live payload back into the row
+it was meant to clear. The subject's own encryption key is destroyed before any contributor runs and that
+does not affect this — every event of the aggregate then carries a null payload, and both the decrypting
+store decorator and the replay skip a null payload before any key is consulted.
+
+A projection the erasure could not reach is **named** on the certificate, and the erasure reports
+PARTIAL rather than complete. Naming rather than counting is the point: a controller discharging the
+request has to deal with each of those read models by hand.
+
+> Superseded wording, quoted so a reader who inherited it recognises it: *"Nothing clears it
+> automatically: the framework does not connect erasure to any projection call."* That was true of every
+> projection shape when written, and the remedy it pointed at — `ReapplyAsync` — was fully built,
+> registered automatically on every host with a projection, and called by nothing in the framework. The
+> capability was present and the call site was missing. It is now true only of the shapes in the **Known
+> gaps** below.
+
+**Known gaps, after that wiring.**
+
+- **A `KeyedBy` projection is not cleared**, and this is structural rather than unfinished. Its rows are
+  fed by many aggregates, so replaying one aggregate cannot produce a correct row for such a key —
+  writing the aggregate id would target a key no reader queries, and writing the derived key would
+  overwrite it with a state missing every other contributing aggregate. Which rows a given subject
+  contributed to is a fact about the events that produced each row, not about the rows, so no read of the
+  store can recover it. Rebuild such a projection, and treat one carrying personal data as needing an
+  erasure mechanism of your own.
+- **A batch already read but not yet applied can reintroduce the payload.** Erasure tombstones in place,
+  so a processor holding events it read before the erasure may apply them after the clear. The window is
+  bounded by the batches in flight at erasure time — the store cannot hand the payload out again, because
+  only tombstones remain — and nothing detects it automatically. Re-run the per-aggregate remedy, or
+  quiesce the processor across an erasure, if that window matters to you.
+- **A SELECTIVE erasure clears no projection at all**, because event-store erasure is whole-aggregate and
+  refuses a request naming specific data categories outright, so nothing is tombstoned. Every persisted
+  read model is reported as unreached in that case.
+- **A rebuild still does not close the subject's own row** — see the additive note above: a fully erased
+  aggregate produces no key, so the rebuild writes nothing for it. The subject-scoped call in the table
+  below is the remedy for that row, and it is now the one the erasure itself invokes.
 
 **Which call to make depends on what you need cleared, and a rebuild alone is not enough for the
 subject's OWN row.** A rebuild re-folds every id the stream still produces, which removes the subject's
@@ -484,6 +645,36 @@ per-partition version arm both go RED against the real emulator, and both return
 | A SQLite table holding both untenanted encodings for one aggregate refuses at startup, naming the table and aggregate, without mutating a row | SQLite convergence collision arm |
 
 ## Known gaps
+
+- **A projection row written with no position may be advanced by a positioned writer, and the result can
+  assert a prefix it does not hold.** This is the most severe gap in this section and the guarantee above is
+  **UNVERIFIED** for it.
+
+  A recovery replay that can derive no position writes the row as a complete fold whose prefix has no number.
+  A positioned writer that later reads such a row has nothing to be conditional on, so it folds its batch onto
+  that state and stamps its own highest position. That is sound only if the row's prefix happened to be exactly
+  what precedes the batch, and nothing establishes it. Two things can then be false at once: the state may
+  already contain events ABOVE the stamped position, and events the batch re-delivers may be folded TWICE,
+  because the already-folded filter that would have skipped them is only applied to a row that carries a
+  number.
+
+  **It needs no erasure, no crash and no concurrent writer** — a single subscriber whose checkpoint is behind
+  the recovered state is sufficient. The row afterwards reports a position, so nothing downstream can tell it
+  apart from a correctly advanced one, and a reader of the projection sees a state that is neither the fold at
+  the stamped position nor the fold the recovery produced.
+
+  **Consumer-visible consequence.** A read model recovered for one aggregate and then fed a redelivered batch
+  may double-count accumulating values and may omit events above the stamped position, while reporting a
+  position that says otherwise. A rebuild of the projection corrects it; nothing detects it automatically.
+
+  **Why it is not fixed by validating the stored value.** The row in question carries an explicit marker
+  written by this framework, so it is well-formed — the defect is in the action taken on it, not in the value.
+  A stricter reading of stored positions does not reach it.
+
+  **Scope.** Ordered global positions exist on the SQL Server, PostgreSQL, Oracle and SQLite event stores and
+  on the in-memory provider. The document and key-value event stores assign none, so a positioned projection
+  over one of those has no ordering to be conditional on at all; that is a separate limitation and is stated
+  on the stored-event position property itself.
 
 - **The four document event stores changed their stored key shape, and there is no in-place migration
   tool.** Cosmos DB, DynamoDB, Firestore and MongoDB now compose the tenant into the document key. Documents
@@ -764,10 +955,14 @@ retry looks like. It asserts both halves — success reported, and exactly one e
 
 - **Every provider satisfies this.** Cosmos DB, DynamoDB, Firestore, MongoDB, SQL Server, PostgreSQL,
   Oracle, SQLite and Redis all pass the conformance arms above against real infrastructure, as does the
-  in-memory store. Redis reaches the guarantee by a different mechanism — an idempotency marker maintained
-  inside the same Lua script as the append, because a stream offers no keyed read by event identifier — and
-  its recognition window is correspondingly narrower: it covers a retry of the most recent append to a
-  stream, not one arriving after another writer has appended.
+  in-memory store. Redis reaches the guarantee by a different mechanism — the identity of each append is
+  recorded in a companion sorted set inside the same Lua script as the append, because a stream offers no
+  keyed read by event identifier — and its recognition window is therefore **bounded by count rather than
+  unbounded**: a retry of any of a stream's last `RetryRecognitionWindow` appends is recognised, however
+  many other writers appended in between, and the default is 64. A retry older than that bound is reported
+  as a concurrency conflict, which is the same answer a caller minting a fresh identifier per attempt
+  receives; such a caller must be idempotent downstream. The other nine stores probe the events themselves
+  and so have no bound.
 - **The in-memory store satisfies it**, and is the reference the provider suites are read against.
 - **The probe witnesses the LAST event of the batch, not the first.** Events are written in version
   order, so the last one present implies every earlier one is too — a witness that holds whether or not the
@@ -1181,7 +1376,20 @@ mutations redden disjoint sets.
 
 - The contract: `Excalibur.EventSourcing.Abstractions/IPositionedProjectionStore.cs` — one read returning
   state and position together, one write taking the position read at and the position being claimed, and
-  an outcome of `Applied`, `Superseded` or `Vanished`.
+  an outcome of `Applied`, `Superseded`, `Vanished` or `Unplaceable`. The last is the terminal one: the
+  row carries no number to advance from, retrying cannot change that, and `RebuildAtPositionAsync` is the
+  repair.
+- **ONE terminal outcome for both no-number states, and the reason is a limit on what a write result can
+  honestly say.** `ProjectionAdvanceOutcome` describes a WRITE; its result is `(Outcome, long?
+  CurrentPosition)` and carries no state. Worse, the classification is not atomic with the refusal —
+  Mongo, Cosmos, Elasticsearch and OpenSearch must READ the row after the engine rejects the write, so a
+  concurrent writer can change it in between. An outcome naming which no-number state the row was in
+  would therefore attribute a property of the row-at-read-time to a write refused earlier, and it can be
+  false by the time the caller acts on it: report "complete fold", let a blind `UpsertAsync` land, and a
+  caller acting on that claim is acting on something no longer true. That is the unordered-observation
+  defect this seam exists to remove, so the write's result does not carry the claim. **The distinction
+  is real and lives on the READ**, where `ProjectionPositionKind` reports it as a measured fact alongside
+  the value, in one observation.
 - The protocol, in ONE place so four apply factories cannot each get it subtly wrong:
   `Excalibur.EventSourcing/Projections/PositionedProjectionWriter.cs`.
 - The condition is expressed by the STORE, in a single atomic operation wherever the engine allows one:
@@ -1195,23 +1403,71 @@ committed now and no global position exists yet, so the write is unconditional. 
 position as a reason not to write discards the projection silently, which is why that branch lives in
 the shared writer rather than at each call site.
 
-**A row carrying no position at all is ADOPTED, not refused.** A projection written by a rebuild, a
-recovery, or a version of the store that did not record positions has none. Refusing it would refuse
-every later attempt identically — a silent permanent stall rather than a conflict — so a caller claiming
-no position may create a row or adopt an unpositioned one, and may not overwrite a positioned one.
+**A row carrying no usable position is REFUSED, not adopted, and the refusal is repairable.** A
+positioned write names the prefix it is claiming. If the row it is advancing carries no number, the
+writer does not know which prefix the stored state already holds — so stamping its own batch's position
+onto that state asserts a prefix nobody folded. That is not a conservative approximation of the
+guarantee above; it makes the equality FALSE in the direction that loses data, because every event below
+the claimed position is absent from the state while the position says it is present. Nothing downstream
+can detect it.
+
+**This is why the refusal is not a stall.** A refusal would be a permanent stall if a numberless row had
+no exit, and it used to have none. It now has one: `RebuildAtPositionAsync` writes the state and the
+position together, unconditionally, for exactly this repair — fold the stream yourself and number the
+row from what you folded. So the contract is *refuse loudly and offer the repair*, never *guess and
+report success*.
+
+**A TERMINAL refusal is never reported as a supersede, on any operation.** `Superseded` means "re-read
+and try again"; a row carrying no usable position will never change on its own, so answering `Superseded`
+for one is an unbounded retry against nothing. The advancing write reports `Unplaceable` and the re-fold
+reports `RequiresRebuild`. **Three providers reach their re-fold outcome by translating an advancing
+result** (Cosmos, Elasticsearch, OpenSearch share a conditional-write helper that speaks the advance
+vocabulary), and a catch-all arm in that translation is exactly how a terminal refusal became a retry: the
+helper answers `Unplaceable`, that fell through to `_`, and `_` returned `Superseded` with no position.
+Every member is now named and the catch-all THROWS, so an outcome nobody decided on fails loudly instead
+of choosing the retry arm. **Known gap:** no conformance arm reaches that translation with a numberless
+row — the re-fold's pre-write check answers first, and the only route to the translation is a concurrent
+writer changing the row inside the write window, which the kit cannot construct through its single
+store-creation seam. The guarantee above is stated and enforced by reading, not by a test.
+
+**A caller claiming no position may still CREATE a row.** Insert-if-absent is unaffected: a row that does
+not exist yet is not a state whose prefix is unknown, so the first write of a projection needs no
+expected position. What is refused is claiming a position against an EXISTING row whose own position
+cannot be read.
+
+**Upgrading a relational store — read this before adding the column.** The position column is new. If you
+add it with a default in the negative sentinel space, every pre-existing row reads back as carrying no
+usable number, and every one of them is then refused until rebuilt. Add the column and backfill each row
+with the position you can justify for it, or plan to rebuild those projections. A default that makes the
+rows *look* numbered is the one choice to avoid: it converts a loud refusal you can act on into a silent
+false claim you cannot.
 
 ## Evidence (conformance)
 
 `PositionedProjectionStoreConformanceTestKit` (in the `Excalibur.Testing.Conformance` package) states the
-guarantee as fifteen arms, each of which a consumer can run against their own store. Arms of note:
+guarantee as fourteen advancing arms, each of which a consumer can run against their own store. Arms of
+note:
 
 - `Refuse_a_position_that_does_not_advance` — the re-delivery arm; a monotonicity-only store is the only
   kind that can fail it.
 - `Refuse_a_stale_expected_position` — the stale-read arm; this is the one an "external version" scheme
   fails while looking correct.
 - `Admit_exactly_one_of_two_writers_racing_from_one_read` — the exactly-once property, stated directly.
-- `Adopt_a_row_that_carries_no_position` — the liveness arm that distinguishes a correct refusal from a
-  permanent stall.
+- `Refuse_a_row_that_carries_no_position` — the safety arm for a row holding a COMPLETE fold with no
+  number. It is the sympathetic case, and the one a store is most tempted to adopt: the state really is a
+  complete answer, but the caller that read no number cannot know which prefix it covers, so a position
+  stamped over it is a guess. It asserts `Unplaceable` **by name**, not merely "not `Applied`" — a store
+  reporting `Superseded` with no position would satisfy the weaker form while telling its caller to
+  re-read and retry against a row that never changes.
+- `Rebuild_repairs_a_row_that_carries_no_position` — the liveness arm that makes the refusal above
+  legitimate rather than a permanent stall. Without it every safety arm here is satisfied by a store that
+  refuses everything, which is the cheapest way never to double-apply and the most expensive way to be
+  wrong.
+- `Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable` — the other half of the pair. Both
+  writes are refused with the same OUTCOME, since that reports only what the write did. What the pair
+  separates is the stored READING: this arm requires the row to read back `Unplaceable` and its sibling
+  requires `Unnumbered`, so a store that dropped the position instead of recording the sentinel satisfies
+  the refusal and fails one of the two.
 - `Read_the_state_and_its_position_as_one_observation` — **weaker than its name**, and the kit says so
   in the arm itself. It establishes that a read returns one write's state paired with that same write's
   position, not that the two are fetched atomically; detecting a non-atomic pair needs a writer
@@ -1235,6 +1491,9 @@ every re-fold:
   flight; a store comparing the wrong column passes one and fails the other.
 - `Report_requires_rebuild_for_a_row_with_no_established_position` — terminal, not retryable. Answering
   "superseded" here would loop forever, because nothing about an unpositioned row changes on its own.
+- `Report_requires_rebuild_for_a_refold_against_an_unnumbered_row` — the same property for the OTHER
+  no-number state. A store discriminating on `== Unplaceable` where it should discriminate on
+  `!= Positioned` passes the arm above and fails this one.
 - `Apply_the_same_refold_twice_without_changing_the_result` — what discharges the safety argument for an
   operation that does not advance. Without it, "repeating a re-fold is harmless" is prose.
 - `Report_a_refold_against_an_absent_row_as_vanished_without_creating_it` — **the highest-value arm in
@@ -1275,50 +1534,64 @@ Stated per rung so nothing here reads as more than it is:
 search it. A schedule shape the generator cannot produce is a defect it cannot find, and that limit is
 a property of the generator, not of the code under test.
 
+**That boundary has a measured instance, recorded because an abstract caveat is not falsifiable.** Every
+generated schedule starts from a store with no row and reaches every later state by positioned writes, so
+the generator has never produced a row carrying no usable position. For as long as the stores adopted such
+a row, the write that adopted it violated the equality this suite checks — and the suite passed, on every
+seed, because the shape was unreachable from its starting state. The defect was found by reading the
+contract, not by running the suite. Adoption has since been removed, so the shape no longer exists to be
+generated; what remains true, and is the reason this paragraph stays, is that a suite starting from one
+state cannot speak about states it has no path to.
+
 ## Consumer obligations
 
 - **Handlers must remain idempotent on a store WITHOUT the capability.** The guarantee above is a
   property of the store, not of the framework.
 - **The projection table must carry the position column.** On SQL Server and PostgreSQL that is
-  `LastAppliedPosition` / `last_applied_position`, `NOT NULL DEFAULT -1`. Both halves matter: `NOT NULL`
-  keeps a row from existing in a state the condition cannot compare against, and `-1` rather than `0`
-  because zero is a legitimate stream position, so a zero default would make a new row claim it had
-  already folded the first event. The document stores need no schema change.
-- **A projection written before the column existed is adopted on its next write**, and that first
-  adoption re-folds the batch it is given, which over-counts for an accumulating projection. **This is
-  not a one-time cost** — see the known gap below on the adoption cycle — and rebuilding rather than
-  adopting is not currently an available instruction, because no path in this framework rebuilds a
-  projection row the apply path reads.
+  `LastAppliedPosition` / `last_applied_position`, `NOT NULL DEFAULT -2`. Both halves matter, and the
+  value is the part most likely to be got wrong. `NOT NULL` keeps a row from existing in a state the
+  condition cannot compare against. **`-2` is the sentinel meaning "this row's position was never
+  established"**, which is exactly what a defaulted column records: nobody said anything about this row.
+  Not `0`, because zero is a legitimate stream position and a zero default would make a new row claim it
+  had already folded the first event. And **not `-1`, which is the sentinel meaning "a caller asserted
+  this state is a complete fold"** — a value reserved for the one write that asserts it. A `-1` default
+  would put that assertion on every row a consumer inserted without the column, and on every row of a
+  table altered to add it, which is the largest population the value will ever hold and the one nobody
+  asserted anything about. The document stores need no schema change.
+- **A projection written before the column existed is REFUSED on its next positioned write**, not
+  adopted. Its stored value reads back as carrying no number, and a positioned write has no number to
+  advance from, so the write is refused with `Unplaceable` and the shared writer throws naming the
+  projection. **Rebuild those projections, or backfill the column with a position you can justify for
+  each row** — see "Upgrading a relational store" above. The refusal is loud and recoverable; the
+  alternative it replaced was a silent miscount that recurred every time an unconditional write landed on
+  the row.
 
 ## Known gaps
 
-- **An unconditional write onto a positioned row starts a cycle that has no bound, and its most
-  reachable trigger is an erasure.** `IProjectionStore.UpsertAsync` replaces the state with something
-  that was not folded from any known prefix, so the store correctly stops claiming a position for it.
-  The next batch then finds an unpositioned row, ADOPTS it, folds itself onto whatever state is there,
-  and stamps a high position — so the row asserts a fold over everything up to that position while
-  holding only the tail.
-  **This is not a one-time cost.** The bound previously stated here — that an accumulating projection
-  double-counts once at adoption — assumed a row becomes positioned exactly once; any later
-  unconditional write returns it to unpositioned and the re-fold recurs. `UpsertAsync` is public
-  surface, so a seed script or an administrative fix-up produces the same state from outside the
-  framework.
-  **The framework no longer produces this state itself.** Recovering a fully erased aggregate used to
-  reach it — the replay yielded no position, so the write took the unconditional path on the key the
-  apply path uses. Recovery now re-folds at the position the row holds instead, so what remains is
-  reachable only from outside: an unconditional write by consumer or operator code.
-  **Refusing adoption is still not implemented**, which is why this is documented rather than closed.
-  Two of the three reasons previously given here no longer hold and are corrected rather than deleted:
-  the rebuild and the apply path now derive the projection id from one shared derivation, so they no
-  longer write disjoint key spaces, and recovery does preserve a position it can honestly keep. What
-  remains true is that recovery is single-aggregate and is driven by nothing in the framework, so there
-  is still no automatic path that rebuilds a projection row the apply path reads. Refusing adoption
-  needs the two unpositioned states told apart first — a row that was never positioned and holds a
-  complete fold, where adoption is correct, versus one whose position was destroyed, where it is not.
-  Refusing both would convert a silent miscount into a permanent stall.
+- **An unconditional write onto a positioned row makes the projection UNADVANCEABLE until it is
+  rebuilt, and no automatic path rebuilds it.** `IProjectionStore.UpsertAsync` replaces the state with
+  something that was not folded from any known prefix, so the store stops claiming a position for it. The
+  next positioned write then finds a row with no number to advance from and is refused with
+  `Unplaceable`; the shared writer throws, naming the projection and saying a rebuild is required.
+  `UpsertAsync` is public surface, so a seed script or an administrative fix-up produces this state from
+  outside the framework, and the framework itself no longer produces it on any path.
+  **What changed, and what the previous text said.** The superseded wording read: *"The next batch then
+  finds an unpositioned row, ADOPTS it, folds itself onto whatever state is there, and stamps a high
+  position — so the row asserts a fold over everything up to that position while holding only the tail
+  … Refusing adoption is still not implemented."* Adoption has since been REMOVED from all eight
+  providers, so the unbounded silent miscount it describes is gone. The trade was taken deliberately: a
+  refusal an operator can see, plus a repair they can run, in place of a wrong answer nothing downstream
+  could detect. `RebuildAtPositionAsync` is that repair, and
+  `Rebuild_repairs_a_row_that_carries_no_position` is the conformance arm that proves every provider
+  offers it.
+  **What remains open is the AUTOMATION, not the safety.** Recovery is single-aggregate and is driven by
+  nothing in the framework, so there is still no path that notices a refused projection and rebuilds it
+  on its own. A refused projection stops advancing until an operator runs the rebuild, and nothing raises
+  an alert except the exception on the apply path.
   **Consumer obligation until this closes:** treat `UpsertAsync` on a projection whose store records
-  positions as an administrative operation, not a routine one, and prefer replaying through the
-  recovery path for a specific aggregate over writing its projection directly.
+  positions as an administrative operation, not a routine one; prefer replaying through the recovery path
+  for a specific aggregate over writing its projection directly; and alert on the apply path's
+  `Unplaceable` exception, because that is the only signal that a projection has stopped advancing.
 
 - **All eight providers now execute the conformance kit against real infrastructure.** SQL Server,
   PostgreSQL, MongoDB, DynamoDB, Elasticsearch, OpenSearch, Cosmos DB and Firestore each run every arm
@@ -1331,8 +1604,8 @@ a property of the generator, not of the code under test.
   worth knowing about as a consumer, because it failed in the direction that looks like success: the
   Cosmos read returned its state and its position from one expression whose first half MUTATED the
   document node, stripping the framework metadata before the position was read from it. Every read
-  therefore reported no stored position. No stored position means adoptable, so every conditional write
-  silently degraded into an unconditional one — the store reported success while providing none of the
+  therefore reported no stored position, and at the time no stored position MEANT adoptable, so every
+  conditional write silently degraded into an unconditional one — the store reported success while providing none of the
   exclusion it advertised, and two writers racing from one read were both admitted. Nothing about that
   is visible without executing it against the engine.
 - **The read-then-write providers can refuse spuriously.** On Cosmos, Elasticsearch and OpenSearch any
@@ -1346,9 +1619,11 @@ a property of the generator, not of the code under test.
 
   `Vanished` is reachable only on the branch where the caller supplies a position it read. Once a row is
   gone, every caller reads nothing, so every subsequent write carries no expected position and takes the
-  create-or-adopt branch instead. Enumerated across all eight stores, **seven cannot return `Vanished`
+  insert-if-absent branch instead. Enumerated across all eight stores, **seven cannot return `Vanished`
   to a caller that read nothing** — the create-when-absent arm fires first and the write succeeds. Cosmos
-  DB is the lone exception, and only through one sub-path.
+  DB is the lone exception, and only through one sub-path. Removing the adopt arm does not change this:
+  insert-if-absent is exactly the arm that fires here, and it is legitimate — a row that does not exist
+  is not a state whose prefix is unknown.
 
   So the real outcome is neither of the two the old text offered, and it is worse than both: the row is
   **recreated**, folded only from whatever tail the reader delivers next, and stamped with a position

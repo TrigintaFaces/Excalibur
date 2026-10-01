@@ -202,6 +202,24 @@ public sealed class TenantScopedProjectionStore<TProjection> : IsolatingProjecti
 			return capability.UpsertUnnumberedAsync(id, projection, cancellationToken);
 		}
 
+		/// <inheritdoc />
+		/// <remarks>
+		/// Requires the ambient tenant before forwarding, exactly as the other writes do. A rebuild
+		/// replaces a row, so it is a write, and a write that skipped the tenant check would be
+		/// reachable from an unscoped context through a decorator that exists to make that impossible.
+		/// </remarks>
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+			string id,
+			TProjection projection,
+			long newPosition,
+			CancellationToken cancellationToken)
+		{
+			outer.RequireTenant();
+			return capability.RebuildAtPositionAsync(id, projection, newPosition, cancellationToken);
+		}
+
 		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public Task<ProjectionAdvanceResult> UpsertAtPositionAsync(

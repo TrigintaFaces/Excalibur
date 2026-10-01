@@ -69,6 +69,15 @@ public sealed class AzureKeyVaultErasureReachesTerminalShould : IDisposable
 	{
 		A.CallTo(() => _keyClient.PurgeDeletedKeyAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(A.Fake<Response>()));
+
+		// A PURGED key is gone from the deleted-keys collection too, and the vault says so with a 404. Without
+		// this the fake answers the deleted-key lookup with a default value, so the vault reports the key as
+		// still recoverable -- and the erasure correctly declines to attest completion over it. Stating the
+		// post-purge answer is what makes this arm about the purge succeeding rather than about an
+		// under-specified fake.
+		A.CallTo(() => _keyClient.GetDeletedKeyAsync(A<string>._, A<CancellationToken>._))
+			.Throws(new RequestFailedException(404, "DeletedKeyNotFound"));
+
 		var harness = new ErasureLifecycleHarness(_provider, _provider);
 
 		var (requestId, _, result) = await harness.SubmitAndExecuteAsync("azure-subject-1");

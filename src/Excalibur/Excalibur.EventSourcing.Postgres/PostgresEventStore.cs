@@ -357,7 +357,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 				result = WriteStoreTelemetry.Results.Conflict;
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 
-				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
 			result = WriteStoreTelemetry.Results.Failure;
@@ -434,7 +434,11 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 
 					if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
 					{
-						return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+						// RECOGNISED, not written by this call. Reporting plain success here would be true
+						// about the append and silently false about the call: these rows are durable, but
+						// they are a prior attempt's, and anything may have happened to them since — an
+						// erasure included.
+						return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
 					}
 
 					return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
@@ -467,7 +471,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 
 			if (IsLostRace(ex, currentVersion, expectedVersion))
 			{
-				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
@@ -522,7 +526,9 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
 			{
 				activity.SetOperationResult(EventSourcingTagValues.Success);
-				return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+
+				// RECOGNISED, not written by this call — see the staging overload's pre-check branch.
+				return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
 			}
 
 			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);

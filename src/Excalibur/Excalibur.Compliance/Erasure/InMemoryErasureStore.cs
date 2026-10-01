@@ -258,6 +258,34 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	}
 
 	/// <inheritdoc />
+	public Task RecordKeyDestroyedAsync(Guid requestId, string keyHandle, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
+
+		// Resolved before the lookup so that an unresolved tenant fails closed whether or not the row exists.
+		var tenant = AmbientScope;
+
+		// Another tenant's row is treated as absent, so one tenant cannot write a destruction record into
+		// another tenant's partition -- and a record written to the wrong partition would let the wrong
+		// request attest coverage it never achieved.
+		if (!_requests.TryGetValue(requestId, out var data) || !MatchesAmbientTenant(tenant, data.TenantId))
+		{
+			throw new KeyNotFoundException(
+				$"No erasure request with id '{requestId}' exists in this tenant, so a destroyed key cannot be "
+				+ "recorded against it. This throws rather than returning quietly: the record is what lets a "
+				+ "retry attest a destruction an earlier pass performed, so losing it silently would make the "
+				+ "subject's erasure permanently uncertifiable with nothing reporting why.");
+		}
+
+		// Idempotent by construction -- re-recording a handle this request already destroyed is a no-op, and
+		// nothing here removes a handle an earlier pass wrote.
+		_ = data.DestroyedKeyHandles.TryAdd(keyHandle, 0);
+		data.UpdatedAt = DateTimeOffset.UtcNow;
+
+		return Task.CompletedTask;
+	}
+
+	/// <inheritdoc />
 	public Task<bool> RecordCancellationAsync(
 		Guid requestId,
 		string reason,
@@ -393,7 +421,22 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 			throw DuplicateErasureCertificateException.ForCertificateId(certificate.Payload.CertificateId);
 		}
 
-		_requestToCertificate[certificate.Payload.RequestId] = certificate.Payload.CertificateId;
+		// KEEP THE NEWEST, rather than the last written. This was an unconditional overwrite, which made the
+		// per-request answer depend on INSERTION ORDER while both SQL providers resolve it by
+		// "ORDER BY generated_at DESC, certificate_id DESC". A request can legitimately hold two certificates
+		// -- the partial branch issues one and the completion branch another -- so the three stores have to
+		// agree on WHICH one the lookup returns, and this is the conformance reference the other two are
+		// measured against. The tiebreak on id is what makes the order total, exactly as in the SQL clause.
+		_ = _requestToCertificate.AddOrUpdate(
+			certificate.Payload.RequestId,
+			certificate.Payload.CertificateId,
+			(_, existingId) =>
+				_certificates.TryGetValue(existingId, out var existing)
+				&& (existing.Payload.GeneratedAt > certificate.Payload.GeneratedAt
+					|| (existing.Payload.GeneratedAt == certificate.Payload.GeneratedAt
+						&& existing.Payload.CertificateId.CompareTo(certificate.Payload.CertificateId) > 0))
+					? existingId
+					: certificate.Payload.CertificateId);
 
 		return Task.CompletedTask;
 	}
@@ -512,6 +555,7 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 			CancellationReason = data.CancellationReason,
 			CancelledBy = data.CancelledBy,
 			KeysDeleted = data.KeysDeleted,
+			DestroyedKeyHandles = [.. data.DestroyedKeyHandles.Keys],
 			RecordsAffected = data.RecordsAffected,
 			CertificateId = data.CertificateId,
 			ErrorMessage = data.ErrorMessage,
@@ -600,6 +644,13 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 			set => Volatile.Write(ref StatusValue, (int)value);
 		}
 		public int? KeysDeleted { get; set; }
+
+		// A SET rather than a count, and append-only: a retry has to know WHICH handles an earlier pass
+		// destroyed, because the key store reports one it destroyed exactly as it reports one it never held.
+		// Ordinal on purpose -- a key handle is an opaque identifier, never text to be compared culturally.
+		public ConcurrentDictionary<string, byte> DestroyedKeyHandles { get; } =
+			new(StringComparer.Ordinal);
+
 		public int? RecordsAffected { get; set; }
 		public Guid? CertificateId { get; set; }
 		public string? ErrorMessage { get; set; }

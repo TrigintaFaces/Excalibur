@@ -103,10 +103,11 @@ public sealed class FirestoreProjectionStore<TProjection>
 		//
 		// SetAsync replaces the whole document, so a position the row used to carry vanishes with it.
 		// Omitting the field left the row reading back exactly like a row that never had a position --
-		// and those two must be treated OPPOSITELY: a never-positioned row IS a complete fold and is
-		// adoptable, whereas a row whose state was just replaced by a value this store cannot relate to
-		// the stream is not. Adopting the second stamps a position onto a state that does not contain
-		// that prefix, and every event below it is then silently missing from the read model forever.
+		// and those two must stay DISTINGUISHABLE: a never-positioned row IS a complete fold
+		// whose coordinate is merely unknown, whereas a row whose state was just replaced holds a fold over
+		// no known prefix at all. A positioned write refuses BOTH -- neither carries a number it can advance
+		// from -- so what the distinction decides is not the next write but what the row can honestly be
+		// said to hold while it waits to be rebuilt, which is what an operator reads it for.
 		//
 		// The sentinel rides the same single Set as the state, so there is no window in which a
 		// destroyed position is recorded as a never-established one.
@@ -121,9 +122,14 @@ public sealed class FirestoreProjectionStore<TProjection>
 	/// <inheritdoc />
 	/// <remarks>
 	/// The same single <c>Set</c> as <see cref="UpsertAsync"/>, differing only in what it asserts: this
-	/// state IS a complete fold, so a later positioned writer may adopt the row. Unconditional on
+	/// state IS a complete fold, only its coordinate unknown. Unconditional on
 	/// purpose -- the caller is claiming completeness, not a place in the stream, so there is no
 	/// position for a condition to be written against.
+	/// <para>
+	/// <b>The row is still REFUSED by a positioned write</b>, which has no number to advance from. What
+	/// this buys over the blind surface is that the row reads back as a complete answer awaiting a
+	/// coordinate rather than as a state related to no prefix at all; a rebuild is what numbers it.
+	/// </para>
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -143,6 +149,60 @@ public sealed class FirestoreProjectionStore<TProjection>
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// A transaction rather than the bare <c>Set</c> the other unconditional writes use. Firestore gives
+	/// the read and the write one transaction, so the existence test is not a separate observation the
+	/// document could be deleted after -- it is part of the same atomic action as the write, which is what
+	/// every other provider gets from a conditional write.
+	/// </para>
+	/// <para>
+	/// No position is compared, because a state folded from an empty seed has no prior prefix for a
+	/// condition to be written against. <c>Set</c> is never called on a missing document: an absent
+	/// document means the projection was DELETED, deletion is how erasure removes personal data, and a
+	/// whole-stream replay is precisely the write that could reconstruct it.
+	/// </para>
+	/// <para>
+	/// <b>The SDK's automatic retry is safe here.</b> A transaction aborted by contention re-runs this
+	/// callback, which re-reads the document and re-derives the outcome from what it then finds, so a
+	/// <c>Vanished</c> is reproduced rather than swallowed.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		TProjection projection,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentNullException.ThrowIfNull(projection);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+
+		var docRef = GetCollection().Document(id);
+		var document = BuildDocument(projection, ProjectionPosition.At(newPosition));
+
+		return await _db.RunTransactionAsync(
+			async transaction =>
+			{
+				var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (!snapshot.Exists)
+				{
+					return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
+				}
+
+				transaction.Set(docRef, document);
+
+				return new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied);
+			},
+			options: null,
+			cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
@@ -154,7 +214,9 @@ public sealed class FirestoreProjectionStore<TProjection>
 
 		return snapshot.Exists
 			? (DeserializeDocument(snapshot), ReadPosition(snapshot))
-			: (null, ProjectionPosition.Unnumbered);
+			// An absent document is not a fold over any prefix. Unnumbered would assert a complete fold
+			// over state that does not exist.
+			: (null, ProjectionPosition.Unplaceable);
 	}
 
 	/// <inheritdoc />
@@ -184,6 +246,15 @@ public sealed class FirestoreProjectionStore<TProjection>
 		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
 		ArgumentNullException.ThrowIfNull(projection);
 
+		// A NEGATIVE EXPECTATION IS THE ADOPT LICENCE THROUGH A DIFFERENT DOOR. The negatives are the
+		// sentinel space for the two states that carry no number, so a caller naming one as "the position I
+		// read" would be matching a row this store refuses by design. ExpectedPositionOrNull is the only
+		// legal source for this argument and never yields a negative.
+		if (expectedPosition is { } claimed)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(claimed, nameof(expectedPosition));
+		}
+
 		var docRef = GetCollection().Document(id);
 		var document = BuildDocument(projection, ProjectionPosition.At(newPosition));
 
@@ -195,34 +266,27 @@ public sealed class FirestoreProjectionStore<TProjection>
 
 				if (expectedPosition is null)
 				{
-					// ADOPTION MATCHES EXACTLY ONE OF THE THREE STATES. An unnumbered row is a complete
-					// fold whose coordinate is merely unknown, so folding this batch onto it and
-					// stamping this batch's position states something true. It is what lets a
-					// projection written by the save path ever become positioned; without it the
-					// caller reads no position, claims none, and is refused forever -- a silent
-					// permanent stall, not a conflict.
+					// CREATE-IF-ABSENT and NOTHING ELSE. An existing document is refused whatever its own
+					// position reads, because a caller that read no position knows nothing about the
+					// prefix the stored state covers -- so stamping this batch's position onto it would
+					// assert a prefix the state need not hold, and every event below that position is then
+					// absent from the read model while the position says it is present. The numberless
+					// case used to be ADOPTED here; it is refused now, and the refusal is repairable by
+					// RebuildAtPositionAsync, which folds the whole stream and numbers the row from what
+					// it folded.
 					//
-					// The other two are refusals, and they are refused DIFFERENTLY. A positioned row
-					// means a real writer is already advancing it -- the late starter this branch
-					// exists to refuse -- and the caller re-reads and retries. AN UNPLACEABLE ROW CAN
-					// NEVER BE ADOPTED: its state is not a fold over any prefix, so stamping a
-					// position onto it would assert a prefix the state does not hold, and telling the
-					// caller to retry would spin it forever against a row that will not change.
+					// The two refusals are DIFFERENT. A positioned document means a real writer is already
+					// advancing it -- the late starter this branch exists to refuse -- and the caller
+					// re-reads and retries. A document carrying no number can never be advanced from at
+					// all, so telling the caller to retry would spin it forever against a document that
+					// will not change.
 					if (snapshot.Exists)
 					{
 						var conflicting = ReadPosition(snapshot);
 
-						if (conflicting.Kind == ProjectionPositionKind.Unplaceable)
-						{
-							return new ProjectionAdvanceResult(
-								ProjectionAdvanceOutcome.Unplaceable, null);
-						}
-
-						if (conflicting.Kind == ProjectionPositionKind.Positioned)
-						{
-							return new ProjectionAdvanceResult(
-								ProjectionAdvanceOutcome.Superseded, conflicting.Value);
-						}
+						return conflicting.Kind == ProjectionPositionKind.Positioned
+							? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, conflicting.Value)
+							: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 					}
 
 					transaction.Set(docRef, document);
@@ -238,11 +302,16 @@ public sealed class FirestoreProjectionStore<TProjection>
 
 				var storedPosition = ReadPosition(snapshot);
 
-				// An unplaceable row is terminal and is reported as such rather than as a supersede. A
-				// superseded caller re-reads and retries; this row yields the same refusal on every
-				// re-read, so reporting Superseded here is an unbounded redelivery loop against a
-				// projection that can only be fixed by rebuilding it.
-				if (storedPosition.Kind == ProjectionPositionKind.Unplaceable)
+				// Terminal, not a supersede: there is no number to advance from, and re-reading yields the
+				// same value and the same refusal, so Superseded here is an unbounded redelivery loop. That is the
+				// arm a careless edit reintroduces, and a numberless row landing in it retries forever.
+				//
+				// BOTH no-number states report the SAME outcome, deliberately. This result describes what the WRITE
+				// did; it carries no state, and the position was read at a different instant from the one the write
+				// was refused at, so an outcome characterising the stored STATE would attribute a property of the
+				// row-at-read-time to a write refused earlier. A caller that needs to know what the row holds reads
+				// its position, where ProjectionPositionKind reports it as a measured fact.
+				if (storedPosition.Kind != ProjectionPositionKind.Positioned)
 				{
 					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 				}
@@ -250,11 +319,6 @@ public sealed class FirestoreProjectionStore<TProjection>
 				// Both conjuncts. The second is not redundant: the caller obtained its expected value BY
 				// READING IT, so a redelivery satisfies the first by construction and only monotonicity
 				// refuses it.
-				//
-				// ExpectedPositionOrNull renders an unnumbered row as null, which is right here: the
-				// caller arrived with a non-null expectation, so an unnumbered row does not match it
-				// and the write is refused. Adoption is the expectedPosition-is-null branch above, and
-				// only that branch.
 				var held = storedPosition.ExpectedPositionOrNull;
 				if (held != expectedPosition || newPosition <= held)
 				{
@@ -372,7 +436,7 @@ public sealed class FirestoreProjectionStore<TProjection>
 	/// An ABSENT field reads as <see cref="ProjectionPositionKind.Unnumbered"/>, which is what
 	/// <see cref="ProjectionPosition.FromStored"/> does with a null. That is correct and deliberate: a
 	/// document written before this field existed IS a complete fold, only its coordinate is unknown,
-	/// so it stays adoptable. Every provider goes through FromStored so the eight of them cannot drift.
+	/// so it reads as UNNUMBERED rather than UNPLACEABLE. Every provider goes through FromStored so the eight of them cannot drift.
 	/// </remarks>
 	private static ProjectionPosition ReadPosition(DocumentSnapshot snapshot) =>
 		ProjectionPosition.FromStored(

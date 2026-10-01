@@ -23,6 +23,7 @@ Excalibur.Compliance.Azure.AzureKeyVaultOptions.WarnOnStandardTierInProduction.g
 Excalibur.Compliance.Azure.AzureKeyVaultOptions.WarnOnStandardTierInProduction.set -> void
 Excalibur.Compliance.Azure.AzureKeyVaultProvider
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.AzureKeyVaultProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Azure.AzureKeyVaultOptions!>! options, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Azure.AzureKeyVaultProvider!>! logger) -> void
+Excalibur.Compliance.Azure.AzureKeyVaultProvider.CreateKeyIfAbsentAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata!>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyDestructionOutcome>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.Dispose() -> void
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.GetActiveKeyAsync(string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
@@ -30,6 +31,8 @@ Excalibur.Compliance.Azure.AzureKeyVaultProvider.GetCryptographyClientAsync(stri
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.GetKeyVersionAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.IsKeyDestroyedAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Azure.AzureKeyVaultProvider.IsKeyDestroyedAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Azure.AzureKeyVaultProvider.IsKeyDestroyedAsync(string! keyId, string! generation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.ListKeysAsync(Excalibur.Compliance.KeyStatus? status, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.ReactivateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!

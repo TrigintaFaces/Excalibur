@@ -451,6 +451,14 @@ public static class ErasureServiceCollectionExtensions
 		services.TryAddSingleton<IPersonalDataAnnotationSource>(
 			static _ => IPersonalDataAnnotationSource.CreateDefault());
 
+		// The retention registry is registered HERE as well as by the crypto-shredding and
+		// declaration registrations, because this service needs it whether or not either of those ran.
+		// TryAdd leaves a real declaration set in place; a host that declares none gets an EMPTY registry,
+		// which is a value meaning "nothing is retained" rather than an absence meaning "the question was
+		// never asked". The two are not interchangeable: an absent registry produced a certificate naming
+		// a retention with no handle to release it.
+		services.TryAddSingleton<IErasureRetentionRegistry, ErasureRetentionRegistry>();
+
 		services.TryAddScoped<ErasureService>(sp => new ErasureService(
 			sp.GetRequiredService<IErasureStore>(),
 			sp.GetRequiredService<IKeyManagementAdmin>(),
@@ -461,6 +469,7 @@ public static class ErasureServiceCollectionExtensions
 			sp.GetService<IDataInventoryService>(),
 			sp.GetService<IKeyEscrowService>(),
 			sp.GetRequiredService<IPersonalDataAnnotationSource>(),
+			sp.GetRequiredService<IErasureRetentionRegistry>(),
 			sp.GetServices<IErasureContributor>()));
 
 		services.TryAddScoped<IErasureService>(static sp => sp.GetRequiredService<ErasureService>());

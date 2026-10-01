@@ -221,16 +221,21 @@ A saga can implement multiple `ISagaTimeout<T>` interfaces for different timeout
 
 ## Idempotent Event Replay
 
-`SagaState` automatically tracks processed event IDs to prevent duplicate command dispatch. When a saga event is delivered (including crash replays or concurrent duplicates), the `SagaCoordinator` calls `SagaState.TryMarkEventProcessed(eventId)` before executing the handler:
+`SagaState` remembers which deliveries a saga has already processed, so a redelivery does not run a step twice. **The identity it remembers is the envelope message ID that the delivery carries** — `IMessageContext.MessageId` — not a value composed from the event type, the saga ID or `StepId`. `StepId` does not affect deduplication.
 
-- Returns `true` — event is new, process it normally
-- Returns `false` — event already processed, skip silently
+On each delivery the `SagaCoordinator` asks `SagaState.HasProcessedEvent(messageId)`:
 
-The processed event set is bounded to 1,000 entries (oldest trimmed when exceeded) and persisted with the saga state.
+- `false` — the delivery is new; run the handler. If the handler **acts**, the identity is recorded and persisted with the state it produced. If the handler declines under its own guard, nothing is recorded and the event stays deliverable.
+- `true` — the same delivery already ran; skip it without invoking the handler and without writing state.
 
-:::info NServiceBus Pattern
+Two limits are part of the contract rather than implementation detail:
 
-This follows the same idempotent replay pattern used by NServiceBus sagas, where saga state includes a list of handled message IDs.
+- **The remembered set is bounded to 1,000 identities per saga instance, evicted oldest-first.** Past that bound a redelivery of an evicted identity **runs the step again**. This is a bounded window, not exactly-once. For unbounded deduplication, put the transactional inbox in front of the saga.
+- **A delivery that carries no message ID is processed and not deduplicated.** Every send this framework makes stamps an ID, so this applies only to inbound messages from a producer that sends none. For those the saga is at-least-once and **your handlers must be idempotent**. The first such delivery of each event type logs a warning naming the type, and every one increments the `excalibur.saga.undeduplicable_deliveries` counter (tagged by event type), so a producer that never sends an ID is visible in your metrics and not only in a startup log line. The framework does not invent an identity to fill the gap.
+
+:::warning Upgrading a saga that is already running
+
+Identities persisted by earlier releases were composed from the event type, saga ID and `StepId`. Those entries can no longer be produced, so they are left in place and ignored rather than translated — a saga mid-flight across the upgrade may run one step a second time. See [Resolved issues](../resolved-issues.md) for the full upgrade note, including why a saga that already dropped an event cannot be repaired automatically.
 :::
 
 ## Optimistic Concurrency
@@ -252,7 +257,7 @@ try
 catch (ConcurrencyException)
 {
     // A concurrent event advanced this saga. Reload and let the event be re-delivered;
-    // TryMarkEventProcessed prevents duplicate command dispatch.
+    // the replay guard recognises the redelivery by its message ID and prevents duplicate dispatch.
 }
 ```
 

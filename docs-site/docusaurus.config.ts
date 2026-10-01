@@ -63,6 +63,11 @@ const config: Config = {
   // In CI (isStrictMode=true), broken links will fail the build
   // Locally, they will only warn to avoid blocking development
   onBrokenLinks: isStrictMode ? 'throw' : 'warn',
+  // Anchors are checked on the same terms as links. Without this the setting defaults to 'warn'
+  // and a strict build reports SUCCESS over a heading reference that resolves to nothing -- which
+  // is the shape where a green certifies something it never examined. A moved or renamed section
+  // is the common cause, and it is invisible to onBrokenLinks because the FILE still exists.
+  onBrokenAnchors: isStrictMode ? 'throw' : 'warn',
   markdown: {
     format: 'mdx',
     mermaid: true,

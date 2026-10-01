@@ -117,6 +117,18 @@ public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConforman
 	public Task RecordCompletionAsync_NonExistent_ShouldThrowKeyNotFoundException_Test() =>
 		RecordCompletionAsync_NonExistent_ShouldThrowKeyNotFoundException();
 
+	[Fact]
+	public Task RecordKeyDestroyedAsync_ShouldAppendIdempotentlyAndSurvive_Test() =>
+		RecordKeyDestroyedAsync_ShouldAppendIdempotentlyAndSurvive();
+
+	[Fact]
+	public Task RecordKeyDestroyedAsync_NonExistentRequest_ShouldThrowKeyNotFoundException_Test() =>
+		RecordKeyDestroyedAsync_NonExistentRequest_ShouldThrowKeyNotFoundException();
+
+	[Fact]
+	public Task RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct_Test() =>
+		RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct();
+
 	#endregion Completion Tests
 
 	#region Cancellation Tests (STATE MACHINE)
@@ -172,6 +184,10 @@ public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConforman
 	[Fact]
 	public Task SaveCertificateAsync_ShouldPersistCertificate_Test() =>
 		SaveCertificateAsync_ShouldPersistCertificate();
+
+	[Fact]
+	public Task GetCertificateAsync_WhenRequestHasTwoCertificates_ShouldReturnTheNewest_Test() =>
+		GetCertificateAsync_WhenRequestHasTwoCertificates_ShouldReturnTheNewest();
 
 	[Fact]
 	public Task SaveCertificateAsync_ShouldRoundTripACertificateThatStillVerifies_Test() =>

@@ -37,6 +37,55 @@ matching an estate-wide row would let one tenant re-home an estate-wide preserva
 partition, silently lifting it for every other tenant — whose next erasure then proceeds and reports
 success. Reads use *owned-or-estate-wide*; mutations use strict ownership.
 
+### Releasing a hold is a compare-and-set, so a hold extended under a sweep is not released
+
+**An update to a legal hold is applied only while the stored record still carries the `LegalHold.Version`
+the caller read. If the record moved in between, the write is refused, nothing is stored, and
+`LegalHoldConcurrencyException` is raised. In particular: a hold whose expiry is extended between the
+expiration sweep's read and its write REMAINS ACTIVE, with the extended expiry, and the sweep reports the
+conflict at warning level rather than absorbing it.**
+
+Releasing is a read-modify-write — read the hold, decide, write the whole record back — so without a
+version check the decision lands over whatever the record became in the meantime. A hold is the authority
+that stops an erasure destroying records a controller is legally obliged to keep, so the consequence of the
+lost update is not a lost hold but lost records, irreversibly. And it is silent: the released record is
+well-formed and carries a plausible reason, so an auditor inspecting it afterwards sees a legitimate
+auto-release with no trace that an extension ever existed.
+
+The comparison is a term of the same statement that writes (`version = @ExpectedVersion` in the relational
+providers' `UPDATE`; `ConcurrentDictionary.TryUpdate` against the compared instance in memory), never a
+read the store performs first — a store that reads the version, compares it, then writes has only moved the
+race a few microseconds later.
+
+**On a conflict, callers re-read and re-decide; they do not retry.** Repeating the same write against a
+fresh version reinstates the lost update. The expiration sweep re-reads and, if the hold is no longer
+expired, makes no change at all — the correct outcome when an operator has just extended it.
+
+**The sweep reports every outcome, and on an instrument an operator can alert on.** It logs each conflict
+at warning level with the hold and case, and counts every hold it considered on
+`dispatch.legal_hold.expiration.outcomes`, tagged `outcome` = `released` / `extended` / `contended` /
+`missing` / `failed`. The counter exists because the log alone is not enough: a log line is read by
+somebody already looking, and a hold whose release keeps losing a concurrency check is exactly the
+condition nobody is looking at — left unresolved it stays active past the period it was filed for.
+**Alert on a sustained non-zero `contended`**; `extended` is normal operation.
+
+How it is verified: `LegalHoldStoreConformanceTestKit.UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact`
+binds the refusal for every provider (the reader takes a copy, a second writer extends the expiry, the
+reader's stale release is refused and the extension survives), with
+`UpdateHoldAsync_Succeeding_ShouldIncrementVersion` as its liveness twin — an uncontended update is still
+applied and advances the version, so a store that refuses everything cannot pass. At the sweep level,
+`ExtendingAHoldDuringTheExpirationSweepShould` asserts both halves against the real in-memory store: the
+hold stays active with its extended expiry and the conflict is reported, and a genuinely expired hold with
+no contending writer is still released.
+
+Consumer obligation: round-trip `LegalHold.Version` unchanged. Building the record to write with a `with`
+expression over the one that was read carries it across; constructing a fresh `LegalHold` from parts
+discards it and the write will be refused rather than silently applied.
+
+Known gap: a database provisioned before the version column existed has no column for the store's
+statements to bind. The store's schema verification fails closed at startup and names the missing column;
+it does not migrate the table.
+
 ### Field encryption is idempotent, so a retried write cannot double-wrap a value
 
 **Encrypting an annotated record twice yields the same stored value as encrypting it once. A caller that
@@ -53,6 +102,92 @@ The guard keys on the envelope marker, not on the presence of a value. An **unma
 legacy form written before the marker existed, so it is still encrypted rather than skipped; treating
 unmarked as already-encrypted would leave personal data in the clear for exactly the records written
 earliest.
+
+### A null from a field read means erased, and it is produced only when the key provider says so
+
+**`IFieldEncryptor.DecryptAsync` returns `null` for a personal field only when the key-management provider
+states, through `IKeyDestructionStatusProvider`, that the material of the key GENERATION that field's
+envelope names is irrecoverable. A key that cannot be resolved but whose material the provider reports as
+recoverable throws rather than returning `null`; a provider that cannot answer at all throws rather than
+returning `null`; and an envelope that names no generation is refused before the question is asked.**
+
+This is the guarantee that makes a `null` readable as a lawful crypto-shred, and it is falsifiable in one
+observation: configure a key provider that reports a deleted key as absent while reporting its material as
+recoverable, and the read must not answer `null`. Nothing else in the system can restate it afterwards —
+the tombstone reaches the consumer as a loaded aggregate with a field cleared, and nothing downstream ever
+learns whether the data was erased or merely out of reach.
+
+Absence is not the predicate, and cannot be, because the two are indistinguishable on backends with a
+recovery window: Azure Key Vault answers a soft-deleted key with 404 for the whole retention period while a
+single recover call restores it. Nor is the key handle, and nor is the version ordinal: a subject's handle is
+derived from the subject, so the next ordinary write after an erasure provisions new material at the same
+handle and the ordinal restarts from the beginning. Both then answer "not destroyed" **truthfully, about
+material the reader is not holding.** The question is therefore asked of the **key generation** — an
+identifier minted per provisioning from a cryptographic random source, which a later provisioning at the
+same handle cannot reproduce. It is bound into the AES-GCM associated data, so a holder of the ciphertext
+cannot rewrite it.
+
+The generation is read from the **encryption context** on both the write and the read path, never from key
+metadata when writing. That is what keeps the two envelope formats separable: a caller whose envelope has
+nowhere to carry a generation supplies none, binds none on either side, and is unaffected — which the
+encrypted audit log and the store decorators rely on. The field path's refusal of an absent generation is
+what makes that conditional binding safe: without it, an envelope with the property stripped would re-read
+as the no-generation form and authenticate correctly, a downgrade anyone could perform by deleting one JSON
+field.
+
+Achieved at `CryptoShredding/FieldEncryptor.cs:96` (the format-version refusal), `:114` (the
+absent-generation refusal, before any key is resolved and any associated data is computed), `:139` (the
+affirmative destruction predicate, asked before a decryption is attempted because a re-provisioned handle
+fails its authentication tag rather than reporting a missing key) and `:186` (the refusal when no provider
+advertises the capability). The generation enters the associated data at
+`Encryption/AesGcmEncryptionProvider.cs:592`.
+
+The read path and the erasure path now agree. Erasure verification already refuses to certify a deletion a
+provider cannot confirm (`Erasure/ErasureVerificationService.cs:377`); before this, erasure said "not yet
+irrecoverable" while reads of the same subject said "erased", and the read is what a consumer sees.
+
+RED-detected by `tests/unit/Excalibur.Compliance.Tests/CryptoShredding/AnAbsentKeyIsNotAnErasureTombstoneShould.cs`
+— the safety arm (absent but recoverable must not tombstone), the liveness arm (a stated destruction still
+degrades open), the refusal arm (no capability names what to implement), and an arm binding the trigger to
+the error the real AES-GCM provider raises.
+
+The generation half is RED-detected by
+`tests/unit/Excalibur.Compliance.Tests/CryptoShredding/AnEnvelopeWithNoKeyGenerationIsRefusedShould.cs` —
+the absent-generation refusal and its early-refusal assertions (the key store is never asked and no
+decryption is attempted), the empty-string shape of the same absence, the format-version refusal, a liveness
+arm so refusing everything cannot pass, and three arms over real AES-GCM: ciphertext written under one
+generation does not open under another, does not open for a reader that omits the generation, and a caller
+supplying none on either path still round-trips. The re-mint case itself — an erased subject's earlier record
+still tombstoning after a later write re-mints the subject's key — is covered by
+`CryptoShredding/CryptoShredTwoSubjectShould.cs`, which also covers the full real-stack path.
+
+Providers are held to the generation-scoped contract by
+`KeyManagementProviderConformanceTestKit`, whose load-bearing arm asks about a generation the backend has
+never held **at a live key handle** and requires "destroyed" — a provider that answers the handle instead of
+the generation fails it.
+
+**Consumer obligation:** a host whose key provider does not implement `IKeyDestructionStatusProvider`
+cannot load an erased subject's aggregate — degrade-open does not apply to it. The exception names the
+capability. This is the deliberate direction: a failed read is loud and recoverable, a fabricated erasure
+tombstone is neither.
+
+**Known gaps:**
+
+- **A provider that supplies no generation cannot be used for crypto-shredded fields.** `KeyMetadata.Generation`
+  is nullable, so such a provider compiles and every other capability works; its field writes produce
+  envelopes the read path then refuses. The refusal names the cause. Nothing establishes at startup that a
+  configured provider supplies one.
+- **A provider must destroy whatever records the generation when it destroys the key.** Where the generation
+  lives in a sidecar record rather than being intrinsic to the backend's own versioning, that record dying
+  with the key is the provider's obligation, and a provider that leaks it hands the next provisioning at the
+  same handle the destroyed generation's identifier. The shipped providers do this; a consumer-authored one
+  is not checked.
+- **The generation mapping for Azure Key Vault is unverified by us.** There is no conformance suite for that
+  provider, so its use of the opaque key version as the generation is reasoned from the backend's documented
+  versioning rather than measured.
+- **Ciphertext written before the envelope carried a generation cannot be read.** It is refused by format
+  version rather than mis-read, and there is no read path for it: the generation it would need was never
+  written down.
 
 ### Encrypting a store does not change what that store can do
 
@@ -99,6 +234,119 @@ deletion nobody asked for, in a scope nobody can enumerate.
   subject data must check `ILegalHoldService` itself before deleting (see consumer obligations).
 - **Registering retention enforcement is the only way the pass starts.** No other registration in this
   package starts it.
+
+### A declared aggregate retention survives an erasure whole, readable, and named on the record
+
+**Guarantee: an aggregate type declared through `AddErasureRetention` is not
+tombstoned, its snapshots are not deleted, its read-model rows are not cleared, its `[PersonalData]`
+fields **written while the declaration was in force** still DECRYPT after the subject's key is
+destroyed, and the erasure record names the type with
+the lawful basis, the written justification, and the period it is kept under. This holds for EVERY
+data subject named inside a retained type, not only the one the obligation was written with in mind. An aggregate
+type that is NOT named is erased exactly as it is with no retention declared at all.**
+
+Note the word: this is the opposite direction from the retention *enforcement* pass above, which
+DELETES after a period. This one WITHHOLDS destruction because the law requires the data kept — the
+Article 17(3) case, where the obligation covers the subject's identity and not merely the transaction.
+
+**The unit is the aggregate type, WHOLE, and that is a legal fact rather than a simplification.** An
+obligation to keep a record attaches to the RECORD: a statute requiring sales records to be kept does
+not require the buyer and permit deleting the salesperson, because a partly-erased record is a mutated
+record and a mutated record has no evidentiary value — which was the entire reason for keeping it. So a
+retained type is never tombstoned, for anyone, and every subject named inside it keeps their key for it.
+A subject who appears in a retained aggregate is not erased from it, and is told so on the record.
+
+**How it is achieved.** It is implementable at this unit because an event belongs to exactly one
+aggregate: an aggregate boundary is therefore an event boundary, and a retention can be honoured
+without ever splitting a stored row, whose erasure is total — all fields and its type name together.
+One branch in the event-store contributor's per-reference loop skips the whole destructive triple —
+snapshot delete, tombstone, read-model clear — for a declared type
+(`Erasure/EventStoreErasureContributor.cs:187` in `Excalibur.EventSourcing`). The event store is unchanged and knows nothing about retention; it is told
+which aggregate to erase and has no opinion about which ones it is asked for.
+
+Readability is what makes the surviving record worth keeping, and it comes from the key handle rather
+than from new cryptography. A key handle is a NAME, and the provider mints random material at whatever
+name it is given, so widening the handle with the aggregate type yields a second, independently
+destroyable key with no envelope machinery (`CryptoShredding/SubjectKeyManager.cs:87`). Only a DECLARED
+type's handle is widened: every other value stays under the subject's own handle, which is the one the
+erasure destroys unconditionally and the only one it can enumerate. The erasure additionally refuses to
+destroy a discovered key that resolves to a retained handle (`Erasure/ErasureService.cs:571`). The
+decrypt path needs no change, because the envelope carries the handle that produced it.
+
+What was kept reaches the signed certificate beside the framework's own store-kind exemptions
+(`Erasure/ErasureService.cs:643`). This is the part that makes the behaviour detectable from outside: a
+certificate reporting a clean completion over data deliberately kept cannot be told from one over data
+destroyed, and nothing downstream ever learns which it was.
+
+**KNOWN GAP -- UNVERIFIED: the entry does NOT carry a subject-scoped statement, and an earlier version
+of this document asserted that it did.** The entry carries the basis, the declared justification, the
+period and the retained key handle (`ErasureException`). It carries no member and generates no text
+saying that the REQUESTING subject's own personal data is what persists in the named type. The declared
+justification is written about the RECORD, so on its own it does not tell the person reading it that
+THEY are what survives inside it. Whether a subject-scoped notice is owed, and what it must say, is a
+requirements question and is not settled here.
+
+*Superseded wording, quoted so a reader who inherited it recognises it: "The entry states, in its own
+words, that the requesting subject's personal data was not erased and lawfully persists in the named
+type." That was false when written -- no such statement is produced.*
+
+**Expiry is declared and reported, never promised — and releasing it is not yet a supported operation.**
+The period is required, so it cannot be left unsaid, and startup validation rejects zero and below; an
+absurdly long period is still constructable and is the declaring party's statement to defend. The instant
+a particular record's obligation lapses depends on facts the framework does not hold (the transaction
+date, the jurisdiction, whether the period was extended), so acting on someone else's statutory clock is
+not a promise it can keep.
+
+**The exit is NAMED ON THE RECORD, and that is what makes the period actionable.** Removing a declaration
+does not destroy anything it protected: the retained key is not the subject's handle, so nothing in the
+erasure path ever queues it, and a completed request is terminal and will not run again. The retained
+record therefore survives until someone destroys that key BY NAME — so the erasure record names it. Each
+retention entry carries `ErasureException.RetainedKeyHandle`, the handle still protecting THIS data
+subject inside THAT aggregate type, in the form `IKeyManagementAdmin.DeleteKeyAsync` accepts. When the
+statutory period ends, destroying it is the whole of the release.
+
+It is written on the SAME pass that decides which handles to spare (`Erasure/ErasureService.cs:558`), from
+the same map, so the set the erasure excluded and the set the record names are one iteration and cannot
+disagree. It discloses nothing new: the handle is composed from the data-subject hash the payload already
+states and a digest of the aggregate type the entry already names.
+
+An entry with a NULL handle is a signal rather than a blank — a contributor spared a type this erasure made
+no key decision about. It is left absent rather than invented, because a fabricated handle would be
+destroyed with confidence.
+
+**Evidence for the release path.** `TheRecordNamesTheHandleThatReleasesARetentionShould` (compliance unit
+suite) binds it by USING the handle, not by matching a string: one arm asserts the recorded handle is
+byte-for-byte the one the real write path put on a real envelope, and one destroys the recorded handle
+through the real key admin and shows the retained data becomes unrecoverable. A third proves an entry the
+erasure made no key decision about carries no handle. A plausible-but-wrong handle reddens all three.
+
+**Evidence.** `ARetainedAggregateSurvivesErasureShould` (event-sourcing unit suite) binds the skip, the
+per-type reporting, the subject-facing disclosure on the entry, the tenant scope, the read-model half,
+and — as its non-vacuity controls — that an undeclared type and a host with no declarations are erased
+unchanged. `ARetainedAggregateTypeKeepsItsOwnKeyShould` (compliance unit suite) binds the key half
+against a real in-memory key provider and real AES-GCM: destroying the subject's handle leaves a
+declared type's fields decryptable and an undeclared type's unrecoverable, a SECOND data subject named
+in the same retained type stays readable through their own erasure, and a declaration belonging to
+another tenant protects nobody here.
+
+**Known gaps.**
+
+- **Declaring a retention protects only what is written afterwards.** Events written before the
+  declaration were encrypted under the subject's shared handle, which the erasure destroys, so they
+  survive the tombstone with their personal fields no longer decryptable. Re-encrypting them is a
+  migration the framework does not perform. **The signed certificate does not assert otherwise:** a
+  retention entry states that the erasure did not TOMBSTONE the record, names the obligation it is kept under, and
+  says nothing about whether this data subject's fields inside it are still readable, because the pass
+  that writes the entry cannot establish that. Read the entry as *this record was kept*, never as *your
+  data in it is intact*.
+- **A contributor constructed with no retention registry honours no retention.** The constructor takes
+  it explicitly, so a host that passes `null` tombstones everything the mapping returns. There is no
+  overload that omits it silently.
+- **Coverage is judged per store kind, not per aggregate type.** A discovered personal-data location in
+  the event store counts as covered because a contributor declares that store kind, whether or not the
+  particular aggregate behind it was retained.
+- **Verification class.** This guarantee is established by example-based tests. The seam's blast radius
+  is catastrophic; property-based and model-checked rungs are UNVERIFIED for it.
 
 ### An erasure completion certificate — what it asserts, and what it does not
 
@@ -221,9 +469,10 @@ the erasure path.
 guarantee document misleads.** For a FULLY erased aggregate the replay yields no position -- every event
 is a tombstone -- so the write falls to the unconditional surface and leaves the row with no established
 position. The compliance outcome is achieved: the subject's data is gone from that row. What follows is
-that the next batch finds an unpositioned row, adopts it, and stamps a position over state it did not
-fold. **Use the call for erasure, then replay or rebuild that projection rather than trusting its stored
-position.** The event-sourcing guarantee document carries the full mechanism.
+that the next batch finds a row with no position to advance from and is REFUSED, so the projection stops
+advancing until it is rebuilt. **Use the call for erasure, then rebuild that projection** — the refusal is
+loud and recoverable, but it does not clear itself, and nothing in the framework rebuilds the row for you.
+The event-sourcing guarantee document carries the full mechanism.
 
 **Guarantee: an EMPTY registry and an UNREADABLE registry are different facts and are answered
 differently, because only one of them is a misconfiguration.** An empty registry does not fail host start —
@@ -628,6 +877,16 @@ same provisioning type, so the floor and the startup check report the same condi
 
 These are stated because a guarantee with no enforcing test is documented, never asserted.
 
+- **A legal hold placed while an erasure is destroying keys cannot un-destroy the keys already gone.**
+  The hold is re-checked before EVERY key destruction, not once per run, so a hold that arrives mid-pass
+  stops the destruction at the next key and no later key is touched. The window is therefore one key wide
+  rather than the whole discovery pass — but it is not zero, and it cannot be: the hold is recorded in this
+  framework's store while the destruction happens at an external key manager that cannot roll back, and a
+  legal hold is externally mandated so it cannot be refused to make room for a lease. When this happens the
+  erasure STOPS, the request cannot reach `Completed`, and the number of keys already destroyed is recorded
+  with the request, so the conflict is visible to an auditor rather than silent. **Consumer obligation:** if
+  a hold may be placed against a subject whose erasure is already running, treat the recorded
+  already-destroyed count as authoritative — that data is gone and no replay restores it.
 - **Retention enforcement is not hold-aware.** No legal hold blocks a retention deletion unless the
   contributor performing it checks one. The built-in outbox and inbox contributors delete messaging records
   by age and do not check holds.

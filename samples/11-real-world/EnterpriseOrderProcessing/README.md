@@ -15,6 +15,14 @@ This reference application wires the complete Excalibur.Dispatch and Excalibur f
 | 5 | Transport | RabbitMQ integration event publishing | `UseRabbitMQ()` |
 | 6 | Security | Message encryption + audit logging | `UseSecurity(configuration)` |
 | 7 | Compliance | GDPR erasure + compliance monitoring | `AddGdprErasure()`, `AddComplianceMonitoring()` |
+
+> **Erasing an order is not the same as erasing a customer.** `OrderAggregate` carries its own copy of
+> `CustomerName`, so an erasure that tombstoned orders would destroy the transaction record along with
+> the personal data in it -- and tax, warranty and recall obligations attach to that record. Where the
+> law requires a record kept, declare it with `AddErasureRetention(...)` and the erasure will skip it,
+> naming the retention and its legal basis on the certificate. This sample wires erasure registration
+> only; the end-to-end walkthrough -- an erasure across one erasable aggregate and one retained one --
+> is in [`samples/06-security/GdprCompliance`](../../06-security/GdprCompliance/README.md).
 | 8 | Observability | OpenTelemetry metrics + distributed tracing | `ConfigureExcaliburMetrics()`, `ConfigureExcaliburTracing()` |
 | 9 | Logging | Serilog structured logging | `ConfigureExcaliburLogging()` |
 | 10 | Health Checks | `/health`, `/health/ready`, `/health/live` | `AddExcaliburHealthChecks()` |

@@ -173,10 +173,11 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		// nothing downstream can detect it.
 		//
 		// Resetting to the sentinel says the honest thing: nobody knows what prefix this state
-		// represents. The next positioned write adopts the row and re-folds the batch it is given, which
-		// over-counts for an accumulating projection and RECURS -- every later unconditional write
-		// returns the row to unpositioned, so this is not a one-time cost. What invalidation buys is
-		// that the row becomes self-describing as "prefix unknown"; preserving the stale position
+		// represents. The next positioned write is then REFUSED rather than applied -- it has no number to
+		// advance from -- and the projection stops advancing until it is rebuilt. That is the deliberate
+		// trade: a loud refusal an operator can act on, in place of a silent re-fold that over-counted an
+		// accumulating projection every time an unconditional write landed on the row. What invalidation
+		// buys is that the row becomes self-describing as "prefix unknown"; preserving the stale position
 		// destroys the only evidence that anything is wrong. The document stores reach the same end state by omitting the
 		// field from a whole-document replacement; this makes the relational stores agree rather than
 		// differ silently.
@@ -190,9 +191,11 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		var conflictTarget = "(id, tenant_id)";
 
 		// The UPDATE arm records WHY this row has no position. `-1` alone cannot say: the column default
-		// also means `-1`, and that means "never positioned", where adoption is correct. This arm means
-		// "a position was destroyed", where adoption is wrong -- it folds a batch onto a state whose
-		// prefix nobody knows.
+		// also means `-1`, and that means "never positioned", where the stored state IS a complete fold.
+		// This arm means "a position was destroyed", where the state is a fold over no known prefix at all.
+		// Neither can be advanced from, so the distinction does not decide the next write -- it decides
+		// what the row can honestly be said to hold while it waits to be rebuilt, and what an operator
+		// reading it should conclude.
 		//
 		// BOTH arms write it, and that is the simplification. This method cannot know whether the state
 		// it was handed is a fold over any prefix, so it records that it does not know -- identically
@@ -556,6 +559,21 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 			id,
 			JsonSerializer.Serialize(projection, _jsonOptions),
 			atPosition,
+			RequireTenant(),
+			cancellationToken);
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		TProjection projection,
+		long newPosition,
+		CancellationToken cancellationToken) =>
+		Positioned().RebuildAtPositionAsync(
+			id,
+			JsonSerializer.Serialize(projection, _jsonOptions),
+			newPosition,
 			RequireTenant(),
 			cancellationToken);
 

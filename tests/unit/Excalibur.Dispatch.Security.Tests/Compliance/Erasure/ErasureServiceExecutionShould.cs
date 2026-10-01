@@ -56,7 +56,8 @@ public sealed class ErasureServiceExecutionShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService,
-			null);
+			null,
+			TestRetentions.None);
 	}
 
 	#region ExecuteAsync Tests
@@ -548,7 +549,8 @@ public sealed class ErasureServiceExecutionShould
 			TestDataSubjectHasher.Instance,
 			new NoLegalHoldsService(),
 			null,
-			null);
+			null,
+			TestRetentions.None);
 
 		var request = CreateValidRequest();
 		A.CallTo(() => _store.SaveRequestAsync(A<ErasureRequest>._, A<DateTimeOffset>._, A<CancellationToken>._))
@@ -683,5 +685,6 @@ public sealed class ErasureServiceExecutionShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService,
-			null);
+			null,
+			TestRetentions.None);
 }

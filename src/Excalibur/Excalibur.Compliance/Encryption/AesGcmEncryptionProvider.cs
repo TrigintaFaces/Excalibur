@@ -199,7 +199,12 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 				AuthTag = tag,
 				WrappedKey = wrappedKey,
 				EncryptedAt = DateTimeOffset.UtcNow,
-				TenantId = context.TenantId
+				TenantId = context.TenantId,
+
+				// Recorded from the CONTEXT, which is the same source the associated data above was built
+				// from, so the payload can never carry a generation the tag was not computed over. A caller
+				// that identified none records none, and its envelope is unchanged in shape.
+				KeyGeneration = context.KeyGeneration
 			};
 		}
 		finally
@@ -574,6 +579,22 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 		// Always include key identifier for binding
 		writer.Write(keyId);
 		writer.Write(keyVersion);
+
+		// THE GENERATION IS TAKEN FROM THE CONTEXT, NEVER FROM KEY METADATA, and that is what lets two
+		// different envelope layouts share this one builder. A caller that identifies no generation binds none
+		// on BOTH the write and the read, so its payloads authenticate exactly as before; a caller that
+		// identifies one binds it on both. Sourcing it from metadata when writing and from the payload when
+		// reading would bind a value on one side and nothing on the other, and every payload written by a
+		// caller whose envelope has nowhere to carry a generation would fail to authenticate immediately.
+		//
+		// Length-prefixed and absent-means-zero-length, for the same reason the tenant field is: without a
+		// length prefix a generation of "" and no generation at all would produce identical associated data.
+		var generation = context.KeyGeneration ?? string.Empty;
+		writer.Write(generation.Length);
+		if (generation.Length > 0)
+		{
+			writer.Write(generation);
+		}
 
 		// Always include tenant ID field with length prefix for unambiguous AAD format.
 		// This prevents cross-tenant AAD ambiguity where null/empty tenant would produce

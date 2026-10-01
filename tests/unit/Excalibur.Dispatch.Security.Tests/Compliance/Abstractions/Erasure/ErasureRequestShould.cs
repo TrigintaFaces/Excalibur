@@ -193,14 +193,35 @@ public sealed class ErasureRequestShould : UnitTestBase
 		defaultValue.ShouldBe(ErasureScope.User);
 	}
 
+	/// <summary>
+	/// An unassigned Article 17(1) ground says so, rather than naming one nobody claimed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This arm asserted the defect, and it is flipped rather than relaxed.</b> It required
+	/// <c>default</c> to be <see cref="ErasureLegalBasis.DataNoLongerNecessary"/> — a substantive
+	/// Article 17(1)(a) ground — which made a value nobody assigned indistinguishable from a deliberate
+	/// claim. <c>required</c> stops a C# author omitting it, but a reflection binder, a deserializer, a
+	/// store round trip and an out-of-range cast all reach this enum without the compiler's involvement,
+	/// and whatever sits at zero is what they produce. On a signed erasure certificate that read as the
+	/// ground the erasure was performed under.
+	/// </para>
+	/// <para>
+	/// RED input: renumber the zero member back to a substantive basis. The property this binds is not the
+	/// member count — a count is satisfied by any numbering — but which member zero IS.
+	/// </para>
+	/// </remarks>
 	[Fact]
-	public void HaveDataNoLongerNecessaryAsDefaultLegalBasis()
+	public void HaveNotEstablishedAsDefaultLegalBasis()
 	{
 		// Arrange
 		ErasureLegalBasis defaultValue = default;
 
 		// Assert
-		defaultValue.ShouldBe(ErasureLegalBasis.DataNoLongerNecessary);
+		defaultValue.ShouldBe(
+			ErasureLegalBasis.NotEstablished,
+			"zero is what an unassigned value produces, so it must say no ground was established rather "
+			+ "than naming one nobody claimed");
 	}
 
 	[Theory]

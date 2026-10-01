@@ -128,6 +128,33 @@ public sealed record ErasureContributorResult
 	public IReadOnlyList<DataLocationKey> DischargedLocations { get; init; } = [];
 
 	/// <summary>
+	/// Gets the data this contributor deliberately did NOT erase, each entry carrying the basis it was
+	/// retained under.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>A contributor that withholds destruction must say so here.</b> The entries are carried onto the
+	/// erasure certificate alongside the framework's own exemptions, so a reader can tell an erasure that
+	/// destroyed everything from one that lawfully kept a record. A certificate reporting a clean
+	/// completion over data deliberately kept is the defect this exists to make impossible: silence is what
+	/// makes a retention undetectable from outside.
+	/// </para>
+	/// <para>
+	/// This is a sibling of <see cref="DischargedLocations"/> and never a substitute for it. That names
+	/// what was erased; this names what was kept and why.
+	/// </para>
+	/// <para>
+	/// <b>It is carried on a FAILED result too, and that is the point rather than an oversight.</b> What
+	/// a contributor kept is a fact about the store; whether the same pass also failed somewhere else is
+	/// a fact about the run. Dropping the retentions because an unrelated aggregate's read model was
+	/// briefly unreachable would make the partial-erasure certificate — the one a controller reconciles
+	/// by hand, and therefore the one that most needs the list — the only certificate that never names
+	/// what survived.
+	/// </para>
+	/// </remarks>
+	public IReadOnlyList<ErasureException> RetainedData { get; init; } = [];
+
+	/// <summary>
 	/// Gets an error message if the operation failed.
 	/// </summary>
 	public string? ErrorMessage { get; init; }
@@ -165,7 +192,33 @@ public sealed record ErasureContributorResult
 		{
 			Success = true,
 			RecordsAffected = recordsAffected,
-			DischargedLocations = dischargedLocations,
+			DischargedLocations = [.. dischargedLocations],
+		};
+	}
+
+	/// <summary>
+	/// Creates a successful result that names both what the contributor erased and what it lawfully kept.
+	/// </summary>
+	/// <param name="recordsAffected">The number of records erased.</param>
+	/// <param name="dischargedLocations">The pairs erased for this subject.</param>
+	/// <param name="retainedData">The data deliberately kept, each entry carrying its legal basis.</param>
+	/// <returns>A successful result carrying its discharged obligations and its retentions.</returns>
+	public static ErasureContributorResult Succeeded(
+		int recordsAffected,
+		IReadOnlyList<DataLocationKey> dischargedLocations,
+		IReadOnlyList<ErasureException> retainedData)
+	{
+		ArgumentNullException.ThrowIfNull(dischargedLocations);
+		ArgumentNullException.ThrowIfNull(retainedData);
+
+		// Snapshotted, not aliased. These become clauses on a signed certificate, and evidence a caller
+		// can still mutate after handing it over is not evidence.
+		return new ErasureContributorResult
+		{
+			Success = true,
+			RecordsAffected = recordsAffected,
+			DischargedLocations = [.. dischargedLocations],
+			RetainedData = [.. retainedData],
 		};
 	}
 
@@ -179,4 +232,29 @@ public sealed record ErasureContributorResult
 		Success = false,
 		ErrorMessage = errorMessage
 	};
+
+	/// <summary>
+	/// Creates a failed result that still names the data the contributor lawfully kept.
+	/// </summary>
+	/// <param name="errorMessage">The error message.</param>
+	/// <param name="retainedData">The data deliberately kept, each entry carrying its legal basis.</param>
+	/// <returns>A failed result carrying its retentions.</returns>
+	/// <remarks>
+	/// Prefer this overload wherever a contributor can both retain and fail in one pass. A retention
+	/// withheld from the record because something else went wrong is the silence this type exists to
+	/// prevent, arriving by the ordinary route of one unreachable store.
+	/// </remarks>
+	public static ErasureContributorResult Failed(
+		string errorMessage,
+		IReadOnlyList<ErasureException> retainedData)
+	{
+		ArgumentNullException.ThrowIfNull(retainedData);
+
+		return new ErasureContributorResult
+		{
+			Success = false,
+			ErrorMessage = errorMessage,
+			RetainedData = [.. retainedData],
+		};
+	}
 }

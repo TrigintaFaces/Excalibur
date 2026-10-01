@@ -261,19 +261,14 @@ public sealed class ConformanceKitSuiteWiringShould
 
 		public Task AppendAsync_ToNewStream_ShouldSucceed_Test() => AppendAsync_ToNewStream_ShouldSucceed();
 		public Task AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict_Test() => AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict();
+		public Task AppendAsync_WithConflict_ShouldReportTheMeasuredVersion_Test() => AppendAsync_WithConflict_ShouldReportTheMeasuredVersion();
 		public Task ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed_Test() => ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed();
 		public Task ConcurrentAppend_DifferentAggregates_AllShouldSucceed_Test() => ConcurrentAppend_DifferentAggregates_AllShouldSucceed();
 		public Task ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate_Test() => ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate();
 
-		/// <summary>SAFETY: the lost-acknowledgement answer holds mid-stream, not only when the stream is created.</summary>
-		[Fact]
-		public Task ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate_Test() =>
-			ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate();
+		public Task ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate_Test() => ReAppendingMidStreamReportsSuccessAndDoesNotDuplicate();
 
-		/// <summary>SAFETY: the lost-acknowledgement answer holds for a multi-event batch, and never over a torn prefix.</summary>
-		[Fact]
-		public Task ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate_Test() =>
-			ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate();
+		public Task ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate_Test() => ReAppendingAMultiEventBatchReportsSuccessAndDoesNotDuplicate();
 		public Task AppendAsync_WithCorrectExpectedVersion_ShouldSucceed_Test() => AppendAsync_WithCorrectExpectedVersion_ShouldSucceed();
 		public Task AppendAsync_EmptyEvents_ShouldNotChangeVersion_Test() => AppendAsync_EmptyEvents_ShouldNotChangeVersion();
 		public Task LoadAsync_EmptyStream_ShouldReturnEmpty_Test() => LoadAsync_EmptyStream_ShouldReturnEmpty();
@@ -307,6 +302,7 @@ public sealed class ConformanceKitSuiteWiringShould
 			throw new NotSupportedException(NeverResolved);
 
 		public Task AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict_Test() => AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict();
+		public Task AppendAsync_WithConflict_ShouldReportTheMeasuredVersion_Test() => AppendAsync_WithConflict_ShouldReportTheMeasuredVersion();
 		public Task ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed_Test() => ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed();
 		public Task ConcurrentAppend_DifferentAggregates_AllShouldSucceed_Test() => ConcurrentAppend_DifferentAggregates_AllShouldSucceed();
 		public Task ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate_Test() => ReAppendingTheSameEventsReportsSuccessAndDoesNotDuplicate();
@@ -343,6 +339,7 @@ public sealed class ConformanceKitSuiteWiringShould
 			throw new NotSupportedException(NeverResolved);
 
 		public Task SaveAsync_NewSaga_ShouldSucceed_Test() => SaveAsync_NewSaga_ShouldSucceed();
+		public Task ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised_Test() => ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised();
 		public Task SaveAsync_ExistingSaga_ShouldUpdate_Test() => SaveAsync_ExistingSaga_ShouldUpdate();
 		public Task SaveAsync_CompletedSaga_ShouldPersistCompletedFlag_Test() => SaveAsync_CompletedSaga_ShouldPersistCompletedFlag();
 		public Task LoadAsync_NonExistent_ShouldReturnNull_Test() => LoadAsync_NonExistent_ShouldReturnNull();
@@ -368,6 +365,7 @@ public sealed class ConformanceKitSuiteWiringShould
 			throw new NotSupportedException(NeverResolved);
 
 		public Task SaveAsync_ExistingSaga_ShouldUpdate_Test() => SaveAsync_ExistingSaga_ShouldUpdate();
+		public Task ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised_Test() => ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised();
 		public Task SaveAsync_CompletedSaga_ShouldPersistCompletedFlag_Test() => SaveAsync_CompletedSaga_ShouldPersistCompletedFlag();
 		public Task LoadAsync_NonExistent_ShouldReturnNull_Test() => LoadAsync_NonExistent_ShouldReturnNull();
 		public Task LoadAsync_ExistingSaga_ShouldReturnState_Test() => LoadAsync_ExistingSaga_ShouldReturnState();
@@ -1107,6 +1105,8 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task UpdateHoldAsync_ExistingHold_ShouldUpdateAndReturnTrue_Test() => UpdateHoldAsync_ExistingHold_ShouldUpdateAndReturnTrue();
 		public Task UpdateHoldAsync_NonExistent_ShouldReturnFalse_Test() => UpdateHoldAsync_NonExistent_ShouldReturnFalse();
 		public Task UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException_Test() => UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException();
+		public Task UpdateHoldAsync_Succeeding_ShouldIncrementVersion_Test() => UpdateHoldAsync_Succeeding_ShouldIncrementVersion();
+		public Task UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact_Test() => UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact();
 		public Task GetActiveHoldsForDataSubjectAsync_ActiveHolds_ShouldReturnMatching_Test() => GetActiveHoldsForDataSubjectAsync_ActiveHolds_ShouldReturnMatching();
 		public Task GetActiveHoldsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly_Test() => GetActiveHoldsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly();
 		public Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped_Test() => GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped();
@@ -1137,6 +1137,8 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task UpdateHoldAsync_ExistingHold_ShouldUpdateAndReturnTrue_Test() => UpdateHoldAsync_ExistingHold_ShouldUpdateAndReturnTrue();
 		public Task UpdateHoldAsync_NonExistent_ShouldReturnFalse_Test() => UpdateHoldAsync_NonExistent_ShouldReturnFalse();
 		public Task UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException_Test() => UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException();
+		public Task UpdateHoldAsync_Succeeding_ShouldIncrementVersion_Test() => UpdateHoldAsync_Succeeding_ShouldIncrementVersion();
+		public Task UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact_Test() => UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact();
 		public Task GetActiveHoldsForDataSubjectAsync_ActiveHolds_ShouldReturnMatching_Test() => GetActiveHoldsForDataSubjectAsync_ActiveHolds_ShouldReturnMatching();
 		public Task GetActiveHoldsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly_Test() => GetActiveHoldsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly();
 		public Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped_Test() => GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped();

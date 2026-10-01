@@ -182,6 +182,12 @@ public sealed class AesGcmEnvelopeEncryptionShould
 			string? purpose,
 			DateTimeOffset? expiresAt,
 			CancellationToken cancellationToken) => throw new NotSupportedException();
+
+		public Task<KeyMetadata> CreateKeyIfAbsentAsync(
+			string keyId,
+			EncryptionAlgorithm algorithm,
+			string? purpose,
+			CancellationToken cancellationToken) => throw new NotSupportedException();
 	}
 
 	/// <summary>
@@ -213,6 +219,12 @@ public sealed class AesGcmEnvelopeEncryptionShould
 			EncryptionAlgorithm algorithm,
 			string? purpose,
 			DateTimeOffset? expiresAt,
+			CancellationToken cancellationToken) => throw new NotSupportedException();
+
+		public Task<KeyMetadata> CreateKeyIfAbsentAsync(
+			string keyId,
+			EncryptionAlgorithm algorithm,
+			string? purpose,
 			CancellationToken cancellationToken) => throw new NotSupportedException();
 
 		public Task<WrappedDataKey> WrapDataKeyAsync(

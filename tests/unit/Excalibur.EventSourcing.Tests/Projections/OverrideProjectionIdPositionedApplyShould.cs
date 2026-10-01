@@ -339,6 +339,24 @@ public sealed class OverrideProjectionIdPositionedApplyShould
 			return Task.FromResult(new ProjectionRefoldResult(ProjectionRefoldOutcome.Applied, atPosition));
 		}
 
+		// Overwrites BOTH state and position of an EXISTING row, for a caller that folded the whole
+		// stream from an empty seed. Unconditional on POSITION but conditional on EXISTENCE: an absent
+		// row was deleted, deletion is how erasure removes personal data, and a replay must not restore it.
+		public Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+			string id, Tally projection, long newPosition, CancellationToken cancellationToken)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+
+			if (!_rows.ContainsKey(id))
+			{
+				return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished));
+			}
+
+			_rows[id] = (Clone(projection), newPosition);
+
+			return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied));
+		}
+
 		public Task<Tally?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
 			Task.FromResult(Get(id));
 

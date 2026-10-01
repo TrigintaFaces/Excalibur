@@ -150,6 +150,38 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 	/// </remarks>
 	private IKeyManagementAdmin ActiveAdmin => (IKeyManagementAdmin)ActiveProvider;
 
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// <b>A decorator that does not forward silently disables every capability beneath it</b>, which the
+	/// interface says in its own words. This type wraps two providers and implements only some capabilities
+	/// itself, so without this override a consumer asking for anything else got <see langword="null"/> — not
+	/// an error, not a warning, just an absent capability that the wrapped provider was supplying.
+	/// </para>
+	/// <para>
+	/// The one that mattered is <see cref="IDurableKeyProvider"/>. This type does not implement it and the
+	/// cloud providers do, so a multi-region deployment backed by a real key vault reported as having NO
+	/// durable-key capability — which the durability gate reads as a VOLATILE key store, for keys that are in
+	/// fact durable. Capabilities this type implements itself are answered first, because for those the
+	/// decorator's own behaviour is the correct answer and the wrapped provider's is not.
+	/// </para>
+	/// </remarks>
+	public object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		// This type's own implementations win: where it participates in a capability, its behaviour spans both
+		// regions and the wrapped provider's would describe one of them.
+		if (serviceType.IsInstanceOfType(this))
+		{
+			return this;
+		}
+
+		// Everything else defers to the region currently serving reads and writes, so a capability follows the
+		// provider actually in use rather than describing a region this call would not reach.
+		return ActiveProvider.GetService(serviceType);
+	}
+
 	/// <inheritdoc />
 	public Task<RegionHealth> GetPrimaryHealthAsync(CancellationToken cancellationToken)
 	{
@@ -313,15 +345,28 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 			var sourceProvider = _isInFailoverMode ? _secondaryProvider : _primaryProvider;
 			var targetProvider = _isInFailoverMode ? _primaryProvider : _secondaryProvider;
 
-			await SyncKeysToRegionAsync(sourceProvider, targetProvider, cancellationToken, keyId).ConfigureAwait(false);
+			var transferred = await SyncKeysToRegionAsync(sourceProvider, targetProvider, cancellationToken, keyId)
+				.ConfigureAwait(false);
 
-			LastSuccessfulSync = DateTimeOffset.UtcNow;
-			_pendingKeys = 0;
+			// THE STAMP BELONGS TO A TRANSFER THAT HAPPENED, and this condition is the whole of it. The sync
+			// refuses to record a successful-sync instant precisely because no branch of it copies key
+			// material -- and this method used to record one anyway, three statements later, unconditionally.
+			// So the callee's deliberate silence bought nothing: the false success it declined to write was
+			// written here, the RPO check then computed its lag from a fabricated instant and reported the
+			// target met, and a consumer configuring disaster recovery saw a met RPO and an empty backlog over
+			// a passive region holding no key material -- learning otherwise at a failover.
+			//
+			// Zeroing the pending count is the same claim in another field, so it is under the same condition.
+			if (transferred)
+			{
+				LastSuccessfulSync = DateTimeOffset.UtcNow;
+				_pendingKeys = 0;
 
-			LogKeyReplicationCompleted(
-				_isInFailoverMode ? _options.Secondary.RegionId : _options.Primary.RegionId,
-				_isInFailoverMode ? _options.Primary.RegionId : _options.Secondary.RegionId,
-				keyId ?? "all");
+				LogKeyReplicationCompleted(
+					_isInFailoverMode ? _options.Secondary.RegionId : _options.Primary.RegionId,
+					_isInFailoverMode ? _options.Primary.RegionId : _options.Secondary.RegionId,
+					keyId ?? "all");
+			}
 		}
 		finally
 		{
@@ -479,12 +524,21 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 	private static async Task<bool> IsDestroyedInRegionAsync(
 		IKeyManagementProvider region,
 		string keyId,
+		int? version,
 		CancellationToken cancellationToken)
 	{
 		// A region that cannot answer authoritatively is not reported destroyed: its key lookup cannot tell a
 		// destroyed key from one still inside a recovery window.
-		return region.GetService(typeof(IKeyDestructionStatusProvider)) is IKeyDestructionStatusProvider destructionStatus
-			&& await destructionStatus.IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false);
+		if (region.GetService(typeof(IKeyDestructionStatusProvider)) is not IKeyDestructionStatusProvider destructionStatus)
+		{
+			return false;
+		}
+
+		// The question is asked of the same object the caller cares about: a whole handle when attesting an erasure,
+		// one version when deciding whether a particular ciphertext still has material behind it.
+		return version is { } keyVersion
+			? await destructionStatus.IsKeyDestroyedAsync(keyId, keyVersion, cancellationToken).ConfigureAwait(false)
+			: await destructionStatus.IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false);
 	}
 
 	#region IKeyManagementProvider + IKeyManagementAdmin Implementation (delegated to active region)
@@ -538,6 +592,39 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 		}
 
 		return result;
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Provisioning happens in the ACTIVE region only, exactly as <see cref="RotateKeyAsync"/> does, and the
+	/// atomicity is whatever that region's provider offers. This decorator adds none of its own: a key created
+	/// here is not present in the passive region, so a failover reaches a region where this handle is absent
+	/// and a later call there would provision DIFFERENT material under the same name. That is a property of
+	/// this decorator's replication, not of this operation, and it is why a multi-region deployment must not
+	/// treat a handle as stable across a failover.
+	/// </remarks>
+	public async Task<KeyMetadata> CreateKeyIfAbsentAsync(
+		string keyId,
+		EncryptionAlgorithm algorithm,
+		string? purpose,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var metadata = await ActiveProvider
+			.CreateKeyIfAbsentAsync(keyId, algorithm, purpose, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (_options.ReplicationMode == ReplicationMode.Synchronous)
+		{
+			await ReplicateKeysAsync(keyId, cancellationToken).ConfigureAwait(false);
+		}
+		else
+		{
+			_ = Interlocked.Increment(ref _pendingKeys);
+		}
+
+		return metadata;
 	}
 
 	/// <inheritdoc />
@@ -651,7 +738,76 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 
 		foreach (var region in new[] { _primaryProvider, _secondaryProvider })
 		{
-			if (!await IsDestroyedInRegionAsync(region, keyId, cancellationToken).ConfigureAwait(false))
+			if (!await IsDestroyedInRegionAsync(region, keyId, version: null, cancellationToken).ConfigureAwait(false))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// One version, and still every region: a version destroyed in the active region but surviving in the secondary
+	/// becomes readable again the moment failover flips <see cref="ActiveProvider"/>, so a version destroyed in one
+	/// of two regions is not destroyed. Each region is asked through its own
+	/// <see cref="IKeyDestructionStatusProvider"/> and a region whose provider does not implement it is never
+	/// reported destroyed. A region that cannot be asked throws.
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		foreach (var region in new[] { _primaryProvider, _secondaryProvider })
+		{
+			if (!await IsDestroyedInRegionAsync(region, keyId, version, cancellationToken).ConfigureAwait(false))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// One generation, and still every region. This is the overload that answers the failover hazard the other
+	/// two cannot: a version ordinal resolves against whichever region is active, so one integer designates
+	/// different material before and after a failover, while a generation identifier is minted per provisioning
+	/// and designates one piece of material or nothing at all.
+	/// </para>
+	/// <para>
+	/// A generation live in EITHER region is not destroyed, because a failover makes the surviving copy the one
+	/// that answers reads. A generation neither region holds is destroyed — which is also the answer when the
+	/// generation was minted in a region this deployment no longer has, and that is correct: the material is
+	/// unreachable either way.
+	/// </para>
+	/// <para>
+	/// <b>Forward requirement, stated here because this is where it will break.</b> Replication currently
+	/// copies no key material. When it does, it MUST copy the generation identifier with it; a replication that
+	/// provisioned fresh material in the passive region would mint a second generation at one handle, and this
+	/// method would then report a live generation as destroyed in the region that does not have it.
+	/// </para>
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+		ArgumentException.ThrowIfNullOrEmpty(generation);
+
+		foreach (var region in new[] { _primaryProvider, _secondaryProvider })
+		{
+			// A region that cannot answer authoritatively is never reported destroyed, exactly as for the other
+			// two overloads: its key lookup cannot tell a destroyed generation from a recoverable one.
+			if (region.GetService(typeof(IKeyDestructionStatusProvider)) is not IKeyDestructionStatusProvider status)
+			{
+				return false;
+			}
+
+			if (!await status.IsKeyDestroyedAsync(keyId, generation, cancellationToken).ConfigureAwait(false))
 			{
 				return false;
 			}
@@ -853,7 +1009,14 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 		}
 	}
 
-	private Task SyncKeysToRegionAsync(
+	/// <returns>
+	/// <see langword="true"/> only when this call actually transferred key material to the target region;
+	/// otherwise <see langword="false"/>. No branch below returns <see langword="true"/> today, and the
+	/// return value exists so that the caller cannot record a successful sync that did not happen — a
+	/// <see cref="Task"/> with no result made "nothing was copied" and "everything was copied" the same
+	/// observation, and the caller then recorded the second.
+	/// </returns>
+	private Task<bool> SyncKeysToRegionAsync(
 		IKeyManagementProvider source,
 		IKeyManagementProvider target,
 		CancellationToken cancellationToken,
@@ -895,7 +1058,10 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 			LogUnknownProviderForSync(sourceTypeName);
 		}
 
-		return Task.CompletedTask;
+		// No branch above copied anything, so nothing is claimed. When a branch that genuinely transfers
+		// material is added, it returns true and the caller's stamp follows it -- which is the only way the
+		// stamp can stay honest without every future author remembering to keep it so.
+		return Task.FromResult(false);
 	}
 
 	/// <summary>

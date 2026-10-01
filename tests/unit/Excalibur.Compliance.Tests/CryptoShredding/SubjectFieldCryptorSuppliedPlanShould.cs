@@ -59,7 +59,7 @@ public sealed class SubjectFieldCryptorSuppliedPlanShould
 		var record = new UnannotatedCustomer { SubjectId = "subject-1", Email = Plaintext };
 
 		await Cryptor()
-			.EncryptFieldsAsync(record, SubjectFieldCryptor.TypeFieldPlan.Describe(SubjectId, Email), CancellationToken.None)
+			.EncryptFieldsAsync(record, SubjectFieldCryptor.TypeFieldPlan.Describe(SubjectId, Email), aggregateType: null, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		record.Email!.StartsWith(EncryptedFieldBinding.StringEnvelopePrefix, StringComparison.Ordinal).ShouldBeTrue(
@@ -75,7 +75,7 @@ public sealed class SubjectFieldCryptorSuppliedPlanShould
 		var cryptor = Cryptor();
 		var record = new UnannotatedCustomer { SubjectId = "subject-1", Email = Plaintext };
 
-		await cryptor.EncryptFieldsAsync(record, plan, CancellationToken.None).ConfigureAwait(false);
+		await cryptor.EncryptFieldsAsync(record, plan, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
 		await cryptor.DecryptFieldsAsync(record, plan, CancellationToken.None).ConfigureAwait(false);
 
 		record.Email.ShouldBe(Plaintext);
@@ -92,7 +92,7 @@ public sealed class SubjectFieldCryptorSuppliedPlanShould
 
 		_ = await Should.ThrowAsync<EncryptionException>(async () =>
 			await Cryptor()
-				.EncryptFieldsAsync(record, SubjectFieldCryptor.TypeFieldPlan.Describe(SubjectId), CancellationToken.None)
+				.EncryptFieldsAsync(record, SubjectFieldCryptor.TypeFieldPlan.Describe(SubjectId), aggregateType: null, CancellationToken.None)
 				.ConfigureAwait(false)).ConfigureAwait(false);
 
 		record.Email.ShouldBe(Plaintext, "a refused encrypt must not have half-written the record");
@@ -111,8 +111,8 @@ public sealed class SubjectFieldCryptorSuppliedPlanShould
 		var encryptor = A.Fake<IFieldEncryptor>();
 
 #pragma warning disable CA2012 // FakeItEasy stores the ValueTask rather than awaiting it here
-		A.CallTo(() => encryptor.EncryptAsync(A<string>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
-			.ReturnsLazily((string _, ReadOnlyMemory<byte> plaintext, CancellationToken _) =>
+		A.CallTo(() => encryptor.EncryptAsync(A<string>._, A<RetentionScope>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
+			.ReturnsLazily((string _, RetentionScope _, ReadOnlyMemory<byte> plaintext, CancellationToken _) =>
 				new EncryptedData
 				{
 					Ciphertext = plaintext.ToArray(),

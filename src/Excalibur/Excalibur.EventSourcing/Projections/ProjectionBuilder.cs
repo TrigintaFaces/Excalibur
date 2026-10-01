@@ -301,6 +301,23 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			? CreateInlineApplyDelegate()
 			: null;
 
+		// GDPR erasure clears a subject from a read model by replaying the aggregate it just tombstoned,
+		// and the delegate is bound HERE because TProjection is in scope only at registration: closing
+		// ReapplyAsync<T> at run time would be the MakeGenericMethod pattern this project forbids.
+		//
+		// BOUND ONLY WHERE IT CAN WORK, which makes the case it cannot cover INEXPRESSIBLE rather than
+		// guarded. An EPHEMERAL projection persists no row, so a tombstoned stream already yields a clean
+		// result and there is nothing for an erasure to miss. A KEYED projection maps many aggregates onto
+		// one row, so replaying a single aggregate cannot produce a correct row for such a key — writing
+		// the aggregate id would target a key no reader queries, and writing the derived key would
+		// overwrite it with a state missing every other contributing aggregate. Recovery refuses that by
+		// design; a null delegate is the same refusal, stated where erasure can act on it instead of
+		// discovered from a thrown exception.
+		var clearForAggregate =
+			_mode is ProjectionMode.Inline or ProjectionMode.Async && !_projection.HasKeySelectors
+				? CreateClearForAggregateDelegate()
+				: null;
+
 		// Type-erase the search text delegates for storage in the non-generic ProjectionRegistration.
 		// The cast from object back to TProjection is safe because the projection engine only
 		// invokes these with instances of TProjection.
@@ -321,10 +338,47 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			_storeType,
 			_options,
 			searchTextComputer,
-			searchTextSetter);
+			searchTextSetter,
+			clearForAggregate);
 
 		registry.Register(registration);
 	}
+
+	/// <summary>
+	/// Builds the delegate that clears one erased aggregate's contribution from this projection.
+	/// </summary>
+	/// <remarks>
+	/// Closed over <typeparamref name="TProjection"/> at registration time, so the recovery call is an
+	/// ordinary generic invocation rather than a reflective one.
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private static ProjectionRegistration.ClearForAggregateDelegate CreateClearForAggregateDelegate() =>
+		static async (serviceProvider, aggregateId, aggregateType, cancellationToken) =>
+		{
+			// NO ROW MEANS NOTHING TO CLEAR, and this read is what stops a compliance operation WRITING to
+			// a read model it was only asked to clear.
+			//
+			// Recovery CREATES a row when none exists — that is its primary documented job, repairing an
+			// inline projection that failed after its events were committed — so invoking it unconditionally
+			// would materialize an empty row in every persisted projection that never held this aggregate.
+			// A consumer's GetByIdAsync would then return a default-valued projection where it returned
+			// null, which is a read-model change caused by erasing an unrelated subject.
+			//
+			// The check belongs here and NOT inside ReapplyAsync, whose create-the-missing-row behaviour is
+			// correct for the caller it was written for. It also skips the replay entirely for a projection
+			// that never saw the subject, which is the common case on a host with several read models.
+			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
+
+			if (await store.GetByIdAsync(aggregateId, cancellationToken).ConfigureAwait(false) is null)
+			{
+				return;
+			}
+
+			await serviceProvider.GetRequiredService<IProjectionRecovery>()
+				.ReapplyAsync<TProjection>(aggregateId, aggregateType, cancellationToken)
+				.ConfigureAwait(false);
+		};
 
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -398,9 +452,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 				var primaryAlreadyFolded =
 					positioned is not null
 					&& readPositions.TryGetValue(projectionId, out var alreadyAt)
-					&& alreadyAt is { } storedAt
-					&& projectionEvent.GlobalPosition is { } eventPos
-					&& eventPos <= storedAt;
+					&& PositionedProjectionWriter<TProjection>.AlreadyFolded(
+						alreadyAt, projectionEvent.GlobalPosition);
 
 				// A SYNCHRONOUS handler cannot set an override: the override id is read off the
 				// ProjectionHandlerContext, and neither synchronous shape is handed one. So for a
@@ -503,9 +556,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 						var overrideAlreadyFolded =
 							positioned is not null
 							&& readPositions.TryGetValue(customId, out var customAt)
-							&& customAt is { } customStoredAt
-							&& projectionEvent.GlobalPosition is { } customEventPos
-							&& customEventPos <= customStoredAt;
+							&& PositionedProjectionWriter<TProjection>.AlreadyFolded(
+								customAt, projectionEvent.GlobalPosition);
 
 						if (!overrideAlreadyFolded)
 						{
@@ -676,9 +728,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 					// recomputes the same state, the store refuses it as non-advancing, and the reader
 					// stalls on the overlap.
 					if (positioned is not null
-						&& readPositions[id] is { } storedAt
-						&& projectionEvent.GlobalPosition is { } eventPos
-						&& eventPos <= storedAt)
+						&& PositionedProjectionWriter<TProjection>.AlreadyFolded(
+							readPositions[id], projectionEvent.GlobalPosition))
 					{
 						continue;
 					}
@@ -784,9 +835,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 				// Skip what is already folded in. Without this a redelivered batch recomputes the same
 				// state, the store refuses it as non-advancing, and the reader never progresses.
 				if (positioned is not null
-					&& readPositions[id] is { } stored
-					&& projectionEvent.GlobalPosition is { } pos
-					&& pos <= stored)
+					&& PositionedProjectionWriter<TProjection>.AlreadyFolded(
+						readPositions[id], projectionEvent.GlobalPosition))
 				{
 					continue;
 				}

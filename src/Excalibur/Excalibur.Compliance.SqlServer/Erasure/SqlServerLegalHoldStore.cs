@@ -228,13 +228,13 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 
 		var sql = $@"
 			INSERT INTO {_options.FullTableName}
-				(HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference,
+				(HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference,
 				 Description, IsActive, ExpiresAt, CreatedBy, CreatedAt,
-				 ReleasedBy, ReleasedAt, ReleaseReason)
+				 ReleasedBy, ReleasedAt, ReleaseReason, Version)
 			VALUES
-				(@HoldId, @DataSubjectIdHash, @IdType, @TenantId, @Basis, @CaseReference,
+				(@HoldId, @DataSubjectIdHash, @IdType, @TenantId, @BasisV2, @CaseReference,
 				 @Description, @IsActive, @ExpiresAt, @CreatedBy, @CreatedAt,
-				 @ReleasedBy, @ReleasedAt, @ReleaseReason)";
+				 @ReleasedBy, @ReleasedAt, @ReleaseReason, 0)";
 
 		// The ambient term is authoritative on the write. Stamping the hold's own TenantId would let one
 		// tenant place a hold in another tenant's partition — or, by leaving it null, a global hold that
@@ -255,7 +255,7 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 				IdType = hold.IdType.HasValue ? (int?)hold.IdType.Value : null,
 				TenantId = KeyedTenantPartition.FromStoredValue(
 				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId,
-				Basis = (int)hold.Basis,
+				BasisV2 = (int)hold.Basis,
 				hold.CaseReference,
 				hold.Description,
 				hold.IsActive,
@@ -291,9 +291,9 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		var tenant = AmbientScope;
 
 		var sql = $@"
-			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference,
+			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference,
 				   Description, IsActive, ExpiresAt, CreatedBy, CreatedAt,
-				   ReleasedBy, ReleasedAt, ReleaseReason
+				   ReleasedBy, ReleasedAt, ReleaseReason, Version
 			FROM {_options.FullTableName}
 			WHERE HoldId = @HoldId{TenantPredicate("TenantId")}";
 
@@ -327,15 +327,16 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 			SET DataSubjectIdHash = @DataSubjectIdHash,
 				IdType = @IdType,
 				TenantId = @TenantId,
-				Basis = @Basis,
+				BasisV2 = @BasisV2,
 				CaseReference = @CaseReference,
 				Description = @Description,
 				IsActive = @IsActive,
 				ExpiresAt = @ExpiresAt,
 				ReleasedBy = @ReleasedBy,
 				ReleasedAt = @ReleasedAt,
-				ReleaseReason = @ReleaseReason
-			WHERE HoldId = @HoldId{TenantOwnershipPredicate("TenantId")}";
+				ReleaseReason = @ReleaseReason,
+				Version = Version + 1
+			WHERE HoldId = @HoldId AND Version = @ExpectedVersion{TenantOwnershipPredicate("TenantId")}";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -348,7 +349,8 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 			TenantId = KeyedTenantPartition.FromStoredValue(
 				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId,
 			AmbientTenantId = tenant.TenantId,
-			Basis = (int)hold.Basis,
+			ExpectedVersion = hold.Version,
+			BasisV2 = (int)hold.Basis,
 			hold.CaseReference,
 			hold.Description,
 			hold.IsActive,
@@ -358,7 +360,27 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 			hold.ReleaseReason
 		}, cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-		return affected > 0;
+		if (affected > 0)
+		{
+			return true;
+		}
+
+		// Zero rows conflates three conditions -- absent, another tenant's, and moved under us -- and the
+		// caller must tell them apart, because only the last one means "your premise expired, re-decide".
+		// One extra round trip, and only on the path that already failed.
+		var storedVersion = await connection.QuerySingleOrDefaultAsync<int?>(
+			new CommandDefinition(
+				$@"SELECT Version FROM {_options.FullTableName}
+				   WHERE HoldId = @HoldId{TenantOwnershipPredicate("TenantId")}",
+				new { hold.HoldId, AmbientTenantId = tenant.TenantId },
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+		if (storedVersion is null)
+		{
+			return false;
+		}
+
+		throw LegalHoldConcurrencyException.ForHold(hold.HoldId, hold.Version, storedVersion.Value);
 	}
 
 	/// <inheritdoc />
@@ -401,9 +423,9 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 			: string.Empty;
 
 		var sql = $@"
-			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference,
+			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference,
 				   Description, IsActive, ExpiresAt, CreatedBy, CreatedAt,
-				   ReleasedBy, ReleasedAt, ReleaseReason
+				   ReleasedBy, ReleasedAt, ReleaseReason, Version
 			FROM {_options.FullTableName}
 			WHERE DataSubjectIdHash = @DataSubjectIdHash
 			  AND IsActive = 1{TenantPredicate("TenantId")}{callerPredicate}
@@ -439,9 +461,9 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		var tenant = AmbientScope;
 
 		var sql = $@"
-			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference,
+			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference,
 				   Description, IsActive, ExpiresAt, CreatedBy, CreatedAt,
-				   ReleasedBy, ReleasedAt, ReleaseReason
+				   ReleasedBy, ReleasedAt, ReleaseReason, Version
 			FROM {_options.FullTableName}
 			WHERE {TenantMatchClause("TenantId", "@TenantId")}
 			  AND IsActive = 1{TenantPredicate("TenantId")}
@@ -489,9 +511,9 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		var whereClause = string.Join(" AND ", whereClauses);
 
 		var sql = $@"
-			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference,
+			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference,
 				   Description, IsActive, ExpiresAt, CreatedBy, CreatedAt,
-				   ReleasedBy, ReleasedAt, ReleaseReason
+				   ReleasedBy, ReleasedAt, ReleaseReason, Version
 			FROM {_options.FullTableName}
 			WHERE {whereClause}
 			ORDER BY CreatedAt DESC";
@@ -553,9 +575,9 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 			: string.Empty;
 
 		var sql = $@"
-			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference,
+			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference,
 				   Description, IsActive, ExpiresAt, CreatedBy, CreatedAt,
-				   ReleasedBy, ReleasedAt, ReleaseReason
+				   ReleasedBy, ReleasedAt, ReleaseReason, Version
 			FROM {_options.FullTableName}
 			{whereClause}
 			ORDER BY CreatedAt DESC";
@@ -582,9 +604,9 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
-			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, Basis, CaseReference,
+			SELECT HoldId, DataSubjectIdHash, IdType, TenantId, BasisV2, CaseReference,
 				   Description, IsActive, ExpiresAt, CreatedBy, CreatedAt,
-				   ReleasedBy, ReleasedAt, ReleaseReason
+				   ReleasedBy, ReleasedAt, ReleaseReason, Version
 			FROM {_options.FullTableName}
 			WHERE IsActive = 1
 			  AND ExpiresAt IS NOT NULL
@@ -730,8 +752,11 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
 					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
 					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
-					+ "that path only creates tables that are absent. Run the shipped migration scripts against "
-					+ "this database, then restart.");
+					+ "that path only creates tables that are absent. WE SHIP NO ALTER SCRIPT for this: the "
+					+ "create scripts already declare these columns, so a freshly provisioned database is "
+					+ "correct and only a pre-existing one reaches this. Either re-provision from the shipped "
+					+ "create script, or add the listed column(s) by hand with a NOT NULL default matching a "
+					+ "never-updated row. Then restart.");
 			}
 		}
 	}
@@ -748,9 +773,9 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 	[
 		(_options.FullTableName,
 		[
-			"HoldId", "DataSubjectIdHash", "IdType", "TenantId", "Basis", "CaseReference",
+			"HoldId", "DataSubjectIdHash", "IdType", "TenantId", "BasisV2", "CaseReference",
 			"Description", "IsActive", "ExpiresAt", "CreatedBy", "CreatedAt",
-			"ReleasedBy", "ReleasedAt", "ReleaseReason",
+			"ReleasedBy", "ReleasedAt", "ReleaseReason", "Version",
 		]),
 	];
 
@@ -773,7 +798,7 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 					IdType INT NULL,
 					TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
 						CONSTRAINT DF_{_options.TableName}_TenantId DEFAULT '{TenantScope.UntenantedSentinel}',
-					Basis INT NOT NULL,
+					BasisV2 INT NOT NULL,
 					CaseReference NVARCHAR(256) NOT NULL,
 					Description NVARCHAR(2000) NOT NULL,
 					IsActive BIT NOT NULL DEFAULT 1,
@@ -783,6 +808,7 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 					ReleasedBy NVARCHAR(256) NULL,
 					ReleasedAt DATETIMEOFFSET NULL,
 					ReleaseReason NVARCHAR(1000) NULL,
+					Version INT NOT NULL CONSTRAINT DF_{_options.TableName}_Version DEFAULT 0,
 					INDEX IX_{_options.TableName}_DataSubject (DataSubjectIdHash, IsActive),
 					INDEX IX_{_options.TableName}_TenantId (TenantId, IsActive),
 					INDEX IX_{_options.TableName}_ExpiresAt (IsActive, ExpiresAt) WHERE IsActive = 1 AND ExpiresAt IS NOT NULL
@@ -807,7 +833,7 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		public string? DataSubjectIdHash { get; init; }
 		public int? IdType { get; init; }
 		public string? TenantId { get; init; }
-		public int Basis { get; init; }
+		public int BasisV2 { get; init; }
 		public string CaseReference { get; init; } = string.Empty;
 		public string Description { get; init; } = string.Empty;
 		public bool IsActive { get; init; }
@@ -817,6 +843,7 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		public string? ReleasedBy { get; init; }
 		public DateTimeOffset? ReleasedAt { get; init; }
 		public string? ReleaseReason { get; init; }
+		public int Version { get; init; }
 
 		public LegalHold ToLegalHold() => new()
 		{
@@ -824,7 +851,7 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 			DataSubjectIdHash = DataSubjectIdHash,
 			IdType = IdType.HasValue ? (DataSubjectIdType)IdType.Value : null,
 			TenantId = TenantId,
-			Basis = (LegalHoldBasis)Basis,
+			Basis = (LegalHoldBasis)BasisV2,
 			CaseReference = CaseReference,
 			Description = Description,
 			IsActive = IsActive,
@@ -833,7 +860,8 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 			CreatedAt = CreatedAt,
 			ReleasedBy = ReleasedBy,
 			ReleasedAt = ReleasedAt,
-			ReleaseReason = ReleaseReason
+			ReleaseReason = ReleaseReason,
+			Version = Version
 		};
 	}
 }

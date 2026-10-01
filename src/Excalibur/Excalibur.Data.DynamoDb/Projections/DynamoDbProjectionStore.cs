@@ -180,10 +180,11 @@ public sealed class DynamoDbProjectionStore<
 		//
 		// A PutItem replaces the whole item, so a position the row used to carry vanishes with it.
 		// Omitting the field left the row reading back exactly like a row that never had a position --
-		// and those two must be treated OPPOSITELY: a never-positioned row IS a complete fold and is
-		// adoptable, whereas a row whose state was just replaced by a value this store cannot relate to
-		// the stream is not. Adopting the second stamps a position onto a state that does not contain
-		// that prefix, and every event below it is then silently missing from the read model forever.
+		// and those two must stay DISTINGUISHABLE: a never-positioned row IS a complete fold
+		// whose coordinate is merely unknown, whereas a row whose state was just replaced holds a fold over
+		// no known prefix at all. A positioned write refuses BOTH -- neither carries a number it can advance
+		// from -- so what the distinction decides is not the next write but what the row can honestly be
+		// said to hold while it waits to be rebuilt, which is what an operator reads it for.
 		//
 		// The sentinel rides the same single PutItem as the state, so there is no window in which a
 		// destroyed position is recorded as a never-established one.
@@ -199,9 +200,14 @@ public sealed class DynamoDbProjectionStore<
 	/// <inheritdoc />
 	/// <remarks>
 	/// The same single <c>PutItem</c> as <see cref="UpsertAsync"/>, differing only in what it asserts:
-	/// this state IS a complete fold, so a later positioned writer may adopt the row. Unconditional on
+	/// this state IS a complete fold, only its coordinate unknown. Unconditional on
 	/// purpose -- the caller is claiming completeness, not a place in the stream, so there is no
 	/// position for a condition to be written against.
+	/// <para>
+	/// <b>The row is still REFUSED by a positioned write</b>, which has no number to advance from. What
+	/// this buys over the blind surface is that the row reads back as a complete answer awaiting a
+	/// coordinate rather than as a state related to no prefix at all; a rebuild is what numbers it.
+	/// </para>
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -219,6 +225,58 @@ public sealed class DynamoDbProjectionStore<
 			TableName = _options.TableName,
 			Item = BuildItem(id, projection, ProjectionPosition.Unnumbered),
 		}, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// The same single <c>PutItem</c> as <see cref="UpsertUnnumberedAsync"/>, differing in two things: the
+	/// position the item carries is a real number rather than the unnumbered sentinel, and the write
+	/// carries a condition. The condition is <c>attribute_exists</c> on the partition key ALONE -- no
+	/// position conjunct -- so the write is unconditional on POSITION, which is what a state folded from
+	/// an empty seed requires, while remaining conditional on the item EXISTING.
+	/// </para>
+	/// <para>
+	/// There is no <c>attribute_not_exists</c> arm. An absent item means the projection was DELETED,
+	/// deletion is how erasure removes personal data, and a whole-stream replay is precisely the write
+	/// that could reconstruct it. The <c>ConditionalCheckFailedException</c> DynamoDB raises is what
+	/// reports the absence, and it comes from the write itself rather than from a read the item could be
+	/// deleted after.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		TProjection projection,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentNullException.ThrowIfNull(projection);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			_ = await _client.PutItemAsync(new PutItemRequest
+			{
+				TableName = _options.TableName,
+				Item = BuildItem(id, projection, ProjectionPosition.At(newPosition)),
+				ConditionExpression = "attribute_exists(#pk)",
+				ExpressionAttributeNames = new Dictionary<string, string>(StringComparer.Ordinal)
+				{
+					["#pk"] = _options.PartitionKeyName,
+				},
+			}, cancellationToken).ConfigureAwait(false);
+
+			return new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied);
+		}
+		catch (ConditionalCheckFailedException)
+		{
+			// The only conjunct is existence, so the only way to fail it is for the item to be gone.
+			return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
+		}
 	}
 
 	/// <inheritdoc/>
@@ -835,7 +893,9 @@ public sealed class DynamoDbProjectionStore<
 
 		if (response.HttpStatusCode != HttpStatusCode.OK || !response.IsItemSet)
 		{
-			return (null, ProjectionPosition.Unnumbered);
+			// An absent item is not a fold over any prefix. Unnumbered would assert a complete fold over
+			// state that does not exist.
+			return (null, ProjectionPosition.Unplaceable);
 		}
 
 		return (DeserializeItem(response.Item), ReadPosition(response.Item));
@@ -873,6 +933,15 @@ public sealed class DynamoDbProjectionStore<
 		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
 		ArgumentNullException.ThrowIfNull(projection);
 
+		// A NEGATIVE EXPECTATION IS THE ADOPT LICENCE THROUGH A DIFFERENT DOOR. The negatives are the
+		// sentinel space for the two states that carry no number, so a caller naming one as "the position I
+		// read" would be matching a row this store refuses by design. ExpectedPositionOrNull is the only
+		// legal source for this argument and never yields a negative.
+		if (expectedPosition is { } claimed)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(claimed, nameof(expectedPosition));
+		}
+
 		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
 		var item = BuildItem(id, projection, ProjectionPosition.At(newPosition));
@@ -883,7 +952,16 @@ public sealed class DynamoDbProjectionStore<
 		// ValidationException, which is not the ConditionalCheckFailedException caught below. Either
 		// one therefore escapes the catch, faults the apply delegate, and halts the whole subscription
 		// at the first projection it touches. Measured against a real service, in both directions.
+		//
+		// THE NAMES ARE PER BRANCH FOR THE SAME REASON. DynamoDB rejects an unreferenced entry in
+		// ExpressionAttributeNames exactly as it rejects one in ExpressionAttributeValues, so the
+		// create-if-absent branch -- whose condition names only the partition key -- must not declare the
+		// metadata names it no longer mentions.
 		var values = new Dictionary<string, AttributeValue>(StringComparer.Ordinal);
+		var names = new Dictionary<string, string>(StringComparer.Ordinal)
+		{
+			["#pk"] = _options.PartitionKeyName,
+		};
 
 		string condition;
 		if (expectedPosition is { } expected)
@@ -893,37 +971,29 @@ public sealed class DynamoDbProjectionStore<
 			// erasure, reported as success.
 			condition =
 				$"attribute_exists(#pk) AND #meta.#pos = :expected AND :new > #meta.#pos";
+			names["#meta"] = MetadataKey;
+			names["#pos"] = MetaFieldPosition;
 			values[":expected"] = new AttributeValue { N = expected.ToString(CultureInfo.InvariantCulture) };
 			values[":new"] = new AttributeValue { N = newPosition.ToString(CultureInfo.InvariantCulture) };
 		}
 		else
 		{
-			// The caller read no position. ADOPTION MATCHES EXACTLY ONE OF THE THREE STATES, and the
-			// disjunction has to name it now that the attribute is always written:
+			// The caller read no position, so this is CREATE-IF-ABSENT and NOTHING ELSE:
 			//
-			//   absent                      -> first disjunct  -> put            -> Applied
-			//   attribute missing (legacy)  -> second disjunct -> put (adopted)  -> Applied
-			//   unnumbered sentinel         -> third disjunct  -> put (adopted)  -> Applied
-			//   unplaceable sentinel        -> none            -> refused        -> Unplaceable
-			//   a real position             -> none            -> refused        -> Superseded
+			//   absent                   -> condition holds  -> put         -> Applied
+			//   present, real position   -> refused                         -> Superseded
+			//   present, no number       -> refused                         -> Unplaceable
 			//
-			// The third disjunct is the new one; the second is kept for items written before the
-			// attribute existed. Both denote a complete fold whose coordinate is merely unknown, so
-			// folding this batch onto them and stamping this batch's position states something true.
-			//
-			// AN UNPLACEABLE ROW IS NOT IN THE SET, and that is the whole reason the sentinel exists.
-			// Its state is not a fold over any prefix, so stamping a position onto it would assert a
-			// prefix the state does not hold. Before the sentinel such a row was indistinguishable
-			// from a legacy one and was adopted silently.
+			// THE TWO no-number DISJUNCTS ARE GONE, and their removal is the point. They matched an item
+			// whose position attribute was absent or held the unnumbered sentinel and PUT over it, stamping
+			// this batch's position onto a state whose prefix nobody established -- so every event below
+			// that position was absent from the read model while the position said it was present. A caller
+			// that read nothing knows nothing about the prefix an existing item covers, so it may only
+			// create.
 			//
 			// Still never an unconditional put, which would let a late starter reset a projection a
 			// positioned writer is already advancing.
-			condition =
-				"attribute_not_exists(#pk) OR attribute_not_exists(#meta.#pos) OR #meta.#pos = :unnumbered";
-			values[":unnumbered"] = new AttributeValue
-			{
-				N = ProjectionPosition.Unnumbered.ToStored().ToString(CultureInfo.InvariantCulture),
-			};
+			condition = "attribute_not_exists(#pk)";
 		}
 
 		try
@@ -933,15 +1003,10 @@ public sealed class DynamoDbProjectionStore<
 				TableName = _options.TableName,
 				Item = item,
 				ConditionExpression = condition,
-				ExpressionAttributeNames = new Dictionary<string, string>(StringComparer.Ordinal)
-				{
-					["#pk"] = _options.PartitionKeyName,
-					["#meta"] = MetadataKey,
-					["#pos"] = MetaFieldPosition,
-				},
+				ExpressionAttributeNames = names,
 				// OMITTED, not empty, when the condition references no values. DynamoDB rejects a
 				// request carrying a value no expression uses ("unused in expressions") AND a request
-				// carrying an empty map ("must not be empty"), so the create/adopt branch -- whose
+				// carrying an empty map ("must not be empty"), so the create-if-absent branch -- whose
 				// condition is purely attribute_not_exists -- must send neither.
 				ExpressionAttributeValues = values.Count == 0 ? null : values,
 				ReturnValuesOnConditionCheckFailure =
@@ -962,15 +1027,19 @@ public sealed class DynamoDbProjectionStore<
 				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 			}
 
-			// An unplaceable row is terminal and is reported as such rather than as a supersede. A
-			// superseded caller re-reads and retries; this row yields the same refusal on every
-			// re-read, so reporting Superseded here is an unbounded redelivery loop against a
-			// projection that can only be fixed by rebuilding it.
+			// Terminal, not a supersede: there is no number to advance from, and re-reading yields the
+			// same value and the same refusal, so Superseded here is an unbounded redelivery loop. That is the
+			// arm a careless edit reintroduces, and a numberless row landing in it retries forever.
+			//
+			// BOTH no-number states report the SAME outcome, deliberately. This result describes what the WRITE
+			// did; it carries no state, and the position was read at a different instant from the one the write
+			// was refused at, so an outcome characterising the stored STATE would attribute a property of the
+			// row-at-read-time to a write refused earlier. A caller that needs to know what the row holds reads
+			// its position, where ProjectionPositionKind reports it as a measured fact.
 			var held = ReadPosition(ex.Item);
-			return held.Kind == ProjectionPositionKind.Unplaceable
-				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
-				: new ProjectionAdvanceResult(
-					ProjectionAdvanceOutcome.Superseded, held.ExpectedPositionOrNull);
+			return held.Kind == ProjectionPositionKind.Positioned
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, held.Value)
+				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 		}
 	}
 
@@ -1091,21 +1160,31 @@ public sealed class DynamoDbProjectionStore<
 
 	/// <summary>Decodes the stored attribute into one of the three states.</summary>
 	/// <remarks>
-	/// An ABSENT attribute reads as <see cref="ProjectionPositionKind.Unnumbered"/>, which is what
-	/// <see cref="ProjectionPosition.FromStored"/> does with a null. That is correct and deliberate: an
-	/// item written before this attribute existed IS a complete fold, only its coordinate is unknown, so
-	/// it stays adoptable. Every provider goes through FromStored so the eight of them cannot drift.
+	/// <para>
+	/// An ABSENT attribute, and a numeric attribute whose text does not parse, BOTH read as
+	/// <see cref="ProjectionPositionKind.Unplaceable"/> -- because both go through
+	/// <see cref="ProjectionPosition.FromStored"/> with a null, and that is what it does with one. Neither
+	/// is evidence of a fold: an absent attribute is absence of evidence, and one that will not parse is a
+	/// value this provider has no reading of at all.
+	/// </para>
+	/// <para>
+	/// <b>Every failure case routes through FromStored rather than constructing a value here</b>, which is
+	/// what makes "the eight providers cannot drift" true rather than merely intended. This method used to
+	/// return <c>Unnumbered</c> directly on both of those paths, so it was one of the two providers the
+	/// sentence excluded while carrying it.
+	/// </para>
 	/// </remarks>
 	private static ProjectionPosition ReadPosition(Dictionary<string, AttributeValue> item)
 	{
 		if (!item.TryGetValue(MetadataKey, out var meta) || meta.M is null
 			|| !meta.M.TryGetValue(MetaFieldPosition, out var pos) || pos.N is null)
 		{
-			return ProjectionPosition.Unnumbered;
+			return ProjectionPosition.FromStored(null);
 		}
 
-		return long.TryParse(pos.N, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-			? ProjectionPosition.FromStored(parsed)
-			: ProjectionPosition.Unnumbered;
+		return ProjectionPosition.FromStored(
+			long.TryParse(pos.N, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+				? parsed
+				: null);
 	}
 }

@@ -334,9 +334,14 @@ This gives you full control over compensation ordering, parallel compensation, a
 
 ## Idempotent Event Replay
 
-`SagaState` automatically tracks processed event IDs. If the same event is delivered twice (crash replay, duplicate delivery), the `SagaCoordinator` detects this via `TryMarkEventProcessed(eventId)` and skips the duplicate silently.
+`SagaState` remembers which deliveries a saga has already processed, keyed on the **envelope message ID the delivery carries** (`IMessageContext.MessageId`). If the same delivery arrives twice — a crash replay, a transport redelivery — the `SagaCoordinator` skips it without invoking your handler. `StepId` plays no part in this.
 
-The processed event set is bounded to 1,000 entries, and the oldest entries are trimmed when the limit is exceeded. This follows the NServiceBus idempotent saga pattern.
+Two limits are worth knowing before you rely on it:
+
+- The remembered set holds **1,000 identities per saga instance** and evicts the oldest first, so a redelivery past that bound runs the step again.
+- A delivery that carries **no** message ID is processed and **not** deduplicated — the framework will not invent an identity. It logs a warning the first time each event type does this and counts every occurrence in `excalibur.saga.undeduplicable_deliveries`.
+
+**So write idempotent handlers.** The set is a bounded window, not exactly-once; if you need unbounded deduplication, put the transactional inbox in front of the saga.
 
 ## Common Mistakes
 

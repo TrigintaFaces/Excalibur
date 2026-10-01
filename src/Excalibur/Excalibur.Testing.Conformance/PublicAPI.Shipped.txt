@@ -650,6 +650,7 @@ virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.CreateErasu
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.CreateErasureRequest(System.Guid? requestId = null, string? dataSubjectId = null, string? tenantId = null) -> Excalibur.Compliance.ErasureRequest!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GenerateRequestId() -> System.Guid
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetCertificateAsync_ByRequestId_ShouldReturnCertificate() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetCertificateAsync_WhenRequestHasTwoCertificates_ShouldReturnTheNewest() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetCertificateByIdAsync_ShouldReturnCertificate() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetScheduledRequestsAsync_ShouldOrderByScheduledTime() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetScheduledRequestsAsync_ShouldReturnDueRequests() -> System.Threading.Tasks.Task!
@@ -664,6 +665,9 @@ virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordCance
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordCancellationAsync_Scheduled_ShouldCancel() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordCompletionAsync_NonExistent_ShouldThrowKeyNotFoundException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordCompletionAsync_ShouldMarkCompleted() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_NonExistentRequest_ShouldThrowKeyNotFoundException() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_ShouldAppendIdempotentlyAndSurvive() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.ResetDataAsync() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.SaveCertificateAsync_DuplicateId_ShouldThrowDuplicateErasureCertificateException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.SaveCertificateAsync_ShouldNotVerifyACertificateWhoseClaimsWereAltered() -> System.Threading.Tasks.Task!
@@ -687,6 +691,7 @@ virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_L
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_NonExistentStream_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_ToNewStream_ShouldSucceed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_UnaddressableAggregateId_ShouldThrow() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_WithConflict_ShouldReportTheMeasuredVersion() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_WithCorrectExpectedVersion_ShouldSucceed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_WithExpectedVersionBeyondTail_ShouldReturnConcurrencyConflict() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict() -> System.Threading.Tasks.Task!
@@ -813,6 +818,9 @@ virtual Excalibur.Testing.Conformance.KeyEscrowServiceConformanceTestKit.RevokeE
 virtual Excalibur.Testing.Conformance.KeyEscrowServiceConformanceTestKit.RevokeEscrowAsync_NullKeyId_ShouldThrowArgumentException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.CleanupAsync() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.CreateAdmin() -> Excalibur.Compliance.IKeyManagementAdmin!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.CreateKeyIfAbsentAsync_ConcurrentFirstWrites_ShouldNotDemoteEachOther() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.CreateKeyIfAbsentAsync_WhenAbsent_ShouldCreateOneActiveVersion() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.CreateKeyIfAbsentAsync_WhenPresent_ShouldNotRotateOrDemote() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.DeleteKeyAsync_NonExistent_ShouldReturnFalse() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.Disposed_Provider_ShouldThrowObjectDisposedException() -> System.Threading.Tasks.Task!
@@ -826,6 +834,15 @@ virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.Ge
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.GetKeyAsync_NullKeyId_ShouldThrowArgumentException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.GetKeyVersionAsync_ExistingVersion_ShouldReturnCorrectMetadata() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.GetKeyVersionAsync_NonExistentVersion_ShouldReturnNull() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.ListKeysAsync_FilterByPurpose_ShouldFilterCorrectly() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.ListKeysAsync_FilterByStatus_ShouldFilterCorrectly() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.ListKeysAsync_NoKeys_ShouldReturnEmptyList() -> System.Threading.Tasks.Task!
@@ -924,6 +941,8 @@ virtual Excalibur.Testing.Conformance.LegalHoldStoreConformanceTestKit.SaveHoldA
 virtual Excalibur.Testing.Conformance.LegalHoldStoreConformanceTestKit.UpdateHoldAsync_ExistingHold_ShouldUpdateAndReturnTrue() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.LegalHoldStoreConformanceTestKit.UpdateHoldAsync_NonExistent_ShouldReturnFalse() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.LegalHoldStoreConformanceTestKit.UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.LegalHoldStoreConformanceTestKit.UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.LegalHoldStoreConformanceTestKit.UpdateHoldAsync_Succeeding_ShouldIncrementVersion() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.ExportMasterKeyAsync_NonExistentKey_ShouldThrowMasterKeyBackupException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.ExportMasterKeyAsync_NullKeyId_ShouldThrowArgumentException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.ExportMasterKeyAsync_ValidKey_ShouldReturnBackup() -> System.Threading.Tasks.Task!
@@ -1066,22 +1085,25 @@ virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.SqlP
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.TestConnectionAsync_ShouldReachTheDatabase_WithoutAnExplicitInitialize() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Admit_exactly_one_of_two_writers_racing_from_one_read() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Adopt_a_row_that_carries_no_position() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Advance_from_the_position_it_read() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Apply_the_same_refold_twice_without_changing_the_result() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Create_when_nothing_is_stored() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Invalidate_the_position_when_an_unconditional_write_replaces_the_state() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Read_the_state_and_its_position_as_one_observation() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Rebuild_must_not_resurrect_a_deleted_row() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Rebuild_repairs_a_row_that_carries_no_position() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refold_the_state_at_the_position_the_row_already_holds() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_late_starter_that_claims_absence() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_negative_position_argument() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_position_that_does_not_advance() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_refold_at_a_position_the_row_does_not_hold() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_refold_when_the_row_advanced_after_the_read() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_row_that_carries_no_position() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_a_stale_expected_position() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Report_a_deleted_projection_as_vanished_without_recreating_it() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Report_a_refold_against_an_absent_row_as_vanished_without_creating_it() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Report_requires_rebuild_for_a_refold_against_an_unnumbered_row() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Report_requires_rebuild_for_a_row_with_no_established_position() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.RetryPolicyConformanceTestKit.BaseRetryDelay_ForNonNullPolicy_ShouldBePositive() -> void
 virtual Excalibur.Testing.Conformance.RetryPolicyConformanceTestKit.BaseRetryDelay_ForNullPolicy_ShouldBeZero() -> void
@@ -1099,6 +1121,7 @@ virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.LoadAsync_Afte
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.LoadAsync_ExistingSaga_ShouldReturnState() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.LoadAsync_NonExistent_ShouldReturnNull() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.LoadAsync_ReturnsAuthoritativeVersion_AndReloadMutateSaveSucceeds() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.ResetDataAsync() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.Sagas_ShouldIsolateBySagaId() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.SaveAndLoad_ShouldPreserveAllProperties() -> System.Threading.Tasks.Task!

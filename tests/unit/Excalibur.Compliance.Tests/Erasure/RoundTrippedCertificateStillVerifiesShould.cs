@@ -51,9 +51,9 @@ public sealed class RoundTrippedCertificateStillVerifiesShould
 		// mapper reassembles the payload with an empty list.
 		var readBack = issued with { Exceptions = [] };
 
-		ErasureCertificateSigner.Sign(readBack, key)
+		ErasureCertificateSigner.Issue(readBack, key, out _).Signature
 			.ShouldNotBe(
-				ErasureCertificateSigner.Sign(issued, key),
+				ErasureCertificateSigner.Issue(issued, key, out _).Signature,
 				"a dropped exemption changes the signed bytes, so the round-tripped document cannot "
 				+ "authenticate. The consumer-visible symptom is not a missing field -- it is a "
 				+ "certificate that reports as tampered.");
@@ -68,8 +68,8 @@ public sealed class RoundTrippedCertificateStillVerifiesShould
 		var issued = Payload();
 		var readBack = issued with { GeneratedAt = DateTimeOffset.UtcNow };
 
-		ErasureCertificateSigner.Sign(readBack, key)
-			.ShouldNotBe(ErasureCertificateSigner.Sign(issued, key));
+		ErasureCertificateSigner.Issue(readBack, key, out _).Signature
+			.ShouldNotBe(ErasureCertificateSigner.Issue(issued, key, out _).Signature);
 	}
 
 	// LIVENESS. Without this, a signer that returned a different string every call would satisfy both
@@ -81,9 +81,9 @@ public sealed class RoundTrippedCertificateStillVerifiesShould
 		var issued = Payload();
 		var readBack = issued with { };
 
-		ErasureCertificateSigner.Sign(readBack, key)
+		ErasureCertificateSigner.Issue(readBack, key, out _).Signature
 			.ShouldBe(
-				ErasureCertificateSigner.Sign(issued, key),
+				ErasureCertificateSigner.Issue(issued, key, out _).Signature,
 				"a store that returns what it was given must produce a certificate that still "
 				+ "authenticates, or the requirement above is unsatisfiable rather than merely unmet.");
 	}

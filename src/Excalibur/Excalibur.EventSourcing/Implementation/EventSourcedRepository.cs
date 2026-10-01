@@ -432,9 +432,17 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			&& _eventStore.GetService(typeof(ITransactionalEventStore)) is ITransactionalEventStore txStore)
 		{
 			// Transactional: append events and stage outbox messages in a single atomic transaction.
-			await SaveWithTransactionalOutboxAsync(
+			var txResult = await SaveWithTransactionalOutboxAsync(
 					txStore, stringId, aggregate, uncommittedEvents, expectedVersion, cancellationToken)
 				.ConfigureAwait(false);
+
+			// A recognised retry stages nothing new -- the original transaction already staged -- but the
+			// notification below still runs from the LIVE payloads, so the guard belongs on this path too.
+			if (txResult.Outcome == AppendOutcome.AlreadyCommitted)
+			{
+				await RefuseRepublicationIfErasedAsync(stringId, aggregate.AggregateType, cancellationToken)
+					.ConfigureAwait(false);
+			}
 		}
 		else
 		{
@@ -445,6 +453,11 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			// re-append and go straight to re-staging the SAME events.
 			var pending = _pendingStages.GetValueOrDefault(stringId);
 			var alreadyAppended = pending is not null && EventIdsMatch(pending.Events, uncommittedEvents);
+
+			// The two ways this call can be a RECOGNISED RETRY rather than a fresh append: the in-memory
+			// breadcrumb above, and the store recognising its own durable rows by identity. Both mean the
+			// events were written by an EARLIER call, so present no longer implies retrievable.
+			var recognisedRetry = alreadyAppended;
 
 			if (!alreadyAppended)
 			{
@@ -457,12 +470,20 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 				ThrowIfAppendFailed(result, aggregate);
 
+				recognisedRetry = result.Outcome == AppendOutcome.AlreadyCommitted;
+
 				// Append committed. Record the appended-but-not-yet-staged breadcrumb BEFORE staging so a
 				// staging failure below leaves a retry trail that skips the (now stale-version) re-append.
 				if (strategy == OutboxStagingStrategy.EventuallyConsistent && _outboxStore is not null)
 				{
 					TrackPendingStage(stringId, new PendingOutboxStage(uncommittedEvents));
 				}
+			}
+
+			if (recognisedRetry)
+			{
+				await RefuseRepublicationIfErasedAsync(stringId, aggregate.AggregateType, cancellationToken)
+					.ConfigureAwait(false);
 			}
 
 			// Eventually-consistent: stage integration events after successful append.
@@ -798,7 +819,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	/// </summary>
 	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
-	private async Task SaveWithTransactionalOutboxAsync(
+	private async Task<AppendResult> SaveWithTransactionalOutboxAsync(
 		ITransactionalEventStore txStore,
 		string aggregateId,
 		TAggregate aggregate,
@@ -831,6 +852,62 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			cancellationToken).ConfigureAwait(false);
 
 		ThrowIfAppendFailed(result, aggregate);
+
+		return result;
+	}
+
+	/// <summary>
+	/// Refuses to republish an erased stream's payloads, on the recognised-retry path only.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The shape.</b> An append commits, its acknowledgement is lost, an erasure tombstones those
+	/// events, and this caller — still holding the aggregate the payloads came from — retries. The store
+	/// answers <see cref="AppendOutcome.AlreadyCommitted"/>, correctly: the append did commit, and erasure
+	/// rewrites existing rows rather than removing them, so the identity probe still finds them. What has
+	/// stopped being true is that present implies retrievable. Staging and notifying from here would push
+	/// the erased subject's own payloads to the outbox and to inline projections AFTER the erasure
+	/// certificate was issued, and nothing downstream would ever learn.
+	/// </para>
+	/// <para>
+	/// <b>Cost on the ordinary path is zero.</b> This runs only when the append was recognised rather than
+	/// written — the store's identity probe fired, or the in-memory staging breadcrumb matched — which is
+	/// itself a failure-path outcome. A fresh append never reaches here and never pays a round trip.
+	/// </para>
+	/// <para>
+	/// <b>An absent capability is a sound negative, not a gap.</b> The erasure that would create this
+	/// hazard can only be performed through <see cref="IEventStoreErasure"/> on this same store chain, so
+	/// a store that does not present the capability cannot have been erased through it. The probe asks the
+	/// store for the capability rather than testing its type, because a decorator answers on behalf of the
+	/// store it wraps while a type test would report the decorator.
+	/// </para>
+	/// </remarks>
+	private async Task RefuseRepublicationIfErasedAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		if (_eventStore.GetService(typeof(IEventStoreErasure)) is not IEventStoreErasure erasure)
+		{
+			return;
+		}
+
+		var erased = await erasure.IsErasedAsync(aggregateId, aggregateType, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (!erased)
+		{
+			return;
+		}
+
+		// Drop the breadcrumb. Leaving it would keep sending every later retry of this aggregate down the
+		// recognised-retry path holding the same live payloads, which is the state we are refusing.
+		_ = _pendingStages.TryRemove(aggregateId, out _);
+
+		// No identifier, no payload, and no log line. The exception TYPE is the whole signal — a caller
+		// that needs to know catches it — because the message and any log built from it are surfaces the
+		// erased subject must not reach.
+		throw new ErasedStreamRepublicationException();
 	}
 
 	/// <summary>

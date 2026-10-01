@@ -113,6 +113,23 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 
 		Require(projection is not null, "the created projection must be readable back");
 		Require(position.ExpectedPositionOrNull == 10, $"the stored position must be the one written; was {Describe(position)}");
+
+		// The KIND, not only the number. A store that inserted the state but recorded no position would
+		// still satisfy the number check above through ExpectedPositionOrNull being compared to a value it
+		// can only produce when Positioned -- but asserting the kind states the property directly instead
+		// of relying on that, and it is the property the next writer reads.
+		Require(
+			position.Kind == ProjectionPositionKind.Positioned,
+			"an insert must leave the row POSITIONED, so the next writer advances from a number rather "
+			+ $"than having to treat it as a row nobody has positioned; read {Describe(position)}");
+
+		// The STATE, not only the position. A store that wrote the position and dropped the state would
+		// pass every assertion above while leaving the read model empty at a position that claims it is
+		// folded -- which is the silent shape this whole contract exists to make impossible.
+		Require(
+			projection?.Total == 1,
+			"the inserted state must be the one supplied; a position written without its state asserts a "
+			+ "prefix the state does not hold");
 	}
 
 	/// <summary>
@@ -121,11 +138,13 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 	/// <returns>A task representing the arm.</returns>
 	/// <remarks>
 	/// <para>
-	/// This is the arm that separates the two states a single "no position" sentinel used to collapse.
-	/// Its sibling, <see cref="Adopt_a_row_that_carries_no_position"/>, requires that a COMPLETE FOLD
-	/// with no position number IS adopted. Together they pin the distinction; either alone is
-	/// satisfiable by a store that treats both the same, which is exactly what every provider did
-	/// before this arm existed.
+	/// This is the arm that pins the UNPLACEABLE half of the two states a single "no position" sentinel
+	/// used to collapse. Its sibling, <see cref="Refuse_a_row_that_carries_no_position"/>, drives a
+	/// COMPLETE FOLD with no position number. Both writes are REFUSED -- a positioned write has no number
+	/// to advance from in either -- with the same OUTCOME, since that reports only what the write did. What
+	/// the pair separates is the stored READING: this arm requires the row to read back UNPLACEABLE and
+	/// its sibling requires UNNUMBERED, so a store that dropped the position instead of recording the
+	/// sentinel satisfies the refusal and fails here.
 	/// </para>
 	/// <para>
 	/// <b>What goes wrong without it.</b> The unconditional write replaces the state with something not
@@ -194,6 +213,17 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 			ProjectionAdvanceOutcome.Unplaceable,
 			nameof(Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable));
 
+		// NO POSITION IS REPORTED, and that is not cosmetic. An unplaceable row holds a sentinel, not a
+		// coordinate, so a provider that passed the raw stored value back here would hand the caller a
+		// negative number to compare against an attempted position -- and the live settle predicate
+		// compares exactly that way, so a sentinel arriving as a position decides a terminal refusal by
+		// arithmetic on a value that means "there is no value".
+		Require(
+			refused.CurrentPosition is null,
+			"a terminal refusal must report NO position: the row holds a sentinel rather than a "
+			+ $"coordinate, and a caller comparing it as a number is comparing against a marker; reported "
+			+ $"{Describe(refused.CurrentPosition)}");
+
 		var (projection, after) = await positioned.GetWithPositionAsync(id, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -245,22 +275,47 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 	}
 
 	/// <summary>
-	/// LIVENESS. A row carrying no position at all is adopted rather than refused forever.
+	/// SAFETY. A row carrying no position number is REFUSED, never adopted.
 	/// </summary>
 	/// <returns>A task representing the arm.</returns>
 	/// <remarks>
-	/// <b>This arm exists because refusing here is a silent PERMANENT STALL, not a conflict.</b> A
-	/// projection written through the unconditional surface — a rebuild, a recovery, a row written before
-	/// the store recorded positions — carries no position. The caller reads none, so it claims none, so a
-	/// create-only branch refuses it; and the next attempt reads none again and is refused identically,
-	/// forever. The store must distinguish "a positioned writer owns this" from "nobody has ever
-	/// positioned this".
+	/// <para>
+	/// <b>A caller that read no position knows nothing about which prefix the stored state covers.</b>
+	/// Adopting the row -- folding this batch onto that state and stamping this batch's position -- makes
+	/// the row assert a prefix nobody established. Whatever is folded into the state above this batch is
+	/// then claimed as present when it is not, and nothing downstream can observe it: the row is
+	/// well-formed and every value in it was written correctly. That is not a conservative approximation
+	/// of the fold invariant; it makes the equality FALSE in the direction that loses data.
+	/// </para>
+	/// <para>
+	/// <b>The refusal must be distinguishable from a supersede, and that is the whole of it.</b> A
+	/// superseded caller re-reads and retries; re-reading this row yields the same value and the same
+	/// refusal, so <see cref="ProjectionAdvanceOutcome.Superseded"/> here is an unbounded redelivery loop
+	/// against a projection only a rebuild can repair. The arm names
+	/// <see cref="ProjectionAdvanceOutcome.Unplaceable"/> rather than asserting "not Applied", because a
+	/// provider reporting <see cref="ProjectionAdvanceOutcome.Superseded"/> with no position would satisfy
+	/// the weaker form while telling its caller to spin forever.
+	/// </para>
+	/// <para>
+	/// Its liveness sibling is <see cref="Rebuild_repairs_a_row_that_carries_no_position"/>. Without that
+	/// arm this one is satisfied by a store that refuses everything -- the cheapest way never to
+	/// double-apply and the most expensive way to be wrong -- and the refusal would be a permanent stall
+	/// rather than a repairable one.
+	/// </para>
+	/// <para>
+	/// Distinct from <see cref="Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable"/>: that arm
+	/// drives the row through the blind surface, which records that the state is a fold over NO prefix.
+	/// This one writes a COMPLETE fold whose coordinate is unknown -- the weaker and more sympathetic
+	/// claim, and the one a store is most tempted to adopt. Both expect the same OUTCOME, because the
+	/// outcome reports what the write did; what the two arms separate is the stored READING, which each
+	/// asserts for its own kind.
+	/// </para>
 	/// </remarks>
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
-	public virtual async Task Adopt_a_row_that_carries_no_position()
+	public virtual async Task Refuse_a_row_that_carries_no_position()
 	{
-		RecordArmExecuted(nameof(Adopt_a_row_that_carries_no_position));
+		RecordArmExecuted(nameof(Refuse_a_row_that_carries_no_position));
 
 		var store = await CreateStoreAsync().ConfigureAwait(false);
 		var positioned = store.GetService(typeof(IPositionedProjectionStore<ConformanceProjection>))
@@ -269,35 +324,116 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 
 		var id = NewId();
 
-		// Written the way a rebuild or the save path writes it: a COMPLETE FOLD whose prefix has no
-		// global position number. This used to go through the blind UpsertAsync, and that is precisely
-		// the conflation this suite now exists to catch -- the blind surface means "not a fold over any
-		// prefix", which is the opposite claim and must NOT be adopted. The two cases are separate arms.
+		// Written the way a save path or a rebuild with no global numbers writes it: a COMPLETE FOLD whose
+		// prefix has no global position number. NOT through the blind UpsertAsync -- that records the
+		// strictly stronger "not a fold over any prefix", and an arm built on it would be re-testing the
+		// case its sibling already owns.
 		await positioned.UpsertUnnumberedAsync(id, Projection(id, 3), CancellationToken.None)
 			.ConfigureAwait(false);
 
-		var (_, beforeAdoption) = await positioned.GetWithPositionAsync(id, CancellationToken.None)
+		var (_, before) = await positioned.GetWithPositionAsync(id, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		Require(
-			beforeAdoption.Kind == ProjectionPositionKind.Unnumbered,
-			"a state written as a complete fold with no position NUMBER must read back as UNNUMBERED -- "
-			+ "adoptable. Reading it as unplaceable would refuse adoption on exactly the rows where "
-			+ $"adoption is correct; read {Describe(beforeAdoption)}");
+			before.Kind == ProjectionPositionKind.Unnumbered,
+			"a state written as a complete fold with no position NUMBER must read back as UNNUMBERED, which "
+			+ "is what says the stored state can still be READ as a complete answer while it waits to be "
+			+ $"rebuilt; read {Describe(before)}");
 
-		var adopted = await positioned
+		var refused = await positioned
 			.UpsertAtPositionAsync(
-				id, Projection(id, 4), beforeAdoption.ExpectedPositionOrNull, newPosition: 7,
-				CancellationToken.None)
+				id, Projection(id, 4), before.ExpectedPositionOrNull, newPosition: 7, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		AssertOutcome(adopted, ProjectionAdvanceOutcome.Applied, nameof(Adopt_a_row_that_carries_no_position));
+		// UNPLACEABLE, and specifically NOT Superseded. The outcome reports that there was no number to
+		// advance from, which is what the write established; it does not claim anything about the stored
+		// state, because the store classified its refusal against a read taken at a different instant.
+		// Superseded is the arm that must not be reached: it invites a re-read and a retry, and there is
+		// nothing to retry toward -- nothing about a numberless row changes on its own, so the caller would
+		// redeliver forever. Asserting merely "not Applied" would pass against a provider reporting
+		// Superseded, so the arm names the member.
+		AssertOutcome(
+			refused,
+			ProjectionAdvanceOutcome.Unplaceable,
+			nameof(Refuse_a_row_that_carries_no_position));
 
-		var (projection, position) = await positioned.GetWithPositionAsync(id, CancellationToken.None)
+		Require(
+			refused.CurrentPosition is null,
+			"a terminal refusal must report NO position: the row holds a sentinel rather than a coordinate, "
+			+ "and the live settle predicate compares a reported position as a NUMBER, so a sentinel arriving "
+			+ $"here decides a refusal by arithmetic on a marker; reported {Describe(refused.CurrentPosition)}");
+
+		var (projection, after) = await positioned.GetWithPositionAsync(id, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		Require(position.ExpectedPositionOrNull == 7, $"the adopted row must now carry the written position; was {Describe(position)}");
-		Require(projection?.Total == 4, "the adopted row must carry the written state");
+		Require(
+			after.Kind == ProjectionPositionKind.Unnumbered,
+			$"a refused write must not have moved the position; read {Describe(after)}");
+		Require(
+			projection?.Total == 3,
+			"a refused write must not have changed the state either -- a partial application would be worse "
+			+ "than the refusal it accompanies");
+	}
+
+	/// <summary>
+	/// LIVENESS. A rebuild repairs a row carrying no position, so the refusal above is not a stall.
+	/// </summary>
+	/// <returns>A task representing the arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This arm is what makes the refusal legitimate.</b> Refusing a numberless row would be a silent
+	/// PERMANENT STALL if such a row had no exit: the caller reads no position, so it claims none, so it
+	/// is refused -- and the next attempt reads none again and is refused identically, forever.
+	/// <see cref="IPositionedProjectionStore{TProjection}.RebuildAtPositionAsync"/> is the exit. It writes
+	/// the state and the position together with no expectation to satisfy, for a caller that folded the
+	/// whole stream from an empty seed and can therefore number the row from what it folded.
+	/// </para>
+	/// <para>
+	/// Without this arm the safety arm above is satisfied by a store that refuses every write, which is
+	/// why the two are a pair rather than one check.
+	/// </para>
+	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
+	public virtual async Task Rebuild_repairs_a_row_that_carries_no_position()
+	{
+		RecordArmExecuted(nameof(Rebuild_repairs_a_row_that_carries_no_position));
+
+		var store = await CreatePositionedStoreAsync().ConfigureAwait(false);
+		var id = NewId();
+
+		await store.UpsertUnnumberedAsync(id, Projection(id, 3), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var (_, before) = await store.GetWithPositionAsync(id, CancellationToken.None).ConfigureAwait(false);
+
+		Require(
+			before.Kind == ProjectionPositionKind.Unnumbered,
+			"the arm proves nothing about a repair unless the row first carries no number; read "
+			+ $"{Describe(before)}");
+
+		var rebuilt = await store
+			.RebuildAtPositionAsync(id, Projection(id, 9), newPosition: 7, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		Require(
+			rebuilt.Outcome == ProjectionRebuildOutcome.Applied,
+			$"{nameof(Rebuild_repairs_a_row_that_carries_no_position)}: expected "
+			+ $"{ProjectionRebuildOutcome.Applied} but the store reported {rebuilt.Outcome}. A row carrying no "
+			+ "number is refused by the advancing write, so a store that cannot repair it here has turned that "
+			+ "refusal into a permanent stall");
+
+		var (projection, after) = await store.GetWithPositionAsync(id, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		Require(
+			after.Kind == ProjectionPositionKind.Positioned && after.ExpectedPositionOrNull == 7,
+			"the repaired row must read back POSITIONED at the number the rebuild wrote, or it is still "
+			+ $"unadvanceable and nothing was repaired; read {Describe(after)}");
+		Require(
+			projection?.Total == 9,
+			"the repaired row must carry the rebuilt state; a position written without its state asserts a "
+			+ "prefix the state does not hold");
 	}
 
 	/// <summary>
@@ -571,19 +707,18 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 	/// the row is well-formed and every value in it was written correctly.
 	/// </para>
 	/// <para>
-	/// The other failure is benign by comparison and is what a whole-document replacement does for
-	/// free: the position is dropped, the row reads as unpositioned, and the next conditional write
-	/// adopts it and re-folds one batch, which over-counts for an accumulating projection. That is not
-	/// a bounded cost -- a row returns to unpositioned every time an unconditional write lands on it,
-	/// so the re-fold recurs. The reason the dropped position is still the better of the two failures
-	/// is that the row then describes itself honestly as "prefix unknown", where a surviving stale
-	/// position destroys the only evidence that anything is wrong. So the required end state is NO ESTABLISHED POSITION — either absent or
-	/// the store's sentinel — never the stale one.
+	/// The other outcome is the correct one and is what a whole-document replacement does for free: the
+	/// position is dropped, the row reads as carrying none, and the next conditional write is REFUSED --
+	/// it has no number to advance from. The projection stops advancing until it is rebuilt, which is a
+	/// loud failure an operator can act on rather than a silent miscount nothing downstream can see.
+	/// A surviving stale position destroys the only evidence that anything is wrong. So the required end
+	/// state is NO ESTABLISHED POSITION — either absent or the store's sentinel — never the stale one.
 	/// </para>
 	/// <para>
-	/// Note this is a different case from the adoption arm above, which writes unconditionally to an id
-	/// that was never positioned. The defect lives specifically in the transition FROM positioned TO
-	/// unconditionally-written, and an arm that only covers a fresh id passes straight over it.
+	/// Note this is a different case from <see cref="Refuse_a_row_that_carries_no_position"/>, which
+	/// writes a complete fold to an id that was never positioned. The defect lives specifically in the
+	/// transition FROM positioned TO unconditionally-written, and an arm that only covers a fresh id
+	/// passes straight over it.
 	/// </para>
 	/// </remarks>
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -601,7 +736,7 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 
 		var id = NewId();
 
-		// Establish a position first. THIS is what makes the arm different from the adoption one.
+		// Establish a position first. THIS is what makes the arm different from its numberless sibling.
 		_ = await positioned
 			.UpsertAtPositionAsync(id, Projection(id, 1), expectedPosition: null, newPosition: 90, CancellationToken.None)
 			.ConfigureAwait(false);
@@ -831,6 +966,71 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 	}
 
 	/// <summary>
+	/// SAFETY. A re-fold against a row holding a COMPLETE FOLD with no number is terminal, not superseded.
+	/// </summary>
+	/// <returns>A task representing the arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// The sibling of <see cref="Report_requires_rebuild_for_a_row_with_no_established_position"/>, which
+	/// drives the row through the blind surface and so tests the UNPLACEABLE kind. This one writes a
+	/// complete fold with no number, and a store discriminating on the wrong condition -- testing
+	/// <c>== Unplaceable</c> where it should test <c>!= Positioned</c> -- passes that arm and fails this one.
+	/// </para>
+	/// <para>
+	/// <b>Superseded is the answer that must not appear.</b> It tells the caller to re-read and retry, and
+	/// nothing about a numberless row changes on its own, so there is never a position to match: the caller
+	/// loops forever. <see cref="ProjectionRefoldOutcome.RequiresRebuild"/> is terminal and the caller
+	/// escalates. That is the distinction the fourth outcome exists for, and an erasure remedy is what runs
+	/// into it -- a re-fold is the operation erasure needs.
+	/// </para>
+	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
+	public virtual async Task Report_requires_rebuild_for_a_refold_against_an_unnumbered_row()
+	{
+		RecordArmExecuted(nameof(Report_requires_rebuild_for_a_refold_against_an_unnumbered_row));
+
+		var store = await CreatePositionedStoreAsync().ConfigureAwait(false);
+		var id = NewId();
+
+		await store.UpsertUnnumberedAsync(id, Projection(id, 3), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var (_, before) = await store.GetWithPositionAsync(id, CancellationToken.None).ConfigureAwait(false);
+
+		Require(
+			before.Kind == ProjectionPositionKind.Unnumbered,
+			"the arm tests nothing unless the row first holds a complete fold with no number; read "
+			+ $"{Describe(before)}");
+
+		var refold = await store
+			.RefoldAtPositionAsync(id, Projection(id, 8), atPosition: 160, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		AssertRefold(
+			refold,
+			ProjectionRefoldOutcome.RequiresRebuild,
+			nameof(Report_requires_rebuild_for_a_refold_against_an_unnumbered_row));
+
+		Require(
+			refold.CurrentPosition is null,
+			"a terminal refusal must report NO position: the row holds a sentinel rather than a coordinate, "
+			+ $"and a caller comparing it as a number compares against a marker; reported "
+			+ $"{Describe(refold.CurrentPosition)}");
+
+		var (projection, after) = await store.GetWithPositionAsync(id, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		Require(
+			after.Kind == ProjectionPositionKind.Unnumbered,
+			$"the refused re-fold must not have moved the position; read {Describe(after)}");
+		Require(
+			projection?.Total == 3,
+			"the refused re-fold must not have written either -- a partial application would be worse than "
+			+ "the refusal it accompanies");
+	}
+
+	/// <summary>
 	/// SAFETY. Re-folding twice at the same position is idempotent.
 	/// </summary>
 	/// <returns>A task representing the arm.</returns>
@@ -918,6 +1118,78 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 			+ $"(CurrentPosition {Describe(result.CurrentPosition)})");
 
 	/// <summary>
+	/// SAFETY. A rebuild must not resurrect a row an erasure deleted.
+	/// </summary>
+	/// <returns>A task representing the arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>The one arm covering <see cref="IPositionedProjectionStore{TProjection}.RebuildAtPositionAsync"/>,
+	/// and the member is the most dangerous of the family.</b> It is unconditional on POSITION by design —
+	/// a caller that folded from an empty seed has no prior prefix to be conditional on — so the only
+	/// thing standing between it and a resurrected row is that it must also be conditional on the row
+	/// EXISTING. Those are different questions, and giving up the first is exactly what makes forgetting
+	/// the second easy.
+	/// </para>
+	/// <para>
+	/// <b>A whole-stream replay is precisely the write that CAN reconstruct erased data.</b> Deletion is
+	/// how erasure removes personal data; the events behind an erased subject are tombstones, but a
+	/// rebuild that recreated the row would write whatever it folded before the deletion landed. So a
+	/// provider whose implementation has any create arm — <c>WHEN NOT MATCHED THEN INSERT</c>,
+	/// <c>IsUpsert = true</c>, <c>ON CONFLICT</c>, a plain document <c>put</c> — turns a routine rebuild
+	/// into a compliance failure, silently, and reports success.
+	/// </para>
+	/// <para>
+	/// RED when a provider regains a create arm: the outcome comes back <c>Applied</c> instead of
+	/// <c>Vanished</c>, and the row is readable again afterwards.
+	/// </para>
+	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
+	public virtual async Task Rebuild_must_not_resurrect_a_deleted_row()
+	{
+		RecordArmExecuted(nameof(Rebuild_must_not_resurrect_a_deleted_row));
+
+		var store = await CreateStoreAsync().ConfigureAwait(false)
+			?? throw new InvalidOperationException($"{nameof(CreateStoreAsync)} returned null.");
+
+		var positioned = store.GetService(typeof(IPositionedProjectionStore<ConformanceProjection>))
+			as IPositionedProjectionStore<ConformanceProjection>
+			?? throw new InvalidOperationException("the store does not provide the positioned capability");
+
+		var id = NewId();
+
+		_ = await positioned
+			.UpsertAtPositionAsync(id, Projection(id, 9), expectedPosition: null, newPosition: 9, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// The erasure. From here the row does not exist, and nothing may put it back.
+		await store.DeleteAsync(id, CancellationToken.None).ConfigureAwait(false);
+
+		var rebuilt = await positioned
+			.RebuildAtPositionAsync(id, Projection(id, 11), newPosition: 11, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		Require(
+			rebuilt.Outcome == ProjectionRebuildOutcome.Vanished,
+			$"{nameof(Rebuild_must_not_resurrect_a_deleted_row)}: expected "
+			+ $"{ProjectionRebuildOutcome.Vanished} but the store reported {rebuilt.Outcome}. A rebuild is "
+			+ "UPDATE-only: an absent row means the projection was deleted, and a whole-stream replay is "
+			+ "exactly the write that could reinstate what the erasure removed");
+
+		var (projection, position) = await positioned.GetWithPositionAsync(id, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		Require(
+			projection is null,
+			"an erased projection must stay erased: a rebuild against a deleted row must report Vanished "
+			+ "and must not recreate it");
+		Require(
+			position.ExpectedPositionOrNull is null,
+			"nothing must have been written, so no position may be readable back; the row reports "
+			+ $"position {Describe(position)}");
+	}
+
+	/// <summary>
 	/// SAFETY. A negative position is REFUSED at the entry point, not stored.
 	/// </summary>
 	/// <returns>A task representing the arm.</returns>
@@ -933,6 +1205,14 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 	/// <para>
 	/// Guarding the input is what makes that state inexpressible. Defending the output would leave it
 	/// expressible and handled correctly in four places out of eight.
+	/// </para>
+	/// <para>
+	/// <b>The expected position is guarded for a second reason, and it is the sharper one.</b> A positioned
+	/// write refuses every row carrying no number, and the sentinels for those states ARE negatives -- so a
+	/// caller naming one as "the position I read" would match exactly the row the refusal exists to
+	/// protect. That is the adopt licence through a different door, and only the entry guard closes it.
+	/// <see cref="ProjectionPosition.ExpectedPositionOrNull"/> is the one legal source for the argument and
+	/// never yields a negative.
 	/// </para>
 	/// </remarks>
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
@@ -957,6 +1237,24 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 		}
 
 		Require(advanceRefused, "an advancing write must refuse a negative newPosition rather than store it");
+
+		var expectationRefused = false;
+		try
+		{
+			_ = await store
+				.UpsertAtPositionAsync(id, Projection(id, 1), expectedPosition: -1, newPosition: 1, CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+		catch (ArgumentOutOfRangeException)
+		{
+			expectationRefused = true;
+		}
+
+		Require(
+			expectationRefused,
+			"an advancing write must refuse a negative expectedPosition rather than compare against it. The "
+			+ "negatives are the sentinel space for the two states that carry no number, so a caller naming one "
+			+ "as the position it read would match precisely the row a positioned write refuses by design");
 
 		var refoldRefused = false;
 		try

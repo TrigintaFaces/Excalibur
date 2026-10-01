@@ -152,15 +152,15 @@ public sealed class ErasureCertificateVerifierShould
 	[Fact]
 	public void Refuse_to_sign_a_payload_declaring_another_scheme_s_version() =>
 		Should.Throw<InvalidOperationException>(
-			() => ErasureCertificateSigner.Sign(Payload() with { Version = "1.0" }, Key));
+			() => ErasureCertificateSigner.Issue(Payload() with { Version = "1.0" }, Key, out _).Signature);
 
 	/// <summary>The tag carries its scheme, so a verifier need not parse an unauthenticated payload to pick one.</summary>
 	[Fact]
 	public void Emit_a_signature_that_names_the_scheme_that_produced_it() =>
-		ErasureCertificateSigner.Sign(Payload(), Key).ShouldStartWith("v2:");
+		ErasureCertificateSigner.Issue(Payload(), Key, out _).Signature.ShouldStartWith("v2:");
 
 	private static ErasureCertificate Sign(ErasureCertificatePayload payload) =>
-		new() { Payload = payload, Signature = ErasureCertificateSigner.Sign(payload, Key) };
+		new() { Payload = payload, Signature = ErasureCertificateSigner.Issue(payload, Key, out _).Signature };
 
 	private static ErasureCertificatePayload Payload() =>
 		new()

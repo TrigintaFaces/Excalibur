@@ -17,7 +17,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// <summary>
 /// Optimistic-concurrency conformance for the DynamoDB saga store (e1tsq2 / skl8r7, S853) — one of the
 /// five distributed providers. Author≠impl (TestsDeveloper); runs the shared
-/// <see cref="SagaStoreConformanceTestBase"/> contract with <see cref="SupportsOptimisticConcurrency"/>
+/// <see cref="SagaStoreConformanceTestBase"/> contract, which every store must satisfy
 /// enabled against DynamoDB-on-LocalStack, so the version-gated <c>no-overwrite</c> and
 /// <c>no-resurrect</c> facts are enforced.
 /// </summary>
@@ -40,8 +40,6 @@ public sealed class DynamoDbSagaStoreConcurrencyConformanceShould : SagaStoreCon
 		_fixture = fixture;
 	}
 
-	/// <inheritdoc/>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	// Purge IS supported: DynamoDbSagaStore implements PurgeCompletedBeforeAsync rather than falling
 	// through to the interface default. This was declared unsupported back when it did fall through, and

@@ -36,6 +36,8 @@
     "typescript": "~5.9.3"
   },
   "overrides": {
+    "brace-expansion": "^5.0.12",
+    "fast-uri": "^3.1.8",
     "image-size": "^2.0.3",
     "minimatch": "10.2.5",
     "qs": "^6.16.0",

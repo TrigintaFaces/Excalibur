@@ -183,6 +183,44 @@ public interface IErasureStore
 		CancellationToken cancellationToken);
 
 	/// <summary>
+	/// Records that this request destroyed the key at <paramref name="keyHandle"/>, durably, as soon as the
+	/// destruction returns.
+	/// </summary>
+	/// <param name="requestId">The request whose pass destroyed the key.</param>
+	/// <param name="keyHandle">The key handle that is now irrecoverable.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <remarks>
+	/// <para>
+	/// <b>This exists because "the key is gone" and "we never held it" are different facts with opposite
+	/// consequences, and the key store cannot tell them apart.</b> Asking a provider to delete a key it has
+	/// already destroyed reports it as absent — the same answer it gives for a key that never existed. So an
+	/// erasure that destroyed a key and then failed part-way through the remaining ones attested that key on
+	/// its first pass and, on the retry, attested nothing for it: the subject's data was destroyed and their
+	/// erasure could never be reported complete. This record is what lets the retry attest what its own
+	/// earlier pass achieved.
+	/// </para>
+	/// <para>
+	/// <b>Written per key, as each destruction returns, not at completion.</b> The pass that needs this record
+	/// is the one that did not reach completion, so a write deferred to the end is a write that never happens
+	/// in the only case that matters.
+	/// </para>
+	/// <para>
+	/// <b>Idempotent, and appends rather than replaces.</b> Recording a handle already recorded for the same
+	/// request is a no-op. A later pass adds to what earlier passes wrote and never truncates it.
+	/// </para>
+	/// <para>
+	/// A store that cannot persist this cannot certify a retried erasure, so this is required rather than an
+	/// optional capability: a silently absent record would report a completed erasure as uncoverable and give
+	/// no indication why.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="keyHandle"/> is null or empty.</exception>
+	Task RecordKeyDestroyedAsync(
+		Guid requestId,
+		string keyHandle,
+		CancellationToken cancellationToken);
+
+	/// <summary>
 	/// Records erasure cancellation.
 	/// </summary>
 	/// <param name="requestId">The request ID.</param>

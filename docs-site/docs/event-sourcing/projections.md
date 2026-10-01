@@ -1187,25 +1187,47 @@ make it true at the instant it commits.
 state(x) = fold(apply, init, { e in stream : pos(e) <= P(x) })
 ```
 
-**A position has three states, not two.** Two of them carry no number, and they need opposite treatment —
-which is why they are distinct values rather than one "null".
+**A position has three states, not two.** Two of them carry no number. **A positioned write can only
+advance from a row that has one, so it refuses both of the others** — they are distinct values because
+they say different things about the stored state, not because the next write treats them differently.
 
-| state | what the row is saying | may a positioned write adopt it? |
-|---|---|---|
-| `Positioned(P)` | the state is a fold over exactly the events at or below `P` | no — it is *advanced from* |
-| `Unnumbered` | the state **is** a complete fold, over a prefix that has no global number | **yes** |
-| `Unplaceable` | the state is **not** a fold over any prefix | **never** |
+| state | what the row is saying | what a positioned write does | how you repair it |
+|---|---|---|---|
+| `Positioned(P)` | the state is a fold over exactly the events at or below `P` | advances from it | nothing to repair |
+| `Unnumbered` | the state **is** a complete fold, over a prefix that has no global number | refuses — `Unplaceable` | replay and rebuild |
+| `Unplaceable` | the state is **not** a fold over any prefix | refuses — `Unplaceable` | replay and rebuild |
 
 `Unnumbered` is what a row written before positions existed looks like, and what the save path produces
 when it folds events that carry no global position yet. The state is trustworthy; only its coordinate is
-unknown. Folding the next batch onto it and stamping that batch's position makes a true statement.
+unknown — and that is exactly why a positioned write cannot advance from it. A caller that read no
+position does not know which prefix the stored state covers, so stamping its own batch's position over it
+would be a guess, and a wrong guess makes the row assert a prefix it does not hold.
 
-`Unplaceable` is what `IProjectionStore<T>.UpsertAsync` leaves behind. That method replaces the state
-with a value the store cannot relate to the stream, so no position could describe the result. If a later
-write adopted such a row it would fold its batch onto unknown state and then stamp its own position — and
-the row would assert a prefix it does not contain, with every event below that position missing from your
-read model while the row claims otherwise. Nothing downstream can detect that: the row is well-formed and
-every value in it was written correctly.
+`Unplaceable` is what `IProjectionStore<T>.UpsertAsync` leaves behind. That method replaces the state with
+a value the store cannot relate to the stream, so no position could describe the result. In both cases the
+row would, if written over, assert a prefix it does not contain — with every event below that position
+missing from your read model while the row claims otherwise. Nothing downstream can detect that: the row
+is well-formed and every value in it was written correctly.
+
+**The refusal is repairable, and that is what makes it safe to refuse.** `RebuildAtPositionAsync` writes
+the state and the position together with no expectation to satisfy, for a caller that folded the whole
+stream from an empty seed and can therefore number the row from what it folded. A row carrying no position
+stops advancing until you run that rebuild — it does not clear itself, and nothing in the framework
+rebuilds it for you, so alert on the exception the apply path throws.
+
+**Both refusals report the same outcome, `Unplaceable`, and that is deliberate.** A write result tells you
+what the WRITE did — here, that there was no number to advance from. It does not tell you what your row
+contains, because several stores have to read the row *after* the engine rejects the write, so anything
+the outcome said about the stored state could already be stale by the time you acted on it. That is the
+same class of mistake as reading state and position separately, which is what this contract exists to
+prevent.
+
+**Read the position to learn what your row holds.** `Unnumbered` means the stored state is trustworthy and
+only its coordinate is missing, so you can still read it as a complete answer while you wait for the
+rebuild; a row gets there when something writes a fold it has no global position for. `Unplaceable` means
+the state is not a fold at all and answers nothing; a row gets there when something writes it through
+`IProjectionStore.UpsertAsync`. `GetWithPositionAsync` reports which, together with the value, in one
+observation — which is the only way that answer can be true when you use it.
 
 ### Which method to call
 

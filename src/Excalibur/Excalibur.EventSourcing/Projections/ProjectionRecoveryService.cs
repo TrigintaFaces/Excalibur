@@ -127,19 +127,56 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 			var replayed = await ReplayAsync(projection, aggregateId, aggregateType, cancellationToken)
 				.ConfigureAwait(false);
 
+			// NOTHING TO RECOVER MEANS WRITE NOTHING. An aggregate with no events has no history to fold,
+			// and replacing a row with the initial state is not a repair -- it is destruction.
+			//
+			// This is not a tidiness guard. The projection id is the aggregate id here, but that does NOT
+			// make this aggregate the only contributor: a handler can redirect into this id at runtime
+			// through the override hatch, which cannot be detected before the handler runs -- the note above
+			// on keyed projections says exactly that. So a row keyed by an aggregate with no events can
+			// legitimately hold ANOTHER aggregate's fold, and both paths below would corrupt it:
+			//
+			//   the row still exists  -> the re-fold path rewrites it to the initial state at the position it
+			//                            already holds, so it then asserts a fold it does not contain
+			//   the row was deleted   -> a state with no position is written, which no later writer can
+			//                            advance from, so the other aggregate's projection stalls until rebuilt
+			//
+			// Returning leaves the row exactly as it was, which is the only honest outcome: this call has
+			// nothing to contribute, and the writer that does own those events is the one that positioned it.
+			if (replayed.EventCount == 0)
+			{
+				LogNothingToRecover(aggregateId, typeof(TProjection).Name);
+				return;
+			}
+
 			if (positioned is null || (readAt is null && replayed.HighestPosition is null))
 			{
 				// Either the store does not record positions, or there is neither a position to
 				// preserve nor one to claim. Nothing can be conditional on anything.
 				//
-				// THE STATE HERE IS A COMPLETE FOLD, and saying so is what stops this path being the
-				// largest producer of unplaceable rows in the system. A fully erased aggregate yields no
-				// position BY CONSTRUCTION -- every event is a tombstone and the replay skips them all --
-				// so recovery lands here on exactly the compliance path that runs most often. Writing it
-				// through the blind surface would record "not a fold over any prefix", which is false:
-				// the replay folded the whole stream. The next batch would then be REFUSED against a row
-				// this method had just correctly rebuilt.
-				if (positioned is not null)
+				// THE STATE HERE IS A COMPLETE FOLD, and saying so is what stops this path recording the
+			// opposite. Writing it through the blind surface would record "not a fold over any prefix",
+			// which is false -- the replay folded the whole stream -- and the next batch would then be
+			// REFUSED against a row this method had just correctly rebuilt.
+			//
+			// WHAT REACHES THIS BRANCH, corrected: only an aggregate with NO EVENTS AT ALL, or a store
+			// that records no positions. It is NOT the erasure path any more. The highest position is now
+			// taken over every event EXAMINED rather than every event folded, so a fully erased aggregate
+			// yields the position of its highest tombstone and takes the numbered path above -- which is
+			// the point, because a row left with no number is UNADVANCEABLE by the live apply path: every
+			// subsequent batch is refused until someone rebuilds the projection.
+			//
+			// Superseded wording, quoted so an inheritor recognises it: "A fully erased aggregate yields
+			// no position BY CONSTRUCTION -- every event is a tombstone and the replay skips them all --
+			// so recovery lands here on exactly the compliance path that runs most often." That was true
+			// until the position was taken over examined events; it is now the case this branch no longer
+			// sees.
+			//
+			// KNOWN GAP, not fixed here: for an aggregate with no events the state written is the EMPTY
+			// fold, which overwrites whatever the row held. Recovering an aggregate that has no history is
+			// arguably a no-op rather than a wipe, and the row it leaves carries no number and is therefore
+			// unadvanceable until rebuilt. That is a separate question from the one this change closes.
+			if (positioned is not null)
 				{
 					await positioned.UpsertUnnumberedAsync(aggregateId, replayed.State, cancellationToken)
 						.ConfigureAwait(false);
@@ -185,6 +222,37 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 					// replay reached, so it holds everything this replay would have written.
 					LogRecovered(aggregateId, replayed.EventCount, typeof(TProjection).Name);
 					return;
+				}
+
+				// TERMINAL, AND CHECKED HERE RATHER THAN LEFT TO FALL INTO THE RETRY BELOW. The row carries
+				// no position a write can advance from, so re-reading yields the same refusal and every
+				// further attempt is another FULL STREAM REPLAY reaching the same answer.
+				//
+				// What falling through used to do, stated because the cost was not a tidiness point: it burned
+				// MaxRecoveryAttempts complete replays and then threw the message below, which blames "another
+				// writer advanced the projection during each replay" and advises retrying "when the projection's
+				// processor is not actively writing it". Nothing was competing, nothing had advanced, and that
+				// advice cannot succeed. So the framework's own documented remedy for a failed inline projection
+				// replayed the stream five times and then misdirected the operator.
+				//
+				// This REPORTS rather than repairs, deliberately. The state in hand is this aggregate's fold,
+				// and the row may legitimately hold ANOTHER aggregate's contribution through the override hatch
+				// -- see the note on keyed projections above -- so calling RebuildAtPositionAsync with it would
+				// overwrite a fold this replay never examined. A recovery call silently widening into a rebuild
+				// is a larger action than the caller asked for, and on this path it could lose data.
+				if (advanced.Outcome == ProjectionAdvanceOutcome.Unplaceable)
+				{
+					throw new InvalidOperationException(
+						$"Recovery of projection '{typeof(TProjection).Name}' for aggregate '{aggregateId}' "
+						+ "cannot be placed: the stored row carries no position a write can advance from. "
+						+ "REPLAYING WILL NOT CHANGE THAT and nothing is competing for this row, so retrying is "
+						+ "futile -- this failed on the first attempt rather than after several, because every "
+						+ "attempt would replay the whole stream to reach the same refusal. Rebuild the "
+						+ "projection from the event stream and write the result through "
+						+ "RebuildAtPositionAsync, which writes state and position together and so needs no "
+						+ "prior prefix to be conditional on. A row reaches this state when something writes the "
+						+ "projection outside the positioned path -- IProjectionStore.UpsertAsync, "
+						+ "UpsertUnnumberedAsync, or an apply batch in which no event carried a global position.");
 				}
 			}
 			else
@@ -263,6 +331,30 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		// Deserialize and apply all events through the same handlers
 		foreach (var storedEvent in storedEvents)
 		{
+			// THE POSITION OF EVERY EXAMINED EVENT COUNTS, INCLUDING A TOMBSTONE'S, and it must be taken
+			// before the skip below rather than after the fold.
+			//
+			// A tombstone loses its PAYLOAD, not its position: it is a stored event with a real
+			// GlobalPosition. Counting only folded events meant a fully erased aggregate -- every event a
+			// tombstone -- produced NO highest position, which sent recovery down the branch that writes a
+			// row carrying no number. The live apply path cannot advance from such a row at all, so every
+			// subsequent batch is refused and the projection stalls until someone rebuilds it. Erasure is the
+			// most reachable way to reach that branch, so the compliance path was its largest producer.
+			//
+			// Taking the max over EXAMINED events makes the resulting claim true rather than merely
+			// avoidable: the state is the fold over every event feeding this projection at or below that
+			// position, and the tombstones fold to nothing, which is exactly what an erased state is.
+			//
+			// The number comes from the events THIS replay read, never from a second observation such as the
+			// stream head. A head read and the replay are two unordered observations: read it first and a
+			// concurrent append makes the state a superset of the claim; read it after and a missed append
+			// makes it a subset. Both are false. A maximum over the set actually folded is true in both
+			// directions because the set and the number are one observation.
+			if (highest is null || storedEvent.GlobalPosition > highest)
+			{
+				highest = storedEvent.GlobalPosition;
+			}
+
 			// An erased (GDPR-tombstoned) event carries the reserved marker in place of its type and a nulled
 			// payload, so no serializer can resolve it. Recognize it STRUCTURALLY, before any deserialization
 			// attempt, and skip it. Recovering a fully erased aggregate therefore rebuilds its projection to
@@ -297,14 +389,19 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 					cancellationToken)
 				.ConfigureAwait(false);
 
-			if (highest is null || storedEvent.GlobalPosition > highest)
-			{
-				highest = storedEvent.GlobalPosition;
-			}
 		}
 
 		return (state, highest, storedEvents.Count);
 	}
+
+	private void LogNothingToRecover(string aggregateId, string projectionType) =>
+		_logger.LogInformation(
+			"Projection '{ProjectionType}' for aggregate '{AggregateId}' was not modified: the aggregate has "
+			+ "no events, so there is nothing to fold. The stored row is left untouched, because replacing it "
+			+ "with the initial state would discard any contribution redirected into this key by another "
+			+ "aggregate.",
+			projectionType,
+			aggregateId);
 
 	private void LogRecovered(string aggregateId, int eventCount, string projectionType) =>
 		_logger.LogInformation(

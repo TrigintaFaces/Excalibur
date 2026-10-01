@@ -24,7 +24,7 @@ public sealed class EventStoreErasureContributorShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new EventStoreErasureContributor(null!, _mapping, _logger));
+			new EventStoreErasureContributor(null!, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null));
 	}
 
 	[Fact]
@@ -32,7 +32,7 @@ public sealed class EventStoreErasureContributorShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new EventStoreErasureContributor(_erasure, null!, _logger));
+			new EventStoreErasureContributor(_erasure, null!, _logger, snapshotStore: null, serviceProvider: null, retentions: null));
 	}
 
 	[Fact]
@@ -40,14 +40,14 @@ public sealed class EventStoreErasureContributorShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new EventStoreErasureContributor(_erasure, _mapping, null!));
+			new EventStoreErasureContributor(_erasure, _mapping, null!, snapshotStore: null, serviceProvider: null, retentions: null));
 	}
 
 	[Fact]
 	public void ExposeNameAsEventStore()
 	{
 		// Arrange
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null);
 
 		// Act & Assert
 		sut.Name.ShouldBe("EventStore");
@@ -57,7 +57,7 @@ public sealed class EventStoreErasureContributorShould
 	public void CreateSuccessfullyWithoutSnapshotStore()
 	{
 		// Arrange & Act
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null);
 
 		// Assert
 		sut.ShouldNotBeNull();
@@ -67,7 +67,7 @@ public sealed class EventStoreErasureContributorShould
 	public void CreateSuccessfullyWithSnapshotStore()
 	{
 		// Arrange & Act
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, _snapshotStore);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, _snapshotStore, serviceProvider: null, retentions: null);
 
 		// Assert
 		sut.ShouldNotBeNull();
@@ -81,7 +81,7 @@ public sealed class EventStoreErasureContributorShould
 		A.CallTo(() => _mapping.GetAggregatesForDataSubjectAsync(
 				A<string>._, A<string?>._, CancellationToken.None))
 			.Returns(Task.FromResult<IReadOnlyList<AggregateReference>>([]));
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null);
 
 		// Act
 		var result = await sut.EraseAsync(context, CancellationToken.None);
@@ -107,7 +107,7 @@ public sealed class EventStoreErasureContributorShould
 			.Returns(Task.FromResult(false));
 		A.CallTo(() => _erasure.EraseEventsAsync("agg-1", "Order", A<Guid>._, CancellationToken.None))
 			.Returns(Task.FromResult(5));
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null);
 
 		// Act
 		var result = await sut.EraseAsync(context, CancellationToken.None);
@@ -118,7 +118,14 @@ public sealed class EventStoreErasureContributorShould
 	}
 
 	[Fact]
-	public async Task SkipAlreadyErasedAggregates()
+	// FLIPPED to the corrected contract. This arm used to assert the opposite -- that an aggregate whose
+	// events are already tombstoned is SKIPPED entirely -- and that skip is what made an interrupted
+	// erasure permanent: the snapshot and the read models are destroyed AFTER the tombstone, so an
+	// aggregate skipped on "already erased" never had those steps re-attempted, while the retry logged
+	// success. The tombstone itself is idempotent (its own statement excludes rows already carrying the
+	// marker), so re-entering the loop costs a round trip and is the only thing that can finish an
+	// erasure that was interrupted part-way.
+	public async Task StillRunTheErasureStepsWhenTheEventsAreAlreadyTombstoned()
 	{
 		// Arrange
 		var context = CreateContext();
@@ -131,15 +138,17 @@ public sealed class EventStoreErasureContributorShould
 			.Returns(Task.FromResult<IReadOnlyList<AggregateReference>>(references));
 		A.CallTo(() => _erasure.IsErasedAsync("agg-1", "Order", CancellationToken.None))
 			.Returns(Task.FromResult(true));
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null);
 
 		// Act
 		var result = await sut.EraseAsync(context, CancellationToken.None);
 
 		// Assert
 		result.Success.ShouldBeTrue();
+		// An already-tombstoned aggregate must still be carried through the loop, because the steps that
+		// follow the tombstone are the ones an interrupted erasure left undone.
 		A.CallTo(() => _erasure.EraseEventsAsync(A<string>._, A<string>._, A<Guid>._, CancellationToken.None))
-			.MustNotHaveHappened();
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -158,7 +167,7 @@ public sealed class EventStoreErasureContributorShould
 			.Returns(Task.FromResult(false));
 		A.CallTo(() => _erasure.EraseEventsAsync("agg-1", "Order", A<Guid>._, CancellationToken.None))
 			.Returns(Task.FromResult(3));
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, _snapshotStore);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, _snapshotStore, serviceProvider: null, retentions: null);
 
 		// Act
 		await sut.EraseAsync(context, CancellationToken.None);
@@ -184,7 +193,7 @@ public sealed class EventStoreErasureContributorShould
 			.Returns(Task.FromResult(false));
 		A.CallTo(() => _erasure.EraseEventsAsync("agg-1", "Order", A<Guid>._, CancellationToken.None))
 			.Throws(new InvalidOperationException("DB error"));
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null);
 
 		// Act
 		var result = await sut.EraseAsync(context, CancellationToken.None);
@@ -197,7 +206,7 @@ public sealed class EventStoreErasureContributorShould
 	public async Task ThrowWhenContextIsNull()
 	{
 		// Arrange
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -208,7 +217,7 @@ public sealed class EventStoreErasureContributorShould
 	public void ImplementIErasureContributor()
 	{
 		// Arrange & Act
-		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger);
+		var sut = new EventStoreErasureContributor(_erasure, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null);
 
 		// Assert
 		sut.ShouldBeAssignableTo<IErasureContributor>();

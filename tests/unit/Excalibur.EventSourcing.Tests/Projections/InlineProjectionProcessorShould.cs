@@ -123,6 +123,109 @@ public sealed class InlineProjectionProcessorShould
 		ex.Message.ShouldContain("do NOT retry SaveAsync");
 	}
 
+
+	// THE MESSAGE IS THE CONSUMER'S ONLY POINTER TO THE REMEDY, and that is why it is asserted rather than
+	// left to review. The superseded wording named IProjectionRecovery.ReapplyAsync as THE remedy; on a
+	// store that records positions that call refuses terminally, because inline apply hard-codes
+	// GlobalPosition: null and so leaves a row with no position a later write can advance from. The wrong
+	// advice survived precisely because no arm read the text.
+	[Fact]
+	public async Task Send_a_position_recording_store_to_the_rebuild_rather_than_to_recovery()
+	{
+		// Arrange
+		var registration = new ProjectionRegistration(
+			typeof(OrderSummary),
+			ProjectionMode.Inline,
+			new MultiStreamProjection<OrderSummary>(),
+			inlineApply: (_, _, _, _) =>
+				Task.FromException(new InvalidOperationException("store failure")));
+		_registry.Register(registration);
+
+		// Act
+		var ex = await Should.ThrowAsync<AggregateException>(() =>
+			_processor.ProcessAsync(
+				new List<IDomainEvent> { new TestOrderPlaced() },
+				CreateContext(),
+				NotificationFailurePolicy.Propagate,
+				CancellationToken.None));
+
+		// Assert
+		ex.Message.ShouldContain(
+			"REBUILD",
+			Case.Sensitive,
+			"a consumer whose store records positions must be sent to the rebuild, which is the only "
+			+ "repair that can succeed against a row inline apply produced");
+
+		ex.Message.ShouldContain(
+			"REFUSE",
+			Case.Sensitive,
+			"and must be told that the recovery call refuses such a row, so they do not spend a hop "
+			+ "discovering it -- the framework used to send them there and recovery then sent them on");
+
+		// NOT a bare "does it mention ReapplyAsync" check. The message names that call deliberately, for
+		// the store which records NO positions, where it genuinely is the remedy. What must not come back
+		// is presenting it as the remedy with no mention that it refuses the row inline apply leaves.
+		ex.Message.ShouldNotContain(
+			"Use IProjectionRecovery.ReapplyAsync to recover",
+			Case.Sensitive,
+			"the superseded wording presented the recovery call as THE remedy, unqualified");
+	}
+
+
+	// PINNED FOR THE SAME REASON AS THE THROW, and this is the branch a consumer reaches when they have NOT
+	// opted into propagation -- arguably the more common one. The superseded text promised "projection will
+	// catch up via async path", and that was false twice over: a projection is registered in exactly ONE
+	// mode, so an Inline projection is never DELIVERED to the async host (the primary reason), and even if
+	// it were, the async host writes POSITIONED against a row inline apply left with no position, so the
+	// write would be refused (a redundancy, not the mechanism).
+	//
+	// It survived for exactly the reason the throw's wrong advice survived: nothing read the text. This arm
+	// asserts CASE-SENSITIVELY on purpose -- a case-insensitive phrase assertion is what let a stale claim
+	// about this same message pass unnoticed against both the old wording and its replacement.
+	[Fact]
+	public async Task Not_promise_an_automatic_catch_up_when_the_policy_is_log_and_continue()
+	{
+		// Arrange
+		var logger = new CapturingLogger();
+		var processor = new InlineProjectionProcessor(_registry, _scopeFactory, logger);
+
+		var registration = new ProjectionRegistration(
+			typeof(OrderSummary),
+			ProjectionMode.Inline,
+			new MultiStreamProjection<OrderSummary>(),
+			inlineApply: (_, _, _, _) =>
+				Task.FromException(new InvalidOperationException("store failure")));
+		_registry.Register(registration);
+
+		// Act -- LogAndContinue does not throw, so the log IS the entire consumer-facing output.
+		await processor.ProcessAsync(
+			new List<IDomainEvent> { new TestOrderPlaced() },
+			CreateContext(),
+			NotificationFailurePolicy.LogAndContinue,
+			CancellationToken.None);
+
+		// Assert
+		var logged = logger.Messages.ShouldHaveSingleItem();
+
+		logged.ShouldNotContain(
+			"catch up via async path",
+			Case.Sensitive,
+			"there is no async catch-up for an Inline projection, so promising one tells an operator the "
+			+ "system will self-heal -- which makes doing nothing the correct response to the message, and "
+			+ "nothing is then what happens");
+
+		logged.ShouldContain(
+			"NOT RECOVERED AUTOMATICALLY",
+			Case.Sensitive,
+			"the operator must be told the failure is theirs to repair, because nothing else will");
+
+		logged.ShouldContain(
+			"REBUILD",
+			Case.Sensitive,
+			"and told WHICH repair: a rebuild on a store that records positions, which is where an inline "
+			+ "write leaves a row no later positioned write can advance from");
+	}
+
 	[Fact]
 	public async Task LogAndContinueDoesNotThrow()
 	{
@@ -354,4 +457,35 @@ public sealed class InlineProjectionProcessorShould
 			foreach (var meter in _meters) meter.Dispose();
 		}
 	}
+
+	/// <summary>
+	/// Captures the FORMATTED log text, which is what a consumer reads.
+	/// </summary>
+	/// <remarks>
+	/// A hand-written double rather than a mock: the message under test is produced by the formatter, so an
+	/// assertion on the template or on the state object would pin something the operator never sees.
+	/// </remarks>
+	private sealed class CapturingLogger : ILogger<InlineProjectionProcessor>
+	{
+		private readonly List<string> _messages = [];
+
+		public IReadOnlyList<string> Messages => _messages;
+
+		public IDisposable? BeginScope<TState>(TState state)
+			where TState : notnull => null;
+
+		public bool IsEnabled(LogLevel logLevel) => true;
+
+		public void Log<TState>(
+			LogLevel logLevel,
+			Microsoft.Extensions.Logging.EventId eventId,
+			TState state,
+			Exception? exception,
+			Func<TState, Exception?, string> formatter)
+		{
+			ArgumentNullException.ThrowIfNull(formatter);
+			_messages.Add(formatter(state, exception));
+		}
+	}
+
 }

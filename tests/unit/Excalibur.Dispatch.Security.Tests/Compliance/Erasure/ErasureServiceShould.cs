@@ -51,7 +51,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService,
-			null);
+			null,
+			TestRetentions.None);
 	}
 
 	#region Constructor Tests
@@ -68,7 +69,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			null,
 			null,
-			null));
+			null,
+			TestRetentions.None));
 	}
 
 
@@ -84,7 +86,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			null,
 			null,
-			null));
+			null,
+			TestRetentions.None));
 	}
 
 	[Fact]
@@ -99,7 +102,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			null,
 			null,
-			null));
+			null,
+			TestRetentions.None));
 	}
 
 	[Fact]
@@ -115,7 +119,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			legalHoldService: null!,
 			dataInventoryService: null,
-			keyEscrowService: null));
+			keyEscrowService: null,
+			retentions: TestRetentions.None));
 	}
 
 	[Fact]
@@ -130,7 +135,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			dataInventoryService: null,
-			keyEscrowService: null);
+			keyEscrowService: null,
+			retentions: TestRetentions.None);
 
 		_ = service.ShouldNotBeNull();
 	}
@@ -389,7 +395,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			null,
-			null);
+			null,
+			TestRetentions.None);
 
 		DateTimeOffset? capturedScheduledTime = null;
 		_ = A.CallTo(() => _store.SaveRequestAsync(
@@ -442,7 +449,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			null,
-			null);
+			null,
+			TestRetentions.None);
 
 		var request = CreateValidRequest() with { GracePeriodOverride = TimeSpan.FromMinutes(30) };
 
@@ -475,7 +483,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			null,
-			null);
+			null,
+			TestRetentions.None);
 
 		var request = CreateValidRequest() with { GracePeriodOverride = TimeSpan.FromDays(15) };
 
@@ -1148,5 +1157,6 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService,
-			null);
+			null,
+			TestRetentions.None);
 }

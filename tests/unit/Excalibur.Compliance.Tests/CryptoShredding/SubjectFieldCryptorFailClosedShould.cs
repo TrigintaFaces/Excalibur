@@ -31,7 +31,7 @@ public sealed class SubjectFieldCryptorFailClosedShould
 
         // RED on the pre-fix silent no-op (which would persist the record unencrypted); GREEN on the throw.
         await Should.ThrowAsync<EncryptionException>(
-            () => cryptor.EncryptFieldsAsync(record, CancellationToken.None).AsTask());
+            () => cryptor.EncryptFieldsAsync(record, aggregateType: null, CancellationToken.None).AsTask());
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class SubjectFieldCryptorFailClosedShould
 
         // No [DataSubjectId] => not a data-subject entity => legitimate no-op, never a false-positive throw.
         await Should.NotThrowAsync(
-            () => cryptor.EncryptFieldsAsync(record, CancellationToken.None).AsTask());
+            () => cryptor.EncryptFieldsAsync(record, aggregateType: null, CancellationToken.None).AsTask());
     }
 
     // Declares a data subject but carries NO [PersonalData] field — the trimmed/registry-mismatch case.

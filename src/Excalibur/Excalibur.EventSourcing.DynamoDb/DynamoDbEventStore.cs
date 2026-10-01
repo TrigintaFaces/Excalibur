@@ -469,7 +469,11 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 				if (precheckCommitted is { } precheckLanded)
 				{
 					activity.SetOperationResult(EventSourcingTagValues.Success);
-					return CloudAppendResult.CreateSuccess(precheckLanded, 0);
+
+					// RECOGNISED, not written by this call. Reporting plain success here would be true about
+					// the append and silently false about the call: these items are durable, but they are a
+					// prior attempt's, and anything may have happened to them since — an erasure included.
+					return CloudAppendResult.CreateAlreadyCommitted(precheckLanded, 0);
 				}
 
 				operationResult = WriteStoreTelemetry.Results.Conflict;
@@ -663,14 +667,21 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			// DynamoDB has no store-wide global sequence across items/streams; global ordering is
 			// unsupported for this provider, so no global first-event position is reported.
 			// A successful CloudAppendResult always states the version it advanced the stream to.
-			return AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null);
+			//
+			// CARRY THE OUTCOME ACROSS, do not flatten it to success. This hop is the only place the
+			// recognised-retry state could be lost, and a caller that must not republish from live payloads
+			// reads it on the far side.
+			return result.Outcome == CloudAppendOutcome.AlreadyCommitted
+				? AppendResult.CreateAlreadyCommitted(result.NextExpectedVersion!.Value, firstEventPosition: null)
+				: AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)
 		{
-			// A concurrency conflict is the one failure that measured the stream's actual version, so it
-			// always states one.
-			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion!.Value);
+			// A concurrency conflict states the version it MEASURED, or nothing. Carry the null across
+			// rather than dereferencing: the store may have detected the conflict without reading a
+			// version, and a caller that gets null reloads instead of trusting a number nobody took.
+			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion);
 		}
 
 		return AppendResult.CreateFailure(result.ErrorMessage ?? "Unknown error");

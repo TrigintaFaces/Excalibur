@@ -33,7 +33,7 @@ namespace Excalibur.Compliance.Tests.Erasure;
 public sealed class ErasureCoverageGateShould
 {
     private readonly IErasureStore _store = A.Fake<IErasureStore>();
-    private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
+    private readonly IKeyManagementAdmin _keyAdmin = KeyDestructionFakes.AdminThatReportsEveryKeyDestroyed();
     private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
     private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
 
@@ -462,7 +462,7 @@ public sealed class ErasureCoverageGateShould
             NullLogger<ErasureService>.Instance,
             TestDataSubjectHasher.Instance,
             _legalHoldService, _dataInventoryService, null,
-            annotations, contributors);
+            annotations, TestRetentions.None, contributors);
     }
 
     private static IErasureContributor CreateContributor(string name, DataStoreKind covers, int recordsAffected)
@@ -488,7 +488,7 @@ public sealed class ErasureCoverageGateShould
             NullLogger<ErasureService>.Instance,
             TestDataSubjectHasher.Instance,
             _legalHoldService, _dataInventoryService, null,
-            TestAnnotationSource.None, contributors);
+            TestAnnotationSource.None, TestRetentions.None, contributors);
     }
 
     private void SetupScheduledRequest(Guid requestId)

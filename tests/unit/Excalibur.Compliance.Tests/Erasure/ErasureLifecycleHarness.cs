@@ -54,6 +54,7 @@ internal sealed class ErasureLifecycleHarness
 			null,
 			null,
 			TestAnnotationSource.None,
+			TestRetentions.None,
 			contributors);
 
 		Verifier = withVerifier

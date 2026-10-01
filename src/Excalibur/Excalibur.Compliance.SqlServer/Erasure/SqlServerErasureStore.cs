@@ -149,11 +149,11 @@ public sealed partial class SqlServerErasureStore
 
 		var sql = $@"
 			INSERT INTO {_options.FullRequestsTableName}
-				(RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasis,
+				(RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
 				 ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				 Status, DataCategories, CreatedAt, UpdatedAt)
 			VALUES
-				(@RequestId, @DataSubjectIdHash, @IdType, @TenantId, @Scope, @LegalBasis,
+				(@RequestId, @DataSubjectIdHash, @IdType, @TenantId, @Scope, @LegalBasisV2,
 				 @ExternalReference, @RequestedBy, @RequestedAt, @ScheduledExecutionAt,
 				 @Status, @DataCategories, @CreatedAt, @UpdatedAt)";
 
@@ -176,7 +176,7 @@ public sealed partial class SqlServerErasureStore
 			TenantId = KeyedTenantPartition.FromStoredValue(
 				_requireTenant ? tenant.TenantId : request.TenantId).TenantId,
 			Scope = (int)request.Scope,
-			LegalBasis = (int)request.LegalBasis,
+			LegalBasisV2 = (int)request.LegalBasis,
 			request.ExternalReference,
 			request.RequestedBy,
 			request.RequestedAt,
@@ -221,7 +221,7 @@ public sealed partial class SqlServerErasureStore
 		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
-			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasis,
+			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
 				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
@@ -235,7 +235,21 @@ public sealed partial class SqlServerErasureStore
 				new CommandDefinition(sql, new { RequestId = requestId, AmbientTenantId = tenant.TenantId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
-		return row?.ToStatus();
+		if (row is null)
+		{
+			return null;
+		}
+
+		// Read only after the request itself resolved in this tenant, so the handles cannot be returned for a
+		// request the caller is not entitled to see. No tenant predicate is needed here for the same reason:
+		// the rows are reachable only through a request id that already passed the check above.
+		var destroyedHandles = await connection.QueryAsync<string>(new CommandDefinition(
+			$"SELECT KeyHandle FROM {_options.FullDestroyedKeysTableName} WHERE RequestId = @RequestId",
+			new { RequestId = requestId },
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		return row.ToStatus() with { DestroyedKeyHandles = [.. destroyedHandles] };
 	}
 
 	/// <inheritdoc />
@@ -268,6 +282,78 @@ public sealed partial class SqlServerErasureStore
 			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return affected > 0;
+	}
+
+	/// <inheritdoc />
+	public async Task RecordKeyDestroyedAsync(Guid requestId, string keyHandle, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var tenant = AmbientScope;
+		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId" : string.Empty;
+
+		// The INSERT is gated on the request EXISTING IN THIS TENANT, in the same statement, so a record can
+		// never be written into another tenant's partition and the check cannot drift from the write.
+		//
+		// NOT EXISTS makes it idempotent without relying on catching a primary-key violation, so a second pass
+		// recording the same handle affects nothing and raises nothing. The key does still constrain the table:
+		// it is what makes the set a set under genuine concurrency, where two statements can both pass the
+		// NOT EXISTS.
+		var sql = $@"
+			INSERT INTO {_options.FullDestroyedKeysTableName} (RequestId, KeyHandle, DestroyedAt)
+			SELECT @RequestId, @KeyHandle, @Now
+			FROM {_options.FullRequestsTableName} r
+			WHERE r.RequestId = @RequestId{tenantPredicate}
+			  AND NOT EXISTS (
+				  SELECT 1 FROM {_options.FullDestroyedKeysTableName} d
+				  WHERE d.RequestId = @RequestId AND d.KeyHandle = @KeyHandle)";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			var affected = await connection.ExecuteAsync(new CommandDefinition(
+				sql,
+				new
+				{
+					RequestId = requestId,
+					KeyHandle = keyHandle,
+					Now = DateTimeOffset.UtcNow,
+					AmbientTenantId = tenant.TenantId,
+				},
+				cancellationToken: cancellationToken,
+				commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			// Zero rows has two causes and only one of them is benign. Already recorded is benign; no such
+			// request in this tenant is not, and it must not pass as "recorded" -- the caller is about to
+			// attest a destruction on the strength of this record existing.
+			if (affected == 0)
+			{
+				var alreadyRecorded = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+					$"SELECT COUNT(1) FROM {_options.FullDestroyedKeysTableName} d "
+					+ "WHERE d.RequestId = @RequestId AND d.KeyHandle = @KeyHandle",
+					new { RequestId = requestId, KeyHandle = keyHandle },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+				if (alreadyRecorded == 0)
+				{
+					throw new KeyNotFoundException(
+						$"No erasure request with id '{requestId}' exists in this tenant, so a destroyed key "
+						+ "cannot be recorded against it. This throws rather than returning quietly: the record "
+						+ "is what lets a retry attest a destruction an earlier pass performed, so losing it "
+						+ "silently would make the subject's erasure permanently uncertifiable.");
+				}
+			}
+		}
+		catch (SqlException ex) when (IsDuplicateKeyViolation(ex))
+		{
+			// Two passes raced past the NOT EXISTS. The row is there either way, which is the whole
+			// postcondition, so this is the success path arriving by a different route.
+		}
 	}
 
 	/// <inheritdoc />
@@ -381,7 +467,7 @@ public sealed partial class SqlServerErasureStore
 
 		var sql = $@"
 			SELECT TOP (@MaxResults)
-				   RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasis,
+				   RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
 				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
@@ -464,7 +550,7 @@ public sealed partial class SqlServerErasureStore
 		parameters.Add("PageSize", pageSize);
 
 		var sql = $@"
-			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasis,
+			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
 				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
@@ -493,11 +579,11 @@ public sealed partial class SqlServerErasureStore
 		var sql = $@"
 			INSERT INTO {_options.FullCertificatesTableName}
 				(CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
-				 Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
+				 Method, Summary, Verification, LegalBasisV2, Signature, RetainUntil,
 				 Exceptions, UnreachedData, GeneratedAt, Version, CreatedAt)
 			VALUES
 				(@CertificateId, @RequestId, @DataSubjectReference, @RequestReceivedAt, @CompletedAt,
-				 @Method, @Summary, @Verification, @LegalBasis, @Signature, @RetainUntil,
+				 @Method, @Summary, @Verification, @LegalBasisV2, @Signature, @RetainUntil,
 				 @Exceptions, @UnreachedData, @GeneratedAt, @Version, @CreatedAt)";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
@@ -519,7 +605,7 @@ public sealed partial class SqlServerErasureStore
 			Verification = JsonSerializer.Serialize(
 				certificate.Payload.Verification,
 				SqlServerComplianceJsonContext.Default.VerificationSummary),
-			LegalBasis = (int)certificate.Payload.LegalBasis,
+			LegalBasisV2 = (int)certificate.Payload.LegalBasis,
 			certificate.Signature,
 			certificate.Payload.RetainUntil,
 			Exceptions = JsonSerializer.Serialize(
@@ -567,17 +653,33 @@ public sealed partial class SqlServerErasureStore
 				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId)"
 			: string.Empty;
 
+		// ORDER BY plus QueryFirstOrDefault, and the pairing IS the fix rather than a tidy-up. This read was
+		// QuerySingleOrDefaultAsync against a table whose request key is a NON-UNIQUE index, so the moment a
+		// request held two certificates Dapper threw InvalidOperationException here on EVERY subsequent call,
+		// permanently: two signed documents stored and NEITHER retrievable by the lookup a consumer uses.
+		//
+		// Two certificates for one request is REACHABLE and not pathological. The partial branch issues one
+		// and the completion branch issues another, each with a freshly minted id, so a request that is
+		// partially completed and later completes legitimately holds two. A UNIQUE constraint would have been
+		// the wrong fix: it forbids the second DOCUMENT rather than the ambiguity, and both documents are real
+		// evidence an auditor may be entitled to.
+		//
+		// So the lookup answers with the CURRENT certificate and states that in the ordering. Newest first,
+		// because a completion certificate is generated after the partial one it supersedes. The id tiebreak
+		// makes the order TOTAL: without it, two certificates generated within the same tick leave the choice
+		// to the engine, which is a different wrong answer per provider and per query plan.
 		var sql = $@"
 			SELECT CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
-				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
+				   Method, Summary, Verification, LegalBasisV2, Signature, RetainUntil,
 				   Exceptions, UnreachedData, GeneratedAt, Version
 			FROM {_options.FullCertificatesTableName}
-			WHERE RequestId = @RequestId{tenantPredicate}";
+			WHERE RequestId = @RequestId{tenantPredicate}
+			ORDER BY GeneratedAt DESC, CertificateId DESC";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var row = await connection.QuerySingleOrDefaultAsync<CertificateRow>(
+		var row = await connection.QueryFirstOrDefaultAsync<CertificateRow>(
 				new CommandDefinition(sql, new { RequestId = requestId, AmbientTenantId = tenant.TenantId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
@@ -600,7 +702,7 @@ public sealed partial class SqlServerErasureStore
 
 		var sql = $@"
 			SELECT CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
-				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil,
+				   Method, Summary, Verification, LegalBasisV2, Signature, RetainUntil,
 				   Exceptions, UnreachedData, GeneratedAt, Version
 			FROM {_options.FullCertificatesTableName}
 			WHERE CertificateId = @CertificateId{tenantPredicate}";
@@ -829,8 +931,13 @@ public sealed partial class SqlServerErasureStore
 					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
 					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
 					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
-					+ "that path only creates tables that are absent. Run the shipped migration scripts against "
-					+ "this database, then restart.")
+					+ "that path only creates tables that are absent. If the missing column names end in V2, "
+					+ "the package ships the migration that adds them -- apply "
+					+ "'003_ReplaceLegalBasisColumns.sql' and restart. For any other missing column we ship no "
+					+ "alter script: the create scripts already declare them, so a freshly provisioned database "
+					+ "is correct and only a pre-existing one reaches this. Either re-provision from the shipped "
+					+ "create script, or add the listed column(s) by hand with a NOT NULL default matching a "
+					+ "never-updated row. Then restart.")
 				{
 					TableName = tableName,
 				};
@@ -852,7 +959,7 @@ public sealed partial class SqlServerErasureStore
 	[
 		(_options.FullRequestsTableName,
 		[
-			"RequestId", "DataSubjectIdHash", "IdType", "TenantId", "Scope", "LegalBasis",
+			"RequestId", "DataSubjectIdHash", "IdType", "TenantId", "Scope", "LegalBasisV2",
 			"ExternalReference", "RequestedBy", "RequestedAt", "ScheduledExecutionAt",
 			"ExecutedAt", "CompletedAt", "CancelledAt", "CancellationReason", "CancelledBy",
 			"Status", "KeysDeleted", "RecordsAffected", "CertificateId", "ErrorMessage",
@@ -861,8 +968,17 @@ public sealed partial class SqlServerErasureStore
 		(_options.FullCertificatesTableName,
 		[
 			"CertificateId", "RequestId", "DataSubjectReference", "RequestReceivedAt", "CompletedAt",
-			"Method", "Summary", "Verification", "LegalBasis", "Signature", "RetainUntil",
+			"Method", "Summary", "Verification", "LegalBasisV2", "Signature", "RetainUntil",
 			"Exceptions", "UnreachedData", "GeneratedAt", "Version", "CreatedAt",
+		]),
+
+		// Verified like the others, so a database provisioned before this table existed fails at STARTUP with
+		// the table named, rather than mid-erasure. The failure is loud on purpose: without this table a
+		// retried erasure silently attests less coverage than the request achieved, and the subject's
+		// completion becomes unreachable with nothing reporting why.
+		(_options.FullDestroyedKeysTableName,
+		[
+			"RequestId", "KeyHandle", "DestroyedAt",
 		]),
 	];
 
@@ -897,7 +1013,7 @@ public sealed partial class SqlServerErasureStore
 					TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
 						CONSTRAINT DF_{_options.RequestsTableName}_TenantId DEFAULT '{TenantScope.UntenantedSentinel}',
 					Scope INT NOT NULL,
-					LegalBasis INT NOT NULL,
+					LegalBasisV2 INT NOT NULL,
 					ExternalReference NVARCHAR(256) NULL,
 					RequestedBy NVARCHAR(256) NOT NULL,
 					RequestedAt DATETIMEOFFSET NOT NULL,
@@ -935,7 +1051,7 @@ public sealed partial class SqlServerErasureStore
 					Method INT NOT NULL,
 					Summary NVARCHAR(MAX) NOT NULL,
 					Verification NVARCHAR(MAX) NOT NULL,
-					LegalBasis INT NOT NULL,
+					LegalBasisV2 INT NOT NULL,
 					Signature NVARCHAR(512) NOT NULL,
 					RetainUntil DATETIMEOFFSET NOT NULL,
 					-- Every remaining payload claim gets a column. The signature covers the payload WHOLE, so a
@@ -958,6 +1074,25 @@ public sealed partial class SqlServerErasureStore
 				)
 			END";
 
+		// Which handles a request has destroyed, one row per handle. The composite PRIMARY KEY is the
+		// idempotency: re-recording a handle this request already destroyed violates it and is swallowed as a
+		// no-op, so no pass has to read-modify-write a set and no pass can lose another's record.
+		var createDestroyedKeysTableSql = $@"
+			IF NOT EXISTS (SELECT 1 FROM sys.tables t
+				JOIN sys.schemas s ON t.schema_id = s.schema_id
+				WHERE s.name = '{_options.SchemaName}' AND t.name = '{_options.DestroyedKeysTableName}')
+			BEGIN
+				CREATE TABLE {_options.FullDestroyedKeysTableName} (
+					RequestId UNIQUEIDENTIFIER NOT NULL,
+					-- Binary collation, so the database compares handles exactly as the framework does
+					-- ordinally. A case-insensitive collation would treat two distinct handles as one and
+					-- silently attest coverage for a key that was never destroyed.
+					KeyHandle NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
+					DestroyedAt DATETIMEOFFSET NOT NULL,
+					CONSTRAINT PK_{_options.DestroyedKeysTableName} PRIMARY KEY (RequestId, KeyHandle)
+				)
+			END";
+
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
@@ -966,6 +1101,8 @@ public sealed partial class SqlServerErasureStore
 		_ = await connection.ExecuteAsync(new CommandDefinition(createRequestsTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 		_ = await connection.ExecuteAsync(new CommandDefinition(createCertificatesTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+			.ConfigureAwait(false);
+		_ = await connection.ExecuteAsync(new CommandDefinition(createDestroyedKeysTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
 		LogSchemaEnsured();
@@ -980,7 +1117,7 @@ public sealed partial class SqlServerErasureStore
 		public int IdType { get; init; }
 		public string? TenantId { get; init; }
 		public int Scope { get; init; }
-		public int LegalBasis { get; init; }
+		public int LegalBasisV2 { get; init; }
 		public string? ExternalReference { get; init; }
 		public string RequestedBy { get; init; } = string.Empty;
 		public DateTimeOffset RequestedAt { get; init; }
@@ -1004,7 +1141,7 @@ public sealed partial class SqlServerErasureStore
 			IdType = (DataSubjectIdType)IdType,
 			TenantId = TenantId,
 			Scope = (ErasureScope)Scope,
-			LegalBasis = (ErasureLegalBasis)LegalBasis,
+			LegalBasis = (ErasureLegalBasis)LegalBasisV2,
 			ExternalReference = ExternalReference,
 			RequestedBy = RequestedBy,
 			RequestedAt = RequestedAt,
@@ -1034,7 +1171,7 @@ public sealed partial class SqlServerErasureStore
 		public int Method { get; init; }
 		public string Summary { get; init; } = string.Empty;
 		public string Verification { get; init; } = string.Empty;
-		public int LegalBasis { get; init; }
+		public int LegalBasisV2 { get; init; }
 		public string Signature { get; init; } = string.Empty;
 		public DateTimeOffset RetainUntil { get; init; }
 		public string Exceptions { get; init; } = "[]";
@@ -1058,7 +1195,7 @@ public sealed partial class SqlServerErasureStore
 				Verification = JsonSerializer.Deserialize(
 				Verification,
 				SqlServerComplianceJsonContext.Default.VerificationSummary) ?? CreateDefaultVerificationSummary(),
-				LegalBasis = (ErasureLegalBasis)LegalBasis,
+				LegalBasis = (ErasureLegalBasis)LegalBasisV2,
 				Exceptions = JsonSerializer.Deserialize(
 					Exceptions,
 					SqlServerComplianceJsonContext.Default.IReadOnlyListErasureException) ?? [],

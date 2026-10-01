@@ -105,43 +105,86 @@ operator-level operation, reachable only by calling it directly — keep it out 
 
 ## Event dedup guarantee
 
-**Event dedup is bounded, and the bound is part of the contract.** A saga ignores an event id it has already
-processed. The set of remembered ids is bounded at **1000 per saga instance** and evicted **FIFO**. Beyond that
-bound, a redelivery of an evicted event **re-executes the step**. This is a bounded window, not an
-approximation of exactly-once.
+**Replay protection applies ONLY to a delivery that carries a message identity, and the protection it gives
+is a bounded window rather than exactly-once.** Stated falsifiably, as three separate conditions:
 
-**The event id is derived from the NAMESPACE-QUALIFIED type name, the saga id, and the step id** —
-`{Type.FullName}:{SagaId}:{StepId}`, or `{Type.FullName}:{SagaId}` when no step id is set. The qualification
-is load-bearing and is part of the guarantee, not an implementation detail: two distinct event types that
-share a simple name in different namespaces are two distinct events, and a key derived from the simple name
-would collapse them onto one, so the second would be discarded as a duplicate and **never execute**. That is
-the opposite failure direction from the bounded window above — the window's failure is re-execution, which
-an idempotent step absorbs; a collision's failure is zero execution, which no consumer obligation on this
-page covers and which emits the same log line a correct dedup emits.
+1. **A delivery carrying a message identity** (`IMessageContext.MessageId`) is deduplicated on that
+   identity. A second delivery presenting the same identity to the same saga is ignored: the handler is not
+   invoked and no state is written.
+2. **The remembered set is bounded at 1000 identities per saga instance and evicted FIFO.** Past that bound
+   a redelivery of an evicted identity **re-executes the step**. This is a bounded window, not an
+   approximation of exactly-once.
+3. **A delivery carrying NO message identity is processed and NOT deduplicated.** For such a delivery the
+   saga is **at-least-once** and its handlers **MUST be idempotent**. The framework does not invent an
+   identity for it, does not guess one from the payload, and does not reject it.
 
-**KNOWN GAP, and it is the same failure direction as the collision above: WITH NO STEP ID, TWO DISTINCT
-EVENTS OF ONE TYPE COLLAPSE ONTO ONE KEY.** `StepId` is nullable. When it is not set, the key is
-`{Type.FullName}:{SagaId}` — which is the same key for every event of that type reaching that saga. The
-first is processed; every later one is discarded as a duplicate and **never executes**, silently, and the
-log line it emits says "skipped duplicate event", which is the opposite of what happened.
+The identity is a property of the **delivery**, not of the payload. It is neither derived from nor influenced
+by the event type, the saga id, or `ISagaEvent.StepId`. Every send this framework makes stamps a message id,
+so condition 1 is the normal case; condition 3 is reachable only for an inbound message from a producer that
+sends no id of its own.
 
-That is a real and reachable loss, not a corner: nothing enforces `StepId`. It is a nullable property on a
-public interface with no analyzer, no validation and no registration-time check, so a saga that omits it
-compiles, runs, and drops events.
+**What the log tells an operator, and what it does not promise the business.** The first time an event type
+arrives with no identity, the coordinator emits a **Warning** naming that type, and it emits it once per type
+per process. Every such delivery also increments the counter `excalibur.saga.undeduplicable_deliveries`,
+tagged with the event type — so a producer that never sends an id is visible in metrics rather than only in a
+log line from startup. **That visibility is for an operator; it is not a guarantee to the business.** A
+duplicated saga step is silent downstream, so the contract above states which deliveries are protected and
+which are not, rather than resting on someone reading the warning.
 
-**Consumer obligation for this gap, until it is fixed in the framework:** set `ISagaEvent.StepId` to a value
-that is unique per delivery you want deduplicated separately — the step name is enough when a saga handles
-each type once, and is NOT enough when it handles the same type more than once. **Idempotency does not cover
-this one.** Idempotency protects against a step running twice; this failure is a step running zero times, and
-no amount of idempotence in your handler recovers an event that was never handed to it.
+### Why the identity is not derived from the payload
 
-The fix is to stop deriving replay identity from business fields and use the identity the delivery already
-carries. It is specified and not yet shipped, and it is a breaking change to the persisted key format, so it
-is stated here as a gap rather than implied to be absent.
+It was, and the derivation lost events. The key was `{Type.FullName}:{SagaId}:{StepId}`, or
+`{Type.FullName}:{SagaId}` when no step id was set. `StepId` is a nullable property on a public interface
+that nothing enforces — no analyzer, no validation, no registration-time check — so **every event of one
+type reaching one saga composed the same key**: the first was processed and every later one was discarded as
+a duplicate and **never executed**, silently, while the log line said "skipped duplicate event".
 
-**Consumer obligation:** saga steps **MUST be idempotent**. If a saga can process more than 1000 events, or you
-need dedup with no bound, place the transactional inbox in front of the saga — the saga's own set is not a
-substitute for it.
+That failure direction matters, and it is the reverse of the bounded window's. The window's failure is
+**re-execution**, which an idempotent handler absorbs. A collapsed key's failure is **zero execution**, which
+no consumer obligation recovers: idempotency protects a step from running twice and does nothing for a step
+that was never handed its event.
+
+### Upgrading a saga that is already running
+
+**The remembered identities are persisted inside saga state, and the format changed.** An identity written by
+the superseded scheme cannot be produced again, so an entry already in a saved saga's set can never match a
+new delivery. Those entries are **left in place, untranslated and inert** — every key this scheme writes
+begins with a marker (`#`) that no superseded key can begin with, because those began with a
+namespace-qualified CLR type name.
+
+The consequence, stated plainly: **a saga that was mid-flight across the upgrade may run one step a second
+time** if a delivery it had already recorded is redelivered. That is the at-least-once direction, and the
+standing obligation that saga steps be idempotent covers it. The alternative — honouring the old keys — would
+have re-created the collapse for every upgraded saga and kept dropping events indefinitely, which nothing
+covers.
+
+**There is no migration to run, and none is supplied.** The superseded entries are not merely stale, they are
+**ambiguous**: a key that two distinct events collapsed onto records that *a* delivery of that type was
+processed and cannot say which, or how many were discarded behind it. Nothing can decompose it, so nothing
+rewrites it. A consumer who wants to avoid the one re-execution described above drains the saga before
+upgrading; a consumer who does not is at at-least-once for one delivery per in-flight saga, which handler
+idempotency already covers.
+
+**Events already dropped by the superseded scheme are a different matter, and idempotency is no help with
+them.** They were never handed to a handler, so there is no execution to make idempotent — the step ran zero
+times. Recovering them is a replay, and it is evidence-based because the framework holds no record of what it
+discarded:
+
+- **Do not look in the remembered set for evidence.** A collided key appears exactly once however many
+  events collapsed onto it, so the set's size is not the count of deliveries a saga processed. That is the
+  ambiguity above, and it is why the set cannot be used to identify what is missing.
+- **The determination is against your own stream and your own saga state.** The shape to look for is a saga
+  that received more than one event of a single type while that type carried no step id. Compare the events
+  your stream holds for that saga against the progress its state actually records; the difference is what was
+  discarded. Nothing in the framework can make that comparison for you.
+- **Re-deliver the missing events on this version.** Each delivery now carries its own identity, so a replay
+  of two events of one type is two events and no longer collapses — which was not true before, where a
+  re-delivery would have been discarded exactly as the original was. A saga too far diverged to replay into
+  is advanced by hand.
+
+**Consumer obligation:** saga steps **MUST be idempotent**. If a saga can process more than 1000 events, or
+you need dedup with no bound, or your producers do not send message ids, place the transactional inbox in
+front of the saga — the saga's own set is not a substitute for it.
 
 The framework does not ship a durable dedup backstop for saga steps, and that is deliberate rather than
 unfinished: message delivery is at-least-once one level down, the transactional inbox already owns unbounded
@@ -162,17 +205,34 @@ that half: it round-trips a derived saga state through the serializer every dura
 through and asserts the remembered ids come back, with a plain settable property asserted first as a
 control so a broken round trip cannot be mistaken for a lost set.
 
-A fourth arm binds the key derivation itself: two event types deliberately given the **same simple name in
-sibling namespaces** are delivered to one saga at one step, and both must execute. It carries a fixture
-control asserting the two types really do collide on their simple name (so a rename cannot make the arm pass
-vacuously) and a liveness control asserting a true redelivery of the *same* type is still deduplicated (so a
-derivation that stopped deduplicating anything at all fails rather than passes). Reverting the derivation to
-the simple type name turns the first two arms red.
-
 **Why that arm is load-bearing rather than redundant.** The remembered ids live in a get-only collection,
 which the serializer writes and then discards on read unless the property can be populated. When that
 happens the set returns empty, every event looks new, and the bound stated above is not 1000 but zero —
 the guarantee reads as satisfied while nothing is deduplicated anywhere durable.
+
+A further group of arms binds the identity condition itself, each RED-proven against a mutant of the
+coordinator:
+
+- **Three deliveries agreeing on type, saga and step, differing only in message identity, all execute.** Red
+  against the superseded derivation.
+- **A redelivery presenting the same identity executes once.** This is the non-vacuity control: without it
+  the arm above is satisfied by a coordinator that deduplicates nothing at all.
+- **Identity-less deliveries all execute, record nothing, warn once per type, and increment the counter once
+  per delivery.** Four deliveries across two event types are asserted to produce four executions, an empty
+  remembered set, exactly two warnings, and per-type counts of three and one. Red against a coordinator that
+  falls back to the derived key, against one that warns once per process, and against one that counts once
+  per type.
+- **A superseded-format key seeded into a saga's set does not block a new delivery, is not removed, and the
+  key written alongside it carries the scheme marker.**
+- **The key written contains no part of the event type name, namespace, or saga id.** This is the structural
+  arm: it goes red if any payload-derived component is reintroduced, including a qualification prefix added
+  for readability, which is how the collapsed key arrived the first time.
+
+**What is NOT verified.** These arms run against an in-memory store, so they bind the coordinator's decision
+and not the persistence of the new key format across each of the eight saga stores. The remembered set is a
+collection of opaque strings and its round trip is already covered by the arm above, so the format change
+does not alter what the stores serialize — but no arm exercises a real store across the format change, and a
+real-infrastructure conformance arm per store remains owed.
 
 ## Consumer obligations
 

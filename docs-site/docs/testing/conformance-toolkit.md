@@ -153,6 +153,33 @@ public sealed class MyDeadLetterConformanceTests : DeadLetterStoreConformanceTes
 Without the override the arms still report — as skips, in the ledger, rather than as silent passes — but a
 recorded absence is still an uncertified capability.
 
+### Which of our own providers these kits are run against
+
+The same honesty applies to the providers we ship, so here is the state of it rather than an implication that
+every provider is equally verified.
+
+`KeyManagementProviderConformanceTestKit` is run against **three** providers — the in-memory one, AWS KMS
+against a real KMS API, and HashiCorp Vault against a real Vault. **Azure Key Vault is not among them, and
+its conformance is UNVERIFIED rather than absent.** Azure Key Vault has no emulator, so there is nothing to
+run a real-backend suite against, and a suite that skipped when its backend was unavailable would report the
+same green as one that ran — which is the defect this whole section exists to name. We would rather record
+the gap than close it with an arm that cannot fail.
+
+One consequence is worth stating in behavioural terms, because it is a real difference a consumer can
+observe rather than a testing detail:
+
+**Azure Key Vault exposes no ordinal key version.** Its versions are opaque identifiers, while the
+framework's key metadata carries an integer, so `AzureKeyVaultProvider` *derives* that integer from the
+opaque identifier. The derivation is deterministic and stable across processes, but it is **not injective**:
+two of a key's versions can derive the same number. When that happens, a version lookup **refuses** — it
+raises rather than resolving one of the candidates, because returning one would answer about a version the
+caller did not ask for, and the number is bound into the encryption's associated data, so the mismatch would
+surface later as a failed authentication tag on a value whose key is perfectly healthy.
+
+The derivation cannot be changed compatibly: the number it produces is recorded on every envelope encrypted
+under an Azure-backed key and is part of what authenticates that envelope, so altering it would make
+existing values undecryptable. It is therefore guarded rather than replaced.
+
 ## Testing against a real backend
 
 For providers backed by a database, run the same kit against a real engine with an opt-in fixture:

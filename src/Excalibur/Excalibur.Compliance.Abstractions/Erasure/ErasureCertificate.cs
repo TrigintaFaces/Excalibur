@@ -203,8 +203,26 @@ public enum VerificationMethod
 public sealed record ErasureException
 {
 	/// <summary>
-	/// Gets the legal basis for the exception.
+	/// Gets the Article 17(3) ground under which this data was kept.
 	/// </summary>
+	/// <value>
+	/// The legal basis; or <see cref="LegalHoldBasis.NotEstablished"/> meaning nobody stated a ground.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// <b>The unknown lives in the enum rather than in a nullable, and that placement is the fix.</b> A
+	/// nullable here would protect only this property: <c>default(LegalHoldBasis)</c> would still be a
+	/// lawful-looking ground at every other carrier, including every carrier added later.
+	/// <see cref="LegalHoldBasis.NotEstablished"/> at zero fixes the type once, for every site that has one
+	/// of these and every site that will.
+	/// </para>
+	/// <para>
+	/// <b>It is not a neutral omission — it makes the erasure incomplete.</b> An exemption whose ground was
+	/// never established is an unmet obligation, and presenting an unmet obligation as a lawful basis turns a
+	/// failure into a defensible retention. The certificate is still issued and records that the erasure did
+	/// not complete, rather than attesting a lawful outcome over a retention nobody justified.
+	/// </para>
+	/// </remarks>
 	public required LegalHoldBasis Basis { get; init; }
 
 	/// <summary>
@@ -218,12 +236,85 @@ public sealed record ErasureException
 	public required string Reason { get; init; }
 
 	/// <summary>
-	/// Gets the expected retention period.
+	/// Gets the length of the retention, stated only alongside the instant it is measured from.
 	/// </summary>
+	/// <value>
+	/// Always <see langword="null"/> in this scheme, meaning <em>the end of this retention is not
+	/// established</em>. A period is emitted only where the end instant it is measured from is also
+	/// recorded, and nothing in this framework can yet establish that instant.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// <b>A duration with no anchor is not a retention end, and it reads as one.</b> "Six years" on a signed
+	/// document leaves the reader to supply the missing instant, and the only instant in front of them is the
+	/// certificate's own date — which restarts a statutory clock at the moment the data subject asked to be
+	/// erased, and so extends every retention past the end the law actually gives it. The certificate would
+	/// then be evidence for a longer retention than the obligation supports, in a document produced to prove
+	/// the opposite.
+	/// </para>
+	/// <para>
+	/// <b>Why the end cannot be established here.</b> The instant a particular record's obligation lapses
+	/// depends on facts held by the deployment, not by the framework: a warranty term runs from delivery
+	/// rather than from the order that created the record, and a limitation period for claims arising from it
+	/// runs from something else again. A period declared once for an aggregate type cannot express that, and
+	/// the erasure's own completion instant is the one anchor in reach and the one anchor that is wrong.
+	/// Until the end can be supplied per record, the honest form of the claim is its absence.
+	/// </para>
+	/// <para>
+	/// <b>Reading this property.</b> <see langword="null"/> is a statement, not a gap: it says the end was not
+	/// established and MUST NOT be read as "no retention applies" or "the retention has no end". What the
+	/// entry does establish is <see cref="Basis"/>, <see cref="DataCategory"/>, <see cref="Reason"/> and
+	/// <see cref="RetainedKeyHandle"/> — the ground, the data, the justification, and the key whose
+	/// destruction ends the retention.
+	/// </para>
+	/// </remarks>
 	public TimeSpan? RetentionPeriod { get; init; }
 
 	/// <summary>
 	/// Gets the associated legal hold ID.
 	/// </summary>
 	public Guid? HoldId { get; init; }
+
+	/// <summary>
+	/// Gets the key handle still protecting this data subject's fields in the retained aggregate type, so
+	/// the retention can be released when the obligation lapses.
+	/// </summary>
+	/// <value>
+	/// The handle to destroy, in the form <see cref="IKeyManagementAdmin.DeleteKeyAsync"/> accepts; or
+	/// <see langword="null"/> for an exemption that is not an aggregate retention, and for one whose key
+	/// this erasure did not decide about.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// <b>Without this, the declared period is decorative.</b> A retained aggregate type keeps a key of its
+	/// own so the surviving record stays readable, and that key is NOT the data subject's own handle — so
+	/// nothing in the erasure path ever queues it again. When the statutory period ends, destroying it is
+	/// the only act that completes the erasure, and it can only be done BY NAME. A retention whose exit
+	/// cannot be found is a retention with no exit, which is the Article 17 breach the mandatory period
+	/// exists to prevent.
+	/// </para>
+	/// <para>
+	/// <b>It discloses nothing the record does not already carry.</b> The handle is composed from the data
+	/// subject hash, which the payload already states, and a digest of the aggregate type, which this entry
+	/// already names. Recording it adds an identifier, not a fact.
+	/// </para>
+	/// <para>
+	/// <b>Releasing it is yours to time, and the framework does not attempt it.</b> The instant a particular
+	/// record's obligation lapses depends on the transaction date, the jurisdiction and whether the period
+	/// was extended — facts the framework does not hold. What it guarantees is that the handle is named on
+	/// the record, so the act is possible at all.
+	/// </para>
+	/// <para>
+	/// <b>NULL, not empty, and omitted from the signed form when null — this is load-bearing, and it is
+	/// not a style choice.</b> The canonical form is what gets signed, and verification recomputes it from
+	/// the DESERIALIZED payload. The serializer context emits defaulted properties, so a property that
+	/// always serialized would change the canonical bytes of every certificate issued before it existed
+	/// and make each of them verify as a FORGERY — and these documents are retained for seven years.
+	/// Being null-by-default and ignored when null, this property is absent from the canonical form of
+	/// exactly those certificates, so their signatures still verify.
+	/// </para>
+	/// </remarks>
+	[System.Text.Json.Serialization.JsonIgnore(
+		Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public string? RetainedKeyHandle { get; init; }
 }

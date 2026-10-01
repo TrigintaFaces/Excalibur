@@ -146,6 +146,45 @@ public sealed class ProjectionErasureGapContributorShould
 		result.Success.ShouldBeFalse("the asynchronous projection persists rows that keep the subject's data");
 	}
 
+	/// <summary>LIVENESS: a persisted projection the erasure DID clear must not be reported as a gap.</summary>
+	/// <remarks>
+	/// The erasure now clears a projection whose id is the aggregate id, so continuing to report it would
+	/// make Completed unreachable for a host whose read models were all reached — the stall this report
+	/// exists to avoid, arriving from the other direction. The discriminator is the registration's clear
+	/// delegate: the SAME property the erasure dispatches on, so the report cannot drift from the wiring.
+	/// </remarks>
+	[Fact]
+	public async Task Stand_down_for_a_persisted_projection_the_erasure_clears()
+	{
+		var sut = new ProjectionErasureGapContributor(Provider(StubRegistry.Clearable(ProjectionMode.Inline)));
+
+		var result = await sut.EraseAsync(Context(), TestContext.Current.CancellationToken);
+
+		result.Success.ShouldBeTrue(
+			"this projection was cleared per aggregate as part of the erasure, so there is no residue to "
+			+ "report");
+	}
+
+	/// <summary>SAFETY: a clearable projection is still reported when the erasure cleared NOTHING.</summary>
+	/// <remarks>
+	/// A SELECTIVE erasure names data categories and event-store erasure is whole-aggregate, so the
+	/// event-store contributor refuses it and tombstones nothing. No projection was cleared. Reading only
+	/// the delegate here would credit a clearing that never happened — the marker-separated-from-the-
+	/// wiring failure in its subtlest form, because every type is present and correctly bound.
+	/// </remarks>
+	[Fact]
+	public async Task Report_a_clearable_projection_when_the_erasure_is_selective()
+	{
+		var sut = new ProjectionErasureGapContributor(Provider(StubRegistry.Clearable(ProjectionMode.Inline)));
+
+		var result = await sut.EraseAsync(
+			Context() with { Scope = ErasureScope.Selective }, TestContext.Current.CancellationToken);
+
+		result.Success.ShouldBeFalse(
+			"a selective erasure tombstones nothing, so every persisted read model still holds whatever it "
+			+ "folded -- including the ones that WOULD have been cleared");
+	}
+
 	private static IServiceProvider Provider(IProjectionRegistry registry)
 	{
 		var services = new ServiceCollection();
@@ -167,6 +206,27 @@ public sealed class ProjectionErasureGapContributorShould
 	{
 		private readonly List<ProjectionRegistration> _registrations =
 			[.. modes.Select(m => new ProjectionRegistration(typeof(object), m, new object(), inlineApply: null))];
+
+		/// <summary>
+		/// A registry whose projections carry a clear delegate — what a per-aggregate projection gets from
+		/// the builder, and what tells this contributor the erasure reached it.
+		/// </summary>
+		public static StubRegistry Clearable(params ProjectionMode[] modes)
+		{
+			var registry = new StubRegistry();
+
+			foreach (var mode in modes)
+			{
+				registry.Register(new ProjectionRegistration(
+					typeof(object),
+					mode,
+					new object(),
+					inlineApply: null,
+					clearForAggregate: static (_, _, _, _) => Task.CompletedTask));
+			}
+
+			return registry;
+		}
 
 		public ProjectionRegistration? GetRegistration(Type projectionType) => _registrations.Count > 0 ? _registrations[0] : null;
 

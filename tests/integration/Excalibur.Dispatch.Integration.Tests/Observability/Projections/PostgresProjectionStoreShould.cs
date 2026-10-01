@@ -72,9 +72,16 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 				updated_at TIMESTAMPTZ NOT NULL,
 				-- The store's unconditional write now INVALIDATES the position rather than leaving it
 				-- stale, so this column is part of the contract the store writes against, not an
-				-- optional extra. -1 rather than 0 because zero is a legitimate stream position: a
-				-- zero default would make a brand-new row claim it had already folded the first event.
-				last_applied_position BIGINT NOT NULL DEFAULT -1,
+				-- optional extra.
+				--
+				-- -2 IS THE DOCUMENTED DEFAULT AND THE VALUE MATTERS. It is the sentinel meaning "this
+				-- row's position was never established", which is what a defaulted column records:
+				-- nobody said anything about this row. Not 0, because zero is a legitimate stream
+				-- position and a zero default would make a brand-new row claim it had already folded the
+				-- first event. And NOT -1, which is the sentinel meaning "a caller asserted this state is
+				-- a complete fold" -- putting that assertion on every row a consumer inserted without the
+				-- column, and on every row of a table altered to add it.
+				last_applied_position BIGINT NOT NULL DEFAULT -2,
 				-- Composite (id, tenant_id), NOT id alone. Two tenants may legitimately hold the same
 				-- projection id; keying on id alone would let one tenant's upsert overwrite another's row.
 				-- PostgresProjectionStore states this requirement directly at PostgresProjectionStore.cs:177.
@@ -95,11 +102,11 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 	}
 
 	// SAFETY. A row whose position an unconditional write DESTROYED must be distinguishable, in the
-	// stored value itself, from a row that simply never had one. The two need opposite treatment -- the
-	// first must never be adopted, because adoption folds a batch onto a state whose prefix nobody
-	// knows and then stamps a position the state does not justify; the second must be adopted, because
-	// it holds a complete fold. Nothing can tell them apart after the fact, so the distinction has to
-	// be recorded AT WRITE TIME or it is lost for good.
+	// stored value itself, from a row that simply never had one. Neither can be advanced from -- a
+	// positioned write has no number to match in either -- so the distinction does not decide the next
+	// write; it decides what the row can honestly be said to hold while it waits to be rebuilt, which is
+	// what an operator reads it for. Nothing can tell them apart after the fact, so the distinction has
+	// to be recorded AT WRITE TIME or it is lost for good.
 	[Fact]
 	public async Task Record_that_an_unconditional_write_left_the_state_unplaceable()
 	{
@@ -134,10 +141,13 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 			+ "instead would send the caller back to re-read and retry, forever");
 	}
 
-	// LIVENESS, and it is the arm that stops the one above being satisfied by refusing everything. A
-	// caller that HAS a complete fold but no position number says so, and such a row stays adoptable.
+	// LIVENESS, and it is the arm that stops the one above being satisfied by refusing everything. The
+	// liveness is NOT adoption -- a positioned write refuses every row carrying no number, whichever of
+	// the two no-number states it holds. It is that the refusal is REPAIRABLE: a whole-stream rebuild
+	// writes the state and its position together and needs no prior prefix to be conditional on, which is
+	// what keeps a loud refusal from being a permanent stall.
 	[Fact]
-	public async Task Keep_an_unnumbered_complete_fold_adoptable()
+	public async Task Refuse_an_unnumbered_complete_fold_and_repair_it_with_a_rebuild()
 	{
 		var id = $"marker-new-{Guid.NewGuid():N}";
 
@@ -152,17 +162,97 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 			ProjectionPosition.UnnumberedSentinel,
 			"a complete fold with no position NUMBER is unnumbered, not unplaceable");
 
-		var adopted = await positioned.UpsertAtPositionAsync(
+		var refused = await positioned.UpsertAtPositionAsync(
 			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 4,
 			CancellationToken.None);
 
-		adopted.Outcome.ShouldBe(
-			ProjectionAdvanceOutcome.Applied,
-			"this row holds a complete fold, so adopting it and stamping the batch's position makes a "
-			+ "TRUE assertion. Refusing here would be the opposite defect -- refusing adoption on "
-			+ "exactly the rows where adoption is correct");
+		refused.Outcome.ShouldBe(
+			ProjectionAdvanceOutcome.Unplaceable,
+			"a caller that read no position knows nothing about which prefix this state covers, so stamping "
+			+ "its batch's position onto it would make the row assert a prefix the state need not hold. The "
+			+ "outcome reports only that there was no number to advance from, which is what the write "
+			+ "established; Superseded is the answer that must not appear, because it sends the caller back "
+			+ "to re-read and retry against a row that never changes");
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			ProjectionPosition.UnnumberedSentinel,
+			"the refused write must not have moved the position");
+
+		var repaired = await positioned.RebuildAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, newPosition: 4, CancellationToken.None);
+
+		repaired.Outcome.ShouldBe(
+			ProjectionRebuildOutcome.Applied,
+			"the refusal above is legitimate only because the row has an exit. Without this, refusing a "
+			+ "numberless row is a silent permanent stall: the caller reads no position, claims none, and is "
+			+ "refused identically forever");
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			4L,
+			"the repaired row must carry the number the rebuild wrote, or it is still unadvanceable and "
+			+ "nothing was repaired");
 	}
 
+
+	// SAFETY. A row created by the DOCUMENTED DDL -- position column left to its default, never written by
+	// any positioned or unnumbered write -- must read back as UNPLACEABLE and be refused.
+	//
+	// THIS IS THE ARM WHOSE ABSENCE LET A DOC OBLIGATION AND A DECODER DISAGREE. The guidance used to
+	// prescribe DEFAULT -1, which is the sentinel meaning "a caller asserted this state is a complete
+	// fold". Nobody asserted anything about a defaulted row, and the largest population that value will
+	// ever hold is every row of a table altered to add the column -- so the decoder reported an assertion
+	// manufactured by a DDL default. Nothing exercised the documented creation path, so the two could not
+	// contradict each other anywhere a test could see.
+	//
+	// The INSERT omits the column deliberately. Writing it explicitly would test this suite's opinion of
+	// the default rather than the default itself.
+	[Fact]
+	public async Task Refuse_a_row_whose_position_column_was_left_to_the_documented_default()
+	{
+		var id = $"defaulted-{Guid.NewGuid():N}";
+
+		await using (var connection = new NpgsqlConnection(_fixture.ConnectionString))
+		{
+			await connection.OpenAsync(TestContext.Current.CancellationToken);
+			_ = await connection.ExecuteAsync(
+				$"INSERT INTO \"{TableName}\" (tenant_id, id, data, created_at, updated_at) "
+				+ "VALUES (@TenantId, @Id, @Data::jsonb, @Now, @Now)",
+				new
+				{
+					TenantId = ProjectionTestTenantId,
+					Id = id,
+					Data = "{\"Id\":\"" + id + "\"}",
+					Now = DateTimeOffset.UtcNow,
+				});
+		}
+
+		(await ReadPositionAsync(id)).ShouldBe(
+			ProjectionPosition.UnplaceableSentinel,
+			"the documented default must be the sentinel meaning the position was never established. A -1 "
+			+ "default would store the sentinel meaning a caller ASSERTED a complete fold, about a row "
+			+ "nobody asserted anything about");
+
+		var positioned = (IPositionedProjectionStore<TestOrderProjection>)
+			((IServiceProvider)_store!).GetService(
+				typeof(IPositionedProjectionStore<TestOrderProjection>))!;
+
+		var (_, read) = await positioned.GetWithPositionAsync(id, CancellationToken.None);
+
+		read.Kind.ShouldBe(
+			ProjectionPositionKind.Unplaceable,
+			"a defaulted row is not a fold over any prefix, so the read must not report it as a complete "
+			+ "fold awaiting a coordinate");
+
+		var refused = await positioned.UpsertAtPositionAsync(
+			id, new TestOrderProjection { Id = id }, expectedPosition: null, newPosition: 5,
+			CancellationToken.None);
+
+		refused.Outcome.ShouldBe(
+			ProjectionAdvanceOutcome.Unplaceable,
+			"a positioned write has no number to advance from, so the row is refused terminally and must "
+			+ "be rebuilt -- which is exactly what the guarantee document promises for a projection that "
+			+ "predates the column");
+	}
 	private async Task<long> ReadPositionAsync(string id)
 	{
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);

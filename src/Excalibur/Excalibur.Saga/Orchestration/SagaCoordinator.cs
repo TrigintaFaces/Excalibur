@@ -4,6 +4,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -36,6 +37,28 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	: ISagaCoordinator, IDisposable
 {
 	private const int MaxCacheEntries = 1024;
+
+	// Prefix on every replay key this coordinator writes, so a key written by this scheme can never be
+	// confused with one written by the superseded scheme. The superseded keys began with a
+	// namespace-qualified CLR type name, and '#' is not a legal leading character for a C# namespace or
+	// type identifier — so no key already sitting in a saved saga's set can begin with this, and a
+	// consumer's message id cannot accidentally match one.
+	private const string ReplayKeyPrefix = "#msg:";
+
+	// Process-lifetime instrument (a fixed name, so it is created statically rather than through
+	// IMeterFactory). The counter increments once PER undeduplicable DELIVERY, which is the signal the
+	// warning below cannot carry: the warning fires once per event type per process, so a producer that
+	// sends no message id on every message is visible in metrics rather than only in the first log line.
+	private static readonly Meter SagaMeter = new(TelemetrySagaStoreDecorator.MeterName);
+
+	private static readonly Counter<long> UndeduplicableDeliveries = SagaMeter.CreateCounter<long>(
+		"excalibur.saga.undeduplicable_deliveries",
+		description: "Saga event deliveries that carried no message identity and were therefore not deduplicated.");
+
+	// One warning per event type per process. The coordinator is a singleton, so this instance field is
+	// per-process in a host; a test that constructs its own coordinator gets its own tally, which is what
+	// makes the once-per-type property testable at all.
+	private readonly ConcurrentDictionary<Type, byte> _warnedUndeduplicableTypes = new();
 	// The non-keyed ISagaStore is a forwarding alias to the keyed "default" store, and it answers null
 	// when nothing backs it — the DI contract for a service that is not registered. Injection is where
 	// that absence has to become loud, because from here on the store is dereferenced. Hosts that run
@@ -322,8 +345,23 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		// could detect it.
 		//
 		// An event is now marked processed IF AND ONLY IF a handler acted on it.
-		var eventId = DeriveEventId(evt);
-		if (sagaState.HasProcessedEvent(eventId))
+		//
+		// REPLAY IDENTITY IS A PROPERTY OF THE DELIVERY, NOT OF THE PAYLOAD. It is the envelope message
+		// id, which every send stamps. It is NOT derived from the event type, the saga id and the step id:
+		// that derivation collapsed two distinct deliveries onto one key whenever they shared those three
+		// terms — which every event of one type reaching one saga does when no step id is set — and the
+		// second was then discarded as a duplicate and never executed.
+		//
+		// A delivery with NO message id is UNDEDUPLICABLE. That is a third state, not a duplicate and not
+		// a first delivery, and it is not collapsed into either: the event is processed, nothing is
+		// recorded, and the refusal to deduplicate is reported rather than passed off as an all-clear.
+		var eventId = messageContext.MessageId is { Length: > 0 } messageId ? ReplayKeyPrefix + messageId : null;
+
+		if (eventId is null)
+		{
+			RecordUndeduplicableDelivery(evt.GetType());
+		}
+		else if (sagaState.HasProcessedEvent(eventId))
 		{
 			LogDuplicateEventSkipped(evt.SagaId, eventId);
 
@@ -365,8 +403,12 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		}
 
 		// The handler acted, so the event is now genuinely processed. Recorded here and persisted by
-		// the SaveAsync below, together with the state the handler produced.
-		_ = sagaState.TryMarkEventProcessed(eventId);
+		// the SaveAsync below, together with the state the handler produced. An undeduplicable delivery
+		// records nothing: a set entry it could not key correctly would guard the wrong deliveries.
+		if (eventId is not null)
+		{
+			_ = sagaState.TryMarkEventProcessed(eventId);
+		}
 
 		// Store-owns-increment (optimistic concurrency,): SagaState.Version is the loaded token; the
 		// store compares it and persists the bump (writing the new version back), throwing ConcurrencyException if
@@ -434,40 +476,26 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	}
 
 	/// <summary>
-	/// Derives a unique event identifier for idempotent replay detection.
-	/// Uses the namespace-qualified event type name, saga ID, and step ID to produce a deterministic key.
+	/// Reports that a delivery carried no message identity and was therefore processed WITHOUT replay
+	/// protection: the counter increments per delivery, the warning is emitted once per event type.
 	/// </summary>
 	/// <remarks>
-	/// <para>
-	/// The type component is the <b>namespace-qualified</b> type name, not the simple name. Two distinct
-	/// event types that share a simple name in different namespaces are distinct events and must derive
-	/// distinct keys; deriving from the simple name collapses them onto one key, and the second event is
-	/// then discarded as a duplicate and never executed. Idempotency is protection against double
-	/// execution and is no protection against zero execution, so no consumer obligation covers that case.
-	/// </para>
-	/// <para>
-	/// When <see cref="ISagaEvent.StepId"/> is <see langword="null"/>, the derived ID
-	/// uses only the event type name and saga ID: <c>{EventType}:{SagaId}</c>.
-	/// This means that if the same saga receives multiple events of the same type
-	/// (but for different steps) without a <c>StepId</c>, only the first will be
-	/// processed -- subsequent deliveries will be treated as duplicates.
-	/// </para>
-	/// <para>
-	/// To ensure correct deduplication when a saga handles the same event type in
-	/// multiple steps, always set <see cref="ISagaEvent.StepId"/> to a unique value
-	/// per step (e.g., the step name or ordinal).
-	/// </para>
+	/// The split is deliberate. A warning per delivery would be unreadable for a producer that never
+	/// sends an id, and a warning only on the first would leave a persistent source invisible after
+	/// startup — so the log names the type once and the counter carries the volume.
 	/// </remarks>
-	private static string DeriveEventId(ISagaEvent evt)
+	/// <param name="eventType">The runtime type of the event that arrived without an identity.</param>
+	private void RecordUndeduplicableDelivery(Type eventType)
 	{
-		// Namespace-qualified, so two distinct types sharing a simple name cannot collapse onto one key.
 		// FullName is null only for open generic parameters, which an event instance's type is never.
-		var eventType = evt.GetType().FullName ?? evt.GetType().Name;
+		var eventTypeName = eventType.FullName ?? eventType.Name;
 
-		// Combine type + sagaId + stepId for a deterministic unique key per saga event delivery
-		return evt.StepId is not null
-			? $"{eventType}:{evt.SagaId}:{evt.StepId}"
-			: $"{eventType}:{evt.SagaId}";
+		UndeduplicableDeliveries.Add(1, new KeyValuePair<string, object?>("event_type", eventTypeName));
+
+		if (_warnedUndeduplicableTypes.TryAdd(eventType, 0))
+		{
+			LogUndeduplicableDelivery(eventTypeName);
+		}
 	}
 
 	// Source-generated logging methods
@@ -512,4 +540,19 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	[LoggerMessage(SagaEventId.SagaAlreadyCompletedEventSkipped, LogLevel.Information,
 		"Saga {SagaId} already completed; skipping event {EventType}.")]
 	private partial void LogSagaAlreadyCompleted(string sagaId, string eventType);
+
+	/// <summary>Records that replay protection could not be applied to a delivery, once per event type.</summary>
+	/// <remarks>
+	/// Warning, not Information: the saga is running without the replay protection it normally has, and
+	/// the remedy is on the producer's side. It is not an error either — processing the event is the ruled
+	/// behaviour, because refusing it would make the framework unusable with producers a consumer does not
+	/// control, and inventing an identity is the defect this replaced.
+	/// </remarks>
+	/// <param name="eventType">The event type whose deliveries carry no message identity.</param>
+	[LoggerMessage(SagaEventId.SagaEventUndeduplicable, LogLevel.Warning,
+		"Saga events of type {EventType} arrive with no message identity, so replay protection cannot be "
+		+ "applied to them: they are processed and NOT deduplicated, and a redelivery WILL run the step "
+		+ "again. Saga handlers for this type must be idempotent. This is logged once per event type; see "
+		+ "the excalibur.saga.undeduplicable_deliveries counter for the volume.")]
+	private partial void LogUndeduplicableDelivery(string eventType);
 }

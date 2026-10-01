@@ -62,6 +62,17 @@ before:
   indefinitely. The retention sweep removes them either way. Rewrite them in place once every instance
   is running the new version.
 
+One change needs a schema column before the store will run at all:
+
+- **[A legal hold carries a concurrency token](legal-hold-concurrency-token.md)** -- `LegalHold.Version` makes
+  updating a hold a compare-and-set, closing a lost update that could release a hold someone had just extended
+  and let the next erasure destroy the records it protected. **Both shipped create scripts carry the column, so
+  a freshly provisioned database is already correct.** A compliance database provisioned *before* it fails at
+  startup naming the missing column, and **no `ALTER` script ships** -- `AutoCreateSchema` will not repair an
+  existing table, because that path only creates tables that are absent. Re-provision, or add the column
+  yourself. **Only hosts using legal holds are affected**, and a custom `ILegalHoldStore` needs code changes as
+  well as schema: the method signature did not change, so it still compiles while keeping the lost update.
+
 One change fails start-up until you answer it, and it touches no stored data:
 
 - **[Activity-group grant sync is atomic, and four providers must opt in](activity-group-grant-sync-atomicity.md)**
@@ -71,6 +82,129 @@ One change fails start-up until you answer it, and it touches no stored data:
   call the `IActivityGroupService` sync methods are affected.** The same change makes an empty per-user
   payload revoke rather than be refused, and carries two provider fixes that made grant operations fail
   outright on SQL Server and grant inserts fail on PostgreSQL.
+
+One change is a compile-level break in code that reads an append's returned version, and it touches no
+stored data:
+
+- **[An append result states its outcome](append-result-outcome.md)** -- `AppendResult` and
+  `CloudAppendResult` gained an `Outcome` discriminator, so a recognised retry is no longer
+  indistinguishable from a fresh write. **`Success` is unchanged**, so a host that only asks *did it work*
+  needs no change. What stops compiling is a `long` receiving `NextExpectedVersion`, which is now `long?`.
+  A conflict still reports the **measured** actual version and reports `null` only where no version read
+  succeeded -- read the note before adding a null branch, because the two failures differ.
+
+One change lands in your own test project rather than in your application, and it touches no stored data:
+
+One change makes a monitored value go from healthy to never-synchronised, and the old value was fabricated:
+
+- **[Multi-region replication honesty](multi-region-reports-no-replication.md)** -- `MultiRegionKeyProvider`
+  recorded a successful key-replication instant, zeroed its pending-key backlog and logged completion on
+  every call, **although no branch of its sync copies key material**. The recovery-point check then computed
+  its lag from that instant and reported the target met, so a host configuring disaster recovery saw a met
+  objective over a passive region holding no keys. It now reports no sync and keeps its backlog, and the
+  recovery-point check returns early rather than computing from a fabricated instant. **An alert that fires
+  after this upgrade is reporting something that was already true.** The same change makes the wrapped
+  provider's capabilities reachable through the decorator -- notably the durable-key capability, whose
+  absence made a cloud-backed deployment read as a volatile key store.
+
+One change requires DDL before your application will start, and only on a SQL erasure store:
+
+- **[Erasure destroyed-key record](erasure-destroyed-key-record.md)** -- The erasure now records which keys
+  it destroyed, so a retry can attest the coverage its first pass achieved. Before this, an erasure that
+  destroyed a subject's key and then failed part-way could **never be reported complete** -- the key store
+  reports an already-destroyed key as absent, which is the same answer it gives for a key that never
+  existed, so the retry attested nothing for it. **The SQL Server and PostgreSQL erasure stores need one new
+  table and refuse to start without it**, naming it; re-running the shipped idempotent schema script is
+  enough, and the note carries the DDL. Hosts on the in-memory store have nothing to do.
+
+- **[Conformance kits gained arms](conformance-kit-arms-added.md)** -- The shipped saga-store,
+  positioned-projection-store, key-management-provider and erasure-store conformance kits each gained arms. **Only hosts that derive a test suite from
+  a `*ConformanceTestKit` are affected.** If your suite wires the kit's completeness guard it now fails,
+  naming the members to add — that is the case that tells you. If it does not wire the guard, the new arms
+  **silently never run** and your suite stays green over checks that did not execute, which is why the note
+  recommends wiring the guard on every derived suite.
+
+One change is a compile error only for hosts that write their own key-management provider:
+
+- **[Provisioning a key is no longer a rotation](create-key-if-absent.md)** -- `IKeyManagementProvider`
+  gained `CreateKeyIfAbsentAsync`, because minting a data subject's key on the write path was built on
+  `RotateKeyAsync`, which is create-**or**-rotate: two ordinary concurrent first writes for one new subject
+  retired each other's key version, with no rotation requested by anyone. **Only hosts that implement
+  `IKeyManagementProvider` themselves are affected** — every provider we ship implements the member, and no
+  method you call changed signature. The note carries the contract an implementation owes, including what
+  atomicity a backend can honestly promise.
+
+One change makes field-encrypted data at rest unreadable, and it is the one to read first:
+
+- **[Field envelope names its key generation](field-envelope-names-its-key-generation.md)** -- The crypto-shredding field envelope gained a
+  key generation and a format version, and **ciphertext written by an earlier prerelease is refused rather
+  than read**. A data subject's key handle is derived from the subject, so it is re-minted by the next
+  ordinary write after an erasure and the version ordinal restarts -- which made a destroyed subject
+  indistinguishable from one whose key was provisioned again, and read an erased subject's fields as live.
+  **Decrypt any field-encrypted data you need to keep BEFORE upgrading**, then re-encrypt; there is no read
+  path for the earlier layout, because the generation it needs was never written down. Encrypted audit
+  logs and the outbox, inbox and store decorators are unaffected. `ISubjectKeyManager.GetOrCreateKeyAsync`
+  now returns `SubjectKey`, `IKeyDestructionStatusProvider` gained a generation-scoped member, and
+  `KeyMetadata` gained `Generation` -- each a compile error, and only for hosts that implement those
+  contracts themselves.
+
+Two changes are behavioural only -- nothing stops compiling, so they are the ones to read rather than
+discover:
+
+- **[Key creation instants are reported, not invented](key-creation-instants-are-reported-not-invented.md)** -- `KeyMetadata.CreatedAt` now
+  carries the instant of the key version it describes, and a provider that cannot learn one **fails
+  instead of substituting the local clock**. On HashiCorp Vault the instant was read from the handle's
+  first version for every version, so versions of one handle compared equal and could not be ordered.
+  The fabrication was worse than a wrong date: an invented instant sorts ahead of every measured one,
+  and on the AWS historical-key provider -- whose purpose is choosing the version live at a given
+  instant -- it truncated the scan and resolved to an **earlier version than the one that was live**,
+  reporting success. **`KeyMetadata.CreatedAt` is now `DateTimeOffset?`**, so code that reads it stops
+  compiling until it decides what an unknown instant means -- and the note gives the safe answer:
+  unknown counts as STALE, never as recent, because the lifted comparison picks the opposite by
+  default.
+
+One change is a compile error in your own code, and only if you write against the crypto-shredding types:
+
+- **[Crypto-shredding takes a retention scope](crypto-shredding-retention-scope.md)** -- A deployment can
+  now declare that an aggregate type must survive an erasure because the law requires the data kept, so
+  the key lookup takes the scope the value sits in. `ISubjectKeyManager.GetOrCreateKeyAsync`,
+  `IFieldEncryptor.EncryptAsync` and `SubjectFieldCryptor.EncryptFieldsAsync` each gained a parameter, and
+  `EventStoreErasureContributor`'s two constructors became one. **Only hosts that implement those
+  interfaces, call the cryptor directly, or construct the contributor by hand are affected** — a host that
+  registers through `AddCryptoShredding()` has nothing to change. The read path is unchanged.
+
+One change makes the crypto-shredding read path stop claiming an erasure it cannot confirm:
+
+- **[A destroyed key is stated, never inferred](key-destruction-is-stated-not-inferred.md)** -- A `null`
+  from `IFieldEncryptor.DecryptAsync` asserts that a field was lawfully crypto-shredded, and it used to be
+  produced from the *absence* of a key. A backend with a recovery window reports a deleted-but-restorable
+  key as not found — Azure Key Vault does so for a soft-deleted key's whole retention period — so for that
+  window every read of the subject's fields claimed an erasure over data one call could restore. The
+  tombstone now requires an affirmative statement of destruction from the key provider, asked of the exact
+  key version the ciphertext names, and `IKeyDestructionStatusProvider` gained a version-scoped overload
+  for it. **Only hosts that implement that capability themselves are affected** — all five providers in the
+  box implement it. On a provider that cannot answer, a read of an erased subject now fails loudly instead
+  of reporting an erasure nothing confirmed.
+
+One change needs a **database migration** and will stop your application starting until you run it, and it
+also touches any code that reads an erasure certificate's retention entries:
+
+- **[An erasure certificate states only what the erasure established](erasure-certificate-states-what-it-established.md)** --
+  The certificate no longer presents a claim nobody established as one. Both legal-basis enumerations gained
+  a `NotEstablished = 0` member and every other member **moved up by one** -- so a value no binder,
+  deserializer or cast ever assigned now says so, where before it read as Article 17(3)(a) or 17(1)(a).
+  **These ordinals are persisted as `INT`, so six columns across three tables need the shipped migration
+  script, and the columns are REPLACED rather than renamed: pre-upgrade legal-basis values are not carried
+  forward and those rows report their basis as not established.** The new column name makes an unmigrated
+  database fail loudly at startup instead of silently misreading every stored basis, and re-running the
+  script is safe. The unanchored
+  `RetentionPeriod` is no longer emitted, because a duration with no instant beside it invites the reader to
+  anchor it on the certificate's own date and read a longer retention than the law gives.
+  `ErasureRequestStatus` gains `CompletedExceptConcurrentWrites`, which an erasure overtaken by a write for
+  the same data subject now reports instead of being forced to claim completion or a failure. **Every
+  certificate already issued still verifies** -- an enum serialises to its name, so the signed bytes are
+  unchanged. If you store **consent**, its legal-basis column is a different enumeration and is *not*
+  migrated; read the note before touching it.
 
 Also see **[Migrating to .NET 10](net10-only.md)** if your projects are not yet on `net10.0`, and
 **[Version Upgrades](version-upgrades.md)** for the versioning policy and what each release stage promises.

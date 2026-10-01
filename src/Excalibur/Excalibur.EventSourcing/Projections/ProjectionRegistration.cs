@@ -51,6 +51,16 @@ internal sealed class ProjectionRegistration
 		IServiceProvider serviceProvider,
 		CancellationToken cancellationToken);
 
+	/// <summary>
+	/// Delegate type for clearing one erased aggregate's contribution from this projection without
+	/// reflection. Captured at registration time when the generic type is known.
+	/// </summary>
+	internal delegate Task ClearForAggregateDelegate(
+		IServiceProvider serviceProvider,
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken);
+
 	internal ProjectionRegistration(
 		Type projectionType,
 		ProjectionMode mode,
@@ -61,8 +71,10 @@ internal sealed class ProjectionRegistration
 		Type? storeType = null,
 		ProjectionOptions? options = null,
 		Func<object, string>? searchTextComputer = null,
-		Action<object, string>? searchTextSetter = null)
+		Action<object, string>? searchTextSetter = null,
+		ClearForAggregateDelegate? clearForAggregate = null)
 	{
+		ClearForAggregate = clearForAggregate;
 		ProjectionType = projectionType;
 		Mode = mode;
 		Projection = projection;
@@ -96,6 +108,28 @@ internal sealed class ProjectionRegistration
 	/// modes. Null only for <see cref="ProjectionMode.Ephemeral"/> projections.
 	/// </summary>
 	internal InlineApplyDelegate? InlineApply { get; }
+
+	/// <summary>
+	/// Gets the pre-bound delegate that clears one erased aggregate's contribution from this
+	/// projection, or <see langword="null"/> when this projection cannot be cleared one aggregate at a
+	/// time.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Null is a statement, not an omission.</b> It is bound only for a PERSISTED projection whose
+	/// projection id IS the aggregate id — a projection registering a <c>KeyedBy</c> selector maps many
+	/// aggregates onto one row, so replaying a single aggregate could not produce a correct row for such
+	/// a key, and an EPHEMERAL projection persists no row for an erasure to miss. Binding it only where
+	/// it can work makes the unclearable case inexpressible rather than guarded: no code path attempts
+	/// it, so no runtime check can be got wrong later.
+	/// </para>
+	/// <para>
+	/// GDPR erasure reads this to clear what it can and to NAME what it cannot. Both readers — the
+	/// erasure contributor that invokes it and the gap report that enumerates the projections without
+	/// one — key on this same property, so the report cannot drift from the wiring it describes.
+	/// </para>
+	/// </remarks>
+	internal ClearForAggregateDelegate? ClearForAggregate { get; }
 
 	/// <summary>
 	/// Gets the optional cache TTL for ephemeral projection caching via IDistributedCache.

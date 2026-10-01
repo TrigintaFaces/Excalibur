@@ -136,6 +136,14 @@ public sealed class RedisEventStoreConformanceShould : EventStoreConformanceTest
 		return AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict();
 	}
 
+	/// <summary>SAFETY: a conflict reports a version the store measured, never the caller's own.</summary>
+	[Fact]
+	public Task AppendAsync_WithConflict_ShouldReportTheMeasuredVersion_Test()
+	{
+		RequireRealRedis();
+		return AppendAsync_WithConflict_ShouldReportTheMeasuredVersion();
+	}
+
 	/// <summary>An append of no events is a no-op that leaves the version untouched.</summary>
 	[Fact]
 	public Task AppendAsync_EmptyEvents_ShouldNotChangeVersion_Test()

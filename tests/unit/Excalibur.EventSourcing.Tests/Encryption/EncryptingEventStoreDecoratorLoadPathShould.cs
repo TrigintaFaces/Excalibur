@@ -100,7 +100,7 @@ public sealed class EncryptingEventStoreDecoratorLoadPathShould
 		var cryptor = new SubjectFieldCryptor(fieldEncryptor);
 
 		var atRest = new PersonalOrderPlaced { SubjectId = "subject-1", CustomerName = "Ada Lovelace" };
-		await cryptor.EncryptFieldsAsync(atRest, Ct);
+		await cryptor.EncryptFieldsAsync(atRest, aggregateType: null, Ct);
 		atRest.CustomerName.ShouldNotBe("Ada Lovelace", "the fixture must actually put ciphertext at rest");
 
 		var serializer = new TestEventSerializer();
@@ -208,7 +208,7 @@ public sealed class EncryptingEventStoreDecoratorLoadPathShould
 	/// <summary>A field encryptor whose ciphertext is recoverable, so a round trip is observable in a unit test.</summary>
 	private sealed class ReversibleFieldEncryptor : IFieldEncryptor
 	{
-		public ValueTask<EncryptedData> EncryptAsync(string subjectId, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken) =>
+		public ValueTask<EncryptedData> EncryptAsync(string subjectId, RetentionScope retentionScope, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken) =>
 			ValueTask.FromResult(new EncryptedData
 			{
 				Ciphertext = [.. plaintext.ToArray().Select(static b => (byte)(b ^ 0x5A))],

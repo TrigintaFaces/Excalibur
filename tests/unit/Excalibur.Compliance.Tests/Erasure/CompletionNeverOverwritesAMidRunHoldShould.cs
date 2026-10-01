@@ -38,7 +38,7 @@ namespace Excalibur.Compliance.Tests.Erasure;
 [Trait("Component", "Compliance")]
 public sealed class CompletionNeverOverwritesAMidRunHoldShould
 {
-	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
+	private readonly IKeyManagementAdmin _keyAdmin = KeyDestructionFakes.AdminThatReportsEveryKeyDestroyed();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 
 	// SAFETY, and the arm the guard exists for. The hold lands while the contributor is working, which is
@@ -158,6 +158,7 @@ public sealed class CompletionNeverOverwritesAMidRunHoldShould
 			null,
 			null,
 			TestAnnotationSource.None,
+			TestRetentions.None,
 			contributor is null ? null : [contributor]);
 	}
 

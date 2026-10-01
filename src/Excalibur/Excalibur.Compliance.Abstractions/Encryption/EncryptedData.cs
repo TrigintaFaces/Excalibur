@@ -73,7 +73,60 @@ public sealed record EncryptedData
 	/// <summary>
 	/// Gets the version of the key used for encryption.
 	/// </summary>
+	/// <remarks>
+	/// <b>Ordering and display, never identity.</b> A version number orders the generations of a key and names
+	/// one for a human; it does not designate key material. <see cref="KeyGeneration"/> does that, because an
+	/// ordinal restarts at 1 when a handle is re-provisioned and therefore designates two different pieces of
+	/// material at different times.
+	/// </remarks>
 	public required int KeyVersion { get; init; }
+
+	/// <summary>
+	/// Gets the identifier of the key GENERATION that produced this payload.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the durable identity of the material, and it is what makes an erased subject stay erased.</b>
+	/// A key handle is derived from the data subject, so it is stable and therefore RE-OCCUPIABLE: destroy a
+	/// subject's key and the next ordinary write for that subject provisions a new one at the same handle, with
+	/// the version ordinal starting again at 1. The handle and the ordinal together then designate both the
+	/// destroyed material and the live material, so a reader of an older payload cannot tell that the key it
+	/// names is gone — it resolves the live generation instead, and the decryption fails its authentication tag
+	/// as though the payload were corrupt.
+	/// </para>
+	/// <para>
+	/// A generation identifier is minted when the material is provisioned and never reused, so the question
+	/// "is the material behind this payload destroyed?" has one answer that cannot be changed by anything
+	/// provisioned afterwards. It is bound into the authenticated associated data, so a payload cannot be
+	/// re-attributed to a different generation without failing to authenticate.
+	/// </para>
+	/// <para>
+	/// Not secret, and not an ordering. It is an opaque identity: compare it for equality and nothing else.
+	/// </para>
+	/// </remarks>
+	public string? KeyGeneration { get; init; }
+
+	/// <summary>
+	/// Gets the envelope layout this payload was written with.
+	/// </summary>
+	/// <remarks>
+	/// Declared rather than inferred, so a payload written by an unsupported layout is REFUSED by name instead
+	/// of being attempted and failing its authentication tag — which a reader would reasonably mistake for
+	/// corrupted data. A reader that does not recognise this value must refuse the payload rather than guess at
+	/// its shape.
+	/// </remarks>
+	public int FormatVersion { get; init; } = CurrentFormatVersion;
+
+	/// <summary>
+	/// The envelope layout this version of the framework writes.
+	/// </summary>
+	/// <remarks>
+	/// Raised to 2 when the key generation became part of the envelope and of the authenticated associated
+	/// data. A payload written before that carries no generation, so the material behind it cannot be
+	/// identified and a destroyed subject cannot be distinguished from a live one — which is why such a payload
+	/// is refused rather than read.
+	/// </remarks>
+	public const int CurrentFormatVersion = 2;
 
 	/// <summary>
 	/// Gets the encryption algorithm used.

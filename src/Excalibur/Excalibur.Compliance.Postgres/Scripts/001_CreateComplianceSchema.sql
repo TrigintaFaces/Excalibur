@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS "compliance"."erasure_requests" (
     -- absence of a value, so there is exactly one way to say "no tenant".
     tenant_id               VARCHAR(64)   NOT NULL DEFAULT '__untenanted__',
     scope                   INT            NOT NULL,
-    legal_basis             INT            NOT NULL,
+    legal_basis_v2          INT            NOT NULL,
     external_reference      VARCHAR(256)   NULL,
     requested_by            VARCHAR(256)   NOT NULL,
     requested_at            TIMESTAMPTZ    NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS "compliance"."erasure_certificates" (
     method                  INT           NOT NULL,
     summary                 JSONB         NOT NULL,
     verification            JSONB         NOT NULL,
-    legal_basis             INT           NOT NULL,
+    legal_basis_v2          INT           NOT NULL,
     signature               VARCHAR(512)  NOT NULL,
     retain_until            TIMESTAMPTZ   NOT NULL,
     exceptions              JSONB         NOT NULL,
@@ -106,6 +106,32 @@ CREATE INDEX IF NOT EXISTS ix_erasure_certificates_request
     ON "compliance"."erasure_certificates" (request_id);
 CREATE INDEX IF NOT EXISTS ix_erasure_certificates_retain
     ON "compliance"."erasure_certificates" (retain_until);
+
+-- ---------------------------------------------------------------------------
+-- Erasure destroyed keys
+-- ---------------------------------------------------------------------------
+-- Which key handles each request has destroyed, one row per handle, across every pass the request
+-- has made.
+--
+-- WHY THIS TABLE EXISTS, because it is not obvious and a reader may otherwise think a count would do:
+-- asking a key store to destroy a key it has ALREADY destroyed reports the key as absent -- the same
+-- answer it gives for a key that never existed. So an erasure that destroyed some keys and then
+-- failed part-way through the rest attested those keys on its first pass and, on the retry, attested
+-- nothing for them. The subject's data was destroyed and their erasure could never be reported
+-- complete. These rows are what let a retry attest the coverage its own earlier pass achieved.
+--
+-- A TABLE rather than a column on the request, because the value is a SET and the writes are appends:
+-- the composite primary key makes re-recording a handle a no-op at the database, so no pass has to
+-- read-modify-write a list and no pass can lose another's record.
+CREATE TABLE IF NOT EXISTS "compliance"."erasure_destroyed_keys" (
+    request_id    UUID        NOT NULL,
+    -- The C collation compares byte-for-byte, matching the framework's ordinal comparison. A collation
+    -- that folded case would read two distinct handles as one and attest coverage for a key that was
+    -- never destroyed.
+    key_handle    TEXT COLLATE "C" NOT NULL,
+    destroyed_at  TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (request_id, key_handle)
+);
 
 -- ---------------------------------------------------------------------------
 -- Data inventory registrations
@@ -184,7 +210,7 @@ CREATE TABLE IF NOT EXISTS "compliance"."legal_holds" (
     -- predicate matches that sentinel explicitly; a scoped tenant must still SEE a global hold,
     -- because losing one does not fail safe, it erases data a court order says to keep.
     tenant_id             VARCHAR(64)   NOT NULL DEFAULT '__untenanted__',
-    basis                 INT            NOT NULL,
+    basis_v2              INT            NOT NULL,
     case_reference        VARCHAR(256)   NOT NULL,
     description           VARCHAR(2000)  NOT NULL,
     is_active             BOOLEAN        NOT NULL DEFAULT TRUE,
@@ -193,7 +219,12 @@ CREATE TABLE IF NOT EXISTS "compliance"."legal_holds" (
     created_at            TIMESTAMPTZ    NOT NULL,
     released_by           VARCHAR(256)   NULL,
     released_at           TIMESTAMPTZ    NULL,
-    release_reason        VARCHAR(1000)  NULL
+    release_reason        VARCHAR(1000)  NULL,
+    -- Optimistic-concurrency token. The store updates a hold only while this still holds the
+    -- value the caller read, and increments it on success. Without it an update is a blind
+    -- whole-record write, so a hold whose expiry was extended between a sweep's read and its
+    -- write is released anyway -- and the next erasure destroys the records it protected.
+    version               INT            NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS ix_legal_holds_subject

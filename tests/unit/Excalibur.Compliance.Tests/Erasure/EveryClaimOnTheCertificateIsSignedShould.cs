@@ -97,6 +97,13 @@ public sealed class EveryClaimOnTheCertificateIsSignedShould
 			["ErasureException.Reason"] = p => p with { Exceptions = [Exception() with { Reason = "a different reason entirely" }] },
 			["ErasureException.RetentionPeriod"] = p => p with { Exceptions = [Exception() with { RetentionPeriod = TimeSpan.FromDays(3650) }] },
 			["ErasureException.HoldId"] = p => p with { Exceptions = [Exception() with { HoldId = Guid.NewGuid() }] },
+			// The handle a consumer destroys to RELEASE the retention. It has to sit INSIDE the signature:
+			// an attacker able to swap it for another subject's handle on a document that still verified
+			// would have the controller destroy the wrong key, and believe the record told them to.
+			["ErasureException.RetainedKeyHandle"] = p => p with
+			{
+				Exceptions = [Exception() with { RetainedKeyHandle = "someone-elses-handle" }],
+			},
 		};
 
 	/// <summary>

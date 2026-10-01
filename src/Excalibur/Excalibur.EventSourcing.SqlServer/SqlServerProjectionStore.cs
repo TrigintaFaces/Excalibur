@@ -180,11 +180,11 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		// written correctly.
 		//
 		// Resetting to the sentinel says the honest thing instead: nobody knows what prefix this state
-		// represents. The next positioned write adopts the row and re-folds the batch it is given, which
-		// over-counts for an accumulating projection. Do NOT read that as bounded: a row returns to
-		// unpositioned every time an unconditional write lands on it, so the re-fold recurs rather than
-		// happening once. What invalidation buys is not a small error instead of a large one -- both end
-		// wrong -- it is that the row becomes SELF-DESCRIBING as "prefix unknown". Preserving the stale
+		// represents. The next positioned write is then REFUSED rather than applied -- it has no number to
+		// advance from -- and the projection stops advancing until it is rebuilt. That is the deliberate
+		// trade: a loud refusal an operator can act on, in place of a silent re-fold that over-counted an
+		// accumulating projection every time an unconditional write landed on the row. What invalidation
+		// buys is that the row becomes SELF-DESCRIBING as "prefix unknown". Preserving the stale
 		// position destroys the only evidence that anything is wrong, and that evidence is what any
 		// correct recovery has to start from.
 		// The document stores reach the same end state by omitting the field from a whole-document
@@ -615,6 +615,21 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 			id,
 			JsonSerializer.Serialize(projection, _jsonOptions),
 			atPosition,
+			RequireTenant(),
+			cancellationToken);
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		TProjection projection,
+		long newPosition,
+		CancellationToken cancellationToken) =>
+		Positioned().RebuildAtPositionAsync(
+			id,
+			JsonSerializer.Serialize(projection, _jsonOptions),
+			newPosition,
 			RequireTenant(),
 			cancellationToken);
 

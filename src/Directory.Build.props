@@ -147,7 +147,15 @@
 		     SourceLink's git-origin value, which names the private source repository rather than
 		     the public one consumers are given. An explicit RepositoryUrl takes precedence over
 		     PublishRepositoryUrl, so declaring it here is what corrects the shipped link. -->
-		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+		<!-- ProjectUrl is the PRODUCT HOME and RepositoryUrl is the SOURCE. nuget.org renders them as
+		     two separate links, so setting both to the repository spent the more prominent slot on a
+		     duplicate of the other one and gave a consumer arriving from a package listing no route to
+		     installation or usage. The ecosystem separates them without exception: Microsoft.Extensions.*
+		     ships projectUrl https://dot.net/ against a github.com/dotnet/dotnet repository,
+		     Newtonsoft.Json its own json page, Serilog serilog.net; each declares the repository
+		     independently. The docs site is already this package's stated home; PackageReleaseNotes
+		     below has pointed into it for some time. -->
+		<PackageProjectUrl>https://docs.excalibur-dispatch.dev</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<!-- A bare filename is not a route: a consumer reads this field on a package listing, where

@@ -67,7 +67,7 @@ public sealed partial class RedisEventStore : IEventStore
 	/// version on success, or <c>-1</c> plus the actual stored version on concurrency conflict.
 	/// </summary>
 	/// <remarks>
-	/// KEYS[1] = stream key; KEYS[2] = version counter key.
+	/// KEYS[1] = stream key; KEYS[2] = version counter key; KEYS[3] = retry-recognition set.
 	/// </remarks>
 	private static readonly string AppendScript = """
 		local stream_key = KEYS[1]
@@ -76,6 +76,16 @@ public sealed partial class RedisEventStore : IEventStore
 		local expected_version = tonumber(ARGV[1])
 		local event_count = tonumber(ARGV[2])
 		local first_event_id = ARGV[3]
+		local recognition_window = tonumber(ARGV[4])
+
+		-- An earlier revision kept a single-field HASH at this key. ZSCORE against a hash aborts the
+		-- script, so a store upgraded in place would fail EVERY append to a pre-existing stream. Drop the
+		-- stale shape on first contact instead: it costs one O(1) call and self-heals. The single retry
+		-- that was in flight across the upgrade degrades to a conflict, which is where it already sat.
+		local marker_type = redis.call('TYPE', marker_key)['ok']
+		if marker_type ~= 'zset' and marker_type ~= 'none' then
+			redis.call('DEL', marker_key)
+		end
 
 		-- Authoritative current version comes from the stored counter, NOT XLEN.
 		-- XLEN drifts below the true version under XTRIM/XDEL, which would corrupt this check.
@@ -98,21 +108,33 @@ public sealed partial class RedisEventStore : IEventStore
 			-- appends the same business event again at the next version, where nothing can detect it.
 			--
 			-- There is no keyed read by event id over a stream -- that would be an XRANGE scan, O(n) in
-			-- stream length, on the conflict path -- so the identity is recorded as a marker when the
-			-- append succeeds and read back here. O(1), and atomic with the append because it is the
-			-- same script.
-			local marked = redis.call('HMGET', marker_key, 'eventId', 'version')
-			if marked[1] and marked[1] == first_event_id then
-				return {tonumber(marked[2]), '0-0'}
+			-- stream length, on the conflict path -- so the identities of recent appends are recorded in a
+			-- companion sorted set and read back here by ZSCORE. O(1), and atomic with the append because
+			-- it is the same script.
+			--
+			-- A SORTED SET rather than a single marker, because one marker recognises only the MOST RECENT
+			-- append: a retry arriving after any other writer appended no longer matched, was reported as a
+			-- conflict, and the documented reload-and-retry then wrote the same business event a second time
+			-- at a different version, where no uniqueness key can catch it. The set recognises a retry
+			-- however many appends intervened, up to its bound.
+			--
+			-- A blank identifier is not probed. Two different writers that both omit event ids would
+			-- otherwise recognise each other's appends, which SWALLOWS a genuine conflict -- the one
+			-- direction worse than reporting a spurious one.
+			if first_event_id ~= '' then
+				local marked = redis.call('ZSCORE', marker_key, first_event_id)
+				if marked then
+					return {tonumber(marked), '0-0', 1}
+				end
 			end
 
-			return {-1, current_version}
+			return {-1, current_version, 0}
 		end
 
 		-- Append each event to the stream
 		local first_id = nil
 		for i = 1, event_count do
-			local base = 3 + (i - 1) * 2
+			local base = 4 + (i - 1) * 2
 			local field = ARGV[base + 1]
 			local value = ARGV[base + 2]
 			local id = redis.call('XADD', stream_key, '*', field, value)
@@ -127,10 +149,17 @@ public sealed partial class RedisEventStore : IEventStore
 
 		-- Record WHAT this append was, not merely that the version moved, so the next attempt carrying
 		-- the same identifier can be recognised as this one rather than mistaken for a rival writer.
-		-- One key per stream, overwritten each append: it holds the LAST append only, which is the
-		-- window a lost acknowledgement actually occupies.
-		redis.call('HSET', marker_key, 'eventId', first_event_id, 'version', new_version)
-		return {new_version, first_id or '0-0'}
+		-- Member = the identity a retry presents; score = the version it reached, which is what the retry
+		-- must be told.
+		if first_event_id ~= '' then
+			redis.call('ZADD', marker_key, new_version, first_event_id)
+
+			-- BOUNDED, because an unbounded set per stream is a leak with no eviction story. Rank order is
+			-- score order is append order -- the per-stream counter only ever increases -- so this range is
+			-- exactly the oldest surplus, and the set holds at most recognition_window members forever.
+			redis.call('ZREMRANGEBYRANK', marker_key, 0, -(recognition_window + 1))
+		end
+		return {new_version, first_id or '0-0', 0}
 		""";
 
 	/// <summary>
@@ -226,9 +255,10 @@ public sealed partial class RedisEventStore : IEventStore
 		var db = GetDatabase();
 		var streamKey = GetStreamKey(aggregateType, aggregateId);
 
-		// Build Lua script arguments: expectedVersion, eventCount, then pairs of (eventId, serializedEvent)
+		// Build Lua script arguments: expectedVersion, eventCount, firstEventId, recognitionWindow, then
+		// pairs of (eventId, serializedEvent).
 		// The first event's identifier is what lets a retry of THIS append be recognised as one. A blank
-		// identifier leaves the marker unmatchable, which degrades to the previous behaviour -- a conflict
+		// identifier is neither recorded nor probed, which degrades to the previous behaviour -- a conflict
 		// -- rather than to a wrong answer.
 		var firstEventId = eventList
 			.Select(static e => e.EventId)
@@ -239,6 +269,7 @@ public sealed partial class RedisEventStore : IEventStore
 			expectedVersion,
 			eventList.Count,
 			firstEventId,
+			_options.RetryRecognitionWindow,
 		};
 
 		var nextVersion = expectedVersion;
@@ -300,9 +331,25 @@ public sealed partial class RedisEventStore : IEventStore
 			// it is the version the earlier attempt reached, which is the honest answer.
 			var committedVersion = statusValue;
 
+			// WHETHER THIS CALL WROTE THE EVENTS, carried explicitly rather than inferred. The script has
+			// always known -- the retry marker is how it recognises a re-presented batch -- but the result
+			// carried no way to SAY so, and both paths returned an indistinguishable success. The second
+			// slot cannot stand in for it: a fresh append with no stream id also yields '0-0'.
+			//
+			// The length guard is defensive rather than a version bridge, and the distinction matters
+			// because the obvious reading is wrong: an older script CANNOT reach this reader. Dispatch
+			// is by script TEXT and EVALSHA keys on the hash of that text, so a script that returned two
+			// elements has a different hash and this client never invokes it. What the guard actually
+			// buys is that a malformed or truncated reply degrades to "not recognised" instead of
+			// throwing or, worse, reading a fresh append as a retry -- which would fire the erasure
+			// probe on every save. It costs nothing and it fails in the safe direction.
+			var recognisedRetry = result.Length >= 3 && (long)result[2] == 1;
+
 			LogEventsAppended(aggregateId, aggregateType, eventList.Count, committedVersion);
 			// Per-stream version counter only — no store-wide global sequence, so no global first-event position.
-			return AppendResult.CreateSuccess(committedVersion, firstEventPosition: null);
+			return recognisedRetry
+				? AppendResult.CreateAlreadyCommitted(committedVersion, firstEventPosition: null)
+				: AppendResult.CreateSuccess(committedVersion, firstEventPosition: null);
 		}
 		// Only a provider fault normalizes to a failure result. Cancellation, and any programming error
 		// (a null reference, a bad argument), propagates untouched: the caller asked to stop, or the code is
@@ -343,9 +390,10 @@ public sealed partial class RedisEventStore : IEventStore
 	// the tenant (GetStreamKey), so the version key inherits it automatically.
 	private static string GetVersionKey(string streamKey) => $"{{{streamKey}}}:ver";
 
-	// Holds the identity of the LAST successful append to this stream, so a retry carrying the same
-	// identifier can be told apart from a rival writer. Hash-tagged onto the stream key for the same
-	// reason the version counter is: all three must live on one cluster slot for the script to be atomic.
+	// Holds the identities of this stream's most recent successful appends -- at most
+	// RetryRecognitionWindow of them -- so a retry carrying one of those identifiers can be told apart from
+	// a rival writer however many appends intervened. Hash-tagged onto the stream key for the same reason
+	// the version counter is: all three must live on one cluster slot for the script to be atomic.
 	private static string GetRetryMarkerKey(string streamKey) => $"{{{streamKey}}}:retry";
 
 	private static List<StoredEvent> ParseStreamEntries(StreamEntry[] entries, JsonSerializerOptions options)

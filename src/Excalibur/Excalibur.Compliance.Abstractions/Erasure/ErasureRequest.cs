@@ -140,37 +140,56 @@ public enum ErasureScope
 public enum ErasureLegalBasis
 {
 	/// <summary>
+	/// No Article 17(1) ground was established: nobody stated one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Zero means "not established" so that a value nobody assigned cannot read as a lawful ground.</b>
+	/// <c>required</c> makes omission inexpressible to the C# compiler, but a reflection binder, a
+	/// deserializer, a store round trip and an out-of-range cast all reach this enum without the compiler's
+	/// involvement — and whatever sits at zero is what they produce. While zero was
+	/// <see cref="DataNoLongerNecessary"/>, an unset value was indistinguishable from a deliberate
+	/// Article 17(1)(a) claim on a signed erasure certificate.
+	/// </para>
+	/// <para>
+	/// <b>It is not a lawful basis and must never be attested as one.</b> A certificate carrying it records
+	/// that the ground for erasing was not established, and the erasure is not reported complete.
+	/// </para>
+	/// </remarks>
+	NotEstablished = 0,
+
+	/// <summary>
 	/// Article 17(1)(a) - Data no longer necessary for purpose.
 	/// </summary>
-	DataNoLongerNecessary = 0,
+	DataNoLongerNecessary = 1,
 
 	/// <summary>
 	/// Article 17(1)(b) - Consent withdrawal.
 	/// </summary>
-	ConsentWithdrawal = 1,
+	ConsentWithdrawal = 2,
 
 	/// <summary>
 	/// Article 17(1)(c) - Right to object.
 	/// </summary>
-	RightToObject = 2,
+	RightToObject = 3,
 
 	/// <summary>
 	/// Article 17(1)(d) - Unlawful processing.
 	/// </summary>
-	UnlawfulProcessing = 3,
+	UnlawfulProcessing = 4,
 
 	/// <summary>
 	/// Article 17(1)(e) - Legal obligation to erase.
 	/// </summary>
-	LegalObligation = 4,
+	LegalObligation = 5,
 
 	/// <summary>
 	/// Article 17(1)(f) - Child's data in information society services.
 	/// </summary>
-	ChildData = 5,
+	ChildData = 6,
 
 	/// <summary>
 	/// Data subject direct request (general right to erasure).
 	/// </summary>
-	DataSubjectRequest = 6
+	DataSubjectRequest = 7
 }

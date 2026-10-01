@@ -336,7 +336,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 				-- The store's unconditional write now INVALIDATES the position rather than leaving
 				-- it stale, so this column is part of the contract the store writes against. -1, not
 				-- 0, because zero is a legitimate stream position.
-				LastAppliedPosition BIGINT NOT NULL DEFAULT (-1),
+				LastAppliedPosition BIGINT NOT NULL DEFAULT (-2),
 				CONSTRAINT [PK_OrderSummary] PRIMARY KEY (TenantId, Id)
 			)
 			""";

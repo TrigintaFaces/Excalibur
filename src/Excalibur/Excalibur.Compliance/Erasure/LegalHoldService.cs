@@ -120,6 +120,10 @@ public sealed partial class LegalHoldService : ILegalHoldService
 					holdId));
 		}
 
+		// The manual path is the same read-modify-write as the expiration sweep, and carries the same
+		// hazard: the IsActive check above was made against the record as it stood a moment ago. The
+		// version travels across in this `with`, so the store refuses the write if the record moved --
+		// and the conflict surfaces to the caller rather than overwriting whatever it became.
 		var releasedHold = hold with
 		{
 			IsActive = false,
@@ -128,7 +132,16 @@ public sealed partial class LegalHoldService : ILegalHoldService
 			ReleaseReason = reason
 		};
 
-		_ = await _store.UpdateHoldAsync(releasedHold, cancellationToken).ConfigureAwait(false);
+		if (!await _store.UpdateHoldAsync(releasedHold, cancellationToken).ConfigureAwait(false))
+		{
+			// The hold was read a few lines above, so it existed. Absent now means it was deleted in
+			// between -- which is not a release, and reporting one would record an event that never
+			// happened against a hold nobody can inspect.
+			throw new KeyNotFoundException(string.Format(
+					CultureInfo.CurrentCulture,
+					HoldNotFoundFormat,
+					holdId));
+		}
 
 		LogLegalHoldReleased(holdId, releasedBy, reason);
 	}
@@ -142,7 +155,28 @@ public sealed partial class LegalHoldService : ILegalHoldService
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectId);
 
-		var dataSubjectIdHash = HashDataSubjectId(dataSubjectId);
+		// THIS OVERLOAD HASHES ITS ARGUMENT, so it must be given a RAW identifier. Hand it a value that
+		// is already hashed and the query runs for H(H(raw)) against a store keyed on H(raw), which
+		// cannot match -- the hash is HMAC-SHA256 and is not idempotent. The failure is silent and in the
+		// unsafe direction: a subject-specific hold reports as absent and the erasure proceeds.
+		//
+		// Callers holding only a hash MUST use CheckHoldsByHashAsync. That is why the hash depth is in
+		// the method NAME rather than left to a parameter comment: a caller cannot pick the wrong one
+		// without the call site saying so.
+		return await CheckHoldsByHashAsync(
+			HashDataSubjectId(dataSubjectId), tenantId, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	public async Task<LegalHoldCheckResult> CheckHoldsByHashAsync(
+		string dataSubjectIdHash,
+		string? tenantId,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectIdHash);
+
+		// NO HASHING HERE. The argument IS the stored key. Everything below is the single query path both
+		// entry points share, so the raw and hashed callers cannot drift apart.
 		var activeHolds = new List<LegalHold>();
 
 		// Check for data subject-specific holds
@@ -217,7 +251,7 @@ public sealed partial class LegalHoldService : ILegalHoldService
 			ExpiresAt = h.ExpiresAt
 		}).ToList();
 
-		LogLegalHoldCheckCompleted(activeHolds.Count, idType);
+		LogLegalHoldCheckCompleted(activeHolds.Count, DataSubjectIdType.Hash);
 
 		return LegalHoldCheckResult.WithHolds(holdInfos);
 	}

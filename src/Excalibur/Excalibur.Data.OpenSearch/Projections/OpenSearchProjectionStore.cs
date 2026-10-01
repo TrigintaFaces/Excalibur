@@ -151,10 +151,11 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		// Indexing replaces the whole document, so a position the row used to carry vanishes with it --
 		// and indexing the projection DIRECTLY through the typed client, as this call used to, could
 		// not carry one at all. The row then read back exactly like a row that never had a position,
-		// and those two must be treated OPPOSITELY: a never-positioned row IS a complete fold and is
-		// adoptable, whereas a row whose state was just replaced by a value this store cannot relate to
-		// the stream is not. Adopting the second stamps a position onto a state that does not contain
-		// that prefix, and every event below it is then silently missing from the read model forever.
+		// and those two must stay DISTINGUISHABLE: a never-positioned row IS a complete fold
+		// whose coordinate is merely unknown, whereas a row whose state was just replaced holds a fold over
+		// no known prefix at all. A positioned write refuses BOTH -- neither carries a number it can advance
+		// from -- so what the distinction decides is not the next write but what the row can honestly be
+		// said to hold while it waits to be rebuilt, which is what an operator reads it for.
 		//
 		// Moving to the low-level client is what carrying the field costs here: the typed client's
 		// serializer cannot send this document (see BuildDocument). The sentinel rides the same single
@@ -169,9 +170,14 @@ public sealed class OpenSearchProjectionStore<TProjection>
 	/// <inheritdoc />
 	/// <remarks>
 	/// The same single index operation as <see cref="UpsertAsync"/>, differing only in what it asserts:
-	/// this state IS a complete fold, so a later positioned writer may adopt the row. Unconditional on
+	/// this state IS a complete fold, only its coordinate unknown. Unconditional on
 	/// purpose -- the caller is claiming completeness, not a place in the stream, so there is no
 	/// position for a condition to be written against.
+	/// <para>
+	/// <b>The row is still REFUSED by a positioned write</b>, which has no number to advance from. What
+	/// this buys over the blind surface is that the row reads back as a complete answer awaiting a
+	/// coordinate rather than as a state related to no prefix at all; a rebuild is what numbers it.
+	/// </para>
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -188,6 +194,82 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			id,
 			BuildDocument(projection, ProjectionPosition.Unnumbered),
 			cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// <b>Two round trips, and the engine leaves no alternative.</b> The index API overwrites or creates —
+	/// its <c>op_type</c> offers <c>index</c> and <c>create</c> and nothing meaning "only if it already
+	/// exists" — so a plain index cannot be conditional on existence. What CAN be is a write carrying the
+	/// document's sequence number and primary term: the engine refuses such a write against a document
+	/// that is not there, because a missing document has no sequence number to match. So the store reads
+	/// the pair and writes under it, and the write's own refusal is the existence answer.
+	/// </para>
+	/// <para>
+	/// The read is NOT the authority here, which is the distinction that matters: a document deleted
+	/// between the read and the write makes the write fail rather than recreate. An absent document means
+	/// the projection was DELETED, deletion is how erasure removes personal data, and a whole-stream
+	/// replay is precisely the write that could reconstruct it.
+	/// </para>
+	/// <para>
+	/// <b>A refusal is re-read rather than reported, and that is sound because this write is unconditional
+	/// on position.</b> The pair moves for any reason at all, so a refusal says only "something changed" —
+	/// the following read then separates the two cases that matter: gone, or still there and worth another
+	/// attempt. The attempt count is bounded: a document that keeps moving means the caller's processor is
+	/// still running, which this operation's contract forbids, and neither outcome would be honest to
+	/// report.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown when the document is changed by another writer on every attempt, which means the
+	/// projection's processor was not stopped as the contract requires.
+	/// </exception>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		TProjection projection,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentNullException.ThrowIfNull(projection);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
+
+		var document = BuildDocument(projection, ProjectionPosition.At(newPosition));
+
+		for (var attempt = 0; attempt < ConditionalWriteAttempts; attempt++)
+		{
+			var read = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
+
+			if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
+			{
+				return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
+			}
+
+			// No position is compared: the stored number is irrelevant to a state folded from an empty
+			// seed, and may be one this rebuild exists to replace.
+			var written = await WriteAtSequenceAsync(
+				id, document, sequenceNumber, primaryTerm, newPosition, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (written.Outcome == ProjectionAdvanceOutcome.Applied)
+			{
+				return new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied);
+			}
+
+			if (written.Outcome == ProjectionAdvanceOutcome.Vanished)
+			{
+				return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
+			}
+		}
+
+		throw new InvalidOperationException(
+			$"Rebuild of projection '{typeof(TProjection).Name}' with id '{id}' in index '{_indexName}' was "
+			+ $"refused on {ConditionalWriteAttempts} consecutive attempts because the document kept "
+			+ "changing. A rebuild requires the projection's processor to be stopped.");
 	}
 
 	/// <summary>Indexes a prepared document with no condition, failing loudly if the engine refuses.</summary>
@@ -396,6 +478,15 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
 		ArgumentNullException.ThrowIfNull(projection);
 
+		// A NEGATIVE EXPECTATION IS THE ADOPT LICENCE THROUGH A DIFFERENT DOOR. The negatives are the
+		// sentinel space for the two states that carry no number, so a caller naming one as "the position I
+		// read" would be matching a row this store refuses by design. ExpectedPositionOrNull is the only
+		// legal source for this argument and never yields a negative.
+		if (expectedPosition is { } claimed)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(claimed, nameof(expectedPosition));
+		}
+
 		await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
 
 		var document = BuildDocument(projection, ProjectionPosition.At(newPosition));
@@ -422,40 +513,35 @@ public sealed class OpenSearchProjectionStore<TProjection>
 
 			if (IsVersionConflict(created))
 			{
-				// Something is already there. ADOPTION MATCHES EXACTLY ONE OF THE THREE STATES: an
-				// unnumbered row is a complete fold whose coordinate is merely unknown, so folding this
-				// batch onto it and stamping this batch's position states something true. Without
-				// adoption a caller reading such a row would claim no position and be refused every
-				// subsequent attempt identically -- a silent permanent stall rather than a conflict.
+				// Something is already there, and NOTHING here adopts it. A numberless document used to be
+				// ADOPTED -- written over at the sequence number just read -- on the reasoning that its state
+				// is a complete fold whose coordinate is merely unknown. That reasoning is unsound from this
+				// caller's position: it read NO number, so it knows nothing about which prefix the stored
+				// state covers, and the position it stamped could therefore assert a prefix the state does
+				// not hold. Every event below that position is then absent from the read model while the
+				// position says it is present, and nothing downstream can see it. It is refused instead, and
+				// the refusal is repairable: RebuildAtPositionAsync folds the whole stream and numbers the
+				// row from what it folded.
 				//
-				// The other two are refusals, and they are refused DIFFERENTLY. A positioned row means
-				// a real writer is already advancing it -- the late starter this branch exists to
-				// refuse -- and the caller re-reads and retries. AN UNPLACEABLE ROW CAN NEVER BE
-				// ADOPTED: its state is not a fold over any prefix, so telling the caller to retry
-				// would spin it forever against a row that will not change on its own.
+				// The two refusals are DIFFERENT. A positioned document means a real writer is already
+				// advancing it -- the late starter this branch exists to refuse -- and the caller re-reads
+				// and retries. A document carrying no number can never be advanced from at all, so telling
+				// the caller to retry would spin it forever against a document that will not change.
 				var conflicting = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
 
-				if (conflicting.Position.Kind == ProjectionPositionKind.Unplaceable)
+				// CHECKED FIRST, and the order is load-bearing. A read that finds no sequence pair means the
+				// document was deleted between the create and this read, and its position then reads as a
+				// no-number state that is not a reading of anything -- classifying on the position before
+				// testing existence would report a TERMINAL refusal for a transient race the next attempt
+				// resolves by creating.
+				if (conflicting.SequenceNumber is null || conflicting.PrimaryTerm is null)
 				{
-					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
-				}
-
-				if (conflicting.Position.Kind == ProjectionPositionKind.Positioned)
-				{
-					return new ProjectionAdvanceResult(
-						ProjectionAdvanceOutcome.Superseded, conflicting.Position.Value);
-				}
-
-				if (conflicting.SequenceNumber is not { } adoptSeqNo
-					|| conflicting.PrimaryTerm is not { } adoptTerm)
-				{
-					// Deleted between the create and this read. The next attempt creates it.
 					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, null);
 				}
 
-				return await WriteAtSequenceAsync(
-					id, document, adoptSeqNo, adoptTerm, newPosition, cancellationToken)
-					.ConfigureAwait(false);
+				return conflicting.Position.Kind == ProjectionPositionKind.Positioned
+					? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, conflicting.Position.Value)
+					: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 			}
 
 			throw IndexingFailure(id, created);
@@ -470,21 +556,22 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 		}
 
-		// An unplaceable row is terminal and is reported as such rather than as a supersede. A
-		// superseded caller re-reads and retries; this row yields the same refusal on every re-read, so
-		// reporting Superseded here is an unbounded redelivery loop against a projection that can only
-		// be fixed by rebuilding it.
-		if (read.Position.Kind == ProjectionPositionKind.Unplaceable)
+		// Terminal, not a supersede: there is no number to advance from, and re-reading yields the
+		// same value and the same refusal, so Superseded here is an unbounded redelivery loop. That is the
+		// arm a careless edit reintroduces, and a numberless row landing in it retries forever.
+		//
+		// BOTH no-number states report the SAME outcome, deliberately. This result describes what the WRITE
+		// did; it carries no state, and the position was read at a different instant from the one the write
+		// was refused at, so an outcome characterising the stored STATE would attribute a property of the
+		// row-at-read-time to a write refused earlier. A caller that needs to know what the row holds reads
+		// its position, where ProjectionPositionKind reports it as a measured fact.
+		if (read.Position.Kind != ProjectionPositionKind.Positioned)
 		{
 			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 		}
 
 		// Both conjuncts. The second is not redundant: the caller obtained its expected value BY READING
 		// IT, so a re-delivery satisfies the first by construction and only monotonicity refuses it.
-		//
-		// ExpectedPositionOrNull renders an unnumbered row as null, which is right here: the caller
-		// arrived with a non-null expectation, so an unnumbered row does not match it and the write is
-		// refused. Adoption is the expectedPosition-is-null branch above, and only that branch.
 		var held = read.Position.ExpectedPositionOrNull;
 		if (held != expectedPosition || newPosition <= held)
 		{
@@ -550,14 +637,30 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			id, document, sequenceNumber, primaryTerm, atPosition, cancellationToken)
 			.ConfigureAwait(false);
 
-		// The sequence-write helper speaks the ADVANCE vocabulary. Translating here rather than
-		// reusing its result type is the point of the separate type: an advance's Superseded is
-		// settled when the store is ahead, and a re-fold's never is.
+		// The helper speaks the ADVANCE vocabulary. Translating here rather than reusing its result type is
+		// the whole point of the separate type: an advance's Superseded is settled when the store is ahead,
+		// and a re-fold's never is.
+		//
+		// EVERY MEMBER IS NAMED, and the catch-all THROWS rather than choosing. A `_ =>` arm that returned
+		// Superseded is what turned a TERMINAL refusal into an unbounded retry here: the helper also answers
+		// Unplaceable, that fell through, and Superseded means "re-read and try again" against a row whose
+		// position will never change. ProjectionRefoldOutcome already carries the right member for it.
 		return advanced.Outcome switch
 		{
 			ProjectionAdvanceOutcome.Applied => new(ProjectionRefoldOutcome.Applied, atPosition),
 			ProjectionAdvanceOutcome.Vanished => new(ProjectionRefoldOutcome.Vanished, null),
-			_ => new(ProjectionRefoldOutcome.Superseded, advanced.CurrentPosition),
+
+			// TERMINAL, never Superseded. The row carries no position to match, so re-reading yields the same
+			// refusal and a retrying caller loops forever. The caller escalates and rebuilds instead.
+			ProjectionAdvanceOutcome.Unplaceable => new(ProjectionRefoldOutcome.RequiresRebuild, null),
+
+			ProjectionAdvanceOutcome.Superseded =>
+				new(ProjectionRefoldOutcome.Superseded, advanced.CurrentPosition),
+
+			_ => throw new InvalidOperationException(
+				$"Unhandled projection advance outcome '{advanced.Outcome}' in a re-fold translation. Every "
+				+ "member must be handled explicitly: a fall-through here decides, silently, whether a "
+				+ "terminal refusal is retried forever or treated as a conflict."),
 		};
 	}
 
@@ -600,14 +703,14 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		{
 			var current = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
 
-			// Same discrimination as the pre-write check, and it has to be repeated here because the
-			// row can become unplaceable BETWEEN the caller's read and this write -- an unconditional
-			// upsert landing in that window is exactly what moves the sequence number and causes this
-			// conflict.
-			return current.Position.Kind == ProjectionPositionKind.Unplaceable
-				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
-				: new ProjectionAdvanceResult(
-					ProjectionAdvanceOutcome.Superseded, current.Position.ExpectedPositionOrNull);
+			// Same discrimination as the pre-write check, and it has to be repeated here because the row
+			// can LOSE its number BETWEEN the caller's read and this write -- an unconditional upsert or an
+			// unnumbered write landing in that window is exactly what moves the sequence number and causes
+			// this conflict. Reporting Superseded for a numberless row would hand the caller a null position
+			// to retry against, forever.
+			return current.Position.Kind == ProjectionPositionKind.Positioned
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, current.Position.Value)
+				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 		}
 
 		throw IndexingFailure(id, response);
@@ -643,10 +746,19 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			.GetAsync<StringResponse>(_indexName, id, ctx: cancellationToken)
 			.ConfigureAwait(false);
 
-		// NOT `default` on either absent path. A defaulted ProjectionPosition is Positioned(0), not "no
-		// position" -- the struct's zero value is a real coordinate -- so returning the struct default
-		// would report an absent document as one folded up to position zero. Named explicitly instead;
-		// the absence is carried by the null sequence number, which every caller tests first.
+		// UNPLACEABLE on either absent path, because an absent document is not a fold over any prefix --
+		// the true reading, not a convenient one. Unnumbered would assert a complete fold over state that
+		// does not exist.
+		//
+		// CORRECTED: this comment used to read "NOT `default`. A defaulted ProjectionPosition is
+		// Positioned(0), not 'no position' -- the struct's zero value is a real coordinate". That was FALSE
+		// and inverted the type's central safety property. ProjectionPositionKind.Unplaceable IS the zero
+		// member, deliberately, and ToStored() derives from Kind, so default(ProjectionPosition) round-trips
+		// as the unplaceable sentinel -- the fail-safe state, not a claim about position 0. A reader who
+		// believed the old comment would conclude the default was unsafe and reorder the enum to "fix" it,
+		// which is exactly the mutation
+		// ProjectionPositionShould.NeverReportADefaultConstructedValueAsAMeasuredPosition reddens on.
+		// `default` would in fact be correct here; the named value is used for legibility, not for safety.
 		if (response.Body is null)
 		{
 			return Absent();
@@ -659,14 +771,17 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			return Absent();
 		}
 
-		// The stored value decodes to one of THREE states, and the two that carry no number need
-		// opposite treatment from a positioned writer. An ABSENT field reads as Unnumbered, which is
-		// correct: a document written before this field existed IS a complete fold, only its coordinate
-		// is unknown, so it stays adoptable. The decoding lives in ProjectionPosition so the eight
-		// providers cannot drift.
+		// The stored value decodes to one of THREE states, and the two that carry no number are both
+		// refused by a positioned writer -- they differ in what the row asserts about itself.
+		//
+		// EVERY FAILURE CASE GOES THROUGH FromStored WITH A NULL, which is what makes "the eight providers
+		// cannot drift" true rather than merely intended. An absent field and a field holding something
+		// other than a number are the same answer: nobody knows what prefix this state covers. The direct
+		// GetValue<long>() this replaces THREW on the second case, which turned a rebuildable row into a
+		// failure on the read path.
 		var position = ProjectionPosition.FromStored(
-			source.TryGetPropertyValue(PositionField, out var stored) && stored is not null
-				? stored.GetValue<long>()
+			source.TryGetPropertyValue(PositionField, out var stored)
+				? ReadStoredLong(stored)
 				: null);
 
 		// The position is the store's bookkeeping, not part of the projection.
@@ -679,8 +794,25 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			envelope["_primary_term"]?.GetValue<long>());
 
 		static PositionedRead Absent() =>
-			new(null, ProjectionPosition.Unnumbered, null, null);
+			new(null, ProjectionPosition.Unplaceable, null, null);
 	}
+
+
+	/// <summary>
+	/// Extracts the stored number, or <see langword="null"/> when the value cannot be decoded as one.
+	/// </summary>
+	/// <remarks>
+	/// <b>An undecodable value must not throw, and must not read as the trustworthy state.</b> A read is an
+	/// observation. A row whose position field holds a string or a boolean is repairable by rebuild, so
+	/// throwing here would turn a repairable row into an outage on the read path -- a consumer could not even
+	/// discover what state the projection is in, because looking is what broke. And it is reachable without
+	/// corruption: a field written as text by another serializer, a manual fix-up, or a migration script all
+	/// arrive here. Returning <see langword="null"/> routes the failure into
+	/// <see cref="ProjectionPosition.FromStored"/> alongside absence and a negative, which is one answer for
+	/// one reason: nobody knows, so it reads fail-safe.
+	/// </remarks>
+	private static long? ReadStoredLong(JsonNode? value) =>
+		value is JsonValue number && number.TryGetValue<long>(out var stored) ? stored : null;
 
 	/// <summary>
 	/// Serializes the projection with the client's own source serializer and stamps onto it what this
@@ -725,6 +857,16 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		using var buffer = new MemoryStream(Encoding.UTF8.GetBytes(source.ToJsonString()));
 		return _client.SourceSerializer.Deserialize<TProjection>(buffer);
 	}
+
+	/// <summary>
+	/// How many times a rebuild will re-read and retry a write the engine refused.
+	/// </summary>
+	/// <remarks>
+	/// Bounded rather than unbounded because a document that keeps moving means the projection's
+	/// processor is still running, which a rebuild's contract forbids. Looping forever would turn a
+	/// caller's error into a hang; throwing names it.
+	/// </remarks>
+	private const int ConditionalWriteAttempts = 3;
 
 	/// <summary>Whether a write was refused because another writer got there first.</summary>
 	private static bool IsVersionConflict(StringResponse response) =>

@@ -1,6 +1,19 @@
 param(
   [string]$OutDir = "OssMetadataReport",
-  [string]$Catalog = "eng/governance/package-ids.yaml"
+  # EMPTY BY DEFAULT, and that is the fix rather than an omission. This used to default to
+  # "eng/governance/package-ids.yaml", a file that does not exist and that nothing in this repository
+  # generates, so every run emitted a WARNING and then silently took the discovery path anyway. A
+  # permanent warning on a passing gate is how a real warning stops being read.
+  #
+  # Discovery is also the STRONGER source, not a degraded one: Discover-CatalogEntries recurses all
+  # of src for *.csproj, so it cannot omit a project. A hand-maintained catalog can, and it cannot
+  # detect its own omission, because the list IS the definition. That is a failure this repository
+  # has already measured and corrected elsewhere. Worse here than elsewhere: this gate audits OSS
+  # metadata, so a partial catalog silently NARROWS a compliance audit while still reporting pass.
+  #
+  # Pass -Catalog explicitly to audit a specific subset. A path that is given and missing is still a
+  # warning, because then it IS a mistake.
+  [string]$Catalog = ""
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -45,7 +58,7 @@ function Get-GlobalDefaults {
 function Parse-Catalog {
   param([string]$Path)
   if (-not (Test-Path $Path)) {
-    Write-Warning "Catalog '$Path' not found. Falling back to scanning src/*.csproj."
+    Write-Warning "Catalog '$Path' was requested but does not exist. Falling back to recursive discovery of src/**/*.csproj."
     return @()
   }
 
@@ -122,7 +135,9 @@ function Audit-Csproj {
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $defaults = Get-GlobalDefaults -RepoRoot $repoRoot
-$entries = @(Parse-Catalog -Path $Catalog)
+# Only consult a catalog when one was explicitly asked for. Test-Path on an empty string is a
+# parameter-binding error, so this guard is load-bearing and not defensive decoration.
+$entries = if ([string]::IsNullOrWhiteSpace($Catalog)) { @() } else { @(Parse-Catalog -Path $Catalog) }
 if (@($entries).Count -eq 0) {
   $entries = Discover-CatalogEntries -RepoRoot $repoRoot
 }

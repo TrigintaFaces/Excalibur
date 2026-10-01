@@ -142,6 +142,16 @@
     -->
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\001_CreateComplianceSchema.sql" Link="Schema\SqlServer\001_CreateComplianceSchema.sql" />
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\001_CreateComplianceSchema.sql" Link="Schema\Postgres\001_CreateComplianceSchema.sql" />
+    <!--
+      The legal-basis ordinal-shift migrations. These carry the same weight as the create scripts and
+      for a sharper reason: the shape they migrate FROM is the one every existing deployment holds,
+      because the legal-basis enums are persisted as INT and every member moved up by one. A suite
+      that applied its own hand-written ALTER would assert something about a statement no consumer
+      runs, and the property under test (that re-running changes nothing a second time) lives in
+      the shipped file's guard rather than in any statement a test could invent.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\003_ReplaceLegalBasisColumns.sql" Link="Schema\SqlServer\003_ReplaceLegalBasisColumns.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\002_ReplaceLegalBasisColumns.sql" Link="Schema\Postgres\002_ReplaceLegalBasisColumns.sql" />
     <!-- Dead-letter DDL, linked under the same dialect-named folders and for the same reason: both
          engines ship a file named 001_CreateDeadLetterSchema.sql, and neither dead-letter store creates
          its table at runtime, so the conformance suites must provision from the shipped script. -->

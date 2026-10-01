@@ -25,12 +25,29 @@ public class VaultContainerFixture : ContainerFixtureBase
 	/// </remarks>
 	protected override bool AllowGracefulDegradation => true;
 
+	// REFUSES rather than falling back, and the refusal is the point. This property used to return
+	// http://localhost:8200 when _container was null -- i.e. exactly when the container had FAILED TO
+	// START -- so an arm that read it without first asserting availability would run against whatever
+	// happened to be on that port. Nothing there fails loudly, which is fine. An unrelated Vault there
+	// PASSES, about a server nobody provisioned, and that outcome is indistinguishable from a real run
+	// in the exit code and in the arm count.
+	//
+	// That was unreachable in practice, because every caller asserts DockerAvailable first and that flag
+	// is set true only after the container has actually started (ContainerFixtureBase:246-248). But it
+	// was unreachable by CALLER CONVENTION rather than by construction, so the next arm written without
+	// the assert would have reintroduced it silently. Throwing makes the trap inexpressible instead of
+	// merely improbable, and it is the shape the base fixture usage example already recommends.
+	private IContainer Container => _container ?? throw new InvalidOperationException(
+		"The Vault container did not start, so this fixture has no address to hand out. Returning a " +
+		"localhost address here would point tests at whatever else is on the port and let them pass " +
+		"against a server nobody provisioned. Assert DockerAvailable before using this fixture.");
+
 	/// <summary>
 	/// Gets the Vault server address.
 	/// </summary>
-	public string VaultAddress => _container is not null
-		? $"http://{_container.Hostname}:{_container.GetMappedPublicPort(VaultPort)}"
-		: $"http://localhost:{VaultPort}";
+	/// <exception cref="InvalidOperationException">The container did not start.</exception>
+	public string VaultAddress =>
+		$"http://{Container.Hostname}:{Container.GetMappedPublicPort(VaultPort)}";
 
 	/// <summary>
 	/// Gets the root token for authentication.
@@ -42,7 +59,7 @@ public class VaultContainerFixture : ContainerFixtureBase
 	/// </summary>
 	public async Task CreateKeyAsync(string keyName, CancellationToken cancellationToken = default)
 	{
-		var result = await _container.ExecAsync(
+		var result = await Container.ExecAsync(
 			new[] { "vault", "write", "-f", $"transit/keys/{keyName}" },
 			cancellationToken);
 
@@ -88,7 +105,7 @@ public class VaultContainerFixture : ContainerFixtureBase
 	private async Task EnableTransitEngineAsync(CancellationToken cancellationToken)
 	{
 		// Use exec to enable the transit engine
-		var result = await _container.ExecAsync(
+		var result = await Container.ExecAsync(
 			new[] { "vault", "secrets", "enable", "transit" },
 			cancellationToken);
 

@@ -164,6 +164,17 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 			string id, TProjection projection, long atPosition, CancellationToken cancellationToken) =>
 			Resolve().RefoldAtPositionAsync(id, projection, atPosition, cancellationToken);
 
+		/// <inheritdoc />
+		/// <remarks>
+		/// Routed to the tenant's own shard, like every other operation here. A rebuild that reached a
+		/// different shard would populate one tenant's row from another tenant's replay.
+		/// </remarks>
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+			string id, TProjection projection, long newPosition, CancellationToken cancellationToken) =>
+			Resolve().RebuildAtPositionAsync(id, projection, newPosition, cancellationToken);
+
 		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken) =>

@@ -15,9 +15,27 @@
 #
 # Format: the sweep's REFUSE label, verbatim (everything after "REFUSE " up to the " — " explanation).
 #
-# THE SET IS CURRENTLY EMPTY. Both fence tables left it: the sweep now evaluates
-# public.outbox_fence and dbo.OutboxFence on every run, at 2 written/read columns against 2
-# declared each.
+# SUPERSEDED NOTE: this file used to read "THE SET IS CURRENTLY EMPTY. Both fence tables left it: the
+# sweep now evaluates public.outbox_fence and dbo.OutboxFence on every run, at 2 written/read columns
+# against 2 declared each." That remains true of the fence tables; the set is no longer empty.
+#
+# ERASURE DESTROYED-KEY RECORD -- both spellings. The TABLE is fine and that was checked rather than
+# assumed: its shipped DDL declares exactly RequestId/KeyHandle/DestroyedAt with the composite primary
+# key, in both the provisioning script and the migration document, and those are precisely the three
+# columns the write path uses.
+#
+# WHAT THE SWEEP CANNOT DO IS SCOPE IT. The write path lives in a store class that writes SEVERAL
+# compliance tables and JOINS the request table to the destroyed-key table, so the column extractor
+# attributes request columns -- certificate id, completion and cancellation fields -- to this table and
+# reports drift that does not exist. Mapping it was ATTEMPTED and reverted for that reason: it converts a
+# REFUSE into a FAIL built on misattributed columns, which is worse than an announced coverage gap.
+#
+# A line is closed by MAPPING the table, and closing this one needs the extractor to scope columns to the
+# statement naming the table rather than to the file -- or the destroyed-key writes moved to their own
+# request class, which the repository already does for other seams. Tracked in the issue tracker against
+# this file; no identifier is written here because eng/** is copied to the public mirror.
+compliance.ErasureDestroyedKeys
+compliance.erasure_destroyed_keys
 #
 # An empty set is NOT a weaker gate here, and the reason is worth stating because "no entries"
 # reads like "nothing is being checked". Vacuity is caught by the wrapper's LIVENESS arm, which

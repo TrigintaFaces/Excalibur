@@ -76,6 +76,19 @@ internal sealed class NoLegalHoldsService : ILegalHoldService
 		Task.FromResult(LegalHoldCheckResult.NoHolds);
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// Reports no active holds, identically to the raw-identifier overload. Both must answer the same way
+	/// here: a deployment with no hold store has no holds to find, whichever form of the identifier the
+	/// caller happens to hold, and an asymmetry between the two would make the null object a worse
+	/// behavioural subtype than the real service.
+	/// </remarks>
+	public Task<LegalHoldCheckResult> CheckHoldsByHashAsync(
+		string dataSubjectIdHash,
+		string? tenantId,
+		CancellationToken cancellationToken) =>
+		Task.FromResult(LegalHoldCheckResult.NoHolds);
+
+	/// <inheritdoc/>
 	/// <remarks>Reports absence, because no hold can have been created here.</remarks>
 	public Task<LegalHold?> GetHoldAsync(Guid holdId, CancellationToken cancellationToken) =>
 		Task.FromResult<LegalHold?>(null);

@@ -259,7 +259,7 @@ public sealed class ErasureAbstractionTypesShould
 	public void Enumerate_all_erasure_request_statuses()
 	{
 		var statuses = Enum.GetValues<ErasureRequestStatus>();
-		statuses.Length.ShouldBe(9);
+		statuses.Length.ShouldBe(10);
 	}
 
 	[Fact]
@@ -280,14 +280,22 @@ public sealed class ErasureAbstractionTypesShould
 	public void Enumerate_all_erasure_legal_bases()
 	{
 		var bases = Enum.GetValues<ErasureLegalBasis>();
-		bases.Length.ShouldBe(7);
+		bases.Length.ShouldBe(8);
+
+		// The member a count cannot check: zero must mean no ground was established, because zero is what
+		// a binder, a deserializer or a cast produces when nobody assigned one.
+		((ErasureLegalBasis)0).ShouldBe(ErasureLegalBasis.NotEstablished);
 	}
 
 	[Fact]
 	public void Enumerate_all_legal_hold_bases()
 	{
 		var bases = Enum.GetValues<LegalHoldBasis>();
-		bases.Length.ShouldBe(7);
+		bases.Length.ShouldBe(8);
+
+		// The member a count cannot check: zero must mean no ground was established, because zero is what
+		// a binder, a deserializer or a cast produces when nobody assigned one.
+		((LegalHoldBasis)0).ShouldBe(LegalHoldBasis.NotEstablished);
 	}
 
 	[Fact]

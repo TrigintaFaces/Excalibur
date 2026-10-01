@@ -124,7 +124,13 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 		var stored = hold with
 		{
 			TenantId = KeyedTenantPartition.FromStoredValue(
-				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId
+				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId,
+
+			// A new hold starts at version 0 whatever the caller supplied, the same way the tenant term
+			// above is the store's to decide. Honouring a caller-chosen version would let a save pre-load a
+			// number no update can match, which is a hold that cannot be released, or one that matches a
+			// later stale write.
+			Version = 0
 		};
 
 		if (!_holds.TryAdd(stored.HoldId, stored))
@@ -177,12 +183,38 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 			return Task.FromResult(false);
 		}
 
-		_holds[hold.HoldId] = hold with
+		if (existing.Version != hold.Version)
+		{
+			throw LegalHoldConcurrencyException.ForHold(hold.HoldId, hold.Version, existing.Version);
+		}
+
+		var updated = hold with
 		{
 			TenantId = KeyedTenantPartition.FromStoredValue(
-				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId
+				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId,
+			Version = existing.Version + 1
 		};
-		return Task.FromResult(true);
+
+		// TryUpdate, not an indexer assignment: the version comparison above is a check, and a check is only
+		// as good as what makes it atomic with the write. An indexer assignment overwrites whatever is there
+		// now, so a writer that landed between the read and this line would be silently discarded -- the
+		// exact lost update the version exists to catch, moved a few microseconds later. TryUpdate swaps only
+		// while the stored instance is still the one that was compared; LegalHold is a record, so the
+		// default comparer's structural equality includes Version and any concurrent write fails the swap.
+		if (_holds.TryUpdate(hold.HoldId, updated, existing))
+		{
+			return Task.FromResult(true);
+		}
+
+		// The swap lost. Re-read to say WHICH condition, because the two have different remedies: the hold
+		// vanishing is "nothing to write to" and stays a false, while a moved version is a conflict the
+		// caller must re-decide rather than re-apply.
+		if (!_holds.TryGetValue(hold.HoldId, out var current) || !OwnedByAmbientTenant(tenant, current.TenantId))
+		{
+			return Task.FromResult(false);
+		}
+
+		throw LegalHoldConcurrencyException.ForHold(hold.HoldId, hold.Version, current.Version);
 	}
 
 	/// <inheritdoc />

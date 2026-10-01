@@ -97,6 +97,33 @@ public sealed class AppendResultShould
 	}
 
 	[Fact]
+	public void CreateConcurrencyConflict_WithNoMeasurement_ReportsNoVersionAndNamesNoneInTheMessage()
+	{
+		// The twin of the test above, and the reason the parameter is nullable at all. A store can detect a
+		// conflict without succeeding in reading the version -- and the honest report is then NOTHING, not
+		// the caller's own expected version. Were the caller's value echoed back here the result would read
+		// "expected version 4 but current version is 4": a conflict asserting nothing moved.
+		//
+		// The -1 case above is what makes this a real distinction rather than a blanket ban: -1 means "the
+		// stream measurably does not exist", null means "nobody looked". Collapsing them would leave a
+		// caller unable to tell a measured empty stream from an unmeasured one.
+		var result = AppendResult.CreateConcurrencyConflict(expectedVersion: 4, actualVersion: null);
+
+		result.Success.ShouldBeFalse();
+		result.IsConcurrencyConflict.ShouldBeTrue();
+		result.NextExpectedVersion.ShouldBeNull(
+			"a conflict the store could not measure states no version, so the caller reloads");
+
+		// The message is the field the repository actually surfaces to a consumer, so an unmeasured conflict
+		// must not name a current version there either.
+		result.ErrorMessage.ShouldNotBeNull();
+		result.ErrorMessage.ShouldNotContain(
+			"current version is",
+			Case.Sensitive,
+			"an unmeasured conflict must not state a current version it never read");
+	}
+
+	[Fact]
 	public void IsConcurrencyConflict_ReturnsFalse_WhenFailureWithoutVersionInMessage()
 	{
 		// Arrange & Act

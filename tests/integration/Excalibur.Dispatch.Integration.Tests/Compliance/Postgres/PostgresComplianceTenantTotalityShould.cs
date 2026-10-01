@@ -112,7 +112,7 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 		await ExecuteAsync(
 			"""
 			INSERT INTO "compliance"."legal_holds"
-				(hold_id, data_subject_id_hash, id_type, basis, case_reference, description, is_active,
+				(hold_id, data_subject_id_hash, id_type, basis_v2, case_reference, description, is_active,
 				 created_by, created_at)
 			VALUES
 				(@HoldId, @Subject, 0, 0, 'omitted-tenant', 'tenant column omitted entirely', TRUE,
@@ -139,7 +139,7 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 		var refused = await Should.ThrowAsync<PostgresException>(async () => await ExecuteAsync(
 			"""
 			INSERT INTO "compliance"."legal_holds"
-				(hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference, description,
+				(hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference, description,
 				 is_active, created_by, created_at)
 			VALUES
 				(@HoldId, @Subject, 0, NULL, 0, 'explicit-null', 'explicit NULL tenant', TRUE,
@@ -218,7 +218,7 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 	private Task SeedHoldAsync(string dataSubjectIdHash, string tenantId) => ExecuteAsync(
 		"""
 		INSERT INTO "compliance"."legal_holds"
-			(hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference, description,
+			(hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference, description,
 			 is_active, created_by, created_at)
 		VALUES
 			(@HoldId, @Subject, 0, @TenantId, 0, 'seeded-hold', 'seeded directly through SQL', TRUE,

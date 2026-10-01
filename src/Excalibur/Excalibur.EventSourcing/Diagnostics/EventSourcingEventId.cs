@@ -448,6 +448,9 @@ internal static class EventSourcingEventId
 	/// <summary>A stream reader skipped an erased (tombstoned) event and advanced past it.</summary>
 	public const int ErasedEventSkipped = 114508;
 
+	/// <summary>An aggregate was left intact because its type is under a declared erasure retention.</summary>
+	public const int ErasureAggregateRetained = 114509;
+
 	// ========================================
 	// 114600-114699: Subscriptions
 	// ========================================

@@ -137,6 +137,7 @@ public sealed class CertificateNamesTheMethodThatRanShould
 			_dataInventoryService,
 			null,
 			TestAnnotationSource.None,
+			TestRetentions.None,
 			null);
 
 		_ = await sut.ExecuteAsync(requestId, CancellationToken.None).ConfigureAwait(false);

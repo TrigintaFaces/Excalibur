@@ -351,19 +351,38 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
  //
  // This store is the reference the provider suites are read against, so it must not be the one
  // teaching the wrong contract.
- var ourFirstEventId = eventList.FirstOrDefault()?.EventId;
+ // KEYED BY IDENTITY, NOT BY SLOT, and the difference is a genuine false negative rather than a
+ // style choice. A slot-keyed probe asks "is our event at the version we expected", which is blind
+ // to an append that committed at SOME OTHER version -- it reads that as absent and returns a
+ // conflict, reopening the duplicate hole the probe exists to close. MongoDbEventStore's own probe
+ // says so in as many words, and this store is the reference the provider suites are read against,
+ // so a weakness here makes every other provider's arm look stronger than it is.
+ //
+ // WITNESS THE LAST EVENT, NOT THE FIRST. A probe that finds the first and then reports
+ // expectedVersion + count would claim the whole batch from whatever prefix happened to be
+ // present. The append below prepares every row before mutating anything and runs under this same
+ // lock, so it is all-or-nothing: the last event present implies every earlier one is too.
+ var ourLastEventId = eventList.LastOrDefault()?.EventId;
 
- if (!string.IsNullOrWhiteSpace(ourFirstEventId))
+ if (!string.IsNullOrWhiteSpace(ourLastEventId))
  {
-  // Events are stored in version order starting at 0, so version v sits at index v.
-  var slot = expectedVersion + 1;
-
-  if (slot >= 0 && slot < aggregateEvents.Count
-   && string.Equals(aggregateEvents[(int)slot].EventId, ourFirstEventId, StringComparison.Ordinal))
+  // Report the version the batch ACTUALLY reached, read from the row, rather than the arithmetic
+  // expectedVersion + count -- which is only correct when it landed exactly where we expected, and
+  // the whole point of an identity probe is that it may not have.
+  for (var i = aggregateEvents.Count - 1; i >= 0; i--)
   {
+   if (!string.Equals(aggregateEvents[i].EventId, ourLastEventId, StringComparison.Ordinal))
+   {
+    continue;
+   }
+
    activity.SetOperationResult(EventSourcingTagValues.Success);
+
+   // RECOGNISED, not written by this call. Reporting plain success here would be true about the
+   // append and silently false about the call: these rows are durable, but they are a prior
+   // attempt's, and anything may have happened to them since -- an erasure included.
    return new ValueTask<AppendResult>(
-    AppendResult.CreateSuccess(expectedVersion + eventList.Count, firstEventPosition: null));
+    AppendResult.CreateAlreadyCommitted(aggregateEvents[i].Version, firstEventPosition: null));
   }
  }
 

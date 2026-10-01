@@ -91,7 +91,7 @@ public interface IAggregateDataSubjectMapping
 }
 
 /// <summary>
-/// Identifies an aggregate instance by its ID and type.
+/// Identifies an aggregate instance holding a data subject's personal data.
 /// </summary>
 /// <param name="AggregateId">The aggregate identifier.</param>
 /// <param name="AggregateType">

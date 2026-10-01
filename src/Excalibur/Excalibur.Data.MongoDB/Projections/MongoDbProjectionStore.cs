@@ -199,10 +199,11 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		//
 		// A ReplaceOne swaps the whole document, so a position the row used to carry vanishes with it.
 		// Omitting the field left the row reading back exactly like a row that never had a position --
-		// and those two must be treated OPPOSITELY: a never-positioned row IS a complete fold and is
-		// adoptable, whereas a row whose state was just replaced by a value this store cannot relate to
-		// the stream is not. Adopting the second stamps a position onto a state that does not contain
-		// that prefix, and every event below it is then silently missing from the read model forever.
+		// and those two must stay DISTINGUISHABLE: a never-positioned row IS a complete fold
+		// whose coordinate is merely unknown, whereas a row whose state was just replaced holds a fold over
+		// no known prefix at all. A positioned write refuses BOTH -- neither carries a number it can advance
+		// from -- so what the distinction decides is not the next write but what the row can honestly be
+		// said to hold while it waits to be rebuilt, which is what an operator reads it for.
 		//
 		// The sentinel rides the same single document replace as the state, so there is no window in
 		// which a destroyed position is recorded as a never-established one.
@@ -220,9 +221,14 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	/// <inheritdoc />
 	/// <remarks>
 	/// The same single <c>ReplaceOne</c> upsert as <see cref="UpsertAsync"/>, differing only in what it
-	/// asserts: this state IS a complete fold, so a later positioned writer may adopt the row.
+	/// asserts: this state IS a complete fold, only its coordinate unknown.
 	/// Unconditional on purpose -- the caller is claiming completeness, not a place in the stream, so
 	/// there is no position for a condition to be written against.
+	/// <para>
+	/// <b>The row is still REFUSED by a positioned write</b>, which has no number to advance from. What
+	/// this buys over the blind surface is that the row reads back as a complete answer awaiting a
+	/// coordinate rather than as a state related to no prefix at all; a rebuild is what numbers it.
+	/// </para>
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -244,6 +250,53 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 			cancellationToken).ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// The same single <c>ReplaceOne</c> as <see cref="UpsertUnnumberedAsync"/>, differing in two things:
+	/// the position the document carries is a real number rather than the unnumbered sentinel, and
+	/// <c>IsUpsert = false</c>. The filter matches on <c>_id</c> alone, so the write is unconditional on
+	/// POSITION -- a state folded from an empty seed has no prior prefix for a condition to be written
+	/// against -- while remaining conditional on the document EXISTING.
+	/// </para>
+	/// <para>
+	/// <c>IsUpsert = false</c> is the load-bearing option. An absent document means the projection was
+	/// DELETED, deletion is how erasure removes personal data, and a whole-stream replay is precisely the
+	/// write that could reconstruct it. <c>MatchedCount</c> is what reports the absence, and it comes from
+	/// the write itself rather than from a second read the document could be deleted between.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		TProjection projection,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentNullException.ThrowIfNull(projection);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var result = await _collection!.ReplaceOneAsync(
+			Builders<BsonDocument>.Filter.Eq("_id", CreateDocumentId(id)),
+			BuildDocument(id, projection, ProjectionPosition.At(newPosition)),
+			new ReplaceOptions { IsUpsert = false },
+			cancellationToken).ConfigureAwait(false);
+
+		if (result.MatchedCount == 0)
+		{
+			return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
+		}
+
+		LogUpserted(_projectionType, id);
+
+		return new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied);
 	}
 
 	/// <inheritdoc/>
@@ -647,7 +700,9 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 		if (document is null)
 		{
-			return (null, ProjectionPosition.Unnumbered);
+			// An absent document is not a fold over any prefix. Unnumbered would assert a complete fold
+			// over state that does not exist.
+			return (null, ProjectionPosition.Unplaceable);
 		}
 
 		var position = ReadPosition(document);
@@ -687,6 +742,15 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
 		ArgumentNullException.ThrowIfNull(projection);
 
+		// A NEGATIVE EXPECTATION IS THE ADOPT LICENCE THROUGH A DIFFERENT DOOR. The negatives are the
+		// sentinel space for the two states that carry no number, so a caller naming one as "the position I
+		// read" would be matching a row this store refuses by design. ExpectedPositionOrNull is the only
+		// legal source for this argument and never yields a negative.
+		if (expectedPosition is { } claimed)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(claimed, nameof(expectedPosition));
+		}
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = CreateDocumentId(id);
@@ -718,61 +782,56 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 			}
 
-			// An unplaceable row is terminal and is reported as such rather than as a supersede. A
-			// superseded caller re-reads and retries; this row yields the same refusal on every
-			// re-read, so reporting Superseded here is an unbounded redelivery loop against a
-			// projection that can only be fixed by rebuilding it.
-			return current.Position.Kind == ProjectionPositionKind.Unplaceable
-				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
-				: new ProjectionAdvanceResult(
-					ProjectionAdvanceOutcome.Superseded, current.Position.ExpectedPositionOrNull);
+			// Terminal, not a supersede: there is no number to advance from, and re-reading yields the
+			// same value and the same refusal, so Superseded here is an unbounded redelivery loop. That is the
+			// arm a careless edit reintroduces, and a numberless row landing in it retries forever.
+			//
+			// BOTH no-number states report the SAME outcome, deliberately. This result describes what the WRITE
+			// did; it carries no state, and the position was read at a different instant from the one the write
+			// was refused at, so an outcome characterising the stored STATE would attribute a property of the
+			// row-at-read-time to a write refused earlier. A caller that needs to know what the row holds reads
+			// its position, where ProjectionPositionKind reports it as a measured fact.
+			return current.Position.Kind == ProjectionPositionKind.Positioned
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, current.Position.Value)
+				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 		}
 
-		// The caller read no position. ADOPTION MATCHES EXACTLY ONE OF THE THREE STATES, and the filter
-		// has to name it now that the field is always written:
+		// The caller read no position, so this is INSERT-IF-ABSENT and NOTHING ELSE:
 		//
-		//   absent                      -> no match, upsert INSERTS              -> Applied
-		//   field missing (legacy)      -> match, REPLACED (adopted)             -> Applied
-		//   unnumbered sentinel         -> match, REPLACED (adopted)             -> Applied
-		//   unplaceable sentinel        -> no match; the upsert's insert hits
-		//                                  the unique _id and is refused         -> Unplaceable
-		//   a real position             -> same refusal                          -> Superseded
+		//   absent                      -> inserted                  -> Applied
+		//   present, a real position    -> duplicate _id, refused     -> Superseded
+		//   present, no number          -> duplicate _id, refused     -> Unplaceable
 		//
-		// The sentinel disjunct is the new one; the exists-false disjunct is kept for documents
-		// written before the field existed. Both denote a complete fold whose coordinate is merely
-		// unknown, so folding this batch onto them and stamping this batch's position states
-		// something true.
-		//
-		// AN UNPLACEABLE ROW IS NOT IN THE SET, and that is the whole reason the sentinel exists. Its
-		// state is not a fold over any prefix, so stamping a position onto it would assert a prefix
-		// the state does not hold. Before the sentinel such a row was indistinguishable from a legacy
-		// one and was adopted silently.
-		var adoptFilter = Builders<BsonDocument>.Filter.And(
-			Builders<BsonDocument>.Filter.Eq("_id", documentId),
-			Builders<BsonDocument>.Filter.Or(
-				Builders<BsonDocument>.Filter.Exists(positionField, exists: false),
-				Builders<BsonDocument>.Filter.Eq(
-					positionField, ProjectionPosition.Unnumbered.ToStored())));
-
+		// AN InsertOne CANNOT UPDATE, and that is the point rather than a convenience. The previous shape
+		// was a filtered upsert whose filter MATCHED a document holding the unnumbered sentinel -- or no
+		// position field at all -- and REPLACED it, stamping this batch's position onto a state whose
+		// prefix nobody established. Every event below that position was then absent from the read model
+		// while the position said it was present. With an insert there is no update arm to guard, so
+		// adopting an existing document is inexpressible here instead of merely avoided.
 		try
 		{
-			_ = await _collection!
-				.ReplaceOneAsync(adoptFilter, document, new ReplaceOptions { IsUpsert = true }, cancellationToken)
+			await _collection!.InsertOneAsync(document, options: null, cancellationToken)
 				.ConfigureAwait(false);
 
 			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition);
 		}
 		catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
 		{
-			// An ordinary outcome, reported rather than thrown: the document the filter would not match
-			// is nonetheless there, so the insert collided with its _id. Which of the two refusals it
-			// is depends on what that document holds -- an unplaceable row can never be adopted, so
-			// telling the caller to retry would spin it forever.
+			// An ordinary outcome, reported rather than thrown: the document is already there, so the
+			// insert collided with its _id. Which refusal it is depends on what that document holds -- a
+			// row carrying no number has nothing for a positioned write to advance from, so telling the
+			// caller to retry would spin it forever.
 			var current = await ReadCurrentPositionAsync(documentId, cancellationToken).ConfigureAwait(false);
-			return current.Position.Kind == ProjectionPositionKind.Unplaceable
-				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
-				: new ProjectionAdvanceResult(
-					ProjectionAdvanceOutcome.Superseded, current.Position.ExpectedPositionOrNull);
+
+			if (!current.Exists)
+			{
+				// Deleted between the insert and this read. The next attempt inserts it.
+				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, null);
+			}
+
+			return current.Position.Kind == ProjectionPositionKind.Positioned
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, current.Position.Value)
+				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 		}
 	}
 
@@ -890,31 +949,41 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 			.FirstOrDefaultAsync(cancellationToken)
 			.ConfigureAwait(false);
 
-		// The position returned alongside Exists=false is not a reading of anything; every caller
-		// tests Exists first.
+		// The position returned alongside Exists=false is not a reading of anything; every caller tests
+		// Exists first. It is UNPLACEABLE rather than Unnumbered even so: a don't-care value that would be
+		// a false claim if anyone read it is worse than one that would be true, and the next reader will not
+		// know it was meant to be ignored.
 		return document is null
-			? (false, ProjectionPosition.Unnumbered)
+			? (false, ProjectionPosition.Unplaceable)
 			: (true, ReadPosition(document));
 	}
 
 	/// <summary>Decodes the stored field into one of the three states.</summary>
 	/// <remarks>
-	/// An ABSENT field reads as <see cref="ProjectionPositionKind.Unnumbered"/>, which is what
-	/// <see cref="ProjectionPosition.FromStored"/> does with a null. That is correct and deliberate: a
-	/// document written before this field existed IS a complete fold, only its coordinate is unknown,
-	/// so it stays adoptable. Every provider goes through FromStored so the eight of them cannot drift.
+	/// <para>
+	/// An ABSENT field, and a value that is not a stored number at all, BOTH read as
+	/// <see cref="ProjectionPositionKind.Unplaceable"/> -- because both go through
+	/// <see cref="ProjectionPosition.FromStored"/> with a null, and that is what it does with one. Neither
+	/// is evidence of a fold: an absent field is absence of evidence, and a field holding a string is a row
+	/// this provider has no reading of at all.
+	/// </para>
+	/// <para>
+	/// <b>Every failure case routes through FromStored rather than constructing a value here</b>, which is
+	/// what makes "the eight providers cannot drift" true rather than merely intended. This method used to
+	/// return <c>Unnumbered</c> directly on both of those paths, so it was one of the two providers the
+	/// sentence excluded while carrying it.
+	/// </para>
 	/// </remarks>
 	private static ProjectionPosition ReadPosition(BsonDocument document)
 	{
 		if (!document.Contains(MetadataKey) || document[MetadataKey] is not BsonDocument meta
 			|| !meta.Contains(MetaFieldPosition))
 		{
-			return ProjectionPosition.Unnumbered;
+			return ProjectionPosition.FromStored(null);
 		}
 
 		var value = meta[MetaFieldPosition];
-		return value.IsInt64 || value.IsInt32
-			? ProjectionPosition.FromStored(value.ToInt64())
-			: ProjectionPosition.Unnumbered;
+		return ProjectionPosition.FromStored(
+			value.IsInt64 || value.IsInt32 ? value.ToInt64() : null);
 	}
 }

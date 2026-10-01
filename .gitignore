@@ -51,6 +51,15 @@ UnitShardReport/
 # so authored top-level .md reports track by default (a new report is never silently swallowed).
 management/reports/*/
 BannedApisReport/
+# Same family, omitted when the six above were added: oss-metadata-audit.ps1 and
+# serialization-boundary-audit.ps1 each write a report directory here, and both were
+# showing as untracked rather than ignored.
+OssMetadataReport/
+# Same family again, found by running the gates and then reading the working tree: pack-report.ps1 and
+# Invoke-AotBuildAnalysis.ps1 each emit a report directory that was showing as untracked.
+PackReport/
+aot-build-analysis/
+SerializationBoundaryReport/
 
 # CI-generated notices diff artifact (never commit — regenerated each CI run)
 THIRD-PARTY-NOTICES.gen.md

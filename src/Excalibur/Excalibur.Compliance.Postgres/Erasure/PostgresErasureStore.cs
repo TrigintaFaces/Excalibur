@@ -144,11 +144,11 @@ public sealed partial class PostgresErasureStore
 
 		var sql = $@"
 			INSERT INTO {_options.FullRequestsTableName}
-				(request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis,
+				(request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
 				 external_reference, requested_by, requested_at, scheduled_execution_at,
 				 status, data_categories, created_at, updated_at)
 			VALUES
-				(@RequestId, @DataSubjectIdHash, @IdType, @TenantId, @Scope, @LegalBasis,
+				(@RequestId, @DataSubjectIdHash, @IdType, @TenantId, @Scope, @LegalBasisV2,
 				 @ExternalReference, @RequestedBy, @RequestedAt, @ScheduledExecutionAt,
 				 @Status, @DataCategories::jsonb, @CreatedAt, @UpdatedAt)";
 
@@ -171,7 +171,7 @@ public sealed partial class PostgresErasureStore
 			TenantId = KeyedTenantPartition.FromStoredValue(
 				_requireTenant ? tenant.TenantId : request.TenantId).TenantId,
 			Scope = (int)request.Scope,
-			LegalBasis = (int)request.LegalBasis,
+			LegalBasisV2 = (int)request.LegalBasis,
 			request.ExternalReference,
 			request.RequestedBy,
 			request.RequestedAt,
@@ -216,7 +216,7 @@ public sealed partial class PostgresErasureStore
 		var tenantPredicate = _requireTenant ? " AND tenant_id = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
-			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis,
+			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
 				   external_reference, requested_by, requested_at, scheduled_execution_at,
 				   executed_at, completed_at, cancelled_at, cancellation_reason, cancelled_by,
 				   status, keys_deleted, records_affected, certificate_id, error_message, updated_at
@@ -230,7 +230,81 @@ public sealed partial class PostgresErasureStore
 				new CommandDefinition(sql, new { RequestId = requestId, AmbientTenantId = tenant.TenantId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
-		return row?.ToStatus();
+		if (row is null)
+		{
+			return null;
+		}
+
+		// Read only after the request itself resolved in this tenant, so the handles cannot be returned for a
+		// request the caller is not entitled to see. No tenant predicate is needed here for the same reason:
+		// the rows are reachable only through a request id that already passed the check above.
+		var destroyedHandles = await connection.QueryAsync<string>(new CommandDefinition(
+			$"SELECT key_handle FROM {_options.FullDestroyedKeysTableName} WHERE request_id = @RequestId",
+			new { RequestId = requestId },
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		return row.ToStatus() with { DestroyedKeyHandles = [.. destroyedHandles] };
+	}
+
+	/// <inheritdoc />
+	public async Task RecordKeyDestroyedAsync(Guid requestId, string keyHandle, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var tenant = AmbientScope;
+		var tenantPredicate = _requireTenant ? " AND r.tenant_id = @AmbientTenantId" : string.Empty;
+
+		// The INSERT is gated on the request EXISTING IN THIS TENANT, in the same statement, so a record can
+		// never be written into another tenant's partition and the check cannot drift from the write.
+		//
+		// ON CONFLICT DO NOTHING makes it idempotent under genuine concurrency as well as on a retry: two
+		// passes recording the same handle leave one row and neither raises.
+		var sql = $@"
+			INSERT INTO {_options.FullDestroyedKeysTableName} (request_id, key_handle, destroyed_at)
+			SELECT @RequestId, @KeyHandle, @Now
+			FROM {_options.FullRequestsTableName} r
+			WHERE r.request_id = @RequestId{tenantPredicate}
+			ON CONFLICT (request_id, key_handle) DO NOTHING";
+
+		await using var connection = new NpgsqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var affected = await connection.ExecuteAsync(new CommandDefinition(
+			sql,
+			new
+			{
+				RequestId = requestId,
+				KeyHandle = keyHandle,
+				Now = DateTimeOffset.UtcNow,
+				AmbientTenantId = tenant.TenantId,
+			},
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		// Zero rows has two causes and only one of them is benign. Already recorded is benign; no such request
+		// in this tenant is not, and it must not pass as "recorded" -- the caller is about to attest a
+		// destruction on the strength of this record existing.
+		if (affected == 0)
+		{
+			var alreadyRecorded = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+				$"SELECT COUNT(1) FROM {_options.FullDestroyedKeysTableName} "
+				+ "WHERE request_id = @RequestId AND key_handle = @KeyHandle",
+				new { RequestId = requestId, KeyHandle = keyHandle },
+				cancellationToken: cancellationToken,
+				commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			if (alreadyRecorded == 0)
+			{
+				throw new KeyNotFoundException(
+					$"No erasure request with id '{requestId}' exists in this tenant, so a destroyed key cannot "
+					+ "be recorded against it. This throws rather than returning quietly: the record is what "
+					+ "lets a retry attest a destruction an earlier pass performed, so losing it silently would "
+					+ "make the subject's erasure permanently uncertifiable.");
+			}
+		}
 	}
 
 	/// <inheritdoc />
@@ -375,7 +449,7 @@ public sealed partial class PostgresErasureStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
-			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis,
+			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
 				   external_reference, requested_by, requested_at, scheduled_execution_at,
 				   executed_at, completed_at, cancelled_at, cancellation_reason, cancelled_by,
 				   status, keys_deleted, records_affected, certificate_id, error_message, updated_at
@@ -459,7 +533,7 @@ public sealed partial class PostgresErasureStore
 		parameters.Add("PageSize", pageSize);
 
 		var sql = $@"
-			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis,
+			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
 				   external_reference, requested_by, requested_at, scheduled_execution_at,
 				   executed_at, completed_at, cancelled_at, cancellation_reason, cancelled_by,
 				   status, keys_deleted, records_affected, certificate_id, error_message, updated_at
@@ -488,11 +562,11 @@ public sealed partial class PostgresErasureStore
 		var sql = $@"
 			INSERT INTO {_options.FullCertificatesTableName}
 				(certificate_id, request_id, data_subject_reference, request_received_at, completed_at,
-				 method, summary, verification, legal_basis, signature, retain_until,
+				 method, summary, verification, legal_basis_v2, signature, retain_until,
 				 exceptions, generated_at, version, created_at, payload)
 			VALUES
 				(@CertificateId, @RequestId, @DataSubjectReference, @RequestReceivedAt, @CompletedAt,
-				 @Method, @Summary::jsonb, @Verification::jsonb, @LegalBasis, @Signature, @RetainUntil,
+				 @Method, @Summary::jsonb, @Verification::jsonb, @LegalBasisV2, @Signature, @RetainUntil,
 				 @Exceptions::jsonb, @GeneratedAt, @Version, @CreatedAt, @Payload)";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
@@ -514,7 +588,7 @@ public sealed partial class PostgresErasureStore
 			Verification = JsonSerializer.Serialize(
 				certificate.Payload.Verification,
 				PostgresComplianceJsonContext.Default.VerificationSummary),
-			LegalBasis = (int)certificate.Payload.LegalBasis,
+			LegalBasisV2 = (int)certificate.Payload.LegalBasis,
 			certificate.Signature,
 			certificate.Payload.RetainUntil,
 			Exceptions = JsonSerializer.Serialize(
@@ -559,17 +633,33 @@ public sealed partial class PostgresErasureStore
 				  WHERE r.request_id = {_options.FullCertificatesTableName}.request_id AND r.tenant_id = @AmbientTenantId)"
 			: string.Empty;
 
+		// ORDER BY plus QueryFirstOrDefault, and the pairing IS the fix rather than a tidy-up. This read was
+		// QuerySingleOrDefaultAsync against a table whose request key is a NON-UNIQUE index, so the moment a
+		// request held two certificates Dapper threw InvalidOperationException here on EVERY subsequent call,
+		// permanently: two signed documents stored and NEITHER retrievable by the lookup a consumer uses.
+		//
+		// Two certificates for one request is REACHABLE and not pathological. The partial branch issues one
+		// and the completion branch issues another, each with a freshly minted id, so a request that is
+		// partially completed and later completes legitimately holds two. A UNIQUE constraint would have been
+		// the wrong fix: it forbids the second DOCUMENT rather than the ambiguity, and both documents are real
+		// evidence an auditor may be entitled to.
+		//
+		// So the lookup answers with the CURRENT certificate and states that in the ordering. Newest first,
+		// because a completion certificate is generated after the partial one it supersedes. The id tiebreak
+		// makes the order TOTAL: without it, two certificates generated within the same tick leave the choice
+		// to the engine, which is a different wrong answer per provider and per query plan.
 		var sql = $@"
 			SELECT certificate_id, request_id, data_subject_reference, request_received_at, completed_at,
-				   method, summary, verification, legal_basis, signature, retain_until,
+				   method, summary, verification, legal_basis_v2, signature, retain_until,
 				   exceptions, generated_at, version, payload
 			FROM {_options.FullCertificatesTableName}
-			WHERE request_id = @RequestId{tenantPredicate}";
+			WHERE request_id = @RequestId{tenantPredicate}
+			ORDER BY generated_at DESC, certificate_id DESC";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var row = await connection.QuerySingleOrDefaultAsync<CertificateRow>(
+		var row = await connection.QueryFirstOrDefaultAsync<CertificateRow>(
 				new CommandDefinition(sql, new { RequestId = requestId, AmbientTenantId = tenant.TenantId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
@@ -592,7 +682,7 @@ public sealed partial class PostgresErasureStore
 
 		var sql = $@"
 			SELECT certificate_id, request_id, data_subject_reference, request_received_at, completed_at,
-				   method, summary, verification, legal_basis, signature, retain_until,
+				   method, summary, verification, legal_basis_v2, signature, retain_until,
 				   exceptions, generated_at, version, payload
 			FROM {_options.FullCertificatesTableName}
 			WHERE certificate_id = @CertificateId{tenantPredicate}";
@@ -831,8 +921,11 @@ public sealed partial class PostgresErasureStore
 					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
 					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
 					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
-					+ "that path only creates tables that are absent. Run the shipped migration scripts against "
-					+ "this database, then restart.")
+					+ "that path only creates tables that are absent. WE SHIP NO ALTER SCRIPT for this: the "
+					+ "create scripts already declare these columns, so a freshly provisioned database is "
+					+ "correct and only a pre-existing one reaches this. Either re-provision from the shipped "
+					+ "create script, or add the listed column(s) by hand with a NOT NULL default matching a "
+					+ "never-updated row. Then restart.")
 				{
 					TableName = tableName,
 				};
@@ -856,7 +949,7 @@ public sealed partial class PostgresErasureStore
 	[
 		(_options.FullRequestsTableName,
 		[
-			"request_id", "data_subject_id_hash", "id_type", "tenant_id", "scope", "legal_basis",
+			"request_id", "data_subject_id_hash", "id_type", "tenant_id", "scope", "legal_basis_v2",
 			"external_reference", "requested_by", "requested_at", "scheduled_execution_at",
 			"executed_at", "completed_at", "cancelled_at", "cancellation_reason", "cancelled_by",
 			"status", "keys_deleted", "records_affected", "certificate_id", "error_message",
@@ -865,8 +958,17 @@ public sealed partial class PostgresErasureStore
 		(_options.FullCertificatesTableName,
 		[
 			"certificate_id", "request_id", "data_subject_reference", "request_received_at", "completed_at",
-			"method", "summary", "verification", "legal_basis", "signature", "retain_until",
+			"method", "summary", "verification", "legal_basis_v2", "signature", "retain_until",
 			"exceptions", "generated_at", "version", "created_at", "payload",
+		]),
+
+		// Verified like the others, so a database provisioned before this table existed fails at STARTUP with
+		// the table named, rather than mid-erasure. The failure is loud on purpose: without this table a
+		// retried erasure silently attests less coverage than the request achieved, and the subject's
+		// completion becomes unreachable with nothing reporting why.
+		(_options.FullDestroyedKeysTableName,
+		[
+			"request_id", "key_handle", "destroyed_at",
 		]),
 	];
 
@@ -892,7 +994,7 @@ public sealed partial class PostgresErasureStore
 				id_type INT NOT NULL,
 				tenant_id VARCHAR(64) NOT NULL DEFAULT '{TenantScope.UntenantedSentinel}',
 				scope INT NOT NULL,
-				legal_basis INT NOT NULL,
+				legal_basis_v2 INT NOT NULL,
 				external_reference VARCHAR(256) NULL,
 				requested_by VARCHAR(256) NOT NULL,
 				requested_at TIMESTAMPTZ NOT NULL,
@@ -930,7 +1032,7 @@ public sealed partial class PostgresErasureStore
 				method INT NOT NULL,
 				summary JSONB NOT NULL,
 				verification JSONB NOT NULL,
-				legal_basis INT NOT NULL,
+				legal_basis_v2 INT NOT NULL,
 				signature VARCHAR(512) NOT NULL,
 				retain_until TIMESTAMPTZ NOT NULL,
 				-- Every remaining payload claim gets a column. The signature covers the payload WHOLE, so a
@@ -957,6 +1059,20 @@ public sealed partial class PostgresErasureStore
 			CREATE INDEX IF NOT EXISTS ix_{_options.CertificatesTableName}_retain
 				ON {_options.FullCertificatesTableName} (retain_until)";
 
+		// Which handles a request has destroyed, one row per handle. The composite PRIMARY KEY is the
+		// idempotency: re-recording a handle this request already destroyed conflicts and is absorbed as a
+		// no-op, so no pass has to read-modify-write a set and no pass can lose another's record.
+		var createDestroyedKeysTableSql = $@"
+			CREATE TABLE IF NOT EXISTS {_options.FullDestroyedKeysTableName} (
+				request_id UUID NOT NULL,
+				-- TEXT compared with the database's default collation would be wrong if that collation folded
+				-- case: two distinct handles would read as one and attest coverage for a key never destroyed.
+				-- The C collation compares byte-for-byte, matching the framework's ordinal comparison exactly.
+				key_handle TEXT COLLATE ""C"" NOT NULL,
+				destroyed_at TIMESTAMPTZ NOT NULL,
+				PRIMARY KEY (request_id, key_handle)
+			)";
+
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
@@ -969,6 +1085,8 @@ public sealed partial class PostgresErasureStore
 		_ = await connection.ExecuteAsync(new CommandDefinition(createCertificatesTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 		_ = await connection.ExecuteAsync(new CommandDefinition(createCertificatesIndexesSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+			.ConfigureAwait(false);
+		_ = await connection.ExecuteAsync(new CommandDefinition(createDestroyedKeysTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
 		LogSchemaEnsured();
@@ -984,7 +1102,7 @@ public sealed partial class PostgresErasureStore
 		public int id_type { get; init; }
 		public string? tenant_id { get; init; }
 		public int scope { get; init; }
-		public int legal_basis { get; init; }
+		public int legal_basis_v2 { get; init; }
 		public string? external_reference { get; init; }
 		public string requested_by { get; init; } = string.Empty;
 		public DateTimeOffset requested_at { get; init; }
@@ -1009,7 +1127,7 @@ public sealed partial class PostgresErasureStore
 			IdType = (DataSubjectIdType)id_type,
 			TenantId = tenant_id,
 			Scope = (ErasureScope)scope,
-			LegalBasis = (ErasureLegalBasis)legal_basis,
+			LegalBasis = (ErasureLegalBasis)legal_basis_v2,
 			ExternalReference = external_reference,
 			RequestedBy = requested_by,
 			RequestedAt = requested_at,
@@ -1040,7 +1158,7 @@ public sealed partial class PostgresErasureStore
 		public int method { get; init; }
 		public string summary { get; init; } = string.Empty;
 		public string verification { get; init; } = string.Empty;
-		public int legal_basis { get; init; }
+		public int legal_basis_v2 { get; init; }
 		public string signature { get; init; } = string.Empty;
 		public DateTimeOffset retain_until { get; init; }
 		public string exceptions { get; init; } = "[]";

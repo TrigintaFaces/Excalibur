@@ -125,9 +125,21 @@ public sealed record KeyRotationPolicy
 			return false;
 		}
 
-		// Check if key has exceeded max age since last rotation
+		// A KEY OF UNKNOWN AGE IS DUE. Neither the last rotation nor the creation instant is known, so
+		// nothing can show this key is still within its maximum age -- and the only safe reading of "cannot be
+		// shown to be young enough" is "rotate it". Rotating a key that did not need it costs one rotation;
+		// leaving a key that did costs the property the maximum age exists to provide.
+		//
+		// Stated explicitly rather than left to the lifted comparison, which resolves the other way: a null
+		// TimeSpan compared with >= yields false, so an unknown-age key would report NOT due and the absence
+		// would silently pick the unsafe direction.
 		var lastRotation = key.LastRotatedAt ?? key.CreatedAt;
-		var timeSinceRotation = DateTimeOffset.UtcNow - lastRotation;
+		if (lastRotation is null)
+		{
+			return true;
+		}
+
+		var timeSinceRotation = DateTimeOffset.UtcNow - lastRotation.Value;
 
 		return timeSinceRotation >= MaxKeyAge;
 	}
@@ -139,8 +151,13 @@ public sealed record KeyRotationPolicy
 	/// <returns>The next rotation time based on this policy.</returns>
 	public DateTimeOffset GetNextRotationTime(KeyMetadata key)
 	{
+		// Already overdue when the age is unknown, for the reason above. MinValue rather than the current
+		// instant because it is overdue under every comparison a caller might make and reads no clock -- and
+		// because a date that is obviously not a real schedule is the loud answer, where a plausible "now"
+		// would look like a computed one.
 		var lastRotation = key.LastRotatedAt ?? key.CreatedAt;
-		return lastRotation.Add(MaxKeyAge);
+
+		return lastRotation is null ? DateTimeOffset.MinValue : lastRotation.Value.Add(MaxKeyAge);
 	}
 
 	/// <summary>

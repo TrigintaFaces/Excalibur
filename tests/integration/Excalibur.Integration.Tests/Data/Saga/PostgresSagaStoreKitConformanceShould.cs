@@ -66,17 +66,21 @@ public sealed class PostgresSagaStoreKitConformanceShould : SagaStoreConformance
 	/// <inheritdoc/>
 	protected override Task CleanupAsync() => _fixture.CleanupTableAsync();
 
-	/// <inheritdoc/>
-	/// <remarks>
-	/// PostgresSagaStore is version-gated (<c>WHERE version = @ExpectedVersion</c> plus a no-resurrect
-	/// insert guard), so the optimistic-concurrency arms run rather than early-return.
-	/// </remarks>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	#region Save
 
+	// Restored. This derives from the SHIPPED kit, whose SupportsOptimisticConcurrency still defaults to
+	// false and whose concurrency arms SkipArm when it does. Removing the flag from the INTERNAL
+	// conformance base and stripping this override together silently turned those arms off here -- and a
+	// recorded skip does not fail, so nothing reported it. This store does enforce optimistic concurrency.
+	protected override bool SupportsOptimisticConcurrency => true;
+
 	[Fact]
 	public Task SaveAsync_NewSaga_ShouldSucceed_Test() => SaveAsync_NewSaga_ShouldSucceed();
+
+	[Fact]
+	public Task ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised_Test() =>
+		ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised();
 
 	[Fact]
 	public Task SaveAsync_ExistingSaga_ShouldUpdate_Test() => SaveAsync_ExistingSaga_ShouldUpdate();

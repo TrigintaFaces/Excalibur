@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.Extensions.Caching.Memory;
@@ -115,6 +116,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 			var metadata = MapToKeyMetadata(keyId, keyInfo.Data) with
 			{
 				Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+				Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
 			};
 			CacheMetadata(cacheKey, metadata);
 
@@ -171,6 +173,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 			var metadata = MapToKeyMetadata(keyId, keyInfo.Data, version) with
 			{
 				Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+				Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
 			};
 			CacheMetadata(cacheKey, metadata);
 
@@ -248,7 +251,11 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 					// filtering. Previously MapToKeyMetadata hardcoded Purpose = null and this comparison
 					// therefore excluded EVERY key whenever a non-null purpose was requested, which made
 					// GetActiveKeyAsync(purpose) incapable of returning anything.
-					metadata = metadata with { Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false) };
+					metadata = metadata with
+					{
+						Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+						Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
+					};
 
 					if (purpose is not null && metadata.Purpose != purpose)
 					{
@@ -342,10 +349,11 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				// provider used latest + 1 and threw on the happy path, which is worse than doing nothing.
 				if (rotatedKey?.Data is not null)
 				{
-					await _vaultClient.V1.Secrets.Transit.UpdateEncryptionKeyConfigAsync(
+					await UpdateKeyConfigPreservingRestAsync(
 						keyName,
-						new UpdateKeyRequestOptions { MinimumEncryptionVersion = rotatedKey.Data.LatestVersion },
-						_options.Keys.TransitMountPath).ConfigureAwait(false);
+						rotatedKey.Data,
+						minimumEncryptionVersion: rotatedKey.Data.LatestVersion,
+						deletionAllowed: null).ConfigureAwait(false);
 				}
 
 				// Persist BEFORE invalidating, so the cache cannot be repopulated from a stale sidecar
@@ -356,6 +364,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				var newMetadata = MapToKeyMetadata(keyId, rotatedKey.Data) with
 				{
 					Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+				Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
 				};
 
 				InvalidateCache(keyId);
@@ -401,7 +410,14 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				var newMetadata = MapToKeyMetadata(keyId, newKey.Data) with
 				{
 					Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+				Generation = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false),
 				};
+
+				// Record the identity of the material just provisioned, if this handle has none. Transit offers no
+				// per-generation value of its own -- its ordinals restart at 1 after a delete-and-create -- so the
+				// identifier is minted here and kept in a sidecar of its own. Write-if-absent: a rotation keeps the
+				// identity of the lineage it extends.
+				_ = await EnsureKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false);
 
 				LogCreatedKey(keyId);
 
@@ -422,6 +438,125 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		{
 			_ = _rateLimitSemaphore.Release();
 		}
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// Transit separates the two operations that matter here: creating a key and rotating one are different
+	/// endpoints, so this never reaches the rotate path and never installs an encryption floor. An existing key
+	/// is returned as <see cref="GetKeyAsync"/> would return it, untouched.
+	/// </para>
+	/// <para>
+	/// The create is attempted only after a read reports the key absent, and a create that then fails because
+	/// the key appeared in between is treated as the no-op it is: the winner's key is read back and returned.
+	/// The read-back is not an optimisation -- it is what makes the returned metadata describe what Vault
+	/// actually holds rather than what this call attempted.
+	/// </para>
+	/// </remarks>
+	public async Task<KeyMetadata> CreateKeyIfAbsentAsync(
+		string keyId,
+		DispatchEncryptionAlgorithm algorithm,
+		string? purpose,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		var existing = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+		if (existing is not null)
+		{
+			return existing;
+		}
+
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			var keyName = GetKeyName(keyId);
+
+			try
+			{
+				await _vaultClient.V1.Secrets.Transit.CreateEncryptionKeyAsync(
+					keyName,
+					new CreateKeyRequestOptions
+					{
+						Exportable = _options.Keys.AllowKeyExport,
+						AllowPlaintextBackup = _options.Keys.AllowPlaintextBackup,
+						Type = MapToVaultKeyType(algorithm),
+						ConvergentEncryption = _options.Keys.EnableConvergentEncryption,
+						Derived = _options.Keys.EnableKeyDerivation
+					},
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
+
+				// The purpose has nowhere to live on a Transit key, so it is recorded in the sidecar or lost.
+				await WriteKeyPurposeAsync(keyId, purpose, cancellationToken).ConfigureAwait(false);
+
+				// Record the identity of the material just provisioned, if this handle has none. Transit offers no
+				// per-generation value of its own -- its ordinals restart at 1 after a delete-and-create -- so the
+				// identifier is minted here and kept in a sidecar of its own. Write-if-absent: a rotation keeps the
+				// identity of the lineage it extends.
+				_ = await EnsureKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false);
+
+				LogCreatedKey(keyId);
+			}
+			catch (VaultSharp.Core.VaultApiException)
+			{
+				// Either another writer created the key between the read above and this create, or the create
+				// itself failed. Which one it was is decided by whether a key is there now, not by the
+				// exception: a lost race is a no-op and must not surface as an error, while a genuine failure
+				// must not surface as a key.
+				InvalidateCache(keyId);
+
+				var winner = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+
+				return winner
+					?? throw new EncryptionException(
+						$"Vault could not provision a key at '{keyId}', and no key is present there.")
+					{
+						ErrorCode = EncryptionErrorCode.KeyNotFound
+					};
+			}
+		}
+		finally
+		{
+			_ = _rateLimitSemaphore.Release();
+		}
+
+		InvalidateCache(keyId);
+
+		var created = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+
+		return created
+			?? throw new EncryptionException(
+				$"Vault reported a key created at '{keyId}' but does not hold one.")
+			{
+				ErrorCode = EncryptionErrorCode.KeyNotFound
+			};
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// A generation other than the one recorded at this handle is destroyed: Transit holds one lineage of
+	/// material per key name, so a handle recording a different identity has had its material replaced, and a
+	/// handle recording none has nothing this caller's payload could have been written under. The handle looking
+	/// alive is exactly the case this answers, because a key deleted and created again reports as healthy.
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+		ArgumentException.ThrowIfNullOrEmpty(generation);
+
+		// The handle being gone settles it without needing the marker, and it is also the state in which the
+		// marker has been erased alongside the material.
+		if (await IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false))
+		{
+			return true;
+		}
+
+		var recorded = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false);
+
+		return !string.Equals(recorded, generation, StringComparison.Ordinal);
 	}
 
 	/// <inheritdoc />
@@ -455,6 +590,41 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Transit retires individual versions as well as whole keys: trimming a key removes the material of every
+	/// version below its minimum, permanently, and leaves the later versions live. A key holding one trimmed version
+	/// and one live version is therefore not a destroyed key while an envelope naming the trimmed version has
+	/// nothing left to decrypt with, which is why a read asks this overload. A version Transit no longer lists is
+	/// destroyed rather than merely absent, because Transit has no soft-delete and nothing can restore it. Raising
+	/// the minimum decryption version alone does not trim: the material stays listed and is reported live, since
+	/// lowering the minimum again makes it decryptable. The cache is bypassed and any other read failure is thrown.
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
+				GetKeyName(keyId),
+				_options.Keys.TransitMountPath).ConfigureAwait(false);
+
+			return keyInfo?.Data?.Keys is null
+				|| !keyInfo.Data.Keys.ContainsKey(version.ToString(CultureInfo.InvariantCulture));
+		}
+		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
+		{
+			return true;
+		}
+		finally
+		{
+			_ = _rateLimitSemaphore.Release();
+		}
+	}
+
+	/// <inheritdoc />
 	public async Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -468,13 +638,21 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 
 			try
 			{
-				// First, update the key to allow deletion
-				var updateRequest = new UpdateKeyRequestOptions { DeletionAllowed = true };
-
-				await _vaultClient.V1.Secrets.Transit.UpdateEncryptionKeyConfigAsync(
+				// First, update the key to allow deletion -- carrying the rest of its configuration forward,
+				// because this write does not only set the flag. See UpdateKeyConfigPreservingRestAsync: a
+				// bare DeletionAllowed write resets min_encryption_version to zero, which un-fences every
+				// superseded version. That is invisible when the delete below succeeds and permanent when it
+				// does not, and a delete that fails after this point is exactly the case this path must leave
+				// safe.
+				var current = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
 					keyName,
-					updateRequest,
 					_options.Keys.TransitMountPath).ConfigureAwait(false);
+
+				await UpdateKeyConfigPreservingRestAsync(
+					keyName,
+					current?.Data,
+					minimumEncryptionVersion: null,
+					deletionAllowed: true).ConfigureAwait(false);
 
 				// Now delete the key
 				await _vaultClient.V1.Secrets.Transit.DeleteEncryptionKeyAsync(
@@ -539,6 +717,16 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 
 		await _vaultClient.V1.Secrets.KeyValue.V2.DeleteMetadataAsync(
 			GetSuspensionMarkerPath(keyId),
+			mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+
+		// THE GENERATION MARKER DIES WITH THE KEY, and this deletion is load-bearing rather than tidiness.
+		// The handle is derived from the subject, so an ordinary write after an erasure provisions new material
+		// at the SAME path. If this document survived, the mint would find it and hand the new material the
+		// destroyed generation's identifier -- and every envelope written before the erasure would then match
+		// the live generation and be reported NOT destroyed. That is the precise confusion the identifier
+		// exists to remove, so leaving the marker behind would reintroduce it at this provider.
+		await _vaultClient.V1.Secrets.KeyValue.V2.DeleteMetadataAsync(
+			GetGenerationMarkerPath(keyId),
 			mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
 	}
 
@@ -694,7 +882,11 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		// Return the most recently created active key
 		var activeKey = keys
 			.Where(k => !k.ExpiresAt.HasValue || k.ExpiresAt.Value > DateTimeOffset.UtcNow)
-			.OrderByDescending(k => k.CreatedAt)
+			// An UNDATED key sorts OLDEST, so it is never chosen as the most recent while any dated key is a
+			// candidate. Written as two keys rather than relying on the default comparer ranking null below
+			// every value: the direction is a safety property, and it should take a visible edit to reverse.
+			.OrderByDescending(k => k.CreatedAt.HasValue)
+			.ThenByDescending(k => k.CreatedAt)
 			.FirstOrDefault();
 
 		if (activeKey is not null)
@@ -728,13 +920,79 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		};
 	}
 
+	/// <summary>
+	/// Writes a Transit key's <c>/config</c> while carrying forward every setting the caller did not ask to
+	/// change.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A <c>/config</c> write is not a patch. The fields the client serializes REPLACE what the server holds,
+	/// so a write that means to set one field silently resets others to their default -- and which fields
+	/// those are is a property of the client, not something to be reasoned about. MEASURED against a real
+	/// Vault: a write setting only <c>deletion_allowed</c> reset <c>min_encryption_version</c> from 2 to 0,
+	/// and a write setting only <c>min_encryption_version</c> reset an operator's
+	/// <c>auto_rotate_period</c> from 259200 to 0. <c>exportable</c> and <c>min_decryption_version</c>
+	/// survived both, so the damage is field-specific rather than uniform.
+	/// </para>
+	/// <para>
+	/// Both losses are consumer-visible. The reset encryption floor un-fences every superseded version, and
+	/// the reset rotation period disables Vault-native auto-rotation an operator configured, on the first
+	/// rotation the framework performs. Carrying the read-back state forward is what makes either write mean
+	/// only what it says.
+	/// </para>
+	/// </remarks>
+	/// <param name="keyName">The Transit key name.</param>
+	/// <param name="current">
+	/// The key's configuration as just read from Vault, or <see langword="null"/> when it could not be read.
+	/// A null here writes only what the caller asked for, which is the best available behaviour: the
+	/// alternative is refusing to proceed on a read failure, and the delete path must still be able to erase.
+	/// </param>
+	/// <param name="minimumEncryptionVersion">The new encryption floor, or <see langword="null"/> to keep the current one.</param>
+	/// <param name="deletionAllowed">The new deletion permission, or <see langword="null"/> to keep the current one.</param>
+	private async Task UpdateKeyConfigPreservingRestAsync(
+		string keyName,
+		EncryptionKeyInfo? current,
+		int? minimumEncryptionVersion,
+		bool? deletionAllowed)
+	{
+		var request = new UpdateKeyRequestOptions
+		{
+			MinimumEncryptionVersion = minimumEncryptionVersion ?? current?.MinimumEncryptionVersion ?? 0,
+			DeletionAllowed = deletionAllowed ?? current?.DeletionAllowed ?? false,
+		};
+
+		if (current is not null)
+		{
+			request.MinimumDecryptionVersion = current.MinimumDecryptionVersion;
+			request.AutoRotatePeriod = current.AutoRotatePeriod;
+			request.Exportable = current.Exportable;
+			request.AllowPlaintextBackup = current.AllowPlaintextBackup;
+		}
+
+		await _vaultClient.V1.Secrets.Transit.UpdateEncryptionKeyConfigAsync(
+			keyName,
+			request,
+			_options.Keys.TransitMountPath).ConfigureAwait(false);
+	}
+
 	private static KeyStatus DetermineKeyStatus(EncryptionKeyInfo keyInfo, int version)
 	{
-		// Check if key is deletable (indicates it might be marked for destruction)
-		if (keyInfo.DeletionAllowed)
-		{
-			return KeyStatus.PendingDestruction;
-		}
+		// PendingDestruction IS NOT REACHABLE ON TRANSIT, and deletion_allowed must never be read as evidence
+		// of one. It is a CONFIGURATION FLAG meaning the key MAY be deleted -- default false, set on the key's
+		// /config endpoint as a precondition of DELETE succeeding. It is a permission, not a schedule, and
+		// Transit has no soft-delete or pending state for it to describe: deleting a key removes its material
+		// permanently, which is what IsKeyDestroyedAsync states in its own remarks.
+		//
+		// Mapping it to PendingDestruction wedged encryption, because every status other than Active throws on
+		// the encrypt path. Two ordinary situations reached it. A delete that set the flag and then failed --
+		// network, permission, rate limit, cancellation -- left the flag set forever, so a subject whose
+		// erasure half-completed could never have their personal data written again. And an operator who sets
+		// deletion_allowed on their own keys, a reasonable posture for a crypto-shred deployment, broke
+		// encryption for every subject at once.
+		//
+		// The related hazard, recorded so it is not reintroduced: never read PendingDestruction as evidence of
+		// destruction anywhere else either. Degrading a read open on it would return a null "lawfully erased"
+		// value for fully recoverable data, silently, on any deployment with the flag set.
 
 		// A version below the encryption floor can still decrypt but may no longer encrypt, which is
 		// exactly DecryptOnly. Rotation installs that floor; reading it back here is what makes the two
@@ -846,6 +1104,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		_cache.Remove($"active:default");
 		_cache.Remove(GetSuspensionCacheKey(keyId));
 		_cache.Remove(GetPurposeCacheKey(keyId));
+		_cache.Remove(GetGenerationCacheKey(keyId));
 	}
 
 	private string GetSuspensionMarkerPath(string keyId) => $"{_options.Suspension.Path}/{keyId}";
@@ -877,6 +1136,98 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 	private string GetPurposeMarkerPath(string keyId) => $"{_options.Suspension.PurposePath}/{keyId}";
 
 	private static string GetPurposeCacheKey(string keyId) => $"purpose:{keyId}";
+
+	// A document of its own rather than a field on the purpose marker, because clearing a purpose DELETES that
+	// document and all its versions -- so sharing it would make "clear this key's purpose" silently destroy the
+	// identity of the material, and every payload written under it would become unreadable.
+	private string GetGenerationMarkerPath(string keyId) => $"{_options.Suspension.PurposePath}-generation/{keyId}";
+
+	private static string GetGenerationCacheKey(string keyId) => $"generation:{keyId}";
+
+	/// <summary>
+	/// Records the identifier of the material provisioned at a handle, if one is not already recorded.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Transit gives us nothing to use here, which is why the value is ours.</b> Its version numbers are
+	/// ordinals that restart at 1 when a key is deleted and created again, so they identify a position in a
+	/// lineage rather than the material itself; the only per-version datum it exposes is a creation timestamp,
+	/// and two provisionings inside one resolution window share it. Minting the identifier ourselves makes it
+	/// unique by construction rather than by hoping the backend's is.
+	/// </para>
+	/// <para>
+	/// <b>Write-if-absent, never overwrite.</b> A rotation adds a version to the same material lineage and must
+	/// keep the same identity; only a provisioning at a handle that holds nothing is new material. Overwriting
+	/// on every call would change the identity under payloads already written and make them unreadable.
+	/// </para>
+	/// </remarks>
+	private async Task<string> EnsureKeyGenerationAsync(string keyId, CancellationToken cancellationToken)
+	{
+		var existing = await ReadKeyGenerationAsync(keyId, cancellationToken).ConfigureAwait(false);
+		if (!string.IsNullOrEmpty(existing))
+		{
+			return existing;
+		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+
+		// A CSPRNG rather than a GUID. The identifier is not secret -- it travels in cleartext on every payload
+		// -- but reaching for a GUID beside key material is the habit worth not having.
+		var generation = RandomNumberGenerator.GetHexString(32);
+
+		var marker = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["generation"] = generation,
+			["recordedAt"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+		};
+
+		await _vaultClient.V1.Secrets.KeyValue.V2.WriteSecretAsync(
+			GetGenerationMarkerPath(keyId),
+			marker,
+			mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+
+		_ = _cache.Set(GetGenerationCacheKey(keyId), generation, _options.MetadataCacheDuration);
+
+		return generation;
+	}
+
+	/// <summary>
+	/// Reads the recorded identifier of the material at a handle, or <see langword="null"/> when none is recorded.
+	/// </summary>
+	private async Task<string?> ReadKeyGenerationAsync(string keyId, CancellationToken cancellationToken)
+	{
+		var cacheKey = GetGenerationCacheKey(keyId);
+		if (_cache.TryGetValue(cacheKey, out string? cached))
+		{
+			return cached;
+		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+
+		string? generation = null;
+		try
+		{
+			var marker = await _vaultClient.V1.Secrets.KeyValue.V2.ReadSecretAsync(
+				GetGenerationMarkerPath(keyId),
+				mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+
+			if (marker?.Data?.Data is { } data && data.TryGetValue("generation", out var value))
+			{
+				generation = value?.ToString();
+			}
+		}
+		catch (VaultSharp.Core.VaultApiException ex)
+			when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound && !IsMountMissing(ex))
+		{
+			// Absent marker on a mounted engine means this handle has no recorded identity. A mount-missing 404
+			// is excluded so it propagates: an unreachable mount must never be read as "no identity", or a read
+			// would refuse a payload whose key is perfectly intact.
+		}
+
+		_ = _cache.Set(cacheKey, generation, _options.MetadataCacheDuration);
+
+		return generation;
+	}
 
 	/// <summary>
 	/// Persists, preserves, or removes a key's purpose so purpose-scoped resolution can find it later.
@@ -1098,6 +1449,55 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		(ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound && !IsMountMissing(ex)) ||
 		ex.Message.Contains("no existing key named", StringComparison.OrdinalIgnoreCase);
 
+	/// <summary>
+	/// Reads the creation instant Transit reports for one specific key version.
+	/// </summary>
+	/// <param name="keyId"> The key handle, for the failure message. </param>
+	/// <param name="keyInfo"> The Transit key response. </param>
+	/// <param name="version"> The version whose creation instant is wanted. </param>
+	/// <returns> The instant Transit reported for that version. </returns>
+	/// <remarks>
+	/// <para>
+	/// REPORTS THE ABSENCE RATHER THAN SUBSTITUTING THE LOCAL CLOCK. A fabricated instant is
+	/// indistinguishable from a measured one to every caller, and it is wrong in the unsafe direction: "now"
+	/// makes the oldest version look like the newest, so an ordering built on it inverts rather than degrades.
+	/// </para>
+	/// <para>
+	/// It does NOT refuse. Real Transit does not date every version it holds, and this is reached from
+	/// ordinary metadata reads -- so refusing here fails <c>GetKeyAsync</c> for any key Vault has not dated,
+	/// which breaks the normal path to protect an ordering almost nobody performs. The absence travels to the
+	/// caller instead, where <see cref="KeyMetadata.CreatedAt"/> documents that unknown counts as stale.
+	/// </para>
+	/// </remarks>
+	private static DateTimeOffset? ReadVersionCreationTime(string keyId, EncryptionKeyInfo keyInfo, int version)
+	{
+		var versionKey = version.ToString(CultureInfo.InvariantCulture);
+
+		if (keyInfo.Keys is not null
+			&& keyInfo.Keys.TryGetValue(versionKey, out var versionEntry)
+			&& versionEntry is Dictionary<string, object> versionDict
+			&& versionDict.TryGetValue("creation_time", out var creationTime))
+		{
+			if (creationTime is DateTimeOffset reported)
+			{
+				return reported;
+			}
+
+			if (DateTimeOffset.TryParse(
+					creationTime?.ToString(),
+					CultureInfo.InvariantCulture,
+					DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+					out var parsed))
+			{
+				return parsed;
+			}
+		}
+
+		// Not known. Not invented, and not an error: Transit does not date every version, and a read of such
+		// a key must still succeed.
+		return null;
+	}
+
 	private KeyMetadata MapToKeyMetadata(string keyId, EncryptionKeyInfo keyInfo, int? overrideVersion = null)
 	{
 		var version = overrideVersion ?? keyInfo.LatestVersion;
@@ -1114,27 +1514,12 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 			_ => DispatchEncryptionAlgorithm.Aes256Gcm
 		};
 
-		// Get creation time from key versions if available
-		var createdAt = DateTimeOffset.UtcNow;
-		if (keyInfo.Keys is not null && keyInfo.Keys.TryGetValue("1", out var firstVersion))
-		{
-			if (firstVersion is Dictionary<string, object> versionDict &&
-				versionDict.TryGetValue("creation_time", out var creationTime))
-			{
-				if (creationTime is DateTimeOffset dto)
-				{
-					createdAt = dto;
-				}
-				else if (DateTimeOffset.TryParse(
-							 creationTime?.ToString(),
-							 CultureInfo.InvariantCulture,
-							 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-							 out var parsedDto))
-				{
-					createdAt = parsedDto;
-				}
-			}
-		}
+		// The creation time of THE VERSION BEING DESCRIBED, which is the same correction the status above
+		// already carries. Transit reports a creation time per version where it reports one at all, and reading
+		// version 1's for every version made the field report one instant for a whole handle -- so it could not
+		// order versions, and any caller comparing two versions of a handle by it got equality. Null where
+		// Transit dates nothing; see KeyMetadata.CreatedAt for what a caller owes an unknown instant.
+		var createdAt = ReadVersionCreationTime(keyId, keyInfo, version);
 
 		return new KeyMetadata
 		{

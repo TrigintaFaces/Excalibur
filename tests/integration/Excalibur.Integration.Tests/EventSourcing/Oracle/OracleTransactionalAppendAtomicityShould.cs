@@ -23,7 +23,7 @@ namespace Excalibur.Integration.Tests.EventSourcing.Oracle;
 /// <see cref="ITransactionalEventStore.AppendWithOutboxStagingAsync"/>: before this bead,
 /// <c>OracleEventStore.ExecuteAppendWithOutboxTransactionAsync</c> bare-rethrew on every exception, so a
 /// genuine race lost past the deterministic pre-check surfaced as a raw <see cref="OracleException"/>
-/// instead of <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/> — unlike the plain
+/// instead of <see cref="AppendResult.CreateConcurrencyConflict(long, long?)"/> — unlike the plain
 /// <c>AppendAsync</c> path, which already classified via <c>IsLostRace</c>.
 /// </summary>
 /// <remarks>

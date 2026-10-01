@@ -40,50 +40,7 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 	/// </summary>
 	protected ISagaStore Store { get; private set; } = null!;
 
-	/// <summary>
-	/// Gets a value indicating whether the store under test enforces optimistic concurrency
-	/// (version-gated, store-owns-increment — a stale-version save throws
-	/// <see cref="ConcurrencyException"/> rather than silently overwriting).
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// e1tsq2 (S853) capability seam — the canonical saga-store contract is optimistic concurrency. The
-	/// three distributed providers (Mongo/Firestore/Cosmos) override this to <see langword="true"/> and are
-	/// held to <see cref="StaleSave_ThrowsConcurrencyException_NoLostUpdate"/>.
-	/// </para>
-	/// <para>
-	/// <b>TRANSITIONAL.</b> Default <see langword="false"/> covers stores that have NOT yet implemented the
-	/// contract (currently <c>InMemorySagaStore</c>) — a DECLARED + TRACKED gap (<c>bd-boxiyl</c>), not a
-	/// co-equal contract. When <c>boxiyl</c> lands (InMemory version-gated + its consumers swept), this flag
-	/// and the <c>!flag</c>-gated <see cref="ConcurrentSave_SameSaga_LastWriteWins"/> declaration are deleted
-	/// and <see cref="StaleSave_ThrowsConcurrencyException_NoLostUpdate"/> becomes unconditional.
-	/// </para>
-	/// </remarks>
-	protected virtual bool SupportsOptimisticConcurrency => false;
 
-	/// <summary>
-	/// Gets a value indicating whether the store round-trips <see cref="SagaState.ProcessedEventIds"/>
-	/// across <c>SaveAsync</c>/<c>LoadAsync</c>, so the coordinator's idempotent-replay guard survives a
-	/// reload (a re-delivered already-processed event id is deduped after the saga is reloaded from the store).
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// uclyao (S865) capability seam. The dedup decision itself lives in
-	/// <c>SagaCoordinator.HandleEventInternalAsync</c> (<c>if (!sagaState.TryMarkEventProcessed(id)) return;</c>
-	/// — no re-save, no version bump, no <see cref="ConcurrencyException"/>); the STORE's contribution is
-	/// persisting/restoring the processed-id set so that guard fires after a reload. Stores that round-trip
-	/// <see cref="SagaState.ProcessedEventIds"/> (e.g. <c>InMemorySagaStore</c> via
-	/// <c>JsonObjectCreationHandling.Populate</c>) override this to <see langword="true"/> and are held to
-	/// <see cref="IdempotentReplay_ReDeliveredEvent_IsDeduped_VersionUnchanged"/>.
-	/// </para>
-	/// <para>
-	/// <b>TRANSITIONAL.</b> Default <see langword="false"/> keeps a provider whose round-trip has not yet been
-	/// verified from failing CI; each provider flips this to <see langword="true"/> once its
-	/// <see cref="SagaState.ProcessedEventIds"/> round-trip is confirmed (its lane). Tracked so it does not
-	/// silently stay opted-out.
-	/// </para>
-	/// </remarks>
-	protected virtual bool SupportsIdempotentReplay => false;
 
 	/// <summary>
 	/// Gets a value indicating whether the store under test implements
@@ -379,7 +336,7 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 	/// <summary>
 	/// e1tsq2 (S853, DATA LOSS) — author≠impl optimistic-concurrency conformance, single-owned by
 	/// TestsDeveloper (forge cl.7), reused by every store declaring
-	/// <see cref="SupportsOptimisticConcurrency"/> == <see langword="true"/> (Mongo/Firestore/Cosmos).
+	/// every store, with no opt-out (Mongo/Firestore/Cosmos included).
 	/// </summary>
 	/// <remarks>
 	/// Canonical contract (reuses <c>SqlServerSagaStore.cs:198-222</c>, store-owns-increment): two parties
@@ -392,11 +349,6 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 	public async Task StaleSave_ThrowsConcurrencyException_NoLostUpdate()
 	{
 		// Capability-gated: only stores that declare optimistic concurrency are held to this contract.
-		if (!SupportsOptimisticConcurrency)
-		{
-			return;
-		}
-
 		// Arrange — persist a saga (store owns the insert/increment), then load TWO copies at the same version.
 		var sagaId = Guid.NewGuid();
 		var initial = CreateTestSagaState(sagaId: sagaId, data: "v1");
@@ -427,7 +379,7 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 	/// <summary>
 	/// e1tsq2 / skl8r7 (S853, DATA-INTEGRITY) — author≠impl NO-RESURRECT conformance, single-owned by
 	/// TestsDeveloper (forge cl.7), reused by every store declaring
-	/// <see cref="SupportsOptimisticConcurrency"/> == <see langword="true"/>.
+	/// every store, with no opt-out.
 	/// </summary>
 	/// <remarks>
 	/// Completes the optimistic-concurrency contract (SA 16395 MUST-FIX): the reference
@@ -442,11 +394,6 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 	public async Task StaleSave_OnMissingSaga_Throws_DoesNotResurrect()
 	{
 		// Capability-gated: only stores that declare optimistic concurrency are held to this contract.
-		if (!SupportsOptimisticConcurrency)
-		{
-			return;
-		}
-
 		// Arrange — a state carrying a non-zero expected version for a saga that does NOT exist in the store
 		// (never persisted here; models a since-deleted saga still held by a caller at its loaded version).
 		var sagaId = Guid.NewGuid();
@@ -465,7 +412,7 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 
 	/// <summary>
 	/// uclyao (S865, IDEMPOTENT-REPLAY) — author≠impl conformance, single-owned by TestsDeveloper
-	/// (forge cl.7), reused by every store declaring <see cref="SupportsIdempotentReplay"/> == <see langword="true"/>.
+	/// reused by every store, with no opt-out.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -485,18 +432,13 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 	/// RED on both the <c>ShouldContain</c> and the <c>ShouldBeFalse</c> assertions. GREEN only when the set
 	/// round-trips. Conflict-preservation (a stale divergent save STILL throws — SA step 4) is locked
 	/// separately by <see cref="StaleSave_ThrowsConcurrencyException_NoLostUpdate"/> under
-	/// <see cref="SupportsOptimisticConcurrency"/>; replay-dedup must not blanket-swallow that.
+	/// a genuine concurrency conflict; replay-dedup must not blanket-swallow that.
 	/// </para>
 	/// </remarks>
 	[Fact]
 	public async Task IdempotentReplay_ReDeliveredEvent_IsDeduped_VersionUnchanged()
 	{
 		// Capability-gated: only stores whose ProcessedEventIds round-trip is verified are held to this.
-		if (!SupportsIdempotentReplay)
-		{
-			return;
-		}
-
 		const string eventId = "evt-x";
 		var sagaId = Guid.NewGuid();
 

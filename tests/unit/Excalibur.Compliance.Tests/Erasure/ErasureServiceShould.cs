@@ -9,7 +9,7 @@ using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
 public sealed class ErasureServiceShould
 {
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
-	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
+	private readonly IKeyManagementAdmin _keyAdmin = KeyDestructionFakes.AdminThatReportsEveryKeyDestroyed();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 	private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
 	private readonly ErasureService _sut;
@@ -33,7 +33,7 @@ public sealed class ErasureServiceShould
 			_dataInventoryService,
 			null,
 			TestAnnotationSource.None,
-			[]);
+			TestRetentions.None, []);
 	}
 
 	[Fact]
@@ -391,6 +391,27 @@ public sealed class ErasureServiceShould
 				],
 			}));
 
+		// AND the hash-accepting member, which is the one the EXECUTE path calls. The raw overload above
+		// is still correct for the request-time check. Both are configured because a fake that answers
+		// only one of them makes the other read as "no holds", which is how a double-hashing call site
+		// passed its tests while never matching a real hold in production.
+		A.CallTo(() => _legalHoldService.CheckHoldsByHashAsync(
+				A<string>._, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new LegalHoldCheckResult
+			{
+				HasActiveHolds = true,
+				ActiveHolds =
+				[
+					new LegalHoldInfo
+					{
+						HoldId = Guid.NewGuid(),
+						Basis = LegalHoldBasis.LitigationHold,
+						CaseReference = "CASE-999",
+						CreatedAt = DateTimeOffset.UtcNow,
+					}
+				],
+			}));
+
 		// Act
 		var result = await _sut.ExecuteAsync(requestId, CancellationToken.None)
 			.ConfigureAwait(false);
@@ -524,7 +545,8 @@ public sealed class ErasureServiceShould
 			TestDataSubjectHasher.Instance,
 			new NoLegalHoldsService(), // declared: this deployment operates none
 			null, // no data inventory service
-			null); // no key escrow service
+			null, // no key escrow service
+			TestRetentions.None);
 
 		var request = CreateValidRequest();
 
@@ -558,7 +580,8 @@ public sealed class ErasureServiceShould
 				TestDataSubjectHasher.Instance,
 				null!,
 				null,
-				null));
+				null,
+				TestRetentions.None));
 
 		ex.ParamName.ShouldBe("legalHoldService");
 	}
@@ -571,7 +594,7 @@ public sealed class ErasureServiceShould
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-				null, null, null));
+				null, null, null, TestRetentions.None));
 	}
 
 
@@ -583,7 +606,7 @@ public sealed class ErasureServiceShould
 				null!,
 				NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-				null, null, null));
+				null, null, null, TestRetentions.None));
 	}
 
 	[Fact]
@@ -594,7 +617,7 @@ public sealed class ErasureServiceShould
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				null!,
 				TestDataSubjectHasher.Instance,
-				null, null, null));
+				null, null, null, TestRetentions.None));
 	}
 
 	[Fact]
@@ -651,7 +674,7 @@ public sealed class ErasureServiceShould
 			_legalHoldService, _dataInventoryService,
 			keyEscrowService,
 			TestAnnotationSource.None,
-			[]);
+			TestRetentions.None, []);
 
 		var requestId = Guid.NewGuid();
 		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
@@ -708,7 +731,7 @@ public sealed class ErasureServiceShould
 			_legalHoldService, _dataInventoryService,
 			keyEscrowService,
 			TestAnnotationSource.None,
-			[]);
+			TestRetentions.None, []);
 
 		var requestId = Guid.NewGuid();
 		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
@@ -765,7 +788,7 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService, _dataInventoryService, null,
-			TestAnnotationSource.None, [contributor]);
+			TestAnnotationSource.None, TestRetentions.None, [contributor]);
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
@@ -843,13 +866,25 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService, _dataInventoryService, null,
-			TestAnnotationSource.None, []);
+			TestAnnotationSource.None, TestRetentions.None, []);
 	}
 
 	private void SetupNoLegalHolds()
 	{
 		A.CallTo(() => _legalHoldService.CheckHoldsAsync(
 				A<string>._, A<DataSubjectIdType>._, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new LegalHoldCheckResult
+			{
+				HasActiveHolds = false,
+				ActiveHolds = [],
+			}));
+
+		// AND the hash-accepting member, which is the one the EXECUTE path calls. The raw overload above
+		// is still correct for the request-time check. Both are configured because a fake that answers
+		// only one of them makes the other read as "no holds", which is how a double-hashing call site
+		// passed its tests while never matching a real hold in production.
+		A.CallTo(() => _legalHoldService.CheckHoldsByHashAsync(
+				A<string>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new LegalHoldCheckResult
 			{
 				HasActiveHolds = false,

@@ -35,11 +35,11 @@ public sealed class ProjectionPositionShould
 		uninitialised.Kind.ShouldBe(
 			ProjectionPositionKind.Unplaceable,
 			"a value nobody set must not claim to be a fold over any prefix, and the conservative "
-			+ "reading is the one that refuses adoption");
+			+ "reading is the one no positioned write can advance from");
 
-		uninitialised.IsAdoptable.ShouldBeFalse(
-			"adopting a value nobody set would fold the next batch onto unknown state and then stamp a "
-			+ "position the state does not justify");
+		uninitialised.ExpectedPositionOrNull.ShouldBeNull(
+			"a value nobody set must not hand a coordinate to a conditional write; doing so would fold "
+			+ "the next batch onto unknown state and then stamp a position the state does not justify");
 
 		_ = Should.Throw<InvalidOperationException>(
 			() => uninitialised.Value,
@@ -67,11 +67,18 @@ public sealed class ProjectionPositionShould
 	[Fact]
 	public void KeepTheTwoNoNumberStatesDistinctThroughStorage()
 	{
+		// Asserted on Kind, which is the three-way discriminator itself. A two-valued predicate over it
+		// could be satisfied by a decoder that returned the wrong one of the two no-number members.
 		ProjectionPosition.FromStored(ProjectionPosition.UnnumberedSentinel)
-			.IsAdoptable.ShouldBeTrue("an unnumbered row holds a complete fold and may be adopted");
+			.Kind.ShouldBe(
+				ProjectionPositionKind.Unnumbered,
+				"the unnumbered sentinel means the state IS a complete fold, only its prefix has no number");
 
 		ProjectionPosition.FromStored(ProjectionPosition.UnplaceableSentinel)
-			.IsAdoptable.ShouldBeFalse("an unplaceable row is not a fold over any prefix");
+			.Kind.ShouldBe(
+				ProjectionPositionKind.Unplaceable,
+				"the unplaceable sentinel means the state is not a fold over any prefix, which is the "
+				+ "strictly stronger and opposite claim");
 
 		ProjectionPosition.UnnumberedSentinel.ShouldNotBe(ProjectionPosition.UnplaceableSentinel);
 	}
@@ -89,17 +96,52 @@ public sealed class ProjectionPositionShould
 		round.Kind.ShouldBe(ProjectionPositionKind.Positioned);
 		round.Value.ShouldBe(position, "position zero is a legitimate coordinate, not an absence");
 		round.ExpectedPositionOrNull.ShouldBe(position);
-		round.IsAdoptable.ShouldBeFalse("a positioned row is advanced from, never adopted");
+
+		// A real position must never encode into the negative sentinel space. If it did, the row would
+		// read back as one of the two no-number states and the coordinate would be lost silently.
+		ProjectionPosition.At(position).ToStored().ShouldBeGreaterThanOrEqualTo(
+			0L,
+			"the negatives are reserved for the states that carry no number, so a measured position that "
+			+ "encoded into them would read back as an absence");
 	}
 
-	// An absent stored value is a row written before positions existed. It holds a complete fold, so it
-	// is adoptable -- reading it as unplaceable would refuse adoption on exactly the rows where adoption
-	// is correct, which is the opposite defect.
+	// INVERTED, deliberately. This arm used to be named
+	// TreatAnAbsentStoredValueAsACompleteFoldRatherThanAsUnplaceable and asserted the opposite: that an
+	// absent value reads as UNNUMBERED, on the grounds that absence is what a row written before this type
+	// existed looks like, and such a row IS a complete fold.
+	//
+	// That justification rested entirely on data written by earlier versions, and it is withdrawn -- which
+	// leaves nothing holding the mapping up. Absence is absence of EVIDENCE, not evidence of a fold, and
+	// the conservative reading is the one the type already gives its own default. Reading a field nobody
+	// wrote as trustworthy while reading a field nobody SET as fail-safe was an inconsistency inside one
+	// type, and the trustworthy direction was the fabrication.
+	//
+	// What this buys: UNNUMBERED becomes reachable only when a caller explicitly asserted it through
+	// UpsertUnnumberedAsync. A pre-existing document with no position field can no longer be mistaken for
+	// a complete fold, which is the exposure that needed no consumer action at all.
 	[Fact]
-	public void TreatAnAbsentStoredValueAsACompleteFoldRatherThanAsUnplaceable()
+	public void TreatAnAbsentStoredValueAsUnplaceableRatherThanAsACompleteFold()
 	{
-		ProjectionPosition.FromStored(null).Kind.ShouldBe(ProjectionPositionKind.Unnumbered);
-		ProjectionPosition.FromStored(null).IsAdoptable.ShouldBeTrue();
+		ProjectionPosition.FromStored(null).Kind.ShouldBe(ProjectionPositionKind.Unplaceable);
+
+		// Value equality with the canonical instance, which is stronger than the Kind check alone: it
+		// pins the backing encoding too, so a decoder that produced the right kind carrying a stray
+		// number is still red.
+		ProjectionPosition.FromStored(null).ShouldBe(ProjectionPosition.Unplaceable);
+
+		// A STRAY NEGATIVE -- one that is NEITHER sentinel -- reads the same way, and this is the arm that
+		// pins it: nobody can place such a value, so it is not evidence of a fold either. It used to read
+		// as Unnumbered.
+		ProjectionPosition.FromStored(-97).ShouldBe(ProjectionPosition.Unplaceable);
+		ProjectionPosition.FromStored(long.MinValue).ShouldBe(ProjectionPosition.Unplaceable);
+
+		// AND THE ONE EXCEPTION, pinned here so a future "simplification" to `null or < 0` cannot pass.
+		// The unnumbered sentinel is an ASSERTION -- it is what UpsertUnnumberedAsync writes -- so reading
+		// it conservatively would not be caution, it would destroy on read the only statement that can
+		// produce the Unnumbered kind, making that kind unreachable through storage.
+		ProjectionPosition.FromStored(ProjectionPosition.UnnumberedSentinel).ShouldBe(
+			ProjectionPosition.Unnumbered,
+			"an explicit assertion must survive the round trip, or the kind is dead");
 	}
 
 	// A negative position cannot be constructed, because the negatives are the sentinel space. Accepting

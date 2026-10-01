@@ -76,20 +76,21 @@ public sealed class OracleSagaStoreKitConformanceShould : SagaStoreConformanceTe
 	/// <inheritdoc/>
 	protected override Task CleanupAsync() => _fixture.CleanupTableAsync();
 
-	/// <inheritdoc/>
-	/// <remarks>
-	/// OracleSagaStore is version-gated: the save is a MERGE whose update branch carries
-	/// <c>WHERE target.Version = :ExpectedVersion</c> and whose insert branch carries
-	/// <c>WHERE :ExpectedVersion = 0</c> (no-resurrect), and a 0-row merge is surfaced as
-	/// <c>ConcurrencyException</c> rather than a silent lost update. So the optimistic-concurrency arms
-	/// run rather than early-return.
-	/// </remarks>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	#region Save
 
+	// Restored. This derives from the SHIPPED kit, whose SupportsOptimisticConcurrency still defaults to
+	// false and whose concurrency arms SkipArm when it does. Removing the flag from the INTERNAL
+	// conformance base and stripping this override together silently turned those arms off here -- and a
+	// recorded skip does not fail, so nothing reported it. This store does enforce optimistic concurrency.
+	protected override bool SupportsOptimisticConcurrency => true;
+
 	[Fact]
 	public Task SaveAsync_NewSaga_ShouldSucceed_Test() => SaveAsync_NewSaga_ShouldSucceed();
+
+	[Fact]
+	public Task ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised_Test() =>
+		ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised();
 
 	[Fact]
 	public Task SaveAsync_ExistingSaga_ShouldUpdate_Test() => SaveAsync_ExistingSaga_ShouldUpdate();

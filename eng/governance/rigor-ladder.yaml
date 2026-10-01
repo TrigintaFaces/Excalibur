@@ -76,6 +76,21 @@ seams:
     architecture_md: src/Excalibur/Excalibur.EventSourcing/ARCHITECTURE.md
     blast_radius: catastrophic
     why: "A lost or misordered append is unrecoverable: the stream IS the record, there is no second copy to reconcile against."
+    # SCOPE WARNING -- this ONE row covers SEVEN guarantees, because the manifest's unit is the FILE and
+    # this ARCHITECTURE.md declares seven: tenant isolation, atomic append, append reporting, stored
+    # message identity, global stream ordering, and position-conditional projection writes. The `why`
+    # above describes only the append. `met: [R1, R2]` is therefore a single verdict over all seven, and
+    # a vacuous R2 arm on any one of them still reads as met here.
+    #
+    # It also makes the artifact-exists-is-not-rung-discharged trap STRUCTURAL rather than hypothetical:
+    # tests/property/Excalibur.EventSourcing.Properties/PositionedProjectionProperties.cs matches the
+    # r3_artifact glob, so a claimed R3 on this row would RESOLVE against a suite that covers ONE of the
+    # seven -- and that suite's generator cannot currently reach the precondition of the defect its own
+    # never-fold-twice arm names. Do not claim R3 here on the strength of that file resolving.
+    #
+    # Splitting this into one row per guarantee is the right shape and is NOT done here: the coverage
+    # oracle is bidirectional on architecture_md paths, so seven rows would need seven files or a gate
+    # change. Tracked; the rung assignment is the architect's.
     met: [R1, R2]
     unmet: [R3, R4]
 
@@ -103,7 +118,22 @@ seams:
   - name: compliance-erasure
     architecture_md: src/Excalibur/Excalibur.Compliance/ARCHITECTURE.md
     blast_radius: catastrophic
-    why: "A Completed erasure certificate that a region failover undoes is a false compliance statement held by a regulated consumer."
+    # SUPERSEDED 2026-10-01, and the old wording is quoted because it is instructive rather than
+    # merely wrong. It read: "A Completed erasure certificate that a region failover undoes is a
+    # false compliance statement held by a regulated consumer." An adversarial review could not
+    # CONSTRUCT that execution against the shipped code and said so: MultiRegionKeyProvider
+    # .DeleteKeyAsync destroys in both regions and throws rather than returning a state, its
+    # destruction-status answer requires every region to agree, and SyncKeysToRegionAsync copies no
+    # key material at all -- so a failover cannot resurrect a destroyed key. The failover fault is
+    # real and runs the OTHER WAY: it loses the record, it does not falsify it. Modelling the old
+    # sentence would have produced a correct proof about a trajectory this system does not fly.
+    why: "A failover between the irreversible key destruction and the row that records it leaves the
+      erasure permanently un-certifiable. The data is destroyed, but the provider returns NotFound
+      both for a key this request destroyed and for one that never existed, and the destroyed-key row
+      was the only artifact that distinguished them. Re-execution therefore cannot attest the handle,
+      coverage reports the location unreached, and the request settles on Failed forever. A regulated
+      consumer is left unable to produce the evidence for an erasure that did in fact happen, and no
+      surviving state can restore it."
     met: [R1, R2]
     unmet: [R3, R4]
 

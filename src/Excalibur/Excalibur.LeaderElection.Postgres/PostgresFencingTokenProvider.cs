@@ -67,7 +67,13 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 
 		// nextval is atomic and strictly monotonic. CREATE SEQUENCE IF NOT EXISTS is NOT concurrency-safe,
 		// whatever its name suggests: the existence check and the catalog insert are separate steps, so two
-		// sessions creating the same sequence race and the loser gets 23505 on pg_class_relname_nsp_index.
+		// sessions creating the same sequence race and the loser is rejected by the catalog. WHICH error it
+		// gets is not single-valued: this previously named only 23505 (unique_violation on
+		// pg_class_relname_nsp_index), and a real concurrent mint on PostgreSQL 17 raised 42P07
+		// (duplicate_table) instead -- a sequence is a relation, so the duplicate-relation check can
+		// reject it before the index does. The guard was correct in shape and filtered on a code the
+		// server does not always raise, so the loser's exception escaped the retry it was written for.
+		// Both states are accepted below; neither is swallowed on the retry path.
 		// Upstream is explicit that IF NOT EXISTS makes no concurrency guarantee. Two leaders minting for the
 		// same resource on a fresh deployment is exactly that race, so the loser retries below -- by then the
 		// sequence exists and the second attempt takes the plain nextval path. The name is hash-derived
@@ -84,10 +90,10 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 			var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 			return Convert.ToInt64(result, CultureInfo.InvariantCulture);
 		}
-		catch (PostgresException ex) when (ex.SqlState == UniqueViolationSqlState)
+		catch (PostgresException ex) when (IsLostCreateRace(ex.SqlState))
 		{
 			// Lost the CREATE SEQUENCE race to a concurrent minter. The sequence exists now, so the only thing
-			// left to do is draw from it. Retried WITHOUT the CREATE so this cannot recurse: a second 23505 here
+			// left to do is draw from it. Retried WITHOUT the CREATE so this cannot recurse: a second rejection here
 			// would mean something other than the create raced, and it propagates rather than being swallowed.
 			_ = ex;
 
@@ -119,6 +125,21 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 	private const string SequenceLimitExceededSqlState = "2200H";
 	/// <summary> 23505: another session won the CREATE SEQUENCE race; the sequence now exists. </summary>
 	private const string UniqueViolationSqlState = "23505";
+
+	// A sequence is a relation, so a lost CREATE SEQUENCE race can be rejected by the duplicate-relation
+	// check rather than by the catalog's unique index. Observed on PostgreSQL 17 under two concurrent
+	// minters for one resource on a fresh deployment -- the shape the retry below exists for.
+	private const string DuplicateTableSqlState = "42P07";
+
+	// Both states mean the same thing here: another session created the sequence first. Kept as a named
+	// predicate rather than an inline || so the retry path and any future caller cannot drift apart.
+	// INTERNAL rather than private so the state LIST can be locked directly. The race that exposes it is
+	// timing-dependent -- CREATE SEQUENCE IF NOT EXISTS only errors when one session s existence check
+	// precedes another s catalog insert -- so an integration arm detects this defect at best occasionally,
+	// and once the sequence exists it cannot detect it at all. The thing that was WRONG was never the race:
+	// it was a constant in this filter. So this is what gets locked, deterministically.
+	internal static bool IsLostCreateRace(string? sqlState) =>
+		sqlState is UniqueViolationSqlState or DuplicateTableSqlState;
 
 	/// <inheritdoc />
 	public async ValueTask<long?> GetTokenAsync(string resourceId, CancellationToken cancellationToken)

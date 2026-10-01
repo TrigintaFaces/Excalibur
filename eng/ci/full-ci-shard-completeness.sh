@@ -328,6 +328,15 @@ self_test() {
     if [ "$rc" -eq 1 ]; then arm_ok "A8 EMPTY    no assembly reported -> exit 1 (an empty shard is not a green shard)"
     else arm_bad "A8 EMPTY    no assembly reported -> exit $rc (expected 1)"; fi
 
+    # A8b SAFETY — a COMPLETE set of assemblies in a log that was ABORTED must FAIL. This is the shape
+    # that got past this gate for real: every assembly present, zero failures printed, and the run
+    # truncated by a session timeout. Built from the A6 liveness log so the ONLY difference is the abort
+    # marker — otherwise this arm could pass for the wrong reason.
+    { cat "$TMP_REPORTED.log"; printf 'Aborting test run: test run timeout of 3600000 milliseconds exceeded.\nTest Run Aborted.\n'; } > "$TMP_REPORTED.log4"
+    rc=0; bash "$0" --assembly-results "$probe_shard" "$TMP_REPORTED.log4" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 1 ]; then arm_ok "A8b ABORT   complete assemblies + abort marker -> exit 1 (truncated is not green)"
+    else arm_bad "A8b ABORT   complete assemblies + abort marker -> exit $rc (expected 1)"; fi
+
     # A11 LIVENESS — the real defect this gate produced. One assembly's terminal line loses its
     # " - Name.dll (tfm)" suffix to interleaved output, but the assembly DID run and left a TRX.
     # Before the TRX union this reported FAIL and named an assembly that had passed.
@@ -453,6 +462,25 @@ if [ "$MODE" = asmexpected ] || [ "$MODE" = asmcompare ]; then
     echo "Do NOT report this shard as green. A zero-failure line from a shard that lost an assembly is the defect." >&2
     exit 1
   fi
+  # EVERY ASSEMBLY REPORTING IS NOT THE SAME AS THE RUN HAVING FINISHED, and this gate once passed a
+  # shard that had been ABORTED. A session-timeout abort prints a summary line that reads exactly like a
+  # green one -- "Passed!  - Failed: 0, Passed: 3597" -- with "Test Run Aborted." two lines below it, and
+  # every expected assembly HAS reported, because the assembly did run; it just did not finish. Measured:
+  # 3,772 tests discovered against 3,598 reported, so 174 never executed behind a passing completeness
+  # check and a zero-failure summary.
+  #
+  # This is FAIL rather than REFUSE: an abort marker is determinate. We are not unable to measure whether
+  # the run completed -- we have measured that it did not.
+  if ABORTED="$(grep -niE 'Test Run Aborted|Aborting test run|test run timeout of [0-9]+ milliseconds exceeded' "$RESULTS" | head -3)" && [ -n "$ABORTED" ]; then
+    echo "FAIL: shard '$SHARD' was ABORTED -- the run did not finish, so its result is TRUNCATED." >&2
+    echo "Every expected assembly reported, which is why the completeness check above passes: the" >&2
+    echo "assemblies ran, they just did not finish. A zero-failure summary from a truncated run counts" >&2
+    echo "only the tests that got to execute." >&2
+    printf '  %s\n' "$ABORTED" >&2
+    echo "Do NOT report this shard as green. Re-run it with a session budget that fits, or split it." >&2
+    exit 1
+  fi
+
   echo "PASS: all $A_EXP expected assemblies in '$SHARD' reported"
   [ -n "$A_EXTRA" ] && echo "note: also reported, not in the .slnf: $(echo $A_EXTRA)"
   exit 0

@@ -32,22 +32,7 @@ namespace Excalibur.Saga.Tests.Conformance;
 [Trait("Component", "Saga")]
 public sealed class InMemorySagaStoreConformanceShould : SagaStoreConformanceTestBase
 {
-	/// <inheritdoc/>
-	/// <remarks>
-	/// e1tsq2 (S853, NARROW pull-in): <see cref="InMemorySagaStore"/> now enforces optimistic concurrency
-	/// (atomic version-gated CAS, store-owns-increment, throws <see cref="ConcurrencyException"/> on a stale
-	/// save — bd-boxiyl folded in). So the in-memory provider is held to
-	/// <see cref="SagaStoreConformanceTestBase.StaleSave_ThrowsConcurrencyException_NoLostUpdate"/>.
-	/// </remarks>
-	protected override bool SupportsOptimisticConcurrency => true;
 
-	/// <inheritdoc/>
-	/// <remarks>
-	/// uclyao (S865): <see cref="InMemorySagaStore"/> round-trips <see cref="SagaState.ProcessedEventIds"/>
-	/// via its deep-copy clone (<c>JsonObjectCreationHandling.Populate</c>), so it is held to the
-	/// idempotent-replay conformance (<c>IdempotentReplay_ReDeliveredEvent_IsDeduped_VersionUnchanged</c>).
-	/// </remarks>
-	protected override bool SupportsIdempotentReplay => true;
 
 	/// <inheritdoc/>
 	protected override Task<ISagaStore> CreateStoreAsync() => Task.FromResult<ISagaStore>(new InMemorySagaStore(new TestTenantContext()));

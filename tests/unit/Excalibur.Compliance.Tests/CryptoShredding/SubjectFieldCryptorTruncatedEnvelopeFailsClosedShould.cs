@@ -53,7 +53,7 @@ public sealed class SubjectFieldCryptorTruncatedEnvelopeFailsClosedShould
 		var cryptor = new SubjectFieldCryptor(RoundTrippingEncryptor());
 		var record = new Customer { SubjectId = "subject-1", Email = Plaintext };
 
-		await cryptor.EncryptFieldsAsync(record, CancellationToken.None).ConfigureAwait(false);
+		await cryptor.EncryptFieldsAsync(record, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
 
 		// Build the legacy damaged form from a GENUINE write: strip the marker (what the previous version
 		// stored) and truncate the payload (what a partial write, a column length limit, or a bad migration
@@ -102,8 +102,8 @@ public sealed class SubjectFieldCryptorTruncatedEnvelopeFailsClosedShould
 		var encryptor = A.Fake<IFieldEncryptor>();
 
 #pragma warning disable CA2012 // FakeItEasy stores the ValueTask rather than awaiting it here
-		A.CallTo(() => encryptor.EncryptAsync(A<string>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
-			.ReturnsLazily((string _, ReadOnlyMemory<byte> plaintext, CancellationToken _) =>
+		A.CallTo(() => encryptor.EncryptAsync(A<string>._, A<RetentionScope>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
+			.ReturnsLazily((string _, RetentionScope _, ReadOnlyMemory<byte> plaintext, CancellationToken _) =>
 				new EncryptedData
 				{
 					Ciphertext = plaintext.ToArray(),

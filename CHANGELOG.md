@@ -17,7 +17,133 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **A deployment can declare that an aggregate type must survive an erasure.** Article 17(3) withholds the
+  right to erasure to the extent processing is necessary to comply with a legal obligation, and for many
+  businesses that obligation covers the customer's identity rather than only the transaction — a vehicle
+  title transfer, a lien entry or a warranty is worthless without the buyer. Erasure previously tombstoned
+  whole aggregates unconditionally, with no mechanism to say otherwise, so a legally-required record was
+  destroyed and there was no way to stop it. `AddErasureRetention(...)` now names the aggregate types the
+  law requires kept, with the Article 17(3) ground, a written justification and the retention period. An
+  erasure skips those types: the record survives whole and readable, and the erasure record carries the
+  retention's basis, justification and period — for every data subject appearing in that record, not only
+  the one the obligation was written about.
+
+  **Nothing changes unless you declare a retention.** A deployment that declares none erases exactly as
+  before. **Declare it before the data is written**, because naming a type moves which key its personal
+  fields are encrypted under, and events written earlier were encrypted under the key the erasure
+  destroys. The retention unit is the aggregate type, whole — there is no field-level erasure inside a
+  retained record. See
+  [GDPR Erasure](https://docs.excalibur-dispatch.dev/docs/compliance/gdpr-erasure) and
+  [Resolved issues](https://docs.excalibur-dispatch.dev/docs/resolved-issues).
+
+- **`RebuildAtPositionAsync` — the write a whole-stream rebuild is entitled to make.** A rebuild that has
+  replayed an entire stream knows the position it reached; it previously had no way to record that, so the
+  only available write was one that adopted whatever the row already claimed. The new method states the
+  position explicitly, which is what lets a rebuild refuse a row it cannot place rather than guess.
+
+- **The legal-hold expiration sweep reports what it did, by outcome.** Counts are emitted per outcome
+  rather than as a single total, so a sweep that released nothing is distinguishable from one that was
+  never scheduled.
+
+### Changed
+
+- **BREAKING — the crypto-shredding key lookup takes a retention scope.** Keeping a retained record
+  readable after its data subject is erased means its personal fields cannot share the key the erasure
+  destroys, so the key is now selected by subject *and* scope. `ISubjectKeyManager.GetOrCreateKeyAsync` and
+  `IFieldEncryptor.EncryptAsync` each gained a `RetentionScope` parameter,
+  `SubjectFieldCryptor.EncryptFieldsAsync` gained a nullable aggregate-type parameter, and
+  `EventStoreErasureContributor`'s two constructors were replaced by one ending in a required
+  `IErasureRetentionRegistry?` — the defaulted overloads let a call site acquire retention-blind
+  tombstoning by saying nothing, which fails toward destruction.
+
+  **Every one is a compile error, and only for code written against those types.** A host that registers
+  through `AddCryptoShredding()` and `AddGdprErasure(...)` is unaffected; the read path
+  (`DecryptAsync`, `DecryptFieldsAsync`) is unchanged, because an envelope records which key protects it.
+  See [Crypto-shredding takes a retention scope](https://docs.excalibur-dispatch.dev/docs/migration/crypto-shredding-retention-scope).
+
+- **BREAKING — a subject-specific legal hold was invisible to every check made while an erasure ran.**
+  `ILegalHoldService.CheckHoldsAsync` hashes the identifier it is given. The erasure path retains only the
+  hashed subject id — the raw value is deliberately not kept, because keeping it would defeat the erasure —
+  so every execute-time check handed an already-hashed value to a method that hashed it again, and queried
+  for a double hash against holds stored under a single one. The hash is not idempotent, so the two could
+  never match: a hold placed at any point after the erasure request was recorded was never observed, and
+  the keys were destroyed. A hold placed *before* the request was always caught, which is why this
+  survived. `ILegalHoldService` now also exposes `CheckHoldsByHashAsync`, which does not re-hash, and both
+  members share one query path so they cannot disagree.
+  - **Migration:** if you implement `ILegalHoldService`, implement the new member — it takes the stored
+    hash and a tenant, and must not hash its input. If you *call* the service and hold only a hash, call
+    `CheckHoldsByHashAsync`; `CheckHoldsAsync` is correct only for a raw identifier. The hash depth is now
+    in the method name, so the mistake is visible at the call site.
+
+- **BREAKING — a saga's replay identity is the delivery's message id, not a value derived from the
+  payload.** Deriving it from the payload made two distinct deliveries of the same content
+  indistinguishable, so a legitimate retry and a genuine second message collapsed into one.
+  - **Migration:** deduplication state written by an earlier version is keyed on the old derived value and
+    will not match. Drain in-flight sagas before upgrading, or accept that the first delivery after the
+    upgrade is treated as new.
+
+### Fixed
+
+- **BREAKING — a category-scoped erasure erased everything, and reported success.** An erasure submitted
+  with `Scope = ErasureScope.Selective` was executed as a full erasure: the data subject's key destroyed
+  and every event of every mapped aggregate tombstoned. The `DataCategories` you were **required** to
+  supply were validated, persisted and placed on the certificate, and no erasure step ever read them. The
+  result reported success and the certificate read `Completed`. A `Selective` request now refuses and
+  reports the erasure as not completed, so the obligation stays open rather than being falsely discharged.
+
+  **This is breaking and it is deliberate**: a request that previously "succeeded" by destroying more than
+  it was asked to now fails loudly. If you used `Selective`, see
+  [Known issues](https://docs.excalibur-dispatch.dev/docs/known-issues) — the destruction is irreversible
+  and the actionable step is auditing which aggregate types your mapping returned.
+
+- **A legal hold that retained only some data categories was treated as no hold at all.** The framework
+  decided whether to proceed by reading one derived condition meaning *"holds exist and none exempts a
+  category"*, so a hold that **did** name exempt categories was indistinguishable from no hold. The
+  erasure ran, destroying the categories a legal basis had been asserted to retain, and reported success.
+  A partially-blocking hold now stops the erasure **before** the subject's key is destroyed — which is the
+  only point at which it can be stopped, because that key is scoped to the subject rather than to a
+  category — and names the retained categories in the refusal.
+
+  **Reachable only if you implement `ILegalHoldService` yourself.** Neither shipped hold service can
+  produce a partial result, so a deployment on ours was never exposed. It is listed because the mode was
+  **advertised**: the interface and the partial-result factory are both public and documented as working.
+
+- **A legal hold arriving while an erasure was destroying keys could not stop it.** The hold was checked
+  once, immediately after the erasure claimed the request, and the first irreversible key destruction
+  happens after the whole key-discovery pass — minutes later. Nothing in between re-read the hold store.
+  The hold is now re-checked before **every** key destruction, so a hold that arrives mid-pass stops the
+  destruction at the next key, the request cannot be reported `Completed`, and the number of keys already
+  destroyed is recorded for an auditor. The window is one key wide rather than the whole pass; it is not
+  zero and cannot be, because the hold lives in this framework's store while the destruction happens at
+  an external key manager that cannot roll back. The compliance architecture notes record the consumer
+  obligation that follows.
+
+- **A request holding two erasure certificates broke its own certificate lookup, permanently.** Both SQL
+  providers read the per-request certificate with a single-row query, while the schema keys uniqueness on
+  the certificate id and indexes the request id non-uniquely. A second certificate — which the
+  partial-completion and completion paths can both legitimately issue — made every later lookup throw, so
+  two signed documents were stored and neither was retrievable. The lookup is now total and ordered and
+  resolves to the current certificate; both documents remain retrievable by their own id.
+
+- **Projections: twelve corrections to recovery, rebuild, and the diagnostics around them.** A row
+  carrying no usable position is refused rather than adopted, and an unreadable position no longer reads
+  as a completed fold. Recovering an aggregate with no events writes nothing instead of the initial state.
+  An erased aggregate's recovery is numbered from its tombstones rather than from nothing. A rebuild no
+  longer recreates a row an erasure deleted, and no longer retries five times to reach a refusal it cannot
+  pass. Several failure messages named remedies that could not work; those now name the path that applies.
+
+- **Event sourcing: a concurrency conflict reports a version only when the store measured one**, Redis
+  retry recognition covers a bounded set of markers rather than a single one, and a retried save no longer
+  republishes the payloads of a stream that was erased.
+
+- **Two shipped schemas were missing columns the code writes.** A consumer who had already provisioned
+  could never get them: provisioning is guarded by an existence check, so on an existing database it sees
+  the table, skips, and the column is never added — failing on the consumer's database and never on ours.
+  Migrations now ship for the legal-hold release-reason and version columns on both PostgreSQL and SQL
+  Server. Both are idempotent and safe to re-run.
+
 
 ## [10.0.0-alpha.13] - 2026-09-28
 

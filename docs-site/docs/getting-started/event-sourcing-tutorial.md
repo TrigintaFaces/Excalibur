@@ -352,6 +352,25 @@ public class OrderSummaryProjection(IProjectionStore<OrderSummary> store) :
 }
 ```
 
+:::warning Switching this projection to `.Async()` later requires a rebuild
+
+The handler above writes with `UpsertAsync`, and that is the only write available to it: an
+`IEventHandler<T>` receives the event and nothing else, so it has no global stream position to write
+against. On a store that records positions — which every shipped projection store does — a write with no
+position leaves the row recording that its state cannot be related to any prefix of the stream.
+
+**Nothing goes wrong while this handler is the only writer**, which is the case in this tutorial. It
+matters if you later register the same projection through `AddProjection<OrderSummary>().Async()`, because
+the async host **does** write positioned: the first positioned write against such a row is refused
+terminally with `ProjectionAdvanceOutcome.Unplaceable`, and the projection must be rebuilt from the event
+stream before it can advance. `.Inline()` is unaffected — it writes without a position too.
+
+So choose per projection, and if you migrate one from a pipeline handler to `.Async()`, rebuild it as part
+of the migration rather than meeting the refusal at runtime. [What a projection's position
+means](../event-sourcing/projections.md#what-a-projections-position-means) explains the three states and
+the repair.
+:::
+
 ## Step 8: Wire It Up
 
 ```csharp title="Program.cs"

@@ -135,7 +135,7 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 		// EncryptAndDecrypt / EncryptNewDecryptAll: encrypt event data before writing.
 		// AppendAsync receives IDomainEvent (pre-serialization), so we encrypt the serialized
 		// field bytes inline on each event using the registered encryption provider.
-		var encryptedEvents = await EncryptEventsAsync(events, cancellationToken).ConfigureAwait(false);
+		var encryptedEvents = await EncryptEventsAsync(events, aggregateType, cancellationToken).ConfigureAwait(false);
 		return await _inner.AppendAsync(aggregateId, aggregateType, encryptedEvents, expectedVersion, cancellationToken)
 			.ConfigureAwait(false);
 	}
@@ -163,6 +163,7 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 
 	private async ValueTask<IEnumerable<IDomainEvent>> EncryptEventsAsync(
 		IEnumerable<IDomainEvent> events,
+		string aggregateType,
 		CancellationToken cancellationToken)
 	{
 		// Per-subject field encryption: encrypt each [PersonalData] field of a data-subject event under that
@@ -173,7 +174,12 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 		var result = new List<IDomainEvent>();
 		foreach (var evt in events)
 		{
-			await _subjectFieldCryptor.EncryptFieldsAsync(evt, cancellationToken).ConfigureAwait(false);
+			// The aggregate type is what decides WHICH key protects these fields. An aggregate type under a
+			// declared erasure retention must survive an erasure of the subject and stay readable, so its
+			// fields are protected by a key of that type's own rather than by the subject key the erasure
+			// destroys. Every other type resolves to the subject key exactly as before.
+			await _subjectFieldCryptor.EncryptFieldsAsync(evt, aggregateType, cancellationToken)
+				.ConfigureAwait(false);
 			result.Add(evt);
 		}
 
@@ -344,7 +350,7 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 
 			var toAppend = mode is EncryptionMode.Disabled or EncryptionMode.DecryptOnlyWritePlaintext
 				? events
-				: await outer.EncryptEventsAsync(events, cancellationToken).ConfigureAwait(false);
+				: await outer.EncryptEventsAsync(events, aggregateType, cancellationToken).ConfigureAwait(false);
 
 			return await capability.AppendWithOutboxStagingAsync(
 				aggregateId, aggregateType, toAppend, expectedVersion, stageOutbox, cancellationToken)

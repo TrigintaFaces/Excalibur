@@ -20,6 +20,26 @@ internal static class KeyDestructionFakes
 		A.CallTo(() => ((IKeyDestructionStatusProvider)provider).IsKeyDestroyedAsync(keyId, A<CancellationToken>._))
 			.Returns(Task.FromResult(destroyed));
 
+	/// <summary>
+	/// A key admin that destroys keys AND can say, afterwards, that they are destroyed — which is what the
+	/// framework requires of a provider whose keys an erasure shreds.
+	/// </summary>
+	/// <remarks>
+	/// A bare <c>A.Fake&lt;IKeyManagementAdmin&gt;()</c> destroys keys and cannot answer whether they stayed
+	/// destroyed, so an erasure using one cannot re-establish the key state before it attests and is never
+	/// recorded as complete. That is the correct outcome for such a provider and the wrong fixture for an arm
+	/// about anything else: every shipped key provider implements this capability, and startup validation
+	/// warns a deployment whose provider does not.
+	/// </remarks>
+	public static IKeyManagementAdmin AdminThatReportsEveryKeyDestroyed()
+	{
+		var admin = A.Fake<IKeyManagementAdmin>(o => o.Implements<IKeyDestructionStatusProvider>());
+		A.CallTo(() => ((IKeyDestructionStatusProvider)admin)
+				.IsKeyDestroyedAsync(A<string>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
+		return admin;
+	}
+
 	public static void ReportsEveryKeyDestroyed(this IKeyManagementProvider provider) =>
 		A.CallTo(() => ((IKeyDestructionStatusProvider)provider).IsKeyDestroyedAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));

@@ -26,21 +26,21 @@ public sealed class EventStoreErasureContributorDepthShould
 	public void Constructor_ThrowsArgumentNullException_WhenErasureIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new EventStoreErasureContributor(null!, _mapping, _logger));
+			new EventStoreErasureContributor(null!, _mapping, _logger, snapshotStore: null, serviceProvider: null, retentions: null));
 	}
 
 	[Fact]
 	public void Constructor_ThrowsArgumentNullException_WhenMappingIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new EventStoreErasureContributor(_erasure, null!, _logger));
+			new EventStoreErasureContributor(_erasure, null!, _logger, snapshotStore: null, serviceProvider: null, retentions: null));
 	}
 
 	[Fact]
 	public void Constructor_ThrowsArgumentNullException_WhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new EventStoreErasureContributor(_erasure, _mapping, null!));
+			new EventStoreErasureContributor(_erasure, _mapping, null!, snapshotStore: null, serviceProvider: null, retentions: null));
 	}
 
 	[Fact]
@@ -106,7 +106,10 @@ public sealed class EventStoreErasureContributorDepthShould
 	}
 
 	[Fact]
-	public async Task EraseAsync_SkipsAlreadyErasedAggregates()
+	// FLIPPED to the corrected contract -- see the sibling arms for why the skip was the defect: the
+	// steps that destroy the snapshot and the read models run after the tombstone, so skipping on
+	// "already erased" left them permanently undone.
+	public async Task EraseAsync_StillRunsTheErasureStepsWhenTheEventsAreAlreadyTombstoned()
 	{
 		// Arrange
 		var references = new List<AggregateReference>
@@ -127,8 +130,9 @@ public sealed class EventStoreErasureContributorDepthShould
 
 		// Assert
 		result.Success.ShouldBeTrue();
+		// The loop must carry an already-tombstoned aggregate through to the steps that follow.
 		A.CallTo(() => _erasure.EraseEventsAsync(A<string>._, A<string>._, A<Guid>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -189,7 +193,9 @@ public sealed class EventStoreErasureContributorDepthShould
 	{
 		return new EventStoreErasureContributor(
 			_erasure, _mapping, _logger,
-			withSnapshots ? _snapshotStore : null);
+			withSnapshots ? _snapshotStore : null,
+			serviceProvider: null,
+			retentions: null);
 	}
 
 	private static ErasureContributorContext CreateContext()

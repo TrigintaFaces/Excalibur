@@ -186,14 +186,39 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 	public async Task ReportABufferMiss_WhenTheBufferReadOutlastsTheDeadline()
 	{
 		// SAFETY partner for the arm above.
+		//
+		// THE CLOCK IS INJECTED, for the same reason it is injected in
+		// ReportAMiss_WhenTheBackendIgnoresCancellationEntirely below, and this arm was converted after it
+		// failed for exactly the reason that one documents. It used to let a REAL backend delay of twenty
+		// deadlines race a REAL deadline, so the verdict depended on machine load: measured failing after 9s
+		// under the full UnitTests-Deterministic shard and passing in 256ms in isolation, with no code change
+		// between the two runs.
+		//
+		// The property under test was never the wall clock. It is that a buffer read is released by the
+		// DEADLINE rather than by the backend, and advancing a fake clock asserts precisely that. It also
+		// stops the arm passing for the wrong reason on a fast machine, which a real-duration race can do.
 		var backend = new ControllableBufferCache { GetDelay = Deadline * 20 };
 		backend.Store("k", [4, 5]);
+		var timeProvider = new FakeTimeProvider();
 		var cache = new BufferTimeoutDistributedCache(
-			backend, MsOptions.Create(OptionsWith(Deadline)), _meterFactory, NullLogger<TimeoutDistributedCache>.Instance);
+			backend,
+			MsOptions.Create(OptionsWith(Deadline)),
+			_meterFactory,
+			NullLogger<TimeoutDistributedCache>.Instance,
+			circuitBreaker: null,
+			timeProvider);
 
-		var found = await cache.TryGetAsync("k", new ArrayBufferWriter<byte>(), CancellationToken.None);
+		var pending = cache.TryGetAsync("k", new ArrayBufferWriter<byte>(), CancellationToken.None);
 
-		found.ShouldBeFalse();
+		// Entry proves the deadline timer exists, so the advance below cannot be lost.
+		await backend.Entered.Task;
+		timeProvider.Advance(Deadline + TimeSpan.FromTicks(1));
+
+		var found = await pending;
+
+		found.ShouldBeFalse(
+			"a buffer read that outlasts the deadline must be reported as a MISS -- the caller is released by "
+			+ "the deadline, not by the backend");
 	}
 
 	[Fact]
@@ -550,6 +575,12 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 
 		public async ValueTask<bool> TryGetAsync(string key, IBufferWriter<byte> destination, CancellationToken token = default)
 		{
+			// ANNOUNCE ENTRY before delaying. The byte-array path on the base class already does this, and a
+			// deadline arm driving a FAKE clock needs it: the deadline timer is created before the backend is
+			// invoked, so advancing the clock before entry can be lost and the arm then waits on a timer that
+			// was never armed. Waiting for this signal is what makes the advance deterministic.
+			_ = Entered.TrySetResult();
+
 			if (GetDelay > TimeSpan.Zero)
 			{
 				await Task.Delay(GetDelay, token).ConfigureAwait(false);
@@ -591,18 +622,27 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 
 		_ = await cache.GetAsync("k", CancellationToken.None);
 
-		// The window is DERIVED from the delay it must outlast, not chosen. The abandoned execution
-		// records its failure only after the backend call finishes, so the wait has to exceed the
-		// backend's own delay. It previously waited Scale(2s) against a backend delay of Deadline * 20
-		// = Scale(4s) -- HALF the worst case -- and passed only because cooperative cancellation
-		// normally cuts the delay short at the deadline. Under full-suite load that propagation is not
-		// prompt and the arm failed. Expressing the window as a multiple of the delay keeps the two
-		// from silently inverting again if either is retuned.
-		var recordingWindow = backend.GetDelay * 3;
-		var recorded = await WaitHelpers.WaitUntilAsync(() => breaker.Failures == 1, recordingWindow);
-		recorded.ShouldBeTrue(
+		// AWAIT THE EVENT, NEVER THE CLOCK. The abandoned execution records its failure after the caller
+		// has already resumed, so this is genuinely asynchronous -- but it is not genuinely TIMED. Earlier
+		// versions polled the counter inside a window derived from the backend delay, which makes the arm a
+		// race against machine load: it passed in isolation in milliseconds and failed under full-suite load
+		// after sixteen seconds. The breaker now completes a signal when it records, so this wait finishes
+		// the instant the event happens, however loaded the machine.
+		//
+		// The timeout is a LIVENESS GUARD, not synchronisation: it exists so a signal that never arrives
+		// fails the arm instead of hanging the suite, and it is deliberately far larger than any plausible
+		// scheduling delay because its value can no longer affect a passing run.
+		var recorded = await Task.WhenAny(
+			breaker.FailureRecorded,
+			Task.Delay(TestTimeouts.Scale(TimeSpan.FromSeconds(30)))).ConfigureAwait(false); // delay-ok: the LIVENESS GUARD of the WhenAny race above, not synchronisation -- see the note
+
+		(recorded == breaker.FailureRecorded).ShouldBeTrue(
 			"a backend that missed its deadline is unhealthy, and this decorator is the only component that "
 			+ "can observe it -- above here the timeout looks like a cache miss");
+
+		breaker.Failures.ShouldBe(
+			1,
+			"exactly one failure, so a decorator that reported the same timeout twice is caught as well");
 		breaker.Successes.ShouldBe(
 			0,
 			"a timed-out operation must never be reported as healthy; doing so holds the breaker closed "
@@ -668,17 +708,41 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 	/// </remarks>
 	private sealed class RecordingCircuitBreaker : ICircuitBreakerPolicy
 	{
-		public int Successes { get; private set; }
+		// Interlocked, not ++, and a signal rather than a pollable flag. Both are required and for the same
+		// reason: the execution that records a timeout is ABANDONED by the caller, so it finishes on another
+		// thread after the test has resumed. `++` on a plain int is a read-modify-write that can lose a
+		// concurrent increment, and a test that spins on a property is waiting on the clock rather than on
+		// the event -- which is why the arm below used to fail under full-suite load and pass in isolation.
+		private int _successes;
+		private int _failures;
+		private TaskCompletionSource _failureRecorded =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		public int Failures { get; private set; }
+		public int Successes => Volatile.Read(ref _successes);
+
+		public int Failures => Volatile.Read(ref _failures);
+
+		/// <summary>Completes when a failure has been recorded. Await this instead of polling the counter.</summary>
+		public Task FailureRecorded => Volatile.Read(ref _failureRecorded).Task;
 
 		public CircuitState State => CircuitState.Closed;
 
 		public Task ResetAsync(CancellationToken cancellationToken)
 		{
-			Successes = 0;
-			Failures = 0;
+			_ = Interlocked.Exchange(ref _successes, 0);
+			_ = Interlocked.Exchange(ref _failures, 0);
+			_ = Interlocked.Exchange(
+				ref _failureRecorded,
+				new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
 			return Task.CompletedTask;
+		}
+
+		private void RecordFailure()
+		{
+			_ = Interlocked.Increment(ref _failures);
+
+			// TrySet, because a later failure must not fault an already-completed signal.
+			_ = Volatile.Read(ref _failureRecorded).TrySetResult();
 		}
 
 
@@ -693,18 +757,18 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 
 				if (isFailure(result))
 				{
-					Failures++;
+					RecordFailure();
 				}
 				else
 				{
-					Successes++;
+					_ = Interlocked.Increment(ref _successes);
 				}
 
 				return result;
 			}
 			catch
 			{
-				Failures++;
+				RecordFailure();
 				throw;
 			}
 		}
@@ -716,12 +780,12 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 			try
 			{
 				var result = await operation(cancellationToken).ConfigureAwait(false);
-				Successes++;
+				_ = Interlocked.Increment(ref _successes);
 				return result;
 			}
 			catch
 			{
-				Failures++;
+				RecordFailure();
 				throw;
 			}
 		}

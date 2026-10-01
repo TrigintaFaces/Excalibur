@@ -342,6 +342,20 @@ public sealed class PositionedProjectionProperties
 			var present = _rows.TryGetValue(id, out var existing);
 			var stored = present ? existing.Position : null;
 
+			// A null expectation is INSERT-IF-ABSENT and nothing else. An existing row carrying no number is
+			// refused -- terminally, because re-reading yields the same row and the same refusal -- and NOT
+			// adopted: a caller that read no position knows nothing about which prefix that state covers. The
+			// equality below cannot express this, since null == null, which is exactly how the real providers
+			// used to adopt.
+			//
+			// UNPLACEABLE, which is the terminal outcome for either no-number state -- and specifically NOT
+			// Superseded, which would tell the caller to retry against a row that never changes.
+			if (expectedPosition is null && present && existing.Position is null)
+			{
+				return Task.FromResult(new ProjectionAdvanceResult(
+					ProjectionAdvanceOutcome.Unplaceable, null));
+			}
+
 			if (stored != expectedPosition || (stored is { } at && newPosition <= at))
 			{
 				return Task.FromResult(new ProjectionAdvanceResult(
@@ -376,6 +390,24 @@ public sealed class PositionedProjectionProperties
 			_rows[id] = (Clone(projection), atPosition);
 
 			return Task.FromResult(new ProjectionRefoldResult(ProjectionRefoldOutcome.Applied, atPosition));
+		}
+
+		// Overwrites BOTH state and position of an EXISTING row, for a caller that folded the whole
+		// stream from an empty seed. Unconditional on POSITION but conditional on EXISTENCE: an absent
+		// row was deleted, deletion is how erasure removes personal data, and a replay must not restore it.
+		public Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+			string id, Counter projection, long newPosition, CancellationToken cancellationToken)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+
+			if (!_rows.ContainsKey(id))
+			{
+				return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished));
+			}
+
+			_rows[id] = (Clone(projection), newPosition);
+
+			return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied));
 		}
 
 		public Task<Counter?> GetByIdAsync(string id, CancellationToken cancellationToken) =>

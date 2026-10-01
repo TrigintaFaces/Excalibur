@@ -84,13 +84,17 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 
 		if (row is null || row.Data is null)
 		{
-			return (null, ProjectionPosition.Unnumbered);
+			// A row that does not exist is not a fold over any prefix, so UNPLACEABLE is the true
+			// reading rather than a convenient one. Unnumbered would assert a complete fold over state
+			// that does not exist.
+			return (null, ProjectionPosition.Unplaceable);
 		}
 
-		// The stored value decodes to one of THREE states, and the two carrying no number need opposite
-		// treatment: the unnumbered one is adoptable, the unplaceable one is not. The decoding lives in
-		// ProjectionPosition so every provider agrees on it; comparing against a locally-written
-		// sentinel here would be a cross-provider divergence no single-provider test could see.
+		// The stored value decodes to one of THREE states, and only the positioned one can be advanced
+		// from: the two carrying no number are refused by the write below and repaired by a rebuild. The
+		// decoding lives in ProjectionPosition so every provider agrees on it; comparing against a
+		// locally-written sentinel here would be a cross-provider divergence no single-provider test
+		// could see.
 		var position = ProjectionPosition.FromStored(row.LastAppliedPosition);
 
 		return (row.Data, position);
@@ -111,16 +115,30 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
 		ArgumentNullException.ThrowIfNull(data);
 
-		// Both conjuncts of the contract are in the DO UPDATE predicate:
-		//   t.last_applied_position = COALESCE(@ExpectedPosition, -1)  -- orders concurrent writers
-		//   @NewPosition > t.last_applied_position                     -- orders this writer against
-		//                                                                 its own past, i.e. redelivery
-		// The COALESCE is what lets a legacy row (sentinel -1, read back as "unknown") be claimed by a
-		// caller passing null, instead of livelocking against an insert the primary key refuses.
+		// A NEGATIVE EXPECTATION IS THE ADOPT LICENCE THROUGH A DIFFERENT DOOR. The negatives are the
+		// sentinel space for the two states that carry no number, so a caller naming one as "the position I
+		// read" would be matching a row this store refuses by design. ExpectedPositionOrNull is the only
+		// legal source for this argument and never yields a negative.
+		if (expectedPosition is { } claimed)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(claimed, nameof(expectedPosition));
+		}
+
+		// TWO CTEs, each conditional on exactly one thing the caller claimed.
 		//
-		// The feeding SELECT carries `WHERE @ExpectedPosition IS NULL` so the INSERT arm is reachable
-		// ONLY when the caller claimed absence. Without it, a non-null expected against a deleted row
-		// inserts and reports success for a false precondition.
+		// `attempted` is INSERT-IF-ABSENT and nothing else. Its feeding SELECT carries
+		// `WHERE @ExpectedPosition IS NULL`, so it is reachable only when the caller claimed absence --
+		// without that, a non-null expected against a deleted row would insert and report success for a
+		// false precondition. ON CONFLICT DO NOTHING is what keeps it to insert-if-absent: the arm used to
+		// be DO UPDATE with `t.last_applied_position = COALESCE(@ExpectedPosition, -1)`, which mapped "I
+		// read no position" onto the unnumbered sentinel and therefore ADOPTED an existing numberless row,
+		// stamping this batch's position onto a state whose prefix nobody established. With DO NOTHING
+		// there is no update arm here at all, so adoption is inexpressible rather than merely avoided.
+		//
+		// `updated` carries both conjuncts of the contract and requires a NON-NULL expectation:
+		//   t.last_applied_position = @ExpectedPosition  -- orders concurrent writers
+		//   @NewPosition > t.last_applied_position       -- orders this writer against its own past,
+		//                                                  i.e. a redelivery
 		//
 		// EVERY use of @ExpectedPosition carries an explicit ::bigint, and that is not decoration.
 		// PostgreSQL infers a parameter's type from the context it appears in, and `$n IS NULL` gives it
@@ -133,12 +151,7 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 			    INSERT INTO "{_tableName}" (id, data, created_at, updated_at, tenant_id, last_applied_position)
 			    SELECT @Id, @Data::jsonb, @UpdatedAt, @UpdatedAt, @TenantId, @NewPosition::bigint
 			    WHERE @ExpectedPosition::bigint IS NULL
-			    ON CONFLICT (id, tenant_id) DO UPDATE
-			        SET data = EXCLUDED.data,
-			            updated_at = EXCLUDED.updated_at,
-			            last_applied_position = EXCLUDED.last_applied_position
-			        WHERE "{_tableName}".last_applied_position = COALESCE(@ExpectedPosition::bigint, -1)
-			          AND EXCLUDED.last_applied_position > "{_tableName}".last_applied_position
+			    ON CONFLICT (id, tenant_id) DO NOTHING
 			    RETURNING last_applied_position
 			), updated AS (
 			    UPDATE "{_tableName}" t
@@ -187,16 +200,21 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 			? Refused(current)
 			: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 
-		// An UNPLACEABLE row is not a supersede and must not be reported as one. A superseded caller
-		// re-reads and retries; re-reading this row yields the same value and the same refusal, so
-		// reporting Superseded is an unbounded redelivery loop. No retry can make the write correct --
-		// the state is not a fold over any prefix, so the projection has to be rebuilt.
+		// Terminal, not a supersede: there is no number to advance from, and re-reading yields the
+		// same value and the same refusal, so Superseded here is an unbounded redelivery loop. That is the
+		// arm a careless edit reintroduces, and a numberless row landing in it retries forever.
+		//
+		// BOTH no-number states report the SAME outcome, deliberately. This result describes what the WRITE
+		// did; it carries no state, and the position was read at a different instant from the one the write
+		// was refused at, so an outcome characterising the stored STATE would attribute a property of the
+		// row-at-read-time to a write refused earlier. A caller that needs to know what the row holds reads
+		// its position, where ProjectionPositionKind reports it as a measured fact.
 		static ProjectionAdvanceResult Refused(long current)
 		{
 			var held = ProjectionPosition.FromStored(current);
-			return held.Kind == ProjectionPositionKind.Unplaceable
-				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
-				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, held.ExpectedPositionOrNull);
+			return held.Kind == ProjectionPositionKind.Positioned
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, held.Value)
+				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 		}
 	}
 
@@ -204,8 +222,10 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 	/// Writes a state that is a complete fold over a prefix carrying no global position number.
 	/// </summary>
 	/// <remarks>
-	/// The position is written rather than left to a default: a row created here is adoptable by a later
-	/// positioned writer, which is the whole difference between this and the blind upsert.
+	/// The position is written rather than left to a default. A row created here is NOT adoptable -- a
+	/// positioned write refuses every row carrying no number -- but it reads back as a COMPLETE FOLD whose
+	/// coordinate is unknown rather than as a state related to no prefix at all, and that is the whole
+	/// difference between this and the blind upsert.
 	/// </remarks>
 	internal async Task UpsertUnnumberedAsync(
 		string id,
@@ -237,6 +257,61 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 		_ = await connection.ExecuteAsync(
 			new CommandDefinition(sql, parameters, cancellationToken: cancellationToken)).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Overwrites an existing row's state and position, for a caller that folded the whole stream.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A plain UPDATE, where the advancing write is an INSERT ... ON CONFLICT. Unconditional on POSITION
+	/// -- a state folded from an empty seed has no prior prefix for a condition to be written against --
+	/// but conditional on the row EXISTING, which is a different question and the one this statement
+	/// still asks.
+	/// </para>
+	/// <para>
+	/// <b>There is no insert arm, and that is the point.</b> An absent row means the projection was
+	/// deleted, deletion is how erasure removes personal data, and a whole-stream replay is precisely
+	/// the write that could reconstruct it. A plain UPDATE cannot insert, so creating is inexpressible
+	/// here rather than merely avoided, and the affected-row count is what reports the absence.
+	/// </para>
+	/// </remarks>
+	internal async Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		string data,
+		long newPosition,
+		string tenantId,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		ArgumentNullException.ThrowIfNull(data);
+
+#pragma warning disable CA2100 // Table name is a validated configured identifier, quoted below
+		var sql = $"""
+		           UPDATE "{_tableName}"
+		           SET data = @Data::jsonb, updated_at = @UpdatedAt, last_applied_position = @NewPosition
+		           WHERE id = @Id AND tenant_id = @TenantId
+		           """;
+#pragma warning restore CA2100
+
+		var parameters = new DynamicParameters();
+		parameters.Add("@Id", id);
+		parameters.Add("@Data", data);
+		parameters.Add("@UpdatedAt", DateTimeOffset.UtcNow);
+		parameters.Add("@TenantId", tenantId);
+		parameters.Add("@NewPosition", ProjectionPosition.At(newPosition).ToStored());
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// The rows the statement changed IS the existence answer, taken from the write itself. A separate
+		// SELECT would be a second observation, and the row can be deleted between the two.
+		var affected = await connection.ExecuteAsync(
+			new CommandDefinition(sql, parameters, cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+		return new ProjectionRebuildResult(
+			affected > 0 ? ProjectionRebuildOutcome.Applied : ProjectionRebuildOutcome.Vanished);
 	}
 
 	/// <summary>

@@ -111,6 +111,12 @@ it, and a schema change is always something you did deliberately. Others create 
 they own, and for those the reconciliation is part of the upgrade rather than something handed to you.
 [Which packages ship scripts](#which-packages-ship-schema-scripts) names both sets.
 
+**There is a third case, and it is neither of those: storage the framework reads and writes but does not
+provision.** Projection state is the one that exists today — no package ships a script for a projection
+table, and no provider creates one, so the schema is yours entirely and a change to what the framework
+expects there arrives as a row in [Before you upgrade](../whats-new.md#before-you-upgrade) rather than as a
+script. Do not go looking for a script that does not exist.
+
 **The commitment above holds in both cases**: within a stable major line you are never handed DDL to
 apply, and a provider that maintains its own tables does not touch a schema it does not own.
 

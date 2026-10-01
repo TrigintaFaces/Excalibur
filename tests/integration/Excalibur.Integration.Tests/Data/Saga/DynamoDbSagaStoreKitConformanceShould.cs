@@ -107,21 +107,21 @@ public sealed class DynamoDbSagaStoreKitConformanceShould : SagaStoreConformance
 	/// <remarks>Data-only. The throwaway per-instance table goes away with the container.</remarks>
 	protected override Task CleanupAsync() => Task.CompletedTask;
 
-	/// <inheritdoc/>
-	/// <remarks>
-	/// <c>DynamoDbSagaStore.SaveAsync</c> is a version-gated conditional write:
-	/// <c>attribute_not_exists(#pk)</c> for a new saga (DynamoDbSagaStore.cs:266) and
-	/// <c>#v = :expectedVersion AND #t = :tenantId</c> for an update (DynamoDbSagaStore.cs:278), with
-	/// <c>ConditionalCheckFailedException</c> surfaced as <c>ConcurrencyException</c>
-	/// (DynamoDbSagaStore.cs:296-303). Both the no-lost-update and the no-resurrect halves are enforced by
-	/// the database, so the optimistic-concurrency arms run rather than early-return.
-	/// </remarks>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	#region Save
 
+	// Restored. This derives from the SHIPPED kit, whose SupportsOptimisticConcurrency still defaults to
+	// false and whose concurrency arms SkipArm when it does. Removing the flag from the INTERNAL
+	// conformance base and stripping this override together silently turned those arms off here -- and a
+	// recorded skip does not fail, so nothing reported it. This store does enforce optimistic concurrency.
+	protected override bool SupportsOptimisticConcurrency => true;
+
 	[Fact]
 	public Task SaveAsync_NewSaga_ShouldSucceed_Test() => SaveAsync_NewSaga_ShouldSucceed();
+
+	[Fact]
+	public Task ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised_Test() =>
+		ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised();
 
 	[Fact]
 	public Task SaveAsync_ExistingSaga_ShouldUpdate_Test() => SaveAsync_ExistingSaga_ShouldUpdate();

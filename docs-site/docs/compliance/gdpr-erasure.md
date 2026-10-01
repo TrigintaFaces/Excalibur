@@ -61,16 +61,124 @@ public sealed class CustomerAggregateMapping : IAggregateDataSubjectMapping
 }
 ```
 
-### The case with no supported answer yet
+### When the law requires you to keep the record: declare a retention
 
-Where personal data is **unavoidably embedded in a transaction event** — the buyer's name printed on an
-invoice event, a free-text note naming the subject — there is **no supported way to erase the name and
-keep the invoice.** Whole-aggregate tombstoning is the only mechanism available, so the choice is to
-destroy the record or to retain the personal data.
+Modelling only works while the personal data is *separable*. Where it is **unavoidably embedded in a
+transaction record** — the buyer's name on a vehicle sales record, the warranty holder on a service
+history — the record is worthless without it, and Article 17(3) withholds the right to erasure to the
+extent processing is necessary to comply with a legal obligation.
 
-The honest workaround today is to map fewer aggregates and handle the embedded case in your own
-retention and redaction process. Finer-grained erasure is planned; it is not in any published version,
-and this page will say so until it is.
+Declare those aggregate types with `AddErasureRetention`. An erasure then **skips them**: the record
+survives whole and readable, and the erasure record names the retention, its legal basis, the written
+justification and the period.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Compliance;
+using Excalibur.Dispatch; // TenantScope
+
+services.AddErasureRetention(
+    new ErasureRetention
+    {
+        AggregateType = "SalesRecord",
+        TenantId = TenantScope.UntenantedSentinel, // not multi-tenant; see below
+        Basis = LegalHoldBasis.LegalObligation,
+        Justification = "Vehicle sales records are kept for six years under the tax code's "
+                      + "record-keeping requirement and for product-recall traceability.",
+        RetentionPeriod = TimeSpan.FromDays(365 * 6),
+    },
+    new ErasureRetention
+    {
+        AggregateType = "WarrantyClaim",
+        TenantId = TenantScope.UntenantedSentinel,
+        Basis = LegalHoldBasis.LegalObligation,
+        Justification = "Warranty claims are kept for the statutory warranty term plus the "
+                      + "limitation period for claims arising from them.",
+        RetentionPeriod = TimeSpan.FromDays(365 * 8),
+    });
+```
+
+Every property is required, and each one is required for a reason:
+
+| Property | Meaning |
+|---|---|
+| `AggregateType` | The aggregate type **exactly as the event store records it**. Matching is ordinal: a declaration of `salesrecord` against a stored `SalesRecord` is not a retention, and the record is destroyed. |
+| `TenantId` | The tenant whose obligation this is. A deployment that is not multi-tenant names `TenantScope.UntenantedSentinel` — the same value an untenanted erasure request carries, so a declaration and a request spell one tenant the same way. It is non-nullable: an absent tenant was a second spelling of the untenanted one, and two spellings for one thing is what made the match undecidable. Required so the deployment has to say which case it is in — a tenant-blind retention would make one tenant inherit another's statute. A retention declared for the wrong tenant does not match, so the record is erased; that is visible on the erasure record, where the opposite default would silently withhold erasure from every other tenant's data subjects. |
+| `Basis` | The Article 17(3) ground you are relying on (`LegalHoldBasis`). |
+| `Justification` | The written obligation, in terms an auditor can evaluate — the statute, the retention schedule, the regulator's requirement. See the warning below on who reads it. |
+| `RetentionPeriod` | How long the obligation lasts. Must be greater than zero. |
+
+Nothing declared means every aggregate is erased exactly as it was before this capability existed, so a
+deployment that declares no retention is unaffected by it.
+
+Declarations are validated at host start: the aggregate type must be named, the justification must say
+more than which ground was picked, and the period must be greater than zero. Calling
+`AddErasureRetention` more than once accumulates.
+
+:::warning Declare the retention **before** the data is written
+
+Naming a type here changes which key its personal fields are encrypted under, and that is what keeps the
+record readable after an erasure. Events written **before** the declaration were encrypted under the
+subject's own key — the key the erasure destroys — so they survive the erasure with their personal fields
+no longer decryptable. See [Crypto-Shredding](./crypto-shredding.md#per-subject-keys-and-erasure).
+:::
+
+:::danger The retained record must carry its own copy of what it needs
+
+A sales record that reaches its buyer by following a reference into a customer aggregate **breaks when
+that customer is erased** — the reference survives and resolves to a tombstone. Retention protects the
+aggregate types you name and nothing they point at. This is ordinary aggregate independence, and the
+retention depends on it.
+:::
+
+#### What this obliges you to do
+
+- **Write the justification about the RECORD, not about a person.** It is shown to *every* data subject
+  who appears in the retained record, including people the statute was not written with in mind. "Vehicle
+  sales records are kept for six years under the tax code's record-keeping requirement" is evaluable by
+  an auditor and by anyone named on the record; "the buyer's identity is required" reads as one person's
+  obligation and is wrong for everyone else on the same record. Startup validation cannot check this — it
+  refuses only a blank justification and one that merely restates the basis.
+- **Release the retention when it expires.** The period is recorded and reported; **it is not a timer.**
+  When a particular record's obligation lapses depends on facts the framework does not hold — the
+  transaction date, the jurisdiction, whether the period was extended — so acting on your statutory clock
+  is not a promise it makes. What it guarantees is that the period is declared, carried onto the erasure
+  record, and visible.
+- **Re-link returning subjects yourself.** If a subject returns and a new aggregate is created for them,
+  matching it to the retained record is a business decision, on identifiers or transaction data you hold.
+  The framework keeps no hidden link, because a hidden link would be exactly the re-identification the
+  erasure was meant to remove.
+
+#### Everyone named in a retained record is covered by the same declaration
+
+A data subject who appears in a retained aggregate is not erased from it. The retention's basis,
+justification and period are carried onto the erasure record for **every** such subject — not only for
+whoever the obligation was written about.
+
+**What the record does NOT say, because the distinction is easy to miss.** It does not tell the subject
+that THEY are what persists in the retained type. The justification is written about the RECORD, and a
+conformance arm requires the entry to avoid claiming lawful persistence — that is a legal claim about the
+data, and the framework has not established it. If you owe a data subject a subject-scoped notice,
+compose it from the basis, justification and period the record carries; the framework does not compose it
+for you.
+
+### The case that remains unsupported
+
+**The retention unit is the aggregate type, whole. There is no field-level erasure inside a retained
+record.** If you declare `SalesRecord` retained, every data subject named on a sales record keeps their
+personal data there for the declared period; you cannot erase the buyer's name from an otherwise-retained
+invoice.
+
+That is a deliberate limit rather than an unfinished one. An obligation to keep a record attaches to the
+*record*: a statute requiring sales records to be kept does not require the buyer and permit deleting the
+salesperson, and a partly-erased record is a mutated record with no evidentiary value — which was the
+entire reason for keeping it. An aggregate boundary is also an event boundary, so a retention can be
+honoured without splitting a stored event, whose erasure is total; a finer unit has no boundary to use.
+
+So the choice this page presents is between two supported outcomes — erase the aggregate type, or retain
+it whole under a declared obligation — and not a third that erases selectively within it. Where you need
+personal data gone from a record you must otherwise keep, that redaction remains yours to perform in your
+own process.
 
 ## Before You Start
 
@@ -620,6 +728,55 @@ await _holdService.ReleaseHoldAsync(
     ct);
 ```
 
+### Updating a hold is a compare-and-set
+
+`LegalHold` carries a `Version` — a portable `int` the **store** owns. A new hold is stored at `0` and each
+successful update increments it. `UpdateHoldAsync` applies a write only while the stored record still carries
+the version the caller read.
+
+This exists because updating a hold is a read-modify-write, and without the check a decision is applied over
+whatever the record became in the meantime. A hold whose expiry was extended between a sweep's read and its
+write would be released anyway, and the next erasure for that subject would proceed — destroying records a
+court order says to keep, with no signal that anything went wrong.
+
+**Round-trip the version by building the record you write from the one you read:**
+
+```csharp
+var hold = await store.GetHoldAsync(holdId, ct);
+if (hold is null)
+{
+    return;
+}
+
+// `with` carries Version across -- this is the shape to use. Constructing a fresh
+// LegalHold from parts sets Version to 0, and the write is refused.
+var extended = hold with { ExpiresAt = hold.ExpiresAt?.AddDays(30) };
+
+try
+{
+    var applied = await store.UpdateHoldAsync(extended, ct);
+    if (!applied)
+    {
+        // No such hold, or not visible to this tenant. NOT a conflict.
+    }
+}
+catch (LegalHoldConcurrencyException)
+{
+    // Present and visible, but it moved under you; the write was not applied.
+    // Re-READ and re-DECIDE -- do not re-apply the same write with a fresh version.
+}
+```
+
+Three outcomes, where there were previously two: `true` (applied), `false` (nothing to write to — absent or
+another tenant's), and `LegalHoldConcurrencyException` (the record moved). A conflict is an exception rather
+than a return value because the failure it prevents is silent, and a conflict returned as a `bool` can be
+discarded at the call site.
+
+**If you implement `ILegalHoldStore` yourself**, note that the method signature has not changed — so a store
+that ignores the version still compiles and keeps the lost update silently. The full contract, the schema
+column, and what an existing database does at startup:
+[a legal hold carries a concurrency token](../migration/legal-hold-concurrency-token.md).
+
 ## Erasure Scopes
 
 Control what data is erased:
@@ -933,6 +1090,63 @@ if (eventStore.GetService(typeof(IEventStoreErasure)) is IEventStoreErasure eras
     logger.LogInformation("Erased {Count} events for aggregate {AggregateId}", count, "user-12345");
 }
 ```
+
+### Saving an aggregate whose events were erased: `ErasedStreamRepublicationException`
+
+Erasure rewrites existing event rows rather than removing them, and that creates one narrow hazard on the
+**save** path. `ErasedStreamRepublicationException` closes it.
+
+**The shape it closes.** An append commits. Its acknowledgement is lost. An erasure then destroys those
+events. The caller — still holding the aggregate the payloads were built from — retries the save. The store
+recognises its own rows by identity and answers `AppendOutcome.AlreadyCommitted`, which is *correct*: the
+append genuinely did commit. What has stopped being true is that **present implies retrievable.** Continuing
+from there would stage the erased subject's own payloads to the outbox and hand them to inline projections —
+after the erasure certificate was already issued, and with nothing downstream ever learning.
+
+So the repository refuses instead:
+
+```csharp
+try
+{
+    await _repository.SaveAsync(order, ct);
+}
+catch (ErasedStreamRepublicationException)
+{
+    // The append LANDED and the stream has been erased since. Nothing was staged to the
+    // outbox and nothing was notified, so there is nothing to compensate.
+    // Discard this in-memory instance and reload; retrying the same one throws again.
+    order = await _repository.GetByIdAsync(orderId, ct);
+}
+```
+
+**What catching it tells you**, precisely:
+
+- the append **did** commit and remains durable — this is not a failed write;
+- the stream **has been erased** since, so the events are no longer retrievable;
+- **nothing was staged and nothing was notified**, so there is no compensation to perform;
+- retrying the **same in-memory instance** will throw again. That is intended. Reload.
+
+**It carries no identifiers, by design.** The type is the whole signal — a caller that needs to know catches
+it. The message names no aggregate, no subject and no payload, and the framework writes no log line at the
+refusal, so neither a surfaced exception message nor a log built from one can disclose which subject was
+involved. If you construct one yourself, the same obligation applies: do not pass an aggregate identifier, a
+subject identifier, or any payload into the message.
+
+It derives from `InvalidOperationException`, so an existing broad `catch (InvalidOperationException)` already
+catches it — but it will not tell you to reload rather than retry, which is the whole point of the distinct
+type.
+
+:::note Two reasons this costs you nothing on the ordinary path
+It runs **only** where an append was *recognised* rather than written — the store's identity probe fired, or
+the in-memory staging breadcrumb matched — which is already a failure-path outcome. A fresh append never
+reaches the check and never pays the round trip.
+
+And where the store chain does not present `IEventStoreErasure`, the check returns immediately. That is a
+**sound negative rather than a gap**: the erasure that would create this hazard can only be performed
+through that capability on the same store chain, so a store that does not present it cannot have been erased
+through it. The probe asks the store for the capability rather than testing its type, so a decorator answers
+on behalf of the store it wraps.
+:::
 
 ### Data-subject hashing (`IDataSubjectHasher`)
 

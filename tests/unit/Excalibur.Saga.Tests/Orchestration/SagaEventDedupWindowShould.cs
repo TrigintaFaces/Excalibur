@@ -60,13 +60,21 @@ public sealed class SagaEventDedupWindowShould
 			.ShouldBe(2, "beyond the bound the id is evicted FIFO and the redelivered step runs again");
 	}
 
+	// The replay identity is the ENVELOPE MESSAGE ID, so the step id is what this fixture varies and the
+	// message id is what the coordinator keys on. They are deliberately the same value here: a redelivery
+	// of a step is the same delivery, and it must carry the same envelope id to be one.
 	private static async Task DeliverAsync(
-		SagaCoordinator coordinator, SagaInfo sagaInfo, Guid sagaId, string stepId) =>
+		SagaCoordinator coordinator, SagaInfo sagaInfo, Guid sagaId, string stepId)
+	{
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.MessageId).Returns($"msg-{stepId}");
+
 		await coordinator.HandleEventInternalAsync<CountingSaga, CountingSagaState>(
-			A.Fake<IMessageContext>(),
+			context,
 			new CountingEvent { SagaId = sagaId.ToString(), StepId = stepId },
 			sagaInfo,
 			CancellationToken.None);
+	}
 
 	private static (SagaCoordinator Coordinator, StepLog Saga, SagaInfo Info, Guid SagaId) NewCoordinator()
 	{

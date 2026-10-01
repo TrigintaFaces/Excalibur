@@ -219,7 +219,7 @@ public sealed class EventStoreCapabilityForwardingShould
 		// forwarded the inner capability raw would leave the personal field in plaintext.
 		var inner = new TransactionalStore();
 		var fieldEncryptor = A.Fake<IFieldEncryptor>();
-		_ = A.CallTo(() => fieldEncryptor.EncryptAsync("subject-1", A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => fieldEncryptor.EncryptAsync("subject-1", A<RetentionScope>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
 			.Returns(Envelope());
 
 		var capability = (ITransactionalEventStore)

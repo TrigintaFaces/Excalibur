@@ -195,17 +195,21 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 	/// Builds a certificate whose signature genuinely covers its payload, for the round-trip arms.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// <see cref="CreateErasureCertificate"/> carries a placeholder signature, which is right for the arms
 	/// that only care that a row was stored and read back. It cannot serve the arms that ask whether the
 	/// payload survived the round trip, because a placeholder tells you nothing about the payload.
+	/// </para>
+	/// <para>
+	/// Issued through the production boundary, so every derived provider suite exercises the claim validation
+	/// as a side effect of asking for a signed certificate. A fixture whose claims do not hold is caught here
+	/// rather than in whichever provider suite happens to look — and the payload this returns is the one that
+	/// was signed, which is what the round-trip arms need.
+	/// </para>
 	/// </remarks>
 	/// <returns>A certificate signed with <see cref="ConformanceSigningKey"/>.</returns>
-	protected ErasureCertificate CreateSignedErasureCertificate()
-	{
-		var unsigned = CreateErasureCertificate();
-
-		return unsigned with { Signature = ErasureCertificateSigner.Sign(unsigned.Payload, ConformanceSigningKey) };
-	}
+	protected ErasureCertificate CreateSignedErasureCertificate() =>
+		ErasureCertificateSigner.Issue(CreateErasureCertificate().Payload, ConformanceSigningKey, out _);
 
 	/// <summary>
 	/// Generates a unique request ID for test isolation.
@@ -678,8 +682,135 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that RecordCompletionAsync throws KeyNotFoundException for non-existent request.
+	/// Verifies that a destroyed key handle recorded against a request survives, appends, and is idempotent.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Why a store must carry this.</b> Asking a key store to destroy a key it has ALREADY destroyed
+	/// reports the key as absent — the same answer it gives for a key that never existed. So an erasure that
+	/// destroyed some keys and then failed part-way through the rest attested those keys on its first pass
+	/// and, on the retry, attested nothing for them: the subject's data destroyed and their erasure
+	/// permanently uncertifiable. These rows are what let a retry attest the coverage its own earlier pass
+	/// achieved, so a store that loses them cannot complete an interrupted erasure.
+	/// </para>
+	/// <para>
+	/// Append-only and idempotent are both load-bearing. A pass that TRUNCATED the set would erase the
+	/// evidence of every earlier pass — the same defect by another route — and re-recording a handle happens
+	/// on any retry.
+	/// </para>
+	/// </remarks>
+	public virtual async Task RecordKeyDestroyedAsync_ShouldAppendIdempotentlyAndSurvive()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Guard: a request that has destroyed nothing reports an empty set rather than null, or the
+		// assertions below could pass over a store that never returns anything.
+		var before = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
+
+		if (before is null || before.DestroyedKeyHandles.Count != 0)
+		{
+			throw new TestFixtureAssertionException(
+				"A request that has destroyed no keys must report an empty destroyed-handle set, but reported "
+				+ (before is null ? "no request at all." : $"{before.DestroyedKeyHandles.Count} handle(s)."));
+		}
+
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-a", CancellationToken.None)
+			.ConfigureAwait(false);
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-b", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Idempotent: a retry re-records a handle the store already holds.
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key-a", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var after = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
+
+		if (after is null)
+		{
+			throw new TestFixtureAssertionException("Request should be found after recording destroyed keys.");
+		}
+
+		if (!after.DestroyedKeyHandles.Contains("subject-key-a")
+			|| !after.DestroyedKeyHandles.Contains("subject-key-b"))
+		{
+			throw new TestFixtureAssertionException(
+				"Both recorded handles must be readable back. A later record must ADD to what earlier ones "
+				+ $"wrote, never replace it. Got: {string.Join(", ", after.DestroyedKeyHandles)}");
+		}
+
+		if (after.DestroyedKeyHandles.Count != 2)
+		{
+			throw new TestFixtureAssertionException(
+				"Recording a handle twice must leave one entry for it, so a retry does not duplicate coverage. "
+				+ $"Expected 2 distinct handles, got {after.DestroyedKeyHandles.Count}.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that recording a destroyed key against a request that does not exist throws.
+	/// </summary>
+	/// <remarks>
+	/// The caller attests a destruction on the strength of this record existing, so a silent no-op here hands
+	/// it a false assurance and leaves the retry unable to attest the destruction either. This is also the
+	/// arm that stops the one above being satisfied by a store that accepts every write and stores nothing.
+	/// </remarks>
+	public virtual async Task RecordKeyDestroyedAsync_NonExistentRequest_ShouldThrowKeyNotFoundException()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var nonExistentId = GenerateRequestId();
+
+		try
+		{
+			await store.RecordKeyDestroyedAsync(nonExistentId, "subject-key", CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+		catch (KeyNotFoundException)
+		{
+			return;
+		}
+
+		throw new TestFixtureAssertionException(
+			"Expected RecordKeyDestroyedAsync to throw KeyNotFoundException for a request that does not exist. "
+			+ "Accepting the record quietly would let a caller attest a destruction on evidence no request holds.");
+	}
+
+	/// <summary>
+	/// Verifies that a destroyed key handle is compared ordinally, so case alone distinguishes two handles.
+	/// </summary>
+	/// <remarks>
+	/// A key handle is an opaque identifier, not text to be folded. A store whose comparison folded case would
+	/// treat two distinct subjects' handles as one and attest coverage for a key that was never destroyed —
+	/// which on a SQL store is decided by the column's COLLATION rather than by any framework code.
+	/// </remarks>
+	public virtual async Task RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		await store.RecordKeyDestroyedAsync(request.RequestId, "Subject-Key", CancellationToken.None)
+			.ConfigureAwait(false);
+		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
+
+		if (status is null || status.DestroyedKeyHandles.Count != 2)
+		{
+			throw new TestFixtureAssertionException(
+				"Two handles differing only in case are two handles. Folding them would attest coverage for a "
+				+ "key that was never destroyed. Expected 2, got "
+				+ (status is null ? "no request" : status.DestroyedKeyHandles.Count.ToString()));
+		}
+	}
+
+	/// <inheritdoc cref="RecordCompletionAsync_ShouldMarkCompleted"/>
 	public virtual async Task RecordCompletionAsync_NonExistent_ShouldThrowKeyNotFoundException()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
@@ -1146,6 +1277,97 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		catch (DuplicateErasureCertificateException)
 		{
 			// Expected
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a request holding TWO certificates still resolves by request id, and resolves to the
+	/// newest one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This arm exists because its absence let a P0 ship.</b> The certificates table keys uniqueness on
+	/// CertificateId and indexes RequestId NON-uniquely, while both SQL providers read the per-request
+	/// certificate with a SINGLE-row query. The moment a request held two certificates, that read threw
+	/// InvalidOperationException on every subsequent call, permanently — two signed documents stored and
+	/// neither retrievable by the lookup a consumer uses.
+	/// </para>
+	/// <para>
+	/// <b>Two certificates for one request is reachable and legitimate</b>, which is why the fix is a total
+	/// ordered read rather than a unique constraint: the partial-completion branch issues one certificate and
+	/// the completion branch issues another, so a request that partially completes and later completes holds
+	/// both. Forbidding the second would destroy evidence; the lookup simply has to say which is current.
+	/// </para>
+	/// <para>
+	/// <b>RED inputs, both of which this arm detects.</b> Change the per-request read back to a single-row
+	/// query and it fails with InvalidOperationException rather than an assertion. Remove the ORDER BY and it
+	/// fails the newest-wins assertion — which is why the OLDER certificate is saved FIRST here: an
+	/// unordered scan tends to return insertion order, so saving the newer one first would let a store with
+	/// no ordering pass by luck.
+	/// </para>
+	/// </remarks>
+	public virtual async Task GetCertificateAsync_WhenRequestHasTwoCertificates_ShouldReturnTheNewest()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var requestId = Guid.NewGuid();
+
+		var olderCertificate = CreateErasureCertificate(requestId: requestId);
+		olderCertificate = olderCertificate with
+		{
+			Payload = olderCertificate.Payload with { GeneratedAt = DateTimeOffset.UtcNow.AddHours(-2) },
+		};
+
+		var newerCertificate = CreateErasureCertificate(requestId: requestId);
+		newerCertificate = newerCertificate with
+		{
+			Payload = newerCertificate.Payload with { GeneratedAt = DateTimeOffset.UtcNow },
+		};
+
+		// Older FIRST, deliberately. See the RED inputs in the remarks.
+		await GetCertificateStore(store).SaveCertificateAsync(olderCertificate, CancellationToken.None)
+			.ConfigureAwait(false);
+		await GetCertificateStore(store).SaveCertificateAsync(newerCertificate, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// TOTALITY: the lookup must ANSWER. Before the fix this threw, and a throw here is the P0 itself
+		// rather than a test failure, so it is not caught and reshaped into a friendlier message.
+		var resolved = await GetCertificateStore(store)
+			.GetCertificateAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+		if (resolved is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"A request holding two certificates resolved to NONE. Request {requestId} has certificates "
+				+ $"{olderCertificate.Payload.CertificateId} and {newerCertificate.Payload.CertificateId}.");
+		}
+
+		// DETERMINISM: and it must be the current one, not whichever the engine happened to scan first.
+		if (resolved.Payload.CertificateId != newerCertificate.Payload.CertificateId)
+		{
+			throw new TestFixtureAssertionException(
+				"A request holding two certificates must resolve to the NEWEST. Expected "
+				+ $"{newerCertificate.Payload.CertificateId} (generated {newerCertificate.Payload.GeneratedAt:O}) "
+				+ $"but got {resolved.Payload.CertificateId} (generated {resolved.Payload.GeneratedAt:O}). "
+				+ "A completion certificate is generated after the partial one it supersedes, so returning the "
+				+ "older document reports an erasure as less complete than it is.");
+		}
+
+		// LIVENESS: both documents must still exist. A store that satisfied the two assertions above by
+		// discarding one certificate on write would be destroying signed evidence, which is worse than the
+		// defect this arm was written for.
+		foreach (var persisted in new[] { olderCertificate, newerCertificate })
+		{
+			var byId = await GetCertificateStore(store)
+				.GetCertificateByIdAsync(persisted.Payload.CertificateId, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			if (byId is null)
+			{
+				throw new TestFixtureAssertionException(
+					$"Certificate {persisted.Payload.CertificateId} is no longer retrievable by its own id. "
+					+ "Both certificates are signed evidence and neither may be dropped to make the "
+					+ "per-request lookup unambiguous.");
+			}
 		}
 	}
 

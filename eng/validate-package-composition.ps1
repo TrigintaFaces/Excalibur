@@ -89,10 +89,34 @@ finally {
 # Step 3: Clear NuGet cache/packages to avoid stale same-version local packages
 $stepNum++
 Write-Host "`n[$stepNum/4] Clearing NuGet cache..." -ForegroundColor Yellow
+
+# SHUT THE BUILD SERVERS DOWN FIRST. This is not hygiene -- without it this script fails on any
+# machine that has already built, and it fails in a way that blames the tree.
+#
+# MSBuild and the VB/C# compiler run as PERSISTENT SERVER PROCESSES that outlive the build which
+# started them, and they hold open handles to assemblies inside the global-packages folder. Clearing
+# that folder underneath them leaves the directory half-emptied with live handles into it, so the very
+# next restore cannot re-extract the files it just deleted and dies with
+#
+#   NuGet.targets: error : Access to the path 'MSBuild.Caching.dll' is denied.
+#
+# minver is the usual casualty because it ships an MSBuild task assembly that every project loads.
+#
+# WHAT IT LOOKS LIKE WHEN THIS BITES, because the symptom points at the wrong thing entirely: step 4
+# reports "146/150 projects failed to build", and the two steps AFTER this script -- the NuSpec
+# dependency check and the public-API baseline audit -- fail too. All three pass when run on their own.
+# Measured 2026-10-01: two full rehearsal runs failed identically, the second with nothing else running,
+# and 31 orphaned server processes were holding the cache each time. "dotnet build-server shutdown"
+# dropped the process count from 37 to 6 and the next restore succeeded with 0 errors.
+#
+# CI NEVER SAW THIS. A fresh runner has no pre-existing servers, so the clear is harmless there -- which
+# is exactly why a gate that is green in CI can be unrunnable for every developer.
+dotnet build-server shutdown 2>&1 | Out-Null
+
 dotnet nuget locals http-cache --clear 2>&1 | Out-Null
 dotnet nuget locals temp --clear 2>&1 | Out-Null
 dotnet nuget locals global-packages --clear 2>&1 | Out-Null
-Write-Host "  NuGet cache cleared" -ForegroundColor Green
+Write-Host "  NuGet cache cleared (build servers shut down first)" -ForegroundColor Green
 
 # Step 4: Build Excalibur with PackageReference
 $stepNum++

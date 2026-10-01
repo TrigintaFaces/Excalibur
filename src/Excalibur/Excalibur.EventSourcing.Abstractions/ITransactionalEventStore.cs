@@ -63,7 +63,7 @@ public interface ITransactionalEventStore : IEventStore
 	/// version pre-check or lost to a genuine race that slips past it</b> (two callers both pass the
 	/// pre-check, then race at insert/commit — the database's own uniqueness constraint on the stream
 	/// key decides the loser). Either shape yields
-	/// <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/>, matching
+	/// <see cref="AppendResult.CreateConcurrencyConflict(long, long?)"/>, matching
 	/// <see cref="IEventStore.AppendAsync"/>'s contract on the same provider. A failure that is
 	/// <em>not</em> a lost race — including a throw from <paramref name="stageOutbox"/> — propagates
 	/// as a thrown exception rather than a returned failure result, so the caller sees the original

@@ -131,7 +131,59 @@ public sealed class InMemoryKeyManagementProviderConformanceTests : KeyManagemen
 	public Task DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction_Test() =>
 		DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction();
 
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_WhenAbsent_ShouldCreateOneActiveVersion_Test() =>
+		CreateKeyIfAbsentAsync_WhenAbsent_ShouldCreateOneActiveVersion();
+
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_WhenPresent_ShouldNotRotateOrDemote_Test() =>
+		CreateKeyIfAbsentAsync_WhenPresent_ShouldNotRotateOrDemote();
+
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_ConcurrentFirstWrites_ShouldNotDemoteEachOther_Test() =>
+		CreateKeyIfAbsentAsync_ConcurrentFirstWrites_ShouldNotDemoteEachOther();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome_Test() =>
+		IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed();
+
 	#endregion DeleteKey Tests
+
+	#region KeyDestructionStatus Tests
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed_Test() =>
+		IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome_Test() =>
+		IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException_Test() =>
+		IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed_Test() =>
+		IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException_Test() =>
+		IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException();
+
+	#endregion KeyDestructionStatus Tests
 
 	#region SuspendKey Tests
 

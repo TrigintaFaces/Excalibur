@@ -435,6 +435,32 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 	}
 
 	[Fact]
+	public void CloudAppendResult_CreateConcurrencyConflict_WithNoMeasurement_ReportsNoVersion()
+	{
+		// A store can detect a conflict without succeeding in reading the version. The honest report is then
+		// NOTHING — never the caller's own expected version, and never a bound derived from what was seen.
+		// Echoing the caller back would render the message "expected version 5 but current version is 5",
+		// a conflict asserting that nothing moved.
+		var result = CloudAppendResult.CreateConcurrencyConflict(
+			expectedVersion: 5,
+			actualVersion: null,
+			requestCharge: 1.0);
+
+		result.Success.ShouldBeFalse();
+		result.IsConcurrencyConflict.ShouldBeTrue(
+			"failing to measure the version does not make the conflict any less of a conflict — the caller "
+			+ "still reloads and retries rather than treating it as a transport fault");
+		result.NextExpectedVersion.ShouldBeNull(
+			"a conflict the store could not measure states no version, so the caller reloads instead of "
+			+ "retrying into a number nobody read");
+		result.RequestCharge.ShouldBe(1.0);
+		result.ErrorMessage!.ShouldNotContain(
+			"current version is",
+			Case.Sensitive,
+			"an unmeasured conflict must not state a current version it never read");
+	}
+
+	[Fact]
 	public void CloudAppendResult_CreateFailure_ReturnFailedResult()
 	{
 		var result = CloudAppendResult.CreateFailure("Something went wrong", 0.5, MessageFailureKind.Transient);

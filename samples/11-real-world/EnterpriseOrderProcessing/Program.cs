@@ -115,8 +115,20 @@ services.AddGdprErasure(options =>
 {
 	options.DefaultGracePeriod = TimeSpan.FromHours(72);
 	options.EnableAutoDiscovery = true;
-	options.RequireVerification = true;
 });
+
+// Erasure consults legal holds before it destroys anything, and refuses to start when no
+// ILegalHoldService is registered -- a hold that is never checked is a hold that does not exist, and an
+// erasure cannot be undone. A deployment that operates none says so with AddNoLegalHolds(), which
+// supplies a service that truthfully reports none; the absence has to be a decision, not an oversight.
+services.AddInMemoryLegalHoldStore();
+services.AddLegalHoldService();
+
+// The discovery source. Erasure refuses to start with neither this nor an explicit
+// ErasureOptions.KeyShredOnlyErasure opt-in, because a completion certificate would otherwise attest
+// coverage that nothing verified.
+services.AddInMemoryDataInventoryStore();
+services.AddDataInventoryService();
 
 // Keyed data-subject pseudonymization requires a secret pepper; the framework fails closed at startup without
 // one. DEMO ONLY — in production supply a high-entropy secret from your secret manager / KMS, stored apart

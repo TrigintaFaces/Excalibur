@@ -106,16 +106,23 @@ public interface IProjectionStore<TProjection> : IServiceProvider
 	/// <b>This is not a positioned write, and a positioned client must not use it.</b> It replaces the
 	/// state with a value the store cannot relate to the event stream, so on a store that records
 	/// positions the row is left <c>Unplaceable</c>: not a fold over any prefix, and therefore something
-	/// no later positioned write may adopt or advance from. That is recorded explicitly, in the same
-	/// atomic action that writes the state -- never by silently dropping or resetting the position,
-	/// which would make a destroyed position indistinguishable from one that was never established.
+	/// no later positioned write may advance from -- as is a row left <c>Unnumbered</c>, so saying it only
+	/// of this one would imply the other is advanceable. What separates them is what the row ASSERTS: an
+	/// unplaceable state is not a fold over any prefix, where an unnumbered one is a complete fold missing
+	/// only its coordinate. That is recorded explicitly, in the same atomic action
+	/// that writes the state -- never by silently dropping or resetting the position, which would make a
+	/// destroyed position indistinguishable from one that was never established.
 	/// </para>
 	/// <para>
-	/// The two states are not interchangeable and they need opposite treatment: a row that never had a
-	/// position still holds a complete fold and may be adopted, while a row whose position this method
-	/// destroyed may not. A caller that has a complete fold but no position NUMBER wants
-	/// <c>IPositionedProjectionStore&lt;TProjection&gt;.UpsertUnnumberedAsync</c> instead, which says so
-	/// exactly; reaching for this method to express that makes the stronger and wrong claim.
+	/// <b>Calling this on a positioned store makes the projection unadvanceable until it is rebuilt.</b>
+	/// A positioned write refuses every row carrying no number, so the next batch is refused rather than
+	/// folded, and the repair is
+	/// <c>IPositionedProjectionStore&lt;TProjection&gt;.RebuildAtPositionAsync</c> after a whole-stream
+	/// replay. A caller that has a complete fold but no position NUMBER wants
+	/// <c>IPositionedProjectionStore&lt;TProjection&gt;.UpsertUnnumberedAsync</c> instead: that row is
+	/// refused too, but it reads back as a complete fold rather than as a state related to no prefix at
+	/// all, which is what a reader and an operator each need. Reaching for this method to express that
+	/// makes the stronger and wrong claim.
 	/// </para>
 	/// <para>
 	/// <b>Why the specification says this at all.</b> It is this operation, inherited by the positioned

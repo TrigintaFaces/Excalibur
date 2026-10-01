@@ -123,6 +123,32 @@ public sealed record ErasureExecutionResult
 	};
 
 	/// <summary>
+	/// Creates a result for an erasure that did everything it was asked to do, and for which personal data of
+	/// the same data subject was written while it was running.
+	/// </summary>
+	/// <param name="keysDeleted">The number of keys destroyed.</param>
+	/// <param name="recordsAffected">The number of records the contributors reported acting on.</param>
+	/// <param name="errorMessage">What was found, naming the handles that were live again when the erasure finished.</param>
+	/// <returns>A result whose <see cref="Success"/> is <see langword="false"/>.</returns>
+	/// <remarks>
+	/// <see cref="Success"/> is <see langword="false"/> because the erasure did not cover everything it
+	/// reported on, and a caller that only asks "did it work" must not read this as a completed erasure. It is
+	/// nonetheless distinct from <see cref="PartiallySucceeded"/>: nothing the erasure attempted failed. See
+	/// <see cref="ErasureRequestStatus.CompletedExceptConcurrentWrites"/> for why the distinction is the fix
+	/// rather than a nicety.
+	/// </remarks>
+	public static ErasureExecutionResult CompletedExceptConcurrentWrites(
+		int keysDeleted,
+		int recordsAffected,
+		string errorMessage) => new()
+		{
+			Success = false,
+			KeysDeleted = keysDeleted,
+			RecordsAffected = recordsAffected,
+			ErrorMessage = errorMessage,
+		};
+
+	/// <summary>
 	/// Creates a failed execution result.
 	/// </summary>
 	public static ErasureExecutionResult Failed(string errorMessage) => new()

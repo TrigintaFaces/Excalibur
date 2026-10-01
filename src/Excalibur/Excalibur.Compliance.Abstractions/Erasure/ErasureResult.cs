@@ -153,7 +153,37 @@ public enum ErasureRequestStatus
 	/// the key destruction it is waiting on can no longer be withdrawn by the framework.
 	/// </para>
 	/// </remarks>
-	AwaitingKeyDestruction = 8
+	AwaitingKeyDestruction = 8,
+
+	/// <summary>
+	/// Everything the erasure was asked to do succeeded, and personal data for the same data subject was
+	/// written while it was running — so the erasure did not cover that data.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This state exists because its absence forced the wrong answer.</b> Key destruction runs once, near
+	/// the start, and establishes the state of the key handles at that instant and nothing later. A write
+	/// that lands afterwards, for the same subject, mints a live key at a handle the erasure had destroyed —
+	/// so at the moment the certificate is signed there is personal data of an erased subject encrypted under
+	/// a live key. With only <see cref="Completed"/> and <see cref="PartiallyCompleted"/> available, that
+	/// outcome had to be reported as one of them: <see cref="Completed"/> attests an erasure that did not
+	/// happen, and <see cref="PartiallyCompleted"/> says something failed when nothing did. A reader could
+	/// not tell either apart from the genuine article.
+	/// </para>
+	/// <para>
+	/// <b>It is not a failure, and it is not completion.</b> Nothing the erasure attempted went wrong, and
+	/// nothing needs retrying for the data it did reach — the data written during the window is simply
+	/// outside what was erased. The remedy is another erasure for the same subject, once the writes have
+	/// stopped; the certificate this run issues records what was reached and states that the erasure did not
+	/// complete, so an auditor reads the true outcome rather than inferring one.
+	/// </para>
+	/// <para>
+	/// <b>Confidentiality is not breached by reaching this state.</b> Data encrypted under the destroyed key
+	/// stays unreadable. What survives is data written after that destruction, which was never covered by
+	/// it — a coverage gap, stated plainly, rather than an erased value becoming recoverable.
+	/// </para>
+	/// </remarks>
+	CompletedExceptConcurrentWrites = 9
 }
 
 /// <summary>
@@ -224,37 +254,58 @@ public sealed record LegalHoldInfo
 public enum LegalHoldBasis
 {
 	/// <summary>
+	/// No Article 17(3) ground was established: nobody stated one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Zero means "not established" so that a value nobody assigned cannot read as a lawful ground.</b>
+	/// <c>required</c> makes omission inexpressible to the C# compiler, but a reflection binder, a
+	/// deserializer, a store round trip and an out-of-range cast all reach this enum without the compiler's
+	/// involvement — and whatever sits at zero is what they produce. While zero was
+	/// <see cref="FreedomOfExpression"/>, an unset configuration value was indistinguishable from a
+	/// deliberate Article 17(3)(a) claim, and on a signed erasure certificate it read as the ground under
+	/// which a tax record was kept.
+	/// </para>
+	/// <para>
+	/// <b>It is not a lawful basis and must never be attested as one.</b> An exemption carrying it is an
+	/// unmet obligation, and presenting an unmet obligation as a ground turns a failure into a defensible
+	/// retention. An erasure whose certificate would carry it is recorded as not complete.
+	/// </para>
+	/// </remarks>
+	NotEstablished = 0,
+
+	/// <summary>
 	/// Article 17(3)(a) - Freedom of expression and information.
 	/// </summary>
-	FreedomOfExpression = 0,
+	FreedomOfExpression = 1,
 
 	/// <summary>
 	/// Article 17(3)(b) - Legal obligation under EU/Member State law.
 	/// </summary>
-	LegalObligation = 1,
+	LegalObligation = 2,
 
 	/// <summary>
 	/// Article 17(3)(c) - Public interest (public health).
 	/// </summary>
-	PublicInterestHealth = 2,
+	PublicInterestHealth = 3,
 
 	/// <summary>
 	/// Article 17(3)(d) - Archiving in public interest, research, statistics.
 	/// </summary>
-	ArchivingResearchStatistics = 3,
+	ArchivingResearchStatistics = 4,
 
 	/// <summary>
 	/// Article 17(3)(e) - Legal claims (defense/exercise).
 	/// </summary>
-	LegalClaims = 4,
+	LegalClaims = 5,
 
 	/// <summary>
 	/// Litigation hold (anticipation of legal proceedings).
 	/// </summary>
-	LitigationHold = 5,
+	LitigationHold = 6,
 
 	/// <summary>
 	/// Regulatory investigation.
 	/// </summary>
-	RegulatoryInvestigation = 6
+	RegulatoryInvestigation = 7
 }

@@ -644,12 +644,8 @@
       },
       {
         "project": "samples/06-security/GdprCompliance/GdprCompliance.csproj",
-        "mode": "build",
-        "timeoutSeconds": null,
-        "buildOnlyReason": "requires-external-infrastructure",
-        "requiresExternalInfrastructure": [
-          "Azure Key Vault"
-        ]
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/06-security/GrantAuthorizedApi/GrantAuthorizedApi.csproj",

@@ -79,8 +79,9 @@ public sealed class DynamoDbPositionedProjectionContainerFixture : ContainerFixt
 /// </para>
 /// <para>
 /// Specifically: DynamoDB rejects a request that carries an expression attribute value no expression
-/// references. The create-and-adopt branch's condition references none, so building the value map up
-/// front made every first write and every adoption fail. Nothing short of the real service sees that —
+/// references, and equally one carrying an unreferenced NAME. The create-if-absent branch's condition
+/// references only the partition key, so building either map up front made every first write fail.
+/// Nothing short of the real service sees that —
 /// the C# is correct, the expression is correct, and the pairing is not.
 /// </para>
 /// </remarks>
@@ -110,11 +111,17 @@ public sealed class DynamoDbPositionedProjectionConformanceTests
 	public Task Refuse_a_late_starter_that_claims_absence_Test() => Refuse_a_late_starter_that_claims_absence();
 
 	[Fact]
-	public Task Adopt_a_row_that_carries_no_position_Test() => Adopt_a_row_that_carries_no_position();
+	public Task Refuse_a_row_that_carries_no_position_Test() => Refuse_a_row_that_carries_no_position();
 
-	// The safety half of the pair above: that arm requires a COMPLETE FOLD with no number to be
-	// adopted, this one requires a row the blind surface left UNPLACEABLE to be refused. Either
-	// alone is satisfiable by a store that treats both the same, which is what every provider did.
+	// The liveness half of the pair above, and what makes that refusal legitimate rather than a stall:
+	// without it the refusal is satisfied by a store that refuses everything.
+	[Fact]
+	public Task Rebuild_repairs_a_row_that_carries_no_position_Test() =>
+		Rebuild_repairs_a_row_that_carries_no_position();
+
+	// The READ side of the two no-number states. Both writes are refused; what differs is which state
+	// the row reads back as -- UNPLACEABLE here, UNNUMBERED above -- and a store that dropped the
+	// position instead of recording the sentinel passes the refusal and fails this.
 	[Fact]
 	public Task Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable_Test() =>
 		Refuse_to_adopt_a_row_an_unconditional_write_left_unplaceable();
@@ -171,6 +178,13 @@ public sealed class DynamoDbPositionedProjectionConformanceTests
 	public Task Report_requires_rebuild_for_a_row_with_no_established_position_Test() =>
 		Report_requires_rebuild_for_a_row_with_no_established_position();
 
+	// The UNNUMBERED half of the pair above: that arm drives the row through the blind surface, this one
+	// writes a complete fold with no number. A store discriminating on == Unplaceable rather than
+	// != Positioned passes one and fails the other.
+	[Fact]
+	public Task Report_requires_rebuild_for_a_refold_against_an_unnumbered_row_Test() =>
+		Report_requires_rebuild_for_a_refold_against_an_unnumbered_row();
+
 	/// <summary>A repeated re-fold leaves the row identical.</summary>
 	/// <returns>A task representing the arm.</returns>
 	[Fact]
@@ -187,6 +201,11 @@ public sealed class DynamoDbPositionedProjectionConformanceTests
 	/// <returns>A task representing the arm.</returns>
 	[Fact]
 	public Task Refuse_a_negative_position_argument_Test() => Refuse_a_negative_position_argument();
+
+	/// <summary>A rebuild must never resurrect a row an erasure deleted.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Rebuild_must_not_resurrect_a_deleted_row_Test() => Rebuild_must_not_resurrect_a_deleted_row();
 
 	/// <inheritdoc />
 	protected override Task<IProjectionStore<ConformanceProjection>> CreateStoreAsync()

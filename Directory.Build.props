@@ -98,7 +98,14 @@
 	<PropertyGroup>
 		<Authors>The Excalibur Project Contributors</Authors>
 		<Copyright>Copyright © The Excalibur Project $([System.DateTime]::Now.Year)</Copyright>
-		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+		<!-- ProjectUrl is the PRODUCT HOME; RepositoryUrl is the SOURCE. NuGet renders them as two
+		     separate links, so pointing both at the repository wastes the more prominent slot on a
+		     duplicate of the other one. Matches what the ecosystem does: Microsoft.Extensions.*
+		     publishes projectUrl https://dot.net/ against a github.com/dotnet/dotnet repository,
+		     Newtonsoft.Json its own json docs page, Serilog serilog.net; each declares the repository
+		     declared separately. A consumer arriving from nuget.org wants installation and usage
+		     first; someone who wants the source follows the repository link. -->
+		<PackageProjectUrl>https://docs.excalibur-dispatch.dev</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<!-- ============================================================================================

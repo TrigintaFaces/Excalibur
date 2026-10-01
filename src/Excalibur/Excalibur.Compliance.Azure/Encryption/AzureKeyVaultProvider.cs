@@ -32,6 +32,21 @@ namespace Excalibur.Compliance.Azure;
 /// <strong> Important: </strong> This provider performs server-side cryptographic operations. Key material never leaves Azure Key Vault,
 /// providing maximum security.
 /// </para>
+/// <para>
+/// <strong>Key versions are DERIVED here, not observed, and the difference is observable.</strong> Azure Key
+/// Vault versions are opaque identifiers with no ordinal — the service exposes no "version 3" — while
+/// <see cref="KeyMetadata.Version"/> is an integer, so this provider derives one from each opaque identifier.
+/// The derivation is deterministic and stable across processes, but it is NOT injective: two versions of one
+/// key can derive the same number. When that happens <see cref="GetKeyVersionAsync"/> RAISES rather than
+/// resolving one of the candidates, because returning one would describe a version the caller did not ask
+/// for, and the number forms part of the data that authenticates an encrypted value — so the mismatch would
+/// surface later as a failed authentication tag on a value whose key is healthy.
+/// </para>
+/// <para>
+/// <strong>Deleting a key here removes every version of it.</strong> Azure Key Vault has no per-version
+/// delete, so destruction is whole-key and a question about one version's destruction is answered by the
+/// state of the key. That is a property of the service, not a simplification by this provider.
+/// </para>
 /// </remarks>
 public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IKeyDestructionStatusProvider, IDisposable
 {
@@ -126,22 +141,59 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 		{
 			var keyName = GetKeyName(keyId);
 
-			// Azure Key Vault uses string versions, we map integer versions by iterating through key versions
+			// Azure Key Vault versions are OPAQUE STRINGS with no ordinal, so an integer version is matched by
+			// mapping each of the key's versions through the same derivation. That mapping is not injective,
+			// and this loop must not resolve an ordinal that more than one version maps to.
+			//
+			// EVERY match is collected rather than returning the first, because returning the first silently
+			// answers about a DIFFERENT version than the caller asked for: the metadata would carry the
+			// requested ordinal while naming another version's material. A decrypt then fails its
+			// authentication tag with nothing saying why, for a value whose key is present and healthy.
+			string? resolvedVersion = null;
+			List<string>? ambiguousVersions = null;
+
 			await foreach (var keyProperties in _keyClient.GetPropertiesOfKeyVersionsAsync(keyName, cancellationToken))
 			{
-				// Extract version number from the key version string
-				var versionNumber = ExtractVersionNumber(keyProperties);
-				if (versionNumber == version)
+				if (ExtractVersionNumber(keyProperties) != version)
 				{
-					var response = await _keyClient.GetKeyAsync(keyName, keyProperties.Version, cancellationToken).ConfigureAwait(false);
-					var metadata = MapToKeyMetadata(keyId, response.Value, version);
-					CacheMetadata(cacheKey, metadata);
-					return metadata;
+					continue;
 				}
+
+				if (resolvedVersion is null)
+				{
+					resolvedVersion = keyProperties.Version;
+					continue;
+				}
+
+				(ambiguousVersions ??= [resolvedVersion]).Add(keyProperties.Version);
 			}
 
-			LogKeyVersionNotFound(keyId, version);
-			return null;
+			if (ambiguousVersions is not null)
+			{
+				// Refused rather than guessed. The caller asked about one version and this provider cannot say
+				// which of these it meant, so it says that instead of choosing.
+				throw new EncryptionException(
+					$"Key '{keyId}' has {ambiguousVersions.Count} Azure Key Vault versions that map to version "
+					+ $"number {version}, so the version cannot be resolved unambiguously. Azure Key Vault "
+					+ "versions are opaque identifiers with no ordinal, and this provider derives an integer "
+					+ "from each; the derivation is not injective. Resolving one of them would answer about a "
+					+ "version the caller did not ask for. Ambiguous versions: "
+					+ string.Join(", ", ambiguousVersions))
+				{
+					ErrorCode = EncryptionErrorCode.Unknown
+				};
+			}
+
+			if (resolvedVersion is null)
+			{
+				LogKeyVersionNotFound(keyId, version);
+				return null;
+			}
+
+			var response = await _keyClient.GetKeyAsync(keyName, resolvedVersion, cancellationToken).ConfigureAwait(false);
+			var metadata = MapToKeyMetadata(keyId, response.Value, version);
+			CacheMetadata(cacheKey, metadata);
+			return metadata;
 		}
 		catch (RequestFailedException ex) when (ex.Status == 404)
 		{
@@ -302,6 +354,82 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 		}
 	}
 
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// <b>Key Vault cannot do this atomically, and that is a property of the backend rather than of this
+	/// provider.</b> Creating a key and adding a version to one are the SAME request there -- the create
+	/// endpoint adds a version when the name is taken, and it has no conditional form, no
+	/// <c>If-None-Match</c> and no create-only flag. So this reads, then creates, and two genuinely
+	/// concurrent callers that both read "absent" can both create, leaving the key with two versions.
+	/// </para>
+	/// <para>
+	/// <b>What this does guarantee, on every backend, is the part that matters:</b> it never rotates and never
+	/// demotes. Key Vault treats the newest version as the usable one and never marks a superseded version
+	/// decrypt-only, so both versions of a raced create remain usable and no ciphertext is left naming a
+	/// version the vault has fenced. The extra version costs a wasted key; it does not lose a write.
+	/// </para>
+	/// </remarks>
+	public async Task<KeyMetadata> CreateKeyIfAbsentAsync(
+		string keyId,
+		DispatchEncryptionAlgorithm algorithm,
+		string? purpose,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		var existing = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+		if (existing is not null)
+		{
+			return existing;
+		}
+
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			var keyName = GetKeyName(keyId);
+
+			// Re-read behind the gate. This does not make the operation atomic across processes -- nothing
+			// available here can -- but it does stop two callers inside ONE process from both creating.
+			try
+			{
+				var found = await _keyClient.GetKeyAsync(keyName, cancellationToken: cancellationToken)
+					.ConfigureAwait(false);
+
+				if (found?.Value is not null)
+				{
+					return MapToKeyMetadata(keyId, found.Value);
+				}
+			}
+			catch (RequestFailedException ex) when (ex.Status == 404)
+			{
+				// Absent, as expected on this path.
+			}
+
+			var createOptions = new CreateRsaKeyOptions(keyName, hardwareProtected: !_options.UseSoftwareKeys)
+			{
+				KeySize = 2048,
+				Enabled = true
+			};
+
+			createOptions.Tags["excalibur:purpose"] = purpose ?? "general";
+			createOptions.Tags["excalibur:algorithm"] = algorithm.ToString();
+			createOptions.Tags["excalibur:created"] = DateTimeOffset.UtcNow.ToString("O");
+
+			var created = await _keyClient.CreateRsaKeyAsync(createOptions, cancellationToken).ConfigureAwait(false);
+
+			LogKeyCreated(keyId);
+			InvalidateCache(keyId);
+
+			return MapToKeyMetadata(keyId, created.Value);
+		}
+		finally
+		{
+			_ = _rateLimitSemaphore.Release();
+		}
+	}
+
 	/// <inheritdoc />
 	/// <remarks>
 	/// <para>
@@ -418,6 +546,62 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Key Vault has no per-version delete: a delete takes the key with every version it holds, and a purge
+	/// destroys them together. Every version of a key therefore shares one destruction state, and narrowing the
+	/// question to a version cannot narrow the answer -- so this answers exactly as the key-scoped overload does.
+	/// It does NOT read the requested version and report its absence, because an absent version under a live key is
+	/// an envelope this vault never produced, not material this vault destroyed.
+	/// </remarks>
+	public Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken) =>
+		IsKeyDestroyedAsync(keyId, cancellationToken);
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// The generation is Key Vault's own opaque version identifier, so this asks whether the vault still holds
+	/// that exact version. A key the vault does not hold at all settles it. A key it does hold is then checked
+	/// for the specific version, because the handle looking alive is the case this exists for: a key deleted
+	/// and created again at the same name is healthy and holds entirely different material.
+	/// </para>
+	/// <para>
+	/// A version still inside the soft-delete recovery window is NOT destroyed, which the whole-key check
+	/// already establishes before this gets that far.
+	/// </para>
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+		ArgumentException.ThrowIfNullOrEmpty(generation);
+
+		if (await IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false))
+		{
+			return true;
+		}
+
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			_ = await _keyClient.GetKeyAsync(GetKeyName(keyId), generation, cancellationToken).ConfigureAwait(false);
+
+			// The vault still holds this exact version, so its material is recoverable and reading a payload
+			// written under it is not an erasure.
+			return false;
+		}
+		catch (RequestFailedException ex) when (ex.Status == 404)
+		{
+			// The key exists and this version of it does not: the material this caller's payload was written
+			// under is gone, whatever has been provisioned at the handle since.
+			return true;
+		}
+		finally
+		{
+			_ = _rateLimitSemaphore.Release();
+		}
+	}
+
+	/// <inheritdoc />
 	public async Task<bool> SuspendKeyAsync(string keyId, string reason, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -521,7 +705,11 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 		// Return the most recently created active key
 		var activeKey = keys
 			.Where(k => !k.ExpiresAt.HasValue || k.ExpiresAt.Value > DateTimeOffset.UtcNow)
-			.OrderByDescending(k => k.CreatedAt)
+			// An UNDATED key sorts OLDEST, so it is never chosen as the most recent while any dated key is a
+			// candidate. Written as two keys rather than relying on the default comparer ranking null below
+			// every value: the direction is a safety property, and it should take a visible edit to reverse.
+			.OrderByDescending(k => k.CreatedAt.HasValue)
+			.ThenByDescending(k => k.CreatedAt)
 			.FirstOrDefault();
 
 		if (activeKey is not null)
@@ -574,9 +762,33 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 		LogProviderDisposed();
 	}
 
+	/// <summary>
+	/// Derives the integer version number this provider reports for an Azure Key Vault key version.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is a DERIVED value, not a measurement, and it is load-bearing.</b> Azure Key Vault versions are
+	/// opaque identifiers with no ordinal — the service exposes no "version 3" — while the framework's key
+	/// metadata carries an <see cref="int"/>. So a number has to come from somewhere, and this is where.
+	/// </para>
+	/// <para>
+	/// <b>It cannot be changed compatibly, which is why it is still here rather than deleted.</b> The number
+	/// this returns is written onto every envelope encrypted under an Azure-backed key, is the value a decrypt
+	/// uses to resolve the key again, and is BOUND INTO THE AES-GCM ASSOCIATED DATA. Changing the derivation —
+	/// to an ordering-based index, a wider hash, or a constant — makes every value already encrypted under an
+	/// Azure key undecryptable twice over: the lookup no longer finds the version, and even if it did the
+	/// associated data would differ and the authentication tag would not verify. A migration would have to
+	/// re-encrypt, and that is a disposition decision rather than a code change.
+	/// </para>
+	/// <para>
+	/// <b>It is NOT injective, and the caller is protected rather than the collision hidden.</b> The codomain
+	/// is 100000 buckets, so two of a key's versions can derive the same number. Version lookup refuses an
+	/// ambiguous number instead of resolving one of the candidates, so a collision is reported rather than
+	/// answered about the wrong version. That refusal is the guard; this function is deliberately unchanged.
+	/// </para>
+	/// </remarks>
 	private static int ExtractVersionNumber(KeyProperties properties)
 	{
-		// Azure Key Vault versions are opaque strings; we map each to a pseudo-version integer.
 		if (string.IsNullOrEmpty(properties.Version))
 		{
 			return 1;
@@ -718,9 +930,21 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDur
 		{
 			KeyId = keyId,
 			Version = version,
+
+			// KEY VAULT'S OWN OPAQUE VERSION IS THE GENERATION, and this is the provider that needed no value
+			// invented for it. The identifier designates one piece of material: a delete removes the key with
+			// every version it holds, and a key created again at the same name gets entirely new opaque
+			// versions, so an identifier from before an erasure never names material that exists afterwards.
+			// It is also why the ORDINAL above cannot serve: that restarts at 1 and names both.
+			Generation = key.Properties.Version,
+
 			Status = status,
 			Algorithm = algorithm,
-			CreatedAt = key.Properties.CreatedOn ?? DateTimeOffset.UtcNow,
+			// REPORTED, NOT FABRICATED. Substituting the local clock makes a key of unknown age sort as the
+			// newest, and the active-key resolution below orders by this field -- so an invented instant does
+			// not degrade the choice, it inverts it. The absence is passed through instead, and the ordering
+			// sorts an undated key oldest.
+			CreatedAt = key.Properties.CreatedOn,
 			ExpiresAt = key.Properties.ExpiresOn,
 			LastRotatedAt = key.Properties.UpdatedOn,
 			Purpose = purpose,

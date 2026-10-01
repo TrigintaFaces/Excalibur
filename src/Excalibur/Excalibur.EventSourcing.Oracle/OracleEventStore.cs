@@ -26,11 +26,11 @@ namespace Excalibur.EventSourcing.Oracle;
 /// Provides atomic event appends with optimistic concurrency control. Because Oracle has no rowversion,
 /// concurrency is enforced by reading the current stream version and comparing it inside a
 /// <see cref="IsolationLevel.ReadCommitted"/> transaction before the append; a mismatch yields
-/// <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/> directly. The pre-check narrows the race
+/// <see cref="AppendResult.CreateConcurrencyConflict(long, long?)"/> directly. The pre-check narrows the race
 /// window but is not itself atomic under ReadCommitted, so the shipped <c>UNIQUE(AGGREGATEID,
 /// AGGREGATETYPE, VERSION, TENANTID)</c> constraint (per aggregate stream) is the actual backstop: a loser
 /// that slips past the pre-check hits ORA-00001 on INSERT, which <see cref="IsStreamUniqueViolation"/> /
-/// <see cref="IsLostRace"/> classify as the same <see cref="AppendResult.CreateConcurrencyConflict(long, long)"/>.
+/// <see cref="IsLostRace"/> classify as the same <see cref="AppendResult.CreateConcurrencyConflict(long, long?)"/>.
 /// Converges Oracle onto the same ReadCommitted + UNIQUE-constraint pattern Postgres and SQL Server already
 /// use, retiring the SERIALIZABLE isolation and its ORA-08177 bounded-retry loop this store carried
 /// previously — atomicity of a multi-row append comes from the transaction boundary, not the isolation
@@ -283,7 +283,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 				result = WriteStoreTelemetry.Results.Conflict;
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 
-				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
 			result = WriteStoreTelemetry.Results.Failure;
@@ -386,7 +386,11 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 				if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
 				{
 					activity.SetOperationResult(EventSourcingTagValues.Success);
-					return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+
+					// RECOGNISED, not written by this call. Reporting plain success here would be true about
+					// the append and silently false about the call: these rows are durable, but they are a
+					// prior attempt's, and anything may have happened to them since — an erasure included.
+					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
 				}
 
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -447,7 +451,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			if (IsLostRace(ex, currentVersion, expectedVersion))
 			{
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
-				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
 			throw;
@@ -498,7 +502,9 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			if (committedOnRetry is { CommittedCount: > 0 } retryLanded && retryLanded.LastVersion is { } retryVersion)
 			{
 				activity.SetOperationResult(EventSourcingTagValues.Success);
-				return AppendResult.CreateSuccess(retryVersion, retryLanded.FirstPosition);
+
+				// RECOGNISED, not written by this call — see the staging overload's pre-check branch.
+				return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
 			}
 
 			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);

@@ -724,10 +724,25 @@ public abstract class KeyRotationSchedulerConformanceTestKit : ConformanceTestKi
 						"Expected GetNextRotationTimeAsync to return a time when AutoRotateEnabled is true.");
 				}
 			}
+			else if (key.CreatedAt is null)
+			{
+				// A key the backend did not date is ALREADY DUE: nothing can show it is still within its
+				// maximum age, and the contract resolves that as stale rather than as recent. So its next
+				// rotation time must be in the past, never a plausible future one computed from a substituted
+				// clock -- which is the failure this branch exists to catch on a provider that invents instants.
+				if (result.Value > DateTimeOffset.UtcNow)
+				{
+					throw new TestFixtureAssertionException(
+						$"The provider reported no creation instant for this key, so it cannot be shown to be "
+						+ $"within its maximum age and must be treated as due. The next rotation time came back "
+						+ $"as {result.Value}, which is in the future -- so an unknown age was resolved as "
+						+ "recent. An undated key must be due, not scheduled.");
+				}
+			}
 			else
 			{
 				// Expected time should be approximately: CreatedAt + MaxKeyAge
-				var expectedTime = key.CreatedAt.Add(options.DefaultPolicy.MaxKeyAge);
+				var expectedTime = key.CreatedAt.Value.Add(options.DefaultPolicy.MaxKeyAge);
 				var tolerance = TimeSpan.FromSeconds(5);
 
 				if (Math.Abs((result.Value - expectedTime).TotalSeconds) > tolerance.TotalSeconds)

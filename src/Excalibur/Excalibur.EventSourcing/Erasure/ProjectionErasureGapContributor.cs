@@ -7,16 +7,24 @@ using Excalibur.EventSourcing.Projections;
 namespace Excalibur.EventSourcing.Erasure;
 
 /// <summary>
-/// Reports, on every erasure, that registered projections still hold the data subject's material —
-/// so the certificate cannot say Completed while a read model still carries it.
+/// Names the registered projections an erasure could not reach, so the certificate cannot say
+/// Completed while a read model still carries the data subject's material.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>This contributor erases nothing, on purpose.</b> It exists because the framework cannot yet
-/// propagate an erasure to a materialized read model: erasure tombstones the event rows in place and
-/// appends nothing, so a projection that already folded the subject's events is never told and keeps
-/// the data indefinitely. That is a real gap, and the failure this type prevents is not the gap — it
-/// is the gap being reported as success.
+/// <b>This contributor erases nothing, on purpose.</b> It reports the RESIDUE of an erasure that does
+/// now reach read models: a projection whose id is the aggregate id is cleared per aggregate as part of
+/// the erasure, and this names the ones that could not be — a projection registering a <c>KeyedBy</c>
+/// selector folds many aggregates into one row, so replaying a single aggregate could not produce a
+/// correct row for such a key. That residue is a real gap, and the failure this type prevents is not
+/// the gap — it is the gap being reported as success.
+/// </para>
+/// <para>
+/// Superseded wording, quoted so a reader who inherited it recognises it: "It exists because the
+/// framework cannot yet propagate an erasure to a materialized read model: erasure tombstones the event
+/// rows in place and appends nothing, so a projection that already folded the subject's events is never
+/// told and keeps the data indefinitely." That was true of every projection when written. It is now
+/// true only of the keyed ones, which is why this report names them instead of reporting all of them.
 /// </para>
 /// <para>
 /// <b>Why a failing contributor rather than a declared location.</b> The coverage gate is conservative
@@ -82,8 +90,16 @@ internal sealed class ProjectionErasureGapContributor : IErasureContributor
 		// for an erasure to miss. Reporting a gap for one would be a false partial, and a control that
 		// fires when it should not is as wrong as one that stays silent when it should: an operator who
 		// sees it on every erasure stops reading it.
-		if (_serviceProvider.GetService(typeof(IProjectionRegistry)) is not IProjectionRegistry registry
-			|| !HasPersistedProjections(registry))
+		if (_serviceProvider.GetService(typeof(IProjectionRegistry)) is not IProjectionRegistry registry)
+		{
+			return Task.FromResult(ErasureContributorResult.Succeeded(0));
+		}
+
+		var unreached = UnreachedProjections(registry, context.Scope);
+
+		// Nothing was left holding the subject: either no projection persists a row, or every persisted
+		// one was cleared per aggregate when its events were tombstoned.
+		if (unreached.Count == 0)
 		{
 			return Task.FromResult(ErasureContributorResult.Succeeded(0));
 		}
@@ -95,41 +111,73 @@ internal sealed class ProjectionErasureGapContributor : IErasureContributor
 			return Task.FromResult(ErasureContributorResult.Succeeded(0));
 		}
 
+		// NAMED, never counted. A controller discharging an Article 17 request has to deal with these read
+		// models by hand, so the one thing the report must carry is WHICH ones. A count tells them nothing
+		// they can act on.
+		var reason = context.Scope == ErasureScope.Selective
+			? "This erasure names specific data categories, and event-store erasure is whole-aggregate, so "
+				+ "it tombstoned nothing and no projection was cleared. Every persisted read model still "
+				+ "holds whatever it folded."
+			: "A projection keyed per aggregate is cleared as part of the erasure: its row is replayed from "
+				+ "the tombstoned stream, so it keeps none of the subject's data. The projections named "
+				+ "above cannot be, because each registers a KeyedBy selector — many aggregates fold into "
+				+ "one row, and replaying a single aggregate could not produce a correct row for such a key. "
+				+ "Rebuild those projections to clear the subject from them.";
+
 		return Task.FromResult(new ErasureContributorResult
 		{
 			Success = false,
 			RecordsAffected = 0,
 			ErrorMessage =
-				"Registered projections still hold this data subject's material. Erasure tombstones the "
-				+ "event rows in place and does not notify read models, so a projection that already "
-				+ "folded the subject's events keeps them until it is replayed. This erasure is therefore "
-				+ "PARTIAL, not complete. To clear a subject from a projection keyed per aggregate, call "
-				+ "IProjectionRecovery.ReapplyAsync for that subject's aggregate; for rows the subject "
-				+ "shares with others, rebuild the projection. Register your own IErasureContributor "
+				"Registered projection(s) still hold this data subject's material: "
+				+ string.Join(", ", unreached)
+				+ ". " + reason
+				+ " This erasure is therefore PARTIAL, not complete. Register your own IErasureContributor "
 				+ "declaring DataStoreKind.Projection to take over this responsibility and silence this "
 				+ "report.",
 		});
 	}
 
 	/// <summary>
-	/// Whether any registered projection persists rows an erasure could fail to reach.
+	/// Names every registered projection that may still hold the subject's material after this erasure.
 	/// </summary>
 	/// <remarks>
-	/// Inline and asynchronous projections write to a store and keep what they folded. An ephemeral
-	/// projection is rebuilt from the stream on every read and keeps nothing, so a tombstoned stream
-	/// yields a clean result without any erasure step — it is not a gap and must not be reported as one.
+	/// <para>
+	/// An EPHEMERAL projection is excluded: it is computed on demand from the stream and persists no row,
+	/// so once the events are tombstoned the next computation carries none of the subject's data. A
+	/// control that fires when it should not is as wrong as one that stays silent when it should — an
+	/// operator who sees this on every erasure stops reading it.
+	/// </para>
+	/// <para>
+	/// A persisted projection is excluded when it carries a clear delegate, because that delegate is what
+	/// the erasure invoked per aggregate. Reading the SAME property the erasure dispatches on is what
+	/// keeps this report inseparable from the wiring it attests: a projection that became unclearable
+	/// would reappear here without anyone remembering to update a list.
+	/// </para>
+	/// <para>
+	/// A SELECTIVE erasure names data categories, and event-store erasure is whole-aggregate, so it
+	/// refuses the request outright and tombstones nothing. No projection was cleared, and reporting only
+	/// the keyed ones would credit a clearing that never happened.
+	/// </para>
 	/// </remarks>
-	private static bool HasPersistedProjections(IProjectionRegistry registry)
+	private static List<string> UnreachedProjections(IProjectionRegistry registry, ErasureScope scope)
 	{
+		var unreached = new List<string>();
+
 		foreach (var registration in registry.GetAll())
 		{
-			if (registration.Mode is ProjectionMode.Inline or ProjectionMode.Async)
+			if (registration.Mode is not (ProjectionMode.Inline or ProjectionMode.Async))
 			{
-				return true;
+				continue;
+			}
+
+			if (scope == ErasureScope.Selective || registration.ClearForAggregate is null)
+			{
+				unreached.Add(registration.ProjectionType.Name);
 			}
 		}
 
-		return false;
+		return unreached;
 	}
 
 	/// <summary>

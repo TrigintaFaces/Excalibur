@@ -54,6 +54,24 @@ public sealed partial class AwsKmsHistoricalKeyProvider : IHistoricalKeyProvider
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
+	/// <summary>
+	/// The refusal raised when KMS reports a key version with no creation instant.
+	/// </summary>
+	/// <param name="keyId"> The key whose version could not be dated. </param>
+	/// <returns> The exception to throw. </returns>
+	/// <remarks>
+	/// THIS PATH IS THE ONE THAT ORDERS VERSIONS BY CREATION TIME, so a fabricated instant is not a cosmetic
+	/// inaccuracy here. <see cref="GetKeyVersionAsync"/> selects the version live at a requested instant by
+	/// comparing against this field and STOPS at the first version that postdates it; a version stamped with
+	/// the local clock therefore appears to postdate every historical request, truncating the scan and
+	/// resolving to an older version than the one that was actually live, or to none at all. Refusing keeps
+	/// that loud. It matches the refusal this package already makes when describing a key.
+	/// </remarks>
+	private static InvalidOperationException MissingCreationDate(string keyId) =>
+		new($"KMS reported no creation date for a version of key '{keyId}'. The instant is refused rather "
+			+ "than replaced with the local clock, because a point-in-time version lookup compares against "
+			+ "it and a fabricated instant resolves to the wrong version rather than failing.");
+
 	/// <inheritdoc />
 	public async Task<KeyMetadata?> GetKeyVersionAsync(
 		string keyId,
@@ -159,7 +177,7 @@ public sealed partial class AwsKmsHistoricalKeyProvider : IHistoricalKeyProvider
 				Algorithm = EncryptionAlgorithm.Aes256Gcm,
 				CreatedAt = describeResponse.KeyMetadata.CreationDate is { } creationDate
 					? new DateTimeOffset(creationDate)
-					: DateTimeOffset.UtcNow,
+					: throw MissingCreationDate(alias),
 			});
 
 			// Each rotation event represents a new version
@@ -174,7 +192,7 @@ public sealed partial class AwsKmsHistoricalKeyProvider : IHistoricalKeyProvider
 					Algorithm = EncryptionAlgorithm.Aes256Gcm,
 					CreatedAt = rotation.RotationDate is { } rotationDate
 						? new DateTimeOffset(rotationDate)
-						: DateTimeOffset.UtcNow,
+						: throw MissingCreationDate(alias),
 				});
 			}
 
@@ -205,7 +223,7 @@ public sealed partial class AwsKmsHistoricalKeyProvider : IHistoricalKeyProvider
 				Algorithm = EncryptionAlgorithm.Aes256Gcm,
 				CreatedAt = describeResponse.KeyMetadata.CreationDate is { } fallbackCreationDate
 					? new DateTimeOffset(fallbackCreationDate)
-					: DateTimeOffset.UtcNow,
+					: throw MissingCreationDate(alias),
 			});
 		}
 

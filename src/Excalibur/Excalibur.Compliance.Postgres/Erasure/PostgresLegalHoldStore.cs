@@ -217,13 +217,13 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 
 		var sql = $@"
 			INSERT INTO {_options.FullTableName}
-				(hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference,
+				(hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference,
 				 description, is_active, expires_at, created_by, created_at,
-				 released_by, released_at, release_reason)
+				 released_by, released_at, release_reason, version)
 			VALUES
-				(@HoldId, @DataSubjectIdHash, @IdType, @TenantId, @Basis, @CaseReference,
+				(@HoldId, @DataSubjectIdHash, @IdType, @TenantId, @BasisV2, @CaseReference,
 				 @Description, @IsActive, @ExpiresAt, @CreatedBy, @CreatedAt,
-				 @ReleasedBy, @ReleasedAt, @ReleaseReason)";
+				 @ReleasedBy, @ReleasedAt, @ReleaseReason, 0)";
 
 		// The ambient term is authoritative on the write. Stamping the hold's own TenantId would let one
 		// tenant place a hold in another tenant's partition — or, by leaving it null, a global hold that
@@ -244,7 +244,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				IdType = hold.IdType.HasValue ? (int?)hold.IdType.Value : null,
 				TenantId = KeyedTenantPartition.FromStoredValue(
 				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId,
-				Basis = (int)hold.Basis,
+				BasisV2 = (int)hold.Basis,
 				hold.CaseReference,
 				hold.Description,
 				hold.IsActive,
@@ -278,9 +278,9 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		var tenant = AmbientScope;
 
 		var sql = $@"
-			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference,
+			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference,
 				   description, is_active, expires_at, created_by, created_at,
-				   released_by, released_at, release_reason
+				   released_by, released_at, release_reason, version
 			FROM {_options.FullTableName}
 			WHERE hold_id = @HoldId{TenantPredicate("tenant_id")}";
 
@@ -306,20 +306,25 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		// written back is the ambient term, so an update can neither reach nor re-home another tenant's hold.
 		var tenant = AmbientScope;
 
+		// COMPARE-AND-SET, and the comparison is a term of the UPDATE rather than a SELECT that precedes it.
+		// Reading the version first and comparing it in C# would leave the same window this predicate closes:
+		// a writer landing between that read and this statement would be overwritten, and a hold released
+		// against an expiry somebody had just extended is the loss this method exists to prevent.
 		var sql = $@"
 			UPDATE {_options.FullTableName}
 			SET data_subject_id_hash = @DataSubjectIdHash,
 				id_type = @IdType,
 				tenant_id = @TenantId,
-				basis = @Basis,
+				basis_v2 = @BasisV2,
 				case_reference = @CaseReference,
 				description = @Description,
 				is_active = @IsActive,
 				expires_at = @ExpiresAt,
 				released_by = @ReleasedBy,
 				released_at = @ReleasedAt,
-				release_reason = @ReleaseReason
-			WHERE hold_id = @HoldId{TenantOwnershipPredicate("tenant_id")}";
+				release_reason = @ReleaseReason,
+				version = version + 1
+			WHERE hold_id = @HoldId AND version = @ExpectedVersion{TenantOwnershipPredicate("tenant_id")}";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -332,7 +337,8 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 			TenantId = KeyedTenantPartition.FromStoredValue(
 				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId,
 			AmbientTenantId = tenant.TenantId,
-			Basis = (int)hold.Basis,
+			ExpectedVersion = hold.Version,
+			BasisV2 = (int)hold.Basis,
 			hold.CaseReference,
 			hold.Description,
 			hold.IsActive,
@@ -342,7 +348,28 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 			hold.ReleaseReason
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
-		return affected > 0;
+		if (affected > 0)
+		{
+			return true;
+		}
+
+		// Zero rows conflates three conditions -- absent, another tenant's, and moved under us -- and the
+		// caller must tell them apart, because only the last one means "your premise expired, re-decide".
+		// One extra round trip, and only on the path that already failed.
+		var storedVersion = await connection.QuerySingleOrDefaultAsync<int?>(
+			new CommandDefinition(
+				$@"SELECT version FROM {_options.FullTableName}
+				   WHERE hold_id = @HoldId{TenantOwnershipPredicate("tenant_id")}",
+				new { hold.HoldId, AmbientTenantId = tenant.TenantId },
+				cancellationToken: cancellationToken,
+				commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		if (storedVersion is null)
+		{
+			return false;
+		}
+
+		throw LegalHoldConcurrencyException.ForHold(hold.HoldId, hold.Version, storedVersion.Value);
 	}
 
 	/// <inheritdoc />
@@ -385,9 +412,9 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 			: string.Empty;
 
 		var sql = $@"
-			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference,
+			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference,
 				   description, is_active, expires_at, created_by, created_at,
-				   released_by, released_at, release_reason
+				   released_by, released_at, release_reason, version
 			FROM {_options.FullTableName}
 			WHERE data_subject_id_hash = @DataSubjectIdHash
 			  AND is_active = TRUE{TenantPredicate("tenant_id")}{callerPredicate}
@@ -423,9 +450,9 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		var tenant = AmbientScope;
 
 		var sql = $@"
-			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference,
+			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference,
 				   description, is_active, expires_at, created_by, created_at,
-				   released_by, released_at, release_reason
+				   released_by, released_at, release_reason, version
 			FROM {_options.FullTableName}
 			WHERE {TenantMatchClause("tenant_id", "@TenantId")}
 			  AND is_active = TRUE{TenantPredicate("tenant_id")}
@@ -477,9 +504,9 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		var whereClause = string.Join(" AND ", whereClauses);
 
 		var sql = $@"
-			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference,
+			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference,
 				   description, is_active, expires_at, created_by, created_at,
-				   released_by, released_at, release_reason
+				   released_by, released_at, release_reason, version
 			FROM {_options.FullTableName}
 			WHERE {whereClause}
 			ORDER BY created_at DESC";
@@ -542,9 +569,9 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 			: string.Empty;
 
 		var sql = $@"
-			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference,
+			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference,
 				   description, is_active, expires_at, created_by, created_at,
-				   released_by, released_at, release_reason
+				   released_by, released_at, release_reason, version
 			FROM {_options.FullTableName}
 			{whereClause}
 			ORDER BY created_at DESC";
@@ -571,9 +598,9 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
-			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference,
+			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis_v2, case_reference,
 				   description, is_active, expires_at, created_by, created_at,
-				   released_by, released_at, release_reason
+				   released_by, released_at, release_reason, version
 			FROM {_options.FullTableName}
 			WHERE is_active = TRUE
 			  AND expires_at IS NOT NULL
@@ -731,8 +758,11 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
 					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
 					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
-					+ "that path only creates tables that are absent. Run the shipped migration scripts against "
-					+ "this database, then restart.");
+					+ "that path only creates tables that are absent. WE SHIP NO ALTER SCRIPT for this: the "
+					+ "create scripts already declare these columns, so a freshly provisioned database is "
+					+ "correct and only a pre-existing one reaches this. Either re-provision from the shipped "
+					+ "create script, or add the listed column(s) by hand with a NOT NULL default matching a "
+					+ "never-updated row. Then restart.");
 			}
 		}
 	}
@@ -751,9 +781,9 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	[
 		(_options.FullTableName,
 		[
-			"hold_id", "data_subject_id_hash", "id_type", "tenant_id", "basis", "case_reference",
+			"hold_id", "data_subject_id_hash", "id_type", "tenant_id", "basis_v2", "case_reference",
 			"description", "is_active", "expires_at", "created_by", "created_at",
-			"released_by", "released_at", "release_reason",
+			"released_by", "released_at", "release_reason", "version",
 		]),
 	];
 
@@ -767,7 +797,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				data_subject_id_hash VARCHAR(128) NULL,
 				id_type INT NULL,
 				tenant_id VARCHAR(64) NOT NULL DEFAULT '{TenantScope.UntenantedSentinel}',
-				basis INT NOT NULL,
+				basis_v2 INT NOT NULL,
 				case_reference VARCHAR(256) NOT NULL,
 				description VARCHAR(2000) NOT NULL,
 				is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -776,7 +806,8 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				created_at TIMESTAMPTZ NOT NULL,
 				released_by VARCHAR(256) NULL,
 				released_at TIMESTAMPTZ NULL,
-				release_reason VARCHAR(1000) NULL
+				release_reason VARCHAR(1000) NULL,
+				version INT NOT NULL DEFAULT 0
 			)";
 
 		var createIndexesSql = $@"
@@ -809,7 +840,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		public string? data_subject_id_hash { get; init; }
 		public int? id_type { get; init; }
 		public string? tenant_id { get; init; }
-		public int basis { get; init; }
+		public int basis_v2 { get; init; }
 		public string case_reference { get; init; } = string.Empty;
 		public string description { get; init; } = string.Empty;
 		public bool is_active { get; init; }
@@ -819,6 +850,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		public string? released_by { get; init; }
 		public DateTimeOffset? released_at { get; init; }
 		public string? release_reason { get; init; }
+		public int version { get; init; }
 		// ReSharper restore InconsistentNaming
 
 		public LegalHold ToLegalHold() => new()
@@ -827,7 +859,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 			DataSubjectIdHash = data_subject_id_hash,
 			IdType = id_type.HasValue ? (DataSubjectIdType)id_type.Value : null,
 			TenantId = tenant_id,
-			Basis = (LegalHoldBasis)basis,
+			Basis = (LegalHoldBasis)basis_v2,
 			CaseReference = case_reference,
 			Description = description,
 			IsActive = is_active,
@@ -836,7 +868,8 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 			CreatedAt = created_at,
 			ReleasedBy = released_by,
 			ReleasedAt = released_at,
-			ReleaseReason = release_reason
+			ReleaseReason = release_reason,
+			Version = version
 		};
 	}
 }

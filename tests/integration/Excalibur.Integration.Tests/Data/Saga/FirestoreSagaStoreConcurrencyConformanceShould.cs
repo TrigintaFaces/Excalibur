@@ -16,7 +16,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// <summary>
 /// Optimistic-concurrency conformance for the Firestore saga store (e1tsq2, S853) — one of the five
 /// distributed providers. Author≠impl (TestsDeveloper); runs the shared
-/// <see cref="SagaStoreConformanceTestBase"/> contract with <see cref="SupportsOptimisticConcurrency"/>
+/// <see cref="SagaStoreConformanceTestBase"/> contract, which every store must satisfy
 /// enabled against the Firestore emulator.
 /// </summary>
 /// <remarks>
@@ -40,8 +40,6 @@ public sealed class FirestoreSagaStoreConcurrencyConformanceShould : SagaStoreCo
 		_fixture = fixture;
 	}
 
-	/// <inheritdoc/>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	// FirestoreSagaStore DOES implement ISagaStore.PurgeCompletedBeforeAsync. This was declared false back
 	// when the store fell through to the interface default that throws NotSupportedException; the store has

@@ -372,6 +372,47 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 
 	/// <inheritdoc/>
 	/// <remarks>
+	/// <para>
+	/// The generation is the CMK id, so this asks KMS directly about that one key rather than about the alias
+	/// that currently points somewhere. An alias is re-occupiable — a rotation repoints it and a provisioning
+	/// after an erasure creates a fresh one — so the alias looking healthy says nothing about the material a
+	/// caller's payload was written under.
+	/// </para>
+	/// <para>
+	/// Destroyed means KMS cannot describe the CMK at all, or holds it as imported material that has been
+	/// deleted. A CMK pending deletion is <b>recoverable</b> with <c>CancelKeyDeletion</c> and is therefore NOT
+	/// destroyed — the same rule the handle-scoped overload applies, for the same reason.
+	/// </para>
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+		ArgumentException.ThrowIfNullOrEmpty(generation);
+
+		try
+		{
+			var described = await _kmsClient.DescribeKeyAsync(
+				new DescribeKeyRequest { KeyId = generation }, cancellationToken).ConfigureAwait(false);
+
+			var metadata = described.KeyMetadata;
+			if (metadata is null)
+			{
+				return true;
+			}
+
+			// Imported material that has been deleted leaves the CMK present but irrecoverable, which is
+			// destroyed in every sense that matters to a reader holding ciphertext.
+			return metadata.Origin == OriginType.EXTERNAL && metadata.KeyState == KeyState.PendingImport;
+		}
+		catch (NotFoundException)
+		{
+			return true;
+		}
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
 	/// Destroyed only when no alias of this key -- the unversioned alias or any per-version alias -- still names a
 	/// CMK that KMS can describe. A CMK pending deletion is recoverable with <c>CancelKeyDeletion</c>, and a
 	/// superseded version left enabled by rotation can still decrypt, so either one means NOT destroyed. An
@@ -404,6 +445,50 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		}
 
 		return true;
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Each version of a logical key is its own CMK behind its own durable alias, so a rotation genuinely leaves one
+	/// version destroyed while a later one still decrypts -- which is why a read asks this overload rather than the
+	/// key-scoped one. Only the CMK behind the requested version's alias is examined: pending deletion is
+	/// recoverable with <c>CancelKeyDeletion</c> and therefore NOT destroyed, deleted imported material is
+	/// irrecoverable and therefore destroyed, and an alias KMS no longer resolves names a CMK it has removed. A key
+	/// created before per-version aliases existed has only its unversioned alias, and that alias is version 1, so
+	/// version 1 falls back to it exactly as the version lookup does. A failure to ask is thrown.
+	/// </remarks>
+	public async Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		var target = _options.BuildVersionAlias(keyId, version);
+		AwsKeyMetadata? metadata;
+		try
+		{
+			metadata = (await _kmsClient.DescribeKeyAsync(new DescribeKeyRequest { KeyId = target }, cancellationToken)
+				.ConfigureAwait(false)).KeyMetadata;
+		}
+		catch (NotFoundException)
+		{
+			if (version != 1)
+			{
+				return true;
+			}
+
+			try
+			{
+				metadata = (await _kmsClient.DescribeKeyAsync(
+					new DescribeKeyRequest { KeyId = _options.BuildKeyAlias(keyId) },
+					cancellationToken).ConfigureAwait(false)).KeyMetadata;
+			}
+			catch (NotFoundException)
+			{
+				return true;
+			}
+		}
+
+		return metadata?.Origin == OriginType.EXTERNAL && metadata.KeyState == KeyState.PendingImport;
 	}
 
 	private async Task<KeyDestructionOutcome> DestroyCmkAsync(
@@ -700,8 +785,11 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 
 		// Newest active key wins. Rotation marks the superseded key DecryptOnly, so it is already excluded
 		// by the status filter rather than by ordering.
+		// The creation instant is only the tiebreak here; an UNDATED key loses that tiebreak rather than
+		// winning it, for the same reason as the other providers.
 		return candidates
 			.OrderByDescending(static k => k.Version)
+			.ThenByDescending(static k => k.CreatedAt.HasValue)
 			.ThenByDescending(static k => k.CreatedAt)
 			.FirstOrDefault();
 
@@ -780,6 +868,13 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 
 	[LoggerMessage(LogLevel.Information, "Created new key {KeyId} with KMS key {KmsKeyId}")]
 	private partial void LogCreatedKey(string keyId, string kmsKeyId);
+
+	[LoggerMessage(
+		LogLevel.Error,
+		"Lost the provisioning race for key {KeyId} and could not schedule deletion of the CMK {KmsKeyId} this "
+		+ "instance had already created. That CMK carries no alias, so no erasure can discover it: delete it by "
+		+ "its key id.")]
+	private partial void LogOrphanedCmkNotScheduled(string keyId, string kmsKeyId, Exception exception);
 
 	private async Task<KeyRotationResult> RotateExistingKeyAsync(
 		string keyId,
@@ -872,6 +967,137 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		if (_aliasToKeyIdMap.Count < MaxAliasCacheEntries || _aliasToKeyIdMap.ContainsKey(keyId))
 		{
 			_aliasToKeyIdMap[keyId] = resolvedKeyId;
+		}
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// KMS has no create-if-absent primitive: <c>CreateKey</c> always makes a new CMK and does not take a name.
+	/// The conditional insert is <c>CreateAlias</c>, which KMS rejects with
+	/// <see cref="AlreadyExistsException"/> for a name that is taken -- so the alias, not the key, is what
+	/// serialises two racing provisioners.
+	/// </para>
+	/// <para>
+	/// <b>The loser must destroy the CMK it made, and that is not tidiness.</b> A CMK created here has no alias
+	/// until the alias call succeeds, and destruction enumerates a key's CMKs THROUGH its aliases -- so an
+	/// alias-less CMK is one no erasure can ever reach, holding live material for a subject whose erasure
+	/// reports complete. Scheduling it for deletion on the losing path is what keeps the crypto-shred
+	/// guarantee true in the presence of ordinary write concurrency.
+	/// </para>
+	/// <para>
+	/// The winner's key is read back through the version alias rather than the unversioned one, because the
+	/// winner may not have created the unversioned alias yet.
+	/// </para>
+	/// </remarks>
+	public async Task<DispatchKeyMetadata> CreateKeyIfAbsentAsync(
+		string keyId,
+		EncryptionAlgorithm algorithm,
+		string? purpose,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		var existing = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+		if (existing is not null)
+		{
+			return existing;
+		}
+
+		var versionAlias = _options.BuildVersionAlias(keyId, 1);
+		var kmsKey = await CreateKmsKeyAsync(keyId, purpose, version: 1, cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			// The version-1 alias is claimed FIRST, so it is the guard both racers contend on. Claiming the
+			// unversioned alias first would leave a window in which version 1 is unaddressable.
+			_ = await _kmsClient.CreateAliasAsync(
+				new CreateAliasRequest { AliasName = versionAlias, TargetKeyId = kmsKey.KeyId },
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (AlreadyExistsException)
+		{
+			await AbandonUnaliasedCmkAsync(keyId, kmsKey.KeyId, cancellationToken).ConfigureAwait(false);
+
+			var winner = await DescribeByAliasAsync(keyId, versionAlias, cancellationToken).ConfigureAwait(false);
+
+			return winner
+				?? throw new EncryptionException(
+					$"Another writer claimed the key alias for '{keyId}' but no key is resolvable there.")
+				{
+					ErrorCode = EncryptionErrorCode.KeyNotFound
+				};
+		}
+
+		// Won. Finish provisioning: the unversioned alias is what new encryptions resolve through.
+		_ = await _kmsClient.CreateAliasAsync(
+			new CreateAliasRequest { AliasName = _options.BuildKeyAlias(keyId), TargetKeyId = kmsKey.KeyId },
+			cancellationToken).ConfigureAwait(false);
+
+		if (_options.KeyPolicy.EnableAutoRotation)
+		{
+			_ = await _kmsClient.EnableKeyRotationAsync(
+				new EnableKeyRotationRequest { KeyId = kmsKey.KeyId },
+				cancellationToken).ConfigureAwait(false);
+		}
+
+		CacheAliasMapping(keyId, kmsKey.KeyId);
+
+		var metadata = MapToKeyMetadata(keyId, kmsKey);
+		_ = _metadataCache.Set($"key:{keyId}", metadata, TimeSpan.FromSeconds(_options.Cache.MetadataCacheDurationSeconds));
+
+		LogCreatedKey(keyId, kmsKey.KeyId);
+
+		return metadata;
+	}
+
+	/// <summary>
+	/// Schedules a CMK this provider created but could not name, so it cannot outlive the attempt.
+	/// </summary>
+	private async Task AbandonUnaliasedCmkAsync(string keyId, string kmsKeyId, CancellationToken cancellationToken)
+	{
+		try
+		{
+			_ = await _kmsClient.ScheduleKeyDeletionAsync(
+				new ScheduleKeyDeletionRequest { KeyId = kmsKeyId, PendingWindowInDays = MinPendingWindowDays },
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			// Reported, never rethrown: the caller's provisioning SUCCEEDED -- another writer's key is at this
+			// handle -- and failing the call would turn a benign lost race into an error. What must not happen
+			// is the orphan going unrecorded, because no later erasure can discover it.
+			LogOrphanedCmkNotScheduled(keyId, kmsKeyId, ex);
+		}
+	}
+
+	/// <summary>
+	/// Resolves a key through one of its aliases, bypassing the unversioned alias and the metadata cache.
+	/// </summary>
+	private async Task<DispatchKeyMetadata?> DescribeByAliasAsync(
+		string keyId,
+		string aliasName,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			var described = await _kmsClient.DescribeKeyAsync(
+				new DescribeKeyRequest { KeyId = aliasName },
+				cancellationToken).ConfigureAwait(false);
+
+			if (described.KeyMetadata is null)
+			{
+				return null;
+			}
+
+			CacheAliasMapping(keyId, described.KeyMetadata.KeyId);
+
+			return MapToKeyMetadata(keyId, described.KeyMetadata);
+		}
+		catch (NotFoundException)
+		{
+			return null;
 		}
 	}
 
@@ -985,11 +1211,21 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		{
 			KeyId = keyId,
 			Version = AwsKmsKeyTags.VersionOf(tags),
+
+			// THE CMK ID IS THE GENERATION, and KMS gives it to us for free. Rotation here mints a whole new
+			// CMK and repoints the alias, and provisioning at a handle whose key was destroyed mints another
+			// one, so the CMK id names exactly one piece of material and is never reused. The handle (an alias)
+			// and the version tag are both re-occupiable; this is not.
+			Generation = kmsMetadata.KeyId,
+
 			Status = status,
 			Algorithm = EncryptionAlgorithm.Aes256Gcm, // SYMMETRIC_DEFAULT is AES-256-GCM
+			// Null when KMS reports no creation date. This is an ordinary describe-the-key read and must not
+			// fail over a field the caller may not need; the point-in-time version provider, where ordering IS
+			// the operation, still refuses rather than answering a question it cannot answer.
 			CreatedAt = kmsMetadata.CreationDate is { } creationDate
 				? new DateTimeOffset(creationDate)
-				: throw new InvalidOperationException(Resources.AwsKmsProvider_MissingCreationDate),
+				: null,
 			ExpiresAt = kmsMetadata.DeletionDate is { } deletionDate
 				? new DateTimeOffset(deletionDate)
 				: null,

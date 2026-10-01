@@ -30,20 +30,33 @@ public enum ProjectionAdvanceOutcome
 	Vanished,
 
 	/// <summary>
-	/// The stored state is not a fold over any prefix, so nothing was written and retrying cannot help.
+	/// The row carries no position to advance from, so nothing was written and retrying cannot help.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// The row holds <see cref="ProjectionPositionKind.Unplaceable"/>: an unconditional
-	/// <see cref="IProjectionStore{TProjection}.UpsertAsync"/> replaced its state with a value the store
-	/// cannot relate to the stream. Adopting it would fold this batch onto a state whose prefix nobody
-	/// knows and then stamp this batch's position, making the row assert a prefix it does not hold.
+	/// <b>This says what the WRITE did, and deliberately nothing about what the row contains.</b> A
+	/// positioned write advances from a number and the row has none, so there was nothing to match and
+	/// nothing was written. Every part of that is true atomically at the instant of the refusal.
+	/// </para>
+	/// <para>
+	/// <b>It does NOT tell you whether the stored state is a usable fold, and must not be read as doing
+	/// so.</b> This result carries no state, and the position it was classified against was read at a
+	/// DIFFERENT instant from the one the write was refused at -- several providers must read the row after
+	/// the engine rejects the write, and a concurrent writer can change it in between. An outcome that
+	/// characterised what the row CONTAINS would therefore attribute a property of the row-at-read-time to
+	/// a write refused earlier, and it could already be false by the time a caller acted on it. That is the
+	/// unordered-observation defect this whole contract exists to remove, so the outcome does not carry the
+	/// claim. To learn what the row holds, read its position:
+	/// <see cref="ProjectionPositionKind"/> reports that as a measured fact, together with the value, in
+	/// one observation -- and it distinguishes a complete fold whose coordinate is unknown from a state
+	/// that is no fold at all.
 	/// </para>
 	/// <para>
 	/// <b>This is terminal for the writer, and it is NOT a retry.</b> Re-reading yields the same row and
 	/// the same refusal, so a caller that treats it as <see cref="Superseded"/> redelivers forever. The
-	/// projection must be rebuilt from the stream before it can be advanced again; the writer's job here
-	/// is to refuse to lie and to say which projection needs it, never to repair the row itself.
+	/// repair is <see cref="IPositionedProjectionStore{TProjection}.RebuildAtPositionAsync"/>, which writes
+	/// state and position together and so needs no prior prefix to be conditional on. The writer's job here
+	/// is to refuse to lie and to say which projection needs rebuilding, never to repair the row itself.
 	/// </para>
 	/// </remarks>
 	Unplaceable,
@@ -142,6 +155,48 @@ public readonly record struct ProjectionRefoldResult(
 	long? CurrentPosition);
 
 /// <summary>
+/// What a rebuild did — writing a whole-stream fold over whatever the row held.
+/// </summary>
+/// <remarks>
+/// Two members, and there is no third. The operation is unconditional on POSITION, so it cannot be
+/// superseded; it IS the rebuild, so it cannot ask for one. What it can still find is nothing at all,
+/// and that is the one thing it has to report.
+/// </remarks>
+public enum ProjectionRebuildOutcome
+{
+	/// <summary>The row existed and now holds the given state at the given position.</summary>
+	Applied,
+
+	/// <summary>The row is gone, nothing was written, and that is SETTLED rather than an error.</summary>
+	/// <remarks>
+	/// Deletion is how erasure removes personal data, so recreating the row would reinstate what was
+	/// erased. The caller stops; it does not retry, and it does not fall back to a create.
+	/// </remarks>
+	Vanished,
+}
+
+/// <summary>
+/// The outcome of a rebuild. A SEPARATE type from <see cref="ProjectionRefoldResult"/>, deliberately.
+/// </summary>
+/// <param name="Outcome">What the rebuild did.</param>
+/// <remarks>
+/// <para>
+/// <b>Why not reuse <see cref="ProjectionRefoldResult"/>, which already carries a Vanished.</b> Two of
+/// its four members are unreachable here — <c>Superseded</c> because this operation compares no
+/// position, and <c>RequiresRebuild</c> because this operation IS the rebuild — so reusing it would
+/// oblige every caller to write two branches that can never be taken, and a reader could not tell those
+/// from branches that merely have not happened yet.
+/// </para>
+/// <para>
+/// <b>Why no position is carried, where the other two results carry one.</b> There is nothing to report:
+/// on <see cref="ProjectionRebuildOutcome.Applied"/> the stored position is the argument the caller just
+/// passed, and on <see cref="ProjectionRebuildOutcome.Vanished"/> there is no row to hold one. A field
+/// that no provider could fill with a measured value would read as measured.
+/// </para>
+/// </remarks>
+public readonly record struct ProjectionRebuildResult(ProjectionRebuildOutcome Outcome);
+
+/// <summary>
 /// A projection whose stored state carries the position of the last event folded into it, so a write
 /// can be conditional on that position.
 /// </summary>
@@ -198,9 +253,13 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// <returns>
 	/// The projection and its position. The projection is <see langword="null"/> when none exists.
 	/// The position is one of three states rather than a number with a missing case -- see
-	/// <see cref="ProjectionPosition"/>. The distinction a caller must act on is between
-	/// <see cref="ProjectionPositionKind.Unnumbered"/>, which a positioned writer MAY adopt, and
-	/// <see cref="ProjectionPositionKind.Unplaceable"/>, which it must refuse.
+	/// <see cref="ProjectionPosition"/>. Only <see cref="ProjectionPositionKind.Positioned"/> can be
+	/// advanced from: the other two carry no number for a positioned write to match, so both are refused.
+	/// Both are refused with <see cref="ProjectionAdvanceOutcome.Unplaceable"/>, which reports only that
+	/// there was no number to advance from, and both are repaired by
+	/// <see cref="RebuildAtPositionAsync"/>. WHICH of the two a row is in is a question about the row, and
+	/// this read is where it is answered -- the write's result does not carry it, because the write's result
+	/// is not an observation of the row.
 	/// </returns>
 	/// <remarks>
 	/// <b>One call, deliberately.</b> Reading the state and the position separately admits a writer
@@ -227,8 +286,26 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// The save path folds events that carry no global position yet; its state IS complete, only its
 	/// coordinate is unknown. Before this member the only way to write that was
 	/// <see cref="IProjectionStore{TProjection}.UpsertAsync"/>, which records
-	/// <see cref="ProjectionPositionKind.Unplaceable"/> -- a strictly stronger and wrong claim, which a
-	/// later positioned writer must refuse.
+	/// <see cref="ProjectionPositionKind.Unplaceable"/> -- a strictly stronger and wrong claim.
+	/// </para>
+	/// <para>
+	/// <b>THE ROW THIS WRITES IS A DEAD END UNTIL IT IS REBUILT, and that is the contract rather than a
+	/// defect.</b> It carries no position, so no positioned write can advance it --
+	/// <see cref="UpsertAtPositionAsync"/> refuses it with
+	/// <see cref="ProjectionAdvanceOutcome.Unplaceable"/> -- and no re-fold can take it either, because
+	/// <see cref="RefoldAtPositionAsync"/> matches against a position this row does not have and answers
+	/// <see cref="ProjectionRefoldOutcome.RequiresRebuild"/>. The single way to bring the row back under
+	/// the guarantee is <see cref="RebuildAtPositionAsync"/>, which writes the state and the position
+	/// together and therefore needs no prior prefix to be conditional on.
+	/// </para>
+	/// <para>
+	/// So this member suits a caller that has folded a prefix whose events carry no global position numbers
+	/// yet, and that ACCEPTS the row must later be rebuilt in order to become positioned. What it buys over
+	/// the blind surface is that the row states honestly what it holds -- a complete fold whose coordinate
+	/// is unknown, rather than a state related to no prefix at all. That is what lets the stored value be
+	/// READ as a complete answer while the row waits for its rebuild, and
+	/// <see cref="GetWithPositionAsync"/> is where a caller learns it -- a positioned write refuses both
+	/// alike and reports only that there was no number to advance from.
 	/// </para>
 	/// <para>
 	/// <b>The caller states which of the three states it is producing; the store never infers it.</b>
@@ -266,16 +343,30 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// whose position is ahead of its state is silently missing those events forever.
 	/// </para>
 	/// <para>
-	/// The <see langword="null"/> case is insert-if-absent — a write whose condition is the ABSENCE of
-	/// the row. It must never become an unconditional upsert, which would make the two prior states
-	/// interchangeable and let a late writer reset a live projection.
+	/// The <see langword="null"/> case is insert-if-absent and NOTHING ELSE -- a write whose only
+	/// condition is the ABSENCE of the row. It must never become an unconditional upsert, and it must not
+	/// match an EXISTING row however that row's own position reads: a caller that read no position knows
+	/// nothing about which prefix the stored state covers, so claiming one over it is a guess. An existing
+	/// row is therefore refused -- <see cref="ProjectionAdvanceOutcome.Superseded"/> when it holds a real
+	/// position, and <see cref="ProjectionAdvanceOutcome.Unplaceable"/> when it holds none, whichever of
+	/// the two no-number states that is. The latter is repaired by
+	/// <see cref="RebuildAtPositionAsync"/>.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException">
+	/// <para>
 	/// Thrown when <paramref name="newPosition"/> is negative. A negative is not merely meaningless, it
 	/// is UNREADABLE BACK: only two of the eight providers fold a negative to "no position" on read, so
 	/// on the other six a planted negative returns as an ordinary position and the write filter matches
 	/// it. Refusing it at the entry point makes that inexpressible rather than defended unevenly.
+	/// </para>
+	/// <para>
+	/// Also thrown when <paramref name="expectedPosition"/> is negative. The negatives are the sentinel
+	/// space for the states that carry no number, so a caller passing one would be naming a sentinel as
+	/// the position it read -- which is how a refused numberless row becomes adoptable again through a
+	/// different door. Only <see cref="ProjectionPosition.ExpectedPositionOrNull"/> produces a legal value
+	/// here, and it never produces a negative one.
+	/// </para>
 	/// </exception>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -334,5 +425,64 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 		string id,
 		TProjection projection,
 		long atPosition,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Overwrites an EXISTING projection's state AND position, for a caller that folded the whole stream
+	/// from an empty seed.
+	/// </summary>
+	/// <param name="id">The projection identifier.</param>
+	/// <param name="projection">The state, folded from empty over every event at or below <paramref name="newPosition"/>.</param>
+	/// <param name="newPosition">The position that state is a complete fold up to.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// <see cref="ProjectionRebuildOutcome.Applied"/> when the row existed and now holds the given state
+	/// at the given position; <see cref="ProjectionRebuildOutcome.Vanished"/> when no row exists, in
+	/// which case nothing was written and the caller stops.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>When you are ALLOWED to call this, and it is a property of the CALLER rather than of the stored
+	/// value.</b> You may call it only when the state you are writing is a fold from an EMPTY seed over
+	/// every event at or below <paramref name="newPosition"/>. A rebuild satisfies that by construction:
+	/// it discards whatever was stored and replays the stream. Nothing else does.
+	/// </para>
+	/// <para>
+	/// <b>Why this exists as its own member.</b> A caller that folded from empty needs no expected
+	/// position -- there is no prior prefix for its state to be conditional on. That licence used to be
+	/// borrowed by passing a null expected position to
+	/// <see cref="UpsertAtPositionAsync"/>, which ALSO let callers who had folded onto EXISTING state
+	/// claim it. Those callers cannot know what prefix the stored state covered, so the position they
+	/// stamped could assert a prefix the state did not hold -- silently, and indistinguishably from a
+	/// correct advance. Giving the one legitimate caller its own signature is what makes the illegitimate
+	/// call inexpressible rather than merely discouraged.
+	/// </para>
+	/// <para>
+	/// <b>It MUST NOT create the row, exactly as <see cref="RefoldAtPositionAsync"/> must not.</b> An
+	/// absent row means the projection was DELETED, deletion is how erasure removes personal data, and a
+	/// rebuild that recreated it would reinstate what the erasure removed -- a whole-stream replay is
+	/// precisely the write that can reconstruct it. Every implementation is UPDATE-only: there is no
+	/// create arm to avoid taking, and <see cref="ProjectionRebuildOutcome.Vanished"/> is how the store
+	/// reports that it found nothing.
+	/// </para>
+	/// <para>
+	/// <b>The projection's processor MUST be stopped before you call this.</b> The operation is
+	/// unconditional on position, so it cannot detect a concurrent advance -- those are the same check,
+	/// and giving it up is the deliberate price of being able to overwrite a row whose stored number is
+	/// unusable. It overwrites whatever it finds and reports only whether the row still exists. A rebuild
+	/// already requires a stopped processor, so this states the precondition the caller is already under
+	/// rather than adding a check that cannot be built.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown when <paramref name="newPosition"/> is negative. The negatives are the sentinel space for
+	/// the states that carry no number, so accepting one would let a caller forge them.
+	/// </exception>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		TProjection projection,
+		long newPosition,
 		CancellationToken cancellationToken);
 }

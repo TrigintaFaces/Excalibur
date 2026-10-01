@@ -37,6 +37,17 @@ public sealed class PostgresErasureStoreOptions
 	public string CertificatesTableName { get; set; } = "erasure_certificates";
 
 	/// <summary>
+	/// Gets or sets the table recording which key handles each request has destroyed.
+	/// </summary>
+	/// <remarks>
+	/// A table rather than a column on the request, because the value is a SET and the writes are appends.
+	/// A primary key over (request, handle) makes re-recording a handle a no-op at the database rather than
+	/// in a read-modify-write the framework would have to serialize, so two passes of one request cannot lose
+	/// each other's records.
+	/// </remarks>
+	public string DestroyedKeysTableName { get; set; } = "erasure_destroyed_keys";
+
+	/// <summary>
 	/// Gets or sets the command timeout in seconds.
 	/// </summary>
 	[Range(1, 3600)]
@@ -60,6 +71,11 @@ public sealed class PostgresErasureStoreOptions
 	/// Gets the full certificates table name including schema.
 	/// </summary>
 	public string FullCertificatesTableName => $"\"{SchemaName}\".\"{CertificatesTableName}\"";
+
+	/// <summary>
+	/// Gets the full destroyed-keys table name including schema.
+	/// </summary>
+	public string FullDestroyedKeysTableName => $"\"{SchemaName}\".\"{DestroyedKeysTableName}\"";
 
 	/// <summary>
 	/// Validates the options.

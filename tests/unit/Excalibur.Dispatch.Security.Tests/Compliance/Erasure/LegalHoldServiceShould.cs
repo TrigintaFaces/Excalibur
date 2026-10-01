@@ -344,6 +344,12 @@ public sealed class LegalHoldServiceShould
 		_ = A.CallTo(() => _store.GetHoldAsync(holdId, A<CancellationToken>._))
 			.Returns(hold);
 
+		// A real store returns true when the write lands. The fake must say so: the service now treats
+		// false as "the hold vanished between the read and the write" and raises, rather than reporting
+		// a release that never happened.
+		_ = A.CallTo(() => _store.UpdateHoldAsync(A<LegalHold>._, A<CancellationToken>._))
+			.Returns(true);
+
 		// Act
 		await _sut.ReleaseHoldAsync(holdId, "Litigation concluded", "admin@test.com", CancellationToken.None);
 
@@ -379,7 +385,8 @@ public sealed class LegalHoldServiceShould
 
 		LegalHold? capturedHold = null;
 		_ = A.CallTo(() => _store.UpdateHoldAsync(A<LegalHold>._, A<CancellationToken>._))
-			.Invokes(call => capturedHold = call.GetArgument<LegalHold>(0));
+			.Invokes(call => capturedHold = call.GetArgument<LegalHold>(0))
+			.Returns(true);
 
 		var before = DateTimeOffset.UtcNow;
 

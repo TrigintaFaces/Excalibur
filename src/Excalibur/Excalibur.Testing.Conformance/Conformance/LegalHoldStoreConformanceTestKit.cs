@@ -349,6 +349,126 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that a successful update increments the stored concurrency token.
+	/// </summary>
+	/// <remarks>
+	/// The version is what makes a read-modify-write safe, so a store that accepts writes without moving
+	/// it provides no protection at all — every subsequent stale write would still match. This arm is the
+	/// liveness half: it also proves an uncontended update is still applied.
+	/// </remarks>
+	public virtual async Task UpdateHoldAsync_Succeeding_ShouldIncrementVersion()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var hold = CreateLegalHold();
+
+		await store.SaveHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
+
+		var saved = await store.GetHoldAsync(hold.HoldId, CancellationToken.None).ConfigureAwait(false)
+			?? throw new TestFixtureAssertionException("Hold should be found after save");
+
+		var updated = await store.UpdateHoldAsync(
+			saved with { Description = "First revision" },
+			CancellationToken.None).ConfigureAwait(false);
+
+		if (!updated)
+		{
+			throw new TestFixtureAssertionException(
+				"UpdateHoldAsync should return true for an existing hold at the stored version");
+		}
+
+		var afterUpdate = await store.GetHoldAsync(hold.HoldId, CancellationToken.None).ConfigureAwait(false)
+			?? throw new TestFixtureAssertionException("Hold should be found after update");
+
+		if (afterUpdate.Version != saved.Version + 1)
+		{
+			throw new TestFixtureAssertionException(
+				$"A successful update must increment Version. Expected: {saved.Version + 1}, "
+				+ $"Actual: {afterUpdate.Version}");
+		}
+
+		if (afterUpdate.Description != "First revision")
+		{
+			throw new TestFixtureAssertionException(
+				"The update must still apply the caller's values when the version matches");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that an update carrying a stale concurrency token is refused, and that the stored record
+	/// is left exactly as the concurrent writer left it.
+	/// </summary>
+	/// <remarks>
+	/// This is the arm that fails against a blind whole-record write. It reproduces the sequence that
+	/// loses data: a reader takes a copy, a second writer changes the hold's expiry, and the reader then
+	/// writes its stale copy back with the hold deactivated. Under a blind write the extension is gone and
+	/// the hold is released; under compare-and-set the second write is refused and the extension stands.
+	/// </remarks>
+	public virtual async Task UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var extendedExpiry = DateTimeOffset.UtcNow.AddYears(5);
+		var hold = CreateLegalHold(expiresAt: DateTimeOffset.UtcNow.AddMinutes(-5));
+
+		await store.SaveHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
+
+		// The reader's copy: taken before the concurrent write, and still carrying the version it read.
+		var staleCopy = await store.GetHoldAsync(hold.HoldId, CancellationToken.None).ConfigureAwait(false)
+			?? throw new TestFixtureAssertionException("Hold should be found after save");
+
+		// The concurrent writer extends the expiry.
+		var extended = await store.UpdateHoldAsync(
+			staleCopy with { ExpiresAt = extendedExpiry },
+			CancellationToken.None).ConfigureAwait(false);
+
+		if (!extended)
+		{
+			throw new TestFixtureAssertionException(
+				"The concurrent writer's update should have been applied");
+		}
+
+		// The reader now writes its stale copy back, deactivating the hold.
+		var caught = false;
+		try
+		{
+			_ = await store.UpdateHoldAsync(
+				staleCopy with
+				{
+					IsActive = false,
+					ReleasedBy = "conformance",
+					ReleasedAt = DateTimeOffset.UtcNow,
+					ReleaseReason = "expired"
+				},
+				CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (LegalHoldConcurrencyException)
+		{
+			caught = true;
+		}
+
+		if (!caught)
+		{
+			throw new TestFixtureAssertionException(
+				"UpdateHoldAsync must raise LegalHoldConcurrencyException for a stale Version. "
+				+ "A store that accepts the write silently releases a hold that was just extended.");
+		}
+
+		var stored = await store.GetHoldAsync(hold.HoldId, CancellationToken.None).ConfigureAwait(false)
+			?? throw new TestFixtureAssertionException("Hold should still exist after a refused update");
+
+		if (!stored.IsActive)
+		{
+			throw new TestFixtureAssertionException(
+				"The refused update must not have been applied: the hold must still be ACTIVE");
+		}
+
+		if (stored.ExpiresAt is null || stored.ExpiresAt.Value <= DateTimeOffset.UtcNow)
+		{
+			throw new TestFixtureAssertionException(
+				$"The concurrent writer's extended expiry must survive. Actual: {stored.ExpiresAt:O}");
+		}
+	}
+
+	/// <summary>
 	/// Verifies that UpdateHoldAsync throws ArgumentNullException for null hold.
 	/// </summary>
 	public virtual async Task UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException()

@@ -17,7 +17,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// <summary>
 /// Optimistic-concurrency conformance for the Cosmos DB saga store (e1tsq2, S853) — one of the five
 /// distributed providers. Author≠impl (TestsDeveloper); runs the shared
-/// <see cref="SagaStoreConformanceTestBase"/> contract with <see cref="SupportsOptimisticConcurrency"/>
+/// <see cref="SagaStoreConformanceTestBase"/> contract, which every store must satisfy
 /// enabled against the CosmosDB Linux emulator.
 /// </summary>
 /// <remarks>
@@ -40,8 +40,6 @@ public sealed class CosmosDbSagaStoreConcurrencyConformanceShould : SagaStoreCon
 		_fixture = fixture;
 	}
 
-	/// <inheritdoc/>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	// CosmosDbSagaStore DOES implement ISagaStore.PurgeCompletedBeforeAsync (retention purge, bd-qt5kh7,
 	// commit 82ce60c05). This flag said false and the suite therefore asserted that the call THROWS

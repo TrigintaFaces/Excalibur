@@ -95,6 +95,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 	private readonly IReadOnlyList<IErasureContributor> _contributors;
 	private readonly IPersonalDataAnnotationSource _annotationSource;
 	private readonly IDataSubjectHasher _dataSubjectHasher;
+	private readonly IErasureRetentionRegistry _retentions;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ErasureService"/> class.
@@ -113,6 +114,11 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 	/// no longer outlives the key it was a backup of.
 	/// </param>
 	/// <param name="contributors">Optional erasure contributors for additional store erasure (event stores, snapshot stores, etc.).</param>
+	/// <param name="retentions">
+	/// The aggregate types this deployment declares it must keep through an erasure, or <see langword="null"/>
+	/// when it declares none. Their keys are excluded from destruction, because a retained record whose key
+	/// was destroyed is present and unreadable — which discharges neither obligation.
+	/// </param>
 	public ErasureService(
  IErasureStore store,
  IKeyManagementAdmin keyAdmin,
@@ -122,9 +128,10 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  ILegalHoldService legalHoldService,
  IDataInventoryService? dataInventoryService,
  IKeyEscrowService? keyEscrowService,
+ IErasureRetentionRegistry retentions,
  IEnumerable<IErasureContributor>? contributors = null)
 : this(store, keyAdmin, options, logger, dataSubjectHasher, legalHoldService, dataInventoryService,
- keyEscrowService, IPersonalDataAnnotationSource.CreateDefault(), contributors)
+ keyEscrowService, IPersonalDataAnnotationSource.CreateDefault(), retentions, contributors)
 	{
 	}
 
@@ -142,6 +149,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  IDataInventoryService? dataInventoryService,
  IKeyEscrowService? keyEscrowService,
  IPersonalDataAnnotationSource annotationSource,
+ IErasureRetentionRegistry retentions,
  IEnumerable<IErasureContributor>? contributors = null)
 	{
  _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -153,6 +161,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  _dataInventoryService = dataInventoryService;
  _keyEscrowService = keyEscrowService;
  _annotationSource = annotationSource ?? throw new ArgumentNullException(nameof(annotationSource));
+		_retentions = retentions ?? throw new ArgumentNullException(nameof(retentions));
  // materialize once — the injected IEnumerable is enumerated in both ExecuteAsync and
 		// EvaluateCoverage, so a lazy/once-only sequence would yield inconsistent results (or re-run
 		// factories). Matches RetentionEnforcementService's [.. contributors].
@@ -206,6 +215,17 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  CaseReference = "unknown",
  CreatedAt = DateTimeOffset.UtcNow
  });
+ }
+
+ // The same refusal at acceptance time, so a request that cannot be honoured is declined when it is
+ // made rather than accepted and failed later. Identical reasoning to the execute path.
+ if (holdCheck.IsPartiallyBlocked && holdCheck.ActiveHolds.Count > 0)
+ {
+  RequestsBlockedCounter.Add(1, new TagList { { ErasureTelemetryConstants.Tags.Scope, request.Scope.ToString() } });
+  activity?.SetTag(ErasureTelemetryConstants.Tags.ResultStatus, "blocked");
+  var partialHold = holdCheck.ActiveHolds[0];
+  LogErasureRequestBlocked(request.RequestId, partialHold.HoldId);
+  return ErasureResult.Blocked(request.RequestId, partialHold);
  }
 
  // Discover data inventory if service is available
@@ -414,11 +434,19 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  RetainUntil = completedAt.Add(_options.Value.Retention.CertificateRetentionPeriod)
  };
 
- var certificate = new ErasureCertificate
+ // Issued through the same boundary the execution path uses, so this payload's claims are checked by the
+ // same code rather than by a second reading of the same rules. There is no errors collection to fold the
+ // findings into here -- this path reconstructs a request the store already recorded as Completed, and
+ // that determination is not this method's to revise -- so an unestablished claim is logged loudly
+ // instead. It cannot be silent: a reconstructed certificate is the only evidence a consumer will ever
+ // get for this request.
+ var certificate = ErasureCertificateSigner.Issue(
+ reconstructed, _options.Value.Retention.SigningKey, out var unestablishedClaims);
+
+ if (unestablishedClaims.Count > 0)
  {
- Payload = reconstructed,
- Signature = ErasureCertificateSigner.Sign(reconstructed, _options.Value.Retention.SigningKey)
- };
+ LogCertificateClaimsNotEstablished(requestId, string.Join("; ", unestablishedClaims));
+ }
 
  await certStore.SaveCertificateAsync(certificate, cancellationToken).ConfigureAwait(false);
 
@@ -469,8 +497,8 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  // Re-check legal holds AFTER the atomic InProgress transition (TOCTOU fix: tightens the window
  // by ensuring we own the request exclusively before checking holds, and check holds immediately
  // before executing erasure operations)
- var holdCheck = await _legalHoldService.CheckHoldsAsync(
- status.DataSubjectIdHash, DataSubjectIdType.Hash, status.TenantId, cancellationToken)
+ var holdCheck = await _legalHoldService.CheckHoldsByHashAsync(
+ status.DataSubjectIdHash, status.TenantId, cancellationToken)
 .ConfigureAwait(false);
 
  if (holdCheck.ErasureBlocked)
@@ -480,12 +508,104 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  return ErasureExecutionResult.Failed("Erasure blocked by active legal hold");
  }
 
+ // A PARTIAL legal hold names categories that must be RETAINED, and neither mechanism this service
+ // runs can exclude a category from destruction.
+ //
+ // The per-subject key is queued unconditionally below and destroyed BEFORE any contributor runs, and
+ // it is scoped to the SUBJECT rather than to a category -- so destroying it takes every annotated
+ // field of theirs, including the ones the hold exists to keep. The event-store pass that follows is
+ // whole-aggregate. Proceeding would destroy data the controller has asserted a legal basis to retain,
+ // and would report success.
+ //
+ // Refusing is the conservative direction: withholding an erasure is recoverable by releasing or
+ // narrowing the hold, and destroying held records is not. The hold carries basis, case reference and
+ // description, which is what makes the refusal auditable and why the hold rather than an inferred
+ // annotation is the authority read here.
+ if (holdCheck.IsPartiallyBlocked)
+ {
+  var retained = string.Join(", ", holdCheck.ExemptCategories);
+  _ = await _store.UpdateStatusAsync(requestId, ErasureRequestStatus.BlockedByLegalHold,
+  	$"Legal hold retains specific categories ({retained})", cancellationToken).ConfigureAwait(false);
+  return ErasureExecutionResult.Failed(
+  	$"An active legal hold requires these data categories to be retained: {retained}. Erasure here "
+  	+ "destroys the data subject's encryption key, which is scoped to the subject and not to a "
+  	+ "category, and tombstones whole aggregates, so neither step can exclude a retained category. "
+  	+ "Nothing was erased. Release or narrow the hold, or erase the subject where the retained "
+  	+ "categories are stored separately.");
+ }
+
  try
  {
  // Discover keys to delete via data inventory (use hash-based lookup)
  var keysToDelete = new List<string>();
  IReadOnlyList<DataLocation> discoveredLocations = [];
  DataInventory? discoveredInventory = null;
+
+ // Handles the erasure MUST NOT destroy, because the aggregate types behind them are declared as
+ // legally required to survive. Destroying one would leave the retained record present but
+ // unreadable, which is the worse of the two failures: the obligation to keep the data is not
+ // discharged by keeping ciphertext nobody can open.
+ //
+ // Derived here rather than injected, from the same options the registry reads, so there is one
+ // declaration and not two. Empty for every deployment that declares no retention, which is what
+ // makes this loop a no-op for them.
+ // Only the retentions belonging to THIS erasure's tenant. A declaration made for another tenant is
+ // another controller's obligation, and honouring it here would withhold erasure from a subject whose
+ // own controller has no such duty -- over-retention, which is the Article 17 breach in the other
+ // direction.
+ //
+ // THE HANDLE IS RECORDED HERE, ON THE PATH THAT DECIDES TO SPARE IT, and that placement is the point
+ // rather than a convenience. A handle list assembled by a later pass can disagree with what was
+ // actually excluded, and then the consumer destroys the wrong key or misses one. These two
+ // collections are one iteration, so they cannot disagree: every handle the guard below spares is a
+ // handle the certificate names, and nothing else is.
+ //
+ // THE TENANT IS COMPARED ONLY HERE, and only between two values of the same kind: the tenant this
+ // erasure REQUEST recorded, and the tenant a DECLARATION names. Both are consumer-supplied terms on
+ // erasure-domain objects, and the registry collapses every spelling of "untenanted" onto one before
+ // comparing, so a single-tenant deployment matches its own declarations. No ambient identity takes part:
+ // the write path reads no tenant, so there is no second answer for this one to disagree with.
+ var retainedKeyHandles = new HashSet<string>(StringComparer.Ordinal);
+ var retainedHandleByType = new Dictionary<string, string>(StringComparer.Ordinal);
+
+ // Every DECLARED aggregate type's widened handle for this subject, whoever declared it. The write path
+ // widens on the type alone, so a handle exists here for a type declared by ANOTHER tenant -- and that
+ // handle holds this subject's data under no obligation at all. Destroying it is required, not optional:
+ // leaving it is a key nothing destroys, which is a subject never erased.
+ var declaredHandleByType = new Dictionary<string, string>(StringComparer.Ordinal);
+
+ foreach (var retention in _retentions.Declared)
+ {
+ 	if (string.IsNullOrWhiteSpace(retention.AggregateType))
+ 	{
+ 		continue;
+ 	}
+
+ 	var handle = RetainedKeyHandle.For(status.DataSubjectIdHash, retention.AggregateType);
+ 	declaredHandleByType[retention.AggregateType] = handle;
+
+ 	// THE HANDLE IS RECORDED ON THE PATH THAT DECIDES TO SPARE IT, and that placement is the point
+ 	// rather than a convenience. A handle list assembled by a later pass can disagree with what was
+ 	// actually excluded, and then the consumer destroys the wrong key or misses one.
+ 	if (_retentions.TryGetRetention(status.TenantId, retention.AggregateType, out _))
+ 	{
+ 		_ = retainedKeyHandles.Add(handle);
+ 		retainedHandleByType[retention.AggregateType] = handle;
+ 	}
+ }
+
+ // A widened handle NO declaration spares for this erasure is destroyed, and it is enumerated from the
+ // DECLARATIONS rather than from the data inventory. The inventory reports what a consumer registered, so
+ // a handle it omits would survive forever with this subject's data inside it. The declared set is small,
+ // known at startup and fully enumerable, which is what makes widening on a foreign tenant's declaration
+ // safe at all.
+ foreach (var (aggregateType, handle) in declaredHandleByType)
+ {
+ 	if (!retainedHandleByType.ContainsKey(aggregateType) && !keysToDelete.Contains(handle))
+ 	{
+ 		keysToDelete.Add(handle);
+ 	}
+ }
  if (_dataInventoryService is not null)
  {
  var inventory = await _dataInventoryService.DiscoverAsync(
@@ -494,7 +614,15 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 
  foreach (var keyRef in inventory.AssociatedKeys)
  {
- keysToDelete.Add(keyRef.KeyId);
+ 	// A discovered key belonging to a retained aggregate type is left alone. The inventory
+ 	// enumerates what a consumer registered, so it can legitimately surface the retained
+ 	// handle; destroying it here would undo the retention the contributor is about to honour.
+ 	if (retainedKeyHandles.Contains(keyRef.KeyId))
+ 	{
+ 		continue;
+ 	}
+
+ 	keysToDelete.Add(keyRef.KeyId);
  }
 
  // the discovered locations drive the structural coverage gate below.
@@ -527,13 +655,17 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  // the outcome below can tell "correctly scheduled, awaiting the provider" from a genuine failure.
  var scheduledKeys = new ScheduledKeyDestructions();
 
- var deletedCount = await ExecuteKeyDeletionsAsync(keysToDelete, deletedKeyIds, scheduledKeys, errors, requestId, cancellationToken)
+ // What earlier passes of THIS request already destroyed. A retry must be able to attest the coverage
+ // its own first pass achieved, and the key store cannot tell it: a key it destroyed reports as absent,
+ // exactly as a key that never existed does.
+ var deletedCount = await ExecuteKeyDeletionsAsync(keysToDelete, deletedKeyIds, status.DestroyedKeyHandles, scheduledKeys, errors, requestId, status, cancellationToken)
 .ConfigureAwait(false);
 
  // Invoke erasure contributors (event stores, snapshot stores, etc.)
  var contributorResults = new List<ErasureContributorResult>();
  var failedContributors = new List<(string Name, string? Error)>();
- var totalRecordsAffected = await InvokeContributorsAsync(requestId, status, discoveredInventory, errors, contributorResults, failedContributors, cancellationToken)
+ var retainedData = new List<ErasureException>();
+ var totalRecordsAffected = await InvokeContributorsAsync(requestId, status, discoveredInventory, errors, contributorResults, failedContributors, retainedData, cancellationToken)
 .ConfigureAwait(false);
 
  // Amendment 1/1a — STRUCTURAL key-aware coverage gate (computed by EvaluateCoverage).
@@ -554,6 +686,54 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  var coverage = EvaluateCoverageGate(
  errors, discoveredLocations, scheduledKeys, deletedKeyIds, discoveredInventory, contributorResults);
 
+ // What the certificate ATTESTS as lawfully retained: the framework's own store-kind exemptions,
+ // plus whatever each contributor kept and said so. A contributor that withholds destruction and
+ // stays silent is the failure this concatenation exists to prevent -- a certificate that reads as
+ // a clean completion over data deliberately kept cannot be told from one over data destroyed, and
+ // nothing downstream ever learns otherwise.
+ //
+ // Each retention is stamped with the handle that still protects this subject inside it, taken from the
+ // map the spare-decision above built. Without the handle the declared period is unactionable: the
+ // retained key is not the subject's own handle, so nothing ever queues it again, and destroying it when
+ // the obligation lapses can only be done by name.
+ //
+ // A retention entry with NO handle is a real signal rather than a blank: it means a contributor spared
+ // an aggregate type whose key this erasure did not decide about. Left as null rather than invented,
+ // because a fabricated handle is worse than an absent one -- it would be destroyed with confidence.
+ var certificateExemptions = new List<ErasureException>(coverage.Exemptions);
+ foreach (var retention in retainedData)
+ {
+ 	certificateExemptions.Add(
+ 		retention.DataCategory is { Length: > 0 }
+ 		&& retainedHandleByType.TryGetValue(retention.DataCategory, out var handle)
+ 			? retention with { RetainedKeyHandle = handle }
+ 			: retention);
+ }
+
+ // ASKED HERE, BEFORE THE OUTCOME IS DECIDED, and asked of the signing boundary rather than re-derived.
+ // An exemption whose Article 17(3) ground was never established is an UNMET OBLIGATION, and presenting an
+ // unmet obligation as a lawful basis is what turns a failure into a defensible retention. So it folds into
+ // the same errors collection every other unmet obligation uses, which is what makes the Completed branch
+ // below unreachable -- rather than a refusal at signing, which would leave the consumer with the
+ // destruction performed and no evidence that it was performed.
+ //
+ // The ORDER is the whole reason this call is here and not at the signature: the outcome is decided a few
+ // lines down and the certificate is signed after that, so a finding raised at signing time would arrive
+ // after the attestation it had to prevent.
+ foreach (var unestablished in ErasureCertificateSigner.UnestablishedClaims(status.LegalBasis, certificateExemptions))
+ {
+ errors.Add(unestablished);
+ }
+
+ // KEY STATE RE-ESTABLISHED BEFORE ANYTHING IS ATTESTED. Destruction ran once, above, before the
+ // contributors; it establishes the state of these handles at THAT instant and nothing later. A write for
+ // this same data subject landing afterwards mints a live key at a handle this erasure destroyed, so by the
+ // time the certificate is signed there is personal data of an erased subject under a live key -- and a
+ // certificate signed on the earlier measurement asserts a fact about now from a reading taken then. That
+ // is the silent class: undetectable from outside, because the evidence asserts the opposite.
+ var reMinted = await FindReMintedHandlesAsync(deletedKeyIds, errors, requestId, cancellationToken)
+.ConfigureAwait(false);
+
  // Determine outcome. Completed is reachable ONLY when there are zero errors AND zero uncovered
  // locations — the structural invariant: a silent Completed over an uncovered store is inexpressible
  // because this branch is the only path that does NOT call RecordCompletionAsync.
@@ -567,6 +747,22 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  requestId, scheduledKeys, deletedCount, totalRecordsAffected, activity, cancellationToken).ConfigureAwait(false);
  ExecutionDurationHistogram.Record(executionStopwatch.Elapsed.TotalMilliseconds);
  return awaiting;
+ }
+
+ // Every error is a handle that was live again when the erasure finished, and nothing else went wrong. That
+ // is NOT a partial failure -- nothing the erasure attempted failed -- and it is not completion either, so
+ // it gets the state that says exactly what happened. Reporting it as PartiallyCompleted would tell an
+ // auditor something failed when nothing did; reporting it as Completed would attest an erasure over data
+ // written after the key was destroyed. Same shape as the scheduled-key branch above: a specific,
+ // fully-attributed residue gets its own outcome, and ANY other error falls through to the partial path.
+ if (errors.Count > 0 && errors.Count == reMinted.Count)
+ {
+ var concurrent = await RecordCompletedExceptConcurrentWritesAsync(
+ requestId, reMinted, deletedKeyIds, status, deletedCount, totalRecordsAffected,
+ coverage.UncoveredStoreKinds, failedContributors, certificateExemptions, activity, cancellationToken)
+.ConfigureAwait(false);
+ ExecutionDurationHistogram.Record(executionStopwatch.Elapsed.TotalMilliseconds);
+ return concurrent;
  }
 
  if (errors.Count > 0)
@@ -606,7 +802,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  deletedKeyIds,
  deletedCount,
  totalRecordsAffected,
- coverage.Exemptions,
+ certificateExemptions,
  cancellationToken,
  warnings: null,
  certificateIdOverride: null,
@@ -644,7 +840,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  // Build + persist the populated certificate (real DeletedKeyIds + actual Method) so the recorded
  // certificate ID resolves to a NON-vacuous certificate that verification can confirm.
  var certificateId = await PersistCompletionCertificateAsync(
- requestId, status, deletedKeyIds, deletedCount, totalRecordsAffected, coverage.Exemptions, cancellationToken)
+ requestId, status, deletedKeyIds, deletedCount, totalRecordsAffected, certificateExemptions, cancellationToken)
 .ConfigureAwait(false);
  await _store.RecordCompletionAsync(requestId, deletedCount, totalRecordsAffected, certificateId, cancellationToken)
 .ConfigureAwait(false);
@@ -671,23 +867,79 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 	}
 
 	/// <summary>
-	/// Destroys each crypto-shred key and classifies the tri-state outcome: only a <see cref="KeyDestructionState.Completed"/>
+	/// Destroys each crypto-shred key and classifies the tri-state outcome: a <see cref="KeyDestructionState.Completed"/>
 	/// key is counted as erased (added to <paramref name="deletedKeyIds"/>); a <see cref="KeyDestructionState.ScheduledIrreversible"/>
-	/// key registers an error so the completion gate cannot attest it as irrecoverable; <see cref="KeyDestructionState.NotFound"/>
-	/// is an idempotent no-op. Returns the count of keys actually destroyed.
+	/// key registers an error so the completion gate cannot attest it as irrecoverable;
+	/// <see cref="KeyDestructionState.NotFound"/> attests the key only when THIS request destroyed it on an
+	/// earlier pass, and is otherwise an idempotent no-op. Returns the count of keys destroyed by this pass.
 	/// </summary>
+	/// <param name="keysToDelete">The key handles discovered for this subject.</param>
+	/// <param name="deletedKeyIds">The coverage set: handles whose material is established as irrecoverable.</param>
+	/// <param name="alreadyDestroyedByThisRequest">
+	/// Handles an earlier pass of this same request recorded as destroyed. This is what makes a retry able to
+	/// attest the coverage its first pass achieved: the key store reports a key it already destroyed as
+	/// absent, which is the same answer it gives for a key that never existed, so without this record the
+	/// retry attests less than the request accomplished and completion is unreachable forever.
+	/// </param>
+	/// <param name="scheduledKeys">Keys the provider scheduled rather than destroyed.</param>
+	/// <param name="errors">The gate's error list; any entry makes completion unreachable.</param>
+	/// <param name="requestId">The erasure request.</param>
+	/// <param name="status">
+	/// The request, carrying the subject hash and tenant needed to RE-CHECK the legal hold before each
+	/// destruction. The run-level check cannot serve: minutes of discovery work separate it from the first
+	/// irreversible act, and a hold placed in that interval would otherwise go unobserved.
+	/// </param>
+	/// <param name="cancellationToken">Cancellation token.</param>
 	private async Task<int> ExecuteKeyDeletionsAsync(
 		IEnumerable<string> keysToDelete,
 		List<string> deletedKeyIds,
+		IReadOnlyCollection<string> alreadyDestroyedByThisRequest,
 		ScheduledKeyDestructions scheduledKeys,
 		List<string> errors,
 		Guid requestId,
+		ErasureStatus status,
 		CancellationToken cancellationToken)
 	{
 		var deletedCount = 0;
 
 		foreach (var keyId in keysToDelete)
 		{
+			// RE-CHECK THE HOLD BEFORE EVERY DESTRUCTION, not once per run, and this is a correctness
+			// requirement rather than defensive polish.
+			//
+			// The run-level check sits immediately after the InProgress claim and its own comment concedes it
+			// only "tightens the window". Between that check and here runs the whole key-discovery pass, which
+			// is minutes wide by design -- so a legal hold placed in that interval was never observed and the
+			// keys were destroyed anyway. Destruction is IRREVERSIBLE, so that is spoliation of data a hold
+			// exists to preserve, and ARCHITECTURE.md states the blocking guarantee without qualification.
+			//
+			// What this CAN and CANNOT achieve, stated because the difference is the whole point. It cannot
+			// make the race impossible: the hold lives in our store and the destruction happens at an external
+			// KMS that cannot roll back, so some window is irreducible. What it does is bound the window to a
+			// SINGLE key instead of the entire discovery-and-contributor pass, stop at the first opportunity,
+			// and make the conflict LOUD -- the error below keeps completion unreachable, so the request can
+			// never be attested Completed, and the count of keys already destroyed is recorded for the auditor.
+			// A silent irreversible violation becomes a bounded and recorded one, which is the discriminator
+			// that matters here: catastrophic is about SILENCE, not severity.
+			//
+			// COST: one hold read per key. That is deliberate. A read per irreversible act is the cheapest
+			// thing in this method, and the alternative was to keep trading it for a wider window.
+			var holdBeforeDestruction = await _legalHoldService.CheckHoldsByHashAsync(
+				status.DataSubjectIdHash, status.TenantId, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (holdBeforeDestruction.ErasureBlocked)
+			{
+				errors.Add(
+					$"A legal hold became active for this subject after {deletedCount} key(s) had already been "
+					+ $"destroyed, and before key '{keyId}'. Destruction STOPPED here and no further key was "
+					+ "touched. The keys already destroyed CANNOT be recovered -- that is recorded rather than "
+					+ "hidden, because an auditor needs to know a hold arrived mid-erasure. This request cannot "
+					+ "reach Completed while this error stands; a re-execution sees the hold at the run-level "
+					+ "check and settles on BlockedByLegalHold.");
+				break;
+			}
+
 			try
 			{
 				// Revoke BEFORE destroy, never the reverse. A crash between the two steps must
@@ -718,6 +970,16 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 				{
 					case KeyDestructionState.Completed:
 						// Irrecoverable NOW — the only state that may be attested as erased.
+						//
+						// Recorded durably BEFORE it is counted, and per key rather than at completion. The
+						// pass that needs this record is precisely the one that does not reach completion, so
+						// a write deferred to the end is a write that never happens in the only case it is
+						// for. If the record fails, the destruction is NOT attested this pass: attesting a
+						// destruction we could not record would leave a retry unable to attest it either,
+						// which is the defect this record exists to close.
+						await _store.RecordKeyDestroyedAsync(requestId, keyId, cancellationToken)
+							.ConfigureAwait(false);
+
 						deletedCount++;
 						deletedKeyIds.Add(keyId);
 						break;
@@ -734,7 +996,25 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 						break;
 
 					case KeyDestructionState.NotFound:
-						// Idempotent no-op: already erased or never created. Nothing to attest, no error.
+						// ABSENT, and absence has two causes with opposite consequences. The key store cannot
+						// tell them apart -- it reports a key it destroyed itself exactly as it reports one it
+						// never held -- so the request's own record is what decides.
+						//
+						// "THIS request destroyed it on an earlier pass": the material is gone, which is the
+						// same fact a Completed gives us, so it is attested. Without this, an erasure that
+						// destroyed a key and then failed part-way through the remaining ones attested that key
+						// on its first pass and nothing for it on the retry -- the subject's data destroyed and
+						// their erasure permanently uncertifiable.
+						//
+						// "we never held it": nothing was destroyed and nothing is attested. It is still not an
+						// error, because a discovered location whose key never existed has no ciphertext this
+						// erasure could have made unreadable -- but it must not be counted as coverage either,
+						// or a wrong inventory entry would read as an erased location.
+						if (alreadyDestroyedByThisRequest.Contains(keyId, StringComparer.Ordinal))
+						{
+							deletedKeyIds.Add(keyId);
+						}
+
 						break;
 
 					default:
@@ -870,6 +1150,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 		List<string> errors,
 		List<ErasureContributorResult> contributorResults,
 		List<(string Name, string? Error)> failedContributors,
+		List<ErasureException> retainedData,
 		CancellationToken cancellationToken)
 	{
  var totalRecordsAffected = 0;
@@ -885,6 +1166,13 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 
  var contributorResult = await DeclaredObligations.EraseAsync(requestId, status, inventory, contributor, cancellationToken)
 .ConfigureAwait(false);
+
+ // Harvested BEFORE the outcome is examined, deliberately. What a contributor kept is a
+ // fact about the store; whether the same pass also failed is a fact about the run. Reading
+ // the retentions only off a successful result made one unreachable read model enough to
+ // strike every retention from the certificate -- and the partial certificate is the one a
+ // controller reconciles by hand, so it is the one that most needs the list.
+ retainedData.AddRange(contributorResult.RetainedData);
 
  if (contributorResult.Success)
  {
@@ -1060,11 +1348,17 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  RetainUntil = completedAt.Add(_options.Value.Retention.CertificateRetentionPeriod)
  };
 
- var certificate = new ErasureCertificate
+ // The claims were already asked of this boundary before the outcome was decided, so an unestablished one
+ // has already made the Completed branch unreachable. Issuing here re-applies the same rule to the payload
+ // that is actually signed -- which is what stops a claim from reaching a signature by a path nobody asked
+ // about -- and the findings are logged rather than re-folded, because the outcome is settled by now.
+ var certificate = ErasureCertificateSigner.Issue(
+ payload, _options.Value.Retention.SigningKey, out var unestablishedClaims);
+
+ if (unestablishedClaims.Count > 0)
  {
- Payload = payload,
- Signature = ErasureCertificateSigner.Sign(payload, _options.Value.Retention.SigningKey)
- };
+ LogCertificateClaimsNotEstablished(requestId, string.Join("; ", unestablishedClaims));
+ }
 
  await certStore.SaveCertificateAsync(certificate, cancellationToken).ConfigureAwait(false);
  return certificateId;
@@ -1182,6 +1476,158 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 		return ErasureExecutionResult.Failed(
 			"Request is awaiting the key-management provider's destruction of its scheduled keys; it is not "
 			+ "re-executed. It completes when the provider confirms destruction.");
+	}
+
+	/// <summary>
+	/// Re-asks the key provider whether each handle this erasure destroyed is still destroyed, and names the
+	/// ones that are not.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The measurement and the attestation are separated by the whole contributor pass, and this closes
+	/// that gap.</b> Destruction runs once, before the contributors; the certificate is signed after them. A
+	/// write for the same data subject arriving in between finds no key at the handle and mints a live one, so
+	/// the handle the erasure destroyed is occupied again by material the erasure never covered. Asking now is
+	/// the only way the document can describe the state it is signed over rather than an earlier one.
+	/// </para>
+	/// <para>
+	/// <b>A provider that cannot answer is an erasure that cannot attest.</b>
+	/// <see cref="IKeyManagementProvider.GetKeyAsync"/> returning <see langword="null"/> is not an answer to
+	/// this question — a soft-deleted key is invisible to that lookup for its whole recovery window — so the
+	/// question goes to <see cref="IKeyDestructionStatusProvider"/>, which is the only member that answers it
+	/// authoritatively. Without that capability the state is unmeasured, and an unmeasured state is recorded
+	/// as such rather than assumed clean: silence is the one answer this must not give. Every key provider
+	/// this framework ships implements it, and startup validation already warns a deployment whose provider
+	/// does not.
+	/// </para>
+	/// <para>
+	/// <b>Scoped to keys this erasure actually destroyed.</b> An erasure discharged entirely by record
+	/// deletion destroyed nothing, so there is nothing whose state could have changed and no finding is
+	/// produced — a check with no subject must not manufacture one.
+	/// </para>
+	/// </remarks>
+	/// <returns>The handles that answered "not destroyed", in the order they were destroyed.</returns>
+	private async Task<IReadOnlyList<string>> FindReMintedHandlesAsync(
+		IReadOnlyList<string> deletedKeyIds,
+		List<string> errors,
+		Guid requestId,
+		CancellationToken cancellationToken)
+	{
+		if (deletedKeyIds.Count == 0)
+		{
+			return [];
+		}
+
+		// Resolved from the admin rather than from a new constructor parameter. The capability is advertised
+		// through IServiceProvider by a provider that composes (the multi-region provider answers for its
+		// regions), and implemented directly on the single-backend providers, so both shapes are asked.
+		var destructionStatus =
+			(_keyAdmin as IServiceProvider)?.GetService(typeof(IKeyDestructionStatusProvider)) as IKeyDestructionStatusProvider
+			?? _keyAdmin as IKeyDestructionStatusProvider;
+
+		if (destructionStatus is null)
+		{
+			LogKeyStateNotReestablished(requestId, _keyAdmin.GetType().Name, deletedKeyIds.Count);
+			errors.Add(
+				$"the state of {deletedKeyIds.Count} destroyed key handle(s) could not be re-established before "
+				+ "attesting, because the configured key provider cannot report whether a key is destroyed. A "
+				+ "write for this data subject during the erasure would have re-occupied a destroyed handle, and "
+				+ "this erasure cannot say whether one did.");
+
+			return [];
+		}
+
+		List<string>? reMinted = null;
+
+		foreach (var keyId in deletedKeyIds)
+		{
+			// A failure to obtain an answer throws by this capability's contract, and it is deliberately NOT
+			// caught here: "could not ask" must never be recorded as "destroyed". The handler at the bottom of
+			// ExecuteAsync records the request as Failed, which is honest -- the erasure's work stands and its
+			// attestation does not.
+			if (await destructionStatus.IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false))
+			{
+				continue;
+			}
+
+			(reMinted ??= []).Add(keyId);
+			errors.Add(
+				$"key handle '{keyId}' was destroyed by this erasure and holds recoverable material again, so "
+				+ "personal data for this data subject was written while the erasure was running and is not "
+				+ "covered by it.");
+		}
+
+		return reMinted ?? [];
+	}
+
+	/// <summary>
+	/// Records an erasure that did everything asked of it and was overtaken by a write for the same data
+	/// subject, and issues its certificate.
+	/// </summary>
+	/// <remarks>
+	/// The certificate is written BEFORE the status, and it is written at all, because the destruction already
+	/// happened: withholding the document would leave the consumer with an irreversible act performed and no
+	/// evidence of it, which is worse than the coverage gap being reported. It carries the same structured
+	/// residue the partial path carries, so the uncovered store kinds and failed contributors are named rather
+	/// than flattened into prose.
+	/// </remarks>
+	private async Task<ErasureExecutionResult> RecordCompletedExceptConcurrentWritesAsync(
+		Guid requestId,
+		IReadOnlyList<string> reMintedHandles,
+		IReadOnlyList<string> deletedKeyIds,
+		ErasureStatus status,
+		int deletedCount,
+		int recordsAffected,
+		IReadOnlyCollection<string> uncoveredStoreKinds,
+		IReadOnlyList<(string Name, string? Error)> failedContributors,
+		IReadOnlyList<ErasureException> exemptions,
+		Activity? activity,
+		CancellationToken cancellationToken)
+	{
+		var detail =
+			$"The erasure destroyed {deletedCount} key(s) and its contributors acted on {recordsAffected} "
+			+ $"record(s). {reMintedHandles.Count} destroyed key handle(s) held recoverable material again when "
+			+ "it finished, so personal data for this data subject was written during the erasure and is not "
+			+ $"covered by it: {string.Join(", ", reMintedHandles)}. Nothing the erasure attempted failed. "
+			+ "Erase this data subject again once the writes have stopped.";
+
+		// FAILS OPEN for the reason the partial path documents: the erasure's outcome is decided by what the
+		// erasure DID, never by whether the document about it could be written. A throw here would reach the
+		// handler in ExecuteAsync and report a request that destroyed keys as never having happened.
+		try
+		{
+			_ = await PersistCompletionCertificateAsync(
+				requestId,
+				status,
+				deletedKeyIds,
+				deletedCount,
+				recordsAffected,
+				exemptions,
+				cancellationToken,
+				warnings: [detail],
+				certificateIdOverride: null,
+				uncoveredStoreKinds: uncoveredStoreKinds,
+				failedContributors: failedContributors).ConfigureAwait(false);
+		}
+		catch (Exception certificateFailure) when (certificateFailure is not OperationCanceledException)
+		{
+			LogPartialCertificateNotWritten(requestId, certificateFailure);
+		}
+
+		_ = await _store.UpdateStatusAsync(
+			requestId, ErasureRequestStatus.CompletedExceptConcurrentWrites, detail, cancellationToken)
+			.ConfigureAwait(false);
+
+		LogErasureCompletedExceptConcurrentWrites(requestId, reMintedHandles.Count, deletedCount);
+		KeysDeletedCounter.Add(deletedCount);
+		RequestsFailedCounter.Add(
+			1, new TagList { { ErasureTelemetryConstants.Tags.ErrorType, "concurrent_write" } });
+		activity?.SetTag("erasure.keys_deleted", deletedCount);
+		activity?.SetTag("erasure.records_affected", recordsAffected);
+		activity?.SetTag("erasure.handles_reoccupied", reMintedHandles.Count);
+		activity?.SetTag(ErasureTelemetryConstants.Tags.ResultStatus, "completed_except_concurrent_writes");
+
+		return ErasureExecutionResult.CompletedExceptConcurrentWrites(deletedCount, recordsAffected, detail);
 	}
 
 	private async Task<ErasureExecutionResult> RecordAwaitingKeyDestructionAsync(
@@ -1388,6 +1834,33 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 			"Erasure {RequestId} completed in part but its certificate could not be written. The erasure "
 			+ "itself stands and its counts are reported; there is no signed evidence of it.")]
 	private partial void LogPartialCertificateNotWritten(Guid requestId, Exception exception);
+
+	[LoggerMessage(
+		EventId = ComplianceEventId.ErasureCertificateClaimsNotEstablished,
+		Level = LogLevel.Error,
+		Message =
+			"Erasure {RequestId} issued a certificate carrying claims nobody established, and the request was "
+			+ "already recorded as complete so the outcome could not be revised: {Claims}")]
+	private partial void LogCertificateClaimsNotEstablished(Guid requestId, string claims);
+
+	[LoggerMessage(
+		EventId = ComplianceEventId.ErasureCompletedExceptConcurrentWrites,
+		Level = LogLevel.Warning,
+		Message =
+			"Erasure {RequestId} did everything asked of it and {ReoccupiedHandles} destroyed key handle(s) held "
+			+ "recoverable material again when it finished, so data written during the erasure is not covered by "
+			+ "it. Keys destroyed: {KeysDeleted}")]
+	private partial void LogErasureCompletedExceptConcurrentWrites(
+		Guid requestId, int reoccupiedHandles, int keysDeleted);
+
+	[LoggerMessage(
+		EventId = ComplianceEventId.ErasureKeyStateNotReestablished,
+		Level = LogLevel.Error,
+		Message =
+			"Erasure {RequestId} destroyed {KeysDeleted} key(s) and could not re-establish their state before "
+			+ "attesting: key provider {ProviderType} does not report whether a key is destroyed. Implement "
+			+ "IKeyDestructionStatusProvider on the provider so erasures that destroy its keys can complete.")]
+	private partial void LogKeyStateNotReestablished(Guid requestId, string providerType, int keysDeleted);
 
 	[LoggerMessage(
  ComplianceEventId.ErasureExecutionRefusedAwaitingDestruction,

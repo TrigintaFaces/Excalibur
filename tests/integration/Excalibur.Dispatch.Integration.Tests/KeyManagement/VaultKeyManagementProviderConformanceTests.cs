@@ -164,7 +164,73 @@ public sealed class VaultKeyManagementProviderConformanceTests : KeyManagementPr
 	public Task DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction_Test() =>
 		DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction();
 
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_WhenAbsent_ShouldCreateOneActiveVersion_Test() =>
+		CreateKeyIfAbsentAsync_WhenAbsent_ShouldCreateOneActiveVersion();
+
+	/// <summary>
+	/// This arm also settles something HashiCorp's API documentation does not state: what a create against an
+	/// existing Transit key name does. If it quietly rotated, a second provisioning would fence version 1 and
+	/// this arm would fail. Against real Vault.
+	/// </summary>
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_WhenPresent_ShouldNotRotateOrDemote_Test() =>
+		CreateKeyIfAbsentAsync_WhenPresent_ShouldNotRotateOrDemote();
+
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_ConcurrentFirstWrites_ShouldNotDemoteEachOther_Test() =>
+		CreateKeyIfAbsentAsync_ConcurrentFirstWrites_ShouldNotDemoteEachOther();
+
+	/// <summary>
+	/// Transit has no soft-delete, so a delete here destroys the material on return and this is the provider
+	/// that exercises the COMPLETED half of the agreement the arm asserts. Against a real Vault.
+	/// </summary>
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome_Test() =>
+		IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome();
+
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed();
+
 	#endregion DeleteKey Tests
+
+	#region KeyDestructionStatus Tests
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed_Test() =>
+		IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome_Test() =>
+		IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException_Test() =>
+		IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed_Test() =>
+		IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException_Test() =>
+		IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException();
+
+	#endregion KeyDestructionStatus Tests
 
 	#region SuspendKey Tests
 

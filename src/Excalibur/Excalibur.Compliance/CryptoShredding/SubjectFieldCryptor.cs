@@ -62,12 +62,21 @@ public sealed class SubjectFieldCryptor
     /// which to protect it, so proceeding would persist it in plaintext.
     /// </remarks>
     /// <param name="record">The record whose personal-data fields are encrypted in place.</param>
+    /// <param name="aggregateType">
+    /// The aggregate type this record is stored inside, or <see langword="null"/> when it is not stored
+    /// inside an aggregate.
+    /// <para>
+    /// <b>It selects the key scope.</b> Where the aggregate type carries a declared erasure retention, the
+    /// subject's fields inside it are protected by a key of their own, so that an erasure elsewhere does
+    /// not make the retained record unreadable.
+    /// </para>
+    /// </param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
-    public ValueTask EncryptFieldsAsync(object record, CancellationToken cancellationToken)
+    public ValueTask EncryptFieldsAsync(object record, string? aggregateType, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        return EncryptFieldsAsync(record, GetPlanForInstance(record), cancellationToken);
+        return EncryptFieldsAsync(record, GetPlanForInstance(record), aggregateType, cancellationToken);
     }
 
     /// <summary>
@@ -80,7 +89,11 @@ public sealed class SubjectFieldCryptor
     /// annotated personal data that no discovered location covers. A plan must still come from
     /// <see cref="TypeFieldPlan.Describe"/>, which applies the same encryptability rule as reflection.
     /// </remarks>
-    internal async ValueTask EncryptFieldsAsync(object record, TypeFieldPlan plan, CancellationToken cancellationToken)
+    internal async ValueTask EncryptFieldsAsync(
+        object record,
+        TypeFieldPlan plan,
+        string? aggregateType,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(plan);
@@ -119,6 +132,12 @@ public sealed class SubjectFieldCryptor
                 + "personal data.");
         }
 
+        // The scope is the aggregate type the value is being stored inside, whole. A retention covers the
+        // record, so every subject named in it shares one obligation and one key scope.
+        var scope = aggregateType is { Length: > 0 }
+            ? RetentionScope.For(aggregateType)
+            : RetentionScope.NotInAnAggregate;
+
         foreach (var property in plan.PersonalDataProperties)
         {
             // NO DOUBLE-WRAP, and it is enforced here because here is the only place it can be.
@@ -149,7 +168,8 @@ public sealed class SubjectFieldCryptor
                 continue;
             }
 
-            var envelope = await _fieldEncryptor.EncryptAsync(subjectId, plaintext, cancellationToken)
+            var envelope = await _fieldEncryptor
+                .EncryptAsync(subjectId, scope, plaintext, cancellationToken)
                 .ConfigureAwait(false);
             WriteEnvelope(property, record, envelope);
         }
@@ -167,7 +187,7 @@ public sealed class SubjectFieldCryptor
     /// <param name="recordType">The record type to inspect.</param>
     /// <returns>
     /// <see langword="true"/> when the type declares at least one encryptable personal-data field; otherwise
-    /// <see langword="false"/>, meaning <see cref="EncryptFieldsAsync(object, CancellationToken)"/> and <see cref="DecryptFieldsAsync(object, CancellationToken)"/>
+    /// <see langword="false"/>, meaning <see cref="EncryptFieldsAsync(object, string?, CancellationToken)"/> and <see cref="DecryptFieldsAsync(object, CancellationToken)"/>
     /// would both leave a record of this type untouched.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordType"/> is null.</exception>

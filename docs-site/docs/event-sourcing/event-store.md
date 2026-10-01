@@ -270,11 +270,41 @@ var result = await eventStore.AppendAsync(
 
 if (!result.Success)
 {
-    // Concurrency conflict - another process modified the aggregate
-    // result.ErrorMessage contains version mismatch details
+    // Not necessarily a conflict: !Success covers BOTH a concurrency conflict and an
+    // outright failure, and they call for different responses. Read result.Outcome to
+    // tell them apart -- see "Reading the outcome" below.
     throw new ConcurrencyException(result.ErrorMessage!);
 }
 ```
+
+### Reading the outcome
+
+`AppendResult.Outcome` states which of four things happened, rather than leaving you to infer it from a
+boolean and an error string:
+
+| `AppendOutcome` | meaning | `Success` | `NextExpectedVersion` |
+| --- | --- | --- | --- |
+| `Committed` | written by this call | `true` | version of the last event written |
+| `AlreadyCommitted` | written by an **earlier** call whose acknowledgement was lost | `true` | the version that call landed at |
+| `ConcurrencyConflict` | another writer holds the version you expected | `false` | the **measured** actual version; `null` only when no version read succeeded |
+| `Failed` | nothing was written | `false` | always `null` |
+
+`Success` is true for `Committed` and `AlreadyCommitted` alike — in both, the events you asked to append are
+durable — so a host that only asks *did it work* is answered correctly without change.
+
+**`NextExpectedVersion` is `long?`.** Every non-null value is one the store *measured*, never your own
+expected version echoed back. Versions are zero-based, so a `-1` is the ordinary value meaning *this stream
+does not exist* rather than a failure sentinel; *not measured* is `null` instead. A non-null value may be
+passed straight back as the next expected version; on `null` you must reload.
+
+**`AlreadyCommitted` carries one obligation.** The rows are durable but were written earlier, so they may
+have been acted on in between — present does not imply retrievable. A caller still holding the live payloads
+must not assume they are what the store would now return; read them back if your next step depends on the
+stored form.
+
+The cloud-native stores return `CloudAppendResult` with the same discriminator as `CloudAppendOutcome`.
+Full details, including the factory signatures for anyone implementing a store:
+[an append result states its outcome](../migration/append-result-outcome.md).
 
 ### Handling Conflicts
 
@@ -350,7 +380,9 @@ for (var attempt = 0; attempt < 3; attempt++)
 ```
 
 The store recognises the retry because the events carry the same identifiers, finds them already present,
-and reports **success** rather than a conflict.
+and reports **success** rather than a conflict — specifically `AppendOutcome.AlreadyCommitted`, which is a
+success you can distinguish from a fresh write. Read it when you need to know that the rows predate this
+call and may have been acted on since.
 
 ### The identifier contract
 

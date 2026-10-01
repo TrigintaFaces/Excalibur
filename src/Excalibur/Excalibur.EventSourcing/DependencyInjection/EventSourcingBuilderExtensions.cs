@@ -259,7 +259,16 @@ public static class EventSourcingBuilderExtensions
 				erasure,
 				sp.GetRequiredService<Erasure.IAggregateDataSubjectMapping>(),
 				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Erasure.EventStoreErasureContributor>>(),
-				sp.GetKeyedService<ISnapshotStore>("default"));
+				sp.GetKeyedService<ISnapshotStore>("default"),
+				// Lets the contributor reach the read models: it enumerates the projection registry and
+				// invokes each registration's pre-bound clear delegate after the tombstone. Passed as the
+				// provider rather than as the registry so a host with no projections registers nothing extra
+				// and the delegate can resolve the projection store and recovery service it closes over.
+				sp,
+				// The aggregate types this deployment is legally obliged to keep through an erasure. Absent
+				// when nothing is declared, which is the behaviour every host had before retentions existed:
+				// every mapped aggregate is tombstoned.
+				sp.GetService<global::Excalibur.Compliance.IErasureRetentionRegistry>());
 		}));
 
 		// Fail-closed for the surface the framework CANNOT erase. Erasure tombstones event rows in place

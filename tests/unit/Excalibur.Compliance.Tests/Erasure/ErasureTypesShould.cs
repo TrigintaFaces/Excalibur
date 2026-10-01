@@ -214,15 +214,16 @@ public sealed class ErasureRequestStatusShould
 	[InlineData(ErasureRequestStatus.Failed, 6)]
 	[InlineData(ErasureRequestStatus.PartiallyCompleted, 7)]
 	[InlineData(ErasureRequestStatus.AwaitingKeyDestruction, 8)]
+	[InlineData(ErasureRequestStatus.CompletedExceptConcurrentWrites, 9)]
 	public void Have_expected_integer_values(ErasureRequestStatus status, int expectedValue)
 	{
 		((int)status).ShouldBe(expectedValue);
 	}
 
 	[Fact]
-	public void Have_exactly_nine_values()
+	public void Have_exactly_ten_values()
 	{
-		Enum.GetValues<ErasureRequestStatus>().Length.ShouldBe(9);
+		Enum.GetValues<ErasureRequestStatus>().Length.ShouldBe(10);
 	}
 }
 
@@ -262,9 +263,18 @@ public sealed class ErasureScopeShould
 public sealed class ErasureLegalBasisShould
 {
 	[Fact]
-	public void Have_exactly_seven_values()
+	public void Have_exactly_eight_values_with_zero_meaning_not_established()
 	{
-		Enum.GetValues<ErasureLegalBasis>().Length.ShouldBe(7);
+		Enum.GetValues<ErasureLegalBasis>().Length.ShouldBe(8);
+
+		// THE ZERO IS THE CLAIM, and a count cannot make it. Whatever sits at zero is what a reflection
+		// binder, a deserializer and an out-of-range cast all produce, so zero must not be a lawful ground:
+		// while it was, a value nobody assigned was indistinguishable from a deliberate one on a signed
+		// certificate. RED input: renumber the zero member back to a substantive basis.
+		((ErasureLegalBasis)0).ShouldBe(
+			ErasureLegalBasis.NotEstablished,
+			"zero is what an unassigned value produces, so it must mean no ground was established rather "
+			+ "than naming one");
 	}
 }
 
@@ -273,8 +283,17 @@ public sealed class ErasureLegalBasisShould
 public sealed class LegalHoldBasisShould
 {
 	[Fact]
-	public void Have_exactly_seven_values()
+	public void Have_exactly_eight_values_with_zero_meaning_not_established()
 	{
-		Enum.GetValues<LegalHoldBasis>().Length.ShouldBe(7);
+		Enum.GetValues<LegalHoldBasis>().Length.ShouldBe(8);
+
+		// THE ZERO IS THE CLAIM, and a count cannot make it. Whatever sits at zero is what a reflection
+		// binder, a deserializer and an out-of-range cast all produce, so zero must not be a lawful ground:
+		// while it was, a value nobody assigned was indistinguishable from a deliberate one on a signed
+		// certificate. RED input: renumber the zero member back to a substantive basis.
+		((LegalHoldBasis)0).ShouldBe(
+			LegalHoldBasis.NotEstablished,
+			"zero is what an unassigned value produces, so it must mean no ground was established rather "
+			+ "than naming one");
 	}
 }

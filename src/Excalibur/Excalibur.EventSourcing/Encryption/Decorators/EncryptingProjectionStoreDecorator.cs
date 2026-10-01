@@ -277,6 +277,25 @@ public sealed class EncryptingProjectionStoreDecorator<
 			await capability.UpsertUnnumberedAsync(id, projection, cancellationToken).ConfigureAwait(false);
 		}
 
+		/// <inheritdoc />
+		/// <remarks>
+		/// Encrypts before forwarding, exactly as the other writes do. A rebuild replaces the whole
+		/// stored state, so it owes the same protection; forwarding it in the clear would write an
+		/// unencrypted row through a decorator whose whole purpose is that it cannot.
+		/// </remarks>
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public async Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+			string id,
+			TProjection projection,
+			long newPosition,
+			CancellationToken cancellationToken)
+		{
+			await outer.EncryptForWriteAsync(projection, cancellationToken).ConfigureAwait(false);
+			return await capability.RebuildAtPositionAsync(id, projection, newPosition, cancellationToken)
+				.ConfigureAwait(false);
+		}
+
 		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public async Task<ProjectionAdvanceResult> UpsertAtPositionAsync(

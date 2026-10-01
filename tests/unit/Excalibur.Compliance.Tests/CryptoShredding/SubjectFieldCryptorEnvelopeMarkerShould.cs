@@ -51,7 +51,7 @@ public sealed class SubjectFieldCryptorEnvelopeMarkerShould
 		var cryptor = new SubjectFieldCryptor(RoundTrippingEncryptor());
 		var record = new Customer { SubjectId = "subject-1", Email = Plaintext };
 
-		await cryptor.EncryptFieldsAsync(record, CancellationToken.None).ConfigureAwait(false);
+		await cryptor.EncryptFieldsAsync(record, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
 
 		record.Email!.StartsWith(EncryptedFieldBinding.StringEnvelopePrefix, StringComparison.Ordinal)
 			.ShouldBeTrue(
@@ -75,7 +75,7 @@ public sealed class SubjectFieldCryptorEnvelopeMarkerShould
 		var cryptor = new SubjectFieldCryptor(RoundTrippingEncryptor());
 		var record = new Customer { SubjectId = "subject-1", Email = Plaintext };
 
-		await cryptor.EncryptFieldsAsync(record, CancellationToken.None).ConfigureAwait(false);
+		await cryptor.EncryptFieldsAsync(record, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
 
 		// Reproduce the legacy on-disk shape from a genuine write: same envelope, no marker. This is what
 		// the previous version persisted, and it is what a consumer's database is full of on the day they
@@ -107,8 +107,8 @@ public sealed class SubjectFieldCryptorEnvelopeMarkerShould
 		var encryptor = A.Fake<IFieldEncryptor>();
 
 #pragma warning disable CA2012 // FakeItEasy stores the ValueTask rather than awaiting it here
-		A.CallTo(() => encryptor.EncryptAsync(A<string>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
-			.ReturnsLazily((string _, ReadOnlyMemory<byte> plaintext, CancellationToken _) =>
+		A.CallTo(() => encryptor.EncryptAsync(A<string>._, A<RetentionScope>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._))
+			.ReturnsLazily((string _, RetentionScope _, ReadOnlyMemory<byte> plaintext, CancellationToken _) =>
 				new EncryptedData
 				{
 					Ciphertext = plaintext.ToArray(),

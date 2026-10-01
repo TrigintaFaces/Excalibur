@@ -19,6 +19,16 @@
     <PackageReference Include="PdfPig" />
   </ItemGroup>
   <ItemGroup>
+    <!--
+      The SHIPPED SQL Server compliance DDL, linked so a unit arm can read the artifact a CONSUMER
+      applies rather than the auto-create text inside the store. Those are two independent
+      definitions of one schema, and only the auto-create one was exercised by any test: a
+      certificate column present in the store and absent from this script shipped undetected.
+      Linked under a dialect-named folder because both dialects ship a file with this leaf name.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\001_CreateComplianceSchema.sql" Link="Schema\SqlServer\001_CreateComplianceSchema.sql" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Pdf\Excalibur.Compliance.Pdf.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.MongoDb\Excalibur.Compliance.MongoDb.csproj" />

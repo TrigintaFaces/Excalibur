@@ -38,6 +38,35 @@ public sealed class RedisEventStoreOptions
 	public int DefaultBatchSize { get; set; } = 100;
 
 	/// <summary>
+	/// Gets or sets how many of a stream's most recent appends stay recognisable as retries.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// An append reports success if and only if its events are durably present, decided by the identity of
+	/// the events rather than by a version slot, so a retry after a lost acknowledgement is answered with
+	/// the version the earlier attempt reached instead of a conflict that would invite a duplicating
+	/// re-append. A Redis stream offers no keyed read by event identifier, so the store instead records the
+	/// identity of each append in a companion sorted set and looks the retry up there. This is the size of
+	/// that set.
+	/// </para>
+	/// <para>
+	/// A retry of any of the last <em>N</em> appends to a stream is recognised, however many other writers
+	/// appended in between. A retry older than that is reported as a concurrency conflict — the same answer
+	/// a caller minting fresh identifiers per attempt receives, and the reason a caller must be idempotent
+	/// downstream rather than relying on this window alone.
+	/// </para>
+	/// <para>
+	/// The default covers far more intervening appends than a stream receives while one retry is in flight,
+	/// while staying below the entry count at which Redis abandons the compact encoding for a sorted set, so
+	/// the memory held per stream stays on the order of a kilobyte. Raise it for streams under unusual
+	/// contention; lower it only if that per-stream cost matters more than the width of the window.
+	/// </para>
+	/// </remarks>
+	/// <value>The number of recent appends per stream that remain recognisable. Defaults to 64.</value>
+	[Range(1, 1024)]
+	public int RetryRecognitionWindow { get; set; } = 64;
+
+	/// <summary>
 	/// Gets or sets a source-generated JSON type-info resolver covering the application's domain event types
 	/// and the runtime types of the values it places in <see cref="Excalibur.Dispatch.IDomainEvent.Metadata"/>,
 	/// enabling a reflection-free serialization path under trimming and native AOT.

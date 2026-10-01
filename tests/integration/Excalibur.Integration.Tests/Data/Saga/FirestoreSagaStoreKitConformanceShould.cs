@@ -93,21 +93,21 @@ public sealed class FirestoreSagaStoreKitConformanceShould : SagaStoreConformanc
 	/// <remarks>Data-only. The throwaway per-instance collection goes away with the emulator.</remarks>
 	protected override Task CleanupAsync() => Task.CompletedTask;
 
-	/// <inheritdoc/>
-	/// <remarks>
-	/// <c>FirestoreSagaStore.SaveAsync</c> reads the persisted version and writes inside one
-	/// <c>RunTransactionAsync</c> (FirestoreSagaStore.cs:185), throwing <c>ConcurrencyException</c> when the
-	/// persisted version differs from the expected one (FirestoreSagaStore.cs:215-222) — which also covers
-	/// the missing-saga case, where the persisted version reads 0 against a non-zero expectation, so a stale
-	/// save cannot resurrect. That is a genuine transactional version CAS, so the optimistic-concurrency
-	/// arms run rather than early-return.
-	/// </remarks>
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	#region Save
 
+	// Restored. This derives from the SHIPPED kit, whose SupportsOptimisticConcurrency still defaults to
+	// false and whose concurrency arms SkipArm when it does. Removing the flag from the INTERNAL
+	// conformance base and stripping this override together silently turned those arms off here -- and a
+	// recorded skip does not fail, so nothing reported it. This store does enforce optimistic concurrency.
+	protected override bool SupportsOptimisticConcurrency => true;
+
 	[Fact]
 	public Task SaveAsync_NewSaga_ShouldSucceed_Test() => SaveAsync_NewSaga_ShouldSucceed();
+
+	[Fact]
+	public Task ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised_Test() =>
+		ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised();
 
 	[Fact]
 	public Task SaveAsync_ExistingSaga_ShouldUpdate_Test() => SaveAsync_ExistingSaga_ShouldUpdate();

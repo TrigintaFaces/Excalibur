@@ -10,6 +10,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using System.Globalization;
 using System.Reflection;
 
 using VaultSharp;
@@ -174,8 +175,19 @@ public sealed class VaultKeyProviderShould
 		var activeInfo = new EncryptionKeyInfo { DeletionAllowed = false };
 		((KeyStatus)determineStatus!.Invoke(null, [activeInfo, 1])!).ShouldBe(KeyStatus.Active);
 
-		var pendingInfo = new EncryptionKeyInfo { DeletionAllowed = true };
-		((KeyStatus)determineStatus.Invoke(null, [pendingInfo, 1])!).ShouldBe(KeyStatus.PendingDestruction);
+		// deletion_allowed is a PERMISSION, never a destruction schedule, so it must not move the status off
+		// Active. This assertion previously demanded PendingDestruction, which is how the defect survived:
+		// every status other than Active throws on the encrypt path, so a delete that set the flag and then
+		// failed left the subject unable to have personal data written ever again, and an operator who set the
+		// flag deliberately broke encryption for every subject at once. Transit has no pending-destruction
+		// state for the flag to describe.
+		var deletionPermittedInfo = new EncryptionKeyInfo { DeletionAllowed = true };
+		((KeyStatus)determineStatus.Invoke(null, [deletionPermittedInfo, 1])!).ShouldBe(KeyStatus.Active);
+
+		// The flag must not suppress the fencing the floor DOES express either -- otherwise "ignore
+		// deletion_allowed" could be satisfied by returning Active unconditionally.
+		var permittedAndFenced = new EncryptionKeyInfo { DeletionAllowed = true, MinimumEncryptionVersion = 3 };
+		((KeyStatus)determineStatus.Invoke(null, [permittedAndFenced, 2])!).ShouldBe(KeyStatus.DecryptOnly);
 
 		// The status depends on the VERSION asked about, not only on the key. A version below the
 		// encryption floor that rotation installs may still decrypt and may no longer encrypt, which is
@@ -228,9 +240,14 @@ public sealed class VaultKeyProviderShould
 			LatestVersion = 4,
 			Type = TransitKeyType.aes256_gcm96,
 			DeletionAllowed = false,
+
+			// The instant sits under the version this arm MAPS. It was under version 1 while the arm mapped
+			// version 9 and asserted it came back -- which certified the defect: every version of a handle
+			// reporting the first version's instant. The assertion below is unchanged and now means what it
+			// says.
 			Keys = new Dictionary<string, object>
 			{
-				["1"] = new Dictionary<string, object>
+				["9"] = new Dictionary<string, object>
 				{
 					["creation_time"] = created
 				}
@@ -265,9 +282,12 @@ public sealed class VaultKeyProviderShould
 			LatestVersion = 2,
 			Type = TransitKeyType.aes256_gcm96,
 			DeletionAllowed = false,
+
+			// Under version 2, which is the version this arm maps. The subject is still the string form of the
+			// instant; only its placement moved onto the version it describes.
 			Keys = new Dictionary<string, object>
 			{
-				["1"] = new Dictionary<string, object>
+				["2"] = new Dictionary<string, object>
 				{
 					["creation_time"] = "2026-01-01T12:00:00Z"
 				}
@@ -297,7 +317,17 @@ public sealed class VaultKeyProviderShould
 			LatestVersion = 1,
 			Type = (TransitKeyType)999,
 			DeletionAllowed = false,
-			Keys = new Dictionary<string, object>(),
+
+			// This arm is about the algorithm fallback, not the creation time -- but a Transit response for a
+			// key it holds always dates that key's versions, so the fixture supplies one rather than relying
+			// on the mapping to invent it.
+			Keys = new Dictionary<string, object>
+			{
+				["1"] = new Dictionary<string, object>
+				{
+					["creation_time"] = DateTimeOffset.UtcNow.AddDays(-1)
+				}
+			},
 		};
 
 		using var sut = new VaultKeyProvider(
@@ -533,14 +563,35 @@ public sealed class VaultKeyProviderShould
 					LatestVersion = 3,
 					Type = TransitKeyType.aes256_gcm96,
 					DeletionAllowed = true,
-					Keys = new Dictionary<string, object>(),
+
+					// Dated, because Transit dates every version of a key it holds. The subject of this arm is
+					// the status filter; the instant is only here so the listing can describe the key at all.
+					Keys = new Dictionary<string, object>
+					{
+						["3"] = new Dictionary<string, object>
+						{
+							["creation_time"] = DateTimeOffset.UtcNow.AddDays(-2)
+						}
+					},
 				}
 			}));
 
-		var results = await setup.Provider.ListKeysAsync(KeyStatus.Active, null, CancellationToken.None);
+		// Both keys are Active, and the second one is Active DESPITE deletion_allowed being set. That flag is a
+		// permission to delete, not a destruction schedule, so it must not move a key's status -- which is why
+		// it can no longer serve as this test's way of producing a non-matching key. Transit has no status the
+		// listing can report as non-Active for a key whose latest version is live, so the filter is exercised
+		// by asking for one that nothing matches instead.
+		var active = await setup.Provider.ListKeysAsync(KeyStatus.Active, null, CancellationToken.None);
 
-		results.Count.ShouldBe(1);
-		results[0].KeyId.ShouldBe("active");
+		active.Count.ShouldBe(2, "both keys are live; permitting deletion on one does not change its status.");
+		active.Select(static k => k.KeyId).OrderBy(static k => k, StringComparer.Ordinal)
+			.ShouldBe(["active", "pending"]);
+
+		// SAFETY twin: the filter must actually exclude. Without this, a listing that ignored the filter
+		// entirely would satisfy the assertion above.
+		var decryptOnly = await setup.Provider.ListKeysAsync(KeyStatus.DecryptOnly, null, CancellationToken.None);
+
+		decryptOnly.ShouldBeEmpty("no listed key is DecryptOnly, so a status filter that is applied returns none.");
 	}
 
 	[Fact]
@@ -936,14 +987,23 @@ public sealed class VaultKeyProviderShould
 		var keys = new Dictionary<string, object>(StringComparer.Ordinal);
 		if (includeVersionKeys)
 		{
-			keys["1"] = new Dictionary<string, object>(StringComparer.Ordinal)
+			// Transit reports a creation time for EVERY version it holds, and the mapping reads the one
+			// belonging to the version being described. This previously populated versions 1 and 2 whatever
+			// latestVersion said, which was only ever valid because the mapping read version 1 regardless --
+			// so a fixture claiming version 4 supplied no instant for it.
+			//
+			// The LATEST version carries the caller's instant, because that is the version the mapping
+			// describes by default and what every ordering assertion here means; earlier versions are stamped
+			// progressively earlier, as a real rotation history is.
+			var latestCreated = createdOn ?? DateTimeOffset.UtcNow;
+			for (var version = 1; version <= latestVersion; version++)
 			{
-				["creation_time"] = createdOn ?? DateTimeOffset.UtcNow.AddDays(-1)
-			};
-			keys["2"] = new Dictionary<string, object>(StringComparer.Ordinal)
-			{
-				["creation_time"] = createdOn ?? DateTimeOffset.UtcNow
-			};
+				keys[version.ToString(CultureInfo.InvariantCulture)] =
+					new Dictionary<string, object>(StringComparer.Ordinal)
+					{
+						["creation_time"] = latestCreated.AddDays(version - latestVersion)
+					};
+			}
 		}
 
 		return new EncryptionKeyInfo

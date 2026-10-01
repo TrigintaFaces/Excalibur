@@ -40,8 +40,8 @@ public sealed class CryptoShredTwoSubjectShould
         var subjectBData = "subject-B-personal-data"u8.ToArray();
 
         // Encrypt each subject's PII under their own per-subject key (real AES-GCM, real key store).
-        var envelopeA = await fieldEncryptor.EncryptAsync("subject-A", subjectAData, CancellationToken.None);
-        var envelopeB = await fieldEncryptor.EncryptAsync("subject-B", subjectBData, CancellationToken.None);
+        var envelopeA = await fieldEncryptor.EncryptAsync("subject-A", RetentionScope.NotInAnAggregate, subjectAData, CancellationToken.None);
+        var envelopeB = await fieldEncryptor.EncryptAsync("subject-B", RetentionScope.NotInAnAggregate, subjectBData, CancellationToken.None);
 
         // Sanity: both round-trip before any erasure (proves the fixtures are real, non-vacuous).
         (await fieldEncryptor.DecryptAsync(envelopeA, CancellationToken.None)).ShouldBe(subjectAData);
@@ -71,7 +71,7 @@ public sealed class CryptoShredTwoSubjectShould
         var hasher = scope.ServiceProvider.GetRequiredService<IDataSubjectHasher>();
 
         var data = "erase-me"u8.ToArray();
-        var envelope = await fieldEncryptor.EncryptAsync("subject-C", data, CancellationToken.None);
+        var envelope = await fieldEncryptor.EncryptAsync("subject-C", RetentionScope.NotInAnAggregate, data, CancellationToken.None);
 
         await ShredSubjectAsync(keyAdmin, hasher, "subject-C");
         // Second destroy must not throw (idempotent crypto-erase).
@@ -85,6 +85,81 @@ public sealed class CryptoShredTwoSubjectShould
     // (SubjectKeyManager derives it from the same singleton IDataSubjectHasher), and zero-day retention
     // requests an immediate crypto-shred. Going through IKeyManagementAdmin rather than a dedicated
     // per-subject destroy verb keeps this test bound to the path production actually takes.
+    /// <summary>
+    /// THE RE-OCCUPATION ARM. After an erasure, ANY later write for the same subject mints a live key at the
+    /// same deterministic handle -- a re-registration, a new record under the same customer number, or a
+    /// subject still trading because the law requires their identity kept. An earlier record of that subject
+    /// must still load as a tombstone, and must NOT throw.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What this catches that no predicate-level arm can.</b> The handle is derived from the subject id, so
+    /// it is re-mintable by construction. A detector that asks "is a key present at this envelope's handle?"
+    /// sees the NEW key, concludes nothing was erased, and hands the old ciphertext to the provider under
+    /// material that never produced it -- the authentication tag fails and the load THROWS. The documented
+    /// guarantee is that an erased subject's aggregate still loads with its non-personal fields and a
+    /// tombstone in place of the erased ones, and after one ordinary write that guarantee would be gone
+    /// permanently for every earlier record of that subject, with nothing reporting it.
+    /// </para>
+    /// <para>
+    /// <b>Why it belongs on the real stack rather than beside the predicate arms.</b> Those arms assert the
+    /// state directly: a live handle with a destroyed version answers "destroyed". This one proves the state
+    /// is REACHABLE by ordinary use -- that re-minting through the subject key manager actually produces a
+    /// live handle over a destroyed generation. A predicate can be correct about a state nothing constructs.
+    /// </para>
+    /// <para>
+    /// <b>Not a confidentiality defect.</b> No erased plaintext becomes recoverable: ciphertext under the
+    /// destroyed generation cannot be decrypted by the re-minted key. The failure is liveness and honesty.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task StillTombstoneAnEarlierRecord_AfterALaterWriteReMintsTheSubjectsKey()
+    {
+        await using var provider = BuildRealEncryptionStack();
+        await ForceEncryptionRegistryInitAsync(provider);
+
+        using var scope = provider.CreateScope();
+        var fieldEncryptor = scope.ServiceProvider.GetRequiredService<IFieldEncryptor>();
+        var keyAdmin = scope.ServiceProvider.GetRequiredService<IKeyManagementAdmin>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IDataSubjectHasher>();
+
+        var earlier = "personal-data-written-before-the-erasure"u8.ToArray();
+
+        var earlierEnvelope = await fieldEncryptor.EncryptAsync(
+            "subject-R", RetentionScope.NotInAnAggregate, earlier, CancellationToken.None);
+
+        // Non-vacuity: it round-trips before anything is destroyed, so a later null cannot be a broken fixture.
+        (await fieldEncryptor.DecryptAsync(earlierEnvelope, CancellationToken.None)).ShouldBe(earlier);
+
+        await ShredSubjectAsync(keyAdmin, hasher, "subject-R");
+
+        // THE ORDINARY WRITE. Nothing unusual is requested: the subject appears again, and the key manager
+        // finds no key at their handle and mints one. This is the step that re-occupies the handle.
+        var laterEnvelope = await fieldEncryptor.EncryptAsync(
+            "subject-R", RetentionScope.NotInAnAggregate, "personal-data-written-after"u8.ToArray(), CancellationToken.None);
+
+        laterEnvelope.KeyId.ShouldBe(
+            earlierEnvelope.KeyId,
+            "the premise of this arm is that the handle is deterministic and therefore re-occupied. If these "
+            + "differ, re-minting no longer collides and the arm is asserting nothing -- fix the arm, do not "
+            + "relax it.");
+
+        // LOAD-BEARING. A live key now sits at this handle, so a handle-scoped detector would report the
+        // subject as never erased. The earlier record must still be a tombstone.
+        (await fieldEncryptor.DecryptAsync(earlierEnvelope, CancellationToken.None))
+            .ShouldBeNull(
+                "an earlier record of an erased subject must still load as a tombstone after a later write "
+                + "re-mints their key. Throwing here destroys the documented degrade-open guarantee "
+                + "permanently for every earlier record of that subject.");
+
+        // LIVENESS. The tombstone above must not come from a stack that has simply stopped decrypting.
+        (await fieldEncryptor.DecryptAsync(laterEnvelope, CancellationToken.None))
+            .ShouldBe(
+                "personal-data-written-after"u8.ToArray(),
+                "data written under the re-minted key must still decrypt, or the arm above is satisfied by a "
+                + "provider that returns null for everything");
+    }
+
     private static async Task ShredSubjectAsync(IKeyManagementAdmin keyAdmin, IDataSubjectHasher hasher, string subjectId)
     {
         _ = await keyAdmin.DeleteKeyAsync(hasher.HashDataSubjectId(subjectId), retentionDays: 0, CancellationToken.None);

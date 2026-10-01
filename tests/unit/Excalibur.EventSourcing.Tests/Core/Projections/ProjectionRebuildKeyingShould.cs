@@ -169,6 +169,95 @@ public sealed class ProjectionRebuildKeyingShould
 			"a live writer ahead of the rebuild means the rebuilt fold never landed on that key. "
 			+ "Reporting Completed would tell an operator the read model was repaired when it was not");
 		store.Written.ShouldBeEmpty("a superseded write persists nothing");
+
+		refusal.Message.ShouldContain(
+			"another writer",
+			customMessage: "a SUPERSEDED refusal really is a race, and the message must keep saying so -- "
+				+ "this is the half that stops the unplaceable arm below passing by making every refusal "
+				+ "terminal");
+	}
+
+	// LIVENESS, and it is the arm that proves an unplaceable row is now REPAIRED rather than reported.
+	//
+	// A row holding the unplaceable sentinel has no number for a write to advance from, so the advancing
+	// write cannot express the rebuild at all -- it would have to be told to accept "expected nothing"
+	// against a row that is present, which is the adopt licence a rebuild must not borrow. But a rebuild
+	// folded from an EMPTY seed over the whole stream needs no prior prefix to be conditional on, which is
+	// exactly what RebuildAtPositionAsync is for. So the row is overwritten and the rebuild completes.
+	//
+	// RefuseUnplaceable is set deliberately: it refuses every ADVANCING write, so this arm is RED the
+	// moment the routing sends a numberless row back down UpsertAtPositionAsync. That is what makes it a
+	// test of the route rather than of the outcome.
+	[Fact]
+	public async Task Rebuild_a_row_that_holds_no_placeable_position_instead_of_refusing_it()
+	{
+		var store = new RecordingProjectionStore { RefuseUnplaceable = true };
+		store.Seed("agg-1", new CountProjection { Count = 99 }, ProjectionPosition.UnplaceableSentinel);
+
+		var projection = new MultiStreamProjection<CountProjection>();
+		projection.AddHandler<Counted>((pr, _) => pr.Count++);
+
+		var sut = BuildService(store, projection, Stored("agg-1", 1));
+
+		await sut.RebuildAsync<CountProjection>(TestContext.Current.CancellationToken);
+
+		var status = await sut.GetStatusAsync<CountProjection>(TestContext.Current.CancellationToken);
+		status.State.ShouldBe(
+			ProjectionRebuildState.Completed,
+			"a row carrying no placeable position is precisely what a rebuild exists to clear, so "
+			+ "reporting Failed would tell an operator to go and do by hand what just happened");
+
+		store.Written.ShouldContainKey(
+			"agg-1",
+			customMessage: "the rebuilt fold must land; a rebuild that reported success without writing "
+				+ "is the silent shape this seam exists to eliminate");
+
+		store.Written["agg-1"].Count.ShouldBe(
+			1,
+			"the state must be the fold from an EMPTY seed over the replayed stream -- one event, so one "
+			+ "-- never the 99 the discarded row held");
+	}
+
+	// SAFETY, and it is about the DIAGNOSIS rather than the behaviour: both refusals throw, and only one
+	// of them can be acted on. A superseded row clears when the processor is stopped.
+	//
+	// An UNPLACEABLE refusal now means something narrower than it used to, because a row that ALREADY held
+	// an unplaceable position when the replay read it is routed to RebuildAtPositionAsync and repaired --
+	// see the arm above. Reaching the refusal means the row was ABSENT or POSITIONED at read time and holds
+	// the unplaceable sentinel by write time, so a concurrent writer called the unconditional UpsertAsync
+	// during the replay. It IS a race, but not the same race as a supersede, and the remedy names a
+	// different culprit: stopping the processor does not stop a component that writes the projection
+	// blindly on its own schedule. RED if the two refusals are folded back into one message.
+	[Fact]
+	public async Task Diagnose_a_blind_write_during_the_replay_as_its_own_race()
+	{
+		// No seeded row, so the replay reads ABSENT and attempts the insert-if-absent write. The store
+		// refuses it as unplaceable, which is what a blind write landing in the gap looks like.
+		var store = new RecordingProjectionStore { RefuseUnplaceable = true };
+		var projection = new MultiStreamProjection<CountProjection>();
+		projection.AddHandler<Counted>((pr, _) => pr.Count++);
+
+		var sut = BuildService(store, projection, Stored("agg-1", 1));
+
+		var refusal = await Should.ThrowAsync<InvalidOperationException>(
+			() => sut.RebuildAsync<CountProjection>(TestContext.Current.CancellationToken));
+
+		refusal.Message.ShouldContain(
+			"UpsertAsync",
+			customMessage: "the operator has to be pointed at the blind write that caused this, because "
+				+ "stopping the processor will not stop it");
+
+		refusal.Message.ShouldNotContain(
+			"another writer advanced it",
+			customMessage: "this is not a supersede: nothing advanced the row, something erased its "
+				+ "position, and the two have different remedies");
+
+		refusal.Message.ShouldNotContain(
+			"unknown",
+			customMessage: "an unplaceable row has no current position, so a message promising one prints "
+				+ "a placeholder instead of saying what is actually wrong");
+
+		store.Written.ShouldBeEmpty("a refused write persists nothing");
 	}
 
 	// The payload IS the event's data, so the serializer fake reconstructs each event from what it was
@@ -255,6 +344,9 @@ public sealed class ProjectionRebuildKeyingShould
 		/// <summary>A position a competing writer has already reached, refusing every conditional write.</summary>
 		public long? SupersedeAt { get; init; }
 
+		/// <summary>Refuse every conditional write as unplaceable: the row holds no position to advance from.</summary>
+		public bool RefuseUnplaceable { get; init; }
+
 		public void Seed(string id, CountProjection state, long? position) => _rows[id] = (state, position);
 
 		public object? GetService(Type serviceType) =>
@@ -287,6 +379,13 @@ public sealed class ProjectionRebuildKeyingShould
 			CancellationToken cancellationToken)
 		{
 			ExpectedPositions[projectionId] = expectedPosition;
+
+			if (RefuseUnplaceable)
+			{
+				// No CurrentPosition, deliberately: an unplaceable row has none, which is what makes the
+				// race-shaped message render the word "unknown" where it promises a position.
+				return Task.FromResult(new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null));
+			}
 
 			if (SupersedeAt is { } ahead)
 			{
@@ -322,6 +421,25 @@ public sealed class ProjectionRebuildKeyingShould
 			_rows[id] = (projection, atPosition);
 
 			return Task.FromResult(new ProjectionRefoldResult(ProjectionRefoldOutcome.Applied, atPosition));
+		}
+
+		// Overwrites BOTH state and position of an EXISTING row, for a caller that folded the whole
+		// stream from an empty seed. Unconditional on POSITION but conditional on EXISTENCE: an absent
+		// row was deleted, deletion is how erasure removes personal data, and a replay must not restore it.
+		public Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+			string id, CountProjection projection, long newPosition, CancellationToken cancellationToken)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+
+			if (!_rows.ContainsKey(id))
+			{
+				return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished));
+			}
+
+			Written[id] = projection;
+			_rows[id] = (projection, newPosition);
+
+			return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied));
 		}
 
 		public Task<CountProjection?> GetByIdAsync(string projectionId, CancellationToken cancellationToken) =>

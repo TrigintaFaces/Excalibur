@@ -110,6 +110,14 @@ public sealed class PostgresLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 		UpdateHoldAsync_NonExistent_ShouldReturnFalse();
 
 	[Fact]
+	public Task UpdateHoldAsync_Succeeding_ShouldIncrementVersion_Test() =>
+		UpdateHoldAsync_Succeeding_ShouldIncrementVersion();
+
+	[Fact]
+	public Task UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact_Test() =>
+		UpdateHoldAsync_StaleVersion_ShouldThrowAndLeaveHoldIntact();
+
+	[Fact]
 	public Task UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException_Test() =>
 		UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException();
 

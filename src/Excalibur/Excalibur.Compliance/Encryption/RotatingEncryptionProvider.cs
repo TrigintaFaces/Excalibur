@@ -206,12 +206,20 @@ public sealed partial class RotatingEncryptionProvider : IEncryptionProvider, ID
 			return;
 		}
 
-		// Check if key should be rotated based on age or policy
-		var keyAge = DateTimeOffset.UtcNow - activeKey.CreatedAt;
+		// A KEY WHOSE AGE IS UNKNOWN COUNTS AS EXCEEDING THE MAXIMUM. The backend reported no creation
+		// instant, so nothing can show this key is still within MaxKeyAge, and the only safe reading of that is
+		// to rotate. Rotating a key that did not need it costs one rotation; leaving one that did costs the
+		// guarantee the setting exists to give.
+		//
+		// Decided explicitly, because the lifted comparison resolves the other way: a null TimeSpan compared
+		// with > yields false, so an undatable key would silently never rotate -- which is the shape of the
+		// defect this change exists to remove, arriving through the language instead of through a fabricated
+		// instant.
+		var keyAge = activeKey.CreatedAt is { } createdAt ? DateTimeOffset.UtcNow - createdAt : (TimeSpan?)null;
 
-		if (keyAge > _options.MaxKeyAge)
+		if (keyAge is null || keyAge.Value > _options.MaxKeyAge)
 		{
-			LogKeyAgeExceedsMax(activeKey.KeyId, keyAge.TotalDays, _options.MaxKeyAge.TotalDays);
+			LogKeyAgeExceedsMax(activeKey.KeyId, keyAge?.TotalDays ?? -1, _options.MaxKeyAge.TotalDays);
 
 			_ = await _keyManagement.RotateKeyAsync(
 				activeKey.KeyId,
@@ -231,8 +239,27 @@ public sealed partial class RotatingEncryptionProvider : IEncryptionProvider, ID
 			return false;
 		}
 
-		// Re-encrypt if using different key or older version
-		return encryptedData.KeyId != activeKey.KeyId || encryptedData.KeyVersion < activeKey.Version;
+		// This is an EQUALITY question -- "is this ciphertext under the key version that is active now?" -- and
+		// it must not be answered with an ordering comparison.
+		//
+		// A `<` on the version ordinal needs the ordinal to be ORDERED, and it is not ordered on every
+		// backend: where key versions are opaque identifiers the ordinal is synthesised from a hash of one,
+		// so `<` answers at random and about half of stale ciphertext reports as current. Comparing creation
+		// instants instead is worse, not better: one provider reports every version's instant as the FIRST
+		// version's, which makes the comparison always-false and re-encrypts nothing at all, and two
+		// providers substitute the local clock when the backend does not supply an instant, which can sort an
+		// old version newest and invert the answer in the unsafe direction.
+		//
+		// Inequality needs only that a key identifier and version together DESIGNATE one key version, which
+		// every provider must guarantee for its ciphertext to be decryptable at all. So it is correct on
+		// synthesised ordinals, on real ordinals, and on whatever a future provider reports, it consults no
+		// clock, and it needs no second call to resolve the encrypting version.
+		//
+		// The only thing an ordering comparison bought was leaving a ciphertext alone when its version is
+		// NEWER than the active one. That state is unreachable, because the active key is selected as the
+		// newest; and were it ever reachable, re-encrypting to the active key wastes work without losing
+		// anything.
+		return encryptedData.KeyId != activeKey.KeyId || encryptedData.KeyVersion != activeKey.Version;
 	}
 
 	[LoggerMessage(ComplianceEventId.EncryptionReencryptionHint, LogLevel.Debug,

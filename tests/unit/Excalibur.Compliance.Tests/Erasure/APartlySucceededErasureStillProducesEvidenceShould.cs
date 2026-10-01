@@ -173,6 +173,7 @@ public sealed class APartlySucceededErasureStillProducesEvidenceShould
 			_legalHoldService,
 			null,
 			null,
+			TestRetentions.None,
 			contributors);
 
 	/// <summary>A contributor that runs and cannot do its job — the shape the projection gap has.</summary>

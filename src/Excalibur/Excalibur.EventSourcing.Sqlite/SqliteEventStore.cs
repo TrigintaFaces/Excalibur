@@ -251,7 +251,10 @@ public sealed class SqliteEventStore : IEventStore
 
 					if (landed.LastVersion is { } landedVersion)
 					{
-						return AppendResult.CreateSuccess(landedVersion, landed.FirstPosition);
+						// RECOGNISED, not written by this call: the rows carrying our identities were already
+						// there. Reporting plain success here would tell the caller it had just written them,
+						// and the caller republishes from its live payloads on that basis.
+						return AppendResult.CreateAlreadyCommitted(landedVersion, landed.FirstPosition);
 					}
 				}
 
@@ -352,7 +355,7 @@ public sealed class SqliteEventStore : IEventStore
 
 			if (IsLostRace(ex, currentVersion, expectedVersion))
 			{
-				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
 			throw;

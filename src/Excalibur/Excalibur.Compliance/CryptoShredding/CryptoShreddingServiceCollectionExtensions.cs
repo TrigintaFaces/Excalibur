@@ -3,6 +3,7 @@
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.CryptoShredding;
+using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -28,6 +29,18 @@ public static class CryptoShreddingServiceCollectionExtensions
     public static IServiceCollection AddCryptoShredding(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        // RESOLUTION MUST ALWAYS SUCCEED, because the alternative is not a failure but a DIFFERENT ANSWER.
+        // An absent retention registry answers "nothing is retained" for every type, so a composition
+        // missing it writes a retained subject's fields under the plain subject handle -- while a sibling
+        // composition that has it writes under the widened one. The two name different keys, and a key
+        // handle is the name of the thing an erasure destroys, so the stored record and the signed
+        // certificate end up disagreeing with nothing to report it. An EMPTY registry is a value meaning
+        // "none declared"; an ABSENT one is a second answer to the same question.
+        //
+        // No tenant context is registered here, and none is needed: the key manager reads no tenant. The
+        // handle it chooses is H(subject) or H(subject)-<type>, neither of which carries one.
+        services.TryAddSingleton<IErasureRetentionRegistry, ErasureRetentionRegistry>();
 
         services.TryAddScoped<ISubjectKeyManager, SubjectKeyManager>();
         services.TryAddScoped<IFieldEncryptor, FieldEncryptor>();

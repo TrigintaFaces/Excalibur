@@ -374,6 +374,9 @@ internal static class SagaEventId
 	/// <summary>A saga declined an event under its own handler guard, so it was not recorded as processed.</summary>
 	public const int SagaEventDeclined = 123305;
 
+	/// <summary>A delivery carried no message identity, so replay protection could not be applied to it.</summary>
+	public const int SagaEventUndeduplicable = 123306;
+
 	// ========================================
 	// 120500-120599: Multi-Conditional Saga Steps
 	// ========================================

@@ -34,10 +34,52 @@ public interface ILegalHoldService
 	/// <param name="reason">Reason for release.</param>
 	/// <param name="releasedBy">Who is releasing the hold.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <remarks>
+	/// Releasing is a read-modify-write, and it refuses to write over a hold that changed underneath it.
+	/// If the hold was modified between this call reading it and writing the release — most importantly,
+	/// if its expiry was extended — the release is <b>not</b> applied and
+	/// <see cref="LegalHoldConcurrencyException"/> is raised. Re-read the hold and decide again; a hold
+	/// that is no longer due for release should not be released.
+	/// </remarks>
+	/// <exception cref="KeyNotFoundException">No hold with that identifier exists, or it was deleted
+	/// while this call was releasing it.</exception>
+	/// <exception cref="InvalidOperationException">The hold has already been released.</exception>
+	/// <exception cref="LegalHoldConcurrencyException">The hold was modified concurrently. Nothing was
+	/// written.</exception>
 	Task ReleaseHoldAsync(
 		Guid holdId,
 		string reason,
 		string releasedBy,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Checks for active holds using an ALREADY-HASHED data-subject identifier.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Use this whenever the only identifier you hold is a hash.</b> <see cref="CheckHoldsAsync"/>
+	/// hashes its argument unconditionally, so passing it a hash queries for a DOUBLE hash against a store
+	/// keyed on a single one. The hash is HMAC-SHA256 and is not idempotent, so the two can never match and
+	/// the mismatch is SILENT in the unsafe direction: a subject-specific hold reports as absent and an
+	/// irreversible erasure proceeds over it.
+	/// </para>
+	/// <para>
+	/// This is not hypothetical. An erasure retains only the subject HASH once a request is recorded -- the
+	/// raw identifier is deliberately not kept, because keeping it would defeat the erasure -- so every
+	/// execute-time hold check has a hash and nothing else. Two members exist so that constraint is visible
+	/// at the call site instead of being carried in a comment nobody reads.
+	/// </para>
+	/// <para>
+	/// Both members share one query path, so a hold found by one is found by the other.
+	/// </para>
+	/// </remarks>
+	/// <param name="dataSubjectIdHash">The hashed data-subject identifier, exactly as stored.</param>
+	/// <param name="tenantId">The tenant, or <see langword="null"/> to consult every tenant-wide hold.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>The holds active for that subject, plus any tenant-wide holds.</returns>
+	Task<LegalHoldCheckResult> CheckHoldsByHashAsync(
+		string dataSubjectIdHash,
+		string? tenantId,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -195,6 +237,35 @@ public sealed record LegalHold
 	/// Gets the release reason.
 	/// </summary>
 	public string? ReleaseReason { get; init; }
+
+	/// <summary>
+	/// Gets the concurrency token for this hold: the number of times the stored record has been updated.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The store owns this value; a caller only carries it.</b> A newly created hold is stored at
+	/// <c>0</c>, <see cref="ILegalHoldStore.GetHoldAsync"/> and the query store return whatever is stored,
+	/// and each successful <see cref="ILegalHoldStore.UpdateHoldAsync"/> increments it by one. Setting it by
+	/// hand does not move the stored record; it only changes which stored version the next update will
+	/// accept.
+	/// </para>
+	/// <para>
+	/// <b>Round-trip it unchanged.</b> Updating a hold is a read-modify-write, and the version is what makes
+	/// that sequence safe: the store applies the write only if the record still carries the version the
+	/// caller read, and raises <see cref="LegalHoldConcurrencyException"/> if it does not. Building the
+	/// record to write with a <c>with</c> expression over the one that was read carries the version across
+	/// for free, which is why no call site needs to mention it. Constructing a fresh
+	/// <see cref="LegalHold"/> from parts and writing that is the way to lose the protection — the version
+	/// defaults to <c>0</c>, which no updated record still carries, so the write is refused rather than
+	/// silently applied.
+	/// </para>
+	/// <para>
+	/// It is a plain counter rather than a provider-native row version or ETag so that every store — the
+	/// relational providers and the in-memory one — compares the same value and a hold read from one shape
+	/// of store means the same thing as a hold read from another.
+	/// </para>
+	/// </remarks>
+	public int Version { get; init; }
 }
 
 /// <summary>

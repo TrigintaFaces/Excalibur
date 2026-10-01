@@ -81,11 +81,47 @@ public interface ILegalHoldStore
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Updates a legal hold.
+	/// Updates a legal hold, but only while the stored record still carries the
+	/// <see cref="LegalHold.Version"/> the caller read.
 	/// </summary>
-	/// <param name="hold">The hold with updated values.</param>
+	/// <param name="hold">
+	/// The hold with updated values. Its <see cref="LegalHold.Version"/> is the version the caller read and
+	/// is the value compared against storage — it is not written through. On success the stored version
+	/// becomes that value plus one.
+	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>True if the hold was updated.</returns>
+	/// <returns>
+	/// <see langword="true"/> when the hold was updated; <see langword="false"/> when no hold with that
+	/// identifier is visible to this store — absent, or owned by another tenant. A version mismatch is
+	/// <b>not</b> reported here; it raises <see cref="LegalHoldConcurrencyException"/>.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This is a compare-and-set, not a blind write, and the distinction is the difference between a
+	/// legal hold that holds and one that silently does not.</b> Every caller of this method is performing a
+	/// read-modify-write: it reads a hold, decides from what it read, and writes the whole record back.
+	/// Applied blindly, that decision lands over whatever the record became in the meantime — so a hold
+	/// whose expiry an operator extended, in the window between an expiry sweep's read and its write, is
+	/// released anyway, and the next erasure for that subject destroys the records the hold existed to
+	/// preserve. Nothing reports the lost update: the released record is well-formed and carries a plausible
+	/// reason, so an auditor reading it afterwards sees a legitimate release.
+	/// </para>
+	/// <para>
+	/// The comparison is therefore part of the same atomic statement as the write, never a check the caller
+	/// performs first. A store that reads the version, compares it, and then writes has only moved the race.
+	/// </para>
+	/// <para>
+	/// <b>On <see cref="LegalHoldConcurrencyException"/>, re-read and re-decide — never re-apply.</b> The
+	/// conflict means the caller's premise expired, so repeating the same write against a fresh version
+	/// reinstates exactly the lost update this contract exists to prevent. Re-read the hold, evaluate the
+	/// decision again against what it now says, and act on that; if the new state no longer warrants the
+	/// change, the correct outcome is to make none.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="LegalHoldConcurrencyException">
+	/// The hold exists and is visible, but carries a different <see cref="LegalHold.Version"/>. Nothing was
+	/// written.
+	/// </exception>
 	Task<bool> UpdateHoldAsync(
 		LegalHold hold,
 		CancellationToken cancellationToken);

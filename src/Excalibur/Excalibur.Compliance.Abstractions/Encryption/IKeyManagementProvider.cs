@@ -92,6 +92,53 @@ public interface IKeyManagementProvider : IServiceProvider
 		string? purpose,
 		DateTimeOffset? expiresAt,
 		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Ensures a key exists at <paramref name="keyId"/>, creating one only if none is there, and returns its
+	/// current metadata.
+	/// </summary>
+	/// <param name="keyId"> The unique identifier for the key. </param>
+	/// <param name="algorithm"> The encryption algorithm to use if a key has to be created. </param>
+	/// <param name="purpose"> Optional purpose or scope for a key that has to be created. </param>
+	/// <param name="cancellationToken"> A token to cancel the operation. </param>
+	/// <returns> The metadata of the key now at <paramref name="keyId"/>. Never <see langword="null"/>. </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This is not a rotation and must never behave like one.</b> If a key already exists at
+	/// <paramref name="keyId"/>, this call adds no version, changes no version's status, and alters no
+	/// attribute of the key: it returns what <see cref="GetKeyAsync"/> returns for it. A caller that wanted a
+	/// key to exist has no reason to retire the one that already does, and <see cref="RotateKeyAsync"/> is
+	/// create-OR-rotate, so using it to mean "create" demotes a live key whenever two callers race.
+	/// </para>
+	/// <para>
+	/// <b>A lost creation race is a no-op that yields the winner's key, never an error.</b> Two callers that
+	/// both find the key absent must both come away with the same key.
+	/// </para>
+	/// <para>
+	/// <b>What atomicity a backend can offer is the backend's to state, and it varies.</b> A store with a
+	/// conditional insert creates at most one key. A store whose only create operation also adds a version --
+	/// Azure Key Vault's key-create endpoint is the same request either way, with no conditional form -- may,
+	/// under a genuinely concurrent lost race, leave more than one version behind. That is permitted. What is
+	/// NOT permitted, on any backend, is demoting or retiring a version that was already there, because that
+	/// is the harm this operation exists to avoid.
+	/// </para>
+	/// <para>
+	/// <b>The returned metadata may differ from the arguments.</b> An existing key keeps the algorithm and
+	/// purpose it was created with; a caller that requires a particular algorithm must check the result rather
+	/// than assume the arguments were applied.
+	/// </para>
+	/// <para>
+	/// <b>Failure is thrown, never returned, and the result is never <see langword="null"/>.</b> A caller
+	/// cannot proceed without the value, so it cannot mistake a failed provisioning for a usable key handle --
+	/// which a result object reporting success by property makes easy to do and easy to miss.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentException"> Thrown when <paramref name="keyId"/> is null or empty. </exception>
+	Task<KeyMetadata> CreateKeyIfAbsentAsync(
+		string keyId,
+		EncryptionAlgorithm algorithm,
+		string? purpose,
+		CancellationToken cancellationToken);
 }
 
 /// <summary>

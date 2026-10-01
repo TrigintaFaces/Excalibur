@@ -47,14 +47,22 @@ public sealed class InMemorySagaStoreConformanceTests : SagaStoreConformanceTest
 	// InMemorySagaStore is a genuine optimistic-concurrency implementation (expected-version CAS +
 	// no-resurrect guard, InMemorySagaStore.SaveAsync) since boxiyl (S853), so the keystone facts run
 	// NON-SKIPPED against real optimistic logic (verify-against-real-infra: a real impl, not a mock).
-	/// <inheritdoc />
-	protected override bool SupportsOptimisticConcurrency => true;
 
 	#region Save Tests
+
+	// Restored. This derives from the SHIPPED kit, whose SupportsOptimisticConcurrency still defaults to
+	// false and whose concurrency arms SkipArm when it does. Removing the flag from the INTERNAL
+	// conformance base and stripping this override together silently turned those arms off here -- and a
+	// recorded skip does not fail, so nothing reported it. This store does enforce optimistic concurrency.
+	protected override bool SupportsOptimisticConcurrency => true;
 
 	[Fact]
 	public Task SaveAsync_NewSaga_ShouldSucceed_Test() =>
 		SaveAsync_NewSaga_ShouldSucceed();
+
+	[Fact]
+	public Task ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised_Test() =>
+		ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised();
 
 	[Fact]
 	public Task SaveAsync_ExistingSaga_ShouldUpdate_Test() =>

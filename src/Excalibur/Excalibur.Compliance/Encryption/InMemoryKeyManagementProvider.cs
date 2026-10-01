@@ -147,6 +147,45 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		return Task.FromResult(RotateKeyCore(keyId, algorithm, purpose, expiresAt));
 	}
 
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <see cref="ConcurrentDictionary{TKey,TValue}.TryAdd"/> is the conditional insert, so the store never
+	/// holds more than one key per handle and the loser of a race changes nothing. The loser's freshly minted
+	/// material is zeroed rather than left to the collector: it was never used, but it is key material, and
+	/// this type zeroes material everywhere else it stops needing it.
+	/// </remarks>
+	public Task<KeyMetadata> CreateKeyIfAbsentAsync(
+		string keyId,
+		EncryptionAlgorithm algorithm,
+		string? purpose,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		var candidate = new KeyEntry { KeyId = keyId, Purpose = purpose, Algorithm = algorithm };
+		var candidateVersion = CreateVersionEntry(expiresAt: null);
+		candidate.Versions[1] = candidateVersion;
+
+		if (_keys.TryAdd(keyId, candidate))
+		{
+			LogKeyCreated(keyId);
+			return Task.FromResult(CreateMetadata(candidate, 1, candidateVersion));
+		}
+
+		if (candidateVersion.KeyMaterial is not null)
+		{
+			CryptographicOperations.ZeroMemory(candidateVersion.KeyMaterial);
+			candidateVersion.KeyMaterial = null;
+		}
+
+		// The winner's key, read exactly as GetKeyAsync would read it. Nothing above this point touched it.
+		var winner = _keys[keyId];
+		var latest = winner.Versions.Keys.Max();
+
+		return Task.FromResult(CreateMetadata(winner, latest, winner.Versions[latest]));
+	}
+
 	/// <summary>
 	/// Schedules a key for deletion or immediately destroys it depending on the retention period.
 	/// </summary>
@@ -233,6 +272,53 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		return Task.FromResult(
 			!_keys.TryGetValue(keyId, out var keyEntry)
 			|| keyEntry.Versions.Values.All(static v => v.Status == KeyStatus.Destroyed && v.KeyMaterial is null));
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// One version at a time, because a rotation can leave a key holding one zeroed version and one live one, and
+	/// such a key is not destroyed while an envelope naming the zeroed version has nothing left to decrypt with.
+	/// There is no recovery window in process memory, so a version this provider does not hold is destroyed rather
+	/// than merely absent -- a statement this provider is entitled to make and a durable backend is not.
+	/// </remarks>
+	public Task<bool> IsKeyDestroyedAsync(string keyId, int version, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		return Task.FromResult(
+			!_keys.TryGetValue(keyId, out var keyEntry)
+			|| !keyEntry.Versions.TryGetValue(version, out var versionEntry)
+			|| (versionEntry.Status == KeyStatus.Destroyed && versionEntry.KeyMaterial is null));
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// A generation this handle does not currently hold is destroyed: either it was the material here and was
+	/// replaced or zeroed, or it was never here. In process memory there is no recovery window, so there is no
+	/// third state to report — and the handle holding a DIFFERENT generation is the case this exists for, since
+	/// the handle itself then looks perfectly alive.
+	/// </remarks>
+	public Task<bool> IsKeyDestroyedAsync(string keyId, string generation, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+		ArgumentException.ThrowIfNullOrEmpty(generation);
+
+		if (!_keys.TryGetValue(keyId, out var keyEntry))
+		{
+			return Task.FromResult(true);
+		}
+
+		// The handle is live, but with which material? A generation other than the one asked about means the
+		// material this caller is holding a payload for is gone, however healthy the handle looks.
+		if (!string.Equals(keyEntry.Generation, generation, StringComparison.Ordinal))
+		{
+			return Task.FromResult(true);
+		}
+
+		return Task.FromResult(
+			keyEntry.Versions.Values.All(static v => v.Status == KeyStatus.Destroyed && v.KeyMaterial is null));
 	}
 
 	/// <inheritdoc/>
@@ -462,6 +548,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		{
 			KeyId = keyEntry.KeyId,
 			Version = version,
+			Generation = keyEntry.Generation,
 			Status = versionEntry.Status,
 			Algorithm = keyEntry.Algorithm,
 			CreatedAt = versionEntry.CreatedAt,
@@ -572,6 +659,16 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		public required string KeyId { get; init; }
 		public string? Purpose { get; init; }
 		public EncryptionAlgorithm Algorithm { get; init; }
+
+		// Minted per PROVISIONING, not per version: a rotation adds a version to the same material lineage,
+		// while provisioning at a handle whose key was destroyed is new material that must not be mistakable
+		// for the old. A handle is derived from the data subject, so it is stable and gets re-occupied; this is
+		// the value that does not.
+		//
+		// A CSPRNG rather than a GUID -- not because the identifier is secret, it travels in cleartext on every
+		// envelope, but because reaching for a GUID where key material is nearby is the habit worth not having.
+		public string Generation { get; } = RandomNumberGenerator.GetHexString(32);
+
 		public ConcurrentDictionary<int, KeyVersionEntry> Versions { get; } = new();
 	}
 

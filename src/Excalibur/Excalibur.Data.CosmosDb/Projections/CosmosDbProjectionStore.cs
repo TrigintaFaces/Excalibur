@@ -272,10 +272,11 @@ public sealed partial class CosmosDbProjectionStore<
 		//
 		// This write replaces the whole document, so a position the row used to carry disappears with
 		// it. Omitting the field left the row reading back exactly like a row that never had a position
-		// -- and those two must be treated OPPOSITELY: a never-positioned row IS a complete fold and is
-		// adoptable, whereas a row whose state was just replaced by a value this store cannot relate to
-		// the stream is not. Adopting the second stamps a position onto a state that does not contain
-		// that prefix, and every event below it is then silently missing from the read model forever.
+		// -- and those two must stay DISTINGUISHABLE: a never-positioned row IS a complete fold
+		// whose coordinate is merely unknown, whereas a row whose state was just replaced holds a fold over
+		// no known prefix at all. A positioned write refuses BOTH -- neither carries a number it can advance
+		// from -- so what the distinction decides is not the next write but what the row can honestly be
+		// said to hold while it waits to be rebuilt, which is what an operator reads it for.
 		//
 		// Writing the unplaceable sentinel makes the row self-describing instead. It rides the same
 		// single document write as the state, so there is no window in which a destroyed position is
@@ -905,9 +906,14 @@ public sealed partial class CosmosDbProjectionStore<
 	/// <inheritdoc />
 	/// <remarks>
 	/// The same single document write as <see cref="UpsertAsync"/>, differing only in what it asserts:
-	/// this state IS a complete fold, so a later positioned writer may adopt the row. Unconditional on
+	/// this state IS a complete fold, only its coordinate unknown. Unconditional on
 	/// purpose -- the caller is claiming completeness, not a place in the stream, so there is no
 	/// position for a condition to be written against.
+	/// <para>
+	/// <b>The row is still REFUSED by a positioned write</b>, which has no number to advance from. What
+	/// this buys over the blind surface is that the row reads back as a complete answer awaiting a
+	/// coordinate rather than as a state related to no prefix at all; a rebuild is what numbers it.
+	/// </para>
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -933,6 +939,59 @@ public sealed partial class CosmosDbProjectionStore<
 		response.EnsureSuccessStatusCode();
 
 		LogUpserted(_projectionType, id);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// A <c>ReplaceItem</c> rather than the <c>UpsertItem</c> the other unconditional writes use, and with
+	/// no <c>IfMatchEtag</c>. That pair is exactly the contract: no ETag means unconditional on the
+	/// document's content and therefore on its POSITION -- a state folded from an empty seed has no prior
+	/// prefix for a condition to be written against -- while a replace is conditional on the document
+	/// EXISTING.
+	/// </para>
+	/// <para>
+	/// An absent document means the projection was DELETED, deletion is how erasure removes personal data,
+	/// and a whole-stream replay is precisely the write that could reconstruct it. Cosmos answers a replace
+	/// of a missing document with <c>404 NotFound</c>, so the existence answer comes from the write itself
+	/// rather than from a read the document could be deleted after. One round trip, and no create path to
+	/// avoid taking.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public async Task<ProjectionRebuildResult> RebuildAtPositionAsync(
+		string id,
+		TProjection projection,
+		long newPosition,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(id);
+		ArgumentNullException.ThrowIfNull(projection);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		using var payload = Serialize(BuildDocument(id, projection, ProjectionPosition.At(newPosition)));
+
+		using var response = await _container!.ReplaceItemStreamAsync(
+			payload,
+			CreateDocumentId(id),
+			new PartitionKey(_projectionType),
+			new ItemRequestOptions { EnableContentResponseOnWrite = false },
+			cancellationToken).ConfigureAwait(false);
+
+		if (response.StatusCode == HttpStatusCode.NotFound)
+		{
+			return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
+		}
+
+		response.EnsureSuccessStatusCode();
+
+		LogUpserted(_projectionType, id);
+
+		return new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied);
 	}
 
 	/// <inheritdoc />
@@ -967,6 +1026,15 @@ public sealed partial class CosmosDbProjectionStore<
 		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
 		ArgumentNullException.ThrowIfNull(projection);
 
+		// A NEGATIVE EXPECTATION IS THE ADOPT LICENCE THROUGH A DIFFERENT DOOR. The negatives are the
+		// sentinel space for the two states that carry no number, so a caller naming one as "the position I
+		// read" would be matching a row this store refuses by design. ExpectedPositionOrNull is the only
+		// legal source for this argument and never yields a negative.
+		if (expectedPosition is { } claimed)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(claimed, nameof(expectedPosition));
+		}
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var document = BuildDocument(id, projection, ProjectionPosition.At(newPosition));
@@ -993,14 +1061,17 @@ public sealed partial class CosmosDbProjectionStore<
 			}
 			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
 			{
-				// Something is already there. It is either a projection a positioned writer is
-				// advancing -- the late starter this branch exists to refuse -- or a row carrying no
-				// position at all, written by the unconditional path (a rebuild, a recovery, a row
-				// written before this store recorded positions).
+				// Something is already there, and NOTHING here adopts it. It is either a projection a
+				// positioned writer is advancing -- the late starter this branch exists to refuse -- or a
+				// row carrying no position at all, written by the unconditional path (a rebuild, a
+				// recovery, a row written before this store recorded positions).
 				//
-				// The second case must be ADOPTED, not refused. A caller reading an unpositioned row
-				// has no position to claim, so refusing it would refuse every subsequent attempt
-				// identically: a silent permanent stall rather than a conflict.
+				// The second case used to be ADOPTED, by replacing the document under the ETag just read.
+				// A caller that read no position knows nothing about the prefix that stored state covers,
+				// so the position it stamped could assert a prefix the state did not hold -- and then every
+				// event below it is absent from the read model while the position says it is present. It is
+				// refused instead, and the refusal is repairable: RebuildAtPositionAsync folds the whole
+				// stream and numbers the row from what it folded.
 				var (_, conflicting, conflictEtag) = await ReadWithEtagAsync(id, cancellationToken)
 					.ConfigureAwait(false);
 
@@ -1010,21 +1081,14 @@ public sealed partial class CosmosDbProjectionStore<
 					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, null);
 				}
 
-				// ADOPTION MATCHES EXACTLY ONE OF THE THREE STATES. An unnumbered row is a complete
-				// fold whose coordinate is merely unknown, so folding this batch onto it and stamping
-				// this batch's position states something true. The other two are refusals, and they
-				// are refused DIFFERENTLY: a positioned row means a real writer is ahead (re-read and
-				// retry), while an unplaceable row can never be adopted at all, so telling the caller
-				// to retry would spin it forever against a row that will never change.
-				return conflicting.Kind switch
-				{
-					ProjectionPositionKind.Positioned => new ProjectionAdvanceResult(
-						ProjectionAdvanceOutcome.Superseded, conflicting.Value),
-					ProjectionPositionKind.Unplaceable => new ProjectionAdvanceResult(
-						ProjectionAdvanceOutcome.Unplaceable, null),
-					_ => await ReplaceAtEtagAsync(id, document, conflictEtag, newPosition, cancellationToken)
-						.ConfigureAwait(false),
-				};
+				// TWO refusals. A positioned row means a real writer is ahead, so the caller re-reads and
+				// retries. A row carrying no number can never be advanced from, whichever no-number state it is
+				// in, so telling the caller to retry would spin it forever -- it gets the terminal outcome and
+				// a rebuild. Which no-number state the row is in is a question about the ROW, answered by
+				// reading its position, not by the result of a write.
+				return conflicting.Kind == ProjectionPositionKind.Positioned
+					? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, conflicting.Value)
+					: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 			}
 		}
 
@@ -1037,11 +1101,16 @@ public sealed partial class CosmosDbProjectionStore<
 			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 		}
 
-		// An unplaceable row is terminal and is reported as such rather than as a supersede. A
-		// superseded caller re-reads and retries; this row yields the same refusal on every re-read,
-		// so reporting Superseded here is an unbounded redelivery loop against a projection that can
-		// only be fixed by rebuilding it.
-		if (storedPosition.Kind == ProjectionPositionKind.Unplaceable)
+		// Terminal, not a supersede: there is no number to advance from, and re-reading yields the
+		// same value and the same refusal, so Superseded here is an unbounded redelivery loop. That is the
+		// arm a careless edit reintroduces, and a numberless row landing in it retries forever.
+		//
+		// BOTH no-number states report the SAME outcome, deliberately. This result describes what the WRITE
+		// did; it carries no state, and the position was read at a different instant from the one the write
+		// was refused at, so an outcome characterising the stored STATE would attribute a property of the
+		// row-at-read-time to a write refused earlier. A caller that needs to know what the row holds reads
+		// its position, where ProjectionPositionKind reports it as a measured fact.
+		if (storedPosition.Kind != ProjectionPositionKind.Positioned)
 		{
 			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 		}
@@ -1049,10 +1118,6 @@ public sealed partial class CosmosDbProjectionStore<
 		// Both conjuncts, checked before the write: the stored position is the one the caller read, and
 		// the new position is ahead of it. The second is not redundant, because the caller obtained its
 		// expected value BY READING IT, so a redelivery satisfies the first by construction.
-		//
-		// ExpectedPositionOrNull renders an unnumbered row as null, which is right here: the caller
-		// arrived with a non-null expectation, so an unnumbered row does not match it and the write is
-		// refused. Adoption is the expectedPosition-is-null branch above, and only that branch.
 		var held = storedPosition.ExpectedPositionOrNull;
 		if (held != expectedPosition || newPosition <= held)
 		{
@@ -1118,14 +1183,30 @@ public sealed partial class CosmosDbProjectionStore<
 		var advanced = await ReplaceAtEtagAsync(id, document, etag, atPosition, cancellationToken)
 			.ConfigureAwait(false);
 
-		// The replace helper speaks the ADVANCE vocabulary. Translating here rather than reusing its
-		// result type is the whole point of the separate type: an advance's Superseded is settled when
-		// the store is ahead, and a re-fold's never is.
+		// The helper speaks the ADVANCE vocabulary. Translating here rather than reusing its result type is
+		// the whole point of the separate type: an advance's Superseded is settled when the store is ahead,
+		// and a re-fold's never is.
+		//
+		// EVERY MEMBER IS NAMED, and the catch-all THROWS rather than choosing. A `_ =>` arm that returned
+		// Superseded is what turned a TERMINAL refusal into an unbounded retry here: the helper also answers
+		// Unplaceable, that fell through, and Superseded means "re-read and try again" against a row whose
+		// position will never change. ProjectionRefoldOutcome already carries the right member for it.
 		return advanced.Outcome switch
 		{
 			ProjectionAdvanceOutcome.Applied => new(ProjectionRefoldOutcome.Applied, atPosition),
 			ProjectionAdvanceOutcome.Vanished => new(ProjectionRefoldOutcome.Vanished, null),
-			_ => new(ProjectionRefoldOutcome.Superseded, advanced.CurrentPosition),
+
+			// TERMINAL, never Superseded. The row carries no position to match, so re-reading yields the same
+			// refusal and a retrying caller loops forever. The caller escalates and rebuilds instead.
+			ProjectionAdvanceOutcome.Unplaceable => new(ProjectionRefoldOutcome.RequiresRebuild, null),
+
+			ProjectionAdvanceOutcome.Superseded =>
+				new(ProjectionRefoldOutcome.Superseded, advanced.CurrentPosition),
+
+			_ => throw new InvalidOperationException(
+				$"Unhandled projection advance outcome '{advanced.Outcome}' in a re-fold translation. Every "
+				+ "member must be handled explicitly: a fall-through here decides, silently, whether a "
+				+ "terminal refusal is retried forever or treated as a conflict."),
 		};
 	}
 
@@ -1163,13 +1244,14 @@ public sealed partial class CosmosDbProjectionStore<
 		{
 			var (_, current, _) = await ReadWithEtagAsync(id, cancellationToken).ConfigureAwait(false);
 
-			// Same discrimination as the pre-write check, and it has to be repeated here because the
-			// row can become unplaceable BETWEEN the caller's read and this replace -- an unconditional
-			// upsert landing in that window is exactly what moves the ETag and causes this refusal.
-			return current.Kind == ProjectionPositionKind.Unplaceable
-				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null)
-				: new ProjectionAdvanceResult(
-					ProjectionAdvanceOutcome.Superseded, current.ExpectedPositionOrNull);
+			// Same discrimination as the pre-write check, and it has to be repeated here because the row
+			// can LOSE its number BETWEEN the caller's read and this replace -- an unconditional upsert or
+			// an unnumbered write landing in that window is exactly what moves the ETag and causes this
+			// refusal. Reporting Superseded for a numberless row would hand the caller a null position to
+			// retry against, forever.
+			return current.Kind == ProjectionPositionKind.Positioned
+				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, current.Value)
+				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
 		}
 		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 		{
@@ -1198,7 +1280,9 @@ public sealed partial class CosmosDbProjectionStore<
 
 			if (response.StatusCode == HttpStatusCode.NotFound)
 			{
-				return (null, ProjectionPosition.Unnumbered, null);
+				// An absent document is not a fold over any prefix. Unnumbered would assert a complete
+				// fold over state that does not exist.
+				return (null, ProjectionPosition.Unplaceable, null);
 			}
 
 			response.EnsureSuccessStatusCode();
@@ -1222,7 +1306,9 @@ public sealed partial class CosmosDbProjectionStore<
 		{
 			// A null ETag is what says "no document". The position returned alongside it is not a
 			// reading of anything and no caller may act on it -- every branch tests the ETag first.
-			return (null, ProjectionPosition.Unnumbered, null);
+			// An absent document is not a fold over any prefix. Unnumbered would assert a complete fold
+			// over state that does not exist.
+			return (null, ProjectionPosition.Unplaceable, null);
 		}
 	}
 
@@ -1318,11 +1404,32 @@ public sealed partial class CosmosDbProjectionStore<
 	/// An ABSENT field reads as <see cref="ProjectionPositionKind.Unnumbered"/>, which is what
 	/// <see cref="ProjectionPosition.FromStored"/> does with a null. That is correct and deliberate: a
 	/// document written before this field existed IS a complete fold, only its coordinate is unknown, so
-	/// it stays adoptable. Every provider goes through FromStored so the eight of them cannot drift.
+	/// it reads as UNNUMBERED rather than UNPLACEABLE. Every provider goes through FromStored so the eight of them cannot drift.
 	/// </remarks>
 	private static ProjectionPosition ReadPosition(JsonNode? node)
 	{
+		// EVERY failure case through FromStored with a null. The direct GetValue<long>() this replaces THREW
+		// on a field holding anything other than a number, which turned a rebuildable row into a failure on
+		// the read path -- and it was reachable without corruption, from a field written as text by another
+		// serializer or a migration script.
 		var value = node?[MetadataKey]?[MetaFieldPosition];
-		return ProjectionPosition.FromStored(value?.GetValue<long>());
+		return ProjectionPosition.FromStored(ReadStoredLong(value));
 	}
+
+	/// <summary>
+	/// Extracts the stored number, or <see langword="null"/> when the value cannot be decoded as one.
+	/// </summary>
+	/// <remarks>
+	/// <b>An undecodable value must not throw, and must not read as the trustworthy state.</b> A read is an
+	/// observation. A row whose position field holds a string or a boolean is repairable by rebuild, so
+	/// throwing here would turn a repairable row into an outage on the read path -- a consumer could not even
+	/// discover what state the projection is in, because looking is what broke. And it is reachable without
+	/// corruption: a field written as text by another serializer, a manual fix-up, or a migration script all
+	/// arrive here. Returning <see langword="null"/> routes the failure into
+	/// <see cref="ProjectionPosition.FromStored"/> alongside absence and a negative, which is one answer for
+	/// one reason: nobody knows, so it reads fail-safe.
+	/// </remarks>
+	private static long? ReadStoredLong(JsonNode? value) =>
+		value is JsonValue number && number.TryGetValue<long>(out var stored) ? stored : null;
+
 }

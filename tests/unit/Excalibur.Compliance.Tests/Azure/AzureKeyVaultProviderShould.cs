@@ -207,7 +207,10 @@ public sealed class AzureKeyVaultProviderShould
 				name: "software-key",
 				version: "version-1",
 				managed: false,
-				createdOn: null,
+
+				// The subject here is the algorithm and FIPS mapping. Key Vault dates every key it holds, so
+				// the fixture supplies an instant rather than relying on the provider to substitute one.
+				createdOn: DateTimeOffset.UtcNow.AddDays(-7),
 				updatedOn: null,
 				recoveryLevel: "Recoverable"),
 			KeyModelFactory.JsonWebKey(

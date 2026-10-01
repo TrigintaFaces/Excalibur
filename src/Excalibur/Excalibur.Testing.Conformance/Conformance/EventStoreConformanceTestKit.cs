@@ -5,6 +5,7 @@
 #pragma warning disable IDE0007 // Use implicit type (var)
 #pragma warning disable IDE0270 // Null check can be simplified
 
+using System.Globalization;
 using System.Text.Json.Serialization.Metadata;
 
 using Excalibur.Dispatch;
@@ -519,6 +520,78 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 		{
 			throw new TestFixtureAssertionException(
 				$"Expected IsConcurrencyConflict to be true. Error: {result.ErrorMessage}");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a concurrency conflict reports a version the store MEASURED — never the caller's own
+	/// expected version echoed back, and never nothing when a measurement was available.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The stream sits at version 0 and the append claims version 5, so the caller is <em>ahead</em> of the
+	/// stream rather than behind it. That shape is deliberate: it is the conflict every store detects by
+	/// reading the stream's actual version, so a measurement is always available here and
+	/// <see cref="AppendResult.NextExpectedVersion"/> must state it.
+	/// </para>
+	/// <para>
+	/// The arm is red in both directions, which is what makes it worth having. A store that substitutes the
+	/// caller's own input reports 5 and fails; a store that reports nothing at all — the degenerate way to
+	/// satisfy "never echo the caller" — reports <see langword="null"/> and also fails. Only the measured 0
+	/// passes.
+	/// </para>
+	/// <para>
+	/// The distinction matters to a caller because this number is what it reloads against. A conflict that
+	/// reports the version the caller already tried tells it nothing moved, which contradicts the conflict
+	/// itself; a conflict that reports a version nobody read hands it a value to retry into.
+	/// </para>
+	/// </remarks>
+	public virtual async Task AppendAsync_WithConflict_ShouldReportTheMeasuredVersion()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var aggregateId = GenerateAggregateId();
+
+		// Seed the stream so it measurably sits at version 0.
+		_ = await store.AppendAsync(
+			aggregateId,
+			DefaultAggregateType,
+			CreateTestEvents(aggregateId, 1),
+			-1,
+			CancellationToken.None).ConfigureAwait(false);
+
+		const long StaleExpectedVersion = 5;
+		const long MeasuredVersion = 0;
+
+		var result = await store.AppendAsync(
+			aggregateId,
+			DefaultAggregateType,
+			CreateTestEvents(aggregateId, 1, StaleExpectedVersion + 1),
+			StaleExpectedVersion,
+			CancellationToken.None).ConfigureAwait(false);
+
+		if (!result.IsConcurrencyConflict)
+		{
+			throw new TestFixtureAssertionException(
+				"Expected a concurrency conflict when appending at a version the stream is not at. "
+				+ $"Error: {result.ErrorMessage}");
+		}
+
+		if (result.NextExpectedVersion == StaleExpectedVersion)
+		{
+			throw new TestFixtureAssertionException(
+				$"A conflict reported NextExpectedVersion {StaleExpectedVersion}, which is the expected "
+				+ "version this very append was rejected for — so it is the one value the stream is "
+				+ "provably not at. The store echoed the caller's own input instead of reporting what it "
+				+ "read. Report the version a read returned, or null.");
+		}
+
+		if (result.NextExpectedVersion != MeasuredVersion)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected a conflict here to report the measured version {MeasuredVersion}, but it "
+				+ $"reported {result.NextExpectedVersion?.ToString(CultureInfo.InvariantCulture) ?? "null"}. "
+				+ "The stream demonstrably sits at that version and the store read it in order to detect "
+				+ "the conflict, so this is a conflict that can state a version and must.");
 		}
 	}
 

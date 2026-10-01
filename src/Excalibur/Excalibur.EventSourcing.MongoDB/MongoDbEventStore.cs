@@ -344,7 +344,11 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				{
 					activity.SetOperationResult(EventSourcingTagValues.Success);
 					result = WriteStoreTelemetry.Results.Success;
-					return AppendResult.CreateSuccess(retryVersion, firstPosition);
+
+					// RECOGNISED, not written by this call. Reporting plain success here would be true about
+					// the append and silently false about the call: these documents are durable, but they are
+					// a prior attempt's, and anything may have happened to them since — an erasure included.
+					return AppendResult.CreateAlreadyCommitted(retryVersion, firstPosition);
 				}
 
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -437,7 +441,9 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				LogEventsAppended(eventList.Count, aggregateType, aggregateId, landedVersion);
 				activity.SetOperationResult(EventSourcingTagValues.Success);
 				result = WriteStoreTelemetry.Results.Success;
-				return AppendResult.CreateSuccess(landedVersion, firstPosition);
+
+				// RECOGNISED, not written by this call — see the pre-check branch above.
+				return AppendResult.CreateAlreadyCommitted(landedVersion, firstPosition);
 			}
 
 			LogConcurrencyConflict(aggregateType, aggregateId, expectedVersion);
@@ -459,7 +465,9 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				LogEventsAppended(eventList.Count, aggregateType, aggregateId, landedSingleVersion);
 				activity.SetOperationResult(EventSourcingTagValues.Success);
 				result = WriteStoreTelemetry.Results.Success;
-				return AppendResult.CreateSuccess(landedSingleVersion, firstPosition);
+
+				// RECOGNISED, not written by this call — see the pre-check branch above.
+				return AppendResult.CreateAlreadyCommitted(landedSingleVersion, firstPosition);
 			}
 
 			LogConcurrencyConflict(aggregateType, aggregateId, expectedVersion);

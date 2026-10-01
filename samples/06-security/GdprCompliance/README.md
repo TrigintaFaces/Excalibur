@@ -28,6 +28,7 @@ End-to-end GDPR sample demonstrating:
 2. **`IErasureService`** - the Data Subject Right-to-Erasure (Article 17) API
 3. **`AddGdprErasure(options => ...)`** registration
 4. **Erase-in-place** and **tombstone** patterns
+5. **`AddErasureRetention(...)`** - keeping a record the law requires you to keep, through an erasure
 
 ## What it shows
 
@@ -67,9 +68,13 @@ The framework's auto-discovery uses these markers for:
 ```csharp
 builder.Services.AddGdprErasure(options =>
 {
-    options.DefaultGracePeriod   = TimeSpan.FromHours(72);
-    options.EnableAutoDiscovery  = true;
-    options.RequireVerification  = true;
+    options.DefaultGracePeriod  = TimeSpan.FromHours(72);
+    options.EnableAutoDiscovery = true;
+
+    // Certificates are signed with HMAC-SHA256 and an unsigned one is never written, so a host with
+    // no key configured completes the erasure and produces no evidence of it. Source this from your
+    // secret manager in production.
+    options.Retention.SigningKey = signingKeyFromSecretManager;
 });
 
 // Data-subject identifiers are pseudonymized with a keyed HMAC that needs a secret pepper; the framework
@@ -79,8 +84,27 @@ builder.Services.Configure<DataSubjectHashingOptions>(o =>
     o.Pepper = builder.Configuration["Gdpr:DataSubjectPepper"] ?? "sample-demo-pepper-not-a-secret-change-me-0123456789");
 
 builder.Services.AddInMemoryErasureStore();       // swap for SQL Server in prod
+
+// Erasure consults legal holds before destroying anything and refuses to start without a hold
+// service -- a hold that is never checked is a hold that does not exist.
+builder.Services.AddInMemoryLegalHoldStore();
+builder.Services.AddLegalHoldService();
+
+// The discovery source. Without it (or an explicit ErasureOptions.KeyShredOnlyErasure opt-in) the
+// host refuses to start, because a completion certificate would attest coverage nothing verified.
+builder.Services.AddInMemoryDataInventoryStore();
+builder.Services.AddDataInventoryService();
+
+// Carries out scheduled erasures once the grace period elapses. IErasureService files the request;
+// nothing executes it without this.
+builder.Services.AddErasureScheduler();
+
 builder.Services.AddComplianceMonitoring();
 ```
+
+Each of those refusals is deliberate. Erasure is irreversible and its certificate is relied on as a
+compliance record, so every gate fails the host at startup rather than issuing an unprovable
+certificate at runtime.
 
 ### 3. Erase-in-place vs Tombstone
 
@@ -92,6 +116,88 @@ builder.Services.AddComplianceMonitoring();
 Both paths go through `IErasureService.RequestErasureAsync(...)` to produce an
 audit-log entry, a unique tracking ID, and a scheduled execution window
 (respecting the grace period).
+
+### 4. When the law requires you to keep the record: a declared retention
+
+Erasure tombstones whole aggregates. Where personal data is unavoidably embedded in a transaction
+record -- the buyer's name on a vehicle sale -- destroying the aggregate destroys the transaction, and
+tax, warranty, recall and AML obligations attach to that record. Article 17(3) withholds the right to
+erasure to the extent processing is necessary to comply with a legal obligation.
+
+`AddErasureRetention` declares the aggregate types this deployment must keep. An erasure then skips
+them: the record survives whole and readable, and the certificate names the retention, its basis, its
+justification and its period.
+
+```csharp
+builder.Services.AddErasureRetention(new ErasureRetention
+{
+    AggregateType   = nameof(SalesRecord),          // matched ordinally against the stored type name
+    TenantId        = TenantScope.UntenantedSentinel, // this deployment is not multi-tenant
+    Basis           = LegalHoldBasis.LegalObligation,
+    Justification   = "Vehicle sales records are kept for six years under the tax code's "
+                    + "record-keeping requirement and for product-recall traceability.",
+    RetentionPeriod = TimeSpan.FromDays(365 * 6),
+});
+```
+
+**The retention unit is the aggregate type, whole.** There is no field-level erasure inside a retained
+record, and that limit is deliberate: an obligation to keep a record attaches to the *record*, and a
+partly-erased record is a mutated record with no evidentiary value -- which is the entire reason it was
+being kept. So every data subject named inside a retained type is covered by it while the obligation is
+in force.
+
+Three things this asks of you in return:
+
+- **Declare it before the data is written.** Naming a type here changes which key its personal fields
+  are encrypted under, and that is what keeps the record readable afterwards. Events written earlier
+  were encrypted under the subject's own key, which the erasure destroys.
+- **The retained record must carry its own copy of what it needs.** `SalesRecord` holds the buyer's
+  name and address on its own events. A record that reached its buyer through a reference into
+  `CustomerProfile` would break the moment that profile was erased -- the reference survives and
+  resolves to a tombstone. A retention protects the types you name and nothing they point at.
+- **Write the justification about the record, not about a person.** Every data subject named on a
+  retained record is shown that text, including people the statute was not written with in mind.
+
+Re-linking is yours. If the customer returns, a new `CustomerProfile` is created; matching it to the
+surviving sales record is a business decision on the identifiers you hold. The framework does not
+attempt it and keeps no hidden link, because a hidden link would be the re-identification the erasure
+was supposed to remove.
+
+`POST /retention/walkthrough` runs one erasure for a subject whose data spans both aggregate types and
+reports the outcome of each:
+
+```jsonc
+{
+  "status": "Completed",
+  "erasable": {                       // nothing declares a retention for CustomerProfile
+    "aggregateType": "CustomerProfile",
+    "survived": false,
+    "fullName": "", "emailAddress": ""
+  },
+  "retained": {                       // SalesRecord is declared, so it is whole and readable
+    "aggregateType": "SalesRecord",
+    "survived": true,
+    "buyerName": "Dana Okoro",
+    "buyerAddress": "14 Kingsway, Leeds",
+    "vehicleIdentificationNumber": "VIN-4Y1SL65848Z",
+    "salePrice": 24500
+  },
+  "certificate": [{                   // the retention is named, with its basis and period
+    "dataCategory": "SalesRecord",
+    "basis": "LegalObligation",
+    "reason": "Personal data of this data subject held in 'SalesRecord' was not erased and lawfully
+               persists there for the period stated. Vehicle sales records are kept for six years ...",
+    "retentionPeriod": "2190.00:00:00"
+  }]
+}
+```
+
+Note that `SalesRetentionMapping` returns **both** aggregates, including the retained one. That
+interface answers "where is this person's data?", which is a question of fact; whether a type may be
+destroyed is a separate, legal question, answered by the declaration. Withholding the sales record from
+the mapping instead would produce the same surviving record *silently* -- the erasure would never learn
+the data was there, so the certificate would not name it and the data subject would never be told their
+personal data lawfully persists.
 
 ## Run locally
 
@@ -113,6 +219,10 @@ curl http://localhost:5000/customers/11111111-1111-1111-1111-111111111111/privac
 # 5. Or request a tombstone on the other customer
 curl -X POST http://localhost:5000/customers/22222222-2222-2222-2222-222222222222/tombstone
 curl http://localhost:5000/customers/22222222-2222-2222-2222-222222222222/privacy-view
+
+# 6. Run the declared-retention walkthrough: one erasure across an erasable aggregate and a
+#    retained one, reporting what is left of each and what the certificate says
+curl -X POST http://localhost:5000/retention/walkthrough
 ```
 
 ### File layout
@@ -131,6 +241,10 @@ GdprCompliance/
 │   ├── CustomerPrivacyView.cs         // read model populated by the event handlers
 │   ├── ICustomerPrivacyViewStore.cs   // in-memory projection store
 │   └── CustomerPrivacyProjectionHandlers.cs  // IEventHandler<T> projections
+├── Retention/
+│   ├── RetentionEvents.cs             // CustomerProfileRegistered, VehicleSold
+│   ├── RetentionAggregates.cs         // CustomerProfile (erasable), SalesRecord (retained)
+│   └── SalesRetentionMapping.cs       // IAggregateDataSubjectMapping + its subject index
 └── Program.cs                         // DI wiring + endpoints
 ```
 
@@ -145,6 +259,12 @@ GdprCompliance/
 | `AddGdprErasure(...)` | `Excalibur.Compliance` | DI entry point + options + validator |
 | `AddInMemoryErasureStore()` | `Excalibur.Compliance` | In-memory erasure tracking (demo) |
 | `AddComplianceMonitoring()` | `Excalibur.Compliance` | Audit log, metrics, alerts |
+| `AddErasureScheduler(...)` | `Excalibur.Compliance` | Carries out scheduled erasures |
+| `ErasureRetention` / `LegalHoldBasis` | `Excalibur.Compliance.Abstractions` | Declared retention + its Article 17(3) ground |
+| `AddErasureRetention(...)` | `Excalibur.Compliance` | Declares the aggregate types an erasure must not destroy |
+| `ErasureCertificate` / `ErasureException` | `Excalibur.Compliance.Abstractions` | Signed erasure record; retentions named on it |
+| `IAggregateDataSubjectMapping` | `Excalibur.EventSourcing` | Maps a data subject to their aggregates |
+| `UseEventStoreErasure<T>()` | `Excalibur.EventSourcing` | Opts the event store into erasure |
 
 ## Production notes
 

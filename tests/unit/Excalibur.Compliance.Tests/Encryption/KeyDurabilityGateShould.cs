@@ -336,6 +336,25 @@ public sealed class KeyDurabilityGateShould
 
 			return Task.FromResult(new KeyRotationResult { Success = true });
 		}
+
+		// Create-if-absent, honestly: TryAdd leaves an existing entry alone, so a second call adds no version
+		// and demotes nothing — which is the contract this stand-in has to keep to stay substitutable.
+		public Task<KeyMetadata> CreateKeyIfAbsentAsync(
+			string keyId,
+			EncryptionAlgorithm algorithm,
+			string? purpose,
+			CancellationToken cancellationToken) =>
+			Task.FromResult(_store.GetOrAdd(
+				keyId,
+				static (id, alg) => new KeyMetadata
+				{
+					KeyId = id,
+					Version = 1,
+					Algorithm = alg,
+					Status = KeyStatus.Active,
+					CreatedAt = DateTimeOffset.UnixEpoch,
+				},
+				algorithm));
 	}
 
 	/// <summary>
@@ -369,6 +388,11 @@ public sealed class KeyDurabilityGateShould
 		public Task<KeyRotationResult> RotateKeyAsync(string keyId, EncryptionAlgorithm algorithm,
 			string? purpose, DateTimeOffset? expiresAt, CancellationToken cancellationToken) =>
 			Task.FromResult(new KeyRotationResult { Success = true });
+
+		// This subject exists to misreport a CAPABILITY, so provisioning is out of scope for it: refusing is
+		// honest, where returning a plausible key would make the stand-in assert something it does not model.
+		public Task<KeyMetadata> CreateKeyIfAbsentAsync(string keyId, EncryptionAlgorithm algorithm,
+			string? purpose, CancellationToken cancellationToken) => throw new NotSupportedException();
 	}
 
 	private sealed class FakeVolatileKeyProvider : IKeyManagementProvider
@@ -385,5 +409,10 @@ public sealed class KeyDurabilityGateShould
 		public Task<KeyRotationResult> RotateKeyAsync(string keyId, EncryptionAlgorithm algorithm,
 			string? purpose, DateTimeOffset? expiresAt, CancellationToken cancellationToken) =>
 			Task.FromResult(new KeyRotationResult { Success = true });
+
+		// This subject exists to lack a DURABILITY capability; it models no storage, so it cannot honestly
+		// return a key that would then be unreadable through its own GetKeyAsync.
+		public Task<KeyMetadata> CreateKeyIfAbsentAsync(string keyId, EncryptionAlgorithm algorithm,
+			string? purpose, CancellationToken cancellationToken) => throw new NotSupportedException();
 	}
 }

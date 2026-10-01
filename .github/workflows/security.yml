@@ -466,7 +466,7 @@ jobs:
       - name: Run OSS metadata audit
         shell: pwsh
         run: |
-          ./eng/ci/oss-metadata-audit.ps1 -OutDir artifacts/reports/OssMetadataReport -Catalog eng/governance/package-ids.yaml
+          ./eng/ci/oss-metadata-audit.ps1 -OutDir artifacts/reports/OssMetadataReport
 
       - name: Upload OSS metadata report
         if: always()

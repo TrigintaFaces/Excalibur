@@ -13,7 +13,7 @@ using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
 public sealed class ErasureServiceExecutionWorkflowShould
 {
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
-	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
+	private readonly IKeyManagementAdmin _keyAdmin = KeyDestructionFakes.AdminThatReportsEveryKeyDestroyed();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 	private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
 
@@ -43,6 +43,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 			_dataInventoryService,
 			null,
 			TestAnnotationSource.None,
+			TestRetentions.None,
 			contributors);
 	}
 

@@ -1,9 +1,15 @@
 #nullable enable
+Excalibur.EventSourcing.AppendOutcome
+Excalibur.EventSourcing.AppendOutcome.AlreadyCommitted = 1 -> Excalibur.EventSourcing.AppendOutcome
+Excalibur.EventSourcing.AppendOutcome.Committed = 0 -> Excalibur.EventSourcing.AppendOutcome
+Excalibur.EventSourcing.AppendOutcome.ConcurrencyConflict = 2 -> Excalibur.EventSourcing.AppendOutcome
+Excalibur.EventSourcing.AppendOutcome.Failed = 3 -> Excalibur.EventSourcing.AppendOutcome
 Excalibur.EventSourcing.AppendResult
 Excalibur.EventSourcing.AppendResult.ErrorMessage.get -> string?
 Excalibur.EventSourcing.AppendResult.FirstEventPosition.get -> long?
 Excalibur.EventSourcing.AppendResult.IsConcurrencyConflict.get -> bool
 Excalibur.EventSourcing.AppendResult.NextExpectedVersion.get -> long?
+Excalibur.EventSourcing.AppendResult.Outcome.get -> Excalibur.EventSourcing.AppendOutcome
 Excalibur.EventSourcing.AppendResult.Success.get -> bool
 Excalibur.EventSourcing.AppliedMigration
 Excalibur.EventSourcing.AppliedMigration.AppliedAt.get -> System.DateTimeOffset
@@ -63,6 +69,10 @@ Excalibur.EventSourcing.CursorPagedResult<T>.TotalPages.get -> int
 Excalibur.EventSourcing.CursorPagedResult<T>.TotalRecords.get -> long
 Excalibur.EventSourcing.CursorPagedResult<T>.TotalRecords.init -> void
 Excalibur.EventSourcing.ErasedEventMarker
+Excalibur.EventSourcing.ErasedStreamRepublicationException
+Excalibur.EventSourcing.ErasedStreamRepublicationException.ErasedStreamRepublicationException() -> void
+Excalibur.EventSourcing.ErasedStreamRepublicationException.ErasedStreamRepublicationException(string? message) -> void
+Excalibur.EventSourcing.ErasedStreamRepublicationException.ErasedStreamRepublicationException(string? message, System.Exception? innerException) -> void
 Excalibur.EventSourcing.EventBatchTooLargeException
 Excalibur.EventSourcing.EventBatchTooLargeException.ActualCount.get -> int
 Excalibur.EventSourcing.EventBatchTooLargeException.EventBatchTooLargeException() -> void
@@ -186,6 +196,7 @@ Excalibur.EventSourcing.IPageableProjectionStore<TProjection>
 Excalibur.EventSourcing.IPageableProjectionStore<TProjection>.QueryPagedAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, int pageNumber, int pageSize, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.PagedResult<TProjection!>!>!
 Excalibur.EventSourcing.IPositionedProjectionStore<TProjection>
 Excalibur.EventSourcing.IPositionedProjectionStore<TProjection>.GetWithPositionAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(TProjection? Projection, Excalibur.EventSourcing.ProjectionPosition Position)>!
+Excalibur.EventSourcing.IPositionedProjectionStore<TProjection>.RebuildAtPositionAsync(string! id, TProjection! projection, long newPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.ProjectionRebuildResult>!
 Excalibur.EventSourcing.IPositionedProjectionStore<TProjection>.RefoldAtPositionAsync(string! id, TProjection! projection, long atPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.ProjectionRefoldResult>!
 Excalibur.EventSourcing.IPositionedProjectionStore<TProjection>.UpsertAtPositionAsync(string! id, TProjection! projection, long? expectedPosition, long newPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.ProjectionAdvanceResult>!
 Excalibur.EventSourcing.IPositionedProjectionStore<TProjection>.UpsertUnnumberedAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -311,7 +322,6 @@ Excalibur.EventSourcing.ProjectionMode.Ephemeral = 2 -> Excalibur.EventSourcing.
 Excalibur.EventSourcing.ProjectionMode.Inline = 1 -> Excalibur.EventSourcing.ProjectionMode
 Excalibur.EventSourcing.ProjectionPosition
 Excalibur.EventSourcing.ProjectionPosition.ExpectedPositionOrNull.get -> long?
-Excalibur.EventSourcing.ProjectionPosition.IsAdoptable.get -> bool
 Excalibur.EventSourcing.ProjectionPosition.Kind.get -> Excalibur.EventSourcing.ProjectionPositionKind
 Excalibur.EventSourcing.ProjectionPosition.ProjectionPosition() -> void
 Excalibur.EventSourcing.ProjectionPosition.ToStored() -> long
@@ -320,6 +330,14 @@ Excalibur.EventSourcing.ProjectionPositionKind
 Excalibur.EventSourcing.ProjectionPositionKind.Positioned = 1 -> Excalibur.EventSourcing.ProjectionPositionKind
 Excalibur.EventSourcing.ProjectionPositionKind.Unnumbered = 2 -> Excalibur.EventSourcing.ProjectionPositionKind
 Excalibur.EventSourcing.ProjectionPositionKind.Unplaceable = 0 -> Excalibur.EventSourcing.ProjectionPositionKind
+Excalibur.EventSourcing.ProjectionRebuildOutcome
+Excalibur.EventSourcing.ProjectionRebuildOutcome.Applied = 0 -> Excalibur.EventSourcing.ProjectionRebuildOutcome
+Excalibur.EventSourcing.ProjectionRebuildOutcome.Vanished = 1 -> Excalibur.EventSourcing.ProjectionRebuildOutcome
+Excalibur.EventSourcing.ProjectionRebuildResult
+Excalibur.EventSourcing.ProjectionRebuildResult.Outcome.get -> Excalibur.EventSourcing.ProjectionRebuildOutcome
+Excalibur.EventSourcing.ProjectionRebuildResult.Outcome.init -> void
+Excalibur.EventSourcing.ProjectionRebuildResult.ProjectionRebuildResult() -> void
+Excalibur.EventSourcing.ProjectionRebuildResult.ProjectionRebuildResult(Excalibur.EventSourcing.ProjectionRebuildOutcome Outcome) -> void
 Excalibur.EventSourcing.ProjectionRefoldOutcome
 Excalibur.EventSourcing.ProjectionRefoldOutcome.Applied = 0 -> Excalibur.EventSourcing.ProjectionRefoldOutcome
 Excalibur.EventSourcing.ProjectionRefoldOutcome.RequiresRebuild = 3 -> Excalibur.EventSourcing.ProjectionRefoldOutcome
@@ -389,7 +407,8 @@ const Excalibur.EventSourcing.ErasedEventMarker.EventType = "$erased" -> string!
 const Excalibur.EventSourcing.ProjectionPosition.UnnumberedSentinel = -1 -> long
 const Excalibur.EventSourcing.ProjectionPosition.UnplaceableSentinel = -2 -> long
 override Excalibur.EventSourcing.ProjectionPosition.ToString() -> string!
-static Excalibur.EventSourcing.AppendResult.CreateConcurrencyConflict(long expectedVersion, long actualVersion) -> Excalibur.EventSourcing.AppendResult!
+static Excalibur.EventSourcing.AppendResult.CreateAlreadyCommitted(long nextExpectedVersion, long? firstEventPosition) -> Excalibur.EventSourcing.AppendResult!
+static Excalibur.EventSourcing.AppendResult.CreateConcurrencyConflict(long expectedVersion, long? actualVersion) -> Excalibur.EventSourcing.AppendResult!
 static Excalibur.EventSourcing.AppendResult.CreateFailure(string! errorMessage) -> Excalibur.EventSourcing.AppendResult!
 static Excalibur.EventSourcing.AppendResult.CreateSuccess(long nextExpectedVersion, long? firstEventPosition) -> Excalibur.EventSourcing.AppendResult!
 static Excalibur.EventSourcing.ColdStorageKey.AggregateSegment(string! aggregateId) -> string!

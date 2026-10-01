@@ -37,11 +37,17 @@ Excalibur.Data.CloudNative.ChangeFeedStartPosition.Beginning = 0 -> Excalibur.Da
 Excalibur.Data.CloudNative.ChangeFeedStartPosition.FromContinuationToken = 2 -> Excalibur.Data.CloudNative.ChangeFeedStartPosition
 Excalibur.Data.CloudNative.ChangeFeedStartPosition.FromTimestamp = 3 -> Excalibur.Data.CloudNative.ChangeFeedStartPosition
 Excalibur.Data.CloudNative.ChangeFeedStartPosition.Now = 1 -> Excalibur.Data.CloudNative.ChangeFeedStartPosition
+Excalibur.Data.CloudNative.CloudAppendOutcome
+Excalibur.Data.CloudNative.CloudAppendOutcome.AlreadyCommitted = 1 -> Excalibur.Data.CloudNative.CloudAppendOutcome
+Excalibur.Data.CloudNative.CloudAppendOutcome.Committed = 0 -> Excalibur.Data.CloudNative.CloudAppendOutcome
+Excalibur.Data.CloudNative.CloudAppendOutcome.ConcurrencyConflict = 2 -> Excalibur.Data.CloudNative.CloudAppendOutcome
+Excalibur.Data.CloudNative.CloudAppendOutcome.Failed = 3 -> Excalibur.Data.CloudNative.CloudAppendOutcome
 Excalibur.Data.CloudNative.CloudAppendResult
 Excalibur.Data.CloudNative.CloudAppendResult.ErrorMessage.get -> string?
 Excalibur.Data.CloudNative.CloudAppendResult.FailureKind.get -> Excalibur.Dispatch.MessageFailureKind?
 Excalibur.Data.CloudNative.CloudAppendResult.IsConcurrencyConflict.get -> bool
 Excalibur.Data.CloudNative.CloudAppendResult.NextExpectedVersion.get -> long?
+Excalibur.Data.CloudNative.CloudAppendResult.Outcome.get -> Excalibur.Data.CloudNative.CloudAppendOutcome
 Excalibur.Data.CloudNative.CloudAppendResult.RequestCharge.get -> double
 Excalibur.Data.CloudNative.CloudAppendResult.SessionToken.get -> string?
 Excalibur.Data.CloudNative.CloudAppendResult.Success.get -> bool
@@ -621,7 +627,8 @@ override Excalibur.Data.ConflictException.GetProblemDetailsExtensions() -> Syste
 override Excalibur.Data.ResourceException.GetProblemDetailsExtensions() -> System.Collections.Generic.IDictionary<string!, object?>?
 static Excalibur.Data.CloudNative.ChangeFeedOptions.FromContinuation(string! continuationToken) -> Excalibur.Data.CloudNative.ChangeFeedOptions!
 static Excalibur.Data.CloudNative.ChangeFeedOptions.FromTimestamp(System.DateTimeOffset timestamp) -> Excalibur.Data.CloudNative.ChangeFeedOptions!
-static Excalibur.Data.CloudNative.CloudAppendResult.CreateConcurrencyConflict(long expectedVersion, long actualVersion, double requestCharge) -> Excalibur.Data.CloudNative.CloudAppendResult!
+static Excalibur.Data.CloudNative.CloudAppendResult.CreateAlreadyCommitted(long nextExpectedVersion, double requestCharge, string? sessionToken = null) -> Excalibur.Data.CloudNative.CloudAppendResult!
+static Excalibur.Data.CloudNative.CloudAppendResult.CreateConcurrencyConflict(long expectedVersion, long? actualVersion, double requestCharge) -> Excalibur.Data.CloudNative.CloudAppendResult!
 static Excalibur.Data.CloudNative.CloudAppendResult.CreateFailure(string! errorMessage, double requestCharge, Excalibur.Dispatch.MessageFailureKind failureKind) -> Excalibur.Data.CloudNative.CloudAppendResult!
 static Excalibur.Data.CloudNative.CloudAppendResult.CreateSuccess(long nextExpectedVersion, double requestCharge, string? sessionToken = null) -> Excalibur.Data.CloudNative.CloudAppendResult!
 static Excalibur.Data.CloudNative.CloudNativeOutboxStoreExtensions.AddBatchAsync(this Excalibur.Data.CloudNative.ICloudNativeOutboxStore! store, System.Collections.Generic.IEnumerable<Excalibur.Data.CloudNative.CloudOutboxMessage!>! messages, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!

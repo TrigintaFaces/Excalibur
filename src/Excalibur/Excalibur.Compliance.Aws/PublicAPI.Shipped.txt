@@ -53,12 +53,15 @@ Excalibur.Compliance.Aws.AwsKmsOptions.UseFipsEndpoint.get -> bool
 Excalibur.Compliance.Aws.AwsKmsOptions.UseFipsEndpoint.set -> void
 Excalibur.Compliance.Aws.AwsKmsProvider
 Excalibur.Compliance.Aws.AwsKmsProvider.AwsKmsProvider(Amazon.KeyManagementService.IAmazonKeyManagementService! kmsClient, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Aws.AwsKmsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Aws.AwsKmsProvider!>! logger, Microsoft.Extensions.Caching.Memory.IMemoryCache? metadataCache = null) -> void
+Excalibur.Compliance.Aws.AwsKmsProvider.CreateKeyIfAbsentAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata!>!
 Excalibur.Compliance.Aws.AwsKmsProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyDestructionOutcome>!
 Excalibur.Compliance.Aws.AwsKmsProvider.Dispose() -> void
 Excalibur.Compliance.Aws.AwsKmsProvider.GetActiveKeyAsync(string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Aws.AwsKmsProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Aws.AwsKmsProvider.GetKeyVersionAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Aws.AwsKmsProvider.IsKeyDestroyedAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Aws.AwsKmsProvider.IsKeyDestroyedAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Aws.AwsKmsProvider.IsKeyDestroyedAsync(string! keyId, string! generation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Aws.AwsKmsProvider.ListKeysAsync(Excalibur.Compliance.KeyStatus? status, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
 Excalibur.Compliance.Aws.AwsKmsProvider.ReactivateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Aws.AwsKmsProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!

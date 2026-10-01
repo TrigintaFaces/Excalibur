@@ -541,10 +541,17 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				if (conflictSlotOccupied)
 				{
 					// The slot after ours is TAKEN, so the stream is at least expectedVersion + 1. That bound is
-					// PROVEN by the snapshot we already read; no further call can improve it. The read that used to
-					// happen here sat inside the same try as the general provider-exception handler, so a failure
-					// in it discarded a verdict that had already been decided correctly. Not guarded -- removed.
-					return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, expectedVersion + 1, 0);
+					// PROVEN by the snapshot we already read -- it is a measurement, not an inference. It is still
+					// not what this field reports. The field is the version the stream is NOW at, and the value the
+					// next append must pass; a lower bound sent back in its place makes the caller reload to a point
+					// that may still be behind the tail, conflict again, and loop.
+					//
+					// So report NOTHING, which tells the caller to reload -- exactly what a bound would have made it
+					// do, minus the chance of reloading to the wrong place. The read that used to happen here sat
+					// inside the same try as the general provider-exception handler, so a failure in it discarded a
+					// verdict that had already been decided correctly; null keeps that fixed rather than re-opening
+					// it to buy a number.
+					return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion: null, 0);
 				}
 
 				// The other branch: the EXPECTED slot is absent, so the stream is BEHIND the caller rather than
@@ -702,14 +709,22 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			// Firestore has no store-wide global sequence across documents/streams; global ordering is
 			// unsupported for this provider, so no global first-event position is reported.
 			// A successful CloudAppendResult always states the version it advanced the stream to.
-			return AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null);
+			//
+			// CARRY THE OUTCOME ACROSS, do not flatten it to success. This store has no committed-append
+			// identity probe today, so the first arm is unreachable from here — it is written anyway so
+			// that adding one later cannot silently lose the state at this hop, which is exactly the
+			// codomain gap the outcome discriminator exists to close.
+			return result.Outcome == CloudAppendOutcome.AlreadyCommitted
+				? AppendResult.CreateAlreadyCommitted(result.NextExpectedVersion!.Value, firstEventPosition: null)
+				: AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)
 		{
-			// A concurrency conflict is the one failure that measured the stream's actual version, so it
-			// always states one.
-			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion!.Value);
+			// A concurrency conflict states the version it MEASURED, or nothing. Carry the null across
+			// rather than dereferencing: the store may have detected the conflict without reading a
+			// version, and a caller that gets null reloads instead of trusting a number nobody took.
+			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion);
 		}
 
 		return AppendResult.CreateFailure(result.ErrorMessage ?? "Unknown error");

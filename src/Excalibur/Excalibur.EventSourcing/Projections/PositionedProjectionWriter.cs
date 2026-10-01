@@ -18,6 +18,15 @@ namespace Excalibur.EventSourcing.Projections;
 /// re-implement it.
 /// </para>
 /// <para>
+/// <b>That claim was true of the WRITE and false of the FILTER, and this note records the correction
+/// rather than quietly absorbing it.</b> The already-folded filter used to live here as a list-shaped
+/// helper that NOTHING CALLED, while its predicate was written out four times in
+/// <c>ProjectionBuilder</c> — so the file promising one implementation contained four copies and an
+/// uncalled fifth. The helper's shape was the reason: its callers decide per event inside loops that also
+/// dispatch handlers, and none of them wants a filtered list. It is now
+/// <see cref="AlreadyFolded(long?, long?)"/>, a predicate over one event, and all four sites call it.
+/// </para>
+/// <para>
 /// <b>The invariant being maintained.</b> For a projection id <c>x</c> with stored position
 /// <c>P(x)</c>: <c>state(x) = fold(apply, init, { e : pos(e) &lt;= P(x) })</c>. The position is not a
 /// number the writer picks — it asserts which prefix of the stream is folded into the state, and every
@@ -51,38 +60,35 @@ internal static class PositionedProjectionWriter<TProjection>
 	}
 
 	/// <summary>
-	/// Returns the events that are not already folded into the stored projection.
+	/// Whether one event is already folded into the stored projection, and must therefore be skipped.
 	/// </summary>
-	/// <param name="events">The batch, in stream order.</param>
-	/// <param name="storedPosition">The position read alongside the state.</param>
-	/// <returns>The events strictly above the stored position, in order.</returns>
+	/// <param name="storedPosition">The position read alongside the state, or <see langword="null"/>.</param>
+	/// <param name="eventPosition">The event's global position, or <see langword="null"/>.</param>
+	/// <returns><see langword="true"/> when the event is at or below the stored position.</returns>
 	/// <remarks>
-	/// An event with no position cannot be placed relative to the stored one, so it is kept: that is the
-	/// save path, where the event is being committed now and no global position exists yet. Dropping it
-	/// would silently skip live work.
+	/// <para>
+	/// <b>AN EVENT WITH NO POSITION IS KEPT, and that is the half most likely to be "fixed" into a
+	/// defect.</b> Such an event cannot be placed relative to the stored one, and it is the save path --
+	/// the event is being committed right now and no global position exists yet. Returning
+	/// <see langword="true"/> for it would drop it, and on the save path EVERY event is unpositioned, so
+	/// the whole batch would vanish. That has already shipped once: see the note on
+	/// <see cref="WriteAsync"/> about a shape that "silently discarded every projection folded on the SAVE
+	/// PATH ... with nothing logged".
+	/// </para>
+	/// <para>
+	/// <b>A row with no stored position keeps everything too</b>, for the same reason: there is no
+	/// coordinate to compare against, so nothing can be shown to be already folded.
+	/// </para>
+	/// <para>
+	/// <b>Why this is a predicate over ONE event rather than a filter over a batch.</b> Its four callers
+	/// decide per event inside loops that also dispatch handlers and route override ids; none of them
+	/// materialises a filtered list. A list-shaped helper stood here uncalled for exactly that reason --
+	/// its shape did not fit the work -- while the predicate was written out four times. This is the shape
+	/// the callers actually need.
+	/// </para>
 	/// </remarks>
-	internal static List<ProjectionEvent> EventsAbove(
-		IReadOnlyList<ProjectionEvent> events,
-		long? storedPosition)
-	{
-		ArgumentNullException.ThrowIfNull(events);
-
-		if (storedPosition is not { } stored)
-		{
-			return [.. events];
-		}
-
-		var remaining = new List<ProjectionEvent>(events.Count);
-		foreach (var e in events)
-		{
-			if (e.GlobalPosition is not { } pos || pos > stored)
-			{
-				remaining.Add(e);
-			}
-		}
-
-		return remaining;
-	}
+	internal static bool AlreadyFolded(long? storedPosition, long? eventPosition) =>
+		eventPosition is { } position && storedPosition is { } stored && position <= stored;
 
 	/// <summary>
 	/// The highest position among a set of events, or <see langword="null"/> when none carries one.
@@ -156,21 +162,35 @@ internal static class PositionedProjectionWriter<TProjection>
 			.UpsertAtPositionAsync(id, state, expectedPosition, position, cancellationToken)
 			.ConfigureAwait(false);
 
-		// TERMINAL, and separated from the retry path on purpose. The row's state is not a fold over any
-		// prefix, so re-reading yields the same value and the same refusal -- the generic message below
-		// would tell an operator to expect a redelivery that can never succeed. Only a rebuild of this
-		// projection from the stream can make it writable again, so the message says that instead.
-		if (result.Outcome == ProjectionAdvanceOutcome.Unplaceable)
+		// TERMINAL, and separated from the retry path on purpose. The row carries no position this write
+		// can advance from, so re-reading yields the same value and the same refusal -- the generic message
+		// below would tell an operator to expect a redelivery that can never succeed. Only a rebuild can
+		// make it writable again.
+		//
+		// ONE terminal outcome, and the message says only what the write established. It does NOT name which
+		// of the two no-number states the row is in: the outcome does not carry that, because the store
+		// classified its refusal against a read taken at a different instant and the row may have changed
+		// since. An operator who needs it reads the projection's position, which reports it as a fact.
+		if (result.Outcome is ProjectionAdvanceOutcome.Unplaceable)
 		{
 			throw new InvalidOperationException(
 				$"Projection '{id}' of type '{typeof(TProjection).Name}' cannot be advanced to position "
-				+ $"{position.ToString(CultureInfo.InvariantCulture)} because its stored state is not a "
-				+ "fold over any prefix of the stream. An unconditional write replaced the state without "
-				+ "a position, so folding this batch onto it and stamping a position would make the row "
-				+ "assert a prefix it does not hold. THIS WILL NOT RESOLVE ON RETRY -- rebuild this "
-				+ "projection from the event stream. If a component in your application writes this "
-				+ "projection through IProjectionStore.UpsertAsync, that is what left it in this state; "
-				+ "a caller holding a complete fold should use UpsertUnnumberedAsync instead.");
+				+ $"{position.ToString(CultureInfo.InvariantCulture)} because the stored row carries no "
+				+ "position to advance from. A positioned write names which prefix of the stream is folded "
+				+ "into the state it stores, so folding this batch onto a state whose prefix nobody "
+				+ "established would make the row assert a prefix it does not hold -- and every event below "
+				+ "that position would then be missing from the read model while the position claimed "
+				+ "otherwise. THIS WILL NOT RESOLVE ON RETRY. "
+				+ "Replay the stream and rebuild this projection through RebuildAtPositionAsync, which writes "
+				+ "the state and its position together. THREE things leave a row in this state, and one of "
+				+ "them is this framework rather than your code: a batch in which no event carried a global "
+				+ "position is written unconditionally by the apply path itself, which happens on the save "
+				+ "path where the events are being committed now. The other two are direct calls -- "
+				+ "IProjectionStore.UpsertAsync, which stores a state related to no prefix at all, and "
+				+ "IPositionedProjectionStore.UpsertUnnumberedAsync, which stores a complete fold it has no "
+				+ "global position for. Read the projection's position to see which state the row is in -- it "
+				+ "distinguishes them, and this outcome deliberately does not, because it is the result of a "
+				+ "write rather than an observation of the row.");
 		}
 
 		if (!IsSettled(result, position))
@@ -218,11 +238,13 @@ internal static class PositionedProjectionWriter<TProjection>
 	/// deletion is how erasure removes personal data. Re-folding the stream would put it back.
 	/// </para>
 	/// <para>
-	/// <b>There is deliberately no default arm.</b> Every member is named, so adding an outcome to
-	/// <see cref="ProjectionAdvanceOutcome"/> is a COMPILE ERROR here rather than a silent fall-through.
-	/// A catch-all previously sent any unrecognised outcome down the "store is behind, retry" path,
-	/// which for a terminal refusal is an unbounded redelivery loop -- the failure is invisible in the
-	/// type system and arrives only in production.
+	/// <b>Every member is named, and the catch-all THROWS rather than choosing.</b> A catch-all that
+	/// returned a value previously sent any unrecognised outcome down the "store is behind, retry" path,
+	/// which for a terminal refusal is an unbounded redelivery loop -- invisible in the type system and
+	/// arriving only in production. The arm is a throw instead, so a new outcome added to
+	/// <see cref="ProjectionAdvanceOutcome"/> without a decision here fails loudly on first contact. Note
+	/// what that does NOT give you: it is a runtime failure, not a compile error, so adding a member
+	/// obliges you to come here.
 	/// </para>
 	/// </remarks>
 	internal static bool IsSettled(ProjectionAdvanceResult result, long attemptedPosition) =>
@@ -231,8 +253,10 @@ internal static class PositionedProjectionWriter<TProjection>
 			ProjectionAdvanceOutcome.Applied => true,
 			ProjectionAdvanceOutcome.Vanished => true,
 
-			// NOT settled, and NOT retryable either -- handled before this method is consulted. It is
-			// false here because the write did not happen; the caller must not proceed as though it had.
+			// NEITHER settled NOR retryable -- handled before this method is consulted. It is false here
+			// because the write did not happen; the caller must not proceed as though it had. Named as its
+			// own arm rather than folded into a pattern, so a future outcome cannot be absorbed into one that
+			// happens to match it and silently inherit this answer.
 			ProjectionAdvanceOutcome.Unplaceable => false,
 
 			ProjectionAdvanceOutcome.Superseded =>

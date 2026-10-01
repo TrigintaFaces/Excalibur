@@ -408,7 +408,11 @@ public sealed class KeyRotationServiceShould : IDisposable
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.Value.ShouldBeGreaterThan(key.CreatedAt);
+
+		// The fixture dates this key, so the schedule is computed from a real instant rather than from the
+		// absent case. Asserted rather than assumed, because the comparison below is meaningless without it.
+		var createdAt = key.CreatedAt.ShouldNotBeNull();
+		result.Value.ShouldBeGreaterThan(createdAt);
 	}
 
 	[Fact]

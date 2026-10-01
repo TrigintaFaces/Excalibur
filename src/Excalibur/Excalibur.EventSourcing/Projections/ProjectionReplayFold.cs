@@ -56,7 +56,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 	where TProjection : class, new()
 {
 	private readonly Dictionary<string, TProjection> _states = new(StringComparer.Ordinal);
-	private readonly Dictionary<string, long?> _readPositions = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, ReadObservation> _readPositions = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, long> _foldedTo = new(StringComparer.Ordinal);
 
 	private readonly MultiStreamProjection<TProjection> _projection;
@@ -206,18 +206,104 @@ internal sealed class ProjectionReplayFold<TProjection>
 		{
 			var newPosition = _foldedTo.TryGetValue(projectionId, out var highest) ? (long?)highest : null;
 
-			if (_positioned is null || newPosition is not { } advanceTo)
+			if (newPosition is not { } advanceTo)
 			{
-				// Either the store records no position, or nothing folded into this key carried one.
-				// There is nothing to be conditional on.
+				// UNREACHABLE FROM THE ONLY CALLER TODAY, and that is stated first because the rest of this
+				// comment reads as a description of live behaviour and is not one. FoldAsync has exactly one
+				// caller, the rebuild service, which passes StoredEvent.GlobalPosition -- a NON-NULLABLE long.
+				// Every TouchAsync is paired with a RecordFold carrying that value, including the
+				// OverrideProjectionId branch, so every id present in _states has an entry in _foldedTo and
+				// newPosition is never null on a rebuild. This branch therefore does not execute, and it is
+				// NOT a live producer of any row shape.
+				//
+				// It is kept because the parameter is nullable and a future caller could pass none, so the
+				// behaviour below is what SHOULD happen then: the state is a COMPLETE FOLD -- a rebuild
+				// replays the whole stream from an empty seed by construction, whatever positions the events
+				// carried -- so it is recorded as a fold with no number rather than through the blind surface,
+				// which would record "not a fold over any prefix" and be false. The recovery path states the
+				// same thing for the same reason, and THERE it is reachable.
+				//
+				// NOTE what that row can and cannot do: a positioned write refuses every row carrying no
+				// number, so writing one here leaves the projection unadvanceable until a rebuild numbers it.
+				// That is the honest end state for a fold whose coordinate is genuinely unknown -- the
+				// alternative is to guess a number, which is what adoption used to do.
+				//
+				// Superseded wording, quoted so an inheritor recognises it: "saying so is what stops this
+				// branch being a producer of unplaceable rows ... would leave behind exactly the terminal row
+				// a rebuild is what you run to clear." That described a hazard this branch cannot create,
+				// because it cannot run. The reachability was asserted and never measured.
+				if (_positioned is not null)
+				{
+					await _positioned.UpsertUnnumberedAsync(projectionId, folded, cancellationToken)
+						.ConfigureAwait(false);
+				}
+				else
+				{
+					// This store records no position at all, so there is no third state to state.
+					await _store.UpsertAsync(projectionId, folded, cancellationToken).ConfigureAwait(false);
+				}
+
+				continue;
+			}
+
+			if (_positioned is null)
+			{
+				// The store records no position, so nothing can be conditional on one.
 				await _store.UpsertAsync(projectionId, folded, cancellationToken).ConfigureAwait(false);
 
 				continue;
 			}
 
-			var result = await _positioned
-				.UpsertAtPositionAsync(projectionId, folded, _readPositions[projectionId], advanceTo, cancellationToken)
-				.ConfigureAwait(false);
+			var observed = _readPositions[projectionId];
+
+			// THREE ROUTES, from the three observations the read distinguishes. The old single call
+			// passed the collapsed number, which sent all three down the advancing write and relied on
+			// its null arm ADOPTING an existing numberless row -- stamping a position onto state whose
+			// prefix nobody had established.
+			ProjectionAdvanceResult result;
+			if (!observed.RowExisted)
+			{
+				// INSERT-IF-ABSENT. No row was there to fold onto, so claiming absence is a true claim.
+				// A writer that created the row in the meantime wins, and the refusal is reported as
+				// Superseded -- which the predicate below treats as the conflict it is.
+				result = await _positioned
+					.UpsertAtPositionAsync(projectionId, folded, null, advanceTo, cancellationToken)
+					.ConfigureAwait(false);
+			}
+			else if (observed.Position.Kind == ProjectionPositionKind.Positioned)
+			{
+				// THE ORDINARY ADVANCE, from the number the row actually held. Its refusal is the only
+				// thing that surfaces a live writer racing the rebuild, which is why positioned rows are
+				// NOT sent down the unconditional route below: doing so would trade contention detection
+				// for the whole rebuild to solve a problem only numberless rows have.
+				result = await _positioned
+					.UpsertAtPositionAsync(
+						projectionId, folded, observed.Position.Value, advanceTo, cancellationToken)
+					.ConfigureAwait(false);
+			}
+			else
+			{
+				// UNNUMBERED or UNPLACEABLE, and the row EXISTS. There is no number to advance from, so
+				// the advancing write cannot express this at all: it would have to be told to accept
+				// "expected nothing" against a row that is present, which is the adopt licence this
+				// routing exists to stop borrowing. A rebuild folded from an EMPTY seed over the whole
+				// stream, so it needs no prior prefix to be conditional on -- and that is precisely the
+				// caller RebuildAtPositionAsync exists for. It is UPDATE-only.
+				//
+				// The result is DISCARDED because both of its outcomes are settled, and that is a claim
+				// about the enum rather than a shortcut. Applied is the write landing. Vanished is
+				// settled for the same reason it is settled on the advancing path below: the row is gone
+				// because it was deleted, deletion is how erasure removes personal data, and a
+				// whole-stream replay is exactly the write that could put it back. There is no third
+				// outcome -- the member is unconditional on position so it cannot be superseded, and it
+				// IS the rebuild so it cannot ask for one. A third member added to
+				// ProjectionRebuildOutcome would need a branch here.
+				_ = await _positioned
+					.RebuildAtPositionAsync(projectionId, folded, advanceTo, cancellationToken)
+					.ConfigureAwait(false);
+
+				continue;
+			}
 
 			// SUPERSEDED IS A CONFLICT FOR A REPLAY, never a settled write, and this is the one place a
 			// replay must NOT reuse the live settle predicate.
@@ -236,6 +322,35 @@ internal sealed class ProjectionReplayFold<TProjection>
 			// removes personal data; re-creating it here would undo an erasure.
 			if (result.Outcome is not (ProjectionAdvanceOutcome.Applied or ProjectionAdvanceOutcome.Vanished))
 			{
+				// A NUMBERLESS REFUSAL HERE MEANS SOMETHING NARROWER THAN IT LOOKS, and the remedy changed
+				// with it. A row that ALREADY carried no number when the replay read it never reaches this
+				// write at all -- it is routed to RebuildAtPositionAsync above, which overwrites it, because
+				// a whole-stream fold needs no prefix to be conditional on. That was the terminal case, and
+				// it is now repaired rather than reported.
+				//
+				// So reaching here means the row was ABSENT or POSITIONED at read time and carries no number
+				// by write time: a concurrent writer called IProjectionStore.UpsertAsync or
+				// UpsertUnnumberedAsync during the replay. Both arrive here with the same outcome and get the
+				// same message, because the remedy is the same one -- find the writer. It IS a race, and it is
+				// reported separately
+				// from the one below only because the remedy names a different culprit: stopping the
+				// projection's processor is not sufficient if a component of the application writes this
+				// projection on its own schedule. It also carries no CurrentPosition, so the message below
+				// would render "unknown" where it promises a position.
+				if (result.Outcome is ProjectionAdvanceOutcome.Unplaceable)
+				{
+					throw new InvalidOperationException(
+						$"Rebuild of projection '{projectionName}' was refused at id '{projectionId}': the row "
+						+ "lost its position while the rebuild was replaying, so there is no prefix for the "
+						+ "rebuilt state to be written against. Something wrote this projection during the "
+						+ "rebuild -- through IProjectionStore.UpsertAsync, which leaves no placeable position, "
+						+ "or through UpsertUnnumberedAsync, which leaves a fold with no number. Stopping the "
+						+ "projection's processor is NOT sufficient on its own -- find the component in your "
+						+ "application that writes this projection outside the apply path, since it will do this "
+						+ "again. Nothing was lost, but the rebuild is INCOMPLETE: ids written before this one "
+						+ "hold rebuilt state and the rest do not. Re-run it once the other writer is stopped.");
+				}
+
 				// Deliberately NOT retried. A replay reads the whole stream; retrying against a row that
 				// keeps moving would re-read it each time. Reported as a failure instead — nothing was
 				// lost, and the caller can re-run once the processor is stopped, which a replay requires.
@@ -280,17 +395,24 @@ internal sealed class ProjectionReplayFold<TProjection>
 			return existing;
 		}
 
-		long? readAt = null;
+		// The PAIR, not the collapsed number. ExpectedPositionOrNull maps THREE distinguishable
+		// observations onto null -- no row at all, a row holding Unnumbered, and a row holding
+		// Unplaceable -- and FlushAsync routes those three to three different store members. A store
+		// with no row returns (null, Unnumbered), so the Kind alone cannot separate absence from a
+		// present unnumbered row either; only the projection value answers existence.
+		var observed = new ReadObservation(RowExisted: false, ProjectionPosition.Unnumbered);
 		if (_positioned is not null)
 		{
-			(_, var readAtPos) = await _positioned.GetWithPositionAsync(projectionId, cancellationToken)
+			var (stored, readAtPos) = await _positioned
+				.GetWithPositionAsync(projectionId, cancellationToken)
 				.ConfigureAwait(false);
-			readAt = readAtPos.ExpectedPositionOrNull;
+
+			observed = new ReadObservation(stored is not null, readAtPos);
 		}
 
 		var seeded = new TProjection();
 		_states[projectionId] = seeded;
-		_readPositions[projectionId] = readAt;
+		_readPositions[projectionId] = observed;
 
 		return seeded;
 	}
@@ -311,4 +433,26 @@ internal sealed class ProjectionReplayFold<TProjection>
 			_foldedTo[projectionId] = p;
 		}
 	}
+
+	/// <summary>
+	/// What one first-touch read of a projection id actually observed.
+	/// </summary>
+	/// <param name="RowExisted">Whether a row was there at all.</param>
+	/// <param name="Position">The position that row held, undisturbed by any collapsing.</param>
+	/// <remarks>
+	/// <para>
+	/// <b>Both members are required, and neither is derivable from the other.</b> A store with no row
+	/// answers <c>(null, Unnumbered)</c> -- absence is not given a kind of its own, because a caller
+	/// writing to an absent row does not need one -- so <see cref="Position"/> alone cannot separate "no
+	/// row" from "a row holding a complete fold with no number". Those two take DIFFERENT store members:
+	/// the first is an insert-if-absent, the second an update-only rebuild.
+	/// </para>
+	/// <para>
+	/// <b>Why the position is kept as the type rather than as a <c>long?</c>.</b>
+	/// <c>ProjectionPosition.ExpectedPositionOrNull</c> maps all three kinds onto two values, and the
+	/// three cases here need three routes. Collapsing at the read and re-deciding at the write is not
+	/// possible: the information is gone by then.
+	/// </para>
+	/// </remarks>
+	private readonly record struct ReadObservation(bool RowExisted, ProjectionPosition Position);
 }

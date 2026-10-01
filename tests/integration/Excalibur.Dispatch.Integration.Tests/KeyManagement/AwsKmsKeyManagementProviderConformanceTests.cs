@@ -169,7 +169,75 @@ public sealed class AwsKmsKeyManagementProviderConformanceTests : KeyManagementP
 	public Task DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction_Test() =>
 		DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction();
 
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_WhenAbsent_ShouldCreateOneActiveVersion_Test() =>
+		CreateKeyIfAbsentAsync_WhenAbsent_ShouldCreateOneActiveVersion();
+
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_WhenPresent_ShouldNotRotateOrDemote_Test() =>
+		CreateKeyIfAbsentAsync_WhenPresent_ShouldNotRotateOrDemote();
+
+	/// <summary>
+	/// Against real KMS, where provisioning is <c>CreateKey</c> plus <c>CreateAlias</c> and the ALIAS is the
+	/// conditional insert. The loser of the race must abandon the CMK it already created, so this arm is also
+	/// what keeps an alias-less, un-erasable key from being the cost of ordinary write concurrency.
+	/// </summary>
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task CreateKeyIfAbsentAsync_ConcurrentFirstWrites_ShouldNotDemoteEachOther_Test() =>
+		CreateKeyIfAbsentAsync_ConcurrentFirstWrites_ShouldNotDemoteEachOther();
+
+	/// <summary>
+	/// The only coverage <see cref="AwsKmsProvider.IsKeyDestroyedAsync"/> has, and it runs against the real KMS
+	/// API rather than a mock. KMS enforces a minimum pending-deletion window, so a zero retention is clamped and
+	/// the destruction is reported as scheduled -- which makes AWS the provider that exercises the
+	/// still-recoverable half of the agreement the arm asserts.
+	/// </summary>
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome_Test() =>
+		IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome();
+
+	/// <returns>A completed task when the arm passes.</returns>
+	[Fact]
+	public Task IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed();
+
 	#endregion DeleteKey Tests
+
+	#region KeyDestructionStatus Tests
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_Version_LiveKey_ShouldReportNotDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed_Test() =>
+		IsKeyDestroyedAsync_Version_UnknownKey_ShouldReportDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome_Test() =>
+		IsKeyDestroyedAsync_Version_DeletedKey_ShouldAgreeWithTheDestructionOutcome();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException_Test() =>
+		IsKeyDestroyedAsync_Version_NullKeyId_ShouldThrowArgumentException();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed_Test() =>
+		IsKeyDestroyedAsync_Generation_LiveKey_ShouldReportNotDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed_Test() =>
+		IsKeyDestroyedAsync_Generation_UnknownGeneration_ShouldReportDestroyed();
+
+	[Fact]
+	public Task IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException_Test() =>
+		IsKeyDestroyedAsync_Generation_MalformedIdentifier_ShouldThrowArgumentException();
+
+	#endregion KeyDestructionStatus Tests
 
 	#region SuspendKey Tests
 

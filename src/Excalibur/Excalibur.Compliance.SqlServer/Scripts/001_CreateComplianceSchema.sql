@@ -6,7 +6,7 @@
 -- schema silently missing its legal-hold table, and learns about it later as Invalid object name.
 --
 -- Measured on SQL Server 2022 CU26, one variable: without these lines sqlcmd exits 1 and
--- compliance.LegalHolds has ZERO columns; with them it exits 0 and the table has 14.
+-- compliance.LegalHolds has ZERO columns; with them it exits 0 and the table has 15.
 --
 -- ANSI_NULLS is set with it because SQL Server requires both for indexed views and computed-column
 -- indexes, and because a script that sets one and not the other invites the same class back.
@@ -149,7 +149,7 @@ BEGIN
         TenantId              NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
             CONSTRAINT DF_ErasureRequests_TenantId DEFAULT '__untenanted__',
         Scope                 INT              NOT NULL,
-        LegalBasis            INT              NOT NULL,
+        LegalBasisV2          INT              NOT NULL,
         ExternalReference     NVARCHAR(256)    NULL,
         RequestedBy           NVARCHAR(256)    NOT NULL,
         RequestedAt           DATETIMEOFFSET   NOT NULL,
@@ -192,10 +192,16 @@ BEGIN
         Method                INT              NOT NULL,
         Summary               NVARCHAR(MAX)    NOT NULL,
         Verification          NVARCHAR(MAX)    NOT NULL,
-        LegalBasis            INT              NOT NULL,
+        LegalBasisV2          INT              NOT NULL,
         Signature             NVARCHAR(512)    NOT NULL,
         RetainUntil           DATETIMEOFFSET   NOT NULL,
         Exceptions            NVARCHAR(MAX)    NOT NULL,
+        -- The locations an erasure could NOT reach. NULLABLE, and deliberately NULL rather than an
+        -- empty array: the signature covers the canonical form, which omits this property when it is
+        -- absent. Storing "[]" would restore a non-null empty list, the canonical form would then emit
+        -- it, and a certificate issued before this column existed would verify as a forgery on its way
+        -- back out of the store.
+        UnreachedData         NVARCHAR(MAX)    NULL,
         GeneratedAt           DATETIMEOFFSET   NOT NULL,
         Version               NVARCHAR(16)     NOT NULL,
         CreatedAt             DATETIMEOFFSET   NOT NULL,
@@ -204,6 +210,37 @@ BEGIN
     )
 END
 GO
+
+-- ---------------------------------------------------------------------------
+-- Erasure destroyed keys
+-- ---------------------------------------------------------------------------
+-- Which key handles each request has destroyed, one row per handle, across every pass the request
+-- has made.
+--
+-- WHY THIS TABLE EXISTS, because it is not obvious and a reader may otherwise think a count would do:
+-- asking a key store to destroy a key it has ALREADY destroyed reports the key as absent -- the same
+-- answer it gives for a key that never existed. So an erasure that destroyed some keys and then
+-- failed part-way through the rest attested those keys on its first pass and, on the retry, attested
+-- nothing for them. The subject's data was destroyed and their erasure could never be reported
+-- complete. These rows are what let a retry attest the coverage its own earlier pass achieved.
+--
+-- A TABLE rather than a column on the request, because the value is a SET and the writes are appends:
+-- the composite primary key makes re-recording a handle a no-op at the database, so no pass has to
+-- read-modify-write a list and no pass can lose another's record.
+IF NOT EXISTS (SELECT 1 FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = 'compliance' AND t.name = 'ErasureDestroyedKeys')
+BEGIN
+    CREATE TABLE [compliance].[ErasureDestroyedKeys] (
+        RequestId   UNIQUEIDENTIFIER NOT NULL,
+        -- Binary collation, so the database compares handles exactly as the framework does ordinally.
+        -- A case-insensitive collation would fold two distinct handles into one and attest coverage
+        -- for a key that was never destroyed.
+        KeyHandle   NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
+        DestroyedAt DATETIMEOFFSET   NOT NULL,
+        CONSTRAINT PK_ErasureDestroyedKeys PRIMARY KEY (RequestId, KeyHandle)
+    );
+END
 
 -- ---------------------------------------------------------------------------
 -- Data inventory registrations
@@ -338,7 +375,7 @@ BEGIN
         -- because losing one does not fail safe, it erases data a court order says to keep.
         TenantId           NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
             CONSTRAINT DF_LegalHolds_TenantId DEFAULT '__untenanted__',
-        Basis              INT              NOT NULL,
+        BasisV2            INT              NOT NULL,
         CaseReference      NVARCHAR(256)    NOT NULL,
         Description        NVARCHAR(2000)   NOT NULL,
         IsActive           BIT              NOT NULL DEFAULT 1,
@@ -348,6 +385,12 @@ BEGIN
         ReleasedBy         NVARCHAR(256)    NULL,
         ReleasedAt         DATETIMEOFFSET   NULL,
         ReleaseReason      NVARCHAR(1000)   NULL,
+        -- Optimistic-concurrency token. The store updates a hold only while this still holds the
+        -- value the caller read, and increments it on success. Without it an update is a blind
+        -- whole-record write, so a hold whose expiry was extended between a sweep's read and its
+        -- write is released anyway -- and the next erasure destroys the records it protected.
+        Version            INT              NOT NULL
+            CONSTRAINT DF_LegalHolds_Version DEFAULT 0,
         INDEX IX_LegalHolds_DataSubject (DataSubjectIdHash, IsActive),
         INDEX IX_LegalHolds_TenantId (TenantId, IsActive),
         INDEX IX_LegalHolds_ExpiresAt (IsActive, ExpiresAt) WHERE IsActive = 1 AND ExpiresAt IS NOT NULL

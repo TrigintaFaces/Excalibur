@@ -550,6 +550,80 @@ public abstract class SagaStoreConformanceTestKit : ConformanceTestKit
 
 	#endregion
 
+	#region Replay Deduplication Tests
+
+	/// <summary>
+	/// Verifies that a saga's processed-event identities survive a store round trip, so a redelivery
+	/// is still recognised after the state has been persisted and reloaded.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Why a store must be held to this.</b> Saga replay protection is not implemented by the saga;
+	/// it is implemented by <see cref="SagaState.ProcessedEventIds"/> SURVIVING persistence. A store
+	/// that writes the state but drops that set loses nothing visible at save time and reports no
+	/// error: the saga simply stops recognising redeliveries after the first reload, and every
+	/// redelivered event runs its step a second time. Nothing downstream learns that happened.
+	/// </para>
+	/// <para>
+	/// <b>The failure is a serialization detail, which is why it needs a real round trip.</b>
+	/// <see cref="SagaState.ProcessedEventIds"/> is a get-only collection property. A serializer that
+	/// does not populate get-only collections on deserialize returns an empty set without failing,
+	/// so this cannot be established by inspecting the store's code or by exercising an object that
+	/// was never serialized -- only by saving and loading through the real store.
+	/// </para>
+	/// </remarks>
+	public virtual async Task ProcessedEventIds_SurviveTheRoundTrip_SoAReplayIsStillRecognised()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var sagaId = GenerateSagaId();
+		var state = CreateTestSagaState(sagaId);
+
+		const string DeliveredEventId = "conformance:delivered-once";
+		const string NeverDeliveredEventId = "conformance:never-delivered";
+
+		// LIVENESS, and it runs before the save so a broken set cannot be mistaken for a broken store:
+		// the first mark must be accepted, or the arm below would pass over a set that records nothing.
+		if (!state.TryMarkEventProcessed(DeliveredEventId))
+		{
+			throw new TestFixtureAssertionException(
+				"The first mark of an identity was refused before the state was ever saved. The remaining "
+				+ "assertions would then hold vacuously, so the arm stops here.");
+		}
+
+		await store.SaveAsync(state, CancellationToken.None).ConfigureAwait(false);
+
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (loaded is null)
+		{
+			throw new TestFixtureAssertionException(
+				"Expected the saved saga to load, but the store returned null.");
+		}
+
+		// SAFETY. This is the arm that fails when the set is dropped by serialization.
+		if (!loaded.HasProcessedEvent(DeliveredEventId))
+		{
+			throw new TestFixtureAssertionException(
+				"The processed-event identities did not survive the round trip: an identity recorded before "
+				+ "the save is not recognised after the load. Replay deduplication is therefore inert for "
+				+ "this store -- every redelivered event will run its step again, silently. The usual cause "
+				+ "is a serializer that does not repopulate get-only collection properties on deserialize.");
+		}
+
+		// SAFETY, the other direction. Without this, a store that reported EVERY identity as processed
+		// would satisfy the assertion above while deduplicating nothing it was asked about -- and would
+		// instead drop every event it was handed.
+		if (loaded.HasProcessedEvent(NeverDeliveredEventId))
+		{
+			throw new TestFixtureAssertionException(
+				"The store reported an identity as already processed that was never recorded. A set that "
+				+ "answers true for everything would discard every delivery rather than deduplicate one.");
+		}
+	}
+
+	#endregion
+
 	#region Isolation Tests
 
 	/// <summary>

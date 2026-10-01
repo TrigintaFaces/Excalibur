@@ -23,6 +23,26 @@ public sealed record EncryptionContext
 	public int? KeyVersion { get; init; }
 
 	/// <summary>
+	/// Gets the key GENERATION this operation is bound to, or <see langword="null"/> when the caller does not
+	/// identify one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the single source of the generation on BOTH the write and the read path, and that is what
+	/// makes it safe.</b> An encryption provider reads the generation from here and nowhere else — never from
+	/// key metadata on the write path — so a caller that supplies no generation binds none on either side and
+	/// is unaffected, while a caller that supplies one binds it symmetrically. Sourcing it from metadata when
+	/// writing and from the payload when reading would bind a value on one side and nothing on the other, and
+	/// every such payload would fail to authenticate immediately.
+	/// </para>
+	/// <para>
+	/// When present it is included in the authenticated associated data, so a payload cannot be re-attributed
+	/// to a different generation of the same key handle without failing to authenticate.
+	/// </para>
+	/// </remarks>
+	public string? KeyGeneration { get; init; }
+
+	/// <summary>
 	/// Gets the encryption algorithm to use. If null, uses the provider's default algorithm.
 	/// </summary>
 	public EncryptionAlgorithm? Algorithm { get; init; }

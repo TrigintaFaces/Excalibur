@@ -56,6 +56,25 @@ internal static class ErasureTelemetryConstants
 
 		/// <summary>Duration of erasure execution in milliseconds.</summary>
 		public const string ExecutionDuration = "dispatch.erasure.execution.duration";
+
+		/// <summary>
+		/// What the legal-hold expiration sweep did to each expired hold it considered, tagged by
+		/// <c>outcome</c>.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// One counter with an <c>outcome</c> dimension rather than a counter per outcome, so the outcomes
+		/// are comparable in one query: a rising <c>contended</c> share against a flat <c>released</c> is
+		/// the shape worth alerting on, and it is not visible if the two are separate series.
+		/// </para>
+		/// <para>
+		/// <b>This exists because the log lines are not enough.</b> A log line is read by somebody who is
+		/// already looking, and the condition it reports — a hold whose release keeps losing a concurrency
+		/// check — is exactly the condition nobody is looking at. Left unresolved, that hold stays active
+		/// past its statutory period. A counter is what an operator can alert on without reading text.
+		/// </para>
+		/// </remarks>
+		public const string LegalHoldExpirationOutcomes = "dispatch.legal_hold.expiration.outcomes";
 	}
 
 	/// <summary>

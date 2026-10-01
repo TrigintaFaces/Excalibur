@@ -151,8 +151,8 @@ public sealed class ErasureCertificateSignatureShould
 		var payload = PayloadWith(Guid.NewGuid());
 		var key = new byte[32];
 
-		ErasureCertificateSigner.Sign(payload, key)
-			.ShouldBe(ErasureCertificateSigner.Sign(payload, key));
+		ErasureCertificateSigner.Issue(payload, key, out _).Signature
+			.ShouldBe(ErasureCertificateSigner.Issue(payload, key, out _).Signature);
 	}
 
 	/// <summary>
@@ -171,9 +171,9 @@ public sealed class ErasureCertificateSignatureShould
 		var first = PayloadWith(Guid.NewGuid());
 		var second = first with { CertificateId = Guid.NewGuid() };
 
-		ErasureCertificateSigner.Sign(second, key)
+		ErasureCertificateSigner.Issue(second, key, out _).Signature
 			.ShouldNotBe(
-				ErasureCertificateSigner.Sign(first, key),
+				ErasureCertificateSigner.Issue(first, key, out _).Signature,
 				"the certificate id is part of what the document asserts, so two documents carrying "
 				+ "different ids must not share one signature.");
 	}
@@ -246,6 +246,7 @@ public sealed class ErasureCertificateSignatureShould
 			_dataInventoryService,
 			null,
 			TestAnnotationSource.None,
+			TestRetentions.None,
 			[]);
 
 	private void GivenCompletedStatus(Guid requestId, int keysDeleted, int recordsAffected)

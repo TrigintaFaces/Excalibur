@@ -31,10 +31,10 @@ Every entry is re-checked against the code before each update. **This page lists
 
 | Area | Issues | What tends to go wrong |
 |---|---|---|
-| [Authorization and multi-tenancy](#authorization-and-multi-tenancy) | 5 | Grants and access reviews that silently do nothing, or reach across tenants. |
+| [Authorization and multi-tenancy](#authorization-and-multi-tenancy) | 1 | A startup guard that cannot fire, so a mis-ordered pipeline is accepted. |
 | [Secrets and data protection](#secrets-and-data-protection) | 2 | Credentials that persist where you did not expect, and an attribute that protects nothing. |
-| [Compliance: GDPR and SOC 2](#compliance-gdpr-and-soc-2) | 5 | Reports and certificates that claim more than the framework checked. |
-| [Event sourcing, outbox and projections](#event-sourcing-outbox-and-projections) | 8 | Writes reported as succeeding when they did not, or vice versa. |
+| [Compliance: GDPR and SOC 2](#compliance-gdpr-and-soc-2) | 3 | Reports and certificates that claim more than the framework checked. |
+| [Event sourcing, outbox and projections](#event-sourcing-outbox-and-projections) | 5 | Writes reported as succeeding when they did not, or vice versa. |
 | [Transports](#transports) | 4 | Messages reported as sent, or acknowledged, when they were neither. |
 | [Dependencies and packaging](#dependencies-and-packaging) | 3 | What a published package pulls in that you did not ask for. |
 | [Test fixtures](#test-fixtures) | 1 | Shipped testing helpers that do not work as documented. |
@@ -58,253 +58,6 @@ never assessed is reported as a *failure against you* rather than as a gap in ou
 there is the mirror image — you are checking whether a red is real, not whether a green is.
 
 ### Authorization and multi-tenancy
-
-#### An access review reports every unreviewed grant revoked while revoking none of them
-
-:::danger A control that reports success without acting
-If you use access reviews to remove access nobody re-approved, the step that does it reports that
-everything was revoked when nothing was. The access stays in place, and your records say it is gone.
-:::
-
-**Are you affected?** If you use the governance package (`Excalibur.A3.Governance`) for either of these,
-on **any** grant store:
-
-- **Access-review campaigns that revoke unreviewed grants.** The revoke step reports success — every grant
-  revoked — and revokes nothing.
-- **Entitlement reports.** They come back empty.
-
-**What happens.** Both features ask the grant store for "every grant", but they express *every* as an empty
-string, and every shipped store treats an empty string as a value to match rather than as "no filter". No
-grant has an empty tenant, so nothing matches. The revoke step then finishes a loop over zero grants and
-reports that all of them were revoked, because it starts from "all revoked" and only a failure changes that.
-A campaign scoped to a user or a tenant is affected in the same way: that scope's filter value is discarded
-before the query.
-
-**A second, narrower problem on the SQL Server and PostgreSQL stores.** If you call the public grant-query
-API yourself — `IGrantQueryStore.GetMatchingGrantsAsync` or `IGrantRepository.MatchingAsync` — with real
-ids, an id containing `_` or `%` is matched as a wildcard pattern, so it can return grants belonging to
-**other users or other tenants**. The framework's own authorization decisions do not go through this query
-— they match ids exactly — so no access decision the framework makes is affected. The exposure is to code
-of yours that uses the query API and trusts its result.
-
-**Which versions are affected.** We expect every release built from source on or after 26 March 2026 to be
-affected. We are not publishing a list of versions, for the reason given elsewhere on this page: a partial
-list would tell some affected readers they are safe.
-
-**What to do now:**
-
-1. **Do not rely on the result of the revoke-unreviewed step.** After a campaign, read the grants back and
-   confirm that the ones you expected to be removed are gone. Revoke them yourself if they are not.
-2. **Treat past campaigns as unverified.** Access you believed an access review removed may still be in
-   place. Re-check grants for any campaign whose result you relied on, and correct any record that states
-   the access was removed.
-3. **Do not rely on entitlement reports** until a fixed version ships. Build the report from a direct read
-   of your grant store instead.
-4. **If you call the grant-query API with ids that can contain `_` or `%`**, filter the result by exact id
-   yourself before acting on it.
-
-**Is it fixed?** **Not in any released version.** The repair makes grant queries match exactly, uses an
-absent filter — never an empty string — to mean "no filter", and makes the revoke step report success
-only for grants it actually revoked. When a release carries it, this entry will name that version.
-
-#### One tenant's activity-group grant can authorize another tenant's activities — and this one grants access rather than losing it
-
-**Read this differently from everything else on this page.** Every other entry here describes something
-you *lose* — a message dropped, a grant refused, a control unassessed. **This one grants access that
-should be denied, across a tenant boundary.** If you run more than one tenant in a process, treat it as
-an authorization failure, not a reliability one.
-
-**You are affected by default, and configuring a database is what protects you.** That inverts the usual
-shape of this list, so do not scan it for an opt-in you made:
-
-| what you did | affected? |
-|---|---|
-| called `AddExcaliburA3()` and registered **no** activity-group store | **yes — this is the default** |
-| registered the SQL Server or PostgreSQL store | no |
-
-`AddExcaliburA3()` registers the in-memory activity-group store with `TryAddSingleton`, so it is what you
-get unless you replaced it. **There is no setting that turns this on or off** — the exposure follows from
-which store is resolved.
-
-**Do not read "in-memory" as "development only."** The store's own documentation intends it for
-*"development, testing, and standalone scenarios where no persistent store is configured."* **Standalone
-is not development.** A single-process deployment serving real tenants is squarely the affected case, and
-so is a test environment holding real tenant data. We are stating the registration condition rather than
-guessing at your deployment — classify your own.
-
-**What goes wrong.** In released versions the in-memory store builds **one catalogue of activity groups
-for the whole process**, keyed on the group name alone with no tenant anywhere in the key, and the
-authorization check looks groups up in it by bare name. **Every tenant's groups are visible to every
-tenant.** Two consequences, and the first does not need anything unusual to happen:
-
-- **A grant in one tenant can name a group that belongs only to another tenant**, and it resolves — the
-  group is in the same catalogue. No coincidence of naming is required.
-- **If two tenants do use the same group name**, their activities are merged into a single list, so a
-  grant in either one authorizes the union.
-
-A type check in the authorization path looks like it would stop this and does not: the value involved is
-a list of strings, which satisfies that check, so it passes for this store while genuinely excluding the
-database-backed ones.
-
-**How to tell, in one test.** Under tenant A, create an activity group containing an activity that
-tenant B has no legitimate access to. Then, **as tenant B**, grant an activity-group grant naming
-tenant A's group. **If tenant B is authorized for that activity, you are affected.**
-
-**Two things this test deliberately does not require.** It needs **no shared or colliding group name** —
-the catalogue is estate-wide, so B can reach A's group by its own distinct name. And it needs **no
-wildcard grant** — both grant paths leak, so a consumer who never writes a wildcard is not thereby safe.
-
-**A second signal, cheaper to look for than the leak itself.** The tenant is missing from the *write*
-key as well as the read: entries are stored under group-name-and-activity alone, and the write does not
-overwrite an existing one. **So if creating an activity group ever returned `0` for a group-and-activity
-pair another tenant already uses, that tenant's entry was silently not stored** — same missing tenant,
-visible as a return value rather than as an authorization decision. This only helps if you inspected
-that return value; a higher-level seeding path that discards it will show you nothing.
-
-:::warning The obvious version of this test cannot fail
-**Use two tenants, and have the second one name the first one's group.** A test with a single tenant
-passes always, because there is no other tenant's entry to reach. A test in which each tenant only ever
-names its *own* groups also passes always — nothing asks the catalogue for a foreign name, so nothing
-observable happens even though the exposure is there. **A clean result from either shape is not
-evidence that you are unaffected.**
-:::
-
-**"Has this already been exploited?"** We cannot answer that for you and neither can the framework: an
-authorization that should have been denied and was granted is indistinguishable, in any log we write,
-from one that was legitimately granted. **There is no signal to search for.** If you need assurance,
-compare the activities your grants actually resolved against the activities your tenants' groups were
-supposed to contain — from your own records, not from ours.
-
-**What you must do, and it is available on the version you already have.** The affectedness table above
-is not only a diagnosis — it is the remedy. **Register a tenant-scoping activity-group store and you are
-not exposed.** Either configure the SQL Server or PostgreSQL store, or supply your own implementation of
-`IActivityGroupStore`, which is public, shipped, and substitutable through a supported extension point
-rather than merely by luck: the default is registered with `TryAddSingleton`, and
-`IA3Builder.UseActivityGroupStore<TStore>()` replaces it outright.
-
-```csharp
-builder.UseActivityGroupStore<MyTenantScopedActivityGroupStore>();
-```
-
-**Until you have done that, do not call `DeleteAllActivityGroupsAsync` in a multi-tenant deployment.**
-It takes no tenant and clears the whole catalogue, so on the default store it removes every tenant's
-activity groups rather than yours. See the entry below for the refresh paths that reach it, and for two
-ways it fires without you calling it directly.
-
-**Confirmed present in `10.0.0-alpha.11`, and not fixed in any released version.** That package's
-shipped assembly contains the pre-fix types and members and none of the symbols introduced by the
-correction; we identified which variant that is by matching our source at the commit before the fix.
-The default registration of the in-memory store is present at that same commit, so "affected by
-default" describes the shipped shape and not only our current source. A correction exists in our source
-and is in no published package.
-
-**We are not publishing a list of every affected version** — we have measured one, and naming versions we
-have not opened would be guesswork. If you are on a different build, the test above answers it for the
-version you actually have.
-
-#### Refreshing activity groups or their grants deletes every tenant's, not just yours
-
-**This is destruction rather than unauthorized access, it needs no unusual configuration, and it is a
-separate problem from the one above** — it is listed separately so it is not read as a detail of that one.
-
-The store operations that clear activity groups and activity-group grants **take no tenant parameter at
-all**. `DeleteAllActivityGroupsAsync` receives only a cancellation token; the grant equivalent receives
-only a grant type.
-
-**The built-in sync uses this deliberately** — it fetches the whole catalogue from your configured
-endpoint, clears the table, and re-creates every row with the tenant it came back with. **That is
-coherent only while the source really does return every tenant.** The hazard is that the operation is
-public, takes no tenant, and cannot express a narrower intent: **if you call it yourself, or if your
-sync source returns one tenant's catalogue rather than the estate's, every other tenant's activity
-groups are erased and not restored.**
-
-**On a database-backed store this is a committed `DELETE` against a shared table with no `WHERE` clause
-— not lost process state.** Restarting the process does not bring it back, which is how the in-memory
-version of this may be unconsciously scaled down.
-
-**You are affected if you refresh activity groups in a multi-tenant process**, whichever store you use —
-unlike the entry above, this is not specific to the in-memory store, because the missing tenant is in the
-operation's signature rather than in one store's keying.
-
-**What it looks like afterwards:** tenants other than the one you refreshed lose their activity groups
-and any authorization that depended on them, until their own data is reloaded. **That failure is at least
-visible** — access stops rather than silently widening — which is the one respect in which it is easier to
-live with than the entry above.
-
-**A second trigger is worse, and it needs nothing to be misconfigured: a response that arrives
-successfully and contains nothing.** All three refresh operations delete unconditionally and then
-repopulate only behind a `if (… .Length > 0)` guard. So a `200 OK` whose body deserializes to `null` or
-an empty list **runs the delete and skips the repopulate** — the table is emptied and nothing is written
-back. An empty response is indistinguishable from an authority that legitimately has no groups, and the
-framework resolves that ambiguity by destroying your data rather than by refusing to act on a payload it
-cannot confirm is a complete snapshot.
-
-**You do not need an empty response to be left in a broken state, either.** The repopulate validates the
-tenant on each row *as it writes it*, inside the loop, on data that came from your endpoint. One row
-carrying no tenant throws part-way through — after the delete has already committed — so a single
-malformed row in an otherwise healthy payload leaves the store partly wiped. **That is reachable today,
-with a full and otherwise valid catalogue.**
-
-**Three operations carry this shape, not one**, and the mechanism is identical in each:
-`SyncActivityGroupsAsync` (every group, every tenant), `SyncActivityGroupGrantsAsync` (one user, every
-tenant), and `SyncAllActivityGroupGrantsAsync` (**every grant, every user, every tenant**). The third is
-as destructive as the first.
-
-**Which way it fails — two statements, and neither one is the whole answer.**
-
-**In steady state it denies.** An affected deployment loses authorization data permanently; because the
-decision path is fail-closed, the effect is denial — **an authorization outage, not elevated access.**
-The decision begins at "no grant" and every check can only add one, so an emptied store removes
-authorizations and can never manufacture one.
-
-**A refresh that fails part-way is a different case.** Cache invalidation is the **last** step of all
-three operations — after the delete and after the repopulate. If the refresh throws before reaching it,
-cached decisions continue to serve, **so a revocation the refresh was performing may not take effect
-for as long as those entries keep being used.** The cache uses a sliding expiration, so an entry that
-continues to be read is renewed by each read — **there is no point at which it is guaranteed to lapse,
-and on a busy deployment a stale authorization can persist indefinitely.** That is the one circumstance
-here in which access outlives the change intended to remove it, and it is why the first statement alone
-is not the whole picture.
-
-**Are you exposed?** Only if you call these yourself. **The framework never invokes any of the three** —
-they are public API you opt into by wiring a sync path. If you have not wired one, this entry does not
-describe you. If you have, you are one empty `200` away from it.
-
-**What you must do.** Until a fixed version ships, **do not call `SyncActivityGroupsAsync`,
-`SyncActivityGroupGrantsAsync` or `SyncAllActivityGroupGrantsAsync`.** There is no configuration that
-makes them safe and no store you can substitute to avoid it — the behaviour is in the service, not in
-the store.
-
-**Do not assume you can simply re-run the sync to recover.** The authority that returned the empty or
-malformed response is the same authority you would restore from. If you rely on this sync path at all,
-keep an independent copy of your activity groups and grants that does not depend on that endpoint being
-healthy.
-
-**Not fixed in any released version, and there is no safe way to call it on a shared process today.** If
-you must refresh, do it where no other tenant's data is live, and re-seed every tenant afterwards rather
-than only the one you intended to refresh.
-
-#### An authorization grant whose tenant, type or qualifier contains `:` or `%` is silently never applied
-
-**Who this affects.** Anyone whose grant terms — the tenant id, the grant type, or the qualifier —
-contain a colon or a percent sign. Identifiers issued by an external identity provider commonly do: an
-OpenID Connect `sub` claim is an opaque string the provider chooses, and URN- and URI-shaped values are
-ordinary rather than unusual.
-
-**What you see.** Nothing. The grant is written without error, the call returns, and nothing is logged.
-The grant is simply never matched when it is read back, so the holder is refused exactly as though the
-grant had never been issued.
-
-**The mechanism.** Grant keys are composed by escaping each term and then joining them: `%` and `:` are
-replaced with `%25` and `%3A`, so that a term containing either cannot be mistaken for the separator.
-**In published versions one of the parsers does not reverse that escaping**, so a key written from escaped
-terms is read back as different terms than it was written with. The effect is that the grant appears
-**absent rather than wrong** — it produces a refusal, never a wrong allow, and never access for anyone
-else.
-
-**Is it fixed?** **Not in any released version.** **Nothing a fix does will reach grants you have already
-stored, and nothing needs to** — they were written correctly; it is the read that fails to match them, so
-they resolve again as soon as you are on a release that carries the fix.
 
 #### The startup check that is supposed to refuse a mis-ordered tenant pipeline never runs
 
@@ -453,191 +206,35 @@ assessor with that determination rather than correcting a statement that may be 
 checklist supplied the wording for the assertion, so if you assembled your evidence package from it you
 may be carrying the claim without having written it yourself.
 
-**Is it fixed?** **Not in any released version, and the fix will not reach you.** The attribute's summary,
-the checklist claim and the attestation wording have been corrected. Two properties that promise
-protection nothing delivers — a key-purpose selector and a flag claiming annotated values are withheld
-from exception details — ship in **every released version** and are inert there: they default to
-protective-sounding values, and no code reads either of them.
+**Is it fixed? The wording is. What the attribute does is unchanged, and that is why this entry stays
+here.** The attribute's summary, the checklist claim and the attestation wording are corrected in the
+release this page accompanies, so your IDE no longer tells you `[Sensitive]` requires encryption the
+framework will provide. **`[Sensitive]` still drives masking and still encrypts nothing**, on this release
+as on every earlier one.
 
-**They have since been removed, and the next release will not have them.** That is a change you may need
-to act on before it reaches you: if your code sets `EncryptionKeyPurpose` or `ExcludeFromErrors` today it
-will **not compile** against the next release. Neither property ever did anything, so removing the
-assignment is the whole of the change — there is no replacement to adopt and no behaviour to preserve.
-`MaskInLogs`, the neighbouring property on both attributes, is **not** affected and **is** honoured.
+**Two inert properties are removed in this release, and that is a breaking change to act on.** A
+key-purpose selector and a flag claiming annotated values are withheld from exception details shipped in
+**every earlier version** and did nothing there: they defaulted to protective-sounding values, and no code
+read either of them. If your code sets `EncryptionKeyPurpose` or `ExcludeFromErrors`, it will **not
+compile** against this release. Neither property ever did anything, so deleting the assignment is the
+whole of the change — there is no replacement to adopt and no behaviour to preserve. `MaskInLogs`, the
+neighbouring property on both attributes, is **not** affected and **is** honoured.
 
 **None of that changes your
 data or your paperwork.** Values you already stored under `[Sensitive]` are still in cleartext and nothing
 migrates them; an attestation you have already given an assessor stays given until you withdraw it. Both
-are yours to close, which is why this entry stays here after the correction rather than moving to
-[Resolved issues](resolved-issues.md).
+are yours to close — which, together with the attribute's unchanged behaviour, is why this entry stays
+here rather than moving to [Resolved issues](resolved-issues.md).
 
 ### Compliance: GDPR and SOC 2
 
-#### A GDPR erasure certificate can report Completed when the framework could not check its own coverage
-
-:::note A second, separate defect affects the same document
-This entry is about a certificate whose `Completed` status the framework could not substantiate. A
-separate entry below — *an erasure certificate's signature authenticates who it is about, not what it
-says* — is about whether the signature proves any certificate's content is unaltered. They are
-independent: fixing either leaves the other in place.
-:::
-
-**What you see.** A signed erasure certificate saying `Completed`, for a data subject whose personal
-data was never enumerated. **There is nothing on the certificate that distinguishes it from a genuine
-one** — not a warning, not a partial status, not an empty field you could notice. The operator cannot
-tell, the data subject cannot tell, and neither can an auditor reading the certificate later.
-
-**Why it happens.** Before completing an erasure the framework lists the annotated data categories it
-could not cover. On a host where the scan cannot see every assembly carrying `[PersonalData]`, that list
-comes back **empty for exactly the same reason full coverage produces an empty list** — there is no state
-meaning *"the scan was incomplete."* An empty list is read as *"nothing uncovered,"* so absence of
-evidence is rendered as evidence of coverage, on the document that attests a legal obligation was
-discharged.
-
-**Are you affected? The discriminator is the scan's reach, not your publish mode.**
-
-| your deployment | affected? |
-|---|---|
-| the erasure host published **trimmed** or with **Native AOT** | **yes — confirmed** |
-| an ordinary host where every assembly carrying `[PersonalData]` is loaded and visible | not by this mechanism |
-| a host that loads assemblies lazily, by plugin, or on demand | **we have not measured this** |
-
-**We are deliberately not telling you a JIT host is categorically safe.** The property that matters is
-whether the scan reaches every assembly carrying the annotation. Trimming and Native AOT are the
-confirmed way to break that; they may not be the only way, and we have not tested deferred or plugin
-assembly loading. If you cannot say with confidence that every such assembly is loaded when erasure
-runs, treat yourself as in scope.
-
-**What you must do.** Until a fixed version ships, **publish the host that runs erasure without trimming
-and without Native AOT.** That is available to you today and it is the only workaround we are offering.
-
-**`KeyShredOnlyErasure` is not a workaround.** It changes what erasure *means* for your deployment
-rather than restoring the guarantee, and adopting it to dodge this would leave you attesting to a
-different thing than you think.
-
-**If you have already issued certificates from a trimmed or AOT host**, they do not establish what they
-claim. Re-run those erasures on a host published without trimming, and treat the earlier certificates as
-unverified rather than as evidence.
-
-**One thing your auditor may find in the binary.** Two analyzer-suppression justifications compiled into
-the shipped assemblies state that a category the scan misses *fails the coverage gate rather than
-completing silently* — **the opposite of what the code does.** That text is exactly what an assessor
-reads when asking why a warning was suppressed in a personal-data path. It is not the defect, but if
-your assessor reaches it, it asserts a guarantee that is not implemented.
-
-**Which versions are affected.** **Six of the eight published `10.0.0-alpha.*` versions are confirmed**
-— `alpha.5`, `alpha.7`, `alpha.8`, `alpha.9`, `alpha.10` and `alpha.11` — by reading the shipped
-documentation surface of each package. **The remaining two we have not examined, and that means
-unmeasured, not clean.** Do not read their absence from the confirmed list as an assurance.
-
-**Is it fixed?** The scan now reports whether its coverage was established, and completion requires it.
-**That repair is not in any released version.** When a release carries it, this entry will name that
-version; until then the workaround above is what you have. Note also that we have not yet been able to
-prove the repair holds on a trimmed or AOT host — the arm that would demonstrate it requires such a
-publish and does not exist yet — so the fix is documented as unverified in that configuration rather
-than asserted.
-
-#### An erasure certificate's signature authenticates who it is about, not what it says — so its claims can be altered and it still verifies
-
-**This is a second, independent defect on the same document as the entry above.** That one is about a
-certificate whose `Completed` status the framework could not substantiate. This one is about whether the
-signature on any certificate — accurate or not — tells you the content is unaltered. It does not.
-
-**What you see.** Nothing. That is the defect. A certificate whose exemptions, record counts, store
-kinds, or description of what was erased have been changed after issue will pass signature verification
-exactly as an untouched one does. The signature is present, it is correct, and it attests to the wrong
-thing.
-
-**Why it happens.** The signed input is three identity fields — the request identifier, the hashed data
-subject identifier, and the completion timestamp. **The certificate's claims are not part of it.** Alter
-any claim and the signed input is unchanged, so the signature still matches. The document's identity is
-authenticated; its content is not.
-
-**Which versions are affected.** **Every published version that contains the erasure-certificate feature
-is affected.** The feature was introduced in November 2025. Since then the signature has covered only the
-request identity, subject hash and completion time; it has never covered the certificate's claims. There was never a
-correct version to roll back to, and we are deliberately **not** publishing a list of affected versions:
-most published versions have no tag we can resolve, so any list we produced would assert safety for
-versions nobody checked.
-
-**In earlier versions the "signature" was not keyed at all, so anyone could produce one.** How the
-three identity fields were signed has changed over the feature's life:
-
-| certificates issued by a version from | what the signature is |
-|---|---|
-| November 2025 to February 2026 | an **unkeyed SHA-256 hash**, always. It carries no key, so anyone can compute a matching value for any certificate, including one they wrote themselves |
-| February 2026 to July 2026 | HMAC-SHA256 **when a signing key was configured**. With no key it silently fell back to the same unkeyed hash |
-| July 2026 onward | HMAC-SHA256; issuing a certificate fails when no signing key is configured |
-
-**To tell whether your own certificates carry an unkeyed hash**, search the logs of the host that issued
-them for the warning `No HMAC signing key configured — falling back to unsigned hash for certificate`. Each
-occurrence names the request whose certificate was issued without a key. Certificates issued before
-February 2026 carry an unkeyed hash whether or not you configured a key, and no warning was logged for
-them.
-
-A certificate with an unkeyed hash establishes nothing about who issued it. Treat it the same way as the
-guidance below, with more force: nothing on it distinguishes it from a document anyone could have written.
-
-**Why you will not find this through your usual channels.** This is our own code. There is no CVE and no
-dependency advisory, so a scanner will not surface it and a supply-chain review will not either. This
-page is the only channel by which you could learn it.
-
-**Where the certificate reaches you.** It is documented in our GDPR, HIPAA and SOC 2 material, so the
-exposure is not limited to GDPR work. If you arrived at the certificate from any of those, this applies
-to you.
-
-**The framework ships no way to verify a certificate's signature.** We ship the `Signature` property as
-public API and document the certificate across three compliance checklists, but nothing in the framework
-checks it. **`ErasureVerificationService` is not that check** — it verifies that erasure occurred
-(`VerifyErasureAsync`, `VerifyKeyDeletionAsync`) and does not touch the signature at all. A consumer who
-assumed otherwise was not being careless; the name invites it.
-
-**The certificate's version marker is also outside the signature.** The document carries a version field
-identifying the signing scheme that produced it. That field is not part of the signed input either, so it
-can be altered like any other claim — which means **you cannot use it to establish which scheme signed a
-given certificate.** This matters directly for the repair described below: when the scheme changes, the
-marker is the natural way to tell an old certificate from a new one, and it is not trustworthy for that
-purpose on anything issued so far.
-
-**And the claims themselves can be unsubstantiated independently of any tampering.** A certificate can report a *verified* erasure on evidence that does not establish one. **On the normal path, where
-the certificate is written as the erasure completes, the verified flag is set to true unconditionally — nothing is
-checked — and the verification methods it lists are copied from your configuration, not from anything that ran.** On
-the fallback path, where a certificate is rebuilt from stored status, the flag reads true whenever the deleted-key
-count is zero — the same value produced by a successful erasure of a subject with no keys and by an erasure that
-deleted nothing. The companion entry above covers
-the parallel case for *completed*. **So there are two distinct problems on this document and they compound:**
-the claims may be wrong when issued, and the signature cannot tell you whether they were altered afterwards.
-
-**What to do now.**
-
-- **Do not rely on the verified flag or the listed verification methods** as evidence that any verification ran.
-- **Do not rely on the signature as evidence of integrity** in anything you hand to an auditor or a
-  regulator. Treat a certificate as a record whose authenticity rests on the custody of your own store,
-  not on the signature it carries.
-- **If you have already supplied certificates as evidence**, the exposure is that nothing on them proves
-  the claims are as issued. Whether that warrants telling anyone is your call to make with your own
-  counsel; we are telling you so the decision is yours to make.
-- **Protect the certificates at rest and in transit** — restrict write access to the store, and keep your
-  own record of what was issued, so alteration is detectable by comparison even though the signature
-  cannot detect it.
-- **Requesting a certificate again does not reissue it.** Once a certificate has been issued for a
-  request, asking for it again returns the stored document unchanged. A certificate you already hold is
-  exactly as good, or as limited, as it was when it was issued, and upgrading does not re-sign it.
-
-**Is it fixed?** **Not in any released version.** The repair signs the whole payload rather than an
-enumerated set of fields, so that a claim added later is covered automatically instead of being forgotten.
-**That change will alter the signature scheme, and certificates issued before it will no longer verify
-against the new one.** Nothing about the signed-input format was ever published, so no documented contract
-is broken by the change — but if you reverse-engineered the format, it will change under you.
-
 #### An erasure certificate covers only the locations you registered, and reports `Completed` without mentioning the ones you did not
 
-:::note This is a third, independent defect on the same document
-The two entries above are about a `Completed` [the framework could not
-substantiate](#a-gdpr-erasure-certificate-can-report-completed-when-the-framework-could-not-check-its-own-coverage),
-and about a signature that does not cover what the certificate says. This one is about **what the
-certificate was ever looking at**. All three are independent: fixing any of them leaves the others in
-place.
+:::note Two related defects on the same document are fixed; this one is not
+A `Completed` the framework could not substantiate, and a signature that did not cover what the
+certificate said, are both fixed in the release this page accompanies — see [Resolved
+issues](resolved-issues.md). This entry is about **what the certificate was ever looking at**, which is
+unchanged: all three are independent, and fixing the other two leaves this one in place.
 :::
 
 **What you see.** A signed erasure certificate reporting `Completed` for a data subject whose personal
@@ -804,7 +401,8 @@ tombstoned stream and writes the result, which for a fully erased aggregate is t
 
 Both are calls **you** must make. Neither is triggered by the erasure itself, so an erasure you have
 reported as completed has not touched any read model unless you invoked one of them. Treat clearing
-projections as your own step in the erasure workflow until the erasure path reaches them.
+projections as your own step in the erasure workflow. A later version narrows that step to the projections
+the erasure names — see below.
 
 **What changes in `10.0.0-alpha.13`.** An erasure on a host with registered projections reports
 **partial** rather than `Completed`, and **the certificate you receive says so in a form built to be
@@ -824,6 +422,21 @@ been issued continue to verify.
 
 If you have built your own projection erasure, register an `IErasureContributor` declaring
 `DataStoreKind.Projection` and the framework stands down.
+
+**What changes after `10.0.0-alpha.13` — and this is in no released version yet.** Erasure now clears,
+at the moment of erasure and with no call from you, every projection row whose id is the erased aggregate's
+id. That is the row this entry says a rebuild cannot produce and `ReapplyAsync` had to be invoked for. You no
+longer invoke anything for it.
+
+**What it still does not clear, and this is now named rather than silent:** a projection keyed on anything
+other than the aggregate id — a per-tenant total, a leaderboard, any row several subjects contributed to. The
+framework cannot identify which of those rows held the erased subject, because that is a fact about the
+events that produced the row and not about the row itself. So it **names those projections in the erasure
+result and carries them into the signed certificate**, the outcome is `PartiallyCompleted` rather than
+`Completed`, and your manual step narrows to the projections it named instead of covering all of them.
+
+One boundary worth knowing: that naming comes from the framework's own gap reporting, which stands down if
+you register your own contributor covering projections. If you do, naming the residue becomes yours.
 
 **Which versions are affected.** Every published 10.x version. This is a capability that was never
 built rather than one that broke, so there is no earlier unaffected version: the projection apply path
@@ -889,69 +502,6 @@ explicit `FulfillRequestAsync` call that records an act you actually performed. 
 ---
 
 ### Event sourcing, outbox and projections
-
-#### The outbox fencing contract we published tells you to build the problem it exists to prevent
-
-**Who this affects.** Only you, if you wrote your own outbox store against `IFencedOutboxStore`. **If you
-use the outbox stores that ship with the framework, you did not implement this contract — we did**, and
-the shipped stores we have examined hold the fence once per claim scope rather than once per row, which
-is what the instruction should have said. This entry is about **the instruction we published to
-implementers**, not a general statement that those stores are free of every fencing concern. **In
-particular it does not clear the failure path**, which is a separate defect affecting every outbox user
-regardless of whose store you run: see [the outbox failure report is required to check an owner it is
-never given](#the-outbox-failure-report-is-required-to-check-an-owner-it-is-never-given).
-
-**What you see.** Nothing, until a leader handover. Then two instances drain the same outbox at the same
-time and your consumers receive the same messages twice. There is no error, because both instances
-believe they hold the claim and, under the contract as written, both are right.
-
-**What we told you to do.** The documentation shipped in the package says, of the claim operation:
-
-> *"Implementations MUST claim only rows whose stored fencing high-water mark is less than or equal to
-> `fencingToken` … A presented token below the stored high-water mark indicates a superseded (stale)
-> leader; the store MUST exclude those rows from the claim."*
-
-Read literally — and it is a `MUST`, so it is meant to be read literally — that puts the high-water mark
-**on each row**. It is the wrong place for it.
-
-**Why that is harmful rather than merely imprecise.** A mark stored per row is only advanced on rows that
-have actually been claimed. So after a handover, a superseded leader presenting its old token is refused
-on the rows the new leader has already taken, and **admitted on every row the new leader has not yet
-reached** — which, at the moment of handover, is most of them. The superseded leader then claims and
-drains them alongside the current one. This is not a race that needs an unusual interleaving; it is what
-an ordinary failover does.
-
-**What you must do, and it is two things rather than one.** Store the fence **once per claim scope** —
-one row keyed by the outbox it guards — and compare the presented token against that, so a superseded
-token is refused everywhere at once rather than row by row. **That alone is not sufficient.** A fencing
-token identifies a *tenure*, not a *claim*, so it cannot tell two claim cycles of the same tenure apart:
-a delayed report from an earlier cycle of the still-current leader presents a valid token and is
-indistinguishable from a current one. Closing that needs an identifier for the individual claim, carried
-alongside the token and checked with it. **A store that fixes only the first is correct about leaders and
-still silent about claims**, which is why we are describing both here rather than telling you twice.
-
-**How to confirm it in what you built.** Do not test this against a running system — a handover that
-happens to be clean proves nothing. Open your implementation and answer one question: **when you compare
-the presented fencing token, what row are you reading the stored mark from?** If the answer is "the
-message row I am about to claim", you built what we specified, and you have this problem. If it is "a
-single row for the whole outbox", you did not follow our instruction and your store is in better shape
-than our documentation.
-
-**Is it fixed?** The contract text is being corrected, and the framework's own stores never implemented
-the version we published — they already fence per scope. **The correction is not in any released version,
-and the documentation inside the package you installed cannot be recalled.** Until a release carries the
-corrected text, this entry is the correction.
-
-**Which versions are affected — assume every 10.x pre-release you hold.** We read the documentation file
-inside the published packages available to us, and **every 10.x package we could open carries the wrong
-instruction**, with none free of it. The interface itself has existed since the tenth of July 2026, and
-the earliest 10.x package we hold was published a month after that — so there is no version in our reach
-that predates the problem. **We are deliberately not naming a first-affected version.** We cannot open
-the releases we do not hold, and a version's absence from our cache is not evidence that it is clean; a
-reader on an early alpha should not read a list that starts at alpha.5 as permission to skip this.
-
-**The 3.x line is genuinely not affected**, and that one is a measurement rather than a bound: the
-interface does not exist in it at all. We checked its shipped documentation directly.
 
 #### The outbox failure report is required to check an owner it is never given
 
@@ -1130,60 +680,6 @@ refuses a report made under a claim the store no longer recognises. **The unscop
 still performs no check**, so switching packages does not fix your code; you have to call the overload that
 takes the claim. If you keep calling the four-argument member, the behaviour above is exactly what you have.
 
-#### An append that was committed can be reported as a conflict, and retrying it writes the event twice
-
-:::danger The documented response to a conflict makes this worse, not better
-The store reports a concurrency conflict. The documented response is reload-and-retry. Retrying appends
-the same business event a second time, at the next version, and nothing rejects it.
-:::
-
-**What happens.** When the SQL Server event store commits an append, it catches database exceptions
-raised by the commit itself and treats them as evidence that the append lost a concurrency race — the
-reasoning being that a failed transaction was rolled back and therefore wrote nothing. That reasoning
-does not hold when **the server committed successfully and the acknowledgement was lost**: a dropped
-connection, a command timeout, or a pause longer than the client timeout. This is routine against a
-managed cloud database.
-
-In that case the rollback does nothing, because the transaction is already committed. The store
-re-reads the stream version, finds it has moved — because *this* writer moved it — and concludes another
-writer won. It returns a conflict for an append that is durably on disk.
-
-**Are you affected?** You are affected if you use the SQL Server event store and a commit acknowledgement
-can be lost between your application and the database. That is any deployment where the two are
-separated by a network, and especially a managed database that pauses or fails over. A purely local
-database makes it unlikely but not impossible.
-
-**What that exposes.** Your aggregate's history contains the same business event twice, at two different
-versions. Because the versions differ, the stream's uniqueness constraint does not reject it. Every
-replay applies the event twice, so any state derived by folding events — balances, counters, totals,
-state machines — is silently wrong, and stays wrong for the life of the stream.
-
-**What to do now.** Do not retry an append blindly on a conflict. Before re-appending, re-read the stream
-and check whether the event you are about to write is already present, using an identifier your own
-application controls. The framework does not currently give you an idempotency key that would make this
-check unnecessary.
-
-**Which versions are affected.** Every published 10.x version. The handling has been in place since late
-July 2026, before the first 10.x release. We have not assessed the older 3.x line — do not read that as
-clean.
-
-**Is there a fixed version?** **`10.0.0-alpha.13`, on SQL Server.** Before classifying a failure as a
-conflict, the store now re-reads the events table by the client-generated event ids of the batch and
-reports success when the rows are durably there, so an append that actually committed is no longer
-reported as a conflict.
-
-**This supersedes what this entry previously said** — that a correct fix required an idempotency
-constraint on the events table, and therefore a schema change that could not reach a deployed database
-through a package upgrade. That was wrong: the event ids were already stored, so **no schema change is
-needed** and the fix does reach you through the package.
-
-Two limits, both of which should affect how much weight you put on this. **It is SQL Server only** —
-the PostgreSQL and Oracle event stores have no equivalent reconciliation, and this entry does not claim
-one for them. And **no test exercises the reconciliation**: removing it leaves our suite green, so the
-fix is present but unverified by us. Not yet confirmed against the published package either.
-
----
-
 #### A subscriber reading the global event stream can permanently skip a committed event
 
 :::danger A skipped event is never redelivered
@@ -1260,67 +756,35 @@ bad deployment, a corrected handler, a missed event. Running it reports success,
 rebuild, and leaves the incorrect data in place. Anyone reading the projection afterwards sees the same
 wrong answer and has been told it was repaired.
 
-**What to do now.** Do not rely on the rebuild service to correct a projection. To re-derive one, clear
-the projection's rows yourself and replay the events through the normal apply path.
+**What to do now.** **On versions before `10.0.0-alpha.13`:** do not rely on the rebuild service to
+correct a projection — clear the projection's rows yourself and replay the events through the normal apply
+path. **On `10.0.0-alpha.13`:** use the rebuild service, which writes under the key a reader queries.
+**Do not hand-replay through the apply path on that version** — see [A projection could report a
+position it did not hold](resolved-issues.md#a-projection-could-report-a-position-it-did-not-hold-so-a-read-model-silently-double-counted-or-omitted-events)
+on the resolved-issues page, where the apply path is one of the ways a false position was produced.
 
-**Which versions are affected.** Every published 10.x version. The rebuild has written its result this
-way since February 2026, before the first 10.x release. We have not assessed the older 3.x line — do not
+**Which versions are affected.** Every published version before `10.0.0-alpha.13`. The rebuild has
+written its result this way since February 2026, before the first 10.x release. We have not assessed the older 3.x line — do not
 read that as clean.
 
 **Is there a fixed version?** **`10.0.0-alpha.13`.** A rebuild or recovery now folds the handlers a
 projection declares through `WhenHandledBy`, and a rebuild writes each document under the key a reader
 actually queries rather than one document under the projection type name.
 
-**A rebuild now throws rather than reporting `Completed`** when the global-stream read stops at a gap.
-If your store carries holes left by legacy archival, the rebuild fails until migration `012` is applied
-— which is the intended direction, but it is a new failure you will see.
+**A rebuild now refuses rather than reporting `Completed`** when the global-stream read stops at a gap,
+naming the position it stopped at. Two different causes, and the remedy differs: if that position belongs
+to an append still in flight, **re-run the rebuild** and it clears on its own; if it is permanently absent
+— a store archived by a version that deleted event rows — **apply the archival gap backfill for your
+provider first** (see [Global-stream reads stop at gaps](./migration/global-stream-reads-stop-at-gaps.md)).
+A refusal has changed nothing, so nothing is lost by finding out this way.
 
-Not yet confirmed against the published package.
-
----
-
-#### A saga silently discards every event of a type after the first, unless you set a step id
-
-:::danger The log line says the opposite of what happened
-Each discarded event is reported as `skipped duplicate event`. It was not a duplicate. It was a
-distinct event that was never handled, and nothing else records that.
-:::
-
-**What happens.** A saga remembers which events it has already processed so a redelivery does not run
-a step twice. The identifier it remembers is built from the event's type name, the saga's id, and
-`ISagaEvent.StepId`. `StepId` is optional. When it is not set, the identifier is the same for **every
-event of that type reaching that saga** — so the first is processed and every later one is treated as
-a redelivery of the first and dropped.
-
-**Are you affected?** You are affected if a saga of yours handles the same event type more than once
-during its lifetime and the events carry no `StepId`. Concretely: an order saga that receives
-`ShipmentDispatched` for three parcels, an approval saga that receives `ApprovalGranted` from several
-approvers, a batch saga that receives one `ItemCompleted` per item. You are not affected if every
-event type reaches a given saga at most once, or if you already set a distinct `StepId` per delivery.
-
-**What that exposes.** The saga advances on the first event and then stops responding to the rest,
-while appearing healthy. The workflow stalls part-way with no error: no exception, no failed status,
-and a log line that affirmatively reports correct deduplication. Downstream systems waiting on the
-saga's later steps wait indefinitely. Because the discarded events are never handed to a handler,
-**making your handlers idempotent does not help** — idempotency protects against a step running twice,
-and this is a step running zero times.
-
-**What to do now.** Set `ISagaEvent.StepId` to a value that distinguishes the deliveries you want
-treated as distinct. The step name is enough only when the saga handles that type once; when it can
-handle the type repeatedly, use something unique per delivery — the parcel id, the approver id, the
-item id. Nothing enforces this, so check every saga you have rather than the ones you remember.
-
-If a saga has already stalled this way, the dropped events are still in your stream and were never
-applied: re-deliver them with distinct step ids, or advance the saga by hand.
-
-**Which versions are affected.** Every published 10.x version, and the older 3.x line broadly. The
-identifier has been derived this way since before the 10.x line began.
-
-**Is there a fixed version?** No. No released version corrects this. The fix changes the format of an
-identifier that is already persisted inside saved saga state, so it is a breaking change and will
-arrive with the migration guidance it needs rather than quietly.
+The gap refusal is confirmed against the released source for `10.0.0-alpha.13`, which carries the wording
+quoted above. An earlier revision of this entry pointed at a migration numbered `012`; no such migration
+exists and the reference has been corrected to the backfill guide. We have not inspected the compiled
+assemblies of any published package.
 
 ---
+
 
 #### Every projection write fails on MongoDB
 
@@ -1659,9 +1123,17 @@ NuGet's *direct dependency wins* rule means your reference overrides the transit
 this is an upgrade it raises no downgrade warning. **The vulnerability is entirely in the dependency, so
 pinning it removes your exposure completely** — there is nothing left for us to fix on your behalf.
 
-**Not yet fixed in any released version.** There is no version of `Excalibur.Outbox.Marten` you can
-upgrade to that resolves this. We are not asking you to wait for one: the workaround above is a complete
-remedy and it is under your control today. This entry will name a fixed version when one ships.
+**Our own declared dependency is fixed — `10.0.0-alpha.12` and later declare Marten `9.13.0`. What is
+not fixable by us is an override you made yourself**, and that is what this section is about: if you have
+pinned Marten to any version from `7.0.0` through `9.12.0`, upgrading our package does not move you off it,
+because a direct reference in your project wins over our transitive one. Raise your own pin to `9.13.0` or
+later. That remedy is under your control today and there is nothing left for us to ship on your behalf.
+
+> **This paragraph previously read: "Not yet fixed in any released version. There is no version of
+> `Excalibur.Outbox.Marten` you can upgrade to that resolves this."** It contradicted this entry's own
+> opening, which names `10.0.0-alpha.12` as carrying the fixed pin, and it erred in the direction that
+> keeps you on a vulnerable library. It is quoted rather than deleted so a reader who acted on it can
+> recognise it.
 
 **What we have not established, stated so you can judge the urgency yourself.** We have confirmed the
 vulnerable dependency is in your graph. We have **not** determined whether our own outbox queries reach
@@ -1745,19 +1217,43 @@ Nothing in this section is a report of broken behaviour. Each entry marks a plac
 
 **The snapshot kit was in the same state and no longer is.** It now has a derived suite exercising it against the in-memory store, so it is no longer inert. Separately, and unchanged, snapshot-store *behaviour* across providers is covered by nine provider suites deriving an internal base class rather than the shipped kit — so a custom snapshot provider validated against the shipped kit is being held to a narrower set of arms than our own providers are. The shipped snapshot kit currently carries no tenant-isolation and no concurrency arms; if you need either verified for your provider, write those yourself for now.
 
-### Several integration suites are not measured executing
+### Several integration suites are now measured executing
 
-**What it means.** These areas are exercised by unit tests, but we hold no measurement showing their integration suites executing: Elasticsearch monitoring, OpenSearch, tiered storage (S3 and Azure Blob), and tenant sharding. Their suites are included in our test selection and are not quarantined; they gate on container availability at runtime, so an absent container skips them rather than failing.
+**RESOLVED by measurement.** This entry previously read *"Several integration suites are not measured
+executing"* and named Elasticsearch monitoring, OpenSearch, tiered storage (S3 and Azure Blob) and tenant
+sharding as areas we held no measurement for. It set its own bar explicitly: *"Our standard for removing
+one of these is the suite being **measured green**, not the fix being written or the reasoning being
+persuasive."* That measurement now exists.
 
-**We are stating this narrowly on purpose.** There is real counter-evidence — several of these areas carry sibling tests that *cannot* skip and would turn the build red if the infrastructure were missing, which suggests the containers are present and the suites do run. We are not treating that as grounds to clear the entry, because it is an inference and not a measurement. Our standard for removing one of these is the suite being **measured green**, not the fix being written or the reasoning being persuasive.
+Measured across the full shard set, counting per-test outcomes from the result files rather than summary
+lines:
 
-**What you must do.** If you depend on these areas, validate them in your own environment. Expect this entry to narrow once we can publish the measurement.
+| Area | Passed | Failed | Not executed |
+| --- | --- | --- | --- |
+| Elasticsearch | 2,253 | 0 | 0 |
+| OpenSearch | 127 | 0 | 0 |
+| Tiered storage (S3, Azure Blob) | 79 | 0 | 0 |
+| Tenant sharding | 198 | 0 | 0 |
 
+**Why the zero in the last column is the load-bearing number.** The original concern was not that these
+suites failed — it was that they *gate on container availability and skip silently*, so a green build said
+nothing about them. A count of zero not-executed is what distinguishes "ran and passed" from "was skipped
+and reported clean". The same measurement run shows a sibling suite with 11 not-executed entries (Azure
+Key Vault, which has no local emulator), which is what establishes that the count can be non-zero and is
+therefore worth reading.
+
+**What you must do.** Nothing for these four areas. Validating against your own infrastructure remains
+sound practice, but this framework no longer asks you to compensate for a measurement it does not hold.
 ### Cosmos DB coverage is thinner than the rest
 
 Three separate things are true about Cosmos DB in this release, and they are easier to act on together than apart.
 
-- **Some integration tests do not pass.** When the Cosmos DB integration tests are run, some fail. We have not resolved those failures for this release, and we have not published a build in which they executed and passed.
+- **The integration tests now pass, measured.** This bullet previously read *"Some integration tests do
+  not pass… we have not published a build in which they executed and passed."* A full run of the
+  Cosmos-traited integration tests now reports **1,393 passed, 0 failed, 0 not executed**, with emulator
+  containers observed starting during the run — so the result is not a skipped suite reporting clean. The
+  remaining two bullets below still stand: scheduling and the telemetry suite are separate matters from
+  whether these tests pass.
 - **The snapshot-store conformance suite runs nightly, not on every change.** Cosmos DB tests are deliberately excluded from the per-change build so it does not depend on a slow emulator start; they run on a nightly schedule instead. A Cosmos regression is therefore caught within a day rather than on the change that introduces it. The readiness check **refuses** rather than skipping when the emulator is not genuinely usable, so a nightly pass is real evidence — but a green per-change build is not evidence about Cosmos.
 - **The event-store telemetry suite executed on no CI runner at all, and we have removed the cause but not yet published a passing run.** All fourteen of its tests self-skipped on Linux runners, and both of our CI paths are Linux — so the suite reported a clean green with none of its fourteen tests executed, and nothing in the result summary was red. The self-skip is now gone: in CI an unavailable emulator fails the suite with a named error instead of skipping it, and a separate check refuses the job when a run reports success without producing evidence that it reached the emulator. **What we cannot yet tell you is whether these fourteen tests pass**, because the suppression we removed claimed they were unstable, and we have not published a run in which they executed. Treat this suite as unverified until we can point at that run — the difference from before is that a green here can no longer be earned by skipping.
 
