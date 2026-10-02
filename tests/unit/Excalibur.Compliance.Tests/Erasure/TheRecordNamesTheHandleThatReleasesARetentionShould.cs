@@ -313,11 +313,33 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 
 			_ = services.AddCryptoShredding();
 
+			// THE AMBIENT TENANT THE WRITE PATH RESOLVES, pinned to the tenant this erasure is filed for.
+			// Registered BEFORE the framework's own TryAdd so it is the context the whole stack reads.
+			//
+			// The two branches are the two real deployment shapes, and the framework's own startup guard
+			// refuses anything in between: a custom resolving context while RequireTenant is false is
+			// rejected, because it routes several tenants through one keyed partition. So a named tenant
+			// means multi-tenant mode and an unnamed one keeps the single-tenant default, whose identity the
+			// derivation already agrees with.
+			//
+			// It is load-bearing, and it replaces a comment asserting that "the crypto-shredding path does
+			// not [need a tenant context], and no longer registers one". The key handle now carries the
+			// tenant, so writing under one tenant and erasing as another is a CROSS-TENANT erasure that
+			// correctly destroys nothing of the writer's -- which is the right behaviour and the wrong
+			// fixture. Naming the same tenant on all three sites (declaration, request, and the ambient
+			// scope the data is written under) is what makes these arms coherent, and it adds a property
+			// they did not previously assert: that the tenant the WRITE used and the tenant the ERASURE
+			// recorded derive one handle.
+			if (erasureTenant is { Length: > 0 })
+			{
+				_ = services.AddSingleton<ITenantContext>(new FixedTenantContext(erasureTenant));
+				_ = services.Configure<TenantContextOptions>(options => options.RequireTenant = true);
+			}
+
 			// THE REAL STORE, and it is the point rather than fidelity for its own sake. A faked store
 			// returns a status whose tenant the TEST chose, so every arm built on one is blind to how the
 			// store actually spells an untenanted request -- which is the disagreement that reached this
-			// code. The store needs a tenant context of its own; the crypto-shredding path does not, and no
-			// longer registers one.
+			// code.
 			_ = services.AddDefaultTenantContext();
 			_ = services.AddSingleton<InMemoryErasureStore>();
 			_ = services.AddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
@@ -401,7 +423,7 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 			if (outcome.State == KeyDestructionState.Completed && generation is not null)
 			{
 				await _provider.GetRequiredService<IKeyDestructionLedger>()
-					.RecordDestroyedGenerationAsync(generation.Value.ToString(), cancellationToken);
+					.RecordDestroyedGenerationAsync(handle, generation.Value.ToString(), cancellationToken);
 			}
 
 			return outcome;
@@ -534,5 +556,20 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 						},
 					]));
 		}
+	}
+
+	/// <summary>
+	/// The ambient tenant a write resolves, fixed for the lifetime of one stack.
+	/// </summary>
+	/// <remarks>
+	/// A null identifier is how a single-tenant host says so, and the derivation collapses it onto the
+	/// framework default identity -- the same identity the store's untenanted sentinel collapses onto, which
+	/// is what lets an untenanted write and an untenanted erasure agree on one handle.
+	/// </remarks>
+	private sealed class FixedTenantContext(string? tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantId);
 	}
 }

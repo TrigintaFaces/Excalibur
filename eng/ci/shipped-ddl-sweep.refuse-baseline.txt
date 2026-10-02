@@ -57,9 +57,14 @@ compliance.erasure_destroyed_keys
 #
 # This is a gap in the EXTRACTOR, not in the shipped DDL: every create script and every shipped sample
 # declares the counter with both of its columns (Id and Value). DELETE THESE LINES once the extractor
-# reads an UPDATE ... SET column list, at which point all five evaluate on every run.
+# reads an UPDATE ... SET column list -- AND the floor stops rejecting narrow tables. Both, not either:
+# measured 2026-10-01, the extractor reports src-written-cols=0 (so it does miss the UPDATE), and even
+# once it reads it the answer is 2 (Value written and read, Id read) against floor=3, so these five would
+# still REFUSE. The earlier wording here said fixing the extractor alone makes "all five evaluate on every
+# run"; that is arithmetically false and is corrected rather than deleted so the next reader sees why.
 Events_Position
 events_position
 dbo.EventsPosition
 events.EventsPosition
 dbo.EventStoreEventsPosition
+

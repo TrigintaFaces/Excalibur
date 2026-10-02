@@ -1,5 +1,1 @@
 #nullable enable
-Excalibur.Compliance.Azure.AzureKeyVaultProvider.AzureKeyVaultProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Azure.AzureKeyVaultOptions!>! options, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Azure.AzureKeyVaultProvider!>! logger, Azure.Security.KeyVault.Keys.KeyClient? keyClient) -> void
-
-*REMOVED*Excalibur.Compliance.Azure.AzureKeyVaultProvider.IsKeyDestroyedAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-*REMOVED*Excalibur.Compliance.Azure.AzureKeyVaultProvider.IsKeyDestroyedAsync(string! keyId, string! generation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!

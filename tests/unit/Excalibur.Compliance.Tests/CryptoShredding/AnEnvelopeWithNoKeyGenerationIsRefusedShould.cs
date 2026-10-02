@@ -3,6 +3,7 @@
 
 using Excalibur.Compliance.CryptoShredding;
 using Excalibur.Compliance.Encryption;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -56,7 +57,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 		var ledger = LedgerStatingNotDestroyed();
 		var (registry, decryptor) = RegistryWhoseProviderWouldSucceed();
 
-		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger);
+		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger, A.Fake<ITenantContext>());
 
 		var refusal = await Should.ThrowAsync<EncryptionException>(
 			() => encryptor.DecryptAsync(Envelope(generation: null), CancellationToken.None).AsTask());
@@ -66,7 +67,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 			"an envelope that cannot identify its own key material is refused as unreadable ciphertext, never "
 			+ "reported as an erasure and never read");
 
-		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => decryptor.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -83,7 +84,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 		var ledger = LedgerStatingNotDestroyed();
 		var (registry, decryptor) = RegistryWhoseProviderWouldSucceed();
 
-		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger);
+		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger, A.Fake<ITenantContext>());
 
 		var refusal = await Should.ThrowAsync<EncryptionException>(
 			() => encryptor.DecryptAsync(Envelope(generation: string.Empty), CancellationToken.None).AsTask());
@@ -104,7 +105,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 		var ledger = LedgerStatingNotDestroyed();
 		var (registry, decryptor) = RegistryWhoseProviderWouldSucceed();
 
-		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger);
+		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger, A.Fake<ITenantContext>());
 
 		var earlierLayout = Envelope(generation: LiveGeneration) with
 		{
@@ -115,7 +116,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 			() => encryptor.DecryptAsync(earlierLayout, CancellationToken.None).AsTask());
 
 		refusal.ErrorCode.ShouldBe(EncryptionErrorCode.InvalidCiphertext);
-		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => decryptor.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -131,12 +132,12 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 		var ledger = LedgerStatingNotDestroyed();
 		var (registry, _) = RegistryWhoseProviderWouldSucceed();
 
-		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger);
+		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger, A.Fake<ITenantContext>());
 
 		var plaintext = await encryptor.DecryptAsync(Envelope(generation: LiveGeneration), CancellationToken.None);
 
 		plaintext.ShouldBe(Plaintext);
-		A.CallTo(() => ledger.IsGenerationDestroyedAsync(LiveGeneration, A<CancellationToken>._))
+		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, LiveGeneration, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -231,7 +232,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 	private static IKeyDestructionLedger LedgerStatingNotDestroyed()
 	{
 		var ledger = A.Fake<IKeyDestructionLedger>();
-		_ = A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<CancellationToken>._))
+		_ = A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(new ValueTask<bool>(false));
 
 		return ledger;

@@ -114,10 +114,10 @@ count below one, so a successful verification over zero events cannot be constru
 6. **Verify (D3)** — the same walk compares each record's own stored prior tag against the tag it carried
    forward, so altering the stored value alone is reported rather than passing unread.
 7. **Authorize** — `RbacAuditStore.VerifyChainIntegrityAsync`
-   (`src/Excalibur/Excalibur.AuditLogging/RbacAuditStore.cs:149`) requires the Compliance Officer or
+   (`src/Excalibur/Excalibur.AuditLogging/RbacAuditStore.cs:160`) requires the Compliance Officer or
    Administrator role, and writes a meta-audit record of the verification itself before delegating.
 8. **Encrypt (optional)** — `EncryptingAuditEventStore`
-   (`src/Excalibur/Excalibur.AuditLogging/Encryption/EncryptingAuditEventStore.cs:118`) encrypts covered
+   (`src/Excalibur/Excalibur.AuditLogging/Encryption/EncryptingAuditEventStore.cs:115`) encrypts covered
    fields *before* the inner store tags them, and delegates verification unchanged. Integrity therefore
    covers the encrypted-at-rest representation, and verification needs the signing key but not the
    encryption key.
@@ -132,8 +132,8 @@ count below one, so a successful verification over zero events cannot be constru
 ### The chain primitive that implements D2, and the three stores that drive it
 
 `IAuditIntegrityStrategy.VerifyChainAsync`
-(`src/Excalibur/Excalibur.AuditLogging.Abstractions/IAuditIntegrityStrategy.cs:70`, implemented at
-`HmacAuditIntegrityStrategy.cs:73`) walks an ordered chain carrying the prior tag **from the preceding
+(`src/Excalibur/Excalibur.AuditLogging.Abstractions/IAuditIntegrityStrategy.cs:116`, implemented at
+`HmacAuditIntegrityStrategy.cs:136`) walks an ordered chain carrying the prior tag **from the preceding
 link**, rather than from the record's own stored claim. That is the correct shape for detecting deletion.
 
 Three stores now drive it through the shared `AuditChainVerifier`

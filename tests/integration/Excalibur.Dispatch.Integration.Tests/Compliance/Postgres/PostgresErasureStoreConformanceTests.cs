@@ -181,6 +181,10 @@ public sealed class PostgresErasureStoreConformanceTests : ErasureStoreConforman
 	[Fact]
 	public Task RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth_Test() =>
 		RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth();
+	[Fact]
+	public Task IsGenerationDestroyedAsync_ShouldNotReportOneHandlesDestructionForAnother_Test() =>
+		IsGenerationDestroyedAsync_ShouldNotReportOneHandlesDestructionForAnother();
+
 
 	[Fact]
 	public Task StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed_Test() =>

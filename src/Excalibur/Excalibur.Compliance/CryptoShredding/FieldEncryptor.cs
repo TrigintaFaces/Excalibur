@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance.Encryption;
+using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Compliance.CryptoShredding;
 
@@ -45,6 +47,7 @@ internal sealed class FieldEncryptor : IFieldEncryptor
     private readonly ISubjectKeyManager _keyManager;
     private readonly IEncryptionProviderRegistry _registry;
     private readonly IKeyDestructionLedger _ledger;
+    private readonly ITenantContext _tenantContext;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FieldEncryptor"/> class.
@@ -72,14 +75,23 @@ internal sealed class FieldEncryptor : IFieldEncryptor
     /// existed" are indistinguishable there by construction.
     /// </para>
     /// </remarks>
+    /// <param name="tenantContext">
+    /// The ambient tenant, which is the WRITE path's authoritative tenant and therefore part of the key's
+    /// identity. REQUIRED, like the ledger: a deployment that cannot state which tenant a write belongs to
+    /// cannot derive a handle that separates two tenants sharing a data-subject identifier, and the
+    /// framework always registers a single-tenant default — so an absent one is a wiring fault, caught at
+    /// service resolution rather than on the first write of personal data.
+    /// </param>
     public FieldEncryptor(
         ISubjectKeyManager keyManager,
         IEncryptionProviderRegistry registry,
-        IKeyDestructionLedger ledger)
+        IKeyDestructionLedger ledger,
+        ITenantContext tenantContext)
     {
         _keyManager = keyManager ?? throw new ArgumentNullException(nameof(keyManager));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
+        _tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
     }
 
     /// <inheritdoc/>
@@ -91,16 +103,33 @@ internal sealed class FieldEncryptor : IFieldEncryptor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
 
-        var subjectKey = await _keyManager.GetOrCreateKeyAsync(subjectId, retentionScope, cancellationToken)
+        // THE TENANT IS RESOLVED HERE AND PASSED EXPLICITLY, which is the division of labour the derivation
+        // requires. This is the write path, so its authoritative tenant IS the ambient one — and the
+        // erasure's is the tenant its own request recorded, which is why the derivation refuses to read
+        // ambient state on anyone's behalf. Absent (single-tenant) collapses onto one identity through the
+        // single rule both callers share.
+        var tenant = SubjectKeyHandle.OwningTenant(_tenantContext.TenantId);
+
+        var subjectKey = await _keyManager
+            .GetOrCreateKeyAsync(tenant, subjectId, retentionScope, cancellationToken)
             .ConfigureAwait(false);
 
         // The generation travels in the CONTEXT, which is the one channel the encryption provider reads it
         // from on both paths. It is also what the read side rebuilds from the envelope, so write and read bind
         // the same value from the same kind of source.
+        //
+        // THE TENANT IS BOUND INTO THE ASSOCIATED DATA, and it was previously left unset on this path — so
+        // the provider's tenant field, whose own comment says it exists to prevent "cross-tenant AAD
+        // ambiguity where null/empty tenant would produce identical AAD as no-tenant, potentially allowing
+        // cross-tenant decryption", produced exactly that for every tenant, forever. It is not the control
+        // that separates two tenants here (the handle is, and the handle is bound into the same associated
+        // data), but a field left inert while its comment claims it protects something is worse than no
+        // field: a reader counts it as a defence that does not exist.
         var context = new EncryptionContext
         {
             KeyId = subjectKey.KeyId,
-            KeyGeneration = subjectKey.Generation?.ToString()
+            KeyGeneration = subjectKey.Generation?.ToString(),
+            TenantId = tenant.Value
         };
 
         var provider = _registry.GetPrimary();
@@ -156,11 +185,19 @@ internal sealed class FieldEncryptor : IFieldEncryptor
             };
         }
 
+        // EVERY FIELD IS REBUILT FROM THE ENVELOPE, INCLUDING THE TENANT, and the tenant is the one that
+        // must not come from ambient state. The associated data has to be byte-identical to what the write
+        // bound, and a legitimate read happens from places with no ambient tenant at all -- a projection
+        // rebuild, an erasure verification, a background replay. Binding the reader's ambient tenant would
+        // fail the authentication tag on correct data read from the wrong place, which presents as
+        // corruption. The stored value is self-authenticating: a forged tenant on the envelope changes the
+        // associated data and the tag then rejects it.
         var context = new EncryptionContext
         {
             KeyId = envelope.KeyId,
             KeyVersion = envelope.KeyVersion,
-            KeyGeneration = envelope.KeyGeneration
+            KeyGeneration = envelope.KeyGeneration,
+            TenantId = envelope.TenantId
         };
 
         // ASKED BEFORE DECRYPTING, not after it fails, because the failure this has to catch is not a
@@ -198,14 +235,14 @@ internal sealed class FieldEncryptor : IFieldEncryptor
     }
 
     /// <summary>
-    /// Reads the destruction ledger for the key GENERATION this envelope names.
+    /// Reads the destruction ledger for the HANDLE AND GENERATION this envelope names.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The generation rather than the handle or the version, because only the generation's answer cannot be
-    /// changed by a later provisioning: destroy a subject's key, let one ordinary write provision another at the
-    /// same handle, and both the handle and the restarted version ordinal truthfully report "not destroyed" --
-    /// about material this reader is not holding.
+    /// The generation is what makes the answer stable under re-provisioning: destroy a subject's key, let one
+    /// ordinary write provision another at the same handle, and the handle alone and the restarted version
+    /// ordinal both truthfully report "not destroyed" -- about material this reader is not holding. So a
+    /// handle-only question is still wrong, and that half of the original reasoning stands unchanged.
     /// </para>
     /// <para>
     /// <b>The ledger, and never the key backend.</b> This method previously asked the key provider, which could
@@ -216,8 +253,19 @@ internal sealed class FieldEncryptor : IFieldEncryptor
     /// is answered from a record this framework wrote.
     /// </para>
     /// <para>
-    /// No argument but the generation. Passing the handle as well would reintroduce a term the answer does not
-    /// depend on, and the only outcome it could change is turning the correct row into none.
+    /// <b>The handle is passed too, and this paragraph used to argue the opposite</b> -- that it "would
+    /// reintroduce a term the answer does not depend on, and the only outcome it could change is turning the
+    /// correct row into none." That is the right reasoning about a TENANT PREDICATE on a statement already
+    /// addressed by its primary key, and the wrong reasoning here, because the handle is not a filter applied
+    /// around the key: it IS a key component. Without it the answer rests on a generation identifying material
+    /// uniquely across every handle -- true of every shipped provider, which mint from a cryptographic random
+    /// source, and not something a consumer-supplied provider is obliged to satisfy. One that DERIVED its
+    /// generation would give two tenants' distinct keys one identifier and one ledger row, and one tenant's
+    /// destruction would report the other's live data as lawfully erased.
+    /// </para>
+    /// <para>
+    /// It is taken from the ENVELOPE, like every other field the read binds, so it names the material actually
+    /// being read rather than a handle re-derived from the subject.
     /// </para>
     /// </remarks>
     private async ValueTask<bool> IsEnvelopeGenerationDestroyedAsync(
@@ -228,11 +276,13 @@ internal sealed class FieldEncryptor : IFieldEncryptor
         // so "no way to state a destruction" is now unrepresentable here rather than detected here -- it fails
         // at service resolution, before a request is served. What the old branch guarded against cannot occur.
         //
-        // A generation with no ledger row answers FALSE, and the read then attempts the decrypt. If the
-        // material really is gone that decrypt fails LOUDLY, which is the correct direction: "we lost it"
-        // reported as an error, never "we erased it" reported as a discharged erasure.
+        // A pair with no ledger row answers FALSE, and the read then attempts the decrypt. If the material
+        // really is gone that decrypt fails LOUDLY, which is the correct direction: "we lost it" reported as an
+        // error, never "we erased it" reported as a discharged erasure. That is also what a destruction
+        // recorded under a handle this envelope does not name degrades to -- a loud failure rather than a
+        // fabricated erasure, which is the safe direction.
         return await _ledger
-            .IsGenerationDestroyedAsync(envelope.KeyGeneration!, cancellationToken)
+            .IsGenerationDestroyedAsync(envelope.KeyId, envelope.KeyGeneration!, cancellationToken)
             .ConfigureAwait(false);
     }
 }

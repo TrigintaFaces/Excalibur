@@ -64,18 +64,18 @@ any change between the slot and that record that had not been delivered.
 
 ## How it is achieved
 
-- **The fan-out is inside one iteration.** `PostgresCdcProcessor.cs` — the continuous loop at `:473` and
-  the batch loop at `:197` each drain the whole change list for a message before the iteration body
+- **The fan-out is inside one iteration.** The continuous loop at `PostgresCdcProcessor.cs:610` and the
+  batch loop at `:297` each drain the whole change list for a message before the iteration body
   continues.
 - **The confirm sits at the bottom of a later iteration.** `ConfirmCommitAsync` is reachable from exactly
-  one branch in each loop (`:500` continuous, `:219` batch), taken only for a commit message. `TRUNCATE`
+  one branch in each loop (`:635` continuous, `:317` batch), taken only for a commit message. `TRUNCATE`
   is transactional in PostgreSQL, so its commit always arrives as a strictly later message than the
   fan-out that produced the changes.
 - **No `catch` sits between the handler and the confirm.** The confirm is not skipped by a flag; an
   exception makes it unreachable. **That absence is the whole mechanism**, which is why the gap below is
   about protecting it rather than about any code that exists today.
-- **The confirm's write order is the invariant.** `ConfirmCommitAsync` (`:579`) writes the state store
-  first (`:583-585`) and acknowledges the slot second (`:588`). **Reversing those two writes converts this
+- **The confirm's write order is the invariant.** `ConfirmCommitAsync` (`:756`) writes the state store
+  first (`:760-762`) and acknowledges the slot second (`:765`). **Reversing those two writes converts this
   package from at-least-once to lossy**, and no test in the repository would fail.
 - **Ordering is log-sequence, never wall clock.** The commit timestamp carried on each change is the
   server's own stamp, passed through as data; no decision is made by comparing it to anything.

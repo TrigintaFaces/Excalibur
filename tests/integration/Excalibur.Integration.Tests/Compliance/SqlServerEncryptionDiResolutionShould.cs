@@ -254,7 +254,14 @@ public sealed class SqlServerEncryptionDiResolutionShould : IAsyncLifetime
 		_ = services.AddEncryption(b => b.UseInMemoryKeyManagement("test").SetAsPrimary("test"));
 		_ = services.AddSingleton<IKeyManagementAdmin>(sp =>
 			(IKeyManagementAdmin)sp.GetRequiredService<IKeyManagementProvider>());
-		_ = services.AddCryptoShredding();
+		// WithoutErasure, because this composition is exactly that: it encrypts event-store and inbox
+		// payloads at rest and runs no GDPR erasure subsystem. A deployment that never destroys a subject
+		// key has nothing to record, so "not destroyed" is the true answer for every generation here rather
+		// than a stand-in -- and the field encryptor requires a ledger that can say so. Calling plain
+		// AddCryptoShredding() leaves it unresolvable, which is the condition the startup validator refuses;
+		// this arm asserts the encrypt-at-rest path works, so it declares the no-erasure case rather than
+		// pulling in an erasure store it does not use.
+		_ = services.AddCryptoShreddingWithoutErasure();
 
 		_ = services.AddSingleton<IEventSerializer>(new JsonEventSerializer(
 				// A declared name resolves through the registry, never through the assembly scan --

@@ -41,7 +41,26 @@ public sealed class InMemoryLeaderElectionStoppedAcquireShould
 	private const string Resource = "stopped-acquire-resource";
 	private const string RacingCandidate = "racing-candidate";
 	private const int RaceIterations = 200_000;
-	private const int RenewalRaceIterations = 2_000;
+
+	// 250, not 2,000, and the number comes from a measurement rather than taste.
+	//
+	// Each iteration starts two candidates, waits for the contender's 1ms renewal timer to tick, races
+	// two shutdowns through a Barrier, and disposes both -- so its cost is real thread-pool scheduling,
+	// not arithmetic. At 2,000 iterations that is ~30s on a Windows dev machine and 443s on the macOS
+	// CI runner, a ~14x slowdown on this workload. The per-test hang budget is 5 minutes, so the arm
+	// tripped blame, produced a hangdump and failed the run -- while every assembly still printed
+	// "Failed: 0", because a blame kill is not a test failure. That combination is why it took a
+	// start-vs-report census to find.
+	//
+	// 250 lands at ~4s locally and ~55s on that runner, which is a 5x margin under the budget rather
+	// than a 1.4x overrun.
+	//
+	// THE TRADE, STATED BECAUSE IT IS REAL: this is a race hunt, so detection power is proportional to
+	// iterations, and 250 is an 8x reduction. It is not a judgement that 250 suffices -- nobody has
+	// measured the per-iteration probability of catching the interleaving. A soak lane that runs the
+	// full 2,000 (or more) is owed; until it exists this arm is weaker than it was, and a reader should
+	// know that from here rather than infer it from the constant.
+	private const int RenewalRaceIterations = 250;
 
 	[Fact]
 	public async Task NeverLeaveAStoppedCandidateHoldingTheResource_WhenStartRacesStop()

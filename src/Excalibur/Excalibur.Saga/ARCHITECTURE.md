@@ -63,9 +63,9 @@ excluded rather than matched. It is not, on its own, what makes coexistence work
 
 | Provider | Form | Mechanism | Seam |
 |---|---|---|---|
-| SQL Server | **Server-side** | Tenant term in the keyed read and in the `MERGE` match | `Requests/LoadSagaRequest.cs:32` |
-| PostgreSQL | **Server-side** | Tenant term in the predicate | `PostgresSagaStore.cs:237` |
-| Oracle | **Server-side** | `MERGE … ON` includes the tenant equality, so another tenant's row cannot match | `OracleSagaStore.cs:252` |
+| SQL Server | **Server-side** | Tenant term in the keyed read and in the `MERGE` match | `Excalibur.Saga.SqlServer/Requests/LoadSagaRequest.cs:64` |
+| PostgreSQL | **Server-side** | Tenant term in the predicate | `Excalibur.Saga.Postgres/Requests/LoadSagaRequest.cs:75` |
+| Oracle | **Server-side** | `MERGE … ON` includes the tenant equality, so another tenant's row cannot match | `Excalibur.Saga.Oracle/Requests/SaveSagaRequest.cs:83` |
 | MongoDB | **Server-side** | The `_id` addressed by a keyed read carries the tenant, and a tenant equality filter is composed on top | `MongoDbSagaStore.cs` — `BuildDocumentId` |
 | DynamoDB | **Server-side** | `GetItem` is keyed by partition/sort key, and the partition key carries the tenant, so another tenant's item cannot be addressed. The ownership comparison after the fetch is retained | `DynamoDbSagaDocument.cs` — `CreatePK` |
 | Cosmos DB | **Server-side** | `ReadItem` addresses id + partition key; the id carries the tenant (the partition key remains the saga type). The ownership comparison after the fetch is retained | `CosmosDbSagaDocument.cs` — `CreateId` |

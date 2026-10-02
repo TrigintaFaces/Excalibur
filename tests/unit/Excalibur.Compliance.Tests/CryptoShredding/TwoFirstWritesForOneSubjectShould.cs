@@ -4,6 +4,7 @@
 using Excalibur.Compliance.Configuration;
 using Excalibur.Compliance.Encryption;
 using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -41,6 +42,8 @@ namespace Excalibur.Compliance.Tests.CryptoShredding;
 [Trait("Component", "Compliance")]
 public sealed class TwoFirstWritesForOneSubjectShould
 {
+	private static readonly TenantId Tenant = new(TenantDefaults.DefaultTenantId);
+
 	private const int Writers = 8;
 
 	// A race is probabilistic, so ONE round is not a reliable detector: the defective sequence needs the
@@ -77,11 +80,11 @@ public sealed class TwoFirstWritesForOneSubjectShould
 			var subject = $"{Subject}-{round}";
 
 			var handles = await RaceAsync(
-				async () => (await keys.GetOrCreateKeyAsync(subject, default, TestContext.Current.CancellationToken)).KeyId)
+				async () => (await keys.GetOrCreateKeyAsync(Tenant, subject, default, TestContext.Current.CancellationToken)).KeyId)
 				.ConfigureAwait(true);
 
 			// Every writer must have been handed the SAME handle: one subject, one key.
-			var keyId = hasher.HashDataSubjectId(subject);
+			var keyId = SubjectKeyHandle.ForSubject(Tenant, subject, hasher).Value;
 			handles.Distinct(StringComparer.Ordinal).ShouldHaveSingleItem(
 				"concurrent first writes for one subject must all name one key handle.");
 			handles[0].ShouldBe(keyId);
@@ -126,10 +129,10 @@ public sealed class TwoFirstWritesForOneSubjectShould
 			var subject = $"count-{Subject}-{round}";
 
 			_ = await RaceAsync(
-				async () => (await keys.GetOrCreateKeyAsync(subject, default, TestContext.Current.CancellationToken)).KeyId)
+				async () => (await keys.GetOrCreateKeyAsync(Tenant, subject, default, TestContext.Current.CancellationToken)).KeyId)
 				.ConfigureAwait(true);
 
-			var keyId = hasher.HashDataSubjectId(subject);
+			var keyId = SubjectKeyHandle.ForSubject(Tenant, subject, hasher).Value;
 
 			(await provider.GetKeyVersionAsync(keyId, 1, TestContext.Current.CancellationToken)
 				.ConfigureAwait(true))

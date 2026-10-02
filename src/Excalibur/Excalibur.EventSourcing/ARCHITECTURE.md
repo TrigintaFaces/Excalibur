@@ -20,19 +20,19 @@ events. A non-confining store returns **three**.
 
 Every row states how it was established. A row backed only by reading the source, with no arm we have
 observed executing, is marked **UNVERIFIED** — including rows we believe are correct. The event-store
-container fixtures do not opt into graceful degradation (`ContainerFixtureBase.cs:94`), so a missing
+container fixtures do not opt into graceful degradation (`tests/Shared/Tests.Shared/Fixtures/ContainerFixtureBase.cs:141`), so a missing
 container fails that provider's run rather than passing it by skipping.
 
 | Store | Confining? | What holds the boundary | Established by |
 |---|---|---|---|
-| Event store — SQL Server, PostgreSQL, Oracle, SQLite | **Yes** | every statement binds a tenant term, and the term sits inside the stream uniqueness constraint | the shared conformance kit's three tenant arms (`EventStoreConformanceTestKit.cs:829, 895, 952`), inherited unmodified by each provider suite |
+| Event store — SQL Server, PostgreSQL, Oracle, SQLite | **Yes** | every statement binds a tenant term, and the term sits inside the stream uniqueness constraint | the shared conformance kit's three tenant arms (`EventStoreConformanceTestKit.cs:1326, 1392, 1449`), inherited unmodified by each provider suite |
 | Event store — Redis | **Yes** | the tenant is a segment of the stream key (`RedisEventStore.cs:293`) | the same three arms, plus a dedicated `RedisEventStoreTenancyConformanceShould` |
-| Event store — in-memory | **Yes** | the tenant is a component of the stream dictionary key (`InMemoryEventStore.cs:39`) | the same three arms, run as a unit suite with no container gate |
+| Event store — in-memory | **Yes** | the tenant is a component of the stream dictionary key (`InMemoryEventStore.cs:43`) | the same three arms, run as a unit suite with no container gate |
 | Event store — Cosmos DB, DynamoDB, Firestore, MongoDB | **Yes** | the tenant is the leading segment of the document key: the DynamoDB partition key (`DynamoDbEventStore.cs:589`), the Cosmos partition key (`CosmosDbEventStore.cs:549`), the Firestore document id's prefix (`FirestoreEventStore.cs:610`), and the MongoDB `streamId` — which sits inside the unique `(streamId, aggregateType, version)` index, so the version sequence is per-tenant too (`MongoDbEventStore.cs:506`) | the same three arms, run against a real DynamoDB, Cosmos emulator, Firestore emulator and MongoDB |
 | Event store — tenant routing (sharding) | **UNVERIFIED** | the routing store selects a distinct physical store per tenant; confinement is the shard map's, not the inner store's | source only — the sharding integration suite is not among those we hold a measurement of executing |
 | Snapshot store — SQL Server, PostgreSQL, Oracle, SQLite | **Yes** | the tenant participates in the upsert key | three tenant arms in `SnapshotConformanceTestBase.cs:186, 229, 271`, plus the untenanted-double-write arm (§ Evidence) |
 | Snapshot store — Cosmos DB, DynamoDB, Firestore, MongoDB, Redis | **Yes** | the tenant is composed into the document id / cache key | the same three arms — every provider snapshot suite derives that base |
-| Cold (archive) store — S3, Azure Blob, GCS | **UNVERIFIED** | the tenant is an encoded segment of the object key (`AwsS3ColdEventStore.cs:205`) | source only — we hold no measurement of the tiered-storage integration suites executing |
+| Cold (archive) store — S3, Azure Blob, GCS | **UNVERIFIED** | the tenant is an encoded segment of the object key (`AwsS3ColdEventStore.cs:251`) | source only — we hold no measurement of the tiered-storage integration suites executing |
 
 ### The four document stores: the tenant is in the key, not in a filter
 
@@ -51,7 +51,7 @@ set and one version counter: the second tenant to use an aggregate identifier wo
 concurrency conflict on a stream it never wrote, and could never create it. Composing the key makes a
 cross-tenant read *unaddressable* rather than filtered out, and makes the version sequence per-tenant as a
 consequence rather than as a second mechanism. The conformance kit's third arm
-(`EventStoreConformanceTestKit.cs:952`) is the one that separates the two: a filter-only store passes both
+(`EventStoreConformanceTestKit.cs:1449`) is the one that separates the two: a filter-only store passes both
 isolation arms and fails it.
 
 The tenant term is total — never null, never empty. A host that never enabled multi-tenancy resolves the
@@ -188,7 +188,7 @@ equal the untenanted partition):
   contributor's multi-tenant fail-closed lock (§ Evidence). The bare store's unscoped no-predicate statement is
   safe *in composition*, not structurally isolated at the bare layer. The event row's uniqueness key **does**
   include the tenant — `UQ_EventStoreEvents_Stream UNIQUE (AggregateId, AggregateType, Version, TenantId)`
-  (`Scripts/001_CreateEventStoreSchema.sql:72`) — which is what lets two tenants hold the same aggregate id
+  (`Excalibur.EventSourcing.SqlServer/Scripts/001_CreateEventStoreSchema.sql:92`) — which is what lets two tenants hold the same aggregate id
   at the same version without colliding.
 
 - **Relational upsert stores (the SQL snapshot stores): untenanted = the reserved sentinel
@@ -269,7 +269,7 @@ The readable case is not obvious and is why this is written down. A snapshot at 
 `0..N-1` makes the aggregate load compute `fromVersion = N-1`
 (`Implementation/EventSourcedRepository.cs:262`) and the store filter `Version > fromVersion`, so **zero
 event rows load**. The tombstone check never sees a row, the erased sentinel never returns, and the
-snapshot applied at `:248` is handed back as the aggregate. The optional empty-tail probe does not catch it
+snapshot applied at `:250` is handed back as the aggregate. The optional empty-tail probe does not catch it
 either: the erasure does not modify `Version`, so the stream's maximum version still equals the snapshot's
 and the probe's comparison is false.
 
@@ -1188,7 +1188,8 @@ commits.
 ### Archival preserves positions
 
 Archival **tombstones**; it does not delete. The payload moves to cold storage and the row stays, carrying
-its version, its position and an `ArchivedAt` stamp (`TombstoneArchivedEventsRequest.cs:71`). The tiered
+its version, its position and an `ArchivedAt` stamp (`Excalibur.EventSourcing.SqlServer/Requests/TombstoneArchivedEventsRequest.cs:72`,
+and identically in `Excalibur.EventSourcing.Postgres`). The tiered
 decorator restores archived payloads on read (`TieredEventStoreDecorator.cs:95`).
 
 This is what keeps the guarantee true for the whole lifecycle rather than only until the first archive run.

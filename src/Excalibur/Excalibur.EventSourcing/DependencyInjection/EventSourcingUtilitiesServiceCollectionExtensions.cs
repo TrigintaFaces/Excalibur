@@ -147,6 +147,16 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	/// projection type, so they cannot be auto-covered: call <c>AddProjectionEncryption&lt;TProjection&gt;()</c>
 	/// per registered projection type that carries personal data — it carries the same single-context caveat.
 	/// </para>
+	/// <para>
+	/// <strong>A key-destruction ledger is required and is registered by the erasure store.</strong> Reading a
+	/// crypto-shredded field reports it as erased only on the strength of a durable destruction record, so
+	/// register an erasure store alongside this call — <c>AddInMemoryErasureStore()</c>,
+	/// <c>AddPostgresErasureStore()</c> or <c>AddSqlServerErasureStore()</c>. A deployment that encrypts
+	/// personal data at rest but performs no erasure, and so never destroys a subject key, adds
+	/// <c>AddCryptoShreddingWithoutErasure()</c> instead of an erasure store: the two are mutually exclusive
+	/// and registering both is refused at start-up. Registering neither is also refused at start-up, rather
+	/// than failing on the first request that reads an encrypted field.
+	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddEventSourcingCryptoShredding(this IServiceCollection services)
 	{

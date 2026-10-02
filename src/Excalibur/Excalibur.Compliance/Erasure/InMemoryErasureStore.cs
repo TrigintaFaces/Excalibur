@@ -38,8 +38,16 @@ internal sealed class InMemoryErasureStore
 	/// case-folding comparison would let one destroyed generation answer for a different, live one.
 	/// </para>
 	/// </remarks>
-	private readonly ConcurrentDictionary<string, DestroyedGenerationRecord> _destroyedGenerations =
-		new(StringComparer.Ordinal);
+	// Keyed on the PAIR, matching the SQL stores' composite primary key. The generation alone would rest on
+	// a generation identifying material uniquely across every handle, which no provider is obliged to satisfy
+	// -- see the ledger contract. Ordinal and case-sensitive, matching the binary collation the SQL schemas
+	// declare, so this store answers exactly as they do.
+	// No explicit comparer: DestroyedKey is a record struct over two strings, and the generated equality
+	// compares each with EqualityComparer<string>.Default, which is ordinal. The previous StringComparer
+	// argument applied to a bare-string key and has nowhere to go now; the case-sensitivity it bought is a
+	// property of the language here rather than of this line.
+	private readonly ConcurrentDictionary<DestroyedKey, DestroyedGenerationRecord> _destroyedGenerations =
+		new();
 
 	private readonly ConcurrentDictionary<Guid, ErasureCertificate> _certificates = new();
 	private readonly ConcurrentDictionary<Guid, Guid> _requestToCertificate = new();
@@ -343,12 +351,13 @@ internal sealed class InMemoryErasureStore
 			+ "report the subject's erasure, so losing it silently would make that erasure permanently "
 			+ "uncertifiable with nothing reporting why.");
 
-		// The ledger. Keyed on the generation alone: one generation is one destruction, so a second write for
-		// the same generation is absorbed and the first instant stands. Two DIFFERENT generations destroyed at
-		// one handle are two destructions and get two entries -- keying this on the handle would silently drop
-		// the second.
+		// The ledger. Keyed on (handle, generation): one pair is one destruction, so a second write for the
+		// same pair is absorbed and the first instant stands. Two DIFFERENT generations destroyed at one handle
+		// are two destructions and get two entries, which is what keying on the handle ALONE would have
+		// silently dropped -- the pair keeps that property while removing the generation-alone key's
+		// dependence on a uniqueness no provider is obliged to deliver.
 		_ = _destroyedGenerations.TryAdd(
-			keyGeneration,
+			new DestroyedKey(keyHandle, keyGeneration),
 			new DestroyedGenerationRecord(requestId, keyHandle, DateTimeOffset.UtcNow, RecordedBy.FrameworkErasure));
 
 		// The handle set a retry reads is DERIVED from these entries rather than tracked beside them -- see
@@ -371,36 +380,47 @@ internal sealed class InMemoryErasureStore
 	}
 
 	/// <inheritdoc />
-	public Task RecordDestroyedGenerationAsync(string keyGeneration, CancellationToken cancellationToken)
+	public Task RecordDestroyedGenerationAsync(
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
 		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
 
-		// NO request and NO handle, because the caller genuinely has neither. The provenance value records
-		// that this entry rests on the caller's assertion rather than on anything this framework observed; it
-		// is stated rather than inferred from the absent request.
+		// NO request, because the caller genuinely has none -- but the HANDLE is now required and the caller
+		// does have it: you cannot destroy a key without naming it. The provenance value records that this
+		// entry rests on the caller's assertion rather than on anything this framework observed; it is stated
+		// rather than inferred from the absent request.
 		//
-		// TryAdd, so re-asserting a generation already on file is a no-op and the FIRST instant stands.
+		// TryAdd, so re-asserting a pair already on file is a no-op and the FIRST instant stands.
 		_ = _destroyedGenerations.TryAdd(
-			keyGeneration,
-			new DestroyedGenerationRecord(null, null, DateTimeOffset.UtcNow, RecordedBy.CallerAssertion));
+			new DestroyedKey(keyHandle, keyGeneration),
+			new DestroyedGenerationRecord(null, keyHandle, DateTimeOffset.UtcNow, RecordedBy.CallerAssertion));
 
 		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc />
-	public ValueTask<bool> IsGenerationDestroyedAsync(string keyGeneration, CancellationToken cancellationToken)
+	public ValueTask<bool> IsGenerationDestroyedAsync(
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
 		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
 
 		// NO tenant term, deliberately, and NOT an oversight. The lookup is addressed by the ledger's whole key,
 		// so it already selects at most one entry; a tenant term on such a lookup cannot admit a foreign entry
 		// and its only reachable effect is turning the correct entry into none. Here that effect is the
 		// catastrophic one in reverse: a read of a genuinely erased subject would stop reporting their erasure
-		// and start failing, permanently. A generation is minted by the key backend and is not derivable from a
-		// subject, so one tenant cannot name another's.
+		// and start failing, permanently. The HANDLE is what makes "one tenant cannot name another's entry"
+		// true by construction rather than by assumption: this sentence used to rest on a generation being
+		// minted by the backend and not derivable from a subject, which is true of every shipped provider and
+		// is not something a consumer-supplied one is obliged to satisfy.
 		//
 		// Staged intents are NOT consulted. A staged generation names material that may still be live.
-		return new ValueTask<bool>(_destroyedGenerations.ContainsKey(keyGeneration));
+		return new ValueTask<bool>(_destroyedGenerations.ContainsKey(new DestroyedKey(keyHandle, keyGeneration)));
 	}
 
 	/// <summary>
@@ -466,17 +486,28 @@ internal sealed class InMemoryErasureStore
 		public const string CallerAssertion = "caller-assertion";
 	}
 
+	/// <summary>The ledger's whole key: one handle's one generation.</summary>
+	/// <param name="KeyHandle">The handle whose material was destroyed.</param>
+	/// <param name="KeyGeneration">The generation of the material destroyed at that handle.</param>
+	/// <remarks>
+	/// A record struct rather than a composed string, so no separator can be forged into a second key and no
+	/// caller can assemble one by hand. Equality is ordinal and case-sensitive on both components, matching
+	/// the binary collation the SQL schemas declare.
+	/// </remarks>
+	private readonly record struct DestroyedKey(string KeyHandle, string KeyGeneration);
+
 	/// <summary>
-	/// A ledger entry: this generation was destroyed at this instant, and this is who says so.
+	/// A ledger entry: this handle's generation was destroyed at this instant, and this is who says so.
 	/// </summary>
 	/// <remarks>
-	/// The request and the handle are nullable because a destruction asserted through the ledger's public write
-	/// has neither. <paramref name="RecordedBy"/> states the provenance explicitly rather than leaving it to be
-	/// inferred from those nulls.
+	/// The REQUEST is nullable because a destruction asserted through the ledger's public write has none. The
+	/// HANDLE is not: it is part of the ledger's key, so every entry has one, and it was nullable only while
+	/// the key was the generation alone. <paramref name="RecordedBy"/> states the provenance explicitly rather
+	/// than leaving it to be inferred from the null request.
 	/// </remarks>
 	private sealed record DestroyedGenerationRecord(
 		Guid? RequestId,
-		string? KeyHandle,
+		string KeyHandle,
 		DateTimeOffset DestroyedAt,
 		string RecordedBy);
 

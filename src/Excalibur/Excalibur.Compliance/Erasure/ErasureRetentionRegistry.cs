@@ -144,9 +144,17 @@ internal sealed class ErasureRetentionRegistry : IErasureRetentionRegistry
 }
 
 /// <summary>
-/// Derives the key handle protecting one data subject's personal fields inside one retained aggregate type.
+/// The retained aggregate type's contribution to the key handle protecting one data subject's personal
+/// fields inside it.
 /// </summary>
 /// <remarks>
+/// <para>
+/// <b>It composes nothing.</b> Composing a retained handle lives on <see cref="SubjectKeyHandle.Retained"/>,
+/// which can only be reached from a handle that already carries a tenant. This type used to own a
+/// <c>For(string subjectKeyHandle, string aggregateType)</c> overload, and a bare-string handle parameter is
+/// what let the erasure path compose a retained handle out of a raw pseudonymisation token carrying no
+/// tenant — the cross-tenant key collision. With the composition moved, that call does not compile.
+/// </para>
 /// <para>
 /// <b>A handle is a NAME, so this needs no new cryptography.</b> The key provider mints random material at
 /// whatever handle it is asked for, so widening the handle with the aggregate type yields a second,
@@ -171,23 +179,6 @@ internal sealed class ErasureRetentionRegistry : IErasureRetentionRegistry
 /// </remarks>
 internal static class RetainedKeyHandle
 {
-	/// <summary>
-	/// Composes the handle for a (data subject, retained aggregate type) pair.
-	/// </summary>
-	/// <param name="subjectKeyHandle">
-	/// The data subject's own key handle — what <see cref="IDataSubjectHasher.HashDataSubjectId"/> produces,
-	/// which is also the subject hash an erasure request carries.
-	/// </param>
-	/// <param name="aggregateType">The retained aggregate type, as the event store records it.</param>
-	/// <returns>The handle of the key protecting that subject's fields inside that aggregate type.</returns>
-	internal static string For(string subjectKeyHandle, string aggregateType)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(subjectKeyHandle);
-		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
-
-		return $"{subjectKeyHandle}-{DiscriminatorFor(aggregateType)}";
-	}
-
 	/// <summary>
 	/// The aggregate type's contribution to the handle, alone, so startup validation can check that two
 	/// declared types do not produce the same one.

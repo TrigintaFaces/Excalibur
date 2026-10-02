@@ -31,9 +31,10 @@ Where an erasure guarantee must extend to messages in flight, bound **retention*
 ## Before You Start
 
 - **.NET 10.0**
-- Crypto-shredding builds on the compliance encryption and data-subject-hashing subsystems. The following must already be registered (typically by your compliance-encryption and GDPR-erasure setup):
-  - `IKeyManagementProvider` and `IKeyManagementAdmin` — the key-management subsystem that mints and destroys key material
-  - `IDataSubjectHasher` — pseudonymizes raw subject identifiers before they reach the key store
+- Crypto-shredding builds on the compliance encryption subsystem. The following must be registered **by you**, and `AddCryptoShredding()` does not register either:
+  - `IKeyManagementProvider` and `IKeyManagementAdmin` — the key-management subsystem that mints and destroys key material, from your compliance-encryption setup
+  - `IKeyDestructionLedger` — the durable record of destroyed key generations. An erasure store supplies it; a deployment that never erases declares that instead. See [Registration](#registration).
+- `IDataSubjectHasher` **is** registered by `AddCryptoShredding()`, so you do not add it. You still supply the hashing pepper, from a secret manager, via `Configure<DataSubjectHashingOptions>`.
 - Familiarity with [GDPR Erasure](./gdpr-erasure.md)
 
 ## Registration
@@ -46,21 +47,58 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddCryptoShredding();
 ```
 
-`AddCryptoShredding()` registers three scoped services (via `TryAdd`, so a consumer registration wins):
+Every registration below uses `TryAdd`, so a consumer registration wins.
 
 | Service | Role |
 |---------|------|
-| `ISubjectKeyManager` | Resolves the key handle protecting a subject's data in a given retention scope, minting one if it does not exist. It does **not** destroy keys — destruction is an erasure operation, and `IErasureService` owns it so legal holds are honoured first. |
-| `IFieldEncryptor` | Encrypts a single value under the key selected for a subject and a retention scope; decrypts an envelope. |
-| `SubjectFieldCryptor` | Encrypts/decrypts all `[PersonalData]` fields of a record under the key selected for the record's data subject and the aggregate type it is stored inside. |
+| `ISubjectKeyManager` | Scoped. Resolves the key handle protecting a subject's data in a given retention scope, minting one if it does not exist. It does **not** destroy keys — destruction is an erasure operation, and `IErasureService` owns it so legal holds are honoured first. |
+| `IFieldEncryptor` | Scoped. Encrypts a single value under the key selected for a subject and a retention scope; decrypts an envelope. |
+| `SubjectFieldCryptor` | Scoped. Encrypts/decrypts all `[PersonalData]` fields of a record under the key selected for the record's data subject and the aggregate type it is stored inside. |
+| `IDataSubjectHasher` | Pseudonymizes raw subject identifiers before they reach the key store. **Registered by this call** — you supply the pepper through `Configure<DataSubjectHashingOptions>`. |
+| `IErasureRetentionRegistry` | The declared erasure retentions, which decide whether a value resolves to the subject's own key or to a retained record's key. Registered empty if you declare none, because an *absent* registry would be a second answer to the same question rather than a value meaning "none declared". |
 
-Because the key-management provider, key-management admin, and data-subject hasher are dependencies (not registered here), call `AddCryptoShredding()` alongside your compliance-encryption and data-subject-hashing setup.
+The key-management provider and admin remain your dependencies, so call `AddCryptoShredding()` alongside your compliance-encryption setup.
+
+### A key-destruction ledger is required, and this call does not register one
+
+Reading a crypto-shredded field reports it as erased only on the strength of a durable destruction record, so `IFieldEncryptor` requires `IKeyDestructionLedger`. **A composition without one refuses to start**, rather than failing on the first request that reads an encrypted field.
+
+An erasure store supplies the ledger from the same instance it registers the store from, so a deployment that erases adds nothing extra:
+
+```csharp
+services.AddCryptoShredding();
+
+// One of these. Each also registers IKeyDestructionLedger.
+services.AddInMemoryErasureStore();     // development
+services.AddPostgresErasureStore(/* ... */);
+services.AddSqlServerErasureStore(/* ... */);
+```
+
+A deployment that encrypts personal data at rest and **never destroys a subject key** — an encrypted event store, inbox or outbox with no erasure subsystem — names that instead of registering an erasure store:
+
+```csharp
+// INSTEAD of AddCryptoShredding(), and never alongside an erasure store.
+services.AddCryptoShreddingWithoutErasure();
+```
+
+That registers a ledger holding no rows, so every generation reports as not destroyed. In a deployment that destroys nothing that is the true answer rather than a stand-in: reads decrypt normally and no tombstone is ever produced. On SQL Server and PostgreSQL, the ledger is two tables the erasure store verifies at startup — see [Erasure destroyed-key record](../migration/erasure-destroyed-key-record.md).
+
+:::danger Two start-up refusals, and the second one is why the opt-out is a separate call
+
+**No ledger at all** — `InvalidOperationException` naming `IKeyDestructionLedger`, the three erasure-store calls, and `AddCryptoShreddingWithoutErasure()` as the alternative.
+
+**`AddCryptoShreddingWithoutErasure()` together with an erasure store** — also refused. The two answer the same question differently, and every ledger registration is a `TryAdd`, so the winner would be whichever call ran first. In one of the two orders an always-false ledger stands in front of a real erasure store: the deployment performs erasures, never tombstones anything, and no component reports a problem. Order-dependence on this question is refused rather than documented.
+
+The opt-out is never a default for the same reason. A ledger that always answers "not destroyed" cannot fabricate an erasure, which is the safe direction — and that is exactly why defaulting to one would be wrong: a deployment that *does* erase, but whose erasure store was never registered, would silently never tombstone anything and read its own erased subjects back in the clear.
+
+A third refusal covers the instrument rather than the wiring: if the container supplies no `IServiceProviderIsService`, registration cannot be probed, so the question was not answered and start-up is refused rather than assumed. The check runs as both an `IHostedService` and an `IStartupPrerequisiteValidator`, so it fires for a host that starts normally and for a consumer who builds a provider and calls `ValidateStartupGates`.
+:::
 
 ## Marking Personal Data
 
 Crypto-shredding is annotation-driven. Two attributes (both in `Excalibur.Compliance`) declare what to protect and whose key protects it:
 
-- **`[DataSubjectId]`** marks the property whose value identifies the data subject the record belongs to. Exactly one property per record should carry it; if more than one does, the first property discovered is used and the others are ignored.
+- **`[DataSubjectId]`** marks the property whose value identifies the data subject the record belongs to. Exactly one property per record should carry it; if more than one does, the first property discovered is used and the others are ignored. **The value must be unique across your whole deployment, not merely within a tenant.** In every published version the per-subject key is named from this value alone, so two tenants holding one value share one key and either tenant's erasure destroys it for both — embed your tenant identifier in the value. See [the known issue](../known-issues.md#one-tenants-erasure-destroys-another-tenants-data-when-they-share-a-data-subject-id-and-the-victims-read-reports-it-as-lawfully-erased).
 - **`[PersonalData]`** marks each property that holds personal data to be encrypted under that subject's key. `[PersonalData]` also carries policy metadata: `Category`, `Purpose` and `LegalBasis` drive erasure, `RetentionDays` drives retention for the types you declare with `AddRetentionPolicies<T>()` (see [GDPR Erasure](./gdpr-erasure.md#retention-enforcement-retentiondays)), and `MaskInLogs` drives masking. **`IsSensitive` is inert — nothing reads it.** It records your own classification; it does not cause the framework to treat the property differently, so do not rely on it as a control.
 
 ```csharp
@@ -116,7 +154,7 @@ public sealed class CustomerWriter(SubjectFieldCryptor cryptor)
 
 - **`EncryptFieldsAsync`** resolves the subject id from the `[DataSubjectId]` property, obtains (or mints) the key for that subject in the given scope via `ISubjectKeyManager`, and replaces each `[PersonalData]` field value with a subject-bound ciphertext envelope. `string` and `byte[]` personal-data properties are supported. **Pass the aggregate type the record is stored inside**, exactly as the event store records it; pass `null` when it is not inside an aggregate. The argument selects nothing but the key, and it matters only where that aggregate type is under a declared erasure retention — see [Per-Subject Keys and Erasure](#per-subject-keys-and-erasure) below.
 - **`DecryptFieldsAsync`** takes no scope. An envelope records which key protects it, so the read path needs nothing from the caller.
-- **`DecryptFieldsAsync`** reverses the process. A field whose subject key the key provider **states is destroyed** decrypts to `null` (a tombstone), leaving the rest of the record intact so an aggregate still loads with its non-personal fields. A key that merely cannot be found is not a tombstone — see [the read path](#fail-closed-field-protection) below.
+- **`DecryptFieldsAsync`** reverses the process. A field whose key generation the **destruction ledger holds a record for** decrypts to `null` (a tombstone), leaving the rest of the record intact so an aggregate still loads with its non-personal fields. A key that merely cannot be found is not a tombstone — see [the read path](#fail-closed-field-protection) below.
 - **`EncryptFieldsAsync` is idempotent, so retrying a failed write is safe.** It mutates the record in place, so a write that fails *after* it returns leaves you holding a record whose fields are already envelopes. Calling it again on that same instance re-encrypts nothing: a field already carrying an envelope is left as it is, and the stored value still decrypts in a single pass to the original data. You do not have to reload the record or track whether encryption already ran before retrying a transient persistence fault. A field that carries **no** envelope is always encrypted, so a record written before you adopted this capability is protected on its next write rather than skipped.
 - A record whose type carries **no `[DataSubjectId]` property** is left untouched — per-subject protection is additive over any existing at-rest encryption. A record that **declares** a data subject whose identifier is null or blank is **rejected with an `EncryptionException`**: it has `[PersonalData]` fields and no key under which to protect them, so proceeding would persist plaintext personal data.
 
@@ -134,26 +172,56 @@ This fail-closed guarantee holds under trimming/AOT. The type-plan lookup roots 
 The read path is deliberately asymmetric:
 
 - **Write path (`EncryptAsync`) fails closed:** any encryption failure throws; it never returns plaintext or a partially-protected value.
-- **Read path (`DecryptAsync`) degrades open only for a genuinely shredded subject:** it returns `null` only when the key-management provider **states**, through `IKeyDestructionStatusProvider`, that the material behind that envelope's key version is irrecoverable. Every other failure throws.
+- **Read path (`DecryptAsync`) degrades open only for a genuinely shredded subject:** it returns `null` only when `IKeyDestructionLedger` holds a record that the **key generation** this envelope names was destroyed. Every other failure throws.
 
 :::danger A key that cannot be found is not an erasure
 
-A `null` asserts that the data was lawfully crypto-shredded, so it is produced from an affirmative statement of destruction and never from the absence of a key. The two are indistinguishable at the read: a backend with a recovery window reports a deleted-but-fully-restorable key exactly as it reports one that never existed. **Azure Key Vault answers a soft-deleted key with 404 for its entire retention period — 90 days by default — while a single `recover` call brings it back.** Reading absence as erasure would tell you an erasure request was discharged over data that is still there.
+A `null` asserts that the data was lawfully crypto-shredded, so it is produced only from a durable record of a destruction this deployment performed — never from the absence of a key. The two are indistinguishable at the read: a backend with a recovery window reports a deleted-but-fully-restorable key exactly as it reports one that never existed. **Azure Key Vault answers a soft-deleted key with 404 for its entire retention period — 90 days by default — while a single `recover` call brings it back.** Reading absence as erasure would tell you an erasure request was discharged over data that is still there.
 
-The question is asked of the **key version** the envelope names, not the key handle, because a rotation can leave a handle holding one retired version and one live one, and only an all-versions-destroyed handle is a destroyed handle.
+**The key backend is not asked, at any granularity.** It retains nothing about material it never held, so "we destroyed this" and "this was never here" are the same observation there — permanently and by construction. Narrowing the question from the handle to a version does not fix that; it only moves it. The information that separates the two states existed at one instant and belonged to one actor, the destroyer, so the answer comes from a record that actor wrote.
 
-Three failures therefore throw rather than returning a tombstone:
+The record is keyed on the **key generation** the envelope names, not on the handle and not on a version ordinal. A subject's handle is derived from the subject, so an ordinary write after an erasure re-mints material at the same handle and restarts the ordinal — and both then report "not destroyed", truthfully, about material the reader is not holding. A generation is minted once from a CSPRNG and never reused.
+
+**A row's existence is the statement.** There is no status column and no timestamp to compare: a row is written only after an irreversible destruction completed. So a `true` is monotone and may be cached indefinitely; a `false` means "no row yet"; and **failing to read the ledger throws** rather than answering `false`, because a `false` from an outage is indistinguishable in logs and metrics from "asked, and there is no row".
+
+These failures throw rather than returning a tombstone:
 
 - **No registered provider supports the envelope's algorithm** — a configuration fault, never a lawful erasure.
-- **The envelope's key version cannot be used, but the provider reports its material as recoverable** — `EncryptionErrorCode.KeyNotFound`. The data is still there; recover the key rather than working around the error.
-- **The key provider does not implement `IKeyDestructionStatusProvider`** — it has no way to state destruction, so nothing may be concluded from the failed read. The exception names the capability. All five key providers in the box implement it; a custom provider must, for an erased subject's aggregate to load.
+- **The envelope declares an earlier format version, or carries no key generation** — `EncryptionErrorCode.InvalidCiphertext`. The material behind it cannot be identified, so a destroyed subject cannot be told from one whose key was provisioned again.
+- **The generation has no ledger row and the decrypt then fails** — including `EncryptionErrorCode.KeyNotFound`. The ledger has already said this generation was not destroyed here, so the read fails loudly and the data may still be recoverable: recover a soft-deleted key that should be live rather than working around the error.
+- **The ledger could not be read** — reported as the implementation's own exception, naming the cause, and never as either answer.
+
+A tombstone's claim is scoped to the **envelope**, not the subject. A `true` says this ciphertext's plaintext is unrecoverable; it does not say the subject is erased, because a plaintext copy held elsewhere, or a second ciphertext under a different key, leaves it correct and an erasure claim false.
+
+`IKeyDestructionStatusProvider` still exists and still matters — for a different question, asked by **erasure verification** about a **handle**, once, at erasure completion. A read never consults it. All five key providers in the box implement it, and an erasure that destroys keys on a provider that does not is never certified.
 :::
 
 ## Per-Subject Keys and Erasure
 
 `ISubjectKeyManager` owns the per-subject key lifecycle:
 
-- **`GetOrCreateKeyAsync(subjectId, retentionScope, ct)`** returns the key handle protecting that subject's data in that scope, minting a new cryptographically-random key (via the key-management provider) if it does not yet exist.
+- **`GetOrCreateKeyAsync(tenant, subjectId, retentionScope, ct)`** returns the key handle protecting that subject's data in that tenant and scope, minting a new cryptographically-random key (via the key-management provider) if it does not yet exist.
+
+The **tenant is part of the key's identity**, not a filter applied around it. A data-subject identifier comes from your own entity, so customer numbers, employee identifiers and e-mail addresses repeat across tenants; a handle that did not carry the tenant would give two such tenants one key, and either tenant's erasure would destroy it for both. A handle is a name in a key store with no row beside it to carry a tenant column, so the name itself carries the tenant.
+
+:::danger This is true of our source and of no published version — check which version you installed
+The paragraph above describes the **corrected** behaviour. **In every published version —
+`10.0.0-alpha.4` through `10.0.0-alpha.13` — the handle carries no tenant.** Two tenants whose
+`[DataSubjectId]` values collide therefore share one key, and either tenant's erasure destroys it for
+both. The other tenant then reads `null` over data nobody asked to erase — which the read path on this
+page defines as the assertion of a lawful erasure — and the key is gone, so that data is unrecoverable.
+It takes no race and no fault: two ordinary writes and one ordinary erasure. The authenticated data
+carries no tenant on this path either, so the read produces the tombstone rather than failing loudly.
+
+**Until a release carries the fix, make the `[DataSubjectId]` value globally unique yourself** by
+embedding your tenant identifier in it, at **both** the write path and the erasure-request path. It
+protects only data written afterwards, repairs nothing already written, and cannot recover a collision
+that has already been erased. Changing those values also makes your existing legal holds and registered
+data locations unmatchable until you re-place them. See [the full entry in Known
+issues](../known-issues.md#one-tenants-erasure-destroys-another-tenants-data-when-they-share-a-data-subject-id-and-the-victims-read-reports-it-as-lawfully-erased).
+:::
+
+Single-tenant hosts pass `TenantDefaults.DefaultTenantId` and need no further configuration — `IFieldEncryptor` resolves the ambient tenant for you, and an unconfigured host resolves that same identity. In a multi-tenant host, establish the tenant scope before the write (tenant middleware or `TenantContextHolder.BeginScope`) and **file each erasure request for the tenant whose data it erases** — an erasure for one tenant destroys only that tenant's key.
 
 `RetentionScope` is a value, and it is exactly one of two things — never an absence:
 

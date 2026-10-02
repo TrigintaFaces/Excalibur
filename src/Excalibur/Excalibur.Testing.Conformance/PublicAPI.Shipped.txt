@@ -655,6 +655,7 @@ virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetCertific
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetScheduledRequestsAsync_ShouldOrderByScheduledTime() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetScheduledRequestsAsync_ShouldReturnDueRequests() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.GetStatusAsync_NonExistent_ShouldReturnNull() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.IsGenerationDestroyedAsync_ShouldNotReportOneHandlesDestructionForAnother() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.ListRequestsAsync_WithDateRange_ShouldFilterByDates() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.ListRequestsAsync_WithStatusFilter_ShouldFilterByStatus() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.ListRequestsAsync_WithTenantFilter_ShouldFilterByTenant() -> System.Threading.Tasks.Task!
@@ -667,7 +668,9 @@ virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordCompl
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordCompletionAsync_ShouldMarkCompleted() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_NonExistentRequest_ShouldThrowKeyNotFoundException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_ShouldAppendIdempotentlyAndSurvive() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.ResetDataAsync() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.SaveCertificateAsync_DuplicateId_ShouldThrowDuplicateErasureCertificateException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.SaveCertificateAsync_ShouldNotVerifyACertificateWhoseClaimsWereAltered() -> System.Threading.Tasks.Task!
@@ -677,6 +680,7 @@ virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.SaveRequest
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.SaveRequestAsync_NonDuplicateFailure_ShouldNotTranslateToDuplicate() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.SaveRequestAsync_ShouldHashDataSubjectId() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.SaveRequestAsync_ShouldPersistRequest() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.UpdateStatusAsync_NonExistent_ShouldReturnFalse() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.UpdateStatusAsync_SecondClaimOfTheSameRequest_ShouldBeRefused() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.UpdateStatusAsync_ShouldUpdateStatus() -> System.Threading.Tasks.Task!
@@ -825,6 +829,8 @@ virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.De
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.DeleteKeyAsync_NonExistent_ShouldReturnFalse() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.Disposed_Provider_ShouldThrowObjectDisposedException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.GenerateKeyId() -> string!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.Generation_ShouldBeStable_AcrossARotation() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.GetActiveKeyAsync_ActiveKeyExists_ShouldReturnActiveKey() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.GetActiveKeyAsync_FilterByPurpose_ShouldFilterCorrectly() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.GetActiveKeyAsync_NoActiveKey_ShouldReturnNull() -> System.Threading.Tasks.Task!
@@ -836,6 +842,7 @@ virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.Ge
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.GetKeyVersionAsync_NonExistentVersion_ShouldReturnNull() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.ListKeysAsync_FilterByPurpose_ShouldFilterCorrectly() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.ListKeysAsync_FilterByStatus_ShouldFilterCorrectly() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.ListKeysAsync_NoKeys_ShouldReturnEmptyList() -> System.Threading.Tasks.Task!

@@ -17,6 +17,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed from the public API (breaking)
+
+Twenty-five public members were withdrawn. They are listed because the baseline records a withdrawal
+only until the next release promotes it — after that the row is gone and the removal is no longer
+reconstructable from the repository, so this list is the durable record.
+
+**The destruction predicate no longer asks a key backend.** Every overload of
+`IKeyDestructionStatusProvider.IsKeyDestroyedAsync` that took a key *version* or *generation* is gone,
+from the interface and from all five providers — `InMemoryKeyManagementProvider`,
+`MultiRegionKeyProvider`, `AzureKeyVaultProvider`, `AwsKmsProvider`, `VaultKeyProvider`. Only the
+handle-scoped overload survives, and only for attestation.
+
+They were deleted rather than corrected because **no key backend can answer the question they asked.**
+A backend tells you whether it can serve or restore material *now*; that negative covers three states —
+destroyed, recoverable, and never held here — and nothing narrows it, because a backend retains nothing
+about material it never held. Asking it to separate them is asking it to remember something it never had.
+
+**Migration.** A read that needs to know whether a generation was destroyed now asks
+`IKeyDestructionLedger.IsGenerationDestroyedAsync(keyGeneration, ct)`, answered from a durable record
+this framework writes when it performs the destruction. The erasure stores implement it, so registering
+one (`AddInMemoryErasureStore()`, `AddPostgresErasureStore()`, `AddSqlServerErasureStore()`) supplies it.
+If you destroy keys through your own process, record it with
+`IKeyDestructionLedger.RecordDestroyedGenerationAsync(keyGeneration, ct)` — that row is an assertion you
+own, and the framework reports fields under that generation as erased on the strength of it.
+
+**`IErasureStore.RecordKeyDestroyedAsync` gained a key-generation parameter** (3 arguments to 4), in the
+interface and in both SQL stores. A destruction is recorded against the generation whose material was
+destroyed, because a key handle is re-provisioned after an erasure and so cannot identify it.
+
+**`KeyMetadata.Generation` and `SubjectKey.Generation` changed type** from `string?` to `KeyGeneration?`,
+and `SubjectKey`'s constructor changed with them. `KeyGeneration` is a readonly struct whose only
+entrances are a CSPRNG mint and a 32-hex parse, so a weak generation — a `"1"`, a version ordinal, a
+value derived from the subject — no longer compiles at a producer. Call `.ToString()` where you need the
+wire value; it is unchanged, and the envelope, the AES-GCM associated data and the database columns all
+still carry the same characters.
+
+**Seven conformance arms were removed** from `KeyManagementProviderConformanceTestKit` — the version- and
+generation-scoped destruction arms. One of them *required* the defect: it asserted that a generation the
+backend had never held must answer "destroyed". If you derive from that kit, those overrides should be
+deleted rather than updated.
+
 ### Added
 
 - **A deployment can declare that an aggregate type must survive an erasure.** Article 17(3) withholds the

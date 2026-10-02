@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Compliance.CryptoShredding;
 
@@ -48,12 +49,21 @@ internal sealed class SubjectKeyManager : ISubjectKeyManager
     /// disagree, and nothing reports it.
     /// </para>
     /// <para>
-    /// <b>There is no tenant here, and its absence is the design.</b> The handle this class chooses is
-    /// <c>H(subject)</c> or <c>H(subject)-&lt;type&gt;</c>; no tenant appears in either. So the write needs
-    /// only to know whether the aggregate type is retained by ANYONE, which
-    /// <see cref="IErasureRetentionRegistry.IsRetainedForAnyTenant"/> answers without a tenant. Whose
-    /// retention applies is decided by the ERASURE, against the tenant its own request recorded. Nothing is
-    /// inferred from ambient state because nothing needs to be.
+    /// <b>The handle carries the tenant; the RETENTION DECISION still does not, and only the second of
+    /// those is an absence.</b> The handle is <see cref="SubjectKeyHandle"/>, which is injective in the
+    /// tenant by construction. What this class still does not need a tenant for is deciding WHETHER to
+    /// widen onto a retained variant: that question is answered by
+    /// <see cref="IErasureRetentionRegistry.IsRetainedForAnyTenant"/>, because whose retention applies is
+    /// decided by the ERASURE against the tenant its own request recorded.
+    /// </para>
+    /// <para>
+    /// This paragraph previously read <i>"There is no tenant here, and its absence is the design"</i>, and
+    /// the comment in <see cref="GetOrCreateKeyAsync"/> asserted <i>"THE TENANT IS NOT PART OF THIS
+    /// DECISION"</i>. Both reasoned carefully about the retention asymmetry and were silent on the
+    /// collision axis — two tenants whose consumer-supplied data-subject identifiers coincide shared one
+    /// key, and either tenant's erasure destroyed it for both. The wrong behaviour was written down as the
+    /// expectation, which is what a discipline looks like just before it fails; the superseded wording is
+    /// quoted here so anyone who absorbed it recognises it.
     /// </para>
     /// </remarks>
     public SubjectKeyManager(
@@ -68,13 +78,15 @@ internal sealed class SubjectKeyManager : ISubjectKeyManager
 
     /// <inheritdoc/>
     public async ValueTask<SubjectKey> GetOrCreateKeyAsync(
+        TenantId tenant,
         string subjectId,
         RetentionScope retentionScope,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(tenant);
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
 
-        var keyId = _hasher.HashDataSubjectId(subjectId);
+        var handle = SubjectKeyHandle.ForSubject(tenant, subjectId, _hasher);
 
         // ONLY a DECLARED aggregate type moves the handle, and that asymmetry is the design rather than an
         // optimisation. An erasure destroys the subject's own handle unconditionally, so every value left
@@ -83,17 +95,18 @@ internal sealed class SubjectKeyManager : ISubjectKeyManager
         // nothing destroys, which is a subject never erased. Values under the plain subject handle need no
         // inventory to be destroyed, and that is the property being protected.
         //
-        // THE TENANT IS NOT PART OF THIS DECISION, and that is why this class holds no tenant. The handle
-        // is H(subject) or H(subject)-<type>; no tenant appears in either, so the write only has to know
-        // whether the TYPE is retained by anyone. WHOSE retention applies is the erasure's decision, made
-        // against the tenant its own request recorded.
+        // THE TENANT IS NOT PART OF *THIS* DECISION, which is narrower than it used to read: the handle
+        // itself carries the tenant (SubjectKeyHandle is injective in it), and what needs no tenant is only
+        // the question of WHETHER to widen onto the retained variant. The write has to know whether the TYPE
+        // is retained by anyone; WHOSE retention applies is the erasure's decision, made against the tenant
+        // its own request recorded.
         //
         // Widening on a type declared by a DIFFERENT tenant withholds erasure from nobody: the erasure
         // finds no declaration matching this subject's tenant, so it destroys the widened handle too. The
         // asymmetry is safe in exactly one direction, and it is this one.
         if (retentionScope.IsInAnAggregate && _retentions.IsRetainedForAnyTenant(retentionScope.AggregateType))
         {
-            keyId = RetainedKeyHandle.For(keyId, retentionScope.AggregateType!);
+            handle = handle.Retained(retentionScope.AggregateType!);
         }
 
         // MINTING IS NOT ROTATING, and that distinction is the whole of this call. This used to read the key
@@ -114,6 +127,8 @@ internal sealed class SubjectKeyManager : ISubjectKeyManager
         // erasure plus an ordinary write can replace the material between the two reads -- and the writer would
         // then bind a generation that does not match what it is about to encrypt under, which authenticates as
         // a corrupt payload at the next read.
+        var keyId = handle.Value;
+
         var provisioned = await _keyProvider.CreateKeyIfAbsentAsync(
             keyId,
             EncryptionAlgorithm.Aes256Gcm,

@@ -5,6 +5,8 @@ using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
 
 using Excalibur.Compliance.Aws;
+using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -191,7 +193,14 @@ public sealed class AwsKmsErasureReachesTerminalShould : IDisposable
 			.MustNotHaveHappened();
 	}
 
-	private static string SubjectKey(string subjectId) => TestDataSubjectHasher.Instance.HashDataSubjectId(subjectId);
+	// The handle the erasure DERIVES, which is what these arms have to stage the provider's key under. It is
+	// not the bare pseudonymisation token: the handle carries the tenant, and an untenanted request collapses
+	// onto the framework default identity. Staging the bare token would leave the provider answering NotFound
+	// for the key the erasure asks about, so the request would reach a terminal state immediately and the
+	// pending-window arms would assert nothing.
+	private static string SubjectKey(string subjectId) =>
+		SubjectKeyHandle.ForSubject(
+			new TenantId(TenantDefaults.DefaultTenantId), subjectId, TestDataSubjectHasher.Instance).Value;
 
 	/// <summary>Stages a logical key whose versions are the given CMKs, oldest first; the last is current.</summary>
 	private void GivenKeyWithVersions(string keyId, params string[] cmks)

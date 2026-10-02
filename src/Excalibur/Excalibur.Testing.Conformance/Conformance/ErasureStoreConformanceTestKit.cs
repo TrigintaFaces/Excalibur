@@ -846,15 +846,15 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 			.ConfigureAwait(false);
 
 		// Unique per run, so a shared database cannot let an earlier run's rows satisfy this arm. The ledger is
-		// keyed on the generation ALONE and is deliberately not scoped by request, so a fixed literal here
+		// keyed on (handle, generation) and is deliberately not scoped by request, so a fixed literal here
 		// would be answered by any previous execution and the arm could never fail.
 		var first = $"gen-first-{Guid.NewGuid():N}";
 		var second = $"gen-second-{Guid.NewGuid():N}";
 
 		// Guard: neither generation is on file before this arm writes it. Without this the assertions below
 		// could pass over a ledger that answers true for everything.
-		if (await ledger.IsGenerationDestroyedAsync(first, CancellationToken.None).ConfigureAwait(false)
-			|| await ledger.IsGenerationDestroyedAsync(second, CancellationToken.None).ConfigureAwait(false))
+		if (await ledger.IsGenerationDestroyedAsync("subject-key", first, CancellationToken.None).ConfigureAwait(false)
+			|| await ledger.IsGenerationDestroyedAsync("subject-key", second, CancellationToken.None).ConfigureAwait(false))
 		{
 			throw new TestFixtureAssertionException(
 				"Neither generation may be reported destroyed before it is recorded. A ledger that answers "
@@ -866,9 +866,9 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		await store.RecordKeyDestroyedAsync(request.RequestId, "subject-key", second, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		var firstRecorded = await ledger.IsGenerationDestroyedAsync(first, CancellationToken.None)
+		var firstRecorded = await ledger.IsGenerationDestroyedAsync("subject-key", first, CancellationToken.None)
 			.ConfigureAwait(false);
-		var secondRecorded = await ledger.IsGenerationDestroyedAsync(second, CancellationToken.None)
+		var secondRecorded = await ledger.IsGenerationDestroyedAsync("subject-key", second, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		if (!firstRecorded || !secondRecorded)
@@ -878,6 +878,92 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 				+ $"First recorded: {firstRecorded}; second recorded: {secondRecorded}. A store keying this "
 				+ "record on the handle silently drops the second, and every read of ciphertext produced under "
 				+ "that generation then fails to report the subject's erasure.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a destruction recorded at ONE handle does not report a DIFFERENT handle's identically
+	/// named generation as destroyed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The ledger's whole key is (handle, generation). Keyed on the generation alone, the tombstone oracle
+	/// would rest on an invariant nothing enforces: that one generation identifies material uniquely across
+	/// every handle. Every shipped provider satisfies it, because they mint generations from a cryptographic
+	/// random source -- but a CONSUMER-SUPPLIED provider that DERIVED its generation from the data subject
+	/// would hand two tenants' distinct keys one identifier. One ledger row would then answer for both, and
+	/// one tenant's erasure would report the other tenant's live personal data as lawfully erased, silently
+	/// and irreversibly.
+	/// </para>
+	/// <para>
+	/// RED input: key this store's ledger on the generation alone. The second assertion below then reports a
+	/// handle nobody destroyed as destroyed, which is the defect verbatim. The first assertion is its liveness
+	/// twin -- a store that reports nothing destroyed satisfies the safety half perfectly.
+	/// </para>
+	/// <para>
+	/// The two handles are distinct VALUES, not two spellings of one: a store that folded case or trimmed would
+	/// pass this arm while still collapsing two real handles, which is a different defect and is not what this
+	/// arm claims to detect.
+	/// </para>
+	/// </remarks>
+	public virtual async Task IsGenerationDestroyedAsync_ShouldNotReportOneHandlesDestructionForAnother()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = RequireLedger(store);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// ONE generation at TWO handles -- exactly what a provider deriving its generations produces, and the
+		// state the composite key exists to keep separate. Unique per run so an earlier execution's rows cannot
+		// satisfy the arm.
+		var sharedGeneration = $"gen-shared-{Guid.NewGuid():N}";
+		var destroyedHandle = $"handle-destroyed-{Guid.NewGuid():N}";
+		var untouchedHandle = $"handle-untouched-{Guid.NewGuid():N}";
+
+		// Guard: neither pair is on file before this arm writes one. Without it both assertions could pass over
+		// a ledger that answers false for everything, or be satisfied by a previous run.
+		if (await ledger.IsGenerationDestroyedAsync(destroyedHandle, sharedGeneration, CancellationToken.None)
+				.ConfigureAwait(false)
+			|| await ledger.IsGenerationDestroyedAsync(untouchedHandle, sharedGeneration, CancellationToken.None)
+				.ConfigureAwait(false))
+		{
+			throw new TestFixtureAssertionException(
+				"Neither handle may report this generation destroyed before the arm records one. A ledger that "
+				+ "answers true for an unrecorded pair would produce a tombstone over live personal data.");
+		}
+
+		await store.RecordKeyDestroyedAsync(
+				request.RequestId, destroyedHandle, sharedGeneration, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var destroyedReported = await ledger
+			.IsGenerationDestroyedAsync(destroyedHandle, sharedGeneration, CancellationToken.None)
+			.ConfigureAwait(false);
+		var untouchedReported = await ledger
+			.IsGenerationDestroyedAsync(untouchedHandle, sharedGeneration, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// LIVENESS first: the destruction that DID happen must be reported, or the safety half below is
+		// satisfied by a store that reports nothing at all.
+		if (!destroyedReported)
+		{
+			throw new TestFixtureAssertionException(
+				"The handle whose key was destroyed must report its generation as destroyed. Without this the "
+				+ "safety assertion below is satisfied by a ledger that answers false for everything, and a "
+				+ "genuinely erased subject's reads would fail forever instead of reporting their erasure.");
+		}
+
+		// SAFETY: the untouched handle must not inherit the answer.
+		if (untouchedReported)
+		{
+			throw new TestFixtureAssertionException(
+				"A destruction recorded at one handle must NOT report a different handle's identically named "
+				+ "generation as destroyed. This store is keying the ledger on the generation alone, so two "
+				+ "handles share one row -- and a read of the untouched handle's ciphertext returns a tombstone, "
+				+ "asserting a lawful erasure over personal data that was never erased and whose key is still "
+				+ "live. Key the ledger on (handle, generation).");
 		}
 	}
 
@@ -918,7 +1004,8 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 				+ $"recover from. Got: {string.Join(", ", staged)}");
 		}
 
-		if (await ledger.IsGenerationDestroyedAsync(generation, CancellationToken.None).ConfigureAwait(false))
+		if (await ledger.IsGenerationDestroyedAsync("subject-key", generation, CancellationToken.None)
+			.ConfigureAwait(false))
 		{
 			throw new TestFixtureAssertionException(
 				"A STAGED generation must NOT report as destroyed. The stage happens before the destruction, so "

@@ -244,12 +244,40 @@ BEGIN
         -- Binary collation, so the database compares generations exactly as the framework does
         -- ordinally. A case-insensitive collation would fold two distinct generations into one, and
         -- one destroyed generation would then answer for a different, LIVE one.
+        -- THE PRIMARY KEY IS THE PAIR (KeyHandle, KeyGeneration), and each component
+        -- is load-bearing.
+        --
+        -- The GENERATION, because a generation is minted once and never reused: a
+        -- destroyed generation stays destroyed whatever is provisioned at that handle
+        -- afterwards, so a row's existence IS the destruction statement and there is no
+        -- status column to interpret.
+        --
+        -- The HANDLE, because the generation ALONE rests on an assumption nothing
+        -- enforces: that one generation identifies material uniquely across every
+        -- handle. Every shipped provider satisfies it -- they mint from a cryptographic
+        -- random source -- but a CONSUMER-SUPPLIED provider that DERIVED its generation
+        -- would yield one identifier for two tenants' distinct keys, hence one row, and
+        -- one tenant's destruction would report the other's live data as lawfully
+        -- erased. With the handle in the key that state is unreachable whatever a
+        -- provider does.
+        --
+        -- AN EARLIER VERSION OF THIS COMMENT ARGUED AGAINST KEYING ON THE HANDLE --
+        -- "keying on the handle silently drops a second destruction at that handle."
+        -- That objection was against (KeyHandle) ALONE and it remains correct. It does
+        -- not apply to the pair: many generations may exist at one handle, so a SECOND
+        -- destruction there is a different generation and therefore a distinct row.
+        -- RequestId stays an audit attribute and is never a key component.
         KeyGeneration NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
         -- NULLABLE, because a destruction the CONSUMER performed and asserted through
-        -- the ledger's public write has no erasure request and no handle to name. Audit
-        -- attributes either way: the read predicate names neither.
+        -- the ledger's public write has no erasure request to name. An audit attribute,
+        -- never a key component: the read predicate does not name it.
         RequestId     UNIQUEIDENTIFIER NULL,
-        KeyHandle     NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
+        -- NOT NULL: it is part of the primary key. It was nullable while the key was the
+        -- generation alone, on the reasoning that a destruction the CONSUMER asserted
+        -- through the ledger's public write "has no handle to name". That is false -- a
+        -- caller asserting a destruction knows what it destroyed -- and the public write
+        -- now requires it.
+        KeyHandle     NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
         DestroyedAt   DATETIMEOFFSET   NOT NULL,
         -- WHO asserted the destruction: 'framework-erasure' for one this framework
         -- performed (staged before the destroy, recorded after it), 'caller-assertion'
@@ -258,9 +286,9 @@ BEGIN
         -- deriving a fact from a missing value is the reasoning this table exists to
         -- replace.
         RecordedBy    NVARCHAR(32)     NOT NULL,
-        CONSTRAINT PK_ErasureDestroyedKeys PRIMARY KEY (KeyGeneration)
+        CONSTRAINT PK_ErasureDestroyedKeys PRIMARY KEY (KeyHandle, KeyGeneration)
     );
-    -- The retry reads this table by request, and that is no longer the primary key.
+    -- The retry reads this table by request, and that is not the primary key.
     CREATE INDEX IX_ErasureDestroyedKeys_Request
         ON [compliance].[ErasureDestroyedKeys] (RequestId, KeyHandle);
 END

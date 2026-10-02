@@ -5,6 +5,7 @@ using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
 using Excalibur.Compliance.Encryption;
 using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -25,6 +26,10 @@ namespace Excalibur.Compliance.Tests.CryptoShredding;
 [Trait("Component", "Compliance")]
 public sealed class CryptoShredTwoSubjectShould
 {
+    // Every arm here is single-tenant: the write path collapses an unresolved ambient tenant onto
+    // this identity, so the erasure helper must derive its handle under the same one.
+    private static readonly TenantId Tenant = new(TenantDefaults.DefaultTenantId);
+
     [Fact]
     public async Task DestroyingSubjectAKey_ShredsOnlySubjectA_LeavesSubjectBDecryptable()
     {
@@ -53,6 +58,7 @@ public sealed class CryptoShredTwoSubjectShould
             scope.ServiceProvider.GetRequiredService<IKeyManagementProvider>(),
             scope.ServiceProvider.GetRequiredService<IKeyDestructionLedger>(),
             hasher,
+            Tenant,
             "subject-A");
 
         // LOAD-BEARING: A's PII is now unrecoverable (degrade-open tombstone = null), while B's PII is
@@ -83,6 +89,7 @@ public sealed class CryptoShredTwoSubjectShould
             scope.ServiceProvider.GetRequiredService<IKeyManagementProvider>(),
             scope.ServiceProvider.GetRequiredService<IKeyDestructionLedger>(),
             hasher,
+            Tenant,
             "subject-C");
         // Second destroy must not throw (idempotent crypto-erase).
         await Should.NotThrowAsync(async () =>
@@ -91,6 +98,7 @@ public sealed class CryptoShredTwoSubjectShould
             scope.ServiceProvider.GetRequiredService<IKeyManagementProvider>(),
             scope.ServiceProvider.GetRequiredService<IKeyDestructionLedger>(),
             hasher,
+            Tenant,
             "subject-C"));
 
         (await fieldEncryptor.DecryptAsync(envelope, CancellationToken.None)).ShouldBeNull();
@@ -151,6 +159,7 @@ public sealed class CryptoShredTwoSubjectShould
             scope.ServiceProvider.GetRequiredService<IKeyManagementProvider>(),
             scope.ServiceProvider.GetRequiredService<IKeyDestructionLedger>(),
             hasher,
+            Tenant,
             "subject-R");
 
         // THE ORDINARY WRITE. Nothing unusual is requested: the subject appears again, and the key manager
@@ -201,9 +210,14 @@ public sealed class CryptoShredTwoSubjectShould
         IKeyManagementProvider keyProvider,
         IKeyDestructionLedger ledger,
         IDataSubjectHasher hasher,
+        TenantId tenant,
         string subjectId)
     {
-        var keyHandle = hasher.HashDataSubjectId(subjectId);
+        // THE HANDLE IS DERIVED THE WAY THE ERASURE DERIVES IT -- from (tenant, subject hash) through the
+        // single function both production paths use. Deriving the bare subject hash here, as this helper used
+        // to, would destroy a key nothing was ever written under: every arm below would then report the
+        // subject as NOT shredded, which is the erasure silently achieving nothing.
+        var keyHandle = SubjectKeyHandle.ForSubject(tenant, subjectId, hasher).Value;
 
         // FIRST: the generation, while the material still exists.
         var generation = (await keyProvider.GetKeyAsync(keyHandle, CancellationToken.None))?.Generation;
@@ -217,7 +231,7 @@ public sealed class CryptoShredTwoSubjectShould
         if (outcome.State == KeyDestructionState.Completed && generation is not null)
         {
             // The record stores the characters, which is the boundary KeyGeneration deliberately stops at.
-            await ledger.RecordDestroyedGenerationAsync(generation.Value.ToString(), CancellationToken.None);
+            await ledger.RecordDestroyedGenerationAsync(keyHandle, generation.Value.ToString(), CancellationToken.None);
         }
     }
 

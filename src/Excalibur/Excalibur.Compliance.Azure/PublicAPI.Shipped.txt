@@ -23,6 +23,7 @@ Excalibur.Compliance.Azure.AzureKeyVaultOptions.WarnOnStandardTierInProduction.g
 Excalibur.Compliance.Azure.AzureKeyVaultOptions.WarnOnStandardTierInProduction.set -> void
 Excalibur.Compliance.Azure.AzureKeyVaultProvider
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.AzureKeyVaultProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Azure.AzureKeyVaultOptions!>! options, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Azure.AzureKeyVaultProvider!>! logger) -> void
+Excalibur.Compliance.Azure.AzureKeyVaultProvider.AzureKeyVaultProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Azure.AzureKeyVaultOptions!>! options, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Azure.AzureKeyVaultProvider!>! logger, Azure.Security.KeyVault.Keys.KeyClient? keyClient) -> void
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.CreateKeyIfAbsentAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata!>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyDestructionOutcome>!
 Excalibur.Compliance.Azure.AzureKeyVaultProvider.Dispose() -> void

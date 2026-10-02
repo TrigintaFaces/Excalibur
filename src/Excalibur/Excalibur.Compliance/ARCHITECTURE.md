@@ -103,14 +103,98 @@ legacy form written before the marker existed, so it is still encrypted rather t
 unmarked as already-encrypted would leave personal data in the clear for exactly the records written
 earliest.
 
+### A completed erasure in one tenant never renders another tenant's personal fields unreadable
+
+**For tenants T and U where U is not T, a completed erasure of data subject s in tenant T leaves every
+personal field of tenant U readable -- including the fields of U's own data subject whose
+consumer-supplied identifier is also s.** The per-subject crypto-shred key handle is injective in the
+tenant, so T's subject and U's subject are two keys, and the destruction of one is not the destruction of
+the other.
+
+This is falsifiable in one observation, and the observation is two ordinary writes and one ordinary
+erasure with no race and no crash: tenant T writes a personal field for its subject `42`, tenant U writes
+one for ITS subject `42`, tenant T's erasure of `42` completes, and tenant U's field must still decrypt to
+its plaintext. A `null` there would be this framework stating that U's data was lawfully erased, over data
+no erasure request ever named -- irreversible, because the key is gone, and silent, because a tombstone is
+indistinguishable from a lawful erasure to everything downstream.
+
+The reason the handle has to carry the tenant rather than be filtered by one is that **a key handle is the
+one identity in this subsystem with no row beside it.** Every other pseudonymised identifier is a column on
+a record whose query carries a tenant term; a handle is a name in a key store, and there is nowhere to put
+a tenant column, so the name itself must carry the tenant. Data-subject identifiers are supplied by the
+consumer from their own entities, so customer numbers, employee identifiers and e-mail addresses repeat
+across tenants in ordinary multi-tenant deployments -- the collision is the common case, not the exotic one.
+
+**How it is achieved.** One derivation, reached by both paths, refusing to produce a handle without a
+tenant: `SubjectKeyHandle.ForSubjectHash` (`Erasure/SubjectKeyHandle.cs:164`) keys an HMAC over a
+**length-prefixed** composition of the tenant identifier and the subject's pseudonymisation token.
+Length-prefixing is load-bearing rather than stylistic: plain concatenation makes tenant `a` with subject
+`bc` one input with tenant `ab` and subject `c`, which would introduce a cross-tenant collision in the act
+of removing one. The result is 64 uppercase hexadecimal characters -- the same width and character set as
+the handle it replaced, so no key-store object-name constraint moves, and no tenant identifier appears
+anywhere it could be case-folded or rejected.
+
+**The tenant is an explicit parameter of the derivation and is never read from ambient state inside it,
+because the two callers have two different authoritative tenants.** The write path's is the ambient tenant
+of the request doing the write, resolved at `CryptoShredding/FieldEncryptor.cs:111` and passed on to
+`CryptoShredding/SubjectKeyManager.cs:89`. The erasure's is the tenant its own REQUEST recorded, resolved
+at `Erasure/ErasureService.cs:572`; an erasure runs from a background processor whose ambient tenant is
+usually nothing and is never authoritative for a request somebody else filed earlier. A derivation reading
+ambient state would silently derive the wrong handle there, and a wrong handle on the erasure path destroys
+nothing while reporting a completed erasure -- the mirror of the defect above, and just as silent. The
+destruction is queued at `Erasure/ErasureService.cs:661`, and the destruction-confirmation pass derives the
+same handle at `Erasure/ErasureService.cs:1609`.
+
+**Every spelling of "no tenant" collapses onto one identity**, through `SubjectKeyHandle.OwningTenant`
+(`Erasure/SubjectKeyHandle.cs:111`). A single-tenant write resolves the framework's default tenant
+identity, while an untenanted erasure request is PERSISTED as the reserved untenanted sentinel; two
+spellings would be two handles, so a single-tenant erasure would destroy a key nothing was written under.
+The collapse reuses the framework's single predicate for what counts as untenanted rather than restating
+it, and it happens at the caller -- the derivation itself refuses an absent tenant, which is what makes the
+omission inexpressible rather than defaulted.
+
+**The AES-GCM associated data binds the tenant transitively**, because the handle is written into it
+length-prefixed. The `TenantId` field of the encryption context is populated as well, on the write at
+`CryptoShredding/FieldEncryptor.cs:132` and on the read at `CryptoShredding/FieldEncryptor.cs:200`; it was
+previously left unset on this path, so a field documented as preventing cross-tenant associated-data
+ambiguity produced the same value for every tenant. It is **not** the control that separates two tenants --
+the handle is -- and binding it without fixing the handle would have converted a silent tombstone into a
+loud authentication failure while the key was still destroyed: the same unrecoverable loss, with a
+different symptom. The read rebuilds it from the ENVELOPE, never from the reader's ambient tenant, because
+a legitimate read happens from places with no ambient tenant at all and the associated data must be
+byte-identical to what the write bound.
+
 ### A null from a field read means erased, and it is produced only when the LEDGER says so
 
 **`IFieldEncryptor.DecryptAsync` returns `null` for a personal field only when this deployment's
-append-only destruction ledger holds a row for the key GENERATION that field's envelope names. A row is
-written only after an irreversible destruction this deployment performed has already completed, so a
-row's existence IS the destruction statement. The absence of a row is "not destroyed" and the read then
-attempts the decrypt; an inability to READ the ledger is an exception, never "not destroyed". An envelope
-that names no generation is refused before the ledger is consulted.**
+append-only destruction ledger holds a row for the key HANDLE AND the key GENERATION that field's envelope
+names. A row is written only after an irreversible destruction this deployment performed has already
+completed, so a row's existence IS the destruction statement. The absence of a row is "not destroyed" and
+the read then attempts the decrypt; an inability to READ the ledger is an exception, never "not destroyed".
+An envelope that names no generation is refused before the ledger is consulted.**
+
+The HANDLE is part of the ledger's key, not a filter applied around it, and it is the component that makes
+the guarantee hold for a provider this framework did not write. **Falsifiable in one observation: record a
+destruction at handle H for generation g, then ask about a different handle H' and the same g — the answer
+must be "not destroyed".** Keyed on the generation alone, the oracle rests on a second invariant nothing
+enforces: that one generation identifies key material uniquely across every handle. Every shipped provider
+satisfies it, because each mints 128 bits from a cryptographic random source through one shared entrance —
+but `KeyGeneration` constrains the SHAPE of a generation and not its ENTROPY, and says so in its own
+documentation. A consumer-supplied `IKeyManagementProvider` that DERIVED its generation from the data
+subject would hand two tenants' distinct keys one identifier, one row would answer for both, and one
+tenant's erasure would report the other's live personal data as lawfully erased. With the handle in the key
+that state is unreachable whatever a provider does, so the obligation disappears rather than being
+documented somewhere a future provider author must remember to read.
+
+**Keying on the pair keeps what the generation alone bought.** Many generations may exist at one handle, so
+a destroyed generation stays destroyed whatever is provisioned at that handle afterwards, and a SECOND
+destruction at one handle is a different generation and therefore a distinct row rather than a dropped one.
+That last property is why keying on the HANDLE ALONE would be wrong, and the schema comments that argued
+against the handle were arguing against exactly that — correctly, and not against the pair.
+
+Achieved at `Erasure/InMemoryErasureStore.cs:405` and the two SQL stores' composite primary key, asked at
+`CryptoShredding/FieldEncryptor.cs:285`, which takes the handle from `EncryptedData.KeyId` — the envelope's
+own value, not one re-derived from the subject, so it names the material actually being read.
 
 This is the guarantee that makes a `null` readable as a lawful crypto-shred, and it is falsifiable in one
 observation: destroy a key through any path that writes no ledger row -- a soft-delete that leaves the
@@ -137,12 +221,18 @@ what makes that conditional binding safe: without it, an envelope with the prope
 as the no-generation form and authenticate correctly, a downgrade anyone could perform by deleting one JSON
 field.
 
-Achieved at `CryptoShredding/FieldEncryptor.cs:96` (the format-version refusal), `:114` (the
-absent-generation refusal, before any key is resolved and any associated data is computed), `:139` (the
-affirmative destruction predicate, asked before a decryption is attempted because a re-provisioned handle
-fails its authentication tag rather than reporting a missing key) and `:186` (the refusal when no provider
-advertises the capability). The generation enters the associated data at
+Achieved at `CryptoShredding/FieldEncryptor.cs:158` (the format-version refusal), `:176` (the
+absent-generation refusal, before any key is resolved and any associated data is computed), `:172` (the
+affirmative destruction predicate at `:209`, asked before a decryption is attempted because a
+re-provisioned handle
+fails its authentication tag rather than reporting a missing key) and `:272` (the predicate itself, which
+reads the ledger and nothing else). The generation enters the associated data at
 `Encryption/AesGcmEncryptionProvider.cs:592`.
+
+The refusal when nothing can state a destruction is no longer a branch to be found. The ledger is a required
+constructor dependency (`CryptoShredding/FieldEncryptor.cs:93`), so a composition with no way to answer the question fails at service
+resolution rather than at a read -- and start-up refuses it before that, at
+`CryptoShredding/CryptoShreddingLedgerWiringValidator.cs`.
 
 The read path and the erasure path now agree. Erasure verification already refuses to certify a deletion a
 provider cannot confirm (`Erasure/ErasureVerificationService.cs:377`); before this, erasure said "not yet
@@ -207,7 +297,7 @@ message content: those members move identifiers, reasons, sequence numbers and f
 capability whose surface *can* carry a payload is resolved to a mediating view instead, so that reaching
 it cannot become a way around the encryption — and one that is neither is denied rather than guessed at.
 The forwardable set is enumerated by name at
-`Encryption/Decorators/EncryptingOutboxStoreDecorator.cs:56` and supplied to the base decorator at `:94`.
+`Encryption/Decorators/EncryptingOutboxStoreDecorator.cs:56` and supplied to the base decorator at `:92`.
 
 ### Retention enforcement acts only on the scope the host declares
 
@@ -269,14 +359,14 @@ which aggregate to erase and has no opinion about which ones it is asked for.
 Readability is what makes the surviving record worth keeping, and it comes from the key handle rather
 than from new cryptography. A key handle is a NAME, and the provider mints random material at whatever
 name it is given, so widening the handle with the aggregate type yields a second, independently
-destroyable key with no envelope machinery (`CryptoShredding/SubjectKeyManager.cs:87`). Only a DECLARED
+destroyable key with no envelope machinery (`CryptoShredding/SubjectKeyManager.cs:109`). Only a DECLARED
 type's handle is widened: every other value stays under the subject's own handle, which is the one the
 erasure destroys unconditionally and the only one it can enumerate. The erasure additionally refuses to
-destroy a discovered key that resolves to a retained handle (`Erasure/ErasureService.cs:571`). The
+destroy a discovered key that resolves to a retained handle (`Erasure/ErasureService.cs:628`). The
 decrypt path needs no change, because the envelope carries the handle that produced it.
 
 What was kept reaches the signed certificate beside the framework's own store-kind exemptions
-(`Erasure/ErasureService.cs:643`). This is the part that makes the behaviour detectable from outside: a
+(`Erasure/ErasureService.cs:720`). This is the part that makes the behaviour detectable from outside: a
 certificate reporting a clean completion over data deliberately kept cannot be told from one over data
 destroyed, and nothing downstream ever learns which it was.
 
@@ -307,7 +397,7 @@ retention entry carries `ErasureException.RetainedKeyHandle`, the handle still p
 subject inside THAT aggregate type, in the form `IKeyManagementAdmin.DeleteKeyAsync` accepts. When the
 statutory period ends, destroying it is the whole of the release.
 
-It is written on the SAME pass that decides which handles to spare (`Erasure/ErasureService.cs:558`), from
+It is written on the SAME pass that decides which handles to spare (`Erasure/ErasureService.cs:600`), from
 the same map, so the set the erasure excluded and the set the record names are one iteration and cannot
 disagree. It discloses nothing new: the handle is composed from the data-subject hash the payload already
 states and a digest of the aggregate type the entry already names.
@@ -365,7 +455,7 @@ branch that issues a completion certificate is the only branch that does not run
 - A data-inventory discovery source is registered, or the host explicitly opted into
   `ErasureOptions.KeyShredOnlyErasure`. Coverage that was never looked for is not coverage.
 - At least one data location is registered. An empty registry is an absence of evidence, so a certificate
-  is not issued over one (`Erasure/ErasureService.cs:773`).
+  is not issued over one (`Erasure/ErasureService.cs:790`).
 - Every registered data location was reported erased by a named contributor. A contributor that reports
   success without naming the table-and-field pairs it erased discharges nothing.
 - No discovered store kind was left uncovered by a key destruction, a contributor or a declared exemption.
@@ -480,7 +570,7 @@ The event-sourcing guarantee document carries the full mechanism.
 differently, because only one of them is a misconfiguration.** An empty registry does not fail host start —
 a clean install is empty by definition, and refusing to boot would deadlock the host that must start in
 order to register — it is logged at startup and refuses certificate *issuance*. A registry that cannot be
-read fails host start (`Erasure/DependencyInjection/ErasureDiscoverySourceValidator.cs:101`) and, if it
+read fails host start (`Erasure/DependencyInjection/ErasureDiscoverySourceValidator.cs:128`) and, if it
 becomes unreadable later, surfaces the read failure at execution rather than reporting that nothing is
 registered.
 ### Erasure certificate integrity — what a signature on a certificate proves
@@ -728,8 +818,27 @@ same provisioning type, so the floor and the startup check report the same condi
 - **Do not scope the background sweeps.** Expiry of holds and draining of scheduled erasure requests are
   estate-wide by design. Scoping them to one tenant would stall erasure for every other tenant and make
   expired holds permanent.
-- **Single-tenant deployments need no action.** The tenant term applies only when multi-tenancy is
-  configured; existing rows are untouched and no migration is required.
+- **Single-tenant deployments need no action for the row-level tenant term.** It applies only when
+  multi-tenancy is configured; existing rows are untouched and no migration is required.
+- **Record a consumer-performed destruction under the handle your envelopes NAME.**
+  `IKeyDestructionLedger.RecordDestroyedGenerationAsync` requires the handle as well as the generation, and
+  the read asks about the handle the envelope carries. A destruction recorded under a different spelling of
+  the handle leaves those reads FAILING rather than reporting the erasure — the safe direction, and not the
+  one you intended. There is no way to record a destruction that answers for every handle, deliberately:
+  that is the shape that would let one key's destruction tombstone another's data.
+- **A custom `IKeyManagementProvider` MUST mint its generations from a cryptographic random source**, never
+  derive them from the handle, the data subject, a counter or a clock. `KeyGeneration.Mint` is the supported
+  entrance. The ledger's composite key means a derived generation no longer causes a false erasure claim
+  across handles, but a generation reused at ONE handle still would: it is how a re-provisioned key is told
+  from the material that was destroyed.
+- **An erasure request must name the same tenant the data was written under.** The per-subject
+  crypto-shred key handle carries the tenant as part of the key's identity, so an erasure filed for tenant
+  T destroys only T's key. In a multi-tenant deployment with `RequireTenant` enabled, the store records the
+  ambient tenant of the call that filed the request, so establishing the tenant scope is sufficient and
+  nothing further is required. With `RequireTenant` disabled, the store records the `TenantId` the request
+  carries, and a request naming a different tenant from the one whose ambient scope wrote the data will
+  destroy nothing while reporting a completed erasure. A request naming no tenant at all is treated as the
+  single-tenant default identity, which is the identity a single-tenant write resolves.
 - **Catch `DuplicateErasureRequestException`, never `InvalidOperationException`, to detect a re-filed
   request.** The base type is also raised by conditions meaning the request was *not* stored, so a caller
   branching on it treats an unprovisioned database as a request already on file and drops it.
@@ -771,6 +880,36 @@ same provisioning type, so the floor and the startup check report the same condi
 
 ## Evidence
 
+- **The ledger row names its handle** -- `ALedgerRowNamesItsHandleShould`:
+  `NotReportADestructionAtOneHandle_AsADestructionAtAnother` records a destruction at one handle and requires
+  a different handle's identically named generation to report NOT destroyed, with the liveness half in the
+  same arm so a ledger answering false for everything cannot satisfy it;
+  `NotTombstoneAnotherHandlesCiphertext_WhenAProviderDerivesOneGenerationForBoth` asks the same question
+  through the read path's own inputs, which is where a consumer meets it as a tombstone;
+  `RecordBothGenerations_WhenOneHandleIsDestroyedTwice` keeps the property the generation-alone key bought,
+  which keying on the handle ALONE would have lost; and `RequireAHandle_OnTheConsumerAssertedWrite` binds the
+  public write's refusal of an absent handle. Per provider and against real infrastructure, the same property
+  is `ErasureStoreConformanceTestKit.IsGenerationDestroyedAsync_ShouldNotReportOneHandlesDestructionForAnother`,
+  run by the in-memory, PostgreSQL and SQL Server conformance suites. Measured, not predicted: keying the
+  in-memory ledger on the generation alone turns three of the four unit arms and the conformance arm RED,
+  while every other arm in both suites stays green -- so nothing else in the suite was covering this.
+- **Cross-tenant crypto-shred isolation** -- `ATenantQualifiedSubjectKeyHandleShould`:
+  `TenantBsFieldsStillDecrypt_AfterTenantAErasesTheSameSubjectId` runs the interleaving named in the
+  guarantee above over the real stack -- the real keyed hasher, the real AES-GCM provider over a real
+  in-memory key store, and the real erasure service writing the real destruction ledger -- and requires
+  tenant B's field to still decrypt after tenant A's erasure of the same subject identifier has completed.
+  `TombstoneTenantAsOwnFields_WhenTenantAErasesItsSubject` is the liveness half, without which an erasure
+  that destroyed nothing at all would satisfy the first arm perfectly.
+  `MintADifferentKey_ForEachTenantSharingOneSubjectId` asserts the premise separately, so that a handle
+  collision and the data loss it causes are distinguishable failures rather than one aborted arm.
+  `DeriveDifferentHandles_ForTenantAndSubjectSplitsThatConcatenateIdentically` binds the length-prefixed
+  composition against the collision plain concatenation would introduce, and
+  `DeriveOneHandle_ForEverySpellingOfAnAbsentTenant` binds the write path's default identity to the
+  sentinel an untenanted erasure request is persisted as. Measured, not predicted: a derivation that
+  ignores its tenant argument turns the first and third arms RED -- the first naming tenant B's field as
+  `null` -- while the liveness arm stays GREEN, because under one shared key the erasing tenant's own
+  fields are still tombstoned. That is why both halves exist, and it is why a liveness-only arm could not
+  have caught this.
 - **Certificate integrity, claim by claim** — `EveryClaimOnTheCertificateIsSignedShould`:
   `Change_the_canonical_bytes_when_any_single_leaf_changes` varies each of the 26 leaves the payload and
   its nested records declare and requires the signed bytes to differ;

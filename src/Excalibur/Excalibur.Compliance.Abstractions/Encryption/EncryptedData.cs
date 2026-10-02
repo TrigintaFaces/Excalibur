@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 
 namespace Excalibur.Compliance;
 
@@ -58,6 +60,65 @@ public sealed record EncryptedData
 		}
 
 		return IsFieldEncrypted(data.AsSpan());
+	}
+
+	/// <summary>
+	/// Reads a stored envelope back into an <see cref="EncryptedData"/>, without decrypting it.
+	/// </summary>
+	/// <param name="framed">
+	/// The stored envelope bytes: the <see cref="MagicBytes"/>-prefixed form that
+	/// <see cref="EncryptedFieldBinding.TryReadEnvelope"/> yields for an annotated property.
+	/// </param>
+	/// <param name="envelope">The parsed envelope when this method returns <see langword="true"/>.</param>
+	/// <returns>
+	/// <see langword="true"/> when <paramref name="framed"/> is a readable envelope; otherwise
+	/// <see langword="false"/>.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This is what makes the crypto-shredding guarantee checkable from outside the framework.</b> That
+	/// guarantee is stated in terms of <see cref="KeyGeneration"/> -- a destruction ledger holds a row for the
+	/// generation a field's envelope names -- so a reader that cannot recover the generation from the stored
+	/// bytes cannot verify, audit or report an erasure except by attempting a decrypt and inferring the answer
+	/// from whether it succeeded. Parsing needs no key, no tenant and no configuration, so the question can be
+	/// asked of stored data alone, which is the form an audit takes.
+	/// </para>
+	/// <para>
+	/// <b>No exception on any input</b>, following <see cref="int.TryParse(string?, out int)"/>. Bytes that do
+	/// not carry <see cref="MagicBytes"/>, that are truncated, or whose body is not a complete envelope all
+	/// return <see langword="false"/> and leave <paramref name="envelope"/> <see langword="null"/>. A stored
+	/// value is read from a column the caller does not necessarily control, so malformed data is an expected
+	/// condition rather than a fault.
+	/// </para>
+	/// <para>
+	/// <b>Parsing is not validation of the ciphertext.</b> A <see langword="true"/> result says the envelope's
+	/// metadata was readable. Whether the payload still decrypts depends on whether the generation it names
+	/// survives, which is the question a destruction ledger answers -- and answering it is the reason to parse.
+	/// </para>
+	/// </remarks>
+	public static bool TryParse(ReadOnlySpan<byte> framed, [NotNullWhen(true)] out EncryptedData? envelope)
+	{
+		envelope = null;
+		if (!IsFieldEncrypted(framed))
+		{
+			return false;
+		}
+
+		try
+		{
+			envelope = JsonSerializer.Deserialize(
+				framed[MagicBytes.Length..],
+				EncryptedDataJsonContext.Default.EncryptedData);
+		}
+		catch (JsonException)
+		{
+			// Truncated, corrupt, or missing a member this record declares as required. Reported rather than
+			// thrown: the caller is inspecting bytes it did not write, and a parse that threw would force
+			// every auditing caller to wrap it in the try/catch this method already owns.
+			return false;
+		}
+
+		return envelope is not null;
 	}
 
 	/// <summary>

@@ -29,6 +29,8 @@ End-to-end GDPR sample demonstrating:
 3. **`AddGdprErasure(options => ...)`** registration
 4. **Erase-in-place** and **tombstone** patterns
 5. **`AddErasureRetention(...)`** - keeping a record the law requires you to keep, through an erasure
+6. **Crypto-shredding** - personal fields encrypted at rest under a per-subject key, read back as `null`
+   once that key is destroyed
 
 ## What it shows
 
@@ -199,6 +201,236 @@ the mapping instead would produce the same surviving record *silently* -- the er
 the data was there, so the certificate would not name it and the data subject would never be told their
 personal data lawfully persists.
 
+### 5. Crypto-shredding: erasing by destroying the key, not by overwriting the row
+
+**Two different erasure mechanisms are in this sample, and they must not be confused.**
+
+| | `/erase`, `/tombstone` | `/crypto-shred/walkthrough` |
+|---|---|---|
+| What is stored | the plaintext, until it is cleared | ciphertext, from the first write |
+| What erasure does | overwrites each `[PersonalData]` field | destroys one key; the stored bytes are untouched |
+| What a read returns after | the cleared value | `null`, the erasure tombstone |
+| Cost of erasing | one write per copy, in every store | one key destruction, however many copies exist |
+| Reaches a store you forgot to register | no | yes, if the data was encrypted under that key |
+
+The second is `Excalibur.Compliance`'s crypto-shredding. `POST /crypto-shred/walkthrough` demonstrates it
+on `SupportNote` (`Domain/SupportNote.cs`), a record stored outside the event store.
+
+#### The guarantee, in one sentence
+
+**A personal field decrypts to `null` only where a durable destruction ledger holds a row for the key
+generation that field's envelope names.**
+
+Not "the key is missing". Absence cannot be the test, and the reason is concrete: a key vault with a
+recovery window reports a soft-deleted key as absent for the whole window, while a single recover call
+brings it back. A tombstone derived from absence would tell a data subject their data was erased while it
+was one API call from being readable -- and nothing downstream could tell. So the read asks a ledger
+instead, and a ledger row is written **only after** an irreversible destruction this deployment performed
+has already completed. **The row's existence *is* the destruction statement.**
+
+A key that merely cannot be reached makes the read **throw**. "We lost it" surfaces as an error; it never
+surfaces as "we erased it".
+
+#### What the walkthrough prints
+
+```jsonc
+{
+  "keyHandle": "F4883C011A9BB393598E053BDC78C5301BE20DCF0D75243F0EAF838E75DC88A5",
+  "keyGeneration": "e807755c9b2932f5f1c261cae2c36264",
+
+  "storedAtRest": {                   // what the database holds
+    "marker": "EXCR1:",               // EncryptedFieldBinding.StringEnvelopePrefix
+    "fullName": "EXCR1:RVhDUnsiQ2lwaGVydGV4dCI6Iks4N1JSdnNlYTlaQ2pRPT0iLCJLZXlJZCI6IkY0ODgzQzAxMU... (494 chars total)",
+    "subject": "Replacement wing mirror"            // not annotated, so plaintext
+  },
+
+  "beforeErasure": {                  // the same stored bytes, decrypted
+    "ledgerSaysGenerationDestroyed": false,
+    "fullName": "Erin Vance"
+  },
+
+  "erasure": { "status": "Completed" },
+
+  "afterErasure": {                   // the SAME stored bytes, read again
+    "ledgerSaysGenerationDestroyed": true,
+    "ledgerSaysUnrelatedGenerationDestroyed": false, // the control
+    "fullName": null,                                // the erasure tombstone
+    "subject": "Replacement wing mirror"             // still loads
+  }
+}
+```
+
+Read it as four claims, each checkable from the response rather than taken on trust:
+
+- `storedAtRest` is ciphertext. The marker is what distinguishes a stored envelope from a value that was
+  never encrypted; bare Base64 cannot express that difference.
+- `beforeErasure` decrypts to the plaintext, so the `null` later is not a record that was never readable.
+- `afterErasure.ledgerSaysGenerationDestroyed` is the **reason** for the `null`, printed beside it.
+- `ledgerSaysUnrelatedGenerationDestroyed` is the control: a key generation minted during the request and
+  never destroyed answers `false` through the same call, so the `true` above is a lookup, not a constant.
+
+#### Marking a record
+
+Two attributes, and both are needed. `[DataSubjectId]` names the property identifying *whose* key
+protects the record; `[PersonalData]` names each field encrypted under it.
+
+```csharp
+public sealed record SupportNote
+{
+    [DataSubjectId]
+    public string CustomerId { get; set; } = string.Empty;
+
+    [PersonalData(Category = PersonalDataCategory.Identity)]
+    public string? FullName { get; set; }
+
+    [PersonalData(Category = PersonalDataCategory.ContactInfo)]
+    public string? EmailAddress { get; set; }
+
+    // Not annotated -- stays plaintext, still reads after erasure.
+    public string Subject { get; set; } = string.Empty;
+}
+```
+
+A type carrying `[DataSubjectId]` but no `[PersonalData]` field is **refused**, as is one whose declared
+identifier is null or blank: both states mean personal data with no key to protect it, so proceeding would
+persist plaintext. A type with no `[DataSubjectId]` is left untouched -- per-subject protection is
+additive over whatever at-rest encryption already applies.
+
+#### Registration
+
+Three calls, each a separate decision:
+
+```csharp
+// 1. The encryption provider registry and an AES-256-GCM provider over your key management.
+//    Crypto-shredding registers neither and will not start without them.
+builder.Services.AddEncryption(encryption => encryption
+    .UseInMemoryKeyManagement("sample-inmemory", options => options.AutoGenerateDefaultKey = true)
+    .SetAsPrimary("sample-inmemory"));
+
+// 2. An erasure store. It also supplies IKeyDestructionLedger, from the same instance.
+builder.Services.AddInMemoryErasureStore();
+
+// 3. Crypto-shredding itself -- AFTER the event store, because encryption is the innermost decorator.
+builder.Services.AddEventSourcingCryptoShredding();
+```
+
+**On a host with an event store, use `AddEventSourcingCryptoShredding()`, not the bare
+`AddCryptoShredding()`.** The bare call registers the services without wiring the store, and a start-up
+gate refuses that combination by name: annotated event fields would persist as plaintext and destroying a
+subject key would erase nothing. `AddCryptoShredding()` on its own is for a host that encrypts fields it
+manages itself, with no event store.
+
+**Neither call registers the key-destruction ledger, and that omission is deliberate.** The ledger comes
+from whatever performs the destruction. Register no ledger at all and the host **refuses to start**,
+naming `IKeyDestructionLedger` -- it does not fail later, on the first read of an encrypted field.
+
+**A deployment that encrypts personal data at rest and never destroys a subject key** -- an encrypted
+event store with no erasure subsystem -- calls **`AddCryptoShreddingWithoutErasure()`** instead of
+registering an erasure store. That supplies a ledger holding no rows, so nothing ever tombstones; in such
+a deployment that is the true answer rather than a stand-in. Registering both is also refused at start-up:
+every ledger registration is a `TryAdd`, so in one of the two orders an always-false ledger would stand in
+front of a real erasure store, and the deployment would erase while never reporting it.
+
+#### Two boundaries worth knowing before you rely on this
+
+- **The walkthrough also gives its subject an event-sourced `CustomerProfile`, and that is not
+  decoration.** This host registers its data locations on the event store, and an erasure cannot reach
+  `Completed` while a *registered* location goes undischarged. A subject with no event-store data has its
+  key destroyed and its request still ends `Failed`, naming the locations nobody erased. That is the
+  coverage model working, not a bug.
+- **The `SupportNote` lives in a store this host never registered as a data location**, so no contributor
+  visits it and the certificate makes no claim about it -- yet its fields become unreadable anyway,
+  because the key is gone. That is the value of crypto-shredding and also its boundary: it reaches
+  ciphertext written under the destroyed key wherever that ciphertext lives, and it is **not** a
+  substitute for a data inventory.
+
+### 6. Multi-tenancy: whose key is it?
+
+`POST /crypto-shred/two-tenants` answers the question the single-tenant walkthrough cannot: **a tenant is
+part of a subject key's identity, not a filter applied around it.**
+
+Data-subject identifiers are yours, taken from your own entities -- an email address, a customer number,
+an external account id -- so in an ordinary multi-tenant deployment **they repeat across tenants.** If a
+key handle were constant in the tenant, two tenants holding a record for the same identifier would share
+one key, and either one erasing that data subject would destroy it for both. The second tenant would then
+read `null` over data nobody asked to erase, while this framework reported a lawful erasure of it.
+
+The endpoint writes the same `[DataSubjectId]` value as three different tenants, prints all three key
+handles, erases the data subject in one of them, and reads all three records back:
+
+```jsonc
+{
+  "sharedDataSubjectId": "90a767d4-...",   // one identifier, held by all three
+  "allKeyHandlesDiffer": true,             // the whole point
+  "erasure": { "tenant": "untenanted", "status": "Completed" },
+  "tenants": [
+    { "tenant": "untenanted",      "thisTenantErased": true,
+      "emailAddressBefore": "erin@untenanted.example",
+      "emailAddressAfter":  null,                              // tombstoned
+      "ledgerSaysGenerationDestroyed": true },
+    { "tenant": "tenant-contoso",  "thisTenantErased": false,
+      "emailAddressAfter":  "erin@tenant-contoso.example",     // untouched
+      "ledgerSaysGenerationDestroyed": false },
+    { "tenant": "tenant-fabrikam", "thisTenantErased": false,
+      "emailAddressAfter":  "erin@tenant-fabrikam.example",    // untouched
+      "ledgerSaysGenerationDestroyed": false }
+  ]
+}
+```
+
+Both halves are on that response and both are needed. The other tenants still decrypting is the **safety**
+half; the erasing tenant's own field reading `null` -- with the ledger row that is the only thing entitling
+it to -- is the **liveness** half. An erasure that had silently stopped working altogether would satisfy
+the safety half on its own.
+
+#### Three layers, three different answers to "which tenant?"
+
+This is the part worth copying carefully, because the answers are deliberately not the same:
+
+| Layer | Takes its tenant from | Why |
+|---|---|---|
+| **Write** (`SubjectFieldCryptor`, `IFieldEncryptor`) | the **ambient** tenant | the writer is operating as a tenant, so that is the authoritative one. Open it with `TenantContextHolder.BeginScope(tenantId)` |
+| **Erasure** | the tenant **recorded against the request** | a background processor's ambient scope is no evidence of whose data a request was about |
+| **Read** (decrypt) | the **stored envelope** | a projection rebuild or a background replay has no ambient tenant, and a reader's tenant must never be mistaken for the writer's |
+
+Two consequences follow, and neither is obvious from the call signatures:
+
+- **An erasure must be *filed* by the tenant that owns it**, inside that tenant's
+  `TenantContextHolder.BeginScope`. The erasure store records a request against the **ambient** tenant --
+  so that a caller cannot file an erasure against a tenant it is not operating as -- which makes
+  `ErasureRequest.TenantId` a declaration rather than the control. File it outside a scope and the request
+  is recorded against the untenanted partition, which derives a different key handle, destroys material no
+  data was written under, and still reports `Completed`.
+- **The status must be *polled* inside the same scope.** A tenant-scoped request is readable only by the
+  tenant that owns it, so a status read taken from outside reports nothing and looks like a stall.
+
+#### Host registration
+
+A host that varies the ambient tenant needs a tenant context that observes it, which the single-tenant
+default deliberately does not:
+
+```csharp
+builder.Services.AddTenantContext(o => o.RequireTenant = true);
+builder.Services.AddSingleton<ITenantContext>(TenantContextHolder.AmbientContext);
+```
+
+Both lines earn their place. A resolving tenant context while `RequireTenant` is `false` is **refused at
+start-up**, because that combination applies the single-tenant schema while routing two tenants through
+the same keyed rows. And `TenantContextHolder.AmbientContext` is used rather than the context
+`AddTenantContext()` installs on its own, because outside a scope it resolves the reserved **untenanted
+partition** instead of leaving the tenant unresolved -- which matters here, since much of this host runs
+outside any scope: the start-up seeding, the erase/tombstone endpoints, and the background erasure
+scheduler. The untenanted partition is a partition this framework names, and reads and writes there are
+confined to it exactly as a named tenant's are.
+
+> **Scope of this walkthrough.** It erases in the **untenanted** partition, which is the one partition the
+> background erasure scheduler can carry a request for: the scheduler establishes no ambient tenant, so a
+> request filed by a *named* tenant is found by its scan and then reported `Request not found` by every
+> tenant-scoped store call that follows it. Key *separation* -- the property this endpoint exists to show --
+> is demonstrated for all three tenants, named ones included. Driving an erasure to completion from a named
+> tenant needs the scheduler to establish the scope its own request recorded, and there is no public API to
+> drive one by hand in the meantime.
+
 ## Run locally
 
 ```bash
@@ -223,6 +455,14 @@ curl http://localhost:5000/customers/22222222-2222-2222-2222-222222222222/privac
 # 6. Run the declared-retention walkthrough: one erasure across an erasable aggregate and a
 #    retained one, reporting what is left of each and what the certificate says
 curl -X POST http://localhost:5000/retention/walkthrough
+
+# 7. Run the crypto-shredding walkthrough: a personal field encrypted at rest under its data
+#    subject's own key, then read back as null once that key is destroyed
+curl -X POST http://localhost:5000/crypto-shred/walkthrough
+
+# 8. Run the multi-tenant walkthrough: three tenants holding a record for the SAME data-subject
+#    id under three different keys, then one tenant's erasure -- which leaves the other two readable
+curl -X POST http://localhost:5000/crypto-shred/two-tenants
 ```
 
 ### File layout
@@ -232,8 +472,12 @@ GdprCompliance/
 ├── Commands/
 │   ├── ErasureCommands.cs             // EraseCustomerCommand, TombstoneCustomerCommand
 │   └── ErasureHandlers.cs             // IActionHandler<T> for each command
+├── CryptoShredding/
+│   ├── CryptoShredWalkthroughEndpoint.cs  // POST /crypto-shred/walkthrough
+│   └── TwoTenantCryptoShredEndpoint.cs    // POST /crypto-shred/two-tenants
 ├── Domain/
 │   ├── Customer.cs                    // [PersonalData]-annotated entity
+│   ├── SupportNote.cs                 // [DataSubjectId] + [PersonalData]: the crypto-shredded record
 │   ├── ICustomerRepository.cs         // in-memory customer store
 │   └── Events/
 │       └── CustomerErasureEvents.cs   // CustomerErasedEvent / CustomerTombstonedEvent
@@ -263,6 +507,14 @@ GdprCompliance/
 | `ErasureRetention` / `LegalHoldBasis` | `Excalibur.Compliance.Abstractions` | Declared retention + its Article 17(3) ground |
 | `AddErasureRetention(...)` | `Excalibur.Compliance` | Declares the aggregate types an erasure must not destroy |
 | `ErasureCertificate` / `ErasureException` | `Excalibur.Compliance.Abstractions` | Signed erasure record; retentions named on it |
+| `[DataSubjectId]` | `Excalibur.Compliance.Abstractions` | Names the property identifying whose key protects a record |
+| `SubjectFieldCryptor` | `Excalibur.Compliance` | Encrypts/decrypts a record's `[PersonalData]` fields in place |
+| `ISubjectKeyManager` / `SubjectKey` | `Excalibur.Compliance.Abstractions` | Resolves (and mints) a subject's key handle and generation |
+| `IKeyDestructionLedger` | `Excalibur.Compliance.Abstractions` | The durable record of destroyed key generations -- the sole basis for a tombstone |
+| `EncryptedFieldBinding` | `Excalibur.Compliance.Abstractions` | The stored-envelope marker distinguishing ciphertext from plaintext |
+| `AddEncryption(...)` | `Excalibur.Compliance` | Encryption provider registry + the AES-256-GCM provider |
+| `AddEventSourcingCryptoShredding()` | `Excalibur.EventSourcing` | Per-subject crypto-shredding, with the event store wired for at-rest field encryption |
+| `AddCryptoShreddingWithoutErasure()` | `Excalibur.Compliance` | Declares a deployment that encrypts at rest and destroys no subject key |
 | `IAggregateDataSubjectMapping` | `Excalibur.EventSourcing` | Maps a data subject to their aggregates |
 | `UseEventStoreErasure<T>()` | `Excalibur.EventSourcing` | Opts the event store into erasure |
 

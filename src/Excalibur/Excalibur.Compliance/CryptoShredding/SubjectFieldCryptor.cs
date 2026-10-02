@@ -338,12 +338,15 @@ public sealed class SubjectFieldCryptor
         return framed;
     }
 
-    private static EncryptedData DeserializeEnvelope(byte[] framed)
-    {
-        var json = framed.AsSpan(EncryptedData.MagicBytes.Length);
-        return JsonSerializer.Deserialize(json, EncryptionJsonContext.Default.EncryptedData)
-            ?? throw new EncryptionException(Resources.Encryption_EncryptedDataEnvelopeDeserializeFailed);
-    }
+    // Delegates to the public parser rather than keeping a second copy of the same read. Both decode the same
+    // magic-prefixed frame this file writes, and a consumer now reads stored envelopes through
+    // EncryptedData.TryParse to ask which key generation one names -- so a format change applied here and not
+    // there would leave the framework and its consumers disagreeing about the same bytes. One reader means the
+    // round trip through the public surface is the same round trip the read path performs.
+    private static EncryptedData DeserializeEnvelope(byte[] framed) =>
+        EncryptedData.TryParse(framed, out var envelope)
+            ? envelope
+            : throw new EncryptionException(Resources.Encryption_EncryptedDataEnvelopeDeserializeFailed);
 
     // The one unavoidable trim-unsafe hop: an arbitrary record arrives as `object`, so its runtime type from
     // `object.GetType()` carries no DAM guarantee. Narrowly suppressed here (not blanket over GetPlan) — GetPlan

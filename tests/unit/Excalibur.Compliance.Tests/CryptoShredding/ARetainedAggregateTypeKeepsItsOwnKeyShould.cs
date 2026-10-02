@@ -40,6 +40,10 @@ namespace Excalibur.Compliance.Tests.CryptoShredding;
 [Trait("Component", "Compliance")]
 public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 {
+	// These arms are single-tenant: an unconfigured ambient context resolves to the framework default
+	// identity, so that is the tenant every handle in this file is derived for.
+	private static readonly TenantId SingleTenant = new(TenantDefaults.DefaultTenantId);
+
 	private const string Subject = "subject-with-a-sales-record";
 	private const string SalesRecord = "SalesRecord";
 	private const string Salesperson = "a-salesperson-on-the-same-record";
@@ -167,7 +171,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 
 		envelope.KeyId.ShouldNotBeNullOrEmpty("the arm is vacuous unless a handle was produced");
 		envelope.KeyId.ShouldNotBe(
-			hasher.HashDataSubjectId(Subject),
+			SubjectKeyHandle.ForSubject(SingleTenant, Subject, hasher).Value,
 			"the type is declared by SOMEONE, so the write widens. Whose declaration it was is not a "
 			+ "question the write path can answer, and it does not try");
 	}
@@ -339,12 +343,16 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 		RetentionPeriod = TimeSpan.FromDays(365 * 6),
 	};
 
-	// Exactly what the erasure destroys: the data subject's own key handle, which is the subject-id hash.
+	// Exactly what the erasure destroys: the data subject's own key handle for the tenant whose erasure this
+	// is. These arms are single-tenant, so that is the framework default identity -- the same one the write
+	// path resolves from an unconfigured ambient context. Destroying the bare subject-id hash, as this helper
+	// used to, would destroy a key nothing was written under and leave every arm below satisfied by an
+	// erasure that achieved nothing.
 	private static async Task EraseAsync(IServiceProvider services, string subjectId = Subject)
 	{
 		var hasher = services.GetRequiredService<IDataSubjectHasher>();
 
-		await DestroyAndRecordAsync(services, hasher.HashDataSubjectId(subjectId));
+		await DestroyAndRecordAsync(services, SubjectKeyHandle.ForSubject(SingleTenant, subjectId, hasher).Value);
 	}
 
 	/// <summary>
@@ -383,7 +391,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 
 		if (outcome.State == KeyDestructionState.Completed && generation is not null)
 		{
-			await ledger.RecordDestroyedGenerationAsync(generation.Value.ToString(), cancellationToken);
+			await ledger.RecordDestroyedGenerationAsync(handle, generation.Value.ToString(), cancellationToken);
 		}
 	}
 

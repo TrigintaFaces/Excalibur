@@ -107,15 +107,22 @@ One change makes a monitored value go from healthy to never-synchronised, and th
   provider's capabilities reachable through the decorator -- notably the durable-key capability, whose
   absence made a cloud-backed deployment read as a volatile key store.
 
-One change requires DDL before your application will start, and only on a SQL erasure store:
+One change requires a schema migration before your application will start, and only on a SQL erasure store
+-- and it **discards every historical destruction record**:
 
-- **[Erasure destroyed-key record](erasure-destroyed-key-record.md)** -- The erasure now records which keys
-  it destroyed, so a retry can attest the coverage its first pass achieved. Before this, an erasure that
-  destroyed a subject's key and then failed part-way could **never be reported complete** -- the key store
-  reports an already-destroyed key as absent, which is the same answer it gives for a key that never
-  existed, so the retry attested nothing for it. **The SQL Server and PostgreSQL erasure stores need one new
-  table and refuse to start without it**, naming it; re-running the shipped idempotent schema script is
-  enough, and the note carries the DDL. Hosts on the in-memory store have nothing to do.
+- **[Erasure destroyed-key record](erasure-destroyed-key-record.md)** -- The erasure now records which key
+  **generations** it destroyed, so a retry can attest the coverage its first pass achieved and a read can
+  report the subject's erasure at all. Before this, an erasure that destroyed a subject's key and then failed
+  part-way could **never be reported complete** -- the key store reports an already-destroyed key as absent,
+  which is the same answer it gives for a key that never existed, so the retry attested nothing for it.
+  **The SQL Server and PostgreSQL erasure stores need two tables and refuse to start without them**, naming
+  what is missing. A fresh database gets the final shape from the shipped `001` schema script; an existing
+  one runs the shipped `004`/`005` ledger migration -- which **drops and recreates** the destroyed-keys
+  table, because its old rows carry no generation and one cannot be back-filled. **Every past request then
+  reports an empty destroyed-handle breakdown**; signed completion certificates are untouched and still
+  verify, and the request's own keys-destroyed count survives. **Let in-flight erasures finish first.**
+  `IErasureStore` gained two members, `RecordKeyDestroyedAsync` changed signature, and a store must now also
+  implement `IKeyDestructionLedger`. Hosts on the in-memory store have nothing to do.
 
 - **[Conformance kits gained arms](conformance-kit-arms-added.md)** -- The shipped saga-store,
   positioned-projection-store, key-management-provider and erasure-store conformance kits each gained arms. **Only hosts that derive a test suite from
@@ -144,9 +151,9 @@ One change makes field-encrypted data at rest unreadable, and it is the one to r
   **Decrypt any field-encrypted data you need to keep BEFORE upgrading**, then re-encrypt; there is no read
   path for the earlier layout, because the generation it needs was never written down. Encrypted audit
   logs and the outbox, inbox and store decorators are unaffected. `ISubjectKeyManager.GetOrCreateKeyAsync`
-  now returns `SubjectKey`, `IKeyDestructionStatusProvider` gained a generation-scoped member, and
-  `KeyMetadata` gained `Generation` -- each a compile error, and only for hosts that implement those
-  contracts themselves.
+  now returns `SubjectKey`, and `KeyMetadata` gained `Generation` -- a new `KeyGeneration` type, minted from
+  a CSPRNG and **stable across a rotation**, so a per-version backend identifier is not one. Each is a
+  compile error, and only for hosts that implement those contracts themselves.
 
 Two changes are behavioural only -- nothing stops compiling, so they are the ones to read rather than
 discover:
@@ -171,20 +178,26 @@ One change is a compile error in your own code, and only if you write against th
   `IFieldEncryptor.EncryptAsync` and `SubjectFieldCryptor.EncryptFieldsAsync` each gained a parameter, and
   `EventStoreErasureContributor`'s two constructors became one. **Only hosts that implement those
   interfaces, call the cryptor directly, or construct the contributor by hand are affected** — a host that
-  registers through `AddCryptoShredding()` has nothing to change. The read path is unchanged.
+  registers through `AddCryptoShredding()` has nothing to change *for this change*, and the read path is
+  unchanged by it. It does have something to change for the next one: that call now requires a ledger.
 
-One change makes the crypto-shredding read path stop claiming an erasure it cannot confirm:
+One change makes the crypto-shredding read path stop claiming an erasure it cannot confirm, and **refuses to
+start** a composition that cannot state one:
 
 - **[A destroyed key is stated, never inferred](key-destruction-is-stated-not-inferred.md)** -- A `null`
   from `IFieldEncryptor.DecryptAsync` asserts that a field was lawfully crypto-shredded, and it used to be
   produced from the *absence* of a key. A backend with a recovery window reports a deleted-but-restorable
   key as not found — Azure Key Vault does so for a soft-deleted key's whole retention period — so for that
-  window every read of the subject's fields claimed an erasure over data one call could restore. The
-  tombstone now requires an affirmative statement of destruction from the key provider, asked of the exact
-  key version the ciphertext names, and `IKeyDestructionStatusProvider` gained a version-scoped overload
-  for it. **Only hosts that implement that capability themselves are affected** — all five providers in the
-  box implement it. On a provider that cannot answer, a read of an erased subject now fails loudly instead
-  of reporting an erasure nothing confirmed.
+  window every read of the subject's fields claimed an erasure over data one call could restore. **The
+  tombstone now comes from a durable destruction record** — `IKeyDestructionLedger`, keyed on the key
+  generation the envelope names — and the read path asks the key backend nothing: a backend retains nothing
+  about material it never held, so *destroyed* and *never here* are the same observation there at every
+  granularity. **`AddCryptoShredding()` and `AddEventSourcingCryptoShredding()` now refuse to start unless a
+  ledger is registered**, which an erasure store supplies; a deployment that encrypts personal data at rest
+  and never destroys a subject key calls `AddCryptoShreddingWithoutErasure()` instead, and registering both
+  is refused. `IKeyDestructionStatusProvider` is back to **one** member and is now asked only by erasure
+  verification, about a handle, at completion — if an earlier note had you add a version-scoped or
+  generation-scoped overload, delete it.
 
 One change needs a **database migration** and will stop your application starting until you run it, and it
 also touches any code that reads an erasure certificate's retention entries:

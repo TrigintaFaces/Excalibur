@@ -428,7 +428,7 @@ public sealed partial class SqlServerErasureStore
 			WHERE r.RequestId = @RequestId{tenantPredicate}
 			  AND NOT EXISTS (
 				  SELECT 1 FROM {_options.FullDestroyedKeysTableName} d
-				  WHERE d.KeyGeneration = @KeyGeneration)";
+				  WHERE d.KeyHandle = @KeyHandle AND d.KeyGeneration = @KeyGeneration)";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -457,9 +457,8 @@ public sealed partial class SqlServerErasureStore
 				// zero rows are "the generation was already on file" (benign) and "no such request in this
 				// tenant" (not benign, and the caller is about to attest a destruction on a record that does not
 				// exist). Asking whether the REQUEST exists separates them exactly. Asking whether the GENERATION
-				// exists is a proxy, and the wrong one: with the ledger keyed on the generation alone, a
-				// generation on file under any other request would answer yes and let a bad requestId pass as
-				// benign.
+				// exists is a proxy, and the wrong one: a pair on file under any other request would answer yes
+				// and let a bad requestId pass as benign.
 				var requestExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
 					$"SELECT COUNT(1) FROM {_options.FullRequestsTableName} r "
 					+ $"WHERE r.RequestId = @RequestId{tenantPredicate}",
@@ -541,30 +540,34 @@ public sealed partial class SqlServerErasureStore
 	}
 
 	/// <inheritdoc />
-	public async Task RecordDestroyedGenerationAsync(string keyGeneration, CancellationToken cancellationToken)
+	public async Task RecordDestroyedGenerationAsync(
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
 		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		// NO request and NO handle, and they are NULL rather than a sentinel because the caller genuinely has
-		// neither -- a consumer who destroyed a key through their own process has no erasure request to name.
+		// NO request, and it is NULL rather than a sentinel because the caller genuinely has none -- a consumer
+		// who destroyed a key through their own process has no erasure request to name. The HANDLE is supplied,
+		// because it is part of the ledger's key and a caller asserting a destruction knows what it destroyed.
 		// The provenance column is what records that this row rests on the caller's assertion; it is not
-		// inferred from the nulls.
+		// inferred from the null request.
 		//
 		// NOT gated on a request row existing, which is the one structural difference from the framework's own
 		// write, and it is the whole point of this member: there is no request. The evidence is the caller's
 		// assertion, which the contract states they own.
 		//
-		// NOT EXISTS plus the duplicate-key filter below, so re-asserting a generation already on file is a
-		// no-op and the FIRST instant stands. A later assertion must not move a recorded destruction's
-		// timestamp.
+		// NOT EXISTS plus the duplicate-key filter below, so re-asserting a pair already on file is a no-op
+		// and the FIRST instant stands. A later assertion must not move a recorded destruction's timestamp.
 		var sql = $@"
 			INSERT INTO {_options.FullDestroyedKeysTableName} (KeyGeneration, RequestId, KeyHandle, DestroyedAt, RecordedBy)
-			SELECT @KeyGeneration, NULL, NULL, @Now, '{RecordedBy.CallerAssertion}'
+			SELECT @KeyGeneration, NULL, @KeyHandle, @Now, '{RecordedBy.CallerAssertion}'
 			WHERE NOT EXISTS (
 				SELECT 1 FROM {_options.FullDestroyedKeysTableName} d
-				WHERE d.KeyGeneration = @KeyGeneration)";
+				WHERE d.KeyHandle = @KeyHandle AND d.KeyGeneration = @KeyGeneration)";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -575,7 +578,7 @@ public sealed partial class SqlServerErasureStore
 			// it did not would see the subject's reads fail with no indication why.
 			_ = await connection.ExecuteAsync(new CommandDefinition(
 				sql,
-				new { KeyGeneration = keyGeneration, Now = DateTimeOffset.UtcNow },
+				new { KeyHandle = keyHandle, KeyGeneration = keyGeneration, Now = DateTimeOffset.UtcNow },
 				cancellationToken: cancellationToken,
 				commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 		}
@@ -587,8 +590,12 @@ public sealed partial class SqlServerErasureStore
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<bool> IsGenerationDestroyedAsync(string keyGeneration, CancellationToken cancellationToken)
+	public async ValueTask<bool> IsGenerationDestroyedAsync(
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
 		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -597,19 +604,22 @@ public sealed partial class SqlServerErasureStore
 		// whole PRIMARY KEY, so it already selects at most one row; a tenant term on such a statement cannot
 		// admit a foreign row and its only reachable effect is turning the correct row into none. Here that
 		// effect is the catastrophic one in reverse: a read of a genuinely erased subject would stop reporting
-		// their erasure and start failing, permanently. A generation is minted by the key backend and is not
-		// derivable from a subject, so one tenant cannot name another's.
+		// their erasure and start failing, permanently. The HANDLE is a KEY COMPONENT and not a tenant term:
+		// it is what makes "one tenant cannot name another's row" true by construction. This comment used to
+		// rest that claim on a generation being minted by the backend and not derivable from a subject, which
+		// is true of every shipped provider and is NOT something a consumer-supplied one is obliged to satisfy.
 		//
 		// The intents table is NOT named here, and must never be: a staged generation describes material that
 		// may still be live.
-		var sql = $"SELECT COUNT(1) FROM {_options.FullDestroyedKeysTableName} WHERE KeyGeneration = @KeyGeneration";
+		var sql = $"SELECT COUNT(1) FROM {_options.FullDestroyedKeysTableName} "
+			+ "WHERE KeyHandle = @KeyHandle AND KeyGeneration = @KeyGeneration";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var found = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
 			sql,
-			new { KeyGeneration = keyGeneration },
+			new { KeyHandle = keyHandle, KeyGeneration = keyGeneration },
 			cancellationToken: cancellationToken,
 			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
@@ -1261,14 +1271,6 @@ public sealed partial class SqlServerErasureStore
 	];
 
 	/// <summary>
-	/// Indicates whether a SQL Server error is a primary-key or unique-index violation (2627 / 2601).
-	/// </summary>
-	/// <remarks>
-	/// Used as an exception filter so only this one condition is translated. A broad catch would report
-	/// an unrelated failure - a dropped connection, a timeout, a check constraint - as a duplicate, which
-	/// is worse than not translating at all: the caller would be told the row exists when it does not.
-	/// </remarks>
-	/// <summary>
 	/// The ledger's provenance values. Stored as text because the audience for this table is a compliance
 	/// auditor reading rows directly, and a self-describing value needs no lookup to interpret.
 	/// </summary>
@@ -1287,6 +1289,14 @@ public sealed partial class SqlServerErasureStore
 		public const string CallerAssertion = "caller-assertion";
 	}
 
+	/// <summary>
+	/// Indicates whether a SQL Server error is a primary-key or unique-index violation (2627 / 2601).
+	/// </summary>
+	/// <remarks>
+	/// Used as an exception filter so only this one condition is translated. A broad catch would report
+	/// an unrelated failure - a dropped connection, a timeout, a check constraint - as a duplicate, which
+	/// is worse than not translating at all: the caller would be told the row exists when it does not.
+	/// </remarks>
 	private static bool IsDuplicateKeyViolation(SqlException ex)
 		=> ex.Number is 2627 or 2601;
 
@@ -1375,11 +1385,20 @@ public sealed partial class SqlServerErasureStore
 		// an erasure this framework performed, and it is the sole basis on which a read may report a field as
 		// erased.
 		//
-		// The PRIMARY KEY is the GENERATION ALONE. A generation is minted once and never reused, so one
-		// generation is one destruction and two rows for it are a contradiction the database refuses -- which
-		// DISSOLVES a retried erasure, two erasures of one subject, and a handle reused by a different subject
-		// rather than defending against each. RequestId and KeyHandle ride along as audit attributes and are
-		// never key components; the read predicate names neither.
+		// THE PRIMARY KEY IS THE PAIR (handle, generation), and this paragraph used to argue for the
+		// GENERATION ALONE -- that it "is minted once and never reused, so one generation is one
+		// destruction", with the handle riding along as an audit attribute and never a key component.
+		// Every clause of that was true of the SHIPPED providers and none of it was enforced. A
+		// generation is minted once BY EVERY PROVIDER WE SHIP; a consumer-supplied provider may DERIVE
+		// one instead, and the parse accepts any 32 hex characters because it checks shape and not
+		// entropy. Two distinct handles would then share one row, and one tenant's destruction would
+		// answer for another tenant's live key.
+		//
+		// So the generation stays in the key, for the reason the old paragraph gave -- a row's existence
+		// IS the destruction statement -- and the KeyHandle joins it, which makes the assumption
+		// unnecessary rather than documented. Keying on the handle ALONE would be wrong for the reason
+		// the old paragraph feared: it would drop a second destruction at one handle. The pair admits
+		// many generations per handle and refuses two rows for one pair.
 		var createDestroyedKeysTableSql = $@"
 			IF NOT EXISTS (SELECT 1 FROM sys.tables t
 				JOIN sys.schemas s ON t.schema_id = s.schema_id
@@ -1390,16 +1409,21 @@ public sealed partial class SqlServerErasureStore
 					-- ordinally. A case-insensitive collation would treat two distinct generations as one, and
 					-- one destroyed generation would then answer for a different, LIVE one.
 					KeyGeneration NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
-					-- NULLABLE, because a destruction asserted by the CONSUMER through the ledger's public
-					-- write has no erasure request and no handle to name. Audit attributes either way; the
-					-- read predicate names neither.
+					-- NULLABLE: a destruction asserted by the CONSUMER has no erasure request to name. The
+					-- HANDLE is not optional -- it is half the primary key, and a caller asserting a
+					-- destruction knows what it destroyed.
 					RequestId UNIQUEIDENTIFIER NULL,
-					KeyHandle NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
+					KeyHandle NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
 					DestroyedAt DATETIMEOFFSET NOT NULL,
 					-- WHO asserted the destruction, stated explicitly rather than inferred from the nulls
 					-- above. Deriving a fact from a missing value is the reasoning this table exists to replace.
 					RecordedBy NVARCHAR(32) NOT NULL,
-					CONSTRAINT PK_{_options.DestroyedKeysTableName} PRIMARY KEY (KeyGeneration)
+					-- THE PAIR, not the generation alone. The generation, because it is minted once and never
+					-- reused, so a row's existence IS the destruction statement. The handle, because keying on
+					-- the generation alone rests on an assumption nothing enforces -- that one generation
+					-- identifies material uniquely across every handle -- which a consumer-supplied provider
+					-- deriving its generations would break, giving two tenants' distinct keys one row.
+					CONSTRAINT PK_{_options.DestroyedKeysTableName} PRIMARY KEY (KeyHandle, KeyGeneration)
 				);
 				-- The retry reads this table by request to learn which handles its earlier passes destroyed,
 				-- and that is no longer the primary key, so it needs its own index.

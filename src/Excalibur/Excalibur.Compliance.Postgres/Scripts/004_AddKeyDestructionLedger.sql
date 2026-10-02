@@ -41,34 +41,58 @@
 -- record of which handles its earlier passes destroyed, so it can no longer be
 -- reported complete and will need re-filing. Let in-flight erasures finish
 -- before applying this.
+--
+-- THE TRIGGER IS THE PRIMARY-KEY SHAPE, not the presence of a column, and that
+-- matters for idempotency. The ledger has had two earlier shapes: one keyed on
+-- (request_id, key_handle) with no generation at all, and one keyed on the
+-- GENERATION alone. Guarding on "does a generation column exist" would skip this
+-- script entirely on the second of those, leaving the primary key un-migrated
+-- while the script reported success. Guarding on the FINAL shape -- is the handle
+-- part of the primary key -- cannot be skipped into a wrong state: it is false for
+-- both earlier shapes and for a missing table, and true only once the migration
+-- has actually happened.
+--
+-- SO THIS SCRIPT IS DESTRUCTIVE FOR BOTH EARLIER SHAPES, not only the oldest. A
+-- database already carrying generation-keyed rows loses them too. Everything the
+-- section above says about what is lost and what survives applies unchanged.
 -- ===========================================================================
 
 DO $$
 BEGIN
-    -- Idempotent: once key_generation exists this whole block is skipped, so
-    -- re-running the script cannot drop a populated ledger a second time.
+    -- Idempotent: once the primary key is (key_handle, key_generation) this whole
+    -- block is skipped, so re-running the script cannot drop a populated ledger a
+    -- second time.
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'compliance'
-          AND table_name   = 'erasure_destroyed_keys'
-          AND column_name  = 'key_generation')
+        SELECT 1
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage k
+          ON  k.constraint_name = tc.constraint_name
+          AND k.table_schema    = tc.table_schema
+        WHERE tc.table_schema   = 'compliance'
+          AND tc.table_name     = 'erasure_destroyed_keys'
+          AND tc.constraint_type = 'PRIMARY KEY'
+          AND k.column_name     = 'key_handle')
     THEN
         DROP TABLE IF EXISTS "compliance"."erasure_destroyed_keys";
 
-        -- See 001 for the full rationale. In short: the primary key is the
-        -- GENERATION alone, because a generation is minted once and never
-        -- reused, so a row's existence IS the destruction statement and two
-        -- rows for one generation are a contradiction the database refuses.
-        -- request_id and key_handle are audit attributes, never key
-        -- components — keying on the handle silently drops a second
-        -- destruction at that handle.
+        -- See 001 for the full rationale. In short: the primary key is the PAIR
+        -- (key_handle, key_generation). The generation, because it is minted once
+        -- and never reused, so a row's existence IS the destruction statement. The
+        -- handle, because the generation alone rests on a uniqueness-across-handles
+        -- assumption nothing enforces, which a consumer-supplied provider deriving
+        -- its generations would break -- one row for two tenants' distinct keys.
+        -- An earlier comment here argued against keying on the handle because that
+        -- "silently drops a second destruction at that handle": true of
+        -- (key_handle) ALONE, and not of the pair, which admits many generations
+        -- per handle.
         CREATE TABLE "compliance"."erasure_destroyed_keys" (
-    key_generation TEXT COLLATE "C" NOT NULL PRIMARY KEY,
+            key_generation TEXT COLLATE "C" NOT NULL,
             -- NULLABLE, because a destruction the CONSUMER performed and asserted through the
-            -- ledger's public write has no erasure request and no handle to name. Audit
-            -- attributes either way: the read predicate names neither.
+            -- ledger's public write has no erasure request to name. An audit attribute, never
+            -- a key component.
             request_id     UUID        NULL,
-            key_handle     TEXT COLLATE "C" NULL,
+            -- NOT NULL: part of the primary key, and the public write now requires it.
+            key_handle     TEXT COLLATE "C" NOT NULL,
             destroyed_at   TIMESTAMPTZ NOT NULL,
             -- WHO asserted the destruction: 'framework-erasure' for one this framework
             -- performed (staged before the destroy, recorded after it), 'caller-assertion' for
@@ -76,7 +100,8 @@ BEGIN
             -- re-verified. Stated EXPLICITLY rather than inferred from the nulls above --
             -- deriving a fact from a missing value is the reasoning this table exists to
             -- replace.
-            recorded_by    TEXT        NOT NULL
+            recorded_by    TEXT        NOT NULL,
+            PRIMARY KEY (key_handle, key_generation)
         );
 
         CREATE INDEX ix_erasure_destroyed_keys_request

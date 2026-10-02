@@ -1597,10 +1597,13 @@ Excalibur.Compliance.IErasureService.GetStatusAsync(System.Guid requestId, Syste
 Excalibur.Compliance.IErasureService.RequestErasureAsync(Excalibur.Compliance.ErasureRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureResult!>!
 Excalibur.Compliance.IErasureStore
 Excalibur.Compliance.IErasureStore.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.IErasureStore.GetStagedKeyGenerationsAsync(System.Guid requestId, string! keyHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 Excalibur.Compliance.IErasureStore.GetStatusAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureStatus?>!
 Excalibur.Compliance.IErasureStore.RecordCancellationAsync(System.Guid requestId, string! reason, string! cancelledBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.IErasureStore.RecordCompletionAsync(System.Guid requestId, int keysDeleted, int recordsAffected, System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.IErasureStore.RecordKeyDestroyedAsync(System.Guid requestId, string! keyHandle, string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.IErasureStore.SaveRequestAsync(Excalibur.Compliance.ErasureRequest! request, System.DateTimeOffset scheduledExecutionTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.IErasureStore.StageKeyDestructionAsync(System.Guid requestId, string! keyHandle, string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.IErasureStore.UpdateStatusAsync(System.Guid requestId, Excalibur.Compliance.ErasureRequestStatus status, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.IErasureVerificationService
 Excalibur.Compliance.IErasureVerificationService.GenerateReportAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.VerificationReport!>!
@@ -1623,6 +1626,9 @@ Excalibur.Compliance.IKeyCacheAdmin.Clear() -> void
 Excalibur.Compliance.IKeyCacheAdmin.GetOrAddAsync(string! keyId, System.TimeSpan ttl, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!>! factory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.IKeyCacheAdmin.Invalidate(string! keyId) -> void
 Excalibur.Compliance.IKeyCacheAdmin.Set(Excalibur.Compliance.KeyMetadata! keyMetadata, System.TimeSpan ttl) -> void
+Excalibur.Compliance.IKeyDestructionLedger
+Excalibur.Compliance.IKeyDestructionLedger.IsGenerationDestroyedAsync(string! keyHandle, string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Compliance.IKeyDestructionLedger.RecordDestroyedGenerationAsync(string! keyHandle, string! keyGeneration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.IKeyDestructionStatusProvider
 Excalibur.Compliance.IKeyDestructionStatusProvider.IsKeyDestroyedAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.IKeyEscrowService
@@ -1743,7 +1749,7 @@ Excalibur.Compliance.ISubjectAccessService.CreateRequestAsync(Excalibur.Complian
 Excalibur.Compliance.ISubjectAccessService.FulfillRequestAsync(string! requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.SubjectAccessResult!>!
 Excalibur.Compliance.ISubjectAccessService.GetRequestStatusAsync(string! requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.SubjectAccessResult?>!
 Excalibur.Compliance.ISubjectKeyManager
-Excalibur.Compliance.ISubjectKeyManager.GetOrCreateKeyAsync(string! subjectId, Excalibur.Compliance.RetentionScope retentionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Compliance.SubjectKey>
+Excalibur.Compliance.ISubjectKeyManager.GetOrCreateKeyAsync(Excalibur.Dispatch.TenantId! tenant, string! subjectId, Excalibur.Compliance.RetentionScope retentionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Compliance.SubjectKey>
 Excalibur.Compliance.KeyCacheExtensions
 Excalibur.Compliance.KeyCacheOptions
 Excalibur.Compliance.KeyCacheOptions.AutoRefreshThreshold.get -> System.TimeSpan
@@ -1801,6 +1807,10 @@ Excalibur.Compliance.KeyExpirationAlert.KeyId.init -> void
 Excalibur.Compliance.KeyExpirationAlert.Provider.get -> string!
 Excalibur.Compliance.KeyExpirationAlert.Provider.init -> void
 Excalibur.Compliance.KeyExpirationAlert.Severity.get -> Excalibur.Compliance.AlertSeverity
+Excalibur.Compliance.KeyGeneration
+Excalibur.Compliance.KeyGeneration.Equals(Excalibur.Compliance.KeyGeneration other) -> bool
+Excalibur.Compliance.KeyGeneration.HasValue.get -> bool
+Excalibur.Compliance.KeyGeneration.KeyGeneration() -> void
 Excalibur.Compliance.KeyMetadata
 Excalibur.Compliance.KeyMetadata.Algorithm.get -> Excalibur.Compliance.EncryptionAlgorithm
 Excalibur.Compliance.KeyMetadata.Algorithm.init -> void
@@ -1808,6 +1818,7 @@ Excalibur.Compliance.KeyMetadata.CreatedAt.get -> System.DateTimeOffset?
 Excalibur.Compliance.KeyMetadata.CreatedAt.init -> void
 Excalibur.Compliance.KeyMetadata.ExpiresAt.get -> System.DateTimeOffset?
 Excalibur.Compliance.KeyMetadata.ExpiresAt.init -> void
+Excalibur.Compliance.KeyMetadata.Generation.get -> Excalibur.Compliance.KeyGeneration?
 Excalibur.Compliance.KeyMetadata.Generation.init -> void
 Excalibur.Compliance.KeyMetadata.IsFipsCompliant.get -> bool
 Excalibur.Compliance.KeyMetadata.IsFipsCompliant.init -> void
@@ -2702,10 +2713,12 @@ Excalibur.Compliance.SubjectAccessResult.RequestId.init -> void
 Excalibur.Compliance.SubjectAccessResult.Status.get -> Excalibur.Compliance.SubjectAccessRequestStatus
 Excalibur.Compliance.SubjectAccessResult.Status.init -> void
 Excalibur.Compliance.SubjectKey
+Excalibur.Compliance.SubjectKey.Generation.get -> Excalibur.Compliance.KeyGeneration?
 Excalibur.Compliance.SubjectKey.Generation.init -> void
 Excalibur.Compliance.SubjectKey.KeyId.get -> string!
 Excalibur.Compliance.SubjectKey.KeyId.init -> void
 Excalibur.Compliance.SubjectKey.SubjectKey() -> void
+Excalibur.Compliance.SubjectKey.SubjectKey(string! KeyId, Excalibur.Compliance.KeyGeneration? Generation) -> void
 Excalibur.Compliance.SystemDescription
 Excalibur.Compliance.SystemDescription.DataTypes.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Excalibur.Compliance.SystemDescription.DataTypes.set -> void
@@ -2931,6 +2944,9 @@ override Excalibur.Compliance.DataStoreKind.Equals(object? obj) -> bool
 override Excalibur.Compliance.DataStoreKind.GetHashCode() -> int
 override Excalibur.Compliance.DataStoreKind.ToString() -> string!
 override Excalibur.Compliance.EncryptionVersion.ToString() -> string!
+override Excalibur.Compliance.KeyGeneration.Equals(object? obj) -> bool
+override Excalibur.Compliance.KeyGeneration.GetHashCode() -> int
+override Excalibur.Compliance.KeyGeneration.ToString() -> string!
 override Excalibur.Compliance.RetentionScope.Equals(object? obj) -> bool
 override Excalibur.Compliance.RetentionScope.GetHashCode() -> int
 override Excalibur.Compliance.RetentionScope.ToString() -> string!
@@ -2969,6 +2985,7 @@ static Excalibur.Compliance.DuplicateLegalHoldException.ForHoldId(System.Guid ho
 static Excalibur.Compliance.EncryptedData.IsFieldEncrypted(System.ReadOnlySpan<byte> data) -> bool
 static Excalibur.Compliance.EncryptedData.IsFieldEncrypted(byte[]? data) -> bool
 static Excalibur.Compliance.EncryptedData.MagicBytes.get -> System.ReadOnlySpan<byte>
+static Excalibur.Compliance.EncryptedData.TryParse(System.ReadOnlySpan<byte> framed, out Excalibur.Compliance.EncryptedData? envelope) -> bool
 static Excalibur.Compliance.EncryptedFieldBinding.Inspect(System.Type! type, out System.Collections.Generic.IReadOnlyList<string!>! unhonourable) -> System.Reflection.PropertyInfo![]!
 static Excalibur.Compliance.EncryptedFieldBinding.IsMarkedEncrypted(System.Reflection.PropertyInfo! property, object! instance) -> bool
 static Excalibur.Compliance.EncryptedFieldBinding.IsSupported(System.Type! propertyType) -> bool
@@ -3015,6 +3032,11 @@ static Excalibur.Compliance.KeyCacheOptions.Default.get -> Excalibur.Compliance.
 static Excalibur.Compliance.KeyDestructionOutcome.CompletedAt(System.DateTimeOffset at) -> Excalibur.Compliance.KeyDestructionOutcome
 static Excalibur.Compliance.KeyDestructionOutcome.NotFound.get -> Excalibur.Compliance.KeyDestructionOutcome
 static Excalibur.Compliance.KeyDestructionOutcome.ScheduledAt(System.DateTimeOffset irreversibleAt) -> Excalibur.Compliance.KeyDestructionOutcome
+static Excalibur.Compliance.KeyGeneration.Mint() -> Excalibur.Compliance.KeyGeneration
+static Excalibur.Compliance.KeyGeneration.Parse(string! value) -> Excalibur.Compliance.KeyGeneration
+static Excalibur.Compliance.KeyGeneration.TryParse(string? value, out Excalibur.Compliance.KeyGeneration generation) -> bool
+static Excalibur.Compliance.KeyGeneration.operator !=(Excalibur.Compliance.KeyGeneration left, Excalibur.Compliance.KeyGeneration right) -> bool
+static Excalibur.Compliance.KeyGeneration.operator ==(Excalibur.Compliance.KeyGeneration left, Excalibur.Compliance.KeyGeneration right) -> bool
 static Excalibur.Compliance.KeyRotationBatchResult.Empty() -> Excalibur.Compliance.KeyRotationBatchResult!
 static Excalibur.Compliance.KeyRotationPolicy.Archival.get -> Excalibur.Compliance.KeyRotationPolicy!
 static Excalibur.Compliance.KeyRotationPolicy.Default.get -> Excalibur.Compliance.KeyRotationPolicy!

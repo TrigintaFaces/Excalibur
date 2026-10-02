@@ -41,37 +41,58 @@
 -- record of which handles its earlier passes destroyed, so it can no longer be
 -- reported complete and will need re-filing. Let in-flight erasures finish
 -- before applying this.
+--
+-- THE TRIGGER IS THE PRIMARY-KEY SHAPE, not the presence of a column, and that
+-- matters for idempotency. The ledger has had two earlier shapes: one keyed on
+-- (RequestId, KeyHandle) with no generation at all, and one keyed on the
+-- GENERATION alone. Guarding on "does a generation column exist" would skip this
+-- script entirely on the second of those, leaving the primary key un-migrated
+-- while the script reported success. Guarding on the FINAL shape -- is the handle
+-- part of the primary key -- cannot be skipped into a wrong state: it is false for
+-- both earlier shapes and for a missing table, and true only once the migration
+-- has actually happened.
+--
+-- SO THIS SCRIPT IS DESTRUCTIVE FOR BOTH EARLIER SHAPES, not only the oldest. A
+-- database already carrying generation-keyed rows loses them too. Everything the
+-- section above says about what is lost and what survives applies unchanged.
 -- ===========================================================================
 
--- Idempotent: once KeyGeneration exists this block is skipped, so re-running
--- the script cannot drop a populated ledger a second time.
+-- Idempotent: once the primary key is (KeyHandle, KeyGeneration) this block is
+-- skipped, so re-running the script cannot drop a populated ledger a second time.
 IF NOT EXISTS (
-    SELECT 1 FROM sys.columns c
-    JOIN sys.tables t  ON c.object_id = t.object_id
-    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    SELECT 1 FROM sys.indexes i
+    JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+    JOIN sys.columns c        ON c.object_id  = ic.object_id AND c.column_id = ic.column_id
+    JOIN sys.tables t         ON t.object_id  = i.object_id
+    JOIN sys.schemas s        ON s.schema_id  = t.schema_id
     WHERE s.name = 'compliance'
       AND t.name = 'ErasureDestroyedKeys'
-      AND c.name = 'KeyGeneration')
+      AND i.is_primary_key = 1
+      AND c.name = 'KeyHandle')
 BEGIN
     DROP TABLE IF EXISTS [compliance].[ErasureDestroyedKeys];
 
-    -- See 001 for the full rationale. In short: the primary key is the
-    -- GENERATION alone, because a generation is minted once and never reused,
-    -- so a row's existence IS the destruction statement and two rows for one
-    -- generation are a contradiction the database refuses. RequestId and
-    -- KeyHandle are audit attributes, never key components — keying on the
-    -- handle silently drops a second destruction at that handle.
+    -- See 001 for the full rationale. In short: the primary key is the PAIR
+    -- (KeyHandle, KeyGeneration). The generation, because it is minted once and
+    -- never reused, so a row's existence IS the destruction statement. The
+    -- handle, because the generation alone rests on a uniqueness-across-handles
+    -- assumption nothing enforces, which a consumer-supplied provider deriving
+    -- its generations would break -- one row for two tenants' distinct keys.
+    -- An earlier comment here argued against keying on the handle because that
+    -- "silently drops a second destruction at that handle": true of (KeyHandle)
+    -- ALONE, and not of the pair, which admits many generations per handle.
     CREATE TABLE [compliance].[ErasureDestroyedKeys] (
         KeyGeneration NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
-        -- NULLABLE: a destruction the CONSUMER asserted through the ledger's public
-        -- write has no erasure request and no handle. Audit attributes either way.
+        -- NULLABLE: a destruction the CONSUMER asserted has no erasure request. An audit
+        -- attribute, never a key component.
         RequestId     UNIQUEIDENTIFIER NULL,
-        KeyHandle     NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
+        -- NOT NULL: part of the primary key, and the public write now requires it.
+        KeyHandle     NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
         DestroyedAt   DATETIMEOFFSET   NOT NULL,
         -- WHO asserted it: 'framework-erasure' or 'caller-assertion'. Stated explicitly
         -- rather than inferred from the nulls above.
         RecordedBy    NVARCHAR(32)     NOT NULL,
-        CONSTRAINT PK_ErasureDestroyedKeys PRIMARY KEY (KeyGeneration)
+        CONSTRAINT PK_ErasureDestroyedKeys PRIMARY KEY (KeyHandle, KeyGeneration)
     );
 
     CREATE INDEX IX_ErasureDestroyedKeys_Request

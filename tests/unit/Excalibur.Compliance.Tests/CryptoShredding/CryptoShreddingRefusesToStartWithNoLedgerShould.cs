@@ -44,6 +44,12 @@ public sealed class CryptoShreddingRefusesToStartWithNoLedgerShould
 	{
 		var services = new ServiceCollection();
 		services.AddLogging();
+
+		// A pepper, because this arm is about the LEDGER. Crypto-shredding also validates its hashing pepper at
+		// start-up, and a composition missing both would be refused for whichever gate ran first -- which would
+		// let the ledger assertion below pass on the strength of an unrelated refusal.
+		services.Configure<DataSubjectHashingOptions>(o =>
+			o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
 		services.AddCryptoShredding();
 
 		using var provider = services.BuildServiceProvider();
@@ -71,6 +77,12 @@ public sealed class CryptoShreddingRefusesToStartWithNoLedgerShould
 	{
 		var services = new ServiceCollection();
 		services.AddLogging();
+
+		// A pepper, because this arm is about the LEDGER. Crypto-shredding also validates its hashing pepper at
+		// start-up, and a composition missing both would be refused for whichever gate ran first -- which would
+		// let the ledger assertion below pass on the strength of an unrelated refusal.
+		services.Configure<DataSubjectHashingOptions>(o =>
+			o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
 		services.AddCryptoShredding();
 
 		using var provider = services.BuildServiceProvider();
@@ -127,5 +139,163 @@ public sealed class CryptoShreddingRefusesToStartWithNoLedgerShould
 		scope.ServiceProvider.GetRequiredService<IFieldEncryptor>().ShouldNotBeNull(
 			"the gate exists to predict this resolution; a gate that passes while the resolve fails has moved "
 			+ "the error rather than removed it");
+	}
+
+	/// <summary>
+	/// SAFETY. The refusal offers the non-erasing deployment its own remedy, not only an erasure store.
+	/// </summary>
+	/// <remarks>
+	/// A deployment that encrypts personal data at rest and never destroys a subject key reaches this refusal
+	/// too, and for it "register an erasure store" is the wrong advice -- it would be adding a subsystem it has
+	/// no use for to satisfy a message. The refusal has to name the other door or that reader is stuck.
+	/// </remarks>
+	[Fact]
+	public void OfferTheNonErasingDeploymentItsOwnRemedy()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+
+		// A pepper, because this arm is about the LEDGER. Crypto-shredding also validates its hashing pepper at
+		// start-up, and a composition missing both would be refused for whichever gate ran first -- which would
+		// let the ledger assertion below pass on the strength of an unrelated refusal.
+		services.Configure<DataSubjectHashingOptions>(o =>
+			o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
+		services.AddCryptoShredding();
+
+		using var provider = services.BuildServiceProvider();
+
+		var message = Should.Throw<InvalidOperationException>(provider.ValidateStartupGates).Message;
+
+		message.ShouldContain(
+			nameof(CryptoShreddingServiceCollectionExtensions.AddCryptoShreddingWithoutErasure),
+			Case.Sensitive,
+			"a deployment that encrypts at rest and never erases has no use for an erasure store, so the "
+			+ "refusal must name the registration that fits it");
+	}
+
+	/// <summary>
+	/// LIVENESS. The non-erasing opt-out starts on its own, and the field encryptor resolves.
+	/// </summary>
+	/// <remarks>
+	/// The opt-out's whole purpose is to make this composition startable. Without this arm the opt-out could be
+	/// registered and still refused, and both safety arms above would stay green.
+	/// </remarks>
+	[Fact]
+	public void StartNormallyWhenTheNonErasingOptOutSuppliesTheLedger()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.Configure<DataSubjectHashingOptions>(o =>
+			o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
+		services.AddEncryption(builder => builder.UseInMemoryKeyManagement("test").SetAsPrimary("test"));
+		services.AddCryptoShreddingWithoutErasure();
+
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(provider.ValidateStartupGates);
+
+		using var scope = provider.CreateScope();
+		scope.ServiceProvider.GetRequiredService<IFieldEncryptor>().ShouldNotBeNull(
+			"the opt-out exists so that this composition can be built and used, not merely registered");
+	}
+
+	/// <summary>
+	/// SAFETY. The non-erasing ledger REFUSES a destruction assertion rather than discarding it.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This arm existed nowhere until an audit went looking for it, and its absence was the worst kind.</b>
+	/// The no-erasure ledger's read answers <see langword="false" /> for every generation, which is the true
+	/// answer in a deployment that destroys nothing. Its WRITE is the asymmetric half: a caller asserting a
+	/// destruction is telling the framework that material WAS destroyed, in a composition declared to perform
+	/// no erasure. There is nowhere durable to put that row, and a destruction that is not recorded cannot be
+	/// reported as an erasure.
+	/// </para>
+	/// <para>
+	/// So the only two alternatives to throwing are both silent: discard a compliance assertion the caller
+	/// owns, or hold the row somewhere nothing persists and lose it at the next restart. Had this degraded to
+	/// a completed task, no arm anywhere would have reddened, and a consumer would believe a destruction was
+	/// recorded while nothing had been. The message is asserted too, because a refusal that does not name the
+	/// three registrations which WOULD persist the row sends the reader to the source.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task RefuseToRecordADestruction_WhenTheDeploymentDeclaredItPerformsNoErasure()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.Configure<DataSubjectHashingOptions>(o =>
+			o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
+		services.AddEncryption(builder => builder.UseInMemoryKeyManagement("test").SetAsPrimary("test"));
+		services.AddCryptoShreddingWithoutErasure();
+
+		using var provider = services.BuildServiceProvider();
+		var ledger = provider.GetRequiredService<IKeyDestructionLedger>();
+
+		// LIVENESS FIRST: the read must still answer, or the arm below would pass against a ledger that
+		// refuses everything -- which is the failure mode this suite's own remarks warn about.
+		(await ledger.IsGenerationDestroyedAsync("handle-a", "0123456789abcdef0123456789abcdef", TestContext.Current.CancellationToken))
+			.ShouldBeFalse("a deployment that destroys nothing has destroyed this generation too");
+
+		var refusal = await Should.ThrowAsync<InvalidOperationException>(
+			async () => await ledger.RecordDestroyedGenerationAsync(
+				"handle-a", "0123456789abcdef0123456789abcdef", TestContext.Current.CancellationToken));
+
+		foreach (var remedy in new[] { "AddInMemoryErasureStore", "AddPostgresErasureStore", "AddSqlServerErasureStore" })
+		{
+			refusal.Message.ShouldContain(
+				remedy,
+				Case.Sensitive,
+				$"the refusal must name {remedy}, which WOULD persist the row the caller is asserting");
+		}
+	}
+
+	/// <summary>
+	/// SAFETY. The opt-out registered BESIDE an erasure store is refused, in either registration order.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Every ledger registration in this framework is a <c>TryAdd</c>, so with both calls present the winner is
+	/// whichever ran first. One of the two orders puts an always-false ledger in front of a real erasure store:
+	/// the deployment performs erasures, nothing ever tombstones, every erased subject reads back in the clear,
+	/// and no component reports a problem. That is the silent direction, so it cannot be left to order.
+	/// </para>
+	/// <para>
+	/// <b>Both orders are asserted deliberately.</b> Only one of them is dangerous, and a guard that caught only
+	/// the dangerous one would be correct today and would silently stop being correct the moment a registration
+	/// changed which call wins. Refusing the combination regardless of order is the property; catching the
+	/// currently-harmful ordering is not.
+	/// </para>
+	/// </remarks>
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void RefuseTheNonErasingOptOutBesideAnErasureStore(bool optOutFirst)
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.Configure<DataSubjectHashingOptions>(o =>
+			o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
+		services.AddEncryption(builder => builder.UseInMemoryKeyManagement("test").SetAsPrimary("test"));
+
+		if (optOutFirst)
+		{
+			services.AddCryptoShreddingWithoutErasure();
+			services.AddInMemoryErasureStore();
+		}
+		else
+		{
+			services.AddInMemoryErasureStore();
+			services.AddCryptoShreddingWithoutErasure();
+		}
+
+		using var provider = services.BuildServiceProvider();
+
+		var message = Should.Throw<InvalidOperationException>(provider.ValidateStartupGates).Message;
+
+		message.ShouldContain(
+			nameof(CryptoShreddingServiceCollectionExtensions.AddCryptoShreddingWithoutErasure),
+			Case.Sensitive,
+			"the refusal must name the call to remove, or the consumer has to guess which of the two is wrong");
 	}
 }

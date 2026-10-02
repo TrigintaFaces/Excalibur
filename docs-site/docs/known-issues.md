@@ -33,7 +33,7 @@ Every entry is re-checked against the code before each update. **This page lists
 |---|---|---|
 | [Authorization and multi-tenancy](#authorization-and-multi-tenancy) | 1 | A startup guard that cannot fire, so a mis-ordered pipeline is accepted. |
 | [Secrets and data protection](#secrets-and-data-protection) | 2 | Credentials that persist where you did not expect, and an attribute that protects nothing. |
-| [Compliance: GDPR and SOC 2](#compliance-gdpr-and-soc-2) | 3 | Reports and certificates that claim more than the framework checked. |
+| [Compliance: GDPR and SOC 2](#compliance-gdpr-and-soc-2) | 4 | Reports and certificates that claim more than the framework checked — and one erasure that irreversibly destroys another tenant's data. |
 | [Event sourcing, outbox and projections](#event-sourcing-outbox-and-projections) | 5 | Writes reported as succeeding when they did not, or vice versa. |
 | [Transports](#transports) | 4 | Messages reported as sent, or acknowledged, when they were neither. |
 | [Dependencies and packaging](#dependencies-and-packaging) | 3 | What a published package pulls in that you did not ask for. |
@@ -227,6 +227,110 @@ are yours to close — which, together with the attribute's unchanged behaviour,
 here rather than moving to [Resolved issues](resolved-issues.md).
 
 ### Compliance: GDPR and SOC 2
+
+#### One tenant's erasure destroys another tenant's data when they share a data-subject id, and the victim's read reports it as lawfully erased
+
+:::danger This destroys data irreversibly, and nothing reports it
+Two tenants holding the same data-subject id share one encryption key. Either tenant's erasure destroys
+it for both. The other tenant's personal data was never subject to an erasure request, is now permanently
+unrecoverable, and reads back as `null` — which this framework defines as the assertion that the data
+*was* lawfully erased. Nothing throws, no certificate records a problem, and no log marks which tenant
+was affected.
+:::
+
+**What happens.** A per-subject encryption key is named by a value derived from the `[DataSubjectId]`
+value alone. **The tenant is not part of that name.** A data-subject identifier comes from your own
+entity — a customer number, an employee identifier, an e-mail address — and those values repeat across
+tenants in ordinary multi-tenant use. Where two tenants hold the same value, both tenants' personal data
+is encrypted under one key.
+
+Erasing that subject for either tenant destroys the key. The other tenant's fields then cannot be
+decrypted, and the read path returns `null` for each of them. In this framework a `null` from a
+crypto-shredded field asserts that the data was lawfully erased, so the second tenant's data is reported
+as erased when no erasure was ever requested for it, over data that is now unrecoverable.
+
+**It takes no race and no fault to reach.** Two ordinary writes under two tenants, then one ordinary
+erasure. Nothing is concurrent, nothing times out, and nothing throws.
+
+**There is no second control that catches it.** You might reasonably expect the authenticated data bound
+into each encrypted field to separate the two tenants, so that a cross-tenant read would at least fail
+loudly. On this path it does not: that binding carries no tenant either, so the read produces the erasure
+tombstone rather than an authentication failure. Neither the key's name nor the authenticated data
+distinguishes the two tenants.
+
+**Are you affected? Three checks, in this order.**
+
+| Check | What it means |
+|---|---|
+| **1. Did you call `AddCryptoShredding()`, `AddCryptoShreddingWithoutErasure()` or `AddEventSourcingCryptoShredding()`?** | If none of them, this does not reach you. |
+| **2. Is your `[DataSubjectId]` value unique across your whole deployment, or only within a tenant?** | Unique deployment-wide: not affected by this mechanism. Unique only within a tenant, and two tenants have ever held the same value: **you are exposed.** |
+| **3. Has any erasure completed?** | Each completed erasure destroyed the key for **every** tenant sharing that subject id. That data is already unrecoverable, and you cannot tell from the framework which tenants those were. |
+
+A single-tenant deployment is not exposed by this mechanism — there is no second tenant to collide with.
+
+**How to tell whether it has already happened to you.** This is answerable from your own data, and the
+framework cannot answer it for you — no record it keeps distinguishes the two tenants:
+
+1. In each store holding `[PersonalData]`, find every `[DataSubjectId]` value that appears under more than
+   one tenant. That is your collision set. **If it is empty, no erasure of yours can have crossed a tenant
+   boundary.**
+2. For each value in that set, look for a **completed** erasure filed by any one of those tenants.
+3. Where you find one, **every other tenant holding that value has lost that data.** Its `[PersonalData]`
+   fields now read `null` and no erasure was ever requested for it.
+
+Step 3 identifies the affected tenants exactly. It does not recover anything, and the reads will not start
+failing to tell you — they will keep reporting a lawful erasure.
+
+**What that exposes.** For every tenant that shared an erased subject id: personal data that no one asked
+to erase is permanently unreadable, and your application, your erasure certificates and your audit trail
+all report it as lawfully erased. Nothing can be reconciled afterwards — the key is gone, and no record
+distinguishes the tenant who requested the erasure from the tenant who merely shared the identifier.
+
+**What to do now.** Make the `[DataSubjectId]` value globally unique by embedding your tenant identifier
+in it — for example `"{tenantId}:{customerId}"` in place of `"{customerId}"`. The key's name is derived
+from that value exactly as you supply it, so a value that already carries the tenant gives each tenant
+its own key and the collision cannot arise. Per-tenant erasure keeps working unchanged, because the
+erasure path derives its target from the same string.
+
+**Apply it at both paths, consistently** — the write path that encrypts the fields, and the
+erasure-request path that sets `DataSubjectId` on an erasure request. A value that differs between the two
+yields two different keys, so the erasure would destroy nothing while reporting that it completed.
+
+**Three things this mitigation does not do.** All three matter before you rely on it:
+
+- **It protects only data written after you change the value.** Anything already written stays under the
+  old shared key.
+- **It repairs nothing already written.** Nothing re-keys existing data onto the new identifier for you.
+  To move it, read each record, decrypt it under the old identifier, then re-encrypt and store it under
+  the new one — in every store holding those fields, and before any erasure runs.
+- **Where a collision has already been erased, there is no recovery.** The key is destroyed and that data
+  is gone. This mitigation prevents the next occurrence; it cannot undo one.
+
+**And a cost that is not a footnote.** Changing your subject-id values makes your own existing legal
+holds, registered data locations and retention rows unmatchable: they were recorded against the old value.
+**Re-place every legal hold and re-register every data location under the new identifier before you rely
+on either.** A legal hold that no longer matches the identifier does not block the erasure it was placed
+to block.
+
+**Which versions are affected.** `Excalibur.Compliance` **`10.0.0-alpha.4` through `10.0.0-alpha.13`** —
+ten versions. The whole of the older **3.x line is not affected by this mechanism**: it ends at
+`3.0.0-alpha.216`, published before per-subject crypto-shredding existed. We measured the two endpoint
+versions by reading the shipped assembly inside each package; the eight between them are inferred from the
+derivation being present at both ends with no fix in between. **What that establishes is that the affected
+key derivation ships in those packages — not a behavioural assessment of any individual build.**
+
+**Is there a fixed version?** **No — not in any published version.** The fix exists in our source and has
+not been released, so there is nothing you can upgrade to today, and the mitigation above is the whole of
+the remedy available to you now. This entry will name the release that carries the fix when one ships.
+
+**What the fix will require of you, so it is not a surprise.** The corrected key name includes the tenant,
+which means **every key name changes**. Personal data encrypted before that upgrade stays readable — each
+stored field records the key that protects it, and that record is unchanged — but an erasure performed
+*after* the upgrade targets the new name and will **not** destroy the key holding data written before it.
+So treat the upgrade as a cutover: either re-encrypt existing personal data under the new identity, or
+complete any outstanding erasures before upgrading. The release notes will carry the migration step.
+
+---
 
 #### An erasure certificate covers only the locations you registered, and reports `Completed` without mentioning the ones you did not
 

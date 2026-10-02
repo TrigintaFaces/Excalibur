@@ -12,8 +12,8 @@ Two of the shipped conformance kits gained arms in this release:
 | --- | --- |
 | `SagaStoreConformanceTestKit` | 1 |
 | `PositionedProjectionStoreConformanceTestKit` | 3 |
-| `KeyManagementProviderConformanceTestKit` | 5 |
-| `ErasureStoreConformanceTestKit` | 3 |
+| `KeyManagementProviderConformanceTestKit` | 8 |
+| `ErasureStoreConformanceTestKit` | 6 |
 
 **This does not look like an API change and it is one.** No signature you call has changed, nothing you
 wrote stopped compiling, and the packages you reference are the same ones. What changed is the set of
@@ -115,6 +115,13 @@ public Task Report_requires_rebuild_for_a_refold_against_an_unnumbered_row_Test(
   rather than a superseded result. Superseded tells the caller to re-read and retry, and nothing about a
   numberless row changes on its own, so the caller loops forever.
 
+:::note These three arms are annotated for trimming and AOT
+Each carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, because projection serialization is
+reflective and the kit does not choose your store's serializer. If your test project is analyzed for trim
+or AOT warnings, propagate the annotation onto your wrapper — or suppress it there — rather than removing
+it from the call.
+:::
+
 ### `KeyManagementProviderConformanceTestKit`
 
 ```csharp
@@ -137,6 +144,18 @@ public Task IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheRepor
 [Fact]
 public Task IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed_Test() =>
     IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed();
+
+[Fact]
+public Task IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed_Test() =>
+    IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed();
+
+[Fact]
+public Task Generation_ShouldBeStable_AcrossARotation_Test() =>
+    Generation_ShouldBeStable_AcrossARotation();
+
+[Fact]
+public Task Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction_Test() =>
+    Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction();
 ```
 
 The first three hold your provider to `CreateKeyIfAbsentAsync`, which is new on
@@ -155,8 +174,11 @@ The first three hold your provider to `CreateKeyIfAbsentAsync`, which is new on
   the same absent key concurrently must all receive the same handle, a lost race must be a no-op rather
   than an error, and no version may be left fenced out of encryption.
 
-The last two hold your provider to `IKeyDestructionStatusProvider.IsKeyDestroyedAsync` — **the capability
-that gates whether an erasure can be certified at all** — at the retention the erasure actually uses:
+The next three hold your provider to `IKeyDestructionStatusProvider.IsKeyDestroyedAsync` — **the capability
+that gates whether an erasure can be certified at all** — at the retentions the erasure actually uses. It is
+asked about a key **handle**, at erasure completion; a crypto-shredded **read** never asks it, and resolves
+against a destruction record instead (see
+[A destroyed key is stated, never inferred](key-destruction-is-stated-not-inferred.md)):
 
 - **`IsKeyDestroyedAsync_AfterZeroRetentionDelete_ShouldAgreeWithTheReportedOutcome`** — the erasure calls
   `DeleteKeyAsync(keyId, 0, ct)`, and providers *branch* on a retention of zero. The arm requires the two
@@ -168,6 +190,36 @@ that gates whether an erasure can be certified at all** — at the retention the
 - **`IsKeyDestroyedAsync_ForALiveKey_ShouldReportNotDestroyed`** — a live, never-deleted key must report as
   not destroyed. This is what stops a provider answering `true` to everything, which would certify every
   erasure it was ever asked about, including ones that destroyed nothing.
+- **`IsKeyDestroyedAsync_WhileStillRecoverable_ShouldReportNotDestroyed`** — a key deleted with a *positive*
+  retention, which on a soft-deleting backend leaves the material recoverable for the whole window, must
+  report as **not** destroyed. This is the arm the absence-as-destruction defect fails: a provider deriving
+  its answer from a key *lookup* rather than from a statement about recoverability answers `true` here, and
+  certifying on that attests an erasure over data the backend can still hand back. The gate is the reported
+  outcome, not the retention passed — a backend with no recovery window destroys outright and reports
+  `Completed`, for which `true` is honest, so the arm asserts nothing there and says so.
+
+The last two hold your provider to `KeyMetadata.Generation`, the identifier a destruction record is keyed on
+— see [Field envelope names its key generation](field-envelope-names-its-key-generation.md). They are twins,
+and each fails the defect the other admits:
+
+- **`Generation_ShouldBeStable_AcrossARotation`** — a rotation extends one material lineage, so the
+  generation must be the same before and after. **This is the arm that fails a provider reusing a backend
+  per-version value**: an opaque key-vault version id and a per-version key ARN both change on rotation while
+  looking like perfectly good identifiers, and nothing else in this kit notices. The consequence is permanent
+  — every envelope written before that rotation names an identifier no destruction record will ever hold, and
+  its read fails forever with no repair available.
+- **`Generation_ShouldChange_WhenAHandleIsReprovisionedAfterDestruction`** — a handle re-provisioned after a
+  completed destruction must report a **different** generation. If it stayed the same, the destroyed
+  generation's record would match the new material and every field written after the erasure would report as
+  lawfully erased while being perfectly readable. Without this arm, the stability arm above is satisfied by a
+  provider returning one constant for every key it ever holds.
+
+:::warning These arms fail rather than skip when the capability is absent
+If your provider does not supply `IKeyDestructionStatusProvider`, the three `IsKeyDestroyedAsync` arms fail
+with an explanation instead of passing quietly. That is deliberate: a provider without the capability never
+has its erasures certified, and it is better to see that at upgrade time than to discover it when an erasure
+cannot be completed. If that is intended for your provider, mark those arms skipped with that reason.
+:::
 
 ### `ErasureStoreConformanceTestKit`
 
@@ -183,10 +235,26 @@ public Task RecordKeyDestroyedAsync_NonExistentRequest_ShouldThrowKeyNotFoundExc
 [Fact]
 public Task RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct_Test() =>
     RecordKeyDestroyedAsync_ShouldTreatHandlesDifferingOnlyInCaseAsDistinct();
+
+[Fact]
+public Task RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth_Test() =>
+    RecordKeyDestroyedAsync_TwoGenerationsAtOneHandle_ShouldRecordBoth();
+
+[Fact]
+public Task StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed_Test() =>
+    StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed();
+
+[Fact]
+public Task RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent_Test() =>
+    RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent();
 ```
 
-These hold your store to `IErasureStore.RecordKeyDestroyedAsync`, which is new — see
-[Erasure destroyed-key record](erasure-destroyed-key-record.md) for the member and the table it needs.
+These hold your store to `IErasureStore.StageKeyDestructionAsync` and `RecordKeyDestroyedAsync`, and to
+`IKeyDestructionLedger`, which your store must now also implement — see
+[Erasure destroyed-key record](erasure-destroyed-key-record.md) for the members and the tables they need.
+Three of the arms observe their result **through the ledger predicate** rather than by counting rows, because
+that predicate is what consumers actually depend on, so a store that does not supply
+`IKeyDestructionLedger` fails them with an explanation.
 
 - **`..._ShouldAppendIdempotentlyAndSurvive`** — recorded handles are readable back, a later record adds to
   what earlier ones wrote rather than replacing it, and recording a handle twice leaves one entry. A store
@@ -199,20 +267,25 @@ These hold your store to `IErasureStore.RecordKeyDestroyedAsync`, which is new �
   handles. On a SQL store this is decided by the column's **collation**, not by framework code, so a store
   that provisioned the column with a case-insensitive collation folds two subjects' handles into one and
   attests coverage for a key that was never destroyed.
-
-:::warning These two arms fail rather than skip when the capability is absent
-If your provider does not supply `IKeyDestructionStatusProvider`, the arms fail with an explanation
-instead of passing quietly. That is deliberate: a provider without the capability never has its erasures
-certified, and it is better to see that at upgrade time than to discover it when an erasure cannot be
-completed. If it is intended for your provider, mark these two arms skipped with that reason.
-:::
-
-:::note These three arms are annotated for trimming and AOT
-Each carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, because projection serialization is
-reflective and the kit does not choose your store's serializer. If your test project is analyzed for trim
-or AOT warnings, propagate the annotation onto your wrapper — or suppress it there — rather than removing
-it from the call.
-:::
+- **`..._TwoGenerationsAtOneHandle_ShouldRecordBoth`** — two generations destroyed at one handle are two
+  destructions and must produce two records. This arm is RED against a store whose conflict clause names the
+  request and the handle rather than the generation, which silently absorbs the second destruction as a
+  duplicate. The failure lands on the catastrophic side: a read of ciphertext produced under the second
+  generation finds no record and cannot report the subject's erasure, so a destruction that happened is not
+  on file anywhere. The instants are deliberately not asserted to differ — two writes microseconds apart can
+  legitimately read the same clock.
+- **`StageKeyDestructionAsync_ShouldNotReportTheGenerationAsDestroyed`** — the safety arm for the whole
+  two-table design. A staged row is written **before** the destruction, so between the stage and the destroy
+  it names **live** material. If the ledger predicate could see it, a live key would report as destroyed and
+  the read would tombstone recoverable personal data while reporting a lawful erasure — silent in both
+  directions. Its liveness twin is the arm above: a store that never reports anything destroyed satisfies
+  this one and fails that one.
+- **`RecordKeyDestroyedAsync_ShouldClearOnlyTheRecordedIntent`** — recording a destruction removes its staged
+  intent, and **only** its own. Safety and liveness in one arm, because either half alone is satisfied by a
+  wrong implementation: a store that deletes nothing passes the second assertion and fails the first, and a
+  store that clears every intent for the handle passes the first and fails the second — which is the
+  dangerous direction, because the generations it would wipe are destructions **not yet recorded**, and a
+  staged intent is the only copy of a generation that survives its own destruction.
 
 ## If you have a known gap, mark it skipped rather than leaving it unwired
 
@@ -230,4 +303,5 @@ public Task Rebuild_repairs_a_row_that_carries_no_position_Test() =>
 - [Consumer conformance toolkit](../testing/conformance-toolkit.md) — how a kit is derived from and what a green run covers
 - [Projections](../event-sourcing/projections.md) — the positioned-projection contract these three arms hold a store to
 - [Sagas](../sagas/index.md) — replay identity and what the saga store must persist
+- [Erasure destroyed-key record](erasure-destroyed-key-record.md) — the destruction records the erasure-store arms hold a store to
 - [Resolved issues](../resolved-issues.md) — the defects these arms were added to detect

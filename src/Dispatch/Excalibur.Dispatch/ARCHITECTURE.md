@@ -48,7 +48,7 @@ a type the dispatcher does not use.
 | mutant | guarantee 1 (order within a stage) | guarantee 2 (order across stages) |
 |---|---|---|
 | `SortByStageInPlace` returns immediately | green | **RED** (2 arms) |
-| the strict `>` at `:152` becomes `>=` | **RED** (3 arms) | green |
+| the strict `>` at `MiddlewareChainBuilder.cs:152` becomes `>=` | **RED** (3 arms) | green |
 
 Each mutant reddens exactly one guarantee and leaves the other alone. A single mutant reddening
 everything would only have shown that the chain runs at all.

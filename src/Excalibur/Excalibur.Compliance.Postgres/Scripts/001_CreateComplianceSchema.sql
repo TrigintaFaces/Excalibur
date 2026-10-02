@@ -136,12 +136,39 @@ CREATE TABLE IF NOT EXISTS "compliance"."erasure_destroyed_keys" (
     -- The C collation compares byte-for-byte, matching the framework's ordinal comparison. A collation
     -- that folded case would read two distinct generations as one, and one destroyed generation would
     -- then answer for a different, LIVE one.
-    key_generation TEXT COLLATE "C" NOT NULL PRIMARY KEY,
+    -- THE PRIMARY KEY IS THE PAIR (key_handle, key_generation), and each component is
+    -- load-bearing.
+    --
+    -- The GENERATION, because a generation is minted once and never reused: a destroyed
+    -- generation stays destroyed whatever is provisioned at that handle afterwards, so a
+    -- row's existence IS the destruction statement and there is no status column to
+    -- interpret.
+    --
+    -- The HANDLE, because the generation ALONE rests on an assumption nothing enforces:
+    -- that one generation identifies material uniquely across every handle. Every shipped
+    -- provider satisfies it -- they mint from a cryptographic random source -- but a
+    -- CONSUMER-SUPPLIED provider that DERIVED its generation would yield one identifier
+    -- for two tenants' distinct keys, hence one row, and one tenant's destruction would
+    -- report the other's live data as lawfully erased. With the handle in the key that
+    -- state is unreachable whatever a provider does.
+    --
+    -- AN EARLIER VERSION OF THIS COMMENT ARGUED AGAINST KEYING ON THE HANDLE -- "keying
+    -- on the handle silently drops a second destruction at that handle." That objection
+    -- was against (key_handle) ALONE and it remains correct. It does not apply to the
+    -- pair: many generations may exist at one handle, so a SECOND destruction there is a
+    -- different generation and therefore a distinct row. request_id stays an audit
+    -- attribute and is never a key component.
+    key_generation TEXT COLLATE "C" NOT NULL,
     -- NULLABLE, because a destruction the CONSUMER performed and asserted through the
-    -- ledger's public write has no erasure request and no handle to name. Audit
-    -- attributes either way: the read predicate names neither.
+    -- ledger's public write has no erasure request to name. An audit attribute, never a
+    -- key component: the read predicate does not name it.
     request_id     UUID        NULL,
-    key_handle     TEXT COLLATE "C" NULL,
+    -- NOT NULL: it is part of the primary key. It was nullable while the key was the
+    -- generation alone, on the reasoning that a destruction the CONSUMER asserted through
+    -- the ledger's public write "has no handle to name". That is false -- a caller
+    -- asserting a destruction knows what it destroyed -- and the public write now
+    -- requires it.
+    key_handle     TEXT COLLATE "C" NOT NULL,
     destroyed_at   TIMESTAMPTZ NOT NULL,
     -- WHO asserted the destruction: 'framework-erasure' for one this framework
     -- performed (staged before the destroy, recorded after it), 'caller-assertion' for
@@ -149,10 +176,11 @@ CREATE TABLE IF NOT EXISTS "compliance"."erasure_destroyed_keys" (
     -- re-verified. Stated EXPLICITLY rather than inferred from the nulls above --
     -- deriving a fact from a missing value is the reasoning this table exists to
     -- replace.
-    recorded_by    TEXT        NOT NULL
+    recorded_by    TEXT        NOT NULL,
+    PRIMARY KEY (key_handle, key_generation)
 );
 
--- The retry reads this table by request, and that is no longer the primary key.
+-- The retry reads this table by request, and that is not the primary key.
 CREATE INDEX IF NOT EXISTS ix_erasure_destroyed_keys_request
     ON "compliance"."erasure_destroyed_keys" (request_id, key_handle);
 

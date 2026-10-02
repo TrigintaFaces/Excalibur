@@ -9,7 +9,9 @@ namespace Excalibur.Compliance;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Each data subject is assigned its own key handle. Encrypting a subject's personal data under that key
+/// Each data subject IN EACH TENANT is assigned its own key handle — the tenant is part of the key's
+/// identity, not a filter applied around it, because a handle is a name in a key store with no row beside
+/// it to carry a tenant column. Encrypting a subject's personal data under that key
 /// makes the data recoverable only while the key exists, so erasing the subject's key erases the subject
 /// irreversibly (crypto-shredding) without mutating every stored record. Key destruction is not performed
 /// through this interface: it is an erasure operation, and the erasure service owns it so that legal holds
@@ -38,9 +40,25 @@ namespace Excalibur.Compliance;
 public interface ISubjectKeyManager
 {
 	/// <summary>
-	/// Returns the key handle for a data subject, creating a new cryptographically-random key if the
-	/// subject does not yet have one.
+	/// Returns the key handle for a data subject IN A TENANT, creating a new cryptographically-random key if
+	/// that tenant's subject does not yet have one.
 	/// </summary>
+	/// <param name="tenant">
+	/// The tenant that owns the data being protected.
+	/// <para>
+	/// <b>It is part of the key's identity, and it is a parameter rather than ambient state for a reason.</b>
+	/// Data-subject identifiers are consumer-supplied from consumer entities, so they repeat across tenants
+	/// in ordinary multi-tenant deployments. A handle constant in the tenant would give two such tenants ONE
+	/// key, and either tenant's erasure would destroy it for both — the victim reading an erasure tombstone
+	/// over data that was never erased and is no longer recoverable. The tenant is supplied explicitly
+	/// because the erasure path's authoritative tenant is the one its own request recorded, not whatever
+	/// ambient scope the background processor running it happens to have.
+	/// </para>
+	/// <para>
+	/// A single-tenant deployment passes <c>TenantDefaults.DefaultTenantId</c>. There is no absent tenant:
+	/// the parameter is required so that omitting it is a compile error rather than a silent default.
+	/// </para>
+	/// </param>
 	/// <param name="subjectId">
 	/// The raw data-subject identifier. It is pseudonymized through the registered data-subject hasher
 	/// before being resolved to a key handle.
@@ -62,5 +80,5 @@ public interface ISubjectKeyManager
 	/// generation up separately could be overtaken between the two reads and bind a generation that no longer
 	/// matches the material it encrypts under.
 	/// </returns>
-	ValueTask<SubjectKey> GetOrCreateKeyAsync(string subjectId, RetentionScope retentionScope, CancellationToken cancellationToken);
+	ValueTask<SubjectKey> GetOrCreateKeyAsync(Excalibur.Dispatch.TenantId tenant, string subjectId, RetentionScope retentionScope, CancellationToken cancellationToken);
 }

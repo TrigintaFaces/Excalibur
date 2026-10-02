@@ -1,3 +1,1 @@
 #nullable enable
-*REMOVED*Excalibur.Compliance.Vault.VaultKeyProvider.IsKeyDestroyedAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-*REMOVED*Excalibur.Compliance.Vault.VaultKeyProvider.IsKeyDestroyedAsync(string! keyId, string! generation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!

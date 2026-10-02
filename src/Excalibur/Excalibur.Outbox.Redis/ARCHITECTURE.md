@@ -43,8 +43,8 @@ attesting only one branch would leave the other silently rejected by row-discrim
 **Untenanted representation — converged with the relational providers.** An untenanted message stores the
 reserved, non-null sentinel here exactly as it does in a relational provider's `NOT NULL DEFAULT` column,
 so the same message compares equal on the tenant term whichever store is underneath. The write emits the
-field unconditionally, folded through the single total conversion (`RedisOutboxStore.cs:988`), and the read
-folds a missing field the same way (`:1087`) — so a key written under the older, field-omitted shape reads
+field unconditionally, folded through the single total conversion (`RedisOutboxStore.cs:1028`), and the read
+folds a missing field the same way (`:1127`) — so a key written under the older, field-omitted shape reads
 back identically rather than as a null. No historical-data migration is required: keys written under the
 old shape age out within one `SentMessageTtlSeconds` retention window, and the read-tolerance covers them
 until they do.

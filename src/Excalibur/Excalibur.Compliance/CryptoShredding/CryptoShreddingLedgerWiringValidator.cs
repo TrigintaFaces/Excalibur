@@ -11,7 +11,8 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Compliance.CryptoShredding;
 
 /// <summary>
-/// Refuses to start a crypto-shredding composition that has registered no key-destruction ledger.
+/// Refuses to start a crypto-shredding composition whose key-destruction ledger is missing, or whose ledger
+/// contradicts the erasure wiring beside it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,10 +24,18 @@ namespace Excalibur.Compliance.CryptoShredding;
 /// that names the remedy.
 /// </para>
 /// <para>
-/// <b>There is deliberately no empty-ledger default to fall back on.</b> An always-negative ledger would be
-/// safe in the narrow sense that it can never report a field as erased, which is exactly why it is tempting
-/// and exactly why it is refused: a consumer whose wiring slipped would get a composition that silently never
-/// reports an erasure, with nothing anywhere to notice. A loud refusal is the only honest option.
+/// <b>An always-negative ledger exists, and is deliberately not a default.</b> It can never report a field as
+/// erased, which is the safe direction and exactly why defaulting to it would be wrong: a consumer whose
+/// erasure wiring slipped would get a composition that silently never reports an erasure, with nothing
+/// anywhere to notice. So it is reachable only by naming it --
+/// <c>AddCryptoShreddingWithoutErasure()</c> -- and an absence still produces a loud refusal here.
+/// </para>
+/// <para>
+/// The second arm catches the other half of that choice: the no-erasure ledger registered <em>beside</em> an
+/// erasure store. Every ledger registration in this framework is a <c>TryAdd</c>, so the two would resolve by
+/// registration order, and one of the two orders puts the always-false ledger in front of a real erasure
+/// store -- a deployment that erases, never tombstones, and reports nothing. Order-dependence on this
+/// question is refused rather than documented.
 /// </para>
 /// <para>
 /// The check inspects service <em>registration</em> through <see cref="IServiceProviderIsService"/> and never
@@ -89,6 +98,22 @@ internal sealed partial class CryptoShreddingLedgerWiringValidator : IHostedServ
 
 		if (isService.IsService(typeof(IKeyDestructionLedger)))
 		{
+			if (isService.IsService(typeof(NoErasureKeyDestructionLedger))
+				&& isService.IsService(typeof(IErasureStore)))
+			{
+				LogLedgerContradictsErasureWiring();
+
+				throw new InvalidOperationException(
+					"This composition registers BOTH the no-erasure key-destruction ledger "
+					+ "(AddCryptoShreddingWithoutErasure) and an erasure store, which answer the same question "
+					+ "differently. Ledger registrations are TryAdd, so which one wins depends on the order the "
+					+ "two calls were made in -- and if the no-erasure one won, this deployment would perform "
+					+ "erasures that never tombstone anything, and read its own erased subjects back in the "
+					+ "clear with nothing to report it. Remove one: keep the erasure store and call "
+					+ "AddCryptoShredding() if this deployment erases, or drop the erasure store if it does "
+					+ "not.");
+			}
+
 			return;
 		}
 
@@ -117,7 +142,16 @@ internal sealed partial class CryptoShreddingLedgerWiringValidator : IHostedServ
 		+ "the erasure store is what holds that record -- which is why registering one is the remedy here. "
 		+ "Call AddInMemoryErasureStore() for development, or AddPostgresErasureStore() / "
 		+ "AddSqlServerErasureStore() for a durable one; each registers the ledger from the same store "
-		+ "instance it registers the erasure store from.";
+		+ "instance it registers the erasure store from."
+		+ " IF THIS DEPLOYMENT DOES NOT ERASE -- it encrypts personal data at rest and never destroys a "
+		+ "subject key -- then an erasure store is the wrong remedy and you want "
+		+ "AddCryptoShreddingWithoutErasure() instead of AddCryptoShredding(). That registers a ledger "
+		+ "holding no rows, so every generation reports as not destroyed, which is the true answer in that "
+		+ "deployment rather than a stand-in. It is a separate call and never a default, because a ledger "
+		+ "that always answers \"not destroyed\" cannot fabricate an erasure -- and that safety is exactly "
+		+ "why defaulting to one would be wrong: a deployment that DOES erase but never registered its "
+		+ "store would then silently never tombstone anything and read its own erased subjects back in the "
+		+ "clear, with nothing to report it.";
 
 	[LoggerMessage(
  ComplianceEventId.CryptoShreddingLedgerNotRegistered,
@@ -126,6 +160,14 @@ internal sealed partial class CryptoShreddingLedgerWiringValidator : IHostedServ
  + "constructed, so every read of an encrypted personal field will fail. Register an erasure store "
  + "(AddInMemoryErasureStore, AddPostgresErasureStore or AddSqlServerErasureStore) -- it supplies the ledger")]
 	private partial void LogLedgerNotRegistered();
+
+	[LoggerMessage(
+ ComplianceEventId.CryptoShreddingLedgerContradictsErasureWiring,
+ LogLevel.Critical,
+ "Crypto-shredding registers both the no-erasure key-destruction ledger and an erasure store. Which one "
+ + "answers a destruction query depends on registration order, and if the no-erasure one wins this "
+ + "deployment erases without ever tombstoning. Startup is refused")]
+	private partial void LogLedgerContradictsErasureWiring();
 
 	[LoggerMessage(
  ComplianceEventId.CryptoShreddingLedgerWiringUnverifiable,

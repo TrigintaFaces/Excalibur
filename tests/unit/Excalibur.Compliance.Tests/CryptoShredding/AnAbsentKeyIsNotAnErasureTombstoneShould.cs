@@ -3,6 +3,7 @@
 
 using Excalibur.Compliance.CryptoShredding;
 using Excalibur.Compliance.Encryption;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -52,7 +53,8 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
         var encryptor = new FieldEncryptor(
             A.Fake<ISubjectKeyManager>(),
             RegistryWhoseProviderCannotFindTheKey(),
-            ledger);
+            ledger,
+            A.Fake<ITenantContext>());
 
         var refusal = await Should.ThrowAsync<EncryptionException>(
             () => encryptor.DecryptAsync(Envelope(), CancellationToken.None).AsTask());
@@ -61,7 +63,7 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
             EncryptionErrorCode.KeyNotFound,
             "an unreachable-but-recoverable key must surface as the read failure it is, never as an erasure");
 
-        A.CallTo(() => ledger.IsGenerationDestroyedAsync(KeyGeneration, A<CancellationToken>._))
+        A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, KeyGeneration, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
     }
 
@@ -76,7 +78,8 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
         var encryptor = new FieldEncryptor(
             A.Fake<ISubjectKeyManager>(),
             RegistryWhoseProviderCannotFindTheKey(),
-            LedgerStating(destroyed: true));
+            LedgerStating(destroyed: true),
+            A.Fake<ITenantContext>());
 
         var plaintext = await encryptor.DecryptAsync(Envelope(), CancellationToken.None);
 
@@ -102,7 +105,8 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
             () => new FieldEncryptor(
                 A.Fake<ISubjectKeyManager>(),
                 RegistryWhoseProviderCannotFindTheKey(),
-                null!));
+                null!,
+                A.Fake<ITenantContext>()));
 
         absent.ParamName.ShouldBe(
             "ledger",
@@ -149,7 +153,7 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
     private static IKeyDestructionLedger LedgerStating(bool destroyed)
     {
         var ledger = A.Fake<IKeyDestructionLedger>();
-        A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<CancellationToken>._))
+        A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
             .Returns(new ValueTask<bool>(destroyed));
 
         return ledger;

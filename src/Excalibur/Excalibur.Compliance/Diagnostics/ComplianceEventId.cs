@@ -659,6 +659,9 @@ internal static class ComplianceEventId
 	/// <summary>Whether a key-destruction ledger is registered could not be determined.</summary>
 	public const int CryptoShreddingLedgerWiringUnverifiable = 92836;
 
+	/// <summary>The registered key-destruction ledger contradicts the erasure wiring beside it.</summary>
+	public const int CryptoShreddingLedgerContradictsErasureWiring = 92837;
+
 	/// <summary>Compliance restored notification logged.</summary>
 	public const int ComplianceRestored = 92820;
 

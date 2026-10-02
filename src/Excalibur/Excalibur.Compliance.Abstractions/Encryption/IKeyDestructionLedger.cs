@@ -27,11 +27,21 @@ namespace Excalibur.Compliance;
 /// at completion time and which a read must never consult.
 /// </para>
 /// <para>
-/// <b>A generation is the unit, and it is the only unit that works.</b> A handle and a version ordinal both
-/// describe the handle as it is now: destroy a subject's key, let an ordinary write provision another at the
-/// same handle, and both report "not destroyed" -- truthfully, about material the reader is not holding. A
-/// generation identifier is minted once and never reused, so a destroyed generation stays destroyed whatever
-/// follows it.
+/// <b>The unit is a HANDLE AND a generation together, and neither alone works.</b> A handle or a version
+/// ordinal ALONE describes the handle as it is now: destroy a subject's key, let an ordinary write provision
+/// another at the same handle, and both report "not destroyed" -- truthfully, about material the reader is not
+/// holding. A generation ALONE rests on an assumption nothing enforces: that a generation identifies material
+/// uniquely across every handle. The shipped providers all satisfy it, because they mint from
+/// <see cref="System.Security.Cryptography.RandomNumberGenerator"/> through <see cref="KeyGeneration.Mint"/>,
+/// but <see cref="KeyGeneration"/> constrains SHAPE and not ENTROPY -- so a provider that DERIVED its
+/// generation from the subject would yield one identifier for two distinct handles, one ledger row, and one
+/// tenant's destruction reporting another tenant's live data as erased.
+/// </para>
+/// <para>
+/// Keying on the pair removes that obligation rather than documenting it. Two distinct handles cannot share a
+/// row whatever a provider does, and the pair keeps everything the generation alone bought: many generations
+/// may exist at one handle, so a destroyed generation stays destroyed whatever is provisioned at that handle
+/// afterwards, and a SECOND destruction at one handle is a distinct row rather than a dropped one.
 /// </para>
 /// <para>
 /// <b>Consumer obligation.</b> A tombstone requires a ledger row, and a ledger row is written only by an
@@ -62,16 +72,33 @@ public interface IKeyDestructionLedger
 	/// <summary>
 	/// States whether the ledger records that this generation's key material was destroyed.
 	/// </summary>
+	/// <param name="keyHandle">
+	/// The handle of the key the ciphertext was produced under, as carried on its envelope
+	/// (<see cref="EncryptedData.KeyId"/>).
+	/// <para>
+	/// <b>It is a key component, not a filter.</b> Without it the answer rests on a generation identifying
+	/// material uniquely across every handle -- true of every shipped provider, which mint from a
+	/// cryptographic random source, and unenforceable for a consumer-supplied one. A provider deriving its
+	/// generation would give two tenants' distinct keys one identifier, one row, and one tenant's destruction
+	/// would report the other's live data as erased. Supplying the handle makes that state unreachable
+	/// regardless of how a provider produces its generations.
+	/// </para>
+	/// <para>
+	/// Pass the handle the ENVELOPE names, not one re-derived from the subject: the two agree for a value
+	/// this framework wrote, and where they could disagree the envelope is the one that identifies the
+	/// material actually being read.
+	/// </para>
+	/// </param>
 	/// <param name="keyGeneration">
 	/// The generation identifier the ciphertext was produced under, as carried on its envelope and reported by
 	/// <see cref="KeyMetadata.Generation"/>.
 	/// </param>
 	/// <param name="cancellationToken">A token to cancel the operation.</param>
 	/// <returns>
-	/// <see langword="true"/> only when the ledger holds a record that this generation was destroyed.
-	/// <see langword="false"/> when it holds no such record -- which covers a generation that is live, one
-	/// destroyed outside this framework, and one that never existed. Those three are not distinguished, and
-	/// none of them may produce a tombstone.
+	/// <see langword="true"/> only when the ledger holds a record that THIS handle's THIS generation was
+	/// destroyed. <see langword="false"/> when it holds no such record -- which covers a generation that is
+	/// live, one destroyed outside this framework, one that never existed, and one destroyed at a DIFFERENT
+	/// handle. Those four are not distinguished, and none of them may produce a tombstone.
 	/// </returns>
 	/// <remarks>
 	/// <para>
@@ -108,15 +135,28 @@ public interface IKeyDestructionLedger
 	/// <see cref="Task{TResult}"/> would allocate on every hit.
 	/// </para>
 	/// </remarks>
-	ValueTask<bool> IsGenerationDestroyedAsync(string keyGeneration, CancellationToken cancellationToken);
+	ValueTask<bool> IsGenerationDestroyedAsync(string keyHandle, string keyGeneration, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Records that this generation's key material has been irreversibly destroyed, on the caller's assertion.
 	/// </summary>
+	/// <param name="keyHandle">
+	/// The handle of the key whose material was destroyed.
+	/// <para>
+	/// REQUIRED, and a caller asserting a destruction has it: you cannot destroy a key without naming it. It
+	/// was previously absent, which left the row keyed on the generation alone and the tombstone resting on an
+	/// assumption no provider is obliged to satisfy. It must be the handle an envelope written under that key
+	/// NAMES, because that is the handle a read will ask about -- a destruction recorded under a different
+	/// spelling leaves those reads FAILING rather than reporting the erasure, which is the safe direction and
+	/// not the one you intended.
+	/// </para>
+	/// </param>
 	/// <param name="keyGeneration">
 	/// The generation identifier of the destroyed material, as it was reported by
-	/// <see cref="KeyMetadata.Generation"/> while the material still existed. It is the record's whole key: a
-	/// generation is minted once and never reused, so recording one twice is a no-op rather than an error.
+	/// <see cref="KeyMetadata.Generation"/> while the material still existed. With
+	/// <paramref name="keyHandle"/> it forms the record's whole key: a generation is minted once and never
+	/// reused, so recording one pair twice is a no-op rather than an error, while a SECOND destruction at the
+	/// same handle is a different generation and therefore a distinct record.
 	/// </param>
 	/// <param name="cancellationToken">A token to cancel the operation.</param>
 	/// <remarks>
@@ -149,7 +189,8 @@ public interface IKeyDestructionLedger
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="keyGeneration"/> is <see langword="null"/> or empty.
+	/// Thrown when <paramref name="keyHandle"/> or <paramref name="keyGeneration"/> is <see langword="null"/>
+	/// or empty.
 	/// </exception>
-	Task RecordDestroyedGenerationAsync(string keyGeneration, CancellationToken cancellationToken);
+	Task RecordDestroyedGenerationAsync(string keyHandle, string keyGeneration, CancellationToken cancellationToken);
 }

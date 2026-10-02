@@ -563,8 +563,16 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  // THE TENANT IS COMPARED ONLY HERE, and only between two values of the same kind: the tenant this
  // erasure REQUEST recorded, and the tenant a DECLARATION names. Both are consumer-supplied terms on
  // erasure-domain objects, and the registry collapses every spelling of "untenanted" onto one before
- // comparing, so a single-tenant deployment matches its own declarations. No ambient identity takes part:
- // the write path reads no tenant, so there is no second answer for this one to disagree with.
+ // comparing, so a single-tenant deployment matches its own declarations. No ambient identity takes part
+ // HERE either: the tenant used below is the one THIS REQUEST recorded, read from the status rather than
+ // from whatever scope the background processor running the erasure happens to have. An erasure is filed by
+ // one actor and executed later by another, so ambient state is never authoritative for it -- and on this
+ // path a wrong tenant means deriving a handle nothing was ever written under, which destroys nothing while
+ // reporting a completed erasure.
+ var requestingTenant = SubjectKeyHandle.OwningTenant(status.TenantId);
+ var subjectKeyHandle = SubjectKeyHandle.ForSubjectHash(
+ requestingTenant, status.DataSubjectIdHash, _dataSubjectHasher);
+
  var retainedKeyHandles = new HashSet<string>(StringComparer.Ordinal);
  var retainedHandleByType = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -581,7 +589,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  		continue;
  	}
 
- 	var handle = RetainedKeyHandle.For(status.DataSubjectIdHash, retention.AggregateType);
+ 	var handle = subjectKeyHandle.Retained(retention.AggregateType).Value;
  	declaredHandleByType[retention.AggregateType] = handle;
 
  	// THE HANDLE IS RECORDED ON THE PATH THAT DECIDES TO SPARE IT, and that placement is the point
@@ -635,13 +643,22 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  LogErasureKeysDiscovered(requestId, keysToDelete.Count);
  }
 
- // Per-subject crypto-shred: a subject's dedicated key handle is deterministically the
- // subject-id hash (SubjectKeyManager derives keyId = IDataSubjectHasher.HashDataSubjectId, the
- // same hash as status.DataSubjectIdHash). Always destroy it -- even when the data inventory does
- // not enumerate it -- so destroying the key erases the subject regardless of inventory coverage.
- if (!keysToDelete.Contains(status.DataSubjectIdHash))
+ // Per-subject crypto-shred: a subject's dedicated key handle is deterministically derived from the
+ // (requesting tenant, subject-id hash) pair, by the SAME function the write path uses -- SubjectKeyHandle,
+ // which both callers reach and which refuses a derivation with no tenant. Always destroy it -- even when
+ // the data inventory does not enumerate it -- so destroying the key erases the subject regardless of
+ // inventory coverage.
+ //
+ // THIS LINE USED TO QUEUE status.DataSubjectIdHash ITSELF, which is constant in the tenant. Two tenants
+ // whose consumer-supplied data-subject identifiers coincided shared one key, and this destruction took it
+ // from both: the other tenant's reads then returned an erasure tombstone over data that was never erased
+ // and could no longer be recovered. The raw hash is still the right key for every ROW this erasure
+ // touches -- those queries carry a tenant column -- and is now the wrong value for a key HANDLE, which has
+ // no row beside it.
+ var subjectKeyId = subjectKeyHandle.Value;
+ if (!keysToDelete.Contains(subjectKeyId))
  {
- 	keysToDelete.Add(status.DataSubjectIdHash);
+ 	keysToDelete.Add(subjectKeyId);
  }
 
  // Delete keys via admin interface. Track WHICH keys were actually deleted (not just the count):
@@ -1583,7 +1600,17 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 			return false;
 		}
 
-		var keyIds = new List<string> { status.DataSubjectIdHash };
+		// THE SAME DERIVATION AS THE DESTRUCTION, and it has to be: this method confirms that the keys
+		// execution destroyed are gone, so a second spelling of the handle would ask about a key nothing ever
+		// held. A handle nothing created answers "not destroyed" forever and the request could never complete.
+		// This line previously held the bare subject-id hash, which is constant in the tenant.
+		var keyIds = new List<string>
+		{
+			SubjectKeyHandle
+				.ForSubjectHash(
+					SubjectKeyHandle.OwningTenant(status.TenantId), status.DataSubjectIdHash, _dataSubjectHasher)
+				.Value
+		};
 		IReadOnlyList<DataLocation> locations = [];
 		DataInventory? inventory = null;
 		if (_dataInventoryService is not null)

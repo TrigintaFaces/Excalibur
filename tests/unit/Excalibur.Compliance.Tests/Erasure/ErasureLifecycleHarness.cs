@@ -96,7 +96,17 @@ internal sealed class ErasureLifecycleHarness
 
 		_ = await Service.RequestErasureAsync(request, CancellationToken.None);
 		var result = await Service.ExecuteAsync(request.RequestId, CancellationToken.None);
-		return (request.RequestId, TestDataSubjectHasher.Instance.HashDataSubjectId(subjectId), result);
+		// THE HANDLE THE ERASURE ACTUALLY DERIVES, not the bare pseudonymisation token. The store records an
+		// untenanted request as the reserved sentinel, which the derivation collapses onto the framework
+		// default identity -- the same identity a single-tenant write resolves. Reporting the bare token here
+		// would hand every arm a handle nothing was written under, so an erasure that destroyed nothing would
+		// look indistinguishable from one that worked.
+		var handle = SubjectKeyHandle.ForSubjectHash(
+			new TenantId(TenantDefaults.DefaultTenantId),
+			TestDataSubjectHasher.Instance.HashDataSubjectId(subjectId),
+			TestDataSubjectHasher.Instance);
+
+		return (request.RequestId, handle.Value, result);
 	}
 
 	public async Task<ErasureRequestStatus?> StatusOfAsync(Guid requestId) =>

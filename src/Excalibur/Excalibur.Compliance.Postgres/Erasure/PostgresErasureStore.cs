@@ -377,7 +377,7 @@ public sealed partial class PostgresErasureStore
 			SELECT @KeyGeneration, @RequestId, @KeyHandle, @Now, '{RecordedBy.FrameworkErasure}'
 			FROM {_options.FullRequestsTableName} r
 			WHERE r.request_id = @RequestId{tenantPredicate}
-			ON CONFLICT (key_generation) DO NOTHING";
+			ON CONFLICT (key_handle, key_generation) DO NOTHING";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -404,8 +404,8 @@ public sealed partial class PostgresErasureStore
 			// zero rows are "the generation was already on file" (benign) and "no such request in this tenant"
 			// (not benign, and the caller is about to attest a destruction on a record that does not exist).
 			// Asking whether the REQUEST exists separates them exactly. Asking whether the GENERATION exists is a
-			// proxy, and the wrong one: with the ledger keyed on the generation alone, a generation on file under
-			// any other request would answer yes and let a bad requestId pass as benign.
+			// proxy, and the wrong one: a pair on file under any other request would answer yes and let a bad
+			// requestId pass as benign.
 			var requestExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
 				$"SELECT COUNT(1) FROM {_options.FullRequestsTableName} r "
 				+ $"WHERE r.request_id = @RequestId{tenantPredicate}",
@@ -480,27 +480,32 @@ public sealed partial class PostgresErasureStore
 	}
 
 	/// <inheritdoc />
-	public async Task RecordDestroyedGenerationAsync(string keyGeneration, CancellationToken cancellationToken)
+	public async Task RecordDestroyedGenerationAsync(
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
 		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		// NO request and NO handle, and they are NULL rather than a sentinel because the caller genuinely has
-		// neither -- a consumer who destroyed a key through their own process has no erasure request to name.
+		// NO request, and it is NULL rather than a sentinel because the caller genuinely has none -- a consumer
+		// who destroyed a key through their own process has no erasure request to name. The HANDLE is supplied,
+		// because it is part of the ledger's key and a caller asserting a destruction knows what it destroyed.
 		// The provenance column is what records that this row rests on the caller's assertion; it is not
-		// inferred from the nulls.
+		// inferred from the null request.
 		//
 		// NOT gated on a request row existing, which is the one structural difference from the framework's own
 		// write, and it is the whole point of this member: there is no request. The evidence is the caller's
 		// assertion, which the contract states they own.
 		//
-		// ON CONFLICT DO NOTHING, so re-asserting a generation already on file is a no-op and the FIRST
-		// instant stands. A later assertion must not move a recorded destruction's timestamp.
+		// ON CONFLICT DO NOTHING, so re-asserting a pair already on file is a no-op and the FIRST instant
+		// stands. A later assertion must not move a recorded destruction's timestamp.
 		var sql = $@"
 			INSERT INTO {_options.FullDestroyedKeysTableName} (key_generation, request_id, key_handle, destroyed_at, recorded_by)
-			VALUES (@KeyGeneration, NULL, NULL, @Now, '{RecordedBy.CallerAssertion}')
-			ON CONFLICT (key_generation) DO NOTHING";
+			VALUES (@KeyGeneration, NULL, @KeyHandle, @Now, '{RecordedBy.CallerAssertion}')
+			ON CONFLICT (key_handle, key_generation) DO NOTHING";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -509,14 +514,18 @@ public sealed partial class PostgresErasureStore
 		// subject's reads fail with no indication why.
 		_ = await connection.ExecuteAsync(new CommandDefinition(
 			sql,
-			new { KeyGeneration = keyGeneration, Now = DateTimeOffset.UtcNow },
+			new { KeyHandle = keyHandle, KeyGeneration = keyGeneration, Now = DateTimeOffset.UtcNow },
 			cancellationToken: cancellationToken,
 			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<bool> IsGenerationDestroyedAsync(string keyGeneration, CancellationToken cancellationToken)
+	public async ValueTask<bool> IsGenerationDestroyedAsync(
+		string keyHandle,
+		string keyGeneration,
+		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrEmpty(keyHandle);
 		ArgumentException.ThrowIfNullOrEmpty(keyGeneration);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -525,19 +534,22 @@ public sealed partial class PostgresErasureStore
 		// whole PRIMARY KEY, so it already selects at most one row; a tenant term on such a statement cannot
 		// admit a foreign row and its only reachable effect is turning the correct row into none. Here that
 		// effect is the catastrophic one in reverse: a read of a genuinely erased subject would stop reporting
-		// their erasure and start failing, permanently. A generation is minted by the key backend and is not
-		// derivable from a subject, so one tenant cannot name another's.
+		// their erasure and start failing, permanently. The HANDLE is a KEY COMPONENT and not a tenant term:
+		// it is what makes "one tenant cannot name another's row" true by construction. This comment used to
+		// rest that claim on a generation being minted by the backend and not derivable from a subject, which
+		// is true of every shipped provider and is NOT something a consumer-supplied one is obliged to satisfy.
 		//
 		// The intents table is NOT named here, and must never be: a staged generation describes material that
 		// may still be live.
-		var sql = $"SELECT COUNT(1) FROM {_options.FullDestroyedKeysTableName} WHERE key_generation = @KeyGeneration";
+		var sql = $"SELECT COUNT(1) FROM {_options.FullDestroyedKeysTableName} "
+			+ "WHERE key_handle = @KeyHandle AND key_generation = @KeyGeneration";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var found = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
 			sql,
-			new { KeyGeneration = keyGeneration },
+			new { KeyHandle = keyHandle, KeyGeneration = keyGeneration },
 			cancellationToken: cancellationToken,
 			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
@@ -1228,14 +1240,6 @@ public sealed partial class PostgresErasureStore
 	];
 
 	/// <summary>
-	/// Indicates whether a Postgres error is a unique-constraint violation (SQLSTATE 23505).
-	/// </summary>
-	/// <remarks>
-	/// Used as an exception filter so only this one condition is translated. A broad catch would report
-	/// an unrelated failure - a dropped connection, a timeout, a check constraint - as a duplicate, which
-	/// is worse than not translating at all: the caller would be told the row exists when it does not.
-	/// </remarks>
-	/// <summary>
 	/// The ledger's provenance values. Stored as text because the audience for this table is a compliance
 	/// auditor reading rows directly, and a self-describing value needs no lookup to interpret.
 	/// </summary>
@@ -1254,6 +1258,14 @@ public sealed partial class PostgresErasureStore
 		public const string CallerAssertion = "caller-assertion";
 	}
 
+	/// <summary>
+	/// Indicates whether a Postgres error is a unique-constraint violation (SQLSTATE 23505).
+	/// </summary>
+	/// <remarks>
+	/// Used as an exception filter so only this one condition is translated. A broad catch would report
+	/// an unrelated failure - a dropped connection, a timeout, a check constraint - as a duplicate, which
+	/// is worse than not translating at all: the caller would be told the row exists when it does not.
+	/// </remarks>
 	private static bool IsUniqueViolation(PostgresException ex)
 		=> string.Equals(ex.SqlState, PostgresErrorCodes.UniqueViolation, StringComparison.Ordinal);
 
@@ -1337,27 +1349,42 @@ public sealed partial class PostgresErasureStore
 		// an erasure this framework performed, and it is the sole basis on which a read may report a field as
 		// erased.
 		//
-		// The PRIMARY KEY is the GENERATION ALONE. A generation is minted once and never reused, so one
-		// generation is one destruction and two rows for it are a contradiction the database refuses -- which
-		// DISSOLVES a retried erasure, two erasures of one subject, and a handle reused by a different subject
-		// rather than defending against each. request_id and key_handle ride along as audit attributes and are
-		// never key components; the read predicate names neither.
+		// THE PRIMARY KEY IS THE PAIR (handle, generation), and this paragraph used to argue for the
+		// GENERATION ALONE -- that it "is minted once and never reused, so one generation is one
+		// destruction", with the handle riding along as an audit attribute and never a key component.
+		// Every clause of that was true of the SHIPPED providers and none of it was enforced. A
+		// generation is minted once BY EVERY PROVIDER WE SHIP; a consumer-supplied provider may DERIVE
+		// one instead, and the parse accepts any 32 hex characters because it checks shape and not
+		// entropy. Two distinct handles would then share one row, and one tenant's destruction would
+		// answer for another tenant's live key.
+		//
+		// So the generation stays in the key, for the reason the old paragraph gave -- a row's existence
+		// IS the destruction statement -- and the key_handle joins it, which makes the assumption
+		// unnecessary rather than documented. Keying on the handle ALONE would be wrong for the reason
+		// the old paragraph feared: it would drop a second destruction at one handle. The pair admits
+		// many generations per handle and refuses two rows for one pair.
 		var createDestroyedKeysTableSql = $@"
 			CREATE TABLE IF NOT EXISTS {_options.FullDestroyedKeysTableName} (
 				-- TEXT compared with the database's default collation would be wrong if that collation folded
 				-- case: two distinct generations would read as one, and one destroyed generation would then
 				-- answer for a different, LIVE one. The C collation compares byte-for-byte, matching the
 				-- framework's ordinal comparison exactly.
-				key_generation TEXT COLLATE ""C"" NOT NULL PRIMARY KEY,
-				-- NULLABLE, because a destruction asserted by the CONSUMER through the ledger's public write has
-				-- no erasure request and no handle to name. Audit attributes either way; the read predicate
-				-- names neither.
+				key_generation TEXT COLLATE ""C"" NOT NULL,
+				-- NULLABLE: a destruction asserted by the CONSUMER has no erasure request to name. The HANDLE
+				-- is not optional -- it is half the primary key, and a caller asserting a destruction knows
+				-- what it destroyed.
 				request_id UUID NULL,
-				key_handle TEXT COLLATE ""C"" NULL,
+				key_handle TEXT COLLATE ""C"" NOT NULL,
 				destroyed_at TIMESTAMPTZ NOT NULL,
 				-- WHO asserted the destruction, stated explicitly rather than inferred from the nulls above.
 				-- Deriving a fact from a missing value is the reasoning this whole table exists to replace.
-				recorded_by TEXT NOT NULL
+				recorded_by TEXT NOT NULL,
+				-- THE PAIR, not the generation alone. The generation, because it is minted once and never
+				-- reused, so a row's existence IS the destruction statement. The handle, because keying on the
+				-- generation alone rests on an assumption nothing enforces -- that one generation identifies
+				-- material uniquely across every handle -- which a consumer-supplied provider deriving its
+				-- generations would break, giving two tenants' distinct keys one row.
+				PRIMARY KEY (key_handle, key_generation)
 			)";
 
 		// The retry reads this table by request to learn which handles its earlier passes destroyed, and that
