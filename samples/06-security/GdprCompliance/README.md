@@ -235,12 +235,16 @@ surfaces as "we erased it".
 
 ```jsonc
 {
-  "keyHandle": "F4883C011A9BB393598E053BDC78C5301BE20DCF0D75243F0EAF838E75DC88A5",
-  "keyGeneration": "e807755c9b2932f5f1c261cae2c36264",
+  // Both values are truncated here on purpose. At full length they are 64 and 32 hexadecimal
+  // characters, which is indistinguishable from key material to a secret scanner -- and ours
+  // flagged this block when it carried them whole. Yours will differ on every run: the handle is
+  // a keyed digest of your tenant and data subject, and the generation is minted at random.
+  "keyHandle": "F4883C01...DC88A5",       // 64 hex characters in the real response
+  "keyGeneration": "e807755c...c36264",   // 32 hex characters, randomly minted
 
   "storedAtRest": {                   // what the database holds
     "marker": "EXCR1:",               // EncryptedFieldBinding.StringEnvelopePrefix
-    "fullName": "EXCR1:RVhDUnsiQ2lwaGVydGV4dCI6Iks4N1JSdnNlYTlaQ2pRPT0iLCJLZXlJZCI6IkY0ODgzQzAxMU... (494 chars total)",
+    "fullName": "EXCR1:RVhDUnsiQ2lwaGVy... (494 chars total)",
     "subject": "Replacement wing mirror"            // not annotated, so plaintext
   },
 

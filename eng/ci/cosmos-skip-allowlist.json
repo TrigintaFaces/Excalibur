@@ -39,9 +39,9 @@
       "match": "class",
       "count": 8,
       "reason": "Every arm skips because the Elasticsearch container was not reachable from InitializeAsync. Unlike the sibling Azure Blob suite, whose skip turned out to be an API-version rejection by a running container, this one appears to be genuine absence.",
-      "evidence": "Measured 2026-08-02 on the CI integration shard. The skip reports '[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync'. Corroborated independently by the coverage artifact from the SAME run: MonitoredResilientElasticsearchClient is 0.0% covered, 0 of 614 lines, across all four result files -- so no arm executed anywhere in the shard, not merely in this class. The contrast is the point: Azure Blob's cold store read 85.0% covered while its own suite skipped, which is how that skip was exposed as a false claim of absence. NOT established: why the container is unreachable, or whether these 8 arms pass against a reachable Elasticsearch.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The skip reports '[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync'. Corroborated independently by the coverage artifact from the SAME run: MonitoredResilientElasticsearchClient is 0.0% covered, 0 of 614 lines, across all four result files -- so no arm executed anywhere in the shard, not merely in this class. The contrast is the point: Azure Blob's cold store read 85.0% covered while its own suite skipped, which is how that skip was exposed as a false claim of absence. RENEWED 2026-10-02, and one of the two open questions is now CLOSED: all 8 arms PASS against a reachable Elasticsearch, 0 skipped, measured locally on Docker in 5 seconds. So the arms are sound and the skip is purely about reachability in CI's environment. STILL NOT established: WHY the container is unreachable there. This renewal is deliberately short because the remaining question is a CI-environment defect that an allowlist cannot fix, only postpone.",
       "owner": "SystemDeveloper",
-      "expires": "2026-10-01"
+      "expires": "2026-11-02"
     }
   ]
 }

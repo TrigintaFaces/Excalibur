@@ -37,6 +37,22 @@
 compliance.ErasureDestroyedKeys
 compliance.erasure_destroyed_keys
 #
+# THE INTENTS TABLE, added for the same reason and with the same extractor limit. It is staged BEFORE a
+# key is destroyed and cleared once the destruction is recorded, so a retried erasure reads it to learn
+# what its earlier passes had begun. Mapping it was ATTEMPTED FIRST and refused the same way the
+# destroyed-keys table does -- ddl-cols=6 against src-written-cols=0, under a floor of 3, because the
+# extractor cannot see an INSERT whose target is an interpolated options property. A REFUSE is the
+# correct verdict there; certifying a schema the gate could not read would be the worse outcome.
+#
+# So this is a recorded coverage gap and not a pass. What it leaves unchecked is the one copy of this
+# DDL a consumer actually executes -- the block in the migration documentation -- and that gap has
+# already cost something: the published key for the destroyed-keys table beside it went stale against
+# the shipped schema and no gate could see it, because the DDL we tell consumers to run is the only
+# schema artifact with nothing behind it. Tracked in the issue tracker against this file; no identifier
+# is written here because eng/** is copied to the public mirror.
+compliance.ErasureDestructionIntents
+compliance.erasure_destruction_intents
+#
 # An empty set is NOT a weaker gate here, and the reason is worth stating because "no entries"
 # reads like "nothing is being checked". Vacuity is caught by the wrapper's LIVENESS arm, which
 # fails when the sweep reports zero evaluated-table lines -- a sweep that skipped, hung or died

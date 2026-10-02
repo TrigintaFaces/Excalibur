@@ -86,6 +86,35 @@ refuse:src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerMaterializedView
 # DELETE THIS ENTRY if the claim table gains a shipped DDL script, or if the identity stops being
 # a parameter.
 refuse:src/Excalibur/Excalibur.Outbox.Marten/MartenOutboxClaims.cs:unresolvable table identity '{qualified}'
+#
+# THE TWO COMPLIANCE ERASURE STORES, same shape as the two above and recorded for the same reason: the
+# checker cannot resolve a table identity that is an interpolated options property, so it cannot tell
+# which table a statement targets. Three identities per provider -- requests, certificates and
+# destroyed-keys -- all spelled {_options.Full*TableName}.
+#
+# They surfaced when both stores' provisioning DDL changed, not because anything about them got worse.
+# A REFUSE here is the honest verdict: the checker read the files and could not resolve them. Recording
+# them as known gaps is what keeps the gate's three states meaningful, because an unevaluated artifact
+# that is NOT recorded is indistinguishable from one that appeared unnoticed.
+#
+# WHAT IS ACTUALLY UNCHECKED, stated so nobody reads this as covered: whether an in-place edit to these
+# stores' CREATE TABLE statements has a matching upgrade path for a database that already ran the
+# earlier shape. For the destroyed-keys table that path exists and was written deliberately -- the
+# ledger migration script tests the FINAL shape rather than the old one, so a database at either
+# earlier shape is migrated and one already migrated is skipped. The gate cannot see that; a reader
+# can, and the script's own header states it.
+#
+# The sibling shipped-DDL sweep refuses these same tables for the same root cause. One extractor
+# limitation, two gates, and the fix for both is the same: resolve an interpolated table identity, or
+# move these writes into request classes whose table name is a literal, which this repository already
+# does for other seams. Tracked in the issue tracker against this file; no identifier is written here
+# because eng/** is copied to the public mirror.
+refuse:src/Excalibur/Excalibur.Compliance.Postgres/Erasure/PostgresErasureStore.cs:unresolvable table identity '{_options.FullCertificatesTableName}'
+refuse:src/Excalibur/Excalibur.Compliance.Postgres/Erasure/PostgresErasureStore.cs:unresolvable table identity '{_options.FullDestroyedKeysTableName}'
+refuse:src/Excalibur/Excalibur.Compliance.Postgres/Erasure/PostgresErasureStore.cs:unresolvable table identity '{_options.FullRequestsTableName}'
+refuse:src/Excalibur/Excalibur.Compliance.SqlServer/Erasure/SqlServerErasureStore.cs:unresolvable table identity '{_options.FullCertificatesTableName}'
+refuse:src/Excalibur/Excalibur.Compliance.SqlServer/Erasure/SqlServerErasureStore.cs:unresolvable table identity '{_options.FullDestroyedKeysTableName}'
+refuse:src/Excalibur/Excalibur.Compliance.SqlServer/Erasure/SqlServerErasureStore.cs:unresolvable table identity '{_options.FullRequestsTableName}'
 
 # ---------------------------------------------------------------------------------------------
 # THE PRE-RC SCHEMA RESET -- one event, and the reason every entry below looks alike.
@@ -177,3 +206,36 @@ Excalibur.Saga.Oracle:SAGATIMEOUTS:TENANTID
 Excalibur.Saga.SqlServer:SagaTimeouts:TENANTID
 Excalibur.Workflows.SqlServer:workflow_signal_inbox:TENANTID
 Excalibur.Workflows.SqlServer:workflow_signal_inbox:constraint:CONSTRAINT UQ_WORKFLOW_SIGNAL_INBOX UNIQUE (TENANTID, INSTAN
+#
+# THE DESTROYED-KEYS LEDGER TABLE, both dialects. Its CREATE TABLE in 001 was edited in place when the
+# key-destruction ledger landed and again when its primary key became the pair (handle, generation), so
+# this checker is right that the create script changed and right to ask how an existing database follows.
+#
+# IT CAN FOLLOW, and the reason the checker cannot see it is worth stating rather than leaving a bare
+# baseline row: the upgrade path is a DROP AND RECREATE in the ledger migration script, not a sequence of
+# ALTERs. The checker matches a delta against ALTERs naming the same column, so a migration that replaces
+# the whole table matches nothing and every column reads as unmigrated.
+#
+# The recreate is deliberate. Rows written by the earliest shape record a destruction by (request, handle)
+# and carry NO generation, and a generation cannot be back-filled -- the value only ever existed inside
+# the key backend and the destruction annihilated it. A row with no generation cannot answer the read
+# predicate, so keeping it would force the predicate back onto the handle, which is the defect the pair
+# exists to remove. The migration's guard tests the FINAL shape rather than an earlier one, so a database
+# at either earlier shape is migrated and one already migrated is skipped; both scripts disclose the
+# destructive consequence in their own headers, including that an erasure mid-retry must be re-filed.
+#
+# WHAT THIS BASELINE COSTS: nothing now checks mechanically that the recreate stays equivalent to the
+# create script. If 001 gains a column and the migration does not, these rows keep this gate quiet. A
+# checker that recognised drop-and-recreate as an upgrade path would close it. Tracked in the issue
+# tracker against this file; no identifier is written here because eng/** is copied to the public mirror.
+Excalibur.Compliance.Postgres:erasure_destroyed_keys:KEY_GENERATION
+Excalibur.Compliance.Postgres:erasure_destroyed_keys:KEY_HANDLE
+Excalibur.Compliance.Postgres:erasure_destroyed_keys:RECORDED_BY
+Excalibur.Compliance.Postgres:erasure_destroyed_keys:REQUEST_ID
+Excalibur.Compliance.Postgres:erasure_destroyed_keys:constraint:PRIMARY KEY (KEY_HANDLE, KEY_GENERATION)
+Excalibur.Compliance.SqlServer:ErasureDestroyedKeys:KEYGENERATION
+Excalibur.Compliance.SqlServer:ErasureDestroyedKeys:KEYHANDLE
+Excalibur.Compliance.SqlServer:ErasureDestroyedKeys:RECORDEDBY
+Excalibur.Compliance.SqlServer:ErasureDestroyedKeys:REQUESTID
+Excalibur.Compliance.SqlServer:ErasureDestroyedKeys:constraint:CONSTRAINT PK_ERASUREDESTROYEDKEYS PRIMARY KEY (KEYGENERATIO
+Excalibur.Compliance.SqlServer:ErasureDestroyedKeys:constraint:CONSTRAINT PK_ERASUREDESTROYEDKEYS PRIMARY KEY (KEYHANDLE, K
